@@ -962,25 +962,31 @@ export default function JobDetailPage() {
                       Auto-generated from address components
                     </p>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Job Type</Label>
-                    {isEditing ? (
-                      lookupLoading ? (
-                        <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span className="text-muted-foreground">{job.job_type?.name || "Loading..."}</span>
-                        </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Job Type</Label>
+                      {isEditing ? (
+                        lookupLoading ? (
+                          <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-muted-foreground">{job.job_type?.name || "Loading..."}</span>
+                          </div>
+                        ) : (
+                          <ComboboxDropdown
+                            items={jobTypes.map((type) => ({ id: type.id.toString(), label: type.name }))}
+                            selectedItem={editForm.job_type_id ? { id: editForm.job_type_id.toString(), label: jobTypes.find(t => t.id === editForm.job_type_id)?.name || "" } : undefined}
+                            onSelect={(item) => setEditForm({ ...editForm, job_type_id: parseInt(item.id) })}
+                            placeholder="Search job types..."
+                          />
+                        )
                       ) : (
-                        <ComboboxDropdown
-                          items={jobTypes.map((type) => ({ id: type.id.toString(), label: type.name }))}
-                          selectedItem={editForm.job_type_id ? { id: editForm.job_type_id.toString(), label: jobTypes.find(t => t.id === editForm.job_type_id)?.name || "" } : undefined}
-                          onSelect={(item) => setEditForm({ ...editForm, job_type_id: parseInt(item.id) })}
-                          placeholder="Search job types..."
-                        />
-                      )
-                    ) : (
-                      <Input value={job.job_type?.name || "-"} readOnly />
-                    )}
+                        <Input value={job.job_type?.name || "-"} readOnly />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Job Code</Label>
+                      <Input value={`J${job.id}`} readOnly className="bg-muted/50 font-mono" />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Status</Label>
