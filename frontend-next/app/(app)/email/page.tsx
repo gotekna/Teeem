@@ -58,6 +58,12 @@ import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
 import { useEmailThreads, type ThreadEmail, THREAD_SORT_OPTIONS } from "@/hooks/useEmailThreads";
+import {
+  EmailDragDropProvider,
+  DraggableEmail,
+  DroppableFolder,
+  useEmailDragDropContext,
+} from "@/hooks/useEmailDragDrop";
 import { useEmailFilters } from "@/hooks/useEmailFilters";
 import { EmailSearchFilters } from "@/components/emails/EmailSearchFilters";
 import { useEmailState } from "@/components/emails/EmailActions";
@@ -174,6 +180,11 @@ const EmailListItem = memo(function EmailListItem({
   onToggleThread,
   threadEmails = [],
   isLoadingThread = false,
+  // Drag-drop props
+  accountId,
+  accountType = "outlook",
+  sourceFolder,
+  enableDrag = false,
 }: {
   email: Email;
   isSelected: boolean;
@@ -189,10 +200,15 @@ const EmailListItem = memo(function EmailListItem({
   onToggleThread?: (email: Email) => void;
   threadEmails?: ThreadEmail[];
   isLoadingThread?: boolean;
+  // Drag-drop props
+  accountId?: string;
+  accountType?: "imap" | "outlook" | "ms365";
+  sourceFolder?: string;
+  enableDrag?: boolean;
 }) {
   const hasThread = threadCount > 1;
 
-  return (
+  const content = (
     <div data-email-id={email.id}>
       {/* Main email row */}
       <div
@@ -328,6 +344,22 @@ const EmailListItem = memo(function EmailListItem({
       )}
     </div>
   );
+
+  // Wrap with DraggableEmail if drag is enabled and we have account info
+  if (enableDrag && accountId) {
+    return (
+      <DraggableEmail
+        email={email}
+        accountId={accountId}
+        accountType={accountType}
+        sourceFolder={sourceFolder}
+      >
+        {content}
+      </DraggableEmail>
+    );
+  }
+
+  return content;
 });
 
 // Memoized folder button component for performance
@@ -336,16 +368,18 @@ const FolderButton = memo(function FolderButton({
   accountId,
   isSelected,
   onSelect,
+  enableDrop = false,
 }: {
   folder: EmailFolder;
   accountId: string;
   isSelected: boolean;
   onSelect: (accountId: string, folder: EmailFolder) => void;
+  enableDrop?: boolean;
 }) {
   const Icon = FOLDER_ICONS[folder.type] || FOLDER_ICONS.folder;
   const depth = folder.depth || 0;
 
-  return (
+  const buttonContent = (
     <button
       onClick={() => onSelect(accountId, folder)}
       className={cn(
@@ -363,6 +397,16 @@ const FolderButton = memo(function FolderButton({
       )}
     </button>
   );
+
+  if (enableDrop) {
+    return (
+      <DroppableFolder folderId={folder.id} folderName={folder.name}>
+        {buttonContent}
+      </DroppableFolder>
+    );
+  }
+
+  return buttonContent;
 });
 
 export default function EmailPage() {
@@ -933,7 +977,17 @@ To: ${email.to_emails?.join(", ") || ""}
     return account.email_address || account.name;
   };
 
+  // Handler for when email is moved via drag-drop
+  const handleDragDropMove = useCallback(() => {
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    } else {
+      fetchEmails();
+    }
+  }, [viewMode, splitInbox, fetchEmails]);
+
   return (
+    <EmailDragDropProvider onMoveComplete={handleDragDropMove}>
     <div className="flex h-full -mx-4 -mt-4">
       {/* Left Sidebar - Mailboxes & Folders */}
       <div className="w-64 border-r bg-muted/30 flex flex-col shrink-0">
@@ -988,6 +1042,7 @@ To: ${email.to_emails?.join(", ") || ""}
                           accountId={selectedAccount}
                           isSelected={selectedFolderId === folder.id}
                           onSelect={selectAccountFolder}
+                          enableDrop={true}
                         />
                       ))
                     )}
@@ -1225,6 +1280,11 @@ To: ${email.to_emails?.join(", ") || ""}
                     onToggleThread={handleToggleThread}
                     threadEmails={threads.getThread(email.conversation_id || '') || []}
                     isLoadingThread={threads.isLoading(email.conversation_id || '')}
+                    // Drag-drop props for folder view
+                    enableDrag={true}
+                    accountId={selectedAccount}
+                    accountType={accounts.find(a => String(a.id) === selectedAccount)?.type as "imap" | "outlook" | "ms365" || "outlook"}
+                    sourceFolder={selectedFolder}
                   />
                 ))}
               </div>
@@ -1385,5 +1445,6 @@ To: ${email.to_emails?.join(", ") || ""}
         onOpenChange={setShowShortcutsHelp}
       />
     </div>
+    </EmailDragDropProvider>
   );
 }

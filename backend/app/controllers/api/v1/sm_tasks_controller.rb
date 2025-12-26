@@ -25,6 +25,7 @@ module Api
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
         @tasks = @tasks.active if params[:active_only] == "true"
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
+        @tasks = @tasks.for_user_roles(current_user) if params[:mine] == "true"
 
         render json: {
           success: true,
@@ -687,6 +688,7 @@ module Api
         json[:assigned_user_name] = task.assigned_user&.name
         json[:supplier_name] = task.supplier&.name
         json[:stage] = task.stage
+        json[:assigned_role] = task.assigned_role
         json[:is_overdue] = task.status != "completed" && task.end_date.present? && task.end_date < Date.current
         json[:days_until_due] = task.end_date.present? ? (task.end_date - Date.current).to_i : nil
         json[:predecessor_count] = task.predecessor_dependencies.count

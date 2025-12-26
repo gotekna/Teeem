@@ -110,6 +110,10 @@ interface SmScheduleMaster {
   po_required: boolean;
   critical_po?: boolean;
   create_po_on_job_start?: boolean;
+  spawn_order_task?: boolean;
+  spawn_call_task?: boolean;
+  order_time_days?: number;
+  call_time_days?: number;
   require_photo: boolean;
   require_certificate?: boolean;
   // Auto-PO configuration
@@ -168,7 +172,7 @@ const ALL_COLUMNS = [
   "documentation_category_ids", "show_in_docs_tab", "start_entity_tab_ids",
   "complete_entity_tab_ids", "photo_entity_tab_id", "plan_type_ids",
   // Spawning Tasks
-  "spawn_photo_task", "spawn_scan_task", "spawn_office_tasks",
+  "spawn_photo_task", "spawn_scan_task", "spawn_office_tasks", "spawn_order_task", "spawn_call_task",
   // Checklists
   "checklist_id",
   // Template Membership
@@ -1728,7 +1732,21 @@ export function ScheduleMasterTab() {
                   <Switch
                     id="row-po-required"
                     checked={editRowForm.po_required || false}
-                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, po_required: checked })}
+                    onCheckedChange={(checked) => {
+                      // Clear spawn tasks when PO is not required
+                      if (!checked && !editRowForm.create_po_on_job_start) {
+                        setEditRowForm({
+                          ...editRowForm,
+                          po_required: checked,
+                          spawn_order_task: false,
+                          spawn_call_task: false,
+                          order_time_days: undefined,
+                          call_time_days: undefined,
+                        });
+                      } else {
+                        setEditRowForm({ ...editRowForm, po_required: checked });
+                      }
+                    }}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -1761,12 +1779,65 @@ export function ScheduleMasterTab() {
                       id="row-create-po"
                       checked={editRowForm.create_po_on_job_start || false}
                       onCheckedChange={(checked) => {
-                        setEditRowForm({ ...editRowForm, create_po_on_job_start: checked });
+                        // Clear spawn tasks when neither PO option is enabled
+                        if (!checked && !editRowForm.po_required) {
+                          setEditRowForm({
+                            ...editRowForm,
+                            create_po_on_job_start: checked,
+                            spawn_order_task: false,
+                            spawn_call_task: false,
+                            order_time_days: undefined,
+                            call_time_days: undefined,
+                          });
+                        } else {
+                          setEditRowForm({ ...editRowForm, create_po_on_job_start: checked });
+                        }
                         if (checked && !editingRow?.po_supplier_id) {
                           handleOpenAutoPODialog();
                         }
                       }}
                     />
+                  </div>
+                </div>
+
+                {/* Spawn Order/Call Tasks - only enabled when PO is configured */}
+                <div className="border-t pt-3 mt-3">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Spawn reminder tasks when PO is created
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="row-spawn-order" className={!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}>
+                          Spawn Order Task
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Creates "Order [Task]" {editRowForm.order_time_days || 7} days before
+                        </p>
+                      </div>
+                      <Switch
+                        id="row-spawn-order"
+                        checked={editRowForm.spawn_order_task || false}
+                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_order_task: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="row-spawn-call" className={!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}>
+                          Spawn Call Task
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Creates "Call [Task]" {editRowForm.call_time_days || 3} days before
+                        </p>
+                      </div>
+                      <Switch
+                        id="row-spawn-call"
+                        checked={editRowForm.spawn_call_task || false}
+                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_call_task: checked })}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

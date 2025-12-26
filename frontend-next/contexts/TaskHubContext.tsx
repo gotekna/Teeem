@@ -26,6 +26,7 @@ export interface SmTask {
   // Assignment
   assigned_user_id?: number;
   assigned_user_name?: string;
+  assigned_role?: string;
   supplier_id?: number;
   supplier_name?: string;
 
@@ -521,8 +522,9 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       if (filters.statuses.length > 0) {
         filters.statuses.forEach(s => params.append('statuses[]', s));
       }
-      if (filters.showMyTasksOnly && user?.id) {
-        params.append('assigned_user_id', user.id.toString());
+      // Filter by assigned_role matching user's roles (backend handles this)
+      if (filters.showMyTasksOnly || activeView === 'my-tasks') {
+        params.append('mine', 'true');
       }
 
       const response = await api.get<{ tasks: SmTask[]; success: boolean }>(`/api/v1/sm_tasks?${params.toString()}`);
@@ -550,7 +552,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     } finally {
       setLoading(false);
     }
-  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, user?.id]);
+  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, activeView]);
 
   // Initial load
   useEffect(() => {

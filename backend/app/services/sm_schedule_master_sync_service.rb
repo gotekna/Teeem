@@ -46,6 +46,7 @@ class SmScheduleMasterSyncService
     spawn_order_task
     spawn_call_task
     pass_fail_enabled
+    assigned_role
   ].freeze
 
   # Fields that affect schedule - NEVER sync these automatically

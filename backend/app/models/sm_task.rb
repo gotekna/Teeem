@@ -100,6 +100,8 @@ class SmTask < ApplicationRecord
   scope :by_trade, ->(trade) { where(trade: trade) if trade.present? }
   scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
   scope :past_due, -> { where("start_date < ?", Date.current).active }
+  scope :for_role, ->(role) { where(assigned_role: role) }
+  scope :for_user_roles, ->(user) { where(assigned_role: user.assigned_roles) if user&.assigned_roles.present? }
 
   # Callbacks
   before_validation :set_task_number, on: :create
@@ -219,6 +221,17 @@ class SmTask < ApplicationRecord
     return if task_number.present?
     max_number = SmTask.where(construction_id: construction_id).maximum(:task_number) || 0
     self.task_number = max_number + 1
+  end
+
+  # Clear spawn_order_task and spawn_call_task if po_required is false
+  # These spawn tasks are only valid for PO tasks
+  def clear_spawn_tasks_if_not_po
+    unless po_required
+      self.spawn_order_task = false
+      self.spawn_call_task = false
+      self.order_time_days = nil
+      self.call_time_days = nil
+    end
   end
 
   def calculate_end_date
