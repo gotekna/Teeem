@@ -72,6 +72,7 @@ import BankFeedsTab from "@/components/financial/BankFeedsTab";
 import BASLodgementTab from "@/components/financial/BASLodgementTab";
 import ABNLookupTab from "@/components/financial/ABNLookupTab";
 import ASICEdgeTab from "@/components/financial/ASICEdgeTab";
+import InventoryTab from "@/components/financial/InventoryTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -675,6 +676,10 @@ export default function GlPage() {
             <FileSpreadsheet className="h-4 w-4" />
             ASIC EDGE
           </TabsTrigger>
+          <TabsTrigger value="inventory" className="flex items-center gap-2">
+            <Coins className="h-4 w-4" />
+            Inventory
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1091,6 +1096,11 @@ export default function GlPage() {
         {/* ASIC EDGE Tab */}
         <TabsContent value="asic-edge">
           <ASICEdgeTab />
+        </TabsContent>
+
+        {/* Inventory Tab */}
+        <TabsContent value="inventory">
+          <InventoryTab />
         </TabsContent>
       </Tabs>
 

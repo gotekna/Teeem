@@ -311,23 +311,25 @@ class SmTemplateCopyService
       raise "PO creation failed: #{po.errors.full_messages.join(', ')}"
     end
 
-    # Create line items from price history IDs
-    if template_row.po_price_history_ids.present?
+    # Create line items from po_line_items (current pricebook prices)
+    if template_row.po_line_items.present?
       line_number = 0
-      template_row.po_price_history_ids.each do |ph_id|
-        price_history = PriceHistory.find_by(id: ph_id)
-        next unless price_history
+      template_row.po_line_items.each do |item|
+        item_id = item["pricebook_item_id"] || item[:pricebook_item_id]
+        qty = item["qty"] || item[:qty] || 1
+        next unless item_id
+
+        pricebook_item = PricebookItem.find_by(id: item_id)
+        next unless pricebook_item
 
         line_number += 1
-        pricebook_item = price_history.pricebook_item
-
         line_item = po.line_items.build(
           line_number: line_number,
-          description: pricebook_item&.item_name || "Item from price history",
-          quantity: 1,
-          unit_price: price_history.new_price || pricebook_item&.current_price || 0,
-          pricebook_item_id: price_history.pricebook_item_id,
-          gst_code: pricebook_item&.gst_code || "GST"
+          description: pricebook_item.item_name,
+          quantity: qty,
+          unit_price: pricebook_item.current_price || 0,
+          pricebook_item_id: pricebook_item.id,
+          gst_code: pricebook_item.gst_code || "GST"
         )
 
         unless line_item.save

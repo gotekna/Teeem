@@ -87,7 +87,6 @@ interface SmScheduleMaster {
   create_po_on_job_start: boolean;
   po_supplier_id: number | null;
   po_supplier_name: string | null;
-  po_price_history_ids: number[];
   cert_lag_days: number | null;
   has_subtasks: boolean;
   subtask_count: number | null;
