@@ -28,7 +28,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
-import { SharePointConfigTab } from "./SharePointConfigTab";
 
 // Foundation ID for document_types table
 const DOCUMENT_TYPES_FOUNDATION_ID = 454;
@@ -557,8 +556,6 @@ export function DocumentTypesTab() {
 
         <TabsContent value={scopeFilter} className="mt-6 space-y-6">
 
-      {/* SharePoint Folder Structure Configuration - SSoT Component */}
-      <SharePointConfigTab />
 
 
       {/* Add Form */}

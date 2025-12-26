@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
-import { SharePointConfigTab } from "./SharePointConfigTab";
+import { SharePointTab } from "./SharePointTab";
 import { Building2, Users, Briefcase, ArrowLeft, FileText, Settings } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -173,7 +173,7 @@ export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps)
                   compact={true}
                 />
               ) : "isSharePointConfig" in scope && scope.isSharePointConfig ? (
-                <SharePointConfigTab />
+                <SharePointTab />
               ) : (
                 <DocumentTypesTab />
               )}
