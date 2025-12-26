@@ -461,6 +461,17 @@ class EmailWarehouse < ApplicationRecord
     end
   end
 
+  # Direction accessor - uses mailbox_owner_email if available, otherwise infers from folder
+  def direction
+    if mailbox_owner_email.present?
+      determine_direction(mailbox_owner_email)
+    elsif folder_name&.downcase&.include?("sent")
+      "sent"
+    else
+      "received"
+    end
+  end
+
   # Set SSoT owner (sender owns sent emails, syncing user owns received)
   def set_ssot_owner!(syncing_user)
     if direction == "sent"
