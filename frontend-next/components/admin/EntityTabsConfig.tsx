@@ -741,28 +741,27 @@ export function EntityTabsConfig({
                 </TooltipProvider>
               )}
               {tab.has_sharepoint_folder && (
-                <>
-                  {/* SSoT: Show custom path warning badge if using custom override */}
-                  {tab.uses_custom_path && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge className="text-xs gap-1 bg-orange-500 hover:bg-orange-600 text-white border-0">
-                            <AlertCircle className="h-3 w-3" />
-                            Custom Path
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>This tab overrides the global SharePoint template</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <Badge variant="outline" className="text-xs gap-1 text-muted-foreground font-normal">
-                    <FolderOpen className="h-3 w-3 shrink-0" />
-                    <span>{tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name}</span>
-                  </Badge>
-                </>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-xs gap-1 font-normal max-w-md",
+                          tab.uses_custom_path
+                            ? "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                            : "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                        )}
+                      >
+                        <FolderOpen className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{tab.full_sharepoint_path || tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name}</span>
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{tab.uses_custom_path ? "Custom path (overrides global template)" : "Using global template"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               {hasChildren && (
                 <Badge variant="secondary" className="text-xs">
