@@ -194,6 +194,14 @@ class SmTaskCompletionService
     # Get sequence order (place right after parent task)
     new_sequence = task.sequence_order + 0.01
 
+    # Generate unique name for duplicates (e.g., "Req Bath 1", "Req Bath 2")
+    # Skip for inspection retries which have special naming
+    task_name = if attrs[:spawn_type] == "inspection_retry"
+                  attrs[:name]
+                else
+                  generate_unique_task_name(attrs[:name])
+                end
+
     spawned = SmTask.create!(
       construction_id: task.construction_id,
       parent_task_id: task.id,
@@ -204,7 +212,7 @@ class SmTaskCompletionService
       duration_days: attrs[:duration_days] || 1,
       status: "not_started",
       created_by: user,
-      **attrs.except(:spawn_type)
+      **attrs.except(:spawn_type).merge(name: task_name)
     )
 
     @spawned_tasks << spawned
@@ -213,6 +221,45 @@ class SmTaskCompletionService
     @errors << "Failed to spawn #{attrs[:spawn_type]} task: #{e.message}"
     Rails.logger.error("Failed to spawn task: #{e.message}")
     nil
+  end
+
+  # Generate unique task name for duplicates
+  # If task "Req Bath" already exists:
+  #   - Rename existing to "Req Bath 1"
+  #   - Return "Req Bath 2" for new task
+  def generate_unique_task_name(base_name)
+    return base_name if base_name.blank?
+
+    job = Construction.find(task.construction_id)
+
+    # Find all tasks with exact name or numbered variants
+    existing_tasks = job.sm_tasks.where(
+      "name = :exact OR name ~ :pattern",
+      exact: base_name,
+      pattern: "^#{Regexp.escape(base_name)} \\d+$"
+    )
+
+    return base_name if existing_tasks.empty?
+
+    # Check if there's an unnumbered task that needs renaming
+    unnumbered_task = existing_tasks.find_by(name: base_name)
+    if unnumbered_task
+      unnumbered_task.update_column(:name, "#{base_name} 1")
+      Rails.logger.info "[SmTaskCompletionService] Renamed task #{unnumbered_task.id} to '#{base_name} 1' for duplicate numbering"
+    end
+
+    # Find the highest number used
+    max_number = existing_tasks.pluck(:name).map do |name|
+      if name == base_name
+        1
+      elsif name =~ /^#{Regexp.escape(base_name)} (\d+)$/
+        $1.to_i
+      else
+        0
+      end
+    end.max || 0
+
+    "#{base_name} #{max_number + 1}"
   end
 
   def log_spawn(spawned_task, spawn_type, spawn_trigger)

@@ -76,6 +76,9 @@ module Api
         @task = @job.sm_tasks.new(sm_task_params)
         @task.created_by = current_user
 
+        # Generate unique name for duplicates (e.g., "Req Bath 1", "Req Bath 2")
+        @task.name = generate_unique_task_name(@job, @task.name)
+
         # Set sequence order to be last + 1
         max_sequence = @job.sm_tasks.maximum(:sequence_order) || 0
         @task.sequence_order = max_sequence + 1
@@ -116,9 +119,12 @@ module Api
         # Get the next sequence order
         max_sequence = @job.sm_tasks.maximum(:sequence_order) || 0
 
+        # Generate unique name for duplicates (e.g., "Req Bath 1", "Req Bath 2")
+        task_name = generate_unique_task_name(@job, template_row.name)
+
         # Create task from template row
         @task = @job.sm_tasks.new(
-          name: template_row.name,
+          name: task_name,
           status: "not_started",
           duration_days: template_row.duration_days || 1,
           start_date: Date.current,
@@ -654,6 +660,43 @@ module Api
         temp_file.write(uploaded_file.read)
         temp_file.rewind
         temp_file
+      end
+
+      # Generate unique task name for duplicates
+      # If task "Req Bath" already exists:
+      #   - Rename existing to "Req Bath 1"
+      #   - Return "Req Bath 2" for new task
+      def generate_unique_task_name(job, base_name)
+        return base_name if base_name.blank?
+
+        # Find all tasks with exact name or numbered variants
+        existing_tasks = job.sm_tasks.where(
+          "name = :exact OR name ~ :pattern",
+          exact: base_name,
+          pattern: "^#{Regexp.escape(base_name)} \\d+$"
+        )
+
+        return base_name if existing_tasks.empty?
+
+        # Check if there's an unnumbered task that needs renaming
+        unnumbered_task = existing_tasks.find_by(name: base_name)
+        if unnumbered_task
+          unnumbered_task.update_column(:name, "#{base_name} 1")
+          Rails.logger.info "[SmTasksController] Renamed task #{unnumbered_task.id} to '#{base_name} 1' for duplicate numbering"
+        end
+
+        # Find the highest number used
+        max_number = existing_tasks.pluck(:name).map do |name|
+          if name == base_name
+            1
+          elsif name =~ /^#{Regexp.escape(base_name)} (\d+)$/
+            $1.to_i
+          else
+            0
+          end
+        end.max || 0
+
+        "#{base_name} #{max_number + 1}"
       end
 
       def notify_task_assignment(task)

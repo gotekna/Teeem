@@ -12,10 +12,13 @@ class EmailViewModel: ObservableObject {
 
     func loadEmails() async {
         isLoading = true
+        print("Loading emails...")
         do {
             emails = try await apiClient.get("emails")
+            print("SUCCESS: Loaded \(emails.count) emails")
         } catch {
             self.error = error.localizedDescription
+            print("FAILED: Email load error: \(error)")
         }
         isLoading = false
     }

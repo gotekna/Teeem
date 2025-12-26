@@ -1,39 +1,37 @@
 import Foundation
 import SwiftUI
 
-struct Email: Codable, Identifiable, Hashable {
+struct Email: Identifiable, Hashable {
     let id: Int
     let subject: String?
-    let from: String?
-    let to: String?
-    let body: String?
-    let snippet: String?
-    let receivedAt: Date?
-    let isRead: Bool?
-    let isStarred: Bool?
+    let fromEmail: String?
+    let toEmails: [String]?
+    let bodyText: String?
+    let bodyHtml: String?
+    let receivedAt: String?  // Keep as string to avoid date parsing issues
     let hasAttachments: Bool?
-    let folderId: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case id, subject, from, to, body, snippet
-        case receivedAt = "received_at"
-        case isRead = "is_read"
-        case isStarred = "is_starred"
-        case hasAttachments = "has_attachments"
-        case folderId = "folder_id"
-    }
 
     var displaySubject: String { subject ?? "(No Subject)" }
-    var displayFrom: String { from ?? "Unknown" }
-    var displaySnippet: String { snippet ?? body ?? "" }
-    var isUnread: Bool { !(isRead ?? true) }
+    var displayFrom: String { fromEmail ?? "Unknown" }
+    var displaySnippet: String {
+        let text = bodyText ?? ""
+        return String(text.prefix(100))
+    }
+    var body: String? { bodyText }
+    var isUnread: Bool { true }  // No is_read field in API
 
     var senderInitials: String {
-        let parts = displayFrom.split(separator: " ")
-        if parts.count >= 2 {
-            return String(parts[0].prefix(1) + parts[1].prefix(1)).uppercased()
+        let email = displayFrom
+        // Extract name from email if possible
+        if let atIndex = email.firstIndex(of: "@") {
+            let name = String(email[..<atIndex])
+            let parts = name.split(separator: ".")
+            if parts.count >= 2 {
+                return String(parts[0].prefix(1) + parts[1].prefix(1)).uppercased()
+            }
+            return String(name.prefix(2)).uppercased()
         }
-        return String(displayFrom.prefix(2)).uppercased()
+        return String(email.prefix(2)).uppercased()
     }
 
     var senderColor: Color {
@@ -42,17 +40,33 @@ struct Email: Codable, Identifiable, Hashable {
     }
 
     var formattedDate: String {
-        guard let date = receivedAt else { return "" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        guard let dateStr = receivedAt else { return "" }
+        // Try to parse ISO8601 date
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateStr) {
+            let relFormatter = RelativeDateTimeFormatter()
+            relFormatter.unitsStyle = .abbreviated
+            return relFormatter.localizedString(for: date, relativeTo: Date())
+        }
+        return dateStr
+    }
+}
+
+extension Email: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case id, subject
+        case fromEmail = "from_email"
+        case toEmails = "to_emails"
+        case bodyText = "body_text"
+        case bodyHtml = "body_html"
+        case receivedAt = "received_at"
+        case hasAttachments = "has_attachments"
     }
 }
 
 struct EmailFolder: Codable, Identifiable, Hashable {
     let id: Int
     let name: String
-    let unreadCount: Int?
 
     var icon: String {
         switch name.lowercased() {
@@ -60,7 +74,6 @@ struct EmailFolder: Codable, Identifiable, Hashable {
         case "sent": return "paperplane.fill"
         case "drafts": return "doc.fill"
         case "trash": return "trash.fill"
-        case "archive": return "archivebox.fill"
         default: return "folder.fill"
         }
     }
