@@ -139,8 +139,8 @@ class EntityTab < ApplicationRecord
     when 'job' then :job
     when 'corporate_entity' then :company
     when 'people', 'contact'
-      # SSoT: For contacts, allow choosing between corporate or contacts path
-      sharepoint_path_type == 'contacts' ? :contacts : :company
+      # SSoT: For contacts, allow choosing between corporate (people) or contacts path
+      sharepoint_path_type == 'contacts' ? :contacts : :people
     else :job  # Default fallback
     end
   end
