@@ -444,17 +444,29 @@ export default function EmailPage() {
   // Search filters
   const emailFilters = useEmailFilters();
 
-  const [selectedAccount, setSelectedAccount] = useState<string>("");
-  const [selectedFolder, setSelectedFolder] = useState<string>("");
-  const [selectedFolderId, setSelectedFolderId] = useState<string>("");
-  const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
+  // Load cached state from localStorage for instant loading
+  const getCachedEmailState = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const cached = localStorage.getItem('teeem_email_state');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  };
+  const cachedState = getCachedEmailState();
+
+  const [selectedAccount, setSelectedAccount] = useState<string>(cachedState?.accountId || "");
+  const [selectedFolder, setSelectedFolder] = useState<string>(cachedState?.folderName || "Inbox");
+  const [selectedFolderId, setSelectedFolderId] = useState<string>(cachedState?.folderId || "INBOX");
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(
+    cachedState?.accountId ? new Set([cachedState.accountId]) : new Set()
+  );
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Split Inbox State
-  const [viewMode, setViewMode] = useState<"split" | "folders">("split");
+  // Split Inbox State - default to folders (Inbox) for faster loading
+  const [viewMode, setViewMode] = useState<"split" | "folders">(cachedState?.viewMode || "folders");
   const splitInbox = useSplitInbox({ accountId: selectedAccount });
 
   // Keyboard Shortcuts
@@ -792,8 +804,9 @@ export default function EmailPage() {
           [accountId]: response.data
         }));
 
-        // Auto-select inbox folder if this is the selected account
-        if (accountId === selectedAccount) {
+        // Auto-select inbox folder if this is the selected account and no folder is selected
+        // (Don't override cached folder selection)
+        if (accountId === selectedAccount && !selectedFolderId) {
           const inboxFolder = response.data.find(f => f.type === "inbox");
           if (inboxFolder) {
             setSelectedFolder(inboxFolder.name);
@@ -872,6 +885,20 @@ export default function EmailPage() {
       fetchEmails();
     }
   }, [selectedAccount, fetchEmails]);
+
+  // Cache email state for instant loading on next visit
+  useEffect(() => {
+    if (selectedAccount && selectedFolderId) {
+      try {
+        localStorage.setItem('teeem_email_state', JSON.stringify({
+          accountId: selectedAccount,
+          folderName: selectedFolder,
+          folderId: selectedFolderId,
+          viewMode,
+        }));
+      } catch { /* ignore storage errors */ }
+    }
+  }, [selectedAccount, selectedFolder, selectedFolderId, viewMode]);
 
   const handleSync = async () => {
     setSyncing(true);
