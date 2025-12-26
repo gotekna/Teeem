@@ -202,7 +202,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   // Check if the current category is a photo category
   const isPhotoCategory = (category: DocumentCategory | null): boolean => {
     // First check initialCategory prop (most reliable when navigating directly)
-    if (initialCategory?.toLowerCase().includes("photo")) {
+    if (initialCategory && initialCategory.toLowerCase().includes("photo")) {
       return true;
     }
     if (!category) return false;
