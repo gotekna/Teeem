@@ -2600,9 +2600,7 @@ export function GanttCanvasView({
                           ? "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-inset ring-blue-500"
                           : isHeader
                             ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
-                            : isChild
-                              ? "bg-primary/5 dark:bg-primary/10 border-l-2 border-l-primary/30"
-                              : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
+                            : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
                       )}
                       style={{ height: 28 }}
                       onClick={() => {
