@@ -118,8 +118,15 @@ interface CategoryEmailsResponse {
 
 // API Functions
 async function fetchSplitInbox(): Promise<SplitInboxData> {
-  const response = await api.get<SplitInboxResponse>("/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true");
-  return (response as SplitInboxResponse).data;
+  console.log("[SplitInbox] Fetching split inbox data...");
+  try {
+    const response = await api.get<SplitInboxResponse>("/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true");
+    console.log("[SplitInbox] Response received:", response);
+    return (response as SplitInboxResponse).data;
+  } catch (err) {
+    console.error("[SplitInbox] Fetch error:", err);
+    throw err;
+  }
 }
 
 async function fetchCategoryEmails(
@@ -302,13 +309,15 @@ export function useSplitInbox() {
   const [selectedCategory, setSelectedCategory] = useState<SplitInboxCategory>("vip");
 
   const refresh = useCallback(async () => {
+    console.log("[SplitInbox] refresh() called");
     setLoading(true);
     setError(null);
     try {
       const result = await fetchSplitInbox();
+      console.log("[SplitInbox] Data received:", result);
       setData(result);
     } catch (err) {
-      console.error("Failed to fetch split inbox:", err);
+      console.error("[SplitInbox] Failed to fetch split inbox:", err);
       setError("Failed to load split inbox");
     } finally {
       setLoading(false);
