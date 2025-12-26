@@ -166,6 +166,14 @@ export function useEmailWebSocket(
 
   const subscriptionRef = useRef<Subscription | null>(null);
   const consumerRef = useRef<ReturnType<typeof createConsumer> | null>(null);
+  const failureCountRef = useRef(0);
+  const lastFailureTimeRef = useRef(0);
+  const isDisabledRef = useRef(false);
+
+  // Max failures before disabling WebSocket entirely
+  const MAX_FAILURES = 5;
+  // Reset failure count after this many ms of no failures
+  const FAILURE_RESET_MS = 60000;
 
   // Handle incoming WebSocket messages
   const handleReceived = useCallback(
@@ -203,9 +211,37 @@ export function useEmailWebSocket(
     [onNewEmail, onNewEmails, onStateChange, onEmailDeleted, onSyncStarted, onSyncCompleted]
   );
 
+  // Track connection failure
+  const trackFailure = useCallback(() => {
+    const now = Date.now();
+
+    // Reset failure count if enough time has passed
+    if (now - lastFailureTimeRef.current > FAILURE_RESET_MS) {
+      failureCountRef.current = 0;
+    }
+
+    failureCountRef.current++;
+    lastFailureTimeRef.current = now;
+
+    if (failureCountRef.current >= MAX_FAILURES) {
+      console.warn(`[EmailWebSocket] Too many failures (${failureCountRef.current}), disabling WebSocket`);
+      isDisabledRef.current = true;
+      // Clean up any existing connections
+      if (consumerRef.current) {
+        consumerRef.current.disconnect();
+        consumerRef.current = null;
+      }
+      subscriptionRef.current = null;
+    }
+  }, []);
+
   // Connect to WebSocket
   const connect = useCallback(() => {
     if (!enabled) return;
+    if (isDisabledRef.current) {
+      console.log("[EmailWebSocket] Disabled due to repeated failures");
+      return;
+    }
     if (subscriptionRef.current) return; // Already connected
 
     // Get the WebSocket URL from environment or construct from API URL
@@ -219,15 +255,19 @@ export function useEmailWebSocket(
         {
           connected() {
             setIsConnected(true);
+            // Reset failure count on successful connection
+            failureCountRef.current = 0;
             console.log("[EmailWebSocket] Connected");
           },
           disconnected() {
             setIsConnected(false);
             setIsSyncing(false);
+            trackFailure();
             console.log("[EmailWebSocket] Disconnected");
           },
           rejected() {
             setIsConnected(false);
+            trackFailure();
             console.warn("[EmailWebSocket] Connection rejected");
           },
           received: handleReceived,
@@ -235,8 +275,9 @@ export function useEmailWebSocket(
       );
     } catch (error) {
       console.error("[EmailWebSocket] Failed to connect:", error);
+      trackFailure();
     }
-  }, [enabled, handleReceived]);
+  }, [enabled, handleReceived, trackFailure]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
@@ -252,8 +293,10 @@ export function useEmailWebSocket(
     setIsSyncing(false);
   }, []);
 
-  // Reconnect
+  // Reconnect (also resets disabled state for manual retry)
   const reconnect = useCallback(() => {
+    isDisabledRef.current = false;
+    failureCountRef.current = 0;
     disconnect();
     connect();
   }, [disconnect, connect]);
