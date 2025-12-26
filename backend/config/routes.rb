@@ -921,6 +921,35 @@ Rails.application.routes.draw do
         end
       end
 
+      # Email User States (per-user pin, star, archive, reminders)
+      resources :email_user_states, only: [:index] do
+        collection do
+          get :star_colors
+          post :bulk_action
+          get "for_email/:email_id", action: :show
+          patch "for_email/:email_id", action: :update
+          post "for_email/:email_id/toggle_pin", action: :toggle_pin
+          post "for_email/:email_id/toggle_star", action: :toggle_star
+          post "for_email/:email_id/toggle_archive", action: :toggle_archive
+          post "for_email/:email_id/set_reminder", action: :set_reminder
+          delete "for_email/:email_id/clear_reminder", action: :clear_reminder
+        end
+      end
+
+      # VIP Senders (priority email addresses)
+      resources :vip_senders, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :toggle
+          get :check
+          get :inbox
+          get :suggestions
+          post :import_from_contacts
+        end
+        member do
+          get :emails
+        end
+      end
+
       # Email Blacklist (spam/marketing filters)
       resources :email_blacklist, only: [ :index, :create, :update, :destroy ] do
         collection do
@@ -2986,6 +3015,51 @@ Rails.application.routes.draw do
           post "retainage_releases", to: "audit#create_retainage_release"
           post "retainage_releases/:id/approve", to: "audit#approve_retainage_release"
           post "retainage_releases/:id/invoice", to: "audit#invoice_retainage_release"
+        end
+
+        # Advanced Reporting
+        scope :advanced_reporting do
+          # Departments
+          get "departments", to: "advanced_reporting#departments"
+          get "departments/tree", to: "advanced_reporting#department_tree"
+          post "departments", to: "advanced_reporting#create_department"
+          patch "departments/:id", to: "advanced_reporting#update_department"
+          get "departments/:id/profit_loss", to: "advanced_reporting#department_profit_loss"
+          get "departmental_pnl", to: "advanced_reporting#departmental_pnl"
+          # Tracking Classes
+          get "tracking_classes", to: "advanced_reporting#tracking_classes"
+          get "tracking_classes/types", to: "advanced_reporting#tracking_class_types"
+          get "tracking_classes/tree/:type", to: "advanced_reporting#tracking_class_tree"
+          post "tracking_classes", to: "advanced_reporting#create_tracking_class"
+          patch "tracking_classes/:id", to: "advanced_reporting#update_tracking_class"
+          # Split Transactions
+          get "splits", to: "advanced_reporting#splits"
+          post "splits", to: "advanced_reporting#create_split"
+          post "splits/:id/complete", to: "advanced_reporting#complete_split"
+          post "splits/:id/reverse", to: "advanced_reporting#reverse_split"
+          # Period Snapshots & Comparative
+          get "snapshots", to: "advanced_reporting#period_snapshots"
+          post "snapshots/generate", to: "advanced_reporting#generate_snapshot"
+          post "snapshots/:id/finalize", to: "advanced_reporting#finalize_snapshot"
+          get "snapshots/:id/compare", to: "advanced_reporting#compare_snapshots"
+          get "comparative_report", to: "advanced_reporting#comparative_report"
+          # KPIs
+          get "kpis", to: "advanced_reporting#kpis"
+          post "kpis", to: "advanced_reporting#create_kpi"
+          patch "kpis/:id", to: "advanced_reporting#update_kpi"
+          get "kpis/:id/calculate", to: "advanced_reporting#calculate_kpi"
+          get "kpi_dashboard", to: "advanced_reporting#kpi_dashboard"
+          post "kpis/seed", to: "advanced_reporting#seed_kpis"
+          # Benchmarks
+          get "benchmarks/:kpi_code", to: "advanced_reporting#benchmark_for_kpi"
+          # Document Requests
+          get "document_requests", to: "advanced_reporting#document_requests"
+          get "document_requests/:id", to: "advanced_reporting#show_document_request"
+          post "document_requests", to: "advanced_reporting#create_document_request"
+          post "document_requests/:id/send", to: "advanced_reporting#send_document_request"
+          post "document_requests/:id/remind", to: "advanced_reporting#remind_document_request"
+          post "documents/:id/approve", to: "advanced_reporting#approve_document"
+          post "documents/:id/reject", to: "advanced_reporting#reject_document"
         end
 
         # AI-Powered Features

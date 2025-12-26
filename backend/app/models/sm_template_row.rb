@@ -33,6 +33,9 @@ class SmTemplateRow < ApplicationRecord
   # Photo storage EntityTab
   belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
 
+  # Auto-PO supplier - for create_po_on_job_start feature
+  belongs_to :po_supplier, class_name: "Contact", optional: true
+
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
 

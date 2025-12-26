@@ -32,3 +32,16 @@ export {
   type EmailSnooze,
   type SnoozePreset,
 } from "./SnoozePicker";
+
+// User State & Actions
+export {
+  PinButton,
+  StarButton,
+  ArchiveButton,
+  VipButton,
+  VipBadge,
+  EmailActionsBar,
+  useEmailState,
+  type EmailUserState,
+  type StarColor,
+} from "./EmailActions";

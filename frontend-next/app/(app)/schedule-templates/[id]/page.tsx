@@ -85,6 +85,9 @@ interface SmTemplateRow {
   po_required: boolean;
   critical_po: boolean;
   create_po_on_job_start: boolean;
+  po_supplier_id: number | null;
+  po_supplier_name: string | null;
+  po_price_history_ids: number[];
   cert_lag_days: number | null;
   has_subtasks: boolean;
   subtask_count: number | null;
@@ -136,6 +139,24 @@ interface Job {
   name: string;
   address: string;
   status: string;
+}
+
+interface Supplier {
+  id: number;
+  name: string;
+  company_name: string | null;
+}
+
+interface PriceHistory {
+  id: number;
+  pricebook_item_id: number;
+  pricebook_item_name: string;
+  pricebook_item_code: string;
+  supplier_id: number;
+  supplier_name: string;
+  new_price: number;
+  old_price: number | null;
+  created_at: string;
 }
 
 interface SyncResult {
@@ -261,6 +282,17 @@ export default function ScheduleTemplateDetailPage() {
   const [copyResult, setCopyResult] = React.useState<CopyResult | null>(null);
   const [copyJobId, setCopyJobId] = React.useState<string>("");
   const [copyStep, setCopyStep] = React.useState<"select" | "result" | "pos">("select");
+
+  // Auto-PO configuration state
+  const [showAutoPODialog, setShowAutoPODialog] = React.useState(false);
+  const [autoPORow, setAutoPORow] = React.useState<SmTemplateRow | null>(null);
+  const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
+  const [priceHistories, setPriceHistories] = React.useState<PriceHistory[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = React.useState(false);
+  const [loadingPriceHistories, setLoadingPriceHistories] = React.useState(false);
+  const [selectedSupplierId, setSelectedSupplierId] = React.useState<string>("");
+  const [selectedPriceHistoryIds, setSelectedPriceHistoryIds] = React.useState<number[]>([]);
+  const [savingAutoPO, setSavingAutoPO] = React.useState(false);
 
   // Load data
   const loadData = React.useCallback(async () => {
@@ -471,6 +503,138 @@ export default function ScheduleTemplateDetailPage() {
       });
     } finally {
       setCopying(false);
+    }
+  };
+
+  // Load suppliers for auto-PO dialog
+  const loadSuppliers = async () => {
+    setLoadingSuppliers(true);
+    try {
+      const response = await api.get<{ success: boolean; data: Supplier[] }>("/api/v1/contacts?is_supplier=true&limit=500");
+      setSuppliers(response.data || []);
+    } catch (error) {
+      console.error("Failed to load suppliers:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load suppliers",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+
+  // Load price histories for a specific supplier
+  const loadPriceHistoriesForSupplier = async (supplierId: string) => {
+    if (!supplierId) {
+      setPriceHistories([]);
+      return;
+    }
+    setLoadingPriceHistories(true);
+    try {
+      const response = await api.get<{ success: boolean; data: PriceHistory[] }>(
+        `/api/v1/price_histories?supplier_id=${supplierId}&limit=500`
+      );
+      setPriceHistories(response.data || []);
+    } catch (error) {
+      console.error("Failed to load price histories:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load price histories",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingPriceHistories(false);
+    }
+  };
+
+  // Open auto-PO configuration dialog
+  const handleOpenAutoPODialog = (row: SmTemplateRow) => {
+    setAutoPORow(row);
+    setSelectedSupplierId(row.po_supplier_id ? String(row.po_supplier_id) : "");
+    setSelectedPriceHistoryIds(row.po_price_history_ids || []);
+    setPriceHistories([]);
+    setShowAutoPODialog(true);
+    loadSuppliers();
+    // If row already has a supplier, load its price histories
+    if (row.po_supplier_id) {
+      loadPriceHistoriesForSupplier(String(row.po_supplier_id));
+    }
+  };
+
+  // Handle supplier selection change
+  const handleSupplierChange = (supplierId: string) => {
+    setSelectedSupplierId(supplierId);
+    setSelectedPriceHistoryIds([]); // Clear selections when supplier changes
+    if (supplierId) {
+      loadPriceHistoriesForSupplier(supplierId);
+    } else {
+      setPriceHistories([]);
+    }
+  };
+
+  // Toggle price history selection
+  const togglePriceHistorySelection = (phId: number) => {
+    setSelectedPriceHistoryIds((prev) =>
+      prev.includes(phId)
+        ? prev.filter((id) => id !== phId)
+        : [...prev, phId]
+    );
+  };
+
+  // Save auto-PO configuration
+  const handleSaveAutoPO = async () => {
+    if (!autoPORow) return;
+
+    setSavingAutoPO(true);
+    try {
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${autoPORow.id}`, {
+        row: {
+          create_po_on_job_start: true,
+          po_supplier_id: selectedSupplierId ? parseInt(selectedSupplierId) : null,
+          po_price_history_ids: selectedPriceHistoryIds,
+        },
+      });
+      toast({ title: "Success", description: "Auto-PO configuration saved" });
+      setShowAutoPODialog(false);
+      loadData();
+    } catch (error) {
+      console.error("Failed to save auto-PO config:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save auto-PO configuration",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingAutoPO(false);
+    }
+  };
+
+  // Clear auto-PO configuration
+  const handleClearAutoPO = async () => {
+    if (!autoPORow) return;
+
+    setSavingAutoPO(true);
+    try {
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${autoPORow.id}`, {
+        row: {
+          create_po_on_job_start: false,
+          po_supplier_id: null,
+          po_price_history_ids: [],
+        },
+      });
+      toast({ title: "Success", description: "Auto-PO configuration cleared" });
+      setShowAutoPODialog(false);
+      loadData();
+    } catch (error) {
+      console.error("Failed to clear auto-PO config:", error);
+      toast({
+        title: "Error",
+        description: "Failed to clear auto-PO configuration",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingAutoPO(false);
     }
   };
 

@@ -3076,6 +3076,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["user_id"], name: "index_gl_ai_po_match_learnings_on_user_id"
   end
 
+  create_table "gl_anomalies", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "anomalable_type"
+    t.bigint "anomalable_id"
+    t.string "anomaly_type", null: false
+    t.string "severity", default: "medium", null: false
+    t.text "description", null: false
+    t.float "anomaly_score"
+    t.jsonb "details", default: {}
+    t.jsonb "comparison_data", default: {}
+    t.string "status", default: "open"
+    t.bigint "assigned_to_id"
+    t.bigint "resolved_by_id"
+    t.datetime "resolved_at"
+    t.text "resolution_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["anomalable_type", "anomalable_id"], name: "index_gl_anomalies_on_anomalable"
+    t.index ["anomaly_type"], name: "index_gl_anomalies_on_anomaly_type"
+    t.index ["assigned_to_id"], name: "index_gl_anomalies_on_assigned_to_id"
+    t.index ["corporate_company_id"], name: "index_gl_anomalies_on_corporate_company_id"
+    t.index ["created_at"], name: "index_gl_anomalies_on_created_at"
+    t.index ["resolved_by_id"], name: "index_gl_anomalies_on_resolved_by_id"
+    t.index ["severity"], name: "index_gl_anomalies_on_severity"
+    t.index ["status"], name: "index_gl_anomalies_on_status"
+  end
+
   create_table "gl_anomaly_reviews", force: :cascade do |t|
     t.bigint "corporate_company_id", null: false
     t.string "transaction_type", limit: 50, null: false
@@ -3091,6 +3118,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["corporate_company_id"], name: "index_gl_anomaly_reviews_on_corporate_company_id"
     t.index ["reviewed_by_id"], name: "index_gl_anomaly_reviews_on_reviewed_by_id"
     t.index ["status"], name: "index_gl_anomaly_reviews_on_status"
+  end
+
+  create_table "gl_anomaly_rules", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "name", null: false
+    t.string "rule_type", null: false
+    t.string "entity_type", null: false
+    t.jsonb "conditions", null: false
+    t.string "severity", default: "medium"
+    t.boolean "active", default: true
+    t.integer "trigger_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_gl_anomaly_rules_on_active"
+    t.index ["corporate_company_id"], name: "index_gl_anomaly_rules_on_corporate_company_id"
+    t.index ["entity_type"], name: "index_gl_anomaly_rules_on_entity_type"
+    t.index ["rule_type"], name: "index_gl_anomaly_rules_on_rule_type"
   end
 
   create_table "gl_approval_actions", force: :cascade do |t|
@@ -3447,6 +3491,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["job_id"], name: "index_gl_budgets_on_job_id"
   end
 
+  create_table "gl_categorization_predictions", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "bank_transaction_id"
+    t.bigint "predicted_category_id"
+    t.bigint "predicted_account_id"
+    t.bigint "actual_category_id"
+    t.bigint "actual_account_id"
+    t.float "confidence_score", null: false
+    t.jsonb "features_used", default: {}
+    t.string "status", default: "pending"
+    t.bigint "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.text "rejection_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actual_account_id"], name: "index_gl_categorization_predictions_on_actual_account_id"
+    t.index ["actual_category_id"], name: "index_gl_categorization_predictions_on_actual_category_id"
+    t.index ["bank_transaction_id"], name: "index_gl_categorization_predictions_on_bank_transaction_id"
+    t.index ["confidence_score"], name: "index_gl_categorization_predictions_on_confidence_score"
+    t.index ["corporate_company_id"], name: "index_gl_categorization_predictions_on_corporate_company_id"
+    t.index ["created_at"], name: "index_gl_categorization_predictions_on_created_at"
+    t.index ["predicted_account_id"], name: "index_gl_categorization_predictions_on_predicted_account_id"
+    t.index ["predicted_category_id"], name: "index_gl_categorization_predictions_on_predicted_category_id"
+    t.index ["reviewed_by_id"], name: "index_gl_categorization_predictions_on_reviewed_by_id"
+    t.index ["status"], name: "index_gl_categorization_predictions_on_status"
+  end
+
   create_table "gl_change_order_lines", force: :cascade do |t|
     t.bigint "change_order_id", null: false
     t.integer "sort_order", default: 0
@@ -3538,6 +3609,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["is_template"], name: "index_gl_custom_reports_on_is_template"
     t.index ["name"], name: "index_gl_custom_reports_on_name"
     t.index ["report_type"], name: "index_gl_custom_reports_on_report_type"
+  end
+
+  create_table "gl_customer_payment_stats", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "contact_id", null: false
+    t.integer "total_invoices", default: 0
+    t.integer "paid_on_time", default: 0
+    t.integer "paid_late", default: 0
+    t.float "average_days_to_pay"
+    t.float "average_days_late"
+    t.decimal "total_invoiced", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_outstanding", precision: 15, scale: 2, default: "0.0"
+    t.decimal "largest_invoice", precision: 15, scale: 2
+    t.date "last_payment_date"
+    t.date "last_late_payment"
+    t.float "payment_reliability_score"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_gl_customer_payment_stats_on_contact_id"
+    t.index ["corporate_company_id", "contact_id"], name: "idx_on_corporate_company_id_contact_id_8943f46fe3", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_customer_payment_stats_on_corporate_company_id"
+    t.index ["payment_reliability_score"], name: "index_gl_customer_payment_stats_on_payment_reliability_score"
   end
 
   create_table "gl_customer_statement_lines", force: :cascade do |t|
@@ -3696,6 +3789,38 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["reviewed_by_id"], name: "index_gl_duplicate_bill_reviews_on_reviewed_by_id"
     t.index ["status"], name: "idx_duplicate_bill_reviews_status"
     t.index ["voided_bill_id"], name: "index_gl_duplicate_bill_reviews_on_voided_bill_id"
+  end
+
+  create_table "gl_duplicate_groups", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "entity_type", null: false
+    t.string "status", default: "pending"
+    t.float "similarity_score"
+    t.jsonb "matching_fields", default: []
+    t.bigint "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.string "resolution"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id"], name: "index_gl_duplicate_groups_on_corporate_company_id"
+    t.index ["created_at"], name: "index_gl_duplicate_groups_on_created_at"
+    t.index ["entity_type"], name: "index_gl_duplicate_groups_on_entity_type"
+    t.index ["reviewed_by_id"], name: "index_gl_duplicate_groups_on_reviewed_by_id"
+    t.index ["status"], name: "index_gl_duplicate_groups_on_status"
+  end
+
+  create_table "gl_duplicate_members", force: :cascade do |t|
+    t.bigint "duplicate_group_id", null: false
+    t.string "duplicable_type"
+    t.bigint "duplicable_id"
+    t.boolean "is_primary", default: false
+    t.boolean "is_retained", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["duplicable_type", "duplicable_id"], name: "idx_on_duplicable_type_duplicable_id_41da9a6f49"
+    t.index ["duplicable_type", "duplicable_id"], name: "index_gl_duplicate_members_on_duplicable"
+    t.index ["duplicate_group_id", "is_primary"], name: "idx_on_duplicate_group_id_is_primary_df8da0c199"
+    t.index ["duplicate_group_id"], name: "index_gl_duplicate_members_on_duplicate_group_id"
   end
 
   create_table "gl_equipment", force: :cascade do |t|
@@ -4071,6 +4196,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["corporate_company_id", "status"], name: "idx_payment_batches_status"
     t.index ["corporate_company_id"], name: "index_gl_payment_batches_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_payment_batches_on_created_by_id"
+  end
+
+  create_table "gl_payment_predictions", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "invoice_id", null: false
+    t.bigint "contact_id"
+    t.float "probability_late", null: false
+    t.integer "predicted_days_late"
+    t.date "predicted_payment_date"
+    t.jsonb "risk_factors", default: []
+    t.string "risk_level"
+    t.boolean "prediction_correct"
+    t.date "actual_payment_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_gl_payment_predictions_on_contact_id"
+    t.index ["corporate_company_id"], name: "index_gl_payment_predictions_on_corporate_company_id"
+    t.index ["created_at"], name: "index_gl_payment_predictions_on_created_at"
+    t.index ["invoice_id"], name: "index_gl_payment_predictions_on_invoice_id"
+    t.index ["probability_late"], name: "index_gl_payment_predictions_on_probability_late"
+    t.index ["risk_level"], name: "index_gl_payment_predictions_on_risk_level"
   end
 
   create_table "gl_payments", force: :cascade do |t|
@@ -4766,6 +4912,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["corporate_company_id", "financial_year"], name: "idx_tpar_reports_year", unique: true
     t.index ["corporate_company_id"], name: "index_gl_tpar_reports_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_tpar_reports_on_created_by_id"
+  end
+
+  create_table "gl_transaction_categories", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "name", null: false
+    t.string "category_type"
+    t.bigint "default_account_id"
+    t.bigint "default_tax_rate_id"
+    t.jsonb "keywords", default: []
+    t.jsonb "patterns", default: []
+    t.integer "usage_count", default: 0
+    t.float "confidence_threshold", default: 0.7
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_gl_transaction_categories_on_active"
+    t.index ["category_type"], name: "index_gl_transaction_categories_on_category_type"
+    t.index ["corporate_company_id", "name"], name: "idx_on_corporate_company_id_name_463f27cd4a", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_transaction_categories_on_corporate_company_id"
+    t.index ["default_account_id"], name: "index_gl_transaction_categories_on_default_account_id"
+    t.index ["default_tax_rate_id"], name: "index_gl_transaction_categories_on_default_tax_rate_id"
   end
 
   create_table "gl_wip_report_jobs", force: :cascade do |t|
@@ -7018,6 +7185,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.datetime "confirmed_at"
     t.datetime "supplier_confirmed_at"
     t.datetime "hold_at"
+    t.bigint "po_supplier_id"
+    t.integer "po_price_history_ids", default: [], array: true
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
     t.index ["confirm"], name: "index_sm_template_rows_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
@@ -7028,6 +7197,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["is_active"], name: "index_sm_template_rows_on_is_active"
     t.index ["linked_po_task_id"], name: "index_sm_template_rows_on_linked_po_task_id"
     t.index ["parent_row_id"], name: "index_sm_template_rows_on_parent_row_id"
+    t.index ["po_supplier_id"], name: "index_sm_template_rows_on_po_supplier_id"
     t.index ["sm_template_ids"], name: "index_sm_template_rows_on_sm_template_ids", using: :gin
     t.index ["stage"], name: "index_sm_template_rows_on_stage"
     t.index ["supplier_confirm"], name: "index_sm_template_rows_on_supplier_confirm", where: "(supplier_confirm = true)"
@@ -8536,8 +8706,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_ai_po_match_learnings", "corporate_companies"
   add_foreign_key "gl_ai_po_match_learnings", "purchase_orders"
   add_foreign_key "gl_ai_po_match_learnings", "users"
+  add_foreign_key "gl_anomalies", "corporate_companies"
+  add_foreign_key "gl_anomalies", "users", column: "assigned_to_id"
+  add_foreign_key "gl_anomalies", "users", column: "resolved_by_id"
   add_foreign_key "gl_anomaly_reviews", "corporate_companies"
   add_foreign_key "gl_anomaly_reviews", "users", column: "reviewed_by_id"
+  add_foreign_key "gl_anomaly_rules", "corporate_companies"
   add_foreign_key "gl_approval_actions", "gl_approval_requests", column: "approval_request_id"
   add_foreign_key "gl_approval_actions", "gl_approval_workflow_steps", column: "workflow_step_id"
   add_foreign_key "gl_approval_actions", "users"
@@ -8588,6 +8762,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_budgets", "gl_accounts"
   add_foreign_key "gl_budgets", "gl_periods"
   add_foreign_key "gl_budgets", "jobs"
+  add_foreign_key "gl_categorization_predictions", "corporate_companies"
+  add_foreign_key "gl_categorization_predictions", "gl_accounts", column: "actual_account_id"
+  add_foreign_key "gl_categorization_predictions", "gl_accounts", column: "predicted_account_id"
+  add_foreign_key "gl_categorization_predictions", "gl_transaction_categories", column: "actual_category_id"
+  add_foreign_key "gl_categorization_predictions", "gl_transaction_categories", column: "predicted_category_id"
+  add_foreign_key "gl_categorization_predictions", "users", column: "reviewed_by_id"
   add_foreign_key "gl_change_order_lines", "gl_change_orders", column: "change_order_id"
   add_foreign_key "gl_change_orders", "contacts"
   add_foreign_key "gl_change_orders", "corporate_companies"
@@ -8597,6 +8777,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_currencies", "corporate_companies"
   add_foreign_key "gl_custom_reports", "corporate_companies"
   add_foreign_key "gl_custom_reports", "users", column: "created_by_id"
+  add_foreign_key "gl_customer_payment_stats", "contacts"
+  add_foreign_key "gl_customer_payment_stats", "corporate_companies"
   add_foreign_key "gl_customer_statement_lines", "gl_customer_statements", column: "statement_id"
   add_foreign_key "gl_customer_statement_lines", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_customer_statement_lines", "gl_payments", column: "payment_id"
@@ -8620,6 +8802,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "kept_bill_id"
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "voided_bill_id"
   add_foreign_key "gl_duplicate_bill_reviews", "users", column: "reviewed_by_id"
+  add_foreign_key "gl_duplicate_groups", "corporate_companies"
+  add_foreign_key "gl_duplicate_groups", "users", column: "reviewed_by_id"
+  add_foreign_key "gl_duplicate_members", "gl_duplicate_groups", column: "duplicate_group_id"
   add_foreign_key "gl_equipment", "corporate_companies"
   add_foreign_key "gl_equipment_usages", "gl_equipment", column: "equipment_id"
   add_foreign_key "gl_equipment_usages", "jobs"
@@ -8666,6 +8851,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_payment_batches", "gl_accounts", column: "bank_account_id"
   add_foreign_key "gl_payment_batches", "users", column: "approved_by_id"
   add_foreign_key "gl_payment_batches", "users", column: "created_by_id"
+  add_foreign_key "gl_payment_predictions", "contacts"
+  add_foreign_key "gl_payment_predictions", "corporate_companies"
+  add_foreign_key "gl_payment_predictions", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_payments", "contacts"
   add_foreign_key "gl_payments", "corporate_companies"
   add_foreign_key "gl_payments", "gl_accounts"
@@ -8743,6 +8931,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_tpar_payees", "gl_tpar_reports", column: "tpar_report_id"
   add_foreign_key "gl_tpar_reports", "corporate_companies"
   add_foreign_key "gl_tpar_reports", "users", column: "created_by_id"
+  add_foreign_key "gl_transaction_categories", "corporate_companies"
+  add_foreign_key "gl_transaction_categories", "gl_accounts", column: "default_account_id"
+  add_foreign_key "gl_transaction_categories", "gl_tax_rates", column: "default_tax_rate_id"
   add_foreign_key "gl_wip_report_jobs", "gl_wip_reports", column: "wip_report_id"
   add_foreign_key "gl_wip_report_jobs", "jobs"
   add_foreign_key "gl_wip_reports", "corporate_companies"

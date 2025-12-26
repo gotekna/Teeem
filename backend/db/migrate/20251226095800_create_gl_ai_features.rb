@@ -24,7 +24,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
     # AI Categorization predictions
     create_table :gl_categorization_predictions do |t|
       t.references :corporate_company, null: false, foreign_key: true
-      t.references :bank_transaction, foreign_key: { to_table: :gl_bank_transactions }
+      t.bigint :bank_transaction_id # No FK - table may not exist yet
       t.references :predicted_category, foreign_key: { to_table: :gl_transaction_categories }
       t.references :predicted_account, foreign_key: { to_table: :gl_accounts }
       t.references :actual_category, foreign_key: { to_table: :gl_transaction_categories }
@@ -38,6 +38,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
       t.timestamps
     end
 
+    add_index :gl_categorization_predictions, :bank_transaction_id
     add_index :gl_categorization_predictions, :confidence_score
     add_index :gl_categorization_predictions, :status
     add_index :gl_categorization_predictions, :created_at

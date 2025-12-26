@@ -28,7 +28,8 @@ class SmTemplateCopyService
     @errors = []
     @created_tasks = []
     @created_dependencies = []
-    @tasks_needing_pos = [] # Tasks where template row had create_po_on_job_start = true
+    @created_purchase_orders = [] # POs created from template auto-PO config
+    @tasks_needing_pos = [] # Tasks where template row had create_po_on_job_start but no supplier configured
     @task_number_map = {} # Maps template row task_number to created SmTask
     @row_map = {}         # Maps template row id to SmTemplateRow
   end
@@ -55,6 +56,9 @@ class SmTemplateCopyService
 
       # Third pass: Calculate dates based on dependencies
       calculate_dates
+
+      # Fourth pass: Create POs for tasks with create_po_on_job_start
+      create_purchase_orders
 
       if @errors.any?
         raise ActiveRecord::Rollback
@@ -140,7 +144,8 @@ class SmTemplateCopyService
         @created_tasks << task
         @task_number_map[row.task_number] = task
         # Track tasks that need POs created (from template row setting)
-        if row.create_po_on_job_start
+        # Only add to tasks_needing_pos if no supplier is configured (needs manual setup)
+        if row.create_po_on_job_start && row.po_supplier_id.blank?
           @tasks_needing_pos << task
         end
         Rails.logger.debug "SmTemplateCopyService: Created task #{task.task_number}: #{task.name}"
@@ -267,6 +272,76 @@ class SmTemplateCopyService
     sorted
   end
 
+  def create_purchase_orders
+    return if options[:create_purchase_orders] == false
+
+    # Find template rows with auto-PO configured (supplier set)
+    @row_map.values.each do |row|
+      next unless row.create_po_on_job_start
+      next if row.po_supplier_id.blank?
+
+      task = @task_number_map[row.task_number]
+      next unless task
+
+      begin
+        po = create_po_for_task(task, row)
+        if po
+          @created_purchase_orders << po
+          Rails.logger.info "SmTemplateCopyService: Created PO #{po.purchase_order_number} for task #{task.task_number}: #{task.name}"
+        end
+      rescue StandardError => e
+        Rails.logger.error "SmTemplateCopyService: Failed to create PO for task #{task.id}: #{e.message}"
+        @errors << "Auto-PO for '#{row.name}': #{e.message}"
+      end
+    end
+  end
+
+  def create_po_for_task(task, template_row)
+    # Create the Purchase Order
+    po = PurchaseOrder.new(
+      job_id: job.id,
+      supplier_id: template_row.po_supplier_id,
+      status: "draft",
+      description: "Auto-created from template: #{template_row.name}",
+      required_date: task.start_date,
+      created_by_id: user&.id
+    )
+
+    unless po.save
+      raise "PO creation failed: #{po.errors.full_messages.join(', ')}"
+    end
+
+    # Create line items from price history IDs
+    if template_row.po_price_history_ids.present?
+      line_number = 0
+      template_row.po_price_history_ids.each do |ph_id|
+        price_history = PriceHistory.find_by(id: ph_id)
+        next unless price_history
+
+        line_number += 1
+        pricebook_item = price_history.pricebook_item
+
+        line_item = po.line_items.build(
+          line_number: line_number,
+          description: pricebook_item&.item_name || "Item from price history",
+          quantity: 1,
+          unit_price: price_history.new_price || pricebook_item&.current_price || 0,
+          pricebook_item_id: price_history.pricebook_item_id,
+          gst_code: pricebook_item&.gst_code || "GST"
+        )
+
+        unless line_item.save
+          Rails.logger.warn "SmTemplateCopyService: Line item creation failed: #{line_item.errors.full_messages.join(', ')}"
+        end
+      end
+    end
+
+    # Link the task to this PO
+    task.update!(purchase_order_id: po.id)
+
+    po
+  end
+
   def success
     {
       success: true,
@@ -274,8 +349,18 @@ class SmTemplateCopyService
       template_id: template.id,
       tasks_created: @created_tasks.count,
       dependencies_created: @created_dependencies.count,
+      purchase_orders_created: @created_purchase_orders.count,
       tasks: @created_tasks,
       dependencies: @created_dependencies,
+      purchase_orders: @created_purchase_orders.map { |po|
+        {
+          id: po.id,
+          purchase_order_number: po.purchase_order_number,
+          supplier_name: po.supplier&.name,
+          total: po.total,
+          line_items_count: po.line_items.count
+        }
+      },
       tasks_needing_pos: @tasks_needing_pos.map { |t|
         { id: t.id, name: t.name, task_number: t.task_number }
       },
@@ -286,6 +371,7 @@ class SmTemplateCopyService
         start_date: start_date.to_s,
         task_count: @created_tasks.count,
         dependency_count: @created_dependencies.count,
+        purchase_orders_created: @created_purchase_orders.count,
         tasks_needing_pos_count: @tasks_needing_pos.count
       }
     }

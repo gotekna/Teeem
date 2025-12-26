@@ -57,21 +57,42 @@ export interface LabelColor {
   hex: string;
 }
 
+// API Response Types
+interface LabelsResponse {
+  success: boolean;
+  data: { labels: EmailLabel[] };
+}
+
+interface LabelForEmailResponse {
+  success: boolean;
+  data: { all_labels: EmailLabel[]; assigned_labels: EmailLabel[] };
+}
+
+interface ColorsResponse {
+  success: boolean;
+  data: { colors: LabelColor[] };
+}
+
+interface LabelResponse {
+  success: boolean;
+  data: { label: EmailLabel };
+}
+
 // API Functions
 async function fetchLabels(): Promise<EmailLabel[]> {
-  const response = await api.get("/api/v1/email_labels");
+  const response = await api.get<LabelsResponse>("/api/v1/email_labels");
   return response.data.labels || [];
 }
 
 async function fetchLabelsForEmail(
   emailId: number
 ): Promise<{ all_labels: EmailLabel[]; assigned_labels: EmailLabel[] }> {
-  const response = await api.get(`/api/v1/email_labels/for_email/${emailId}`);
+  const response = await api.get<LabelForEmailResponse>(`/api/v1/email_labels/for_email/${emailId}`);
   return response.data;
 }
 
 async function fetchLabelColors(): Promise<LabelColor[]> {
-  const response = await api.get("/api/v1/email_labels/colors");
+  const response = await api.get<ColorsResponse>("/api/v1/email_labels/colors");
   return response.data.colors || [];
 }
 
@@ -79,20 +100,20 @@ async function createLabel(
   name: string,
   color: string
 ): Promise<EmailLabel> {
-  const response = await api.post("/api/v1/email_labels", {
+  const response = await api.post<LabelResponse>("/api/v1/email_labels", {
     label: { name, color },
   });
-  return response.data;
+  return response!.data.label;
 }
 
 async function updateLabel(
   id: number,
   updates: { name?: string; color?: string }
 ): Promise<EmailLabel> {
-  const response = await api.patch(`/api/v1/email_labels/${id}`, {
+  const response = await api.patch<LabelResponse>(`/api/v1/email_labels/${id}`, {
     label: updates,
   });
-  return response.data;
+  return response!.data.label;
 }
 
 async function deleteLabel(id: number): Promise<void> {
@@ -103,11 +124,11 @@ async function toggleLabelForEmail(
   labelId: number,
   emailId: number
 ): Promise<{ assigned: boolean }> {
-  const response = await api.post(
+  const response = await api.post<{ success: boolean; data: { assigned: boolean } }>(
     `/api/v1/email_labels/${labelId}/toggle_email`,
     { email_id: emailId }
   );
-  return response.data;
+  return response!.data;
 }
 
 // Label Badge Component

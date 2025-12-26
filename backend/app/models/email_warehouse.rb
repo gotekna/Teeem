@@ -24,6 +24,9 @@ class EmailWarehouse < ApplicationRecord
   # Email Snooze (temporarily hide and bring back later)
   has_many :email_snoozes, dependent: :destroy
 
+  # Email User State (per-user pin, star, archive, reminders)
+  has_many :email_user_states, dependent: :destroy
+
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
 

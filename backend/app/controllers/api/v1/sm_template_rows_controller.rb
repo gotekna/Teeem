@@ -178,7 +178,7 @@ module Api
           :trade, :stage, :header, :assigned_role, :cost_centre,
           :checklist_id, :parent_row_id,
           :require_photo, :require_certificate, :confirm,
-          :po_required, :critical_po, :create_po_on_job_start,
+          :po_required, :critical_po, :create_po_on_job_start, :po_supplier_id,
           :cert_lag_days,
           :has_subtasks, :subtask_count,
           :spawn_photo_task, :spawn_scan_task, :pass_fail_enabled,
@@ -200,7 +200,8 @@ module Api
           # New array fields
           plan_type_ids: [],
           start_entity_tab_ids: [],
-          complete_entity_tab_ids: []
+          complete_entity_tab_ids: [],
+          po_price_history_ids: []
         )
       end
 
@@ -245,6 +246,9 @@ module Api
           po_required: row.po_required,
           critical_po: row.critical_po,
           create_po_on_job_start: row.create_po_on_job_start,
+          po_supplier_id: row.po_supplier_id,
+          po_supplier_name: row.po_supplier&.name,
+          po_price_history_ids: row.po_price_history_ids || [],
           cert_lag_days: row.cert_lag_days,
           has_subtasks: row.has_subtasks,
           subtask_count: row.subtask_count,

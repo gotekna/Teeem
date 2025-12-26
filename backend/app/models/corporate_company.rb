@@ -103,6 +103,12 @@ class CorporateCompany < ApplicationRecord
   has_many :gl_duplicate_groups, class_name: "Gl::DuplicateGroup", dependent: :destroy
   has_many :gl_payment_predictions, class_name: "Gl::PaymentPrediction", dependent: :destroy
   has_many :gl_customer_payment_stats, class_name: "Gl::CustomerPaymentStats", dependent: :destroy
+  has_many :gl_departments, class_name: "Gl::Department", dependent: :destroy
+  has_many :gl_tracking_classes, class_name: "Gl::TrackingClass", dependent: :destroy
+  has_many :gl_split_transactions, class_name: "Gl::SplitTransaction", dependent: :destroy
+  has_many :gl_period_snapshots, class_name: "Gl::PeriodSnapshot", dependent: :destroy
+  has_many :gl_kpi_definitions, class_name: "Gl::KpiDefinition", dependent: :destroy
+  has_many :gl_document_requests, class_name: "Gl::DocumentRequest", dependent: :destroy
 
   # Encrypted attributes
   encrypts :tfn, deterministic: true
