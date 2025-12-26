@@ -41,8 +41,11 @@ class SmTask < ApplicationRecord
   alias_method :construction, :job  # Backwards compatibility
   alias_attribute :construction_id, :job_id  # Backwards compatibility for queries
 
-  # SSoT association - points to sm_template_rows (THE ONE template system)
-  belongs_to :sm_template_row, optional: true
+  # SSoT association - points to sm_schedule_master (THE ONE template system)
+  # Note: foreign_key is still sm_template_row_id until Phase 4 migration renames it
+  belongs_to :sm_schedule_master, foreign_key: :sm_template_row_id, optional: true
+  # Alias for backwards compatibility (will be removed in Phase 7)
+  alias_method :sm_template_row, :sm_schedule_master
   belongs_to :parent_task, class_name: "SmTask", optional: true
   has_many :children, class_name: "SmTask", foreign_key: :parent_task_id, dependent: :nullify
 

@@ -2,14 +2,14 @@
 
 module Api
   module V1
-    class SmTemplateRowsController < ApplicationController
+    class SmScheduleMasterController < ApplicationController
       before_action :set_template
       before_action :set_row, only: [ :show, :update, :destroy, :move ]
 
       # GET /api/v1/sm_templates/:sm_template_id/rows
       def index
         # Sort by sequence_order - dependencies drive scheduling, calculated client-side
-        @rows = @template.sm_template_rows.active
+        @rows = @template.sm_schedule_master_rows.active
                          .order(Arel.sql("COALESCE(sequence_order, 0) ASC"))
 
         render json: {
@@ -28,13 +28,13 @@ module Api
 
       # POST /api/v1/sm_templates/:sm_template_id/rows
       def create
-        @row = SmTemplateRow.new(row_params)
+        @row = SmScheduleMaster.new(row_params)
         @row.sm_template_ids = [@template.id]  # Add to this template
         @row.created_by = current_user
 
         # Auto-set sequence order if not provided
         if @row.sequence_order.blank?
-          max_order = @template.sm_template_rows.maximum(:sequence_order) || 0
+          max_order = @template.sm_schedule_master_rows.maximum(:sequence_order) || 0
           @row.sequence_order = max_order + 1
         end
 
@@ -106,7 +106,7 @@ module Api
 
         ActiveRecord::Base.transaction do
           rows_data.each_with_index do |row_data, idx|
-            row = SmTemplateRow.new(bulk_row_params(row_data))
+            row = SmScheduleMaster.new(bulk_row_params(row_data))
             row.sm_template_ids = [@template.id]  # Add to this template
             row.created_by = current_user
 
@@ -137,14 +137,14 @@ module Api
 
         ActiveRecord::Base.transaction do
           positions.each do |pos|
-            row = @template.sm_template_rows.find(pos[:id])
+            row = @template.sm_schedule_master_rows.find(pos[:id])
             row.update!(sequence_order: pos[:sequence_order])
           end
         end
 
         render json: {
           success: true,
-          rows: @template.sm_template_rows.active.in_sequence.map { |r| row_json(r) }
+          rows: @template.sm_schedule_master_rows.active.in_sequence.map { |r| row_json(r) }
         }
       end
 
@@ -155,7 +155,7 @@ module Api
       end
 
       def set_row
-        @row = @template.sm_template_rows.find(params[:id])
+        @row = @template.sm_schedule_master_rows.find(params[:id])
       end
 
       # Clear dependency_broken flag when predecessors are re-added

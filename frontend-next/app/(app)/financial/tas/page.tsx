@@ -64,6 +64,7 @@ import DuplicateBillsTab from "@/components/financial/DuplicateBillsTab";
 import AnomalyDetectionTab from "@/components/financial/AnomalyDetectionTab";
 import LatePaymentPredictionTab from "@/components/financial/LatePaymentPredictionTab";
 import AICategorizationTab from "@/components/financial/AICategorizationTab";
+import CustomerPortalTab from "@/components/financial/CustomerPortalTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -635,6 +636,10 @@ export default function GlPage() {
             <Brain className="h-4 w-4" />
             AI Categorization
           </TabsTrigger>
+          <TabsTrigger value="portal" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Customer Portal
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1011,6 +1016,11 @@ export default function GlPage() {
         {/* AI Categorization Tab */}
         <TabsContent value="categorization">
           <AICategorizationTab />
+        </TabsContent>
+
+        {/* Customer Portal Tab */}
+        <TabsContent value="portal">
+          <CustomerPortalTab />
         </TabsContent>
       </Tabs>
 

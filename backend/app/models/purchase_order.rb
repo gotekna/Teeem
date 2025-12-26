@@ -29,16 +29,22 @@ class PurchaseOrder < ApplicationRecord
     sm_task&.name
   end
 
-  # Virtual attribute for Foundation - returns the template row name via SmTask
-  # Path: PO → SmTask → SmTemplateRow.name
-  def sm_template_row_name
-    sm_tasks.first&.sm_template_row&.name
+  # Virtual attribute for Foundation - returns the schedule master name via SmTask
+  # Path: PO → SmTask → SmScheduleMaster.name
+  def sm_schedule_master_name
+    sm_tasks.first&.sm_schedule_master&.name
   end
 
-  # Virtual attribute for Foundation - returns the template row ID via SmTask
-  def sm_template_row_id_via_task
-    sm_tasks.first&.sm_template_row_id
+  # Alias for backwards compatibility (will be removed)
+  alias_method :sm_template_row_name, :sm_schedule_master_name
+
+  # Virtual attribute for Foundation - returns the schedule master ID via SmTask
+  def sm_schedule_master_id_via_task
+    sm_tasks.first&.sm_schedule_master_id
   end
+
+  # Alias for backwards compatibility (will be removed)
+  alias_method :sm_template_row_id_via_task, :sm_schedule_master_id_via_task
 
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
@@ -366,8 +372,11 @@ class PurchaseOrder < ApplicationRecord
   def as_json(options = {})
     super(options).merge(
       'sm_task_name' => po_task_name,
-      'sm_template_row_name' => sm_template_row_name,
-      'sm_template_row_id_via_task' => sm_template_row_id_via_task
+      'sm_schedule_master_name' => sm_schedule_master_name,
+      'sm_schedule_master_id_via_task' => sm_schedule_master_id_via_task,
+      # Backwards compatibility (will be removed)
+      'sm_template_row_name' => sm_schedule_master_name,
+      'sm_template_row_id_via_task' => sm_schedule_master_id_via_task
     )
   end
 

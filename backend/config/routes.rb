@@ -1217,7 +1217,7 @@ Rails.application.routes.draw do
         collection do
           get :default
         end
-        resources :rows, controller: "sm_template_rows", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :rows, controller: "sm_schedule_master", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :move
           end

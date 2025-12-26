@@ -6,8 +6,8 @@
 # as sm_tasks. Separate from old schedule_templates (DHTMLX system).
 #
 # Multi-Template Support:
-# - SmTemplateRows can belong to multiple templates via sm_template_ids (JSONB array)
-# - Use sm_template_rows method to get rows for this template
+# - SmScheduleMaster records can belong to multiple templates via sm_template_ids (JSONB array)
+# - Use sm_schedule_master_rows method to get rows for this template
 # - A single row can be shared across templates (SSoT)
 #
 class SmTemplate < ApplicationRecord
@@ -28,18 +28,21 @@ class SmTemplate < ApplicationRecord
   before_save :ensure_single_default
 
   # Get all rows for this template (via JSONB containment query)
-  def sm_template_rows
-    SmTemplateRow.for_template(id)
+  def sm_schedule_master_rows
+    SmScheduleMaster.for_template(id)
   end
+
+  # Alias for backwards compatibility
+  alias_method :sm_template_rows, :sm_schedule_master_rows
 
   # Get row count
   def row_count
-    sm_template_rows.count
+    sm_schedule_master_rows.count
   end
 
   # Get active rows in sequence order
   def ordered_rows
-    sm_template_rows.active.in_sequence
+    sm_schedule_master_rows.active.in_sequence
   end
 
   # Copy template to a construction as sm_tasks

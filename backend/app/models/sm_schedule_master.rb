@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
-# SmTemplateRow - Template row for SM Gantt system
+# SmScheduleMaster - Master task definitions for SM Gantt system
 #
-# Represents a single task in an SM template. When the template is
-# applied to a construction, these become sm_tasks with actual dates.
+# Represents a single task definition that can be used in templates.
+# When a template is applied to a construction, these become sm_tasks with actual dates.
 #
 # Multi-Template Support:
 # - A row can belong to multiple templates via sm_template_ids (JSONB array)
 # - Use for_template(template_id) scope to filter by template
 # - Use add_to_template/remove_from_template to manage membership
 #
-class SmTemplateRow < ApplicationRecord
-  self.table_name = "sm_template_rows"
+class SmScheduleMaster < ApplicationRecord
+  self.table_name = "sm_schedule_master"
 
   # Role/group constants for internal work assignment
   ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze
@@ -23,14 +23,14 @@ class SmTemplateRow < ApplicationRecord
   # Note: sm_template_id is deprecated, use sm_template_ids (JSONB array) instead
   # Keeping belongs_to for backwards compatibility during migration
   belongs_to :sm_template, optional: true
-  belongs_to :parent_row, class_name: "SmTemplateRow", optional: true
-  has_many :children, class_name: "SmTemplateRow", foreign_key: :parent_row_id, dependent: :nullify
+  belongs_to :parent_row, class_name: "SmScheduleMaster", optional: true
+  has_many :children, class_name: "SmScheduleMaster", foreign_key: :parent_row_id, dependent: :nullify
 
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 
   # PO hierarchy - link this task's PO to another task's PO
-  belongs_to :linked_po_task, class_name: "SmTemplateRow", optional: true
-  has_many :linked_po_children, class_name: "SmTemplateRow", foreign_key: :linked_po_task_id, dependent: :nullify
+  belongs_to :linked_po_task, class_name: "SmScheduleMaster", optional: true
+  has_many :linked_po_children, class_name: "SmScheduleMaster", foreign_key: :linked_po_task_id, dependent: :nullify
 
   # Photo storage EntityTab
   belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
@@ -169,7 +169,7 @@ class SmTemplateRow < ApplicationRecord
     return if task_number.present?
 
     # Task numbers are now globally unique (not per-template)
-    max_number = SmTemplateRow.maximum(:task_number) || 0
+    max_number = SmScheduleMaster.maximum(:task_number) || 0
     self.task_number = max_number + 1
   end
 
@@ -191,11 +191,11 @@ class SmTemplateRow < ApplicationRecord
     valid_task_numbers = if template_ids.any?
       # sm_template_ids is JSONB array, use @> to check containment
       conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(' OR ')
-      SmTemplateRow.where(conditions)
+      SmScheduleMaster.where(conditions)
                    .where.not(id: id)
                    .pluck(:task_number)
     else
-      SmTemplateRow.where.not(id: id).pluck(:task_number)
+      SmScheduleMaster.where.not(id: id).pluck(:task_number)
     end
 
     predecessor_ids.each_with_index do |pred, idx|
@@ -234,7 +234,7 @@ class SmTemplateRow < ApplicationRecord
 
     # sm_template_ids is JSONB array, use @> to check containment
     conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(' OR ')
-    all_rows = SmTemplateRow.where(conditions)
+    all_rows = SmScheduleMaster.where(conditions)
 
     # Build dependency graph: task_number -> [predecessor_task_numbers]
     predecessor_map = {}
@@ -291,7 +291,7 @@ class SmTemplateRow < ApplicationRecord
     return nil unless task_id
 
     # Task numbers are globally unique now, so we can find by task_number directly
-    predecessor_row = SmTemplateRow.find_by(task_number: task_id)
+    predecessor_row = SmScheduleMaster.find_by(task_number: task_id)
     task_name = predecessor_row&.name || "Task #{task_id}"
 
     dep_string = dep_type
@@ -300,3 +300,7 @@ class SmTemplateRow < ApplicationRecord
     "#{task_name} (#{dep_string})"
   end
 end
+
+# DEPRECATED: Alias for backwards compatibility during migration
+# TODO: Remove this alias in Phase 7 after all code is updated
+SmTemplateRow = SmScheduleMaster
