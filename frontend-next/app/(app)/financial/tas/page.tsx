@@ -87,6 +87,18 @@ import CashFlowTab from "@/components/financial/CashFlowTab";
 import JobCostingTab from "@/components/financial/JobCostingTab";
 import PaymentBatchesTab from "@/components/financial/PaymentBatchesTab";
 import TimeBillingTab from "@/components/financial/TimeBillingTab";
+import AdvancedReportingTab from "@/components/financial/AdvancedReportingTab";
+import ScheduledReportsTab from "@/components/financial/ScheduledReportsTab";
+import ReconciliationsTab from "@/components/financial/ReconciliationsTab";
+import DepositsTab from "@/components/financial/DepositsTab";
+import EofyTab from "@/components/financial/EofyTab";
+import PeriodLocksTab from "@/components/financial/PeriodLocksTab";
+import TparTab from "@/components/financial/TparTab";
+import ConsolidationTab from "@/components/financial/ConsolidationTab";
+import PersonalTaxTab from "@/components/financial/PersonalTaxTab";
+import QuotesTab from "@/components/financial/QuotesTab";
+import ReportsBuilderTab from "@/components/financial/ReportsBuilderTab";
+import AuditTab from "@/components/financial/AuditTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -730,6 +742,54 @@ export default function GlPage() {
             <Timer className="h-4 w-4" />
             Time Billing
           </TabsTrigger>
+          <TabsTrigger value="advanced-reporting" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Advanced Reporting
+          </TabsTrigger>
+          <TabsTrigger value="scheduled-reports" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Scheduled Reports
+          </TabsTrigger>
+          <TabsTrigger value="reconciliations" className="flex items-center gap-2">
+            <Landmark className="h-4 w-4" />
+            Reconciliations
+          </TabsTrigger>
+          <TabsTrigger value="deposits" className="flex items-center gap-2">
+            <Wallet className="h-4 w-4" />
+            Deposits
+          </TabsTrigger>
+          <TabsTrigger value="eofy" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            EOFY
+          </TabsTrigger>
+          <TabsTrigger value="period-locks" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Period Locks
+          </TabsTrigger>
+          <TabsTrigger value="tpar" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            TPAR
+          </TabsTrigger>
+          <TabsTrigger value="consolidation" className="flex items-center gap-2">
+            <Layers className="h-4 w-4" />
+            Consolidation
+          </TabsTrigger>
+          <TabsTrigger value="personal-tax" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Personal Tax
+          </TabsTrigger>
+          <TabsTrigger value="quotes" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Quotes
+          </TabsTrigger>
+          <TabsTrigger value="reports-builder" className="flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            Reports Builder
+          </TabsTrigger>
+          <TabsTrigger value="audit" className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Audit
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1196,6 +1256,66 @@ export default function GlPage() {
         {/* Time Billing Tab */}
         <TabsContent value="time-billing">
           <TimeBillingTab />
+        </TabsContent>
+
+        {/* Advanced Reporting Tab */}
+        <TabsContent value="advanced-reporting">
+          <AdvancedReportingTab />
+        </TabsContent>
+
+        {/* Scheduled Reports Tab */}
+        <TabsContent value="scheduled-reports">
+          <ScheduledReportsTab />
+        </TabsContent>
+
+        {/* Reconciliations Tab */}
+        <TabsContent value="reconciliations">
+          <ReconciliationsTab />
+        </TabsContent>
+
+        {/* Deposits Tab */}
+        <TabsContent value="deposits">
+          <DepositsTab />
+        </TabsContent>
+
+        {/* EOFY Tab */}
+        <TabsContent value="eofy">
+          <EofyTab />
+        </TabsContent>
+
+        {/* Period Locks Tab */}
+        <TabsContent value="period-locks">
+          <PeriodLocksTab />
+        </TabsContent>
+
+        {/* TPAR Tab */}
+        <TabsContent value="tpar">
+          <TparTab />
+        </TabsContent>
+
+        {/* Consolidation Tab */}
+        <TabsContent value="consolidation">
+          <ConsolidationTab />
+        </TabsContent>
+
+        {/* Personal Tax Tab */}
+        <TabsContent value="personal-tax">
+          <PersonalTaxTab />
+        </TabsContent>
+
+        {/* Quotes Tab */}
+        <TabsContent value="quotes">
+          <QuotesTab />
+        </TabsContent>
+
+        {/* Reports Builder Tab */}
+        <TabsContent value="reports-builder">
+          <ReportsBuilderTab />
+        </TabsContent>
+
+        {/* Audit Tab */}
+        <TabsContent value="audit">
+          <AuditTab />
         </TabsContent>
       </Tabs>
 

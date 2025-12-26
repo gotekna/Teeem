@@ -21,9 +21,22 @@ module Api
         end
 
         if photo.save
+          # Auto-complete photo tasks when a photo is attached
+          auto_completed = false
+          if @task.is_photo_task? && !@task.status_completed?
+            @task.update!(
+              status: "completed",
+              completed_at: Time.current,
+              updated_by: current_user
+            )
+            auto_completed = true
+            Rails.logger.info "[SmFieldController] Auto-completed photo task #{@task.id} (#{@task.name}) after photo upload"
+          end
+
           render json: {
             success: true,
-            photo: photo_json(photo)
+            photo: photo_json(photo),
+            task_auto_completed: auto_completed
           }, status: :created
         else
           render json: { success: false, errors: photo.errors.full_messages }, status: :unprocessable_entity
@@ -210,6 +223,16 @@ module Api
 
           if photo.save
             results[:photos][:synced] += 1
+
+            # Auto-complete photo tasks when a photo is attached
+            if task.is_photo_task? && !task.status_completed?
+              task.update!(
+                status: "completed",
+                completed_at: Time.current,
+                updated_by: current_user
+              )
+              Rails.logger.info "[SmFieldController] Auto-completed photo task #{task.id} (#{task.name}) via offline sync"
+            end
           else
             results[:photos][:failed] += 1
             results[:photos][:errors] << photo.errors.full_messages

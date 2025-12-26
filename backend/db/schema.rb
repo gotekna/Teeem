@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010016) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7530,6 +7530,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010016) do
     t.boolean "spawn_call_task", default: false
     t.string "assigned_role"
     t.boolean "is_photo_task", default: false, null: false
+    t.bigint "photo_entity_tab_id"
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
@@ -7544,6 +7545,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010016) do
     t.index ["job_id", "task_number"], name: "index_sm_tasks_on_job_id_and_task_number", unique: true
     t.index ["job_id"], name: "index_sm_tasks_on_job_id"
     t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
+    t.index ["photo_entity_tab_id"], name: "index_sm_tasks_on_photo_entity_tab_id"
     t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
     t.index ["sequence_order"], name: "index_sm_tasks_on_sequence_order"
     t.index ["sm_schedule_master_id"], name: "index_sm_tasks_on_sm_schedule_master_id"

@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { Loader2, Plus } from 'lucide-react';
+import { TaskAssignmentField } from './TaskAssignmentField';
 import { useToast } from '@/components/ui/use-toast';
 
 interface Job {
@@ -54,6 +55,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     description: '',
     job_id: '',
     assigned_user_id: '',
+    assigned_role: '',
     start_date: new Date().toISOString().split('T')[0],
     duration_days: '1',
     trade: '',
@@ -118,6 +120,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             name: formData.name,
             description: formData.description || null,
             assigned_user_id: formData.assigned_user_id || null,
+            assigned_role: formData.assigned_role || null,
             start_date: formData.start_date || new Date().toISOString().split('T')[0],
             duration_days: parseInt(formData.duration_days) || 1,
             trade: formData.trade || null,
@@ -137,6 +140,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           description: '',
           job_id: '',
           assigned_user_id: '',
+          assigned_role: '',
           start_date: new Date().toISOString().split('T')[0],
           duration_days: '1',
           trade: '',
@@ -220,26 +224,14 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
               </Select>
             </div>
 
-            {/* Assign To */}
-            <div className="space-y-2">
-              <Label htmlFor="assigned_user">Assign To</Label>
-              <Select
-                value={formData.assigned_user_id}
-                onValueChange={(value) => handleChange('assigned_user_id', value === '_none' ? '' : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">Unassigned</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={String(user.id)}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Assign To (User or Role) */}
+            <TaskAssignmentField
+              users={users}
+              assignedUserId={formData.assigned_user_id}
+              assignedRole={formData.assigned_role}
+              onAssignedUserChange={(userId) => handleChange('assigned_user_id', userId)}
+              onAssignedRoleChange={(role) => handleChange('assigned_role', role)}
+            />
 
             {/* Start Date & Duration */}
             <div className="grid grid-cols-2 gap-4">

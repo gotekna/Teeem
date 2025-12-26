@@ -1243,6 +1243,8 @@ To: ${email.to_emails?.join(", ") || ""}
                     onCheckboxChange={handleCheckboxChange}
                     onQuickAction={() => fetchEmails()}
                     onSnooze={handleSnoozeEmail}
+                    onReply={handleReply}
+                    onForward={handleForward}
                     threadCount={(email as Email).thread_count || 0}
                     isExpanded={threads.isExpanded((email as Email).conversation_id || '')}
                     onToggleThread={handleToggleThread}
@@ -1281,6 +1283,8 @@ To: ${email.to_emails?.join(", ") || ""}
                     onCheckboxChange={handleCheckboxChange}
                     onQuickAction={() => fetchEmails()}
                     onSnooze={handleSnoozeEmail}
+                    onReply={handleReply}
+                    onForward={handleForward}
                     threadCount={email.thread_count || 0}
                     isExpanded={threads.isExpanded(email.conversation_id || '')}
                     onToggleThread={handleToggleThread}

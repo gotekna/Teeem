@@ -506,7 +506,14 @@ export function ComposeEmailModal({
               {/* To */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>To</Label>
+                  <div className="flex items-center gap-2">
+                    <Label>To</Label>
+                    {formData.to && (
+                      <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
+                        {formData.to.split(",").filter(e => e.trim()).length}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1">
                     <Button
                       type="button"
@@ -570,7 +577,14 @@ export function ComposeEmailModal({
               {showCcBcc && (
                 <>
                   <div className="space-y-2">
-                    <Label>CC</Label>
+                    <div className="flex items-center gap-2">
+                      <Label>CC</Label>
+                      {formData.cc && (
+                        <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
+                          {formData.cc.split(",").filter(e => e.trim()).length}
+                        </Badge>
+                      )}
+                    </div>
                     <ComboboxDropdown
                       items={contacts.map((c) => ({
                         id: c.email || "",
@@ -603,7 +617,14 @@ export function ComposeEmailModal({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>BCC</Label>
+                    <div className="flex items-center gap-2">
+                      <Label>BCC</Label>
+                      {formData.bcc && (
+                        <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
+                          {formData.bcc.split(",").filter(e => e.trim()).length}
+                        </Badge>
+                      )}
+                    </div>
                     <ComboboxDropdown
                       items={contacts.map((c) => ({
                         id: c.email || "",

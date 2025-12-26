@@ -640,6 +640,7 @@ module Api
           :hold,
           :purchase_order_id,
           :assigned_user_id,
+          :assigned_role,
           :supplier_id,
           :parent_task_id,
           :sequence_order,
