@@ -32,9 +32,9 @@ class Rack::Attack
 
   # Determine rate limit based on environment
   # Staging (teeem-rob-dev) gets higher limits for development/testing
-  # Production increased to 600/5min to handle SPA concurrent requests on page load
+  # Production: 1500/5min to handle SPA concurrent requests, retries, and email polling
   is_staging = ENV["HEROKU_APP_NAME"]&.include?("rob-dev")
-  general_limit = is_staging ? 1000 : 600
+  general_limit = is_staging ? 2000 : 1500
 
   # Throttle all requests by IP (prevent general abuse)
   throttle("req/ip", limit: general_limit, period: 5.minutes) do |req|
