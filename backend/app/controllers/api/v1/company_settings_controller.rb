@@ -5,19 +5,23 @@ module Api
       def show
         settings = CorporateCompanySetting.instance
         render json: {
-          company_name: settings.company_name,
-          abn: settings.abn,
-          qbcc_license: settings.qbcc_license,
-          gst_number: settings.gst_number,
-          email: settings.email,
-          phone: settings.phone,
-          website: settings.website,
-          address: settings.address,
-          logo_url: settings.logo_url,
-          logo_mobile: settings.logo_mobile,
-          logo_dark: settings.logo_dark,
-          timezone: settings.timezone,
-          working_days: settings.working_days
+          success: true,
+          data: {
+            company_name: settings.company_name,
+            abn: settings.abn,
+            qbcc_license: settings.qbcc_license,
+            gst_number: settings.gst_number,
+            email: settings.email,
+            phone: settings.phone,
+            website: settings.website,
+            address: settings.address,
+            logo_url: settings.logo_url,
+            logo_mobile: settings.logo_mobile,
+            logo_dark: settings.logo_dark,
+            timezone: settings.timezone,
+            working_days: settings.working_days,
+            team_email_domains: settings.team_email_domains || []
+          }
         }
       end
 
@@ -42,7 +46,8 @@ module Api
               logo_mobile: settings.logo_mobile,
               logo_dark: settings.logo_dark,
               timezone: settings.timezone,
-              working_days: settings.working_days
+              working_days: settings.working_days,
+              team_email_domains: settings.team_email_domains || []
             }
           }
         else
@@ -128,7 +133,8 @@ module Api
           :twilio_auth_token,
           :twilio_phone_number,
           :twilio_enabled,
-          working_days: [ :monday, :tuesday, :wednesday, :thursday, :friday, :saturday, :sunday ]
+          working_days: [ :monday, :tuesday, :wednesday, :thursday, :friday, :saturday, :sunday ],
+          team_email_domains: []
         )
       end
     end

@@ -5,7 +5,7 @@ module Api
     module Gl
       # Controller for customer-facing portal
       class CustomerPortalController < ApplicationController
-        skip_before_action :authenticate_user!, only: [:access, :invoice, :pay, :statement, :setup_direct_debit]
+        skip_before_action :authorize_request, only: [:access, :invoice, :pay, :statement, :setup_direct_debit]
         before_action :set_corporate_company, except: [:access, :invoice, :pay, :statement, :setup_direct_debit]
         before_action :validate_portal_token, only: [:invoice, :pay, :statement, :setup_direct_debit]
 

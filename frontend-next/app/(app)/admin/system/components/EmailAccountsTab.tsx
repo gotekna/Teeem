@@ -344,7 +344,9 @@ function TeamEmailDomainsConfig() {
     setSaving(true);
     try {
       await api.put("/api/v1/company_settings", {
-        team_email_domains: updatedDomains
+        company_setting: {
+          team_email_domains: updatedDomains
+        }
       });
       setDomains(updatedDomains);
       toast({
