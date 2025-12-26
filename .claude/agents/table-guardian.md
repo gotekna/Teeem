@@ -61,12 +61,30 @@ Every table MUST pass ALL checks (Component + States + 7 Speed + A11y + Dark Mod
 
 ### 1. Component Standard [CRITICAL]
 ```tsx
-// ✅ CORRECT
+// ✅ CORRECT - Foundation-backed table (columns auto-fetched from Foundation API)
+<div className="flex flex-col h-full -mx-4">
+  <TeeemTableView
+    entries={data}
+    foundationIdNumeric={405}  // THE ONE source for columns
+    tableName="Page Title"
+    onRefresh={refresh}
+    leftActions={<Button>Add</Button>}
+    enableExport={true}
+  />
+</div>
+
+// ❌ SSoT VIOLATION - Never pass columns when foundationIdNumeric is set
 <TeeemTableView
-  data={data}
-  columns={columns}
-  foundationId={foundationId}
-  foundationIdNumeric={foundationIdNumeric}  // Required for Import/Export
+  entries={data}
+  columns={HARDCODED_COLUMNS}  // ❌ SSoT VIOLATION!
+  foundationIdNumeric={405}    // ❌ Conflicts with columns prop!
+/>
+
+// ✅ CORRECT - Non-Foundation table (no foundationIdNumeric = columns required)
+<TeeemTableView
+  entries={data}
+  columns={columns}  // OK when no Foundation backing
+  tableName="Legacy Table"
 />
 
 // ❌ WRONG - Never use these
@@ -74,6 +92,12 @@ Every table MUST pass ALL checks (Component + States + 7 Speed + A11y + Dark Mod
 <TablePage />
 <table><thead>...</thead></table>
 ```
+
+**Page Layout Pattern:**
+- ✅ Edge-to-edge: `-mx-4` on container
+- ✅ Full height: `h-full` and `flex flex-col`
+- ❌ No custom `<h1>` headers - TeeemTableView renders tableName
+- ❌ No duplicate headers - if you see `<h1>` AND `<TeeemTableView>`, fix it
 
 ### 2. State Coverage [CRITICAL]
 All three states MUST be handled:
@@ -277,6 +301,66 @@ When converting legacy tables:
 6. **Test dark mode** - Both themes work
 7. **Remove old code** - Delete deprecated component usage
 
+## SSoT Column Source [CRITICAL - Updated 2025-12-27]
+
+**Foundation API is THE ONE source for column definitions. Never hardcode columns.**
+
+### The SSoT Hierarchy
+```
+Foundation API (SSoT)
+    │
+    │ GET /api/v1/foundations/{id}/columns
+    │
+    ├──► TeeemTableView auto-fetches when foundationIdNumeric is set
+    ├──► Column properties: type, searchable, required, validation, alignment
+    └──► Changes in Foundation UI immediately apply to all tables
+```
+
+### SSoT Violation Patterns (MUST FIX)
+```tsx
+// ❌ VIOLATION 1: Hardcoded columns array with foundationIdNumeric
+const HARDCODED_COLUMNS = [{ key: 'name', ... }];  // DEAD CODE
+<TeeemTableView columns={HARDCODED_COLUMNS} foundationIdNumeric={405} />
+
+// ❌ VIOLATION 2: columns prop overrides Foundation
+// TeeemTableView will throw Error in dev mode!
+
+// ✅ CORRECT: Let Foundation API be the source
+<TeeemTableView foundationIdNumeric={405} entries={data} />
+```
+
+### Compliance Checks (Run Automatically in CI)
+```bash
+# 1. Find pages passing columns prop with foundationIdNumeric
+grep -rn "TeeemTableView" frontend-next/app --include="*.tsx" -A 20 | \
+  grep -B5 "foundationIdNumeric" | grep "columns="
+
+# 2. Find hardcoded column arrays that should be deleted
+grep -rn "const.*COLUMNS.*=.*\[" frontend-next/app --include="*.tsx" | \
+  head -20
+
+# 3. Backend: Verify searchable is never NULL
+cd backend && bin/rails runner "
+  null_count = Column.where(searchable: nil).count
+  puts null_count > 0 ? 'FAIL: #{null_count} columns have NULL searchable' : 'PASS: All columns have searchable set'
+"
+```
+
+### Weekly Compliance Job
+A scheduled job (`GoldStandardComplianceCheckJob`) runs every Monday at 6am Brisbane time to audit:
+- All columns match current type definition versions
+- Compliance score across all foundations
+- Alerts if score drops below 95%
+
+### When to Use Foundation vs Hardcoded Columns
+
+| Scenario | Use |
+|----------|-----|
+| Standard data table | `foundationIdNumeric={id}` - Foundation is SSoT |
+| Portal pages (external users) | May need hardcoded if no Foundation exists |
+| One-off admin display | OK to use `columns` prop if no Foundation |
+| New feature | Create Foundation first, then use `foundationIdNumeric` |
+
 ## foundationIdNumeric Check
 
 **CRITICAL:** Tables with foundationId MUST also have foundationIdNumeric
@@ -291,6 +375,7 @@ Without foundationIdNumeric:
 - ❌ No Schema Editor access
 - ❌ No Advanced Filters
 - ❌ No GlobalViewsManager
+- ❌ No auto-fetched columns from Foundation API
 
 ## Final Summary Output
 

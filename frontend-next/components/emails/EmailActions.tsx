@@ -127,14 +127,29 @@ export function PinButton({ emailId, isPinned: initialPinned, onToggle, size = "
   const [isPinned, setIsPinned] = useState(initialPinned ?? false);
   const [loading, setLoading] = useState(false);
 
+  // Sync with prop changes
+  useEffect(() => {
+    setIsPinned(initialPinned ?? false);
+  }, [initialPinned]);
+
   const handleToggle = async () => {
+    // Optimistic update - immediately toggle UI
+    const previousState = isPinned;
+    const newState = !isPinned;
+    setIsPinned(newState);
+    onToggle?.(newState);
     setLoading(true);
+
     try {
       const result = await togglePin(emailId);
+      // Sync with server state (in case it differs)
       setIsPinned(result.is_pinned);
       onToggle?.(result.is_pinned);
     } catch (error) {
+      // Revert on error
       console.error("Failed to toggle pin:", error);
+      setIsPinned(previousState);
+      onToggle?.(previousState);
     } finally {
       setLoading(false);
     }
@@ -201,16 +216,37 @@ export function StarButton({
     }
   }, [showColorPicker]);
 
+  // Sync with prop changes
+  useEffect(() => {
+    setIsStarred(initialStarred ?? false);
+    setStarColor(initialColor ?? null);
+  }, [initialStarred, initialColor]);
+
   const handleToggle = async (color?: string) => {
+    // Optimistic update
+    const previousStarred = isStarred;
+    const previousColor = starColor;
+    const newStarred = color ? true : !isStarred;
+    const newColor = color || (newStarred ? (starColor || "yellow") : null);
+
+    setIsStarred(newStarred);
+    setStarColor(newColor);
+    onToggle?.(newStarred, newColor);
+    setColorPickerOpen(false);
     setLoading(true);
+
     try {
       const result = await toggleStar(emailId, color);
+      // Sync with server state
       setIsStarred(result.is_starred);
       setStarColor(result.star_color);
       onToggle?.(result.is_starred, result.star_color);
-      setColorPickerOpen(false);
     } catch (error) {
+      // Revert on error
       console.error("Failed to toggle star:", error);
+      setIsStarred(previousStarred);
+      setStarColor(previousColor);
+      onToggle?.(previousStarred, previousColor);
     } finally {
       setLoading(false);
     }
@@ -315,14 +351,29 @@ export function ArchiveButton({ emailId, isArchived: initialArchived, onToggle, 
   const [isArchived, setIsArchived] = useState(initialArchived ?? false);
   const [loading, setLoading] = useState(false);
 
+  // Sync with prop changes
+  useEffect(() => {
+    setIsArchived(initialArchived ?? false);
+  }, [initialArchived]);
+
   const handleToggle = async () => {
+    // Optimistic update
+    const previousState = isArchived;
+    const newState = !isArchived;
+    setIsArchived(newState);
+    onToggle?.(newState);
     setLoading(true);
+
     try {
       const result = await toggleArchive(emailId);
+      // Sync with server state
       setIsArchived(result.is_archived);
       onToggle?.(result.is_archived);
     } catch (error) {
+      // Revert on error
       console.error("Failed to toggle archive:", error);
+      setIsArchived(previousState);
+      onToggle?.(previousState);
     } finally {
       setLoading(false);
     }
@@ -372,14 +423,29 @@ export function VipButton({ emailAddress, senderName, isVip: initialVip, onToggl
   const [isVip, setIsVip] = useState(initialVip ?? false);
   const [loading, setLoading] = useState(false);
 
+  // Sync with prop changes
+  useEffect(() => {
+    setIsVip(initialVip ?? false);
+  }, [initialVip]);
+
   const handleToggle = async () => {
+    // Optimistic update
+    const previousState = isVip;
+    const newState = !isVip;
+    setIsVip(newState);
+    onToggle?.(newState);
     setLoading(true);
+
     try {
       const result = await toggleVip(emailAddress, senderName);
+      // Sync with server state
       setIsVip(result.is_vip);
       onToggle?.(result.is_vip);
     } catch (error) {
+      // Revert on error
       console.error("Failed to toggle VIP:", error);
+      setIsVip(previousState);
+      onToggle?.(previousState);
     } finally {
       setLoading(false);
     }
@@ -540,14 +606,29 @@ export function MarkReadButton({ emailId, isRead: initialRead, onToggle, size = 
   const [isRead, setIsRead] = useState(initialRead ?? false);
   const [loading, setLoading] = useState(false);
 
+  // Sync with prop changes
+  useEffect(() => {
+    setIsRead(initialRead ?? false);
+  }, [initialRead]);
+
   const handleToggle = async () => {
+    // Optimistic update
+    const previousState = isRead;
+    const newState = !isRead;
+    setIsRead(newState);
+    onToggle?.(newState);
     setLoading(true);
+
     try {
       const result = await toggleRead(emailId);
+      // Sync with server state
       setIsRead(result.is_read);
       onToggle?.(result.is_read);
     } catch (error) {
+      // Revert on error
       console.error("Failed to toggle read status:", error);
+      setIsRead(previousState);
+      onToggle?.(previousState);
     } finally {
       setLoading(false);
     }

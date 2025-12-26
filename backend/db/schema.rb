@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010012) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010014) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6838,6 +6838,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010012) do
     t.string "colour_code"
     t.string "colour_brand"
     t.integer "lead_time_days"
+    t.integer "call_time_days"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebook_on_category"
     t.index ["category_id"], name: "index_pricebook_on_category_id"
@@ -7406,6 +7407,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010012) do
     t.datetime "hold_at"
     t.bigint "po_supplier_id"
     t.jsonb "po_line_items", default: []
+    t.boolean "spawn_order_task", default: false
+    t.boolean "spawn_call_task", default: false
     t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"
@@ -7523,6 +7526,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010012) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "sm_schedule_master_id"
+    t.boolean "spawn_order_task", default: false
+    t.boolean "spawn_call_task", default: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"

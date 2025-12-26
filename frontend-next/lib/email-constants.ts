@@ -58,6 +58,32 @@ export const CONTACT_SEARCH_MIN_CHARS = 2;
 export const CONTACT_SEARCH_MAX_RESULTS = 20;
 
 // =============================================================================
+// ATTACHMENT CONSTANTS
+// =============================================================================
+
+/**
+ * Maximum size for a single attachment in bytes (25MB).
+ * Microsoft 365 and most email providers limit attachments to 25MB.
+ */
+export const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+
+/**
+ * Maximum total size for all attachments combined in bytes (25MB).
+ */
+export const MAX_TOTAL_ATTACHMENTS_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+
+/**
+ * Format bytes to human-readable string.
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+// =============================================================================
 // ACCOUNT TYPES
 // =============================================================================
 
@@ -96,6 +122,10 @@ export const EMAIL_CONSTANTS = {
   // Search
   CONTACT_SEARCH_MIN_CHARS,
   CONTACT_SEARCH_MAX_RESULTS,
+
+  // Attachments
+  MAX_ATTACHMENT_SIZE_BYTES,
+  MAX_TOTAL_ATTACHMENTS_SIZE_BYTES,
 
   // Account Types
   ACCOUNT_TYPES,

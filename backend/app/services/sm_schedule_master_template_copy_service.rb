@@ -341,6 +341,13 @@ class SmScheduleMasterTemplateCopyService
     # Link the task to this PO
     task.update!(purchase_order_id: po.id)
 
+    # Spawn Order/Call tasks if configured on the task
+    spawn_result = SmPoSpawnService.new(task, user: user).spawn!
+    if spawn_result[:spawned_tasks].any?
+      Rails.logger.info "SmScheduleMasterTemplateCopyService: Spawned #{spawn_result[:spawned_tasks].count} Order/Call tasks for PO #{po.purchase_order_number}"
+      @created_tasks.concat(spawn_result[:spawned_tasks])
+    end
+
     po
   end
 

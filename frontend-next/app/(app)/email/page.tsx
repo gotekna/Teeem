@@ -28,7 +28,17 @@ import {
   Keyboard,
   Wifi,
   WifiOff,
+  Reply,
+  ReplyAll,
+  Forward,
+  ArrowUpDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
@@ -47,7 +57,7 @@ import { EmailContactMatch } from "@/components/emails/EmailContactMatch";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
-import { useEmailThreads, type ThreadEmail } from "@/hooks/useEmailThreads";
+import { useEmailThreads, type ThreadEmail, THREAD_SORT_OPTIONS } from "@/hooks/useEmailThreads";
 import { useEmailFilters } from "@/hooks/useEmailFilters";
 import { EmailSearchFilters } from "@/components/emails/EmailSearchFilters";
 import { useEmailState } from "@/components/emails/EmailActions";
@@ -64,6 +74,7 @@ interface Email {
   from_name: string | null;
   to_addresses: string[];
   to_emails: string[];
+  cc_emails?: string[];
   received_at: string;
   snippet: string;
   body_preview: string | null;
@@ -381,7 +392,7 @@ export default function EmailPage() {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [replyTo, setReplyTo] = useState<{ to: string; subject: string; body?: string; messageId?: string; fromAccountId?: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Split Inbox State
@@ -829,6 +840,30 @@ export default function EmailPage() {
     setComposeOpen(true);
   };
 
+  const handleReplyAll = (email: Email) => {
+    // Get the current user's email from the selected account
+    const currentAccount = accounts.find(a => String(a.id) === selectedAccount);
+    const currentUserEmail = currentAccount?.email_address?.toLowerCase();
+
+    // Reply to sender
+    const to = email.from_email || email.from_address;
+
+    // CC includes original To recipients (minus current user) + original CC
+    const originalTo = (email.to_emails || email.to_addresses || [])
+      .filter(e => e.toLowerCase() !== currentUserEmail);
+    const originalCc = (email.cc_emails || [])
+      .filter((e: string) => e.toLowerCase() !== currentUserEmail);
+    const ccRecipients = [...new Set([...originalTo, ...originalCc])]; // Dedupe
+
+    setReplyTo({
+      to,
+      cc: ccRecipients.join(", "),
+      subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
+      fromAccountId: selectedAccount,
+    });
+    setComposeOpen(true);
+  };
+
   const handleCompose = () => {
     setReplyTo(null);
     setComposeOpen(true);
@@ -1035,6 +1070,30 @@ To: ${email.to_emails?.join(", ") || ""}
             >
               <Keyboard className="h-3.5 w-3.5" />
             </Button>
+            {/* Thread sort dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title={`Thread sort: ${THREAD_SORT_OPTIONS.find(o => o.value === threads.sortOption)?.label}`}
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {THREAD_SORT_OPTIONS.map((option) => (
+                  <DropdownMenuItem
+                    key={option.value}
+                    onClick={() => threads.setSortOption(option.value)}
+                    className={threads.sortOption === option.value ? "bg-muted" : ""}
+                  >
+                    {option.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="ghost"
               size="icon"
@@ -1246,9 +1305,15 @@ To: ${email.to_emails?.join(", ") || ""}
                   </p>
                   <div className="flex items-center gap-2 mt-2 justify-end">
                     <Button size="sm" variant="outline" onClick={() => handleForward(selectedEmail)}>
+                      <Forward className="h-4 w-4 mr-1" />
                       Forward
                     </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleReplyAll(selectedEmail)}>
+                      <ReplyAll className="h-4 w-4 mr-1" />
+                      Reply All
+                    </Button>
                     <Button size="sm" onClick={() => handleReply(selectedEmail)}>
+                      <Reply className="h-4 w-4 mr-1" />
                       Reply
                     </Button>
                   </div>
@@ -1304,6 +1369,7 @@ To: ${email.to_emails?.join(", ") || ""}
         open={composeOpen}
         onOpenChange={setComposeOpen}
         defaultTo={replyTo?.to || ""}
+        defaultCc={replyTo?.cc || ""}
         defaultSubject={replyTo?.subject || ""}
         defaultBody={replyTo?.body || ""}
         defaultFromAccountId={replyTo?.fromAccountId}

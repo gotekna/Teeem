@@ -43,6 +43,8 @@ class SmScheduleMasterSyncService
     spawn_photo_task
     spawn_scan_task
     spawn_office_tasks
+    spawn_order_task
+    spawn_call_task
     pass_fail_enabled
   ].freeze
 
@@ -320,9 +322,12 @@ class SmScheduleMasterSyncService
       next unless template_row.respond_to?(field) && task.respond_to?(field)
       next unless task.respond_to?("#{field}=")
 
-      # Special handling for order_time_days - use calculated value
-      template_value = if field == :order_time_days
+      # Special handling for calculated timing fields
+      template_value = case field
+                       when :order_time_days
                          calculate_order_time_days
+                       when :call_time_days
+                         calculate_call_time_days
                        else
                          template_row.send(field)
                        end
@@ -395,7 +400,7 @@ class SmScheduleMasterSyncService
 
       # Timing (calculated from pricebook lead times or template defaults)
       order_time_days: calculate_order_time_days,
-      call_time_days: template_row.call_time_days,
+      call_time_days: calculate_call_time_days,
 
       # Documentation (from template)
       documentation_category_ids: template_row.documentation_category_ids,
@@ -406,6 +411,8 @@ class SmScheduleMasterSyncService
       spawn_photo_task: template_row.spawn_photo_task,
       spawn_scan_task: template_row.spawn_scan_task,
       spawn_office_tasks: template_row.spawn_office_tasks,
+      spawn_order_task: template_row.spawn_order_task,
+      spawn_call_task: template_row.spawn_call_task,
       pass_fail_enabled: template_row.pass_fail_enabled,
 
       # Schedule - start at end of schedule, no dependencies (safe)
@@ -468,5 +475,38 @@ class SmScheduleMasterSyncService
 
     # Default to 7 days for PO tasks
     DEFAULT_PO_LEAD_TIME_DAYS
+  end
+
+  # Calculate call_time_days based on pricebook items or template default
+  # Priority:
+  #   1. Max call_time_days from pricebook items in po_line_items
+  #   2. Template row's call_time_days if set
+  #   3. Default of 3 days for PO tasks
+  #   4. nil for non-PO tasks
+  DEFAULT_CALL_TIME_DAYS = 3
+
+  def calculate_call_time_days
+    # Only apply call time logic to PO tasks
+    return nil unless template_row.po_required || template_row.create_po_on_job_start
+
+    # Try to get call time from pricebook items
+    if template_row.po_line_items.present? && template_row.po_line_items.any?
+      price_history_ids = template_row.po_line_items.map { |item| item["price_history_id"] }.compact
+      if price_history_ids.any?
+        # Get max call_time_days from associated pricebook items
+        max_call_time = PriceHistory
+          .where(id: price_history_ids)
+          .joins(:pricebook_item)
+          .maximum("pricebook.call_time_days")
+
+        return max_call_time if max_call_time.present?
+      end
+    end
+
+    # Fall back to template's call_time_days if set
+    return template_row.call_time_days if template_row.call_time_days.present?
+
+    # Default to 3 days for PO tasks
+    DEFAULT_CALL_TIME_DAYS
   end
 end

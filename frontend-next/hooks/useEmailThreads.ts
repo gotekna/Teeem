@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { api } from "@/lib/api";
+
+export type ThreadSortOption = "date_asc" | "date_desc" | "sender_asc" | "sender_desc";
+
+export const THREAD_SORT_OPTIONS: { value: ThreadSortOption; label: string }[] = [
+  { value: "date_asc", label: "Oldest first" },
+  { value: "date_desc", label: "Newest first" },
+  { value: "sender_asc", label: "Sender A-Z" },
+  { value: "sender_desc", label: "Sender Z-A" },
+];
 
 export interface ThreadEmail {
   id: number;
@@ -49,6 +58,11 @@ export interface UseEmailThreadsReturn {
   isLoading: (conversationId: string) => boolean;
   /** Get cached thread emails */
   getThread: (conversationId: string) => ThreadEmail[] | undefined;
+
+  /** Current thread sort option */
+  sortOption: ThreadSortOption;
+  /** Set thread sort option */
+  setSortOption: (option: ThreadSortOption) => void;
 }
 
 /**
@@ -71,6 +85,38 @@ export function useEmailThreads(): UseEmailThreadsReturn {
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const [threadCache, setThreadCache] = useState<Map<string, ThreadEmail[]>>(new Map());
   const [loadingThreads, setLoadingThreads] = useState<Set<string>>(new Set());
+  const [sortOption, setSortOption] = useState<ThreadSortOption>("date_asc");
+
+  // Sort function based on current option
+  const sortThreadEmails = useCallback((emails: ThreadEmail[]): ThreadEmail[] => {
+    return [...emails].sort((a, b) => {
+      switch (sortOption) {
+        case "date_asc":
+          return new Date(a.received_at).getTime() - new Date(b.received_at).getTime();
+        case "date_desc":
+          return new Date(b.received_at).getTime() - new Date(a.received_at).getTime();
+        case "sender_asc":
+          return (a.from_name || a.from_email).localeCompare(b.from_name || b.from_email);
+        case "sender_desc":
+          return (b.from_name || b.from_email).localeCompare(a.from_name || a.from_email);
+        default:
+          return 0;
+      }
+    });
+  }, [sortOption]);
+
+  // Re-sort cache when sort option changes
+  useEffect(() => {
+    if (threadCache.size > 0) {
+      setThreadCache((prev) => {
+        const next = new Map<string, ThreadEmail[]>();
+        prev.forEach((emails, key) => {
+          next.set(key, sortThreadEmails(emails));
+        });
+        return next;
+      });
+    }
+  }, [sortOption, sortThreadEmails]);
 
   const toggleThread = useCallback((conversationId: string) => {
     setExpandedThreads((prev) => {
@@ -141,10 +187,8 @@ export function useEmailThreads(): UseEmailThreadsReturn {
           return next;
         });
 
-        // Sort by received_at (oldest first)
-        const sortedThread = [...thread].sort(
-          (a, b) => new Date(a.received_at).getTime() - new Date(b.received_at).getTime()
-        );
+        // Sort according to current sort option
+        const sortedThread = sortThreadEmails(thread);
 
         // Cache the thread
         setThreadCache((prev) => {
@@ -168,7 +212,7 @@ export function useEmailThreads(): UseEmailThreadsReturn {
       console.error("Failed to fetch email thread:", error);
       return [];
     }
-  }, []);
+  }, [sortThreadEmails]);
 
   return {
     expandedThreads,
@@ -182,6 +226,8 @@ export function useEmailThreads(): UseEmailThreadsReturn {
     loadingThreads,
     isLoading,
     getThread,
+    sortOption,
+    setSortOption,
   };
 }
 

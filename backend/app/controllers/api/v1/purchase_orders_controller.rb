@@ -112,6 +112,12 @@ module Api
             if schedule_task_id.present?
               sm_task = SmTask.find(schedule_task_id)
               sm_task.update!(purchase_order_id: @purchase_order.id)
+
+              # Spawn Order/Call tasks if configured on the task
+              spawn_result = SmPoSpawnService.new(sm_task, user: current_user).spawn!
+              if spawn_result[:spawned_tasks].any?
+                Rails.logger.info("[PurchaseOrdersController] Spawned #{spawn_result[:spawned_tasks].count} tasks for PO ##{@purchase_order.id}")
+              end
             end
 
             render json: @purchase_order.as_json(include: :line_items), status: :created

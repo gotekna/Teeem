@@ -29,9 +29,16 @@ Compares the current table to Gold Standard and updates all settings to match th
 
 Tables in TEEEM should follow the Gold Standard template for consistency. This agent detects which table you're currently viewing, fetches the matching Gold Standard configuration, compares all settings (columns, filters, buttons, colors, edit modes), and applies updates after user confirmation. It ensures every table adheres to the established UX patterns.
 
-**Supports both table types:**
-- **Database-backed tables** - Stored in `tables` table with columns in `columns` table, updated via API
-- **In-memory/Config tables** - Column definitions in JSX props (e.g., `DEFAULT_COLUMNS` arrays), updated by editing source files
+**SSoT Column Source (Updated 2025-12-27):**
+Foundation API is THE ONE source for column definitions. When `foundationIdNumeric` is set on TeeemTableView:
+- ✅ Columns are auto-fetched from Foundation API
+- ✅ Column properties (type, searchable, required, validation) come from Foundation
+- ❌ Never pass `columns` prop when `foundationIdNumeric` is set (SSoT violation)
+- ❌ Hardcoded `*_COLUMNS` arrays are dead code when Foundation exists
+
+**Table types:**
+- **Foundation-backed tables** - Use `foundationIdNumeric` prop, columns from Foundation API (THE ONE)
+- **Legacy/Config tables** - Use `columns` prop only when no Foundation backing exists
 
 ## Capabilities
 

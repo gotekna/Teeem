@@ -40,6 +40,9 @@ import {
   CONTACT_SEARCH_DEBOUNCE_MS,
   CONTACT_SEARCH_MIN_CHARS,
   CONTACT_SEARCH_MAX_RESULTS,
+  MAX_ATTACHMENT_SIZE_BYTES,
+  MAX_TOTAL_ATTACHMENTS_SIZE_BYTES,
+  formatFileSize,
 } from "@/lib/email-constants";
 import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
 import { Calendar } from "@/components/ui/calendar";
@@ -60,6 +63,7 @@ interface ComposeEmailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultTo?: string;
+  defaultCc?: string; // For Reply All
   defaultSubject?: string;
   defaultBody?: string;
   replyToMessageId?: string;
@@ -73,6 +77,7 @@ export function ComposeEmailModal({
   open,
   onOpenChange,
   defaultTo = "",
+  defaultCc = "",
   defaultSubject = "",
   defaultBody = "",
   replyToMessageId,
@@ -208,11 +213,15 @@ export function ComposeEmailModal({
           credential_id: "",
           from_address: "",
           to: defaultTo,
-          cc: "",
+          cc: defaultCc,
           bcc: "",
           subject: defaultSubject,
           body: bodyAsHtml,
         });
+        // Show CC/BCC fields if defaultCc is provided (Reply All)
+        if (defaultCc) {
+          setShowCcBcc(true);
+        }
       }
 
       setAttachments([]);
@@ -222,7 +231,7 @@ export function ComposeEmailModal({
       setScheduledDate(undefined);
       setScheduledTime("09:00");
     }
-  }, [open, defaultTo, defaultSubject, defaultBody, draft]);
+  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft]);
 
   // Update signature when account changes
   useEffect(() => {
@@ -278,6 +287,30 @@ export function ComposeEmailModal({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+
+    // Validate individual file sizes
+    const oversizedFiles = files.filter((f) => f.size > MAX_ATTACHMENT_SIZE_BYTES);
+    if (oversizedFiles.length > 0) {
+      const names = oversizedFiles.map((f) => f.name).join(", ");
+      setError(
+        `File(s) too large: ${names}. Maximum size is ${formatFileSize(MAX_ATTACHMENT_SIZE_BYTES)} per file.`
+      );
+      return;
+    }
+
+    // Calculate total size including existing attachments
+    const existingSize = attachments.reduce((sum, f) => sum + f.size, 0);
+    const newSize = files.reduce((sum, f) => sum + f.size, 0);
+    const totalSize = existingSize + newSize;
+
+    if (totalSize > MAX_TOTAL_ATTACHMENTS_SIZE_BYTES) {
+      setError(
+        `Total attachments too large (${formatFileSize(totalSize)}). Maximum total is ${formatFileSize(MAX_TOTAL_ATTACHMENTS_SIZE_BYTES)}.`
+      );
+      return;
+    }
+
+    setError(null);
     setAttachments((prev) => [...prev, ...files]);
   };
 
@@ -323,6 +356,11 @@ export function ComposeEmailModal({
       }
       if (scheduledDateTime <= new Date()) {
         setError("Scheduled time must be in the future");
+        return;
+      }
+      // Block scheduled send with attachments (not supported yet)
+      if (attachments.length > 0) {
+        setError("Scheduled emails cannot include attachments. Please remove attachments or send immediately.");
         return;
       }
     }
@@ -469,25 +507,38 @@ export function ComposeEmailModal({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>To</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={() => setShowCcBcc(!showCcBcc)}
-                  >
-                    {showCcBcc ? (
-                      <>
-                        <ChevronUp className="h-3 w-3 mr-1" />
-                        Hide CC/BCC
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-3 w-3 mr-1" />
-                        Show CC/BCC
-                      </>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={() => setShowCcBcc(!showCcBcc)}
+                    >
+                      {showCcBcc ? (
+                        <>
+                          <ChevronUp className="h-3 w-3 mr-1" />
+                          Hide CC/BCC
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-3 w-3 mr-1" />
+                          Show CC/BCC
+                        </>
+                      )}
+                    </Button>
+                    {/* Show recipient counts when collapsed */}
+                    {!showCcBcc && formData.cc && (
+                      <Badge variant="secondary" className="h-5 text-xs">
+                        CC: {formData.cc.split(",").filter(e => e.trim()).length}
+                      </Badge>
                     )}
-                  </Button>
+                    {!showCcBcc && formData.bcc && (
+                      <Badge variant="secondary" className="h-5 text-xs">
+                        BCC: {formData.bcc.split(",").filter(e => e.trim()).length}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <ComboboxDropdown
                   items={contacts.map((c) => ({
@@ -611,6 +662,17 @@ export function ComposeEmailModal({
                     }
                   }}
                 />
+                {/* Signature Preview - only show when body doesn't already contain signature */}
+                {selectedAccount?.email_signature && !formData.body.includes("--<br>") && (
+                  <div className="mt-2 p-2 rounded-md bg-muted/50 border border-dashed">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-medium text-muted-foreground">Signature (will be appended)</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      --{"\n"}{selectedAccount.email_signature}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Templates & Attachments toolbar */}
@@ -662,24 +724,32 @@ export function ComposeEmailModal({
               {/* Attachments list */}
               <div className="space-y-2">
                 {attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {attachments.map((file, index) => (
-                      <Badge
-                        key={index}
-                        variant="secondary"
-                        className="flex items-center gap-1"
-                      >
-                        {file.name}
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(index)}
-                          className="ml-1 hover:text-red-500"
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {attachments.map((file, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="flex items-center gap-1"
                         >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
+                          {file.name}
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({formatFileSize(file.size)})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(index)}
+                            className="ml-1 hover:text-red-500"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Total: {formatFileSize(attachments.reduce((sum, f) => sum + f.size, 0))} / {formatFileSize(MAX_TOTAL_ATTACHMENTS_SIZE_BYTES)}
+                    </p>
+                  </>
                 )}
                 {isScheduled && attachments.length > 0 && (
                   <p className="text-xs text-amber-600 dark:text-amber-400">
