@@ -473,6 +473,7 @@ export default function EmailPage() {
     onPin: handleKeyboardPin,
     onVip: handleKeyboardVip,
     onReply: handleKeyboardReply,
+    onForward: handleKeyboardForward,
     onCompose: handleKeyboardCompose,
     onShowHelp: () => setShowShortcutsHelp(true),
     // Bulk selection shortcuts

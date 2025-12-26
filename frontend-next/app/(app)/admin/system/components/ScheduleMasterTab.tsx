@@ -920,6 +920,7 @@ export function ScheduleMasterTab() {
             <TeeemTableView
               key={dataViewRefreshKey}
               entries={dataViewRows as unknown as { id: number; [key: string]: unknown }[]}
+              totalCount={dataViewRows.length}
               foundationId="sm_schedule_master"
               foundationIdNumeric={426}
               tableName={dataViewTemplateId
@@ -935,6 +936,9 @@ export function ScheduleMasterTab() {
               onRowUpdate={handleDataViewRowUpdate}
               onRowDoubleClick={handleDataViewRowDoubleClick}
               enableExport={true}
+              enableImport={true}
+              enableSchemaEditor={true}
+              initialShowTotals={true}
               leftActions={
                 <Select
                   value={dataViewTemplateId ? String(dataViewTemplateId) : ""}

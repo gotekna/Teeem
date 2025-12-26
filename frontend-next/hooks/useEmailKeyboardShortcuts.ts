@@ -39,6 +39,8 @@ export interface UseEmailKeyboardShortcutsProps<T extends BaseEmail> {
   onMove?: () => void;
   /** Reply action handler */
   onReply?: () => void;
+  /** Forward action handler */
+  onForward?: () => void;
   /** Compose new email handler */
   onCompose?: () => void;
   /** Show keyboard shortcuts help */
@@ -74,6 +76,7 @@ export interface UseEmailKeyboardShortcutsProps<T extends BaseEmail> {
  * - b: Snooze
  * - m: Move to folder
  * - r: Reply
+ * - f: Forward
  * - c: Compose
  * - Escape: Clear selection (if any) or deselect
  * - ?: Show help
@@ -92,6 +95,7 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
   onSnooze,
   onMove,
   onReply,
+  onForward,
   onCompose,
   onShowHelp,
   onToggleSelection,
@@ -286,6 +290,14 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
           }
           break;
 
+        // Forward (f)
+        case "f":
+          if (selectedEmail && onForward) {
+            e.preventDefault();
+            onForward();
+          }
+          break;
+
         // Compose (doesn't require selection)
         case "c":
           if (onCompose) {
@@ -335,6 +347,7 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
       onSnooze,
       onMove,
       onReply,
+      onForward,
       onCompose,
       onShowHelp,
       onToggleSelection,
