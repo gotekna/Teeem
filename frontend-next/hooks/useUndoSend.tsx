@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 interface QueuedEmail {
   id: string;
   credential_id: string;
+  from_address?: string;
   to: string;
   cc?: string;
   bcc?: string;
@@ -22,6 +23,7 @@ interface QueuedEmail {
 
 interface SendEmailParams {
   credential_id: string;
+  from_address?: string;
   to: string;
   cc?: string;
   bcc?: string;
@@ -97,6 +99,9 @@ export function useUndoSend() {
       formPayload.append("subject", email.subject);
       formPayload.append("body", email.body);
 
+      if (email.from_address) {
+        formPayload.append("from_address", email.from_address);
+      }
       if (email.cc) {
         formPayload.append("cc", email.cc);
       }

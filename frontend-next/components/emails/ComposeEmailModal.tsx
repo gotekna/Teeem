@@ -52,13 +52,14 @@ interface Contact {
 
 interface EmailAccount {
   id: number | string;
-  type: "outlook" | "imap";
+  type: "outlook" | "imap" | "ms365";
   name: string;
   email_address: string;
   provider: string;
   is_active: boolean;
   is_default?: boolean;
   email_signature?: string | null;
+  email_aliases?: string[];
 }
 
 interface ComposeEmailModalProps {
@@ -89,6 +90,7 @@ export function ComposeEmailModal({
 
   const [formData, setFormData] = useState({
     credential_id: "",
+    from_address: "", // Selected from address (main email or alias)
     to: defaultTo,
     cc: "",
     bcc: "",
@@ -167,6 +169,7 @@ export function ComposeEmailModal({
         : defaultBody;
       setFormData({
         credential_id: "",
+        from_address: "",
         to: defaultTo,
         cc: "",
         bcc: "",
@@ -221,7 +224,11 @@ export function ComposeEmailModal({
       }
 
       if (accountToSelect) {
-        setFormData((prev) => ({ ...prev, credential_id: String(accountToSelect!.id) }));
+        setFormData((prev) => ({
+          ...prev,
+          credential_id: String(accountToSelect!.id),
+          from_address: accountToSelect!.email_address,
+        }));
       }
     } catch (err) {
       console.error("Failed to fetch accounts:", err);
@@ -289,6 +296,7 @@ export function ComposeEmailModal({
 
         const payload = {
           credential_id: formData.credential_id,
+          from_address: formData.from_address || undefined,
           to: [formData.to],
           cc: formData.cc ? [formData.cc] : [],
           bcc: formData.bcc ? [formData.bcc] : [],
@@ -303,6 +311,7 @@ export function ComposeEmailModal({
         // Queue with undo capability (5 second delay)
         queueSend({
           credential_id: formData.credential_id,
+          from_address: formData.from_address || undefined,
           to: formData.to,
           cc: formData.cc || undefined,
           bcc: formData.bcc || undefined,
@@ -354,28 +363,64 @@ export function ComposeEmailModal({
               {/* From Account */}
               <div className="space-y-2">
                 <Label>From</Label>
-                <Select
-                  value={formData.credential_id}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, credential_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select account..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.map((account) => (
-                      <SelectItem key={account.id} value={String(account.id)}>
-                        <span className="flex items-center gap-2">
-                          {account.name || account.email_address}
-                          <span className="text-muted-foreground">
-                            ({account.email_address})
+                <div className="flex gap-2">
+                  {/* Account selector */}
+                  <Select
+                    value={formData.credential_id}
+                    onValueChange={(value) => {
+                      const account = accounts.find((a) => String(a.id) === value);
+                      setFormData({
+                        ...formData,
+                        credential_id: value,
+                        from_address: account?.email_address || "",
+                      });
+                    }}
+                  >
+                    <SelectTrigger className={selectedAccount?.email_aliases?.length ? "w-1/2" : "w-full"}>
+                      <SelectValue placeholder="Select account..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((account) => (
+                        <SelectItem key={account.id} value={String(account.id)}>
+                          <span className="flex items-center gap-2">
+                            {account.name || account.email_address}
                           </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* From address selector (shows when account has aliases) */}
+                  {selectedAccount?.email_aliases?.length ? (
+                    <Select
+                      value={formData.from_address}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, from_address: value })
+                      }
+                    >
+                      <SelectTrigger className="w-1/2">
+                        <SelectValue placeholder="Send as..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Main email address */}
+                        <SelectItem value={selectedAccount.email_address}>
+                          {selectedAccount.email_address}
+                        </SelectItem>
+                        {/* Aliases */}
+                        {selectedAccount.email_aliases.map((alias) => (
+                          <SelectItem key={alias} value={alias}>
+                            {alias} <span className="text-muted-foreground ml-1">(alias)</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                </div>
+                {selectedAccount && !selectedAccount?.email_aliases?.length && (
+                  <p className="text-xs text-muted-foreground">
+                    Sending as {formData.from_address || selectedAccount.email_address}
+                  </p>
+                )}
               </div>
 
               {/* To */}

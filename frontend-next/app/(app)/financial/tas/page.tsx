@@ -71,6 +71,7 @@ import ProgressBillingTab from "@/components/financial/ProgressBillingTab";
 import BankFeedsTab from "@/components/financial/BankFeedsTab";
 import BASLodgementTab from "@/components/financial/BASLodgementTab";
 import ABNLookupTab from "@/components/financial/ABNLookupTab";
+import ASICEdgeTab from "@/components/financial/ASICEdgeTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -670,6 +671,10 @@ export default function GlPage() {
             <Building2 className="h-4 w-4" />
             ABN Lookup
           </TabsTrigger>
+          <TabsTrigger value="asic-edge" className="flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            ASIC EDGE
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1081,6 +1086,11 @@ export default function GlPage() {
         {/* ABN Lookup Tab */}
         <TabsContent value="abn-lookup">
           <ABNLookupTab />
+        </TabsContent>
+
+        {/* ASIC EDGE Tab */}
+        <TabsContent value="asic-edge">
+          <ASICEdgeTab />
         </TabsContent>
       </Tabs>
 

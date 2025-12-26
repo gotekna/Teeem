@@ -285,7 +285,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
         provider: cred.provider,
         is_active: cred.is_active,
         is_default: false,
-        email_signature: cred.email_signature
+        email_signature: cred.email_signature,
+        email_aliases: cred.email_aliases || []
       }
     end
 
@@ -350,7 +351,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       cc: Array(params[:cc]),
       bcc: Array(params[:bcc]),
       attachments: attachments,
-      reply_to_message_id: params[:reply_to_message_id]
+      reply_to_message_id: params[:reply_to_message_id],
+      from_address: params[:from_address]
     )
 
     render json: {

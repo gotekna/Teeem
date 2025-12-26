@@ -193,9 +193,12 @@ class ImapEmailService
   # @param bcc [Array<String>] BCC recipients
   # @param attachments [Array<Hash>] Array of {filename:, content:, content_type:}
   # @return [Mail::Message] Sent message
-  def send_email(to:, subject:, body:, cc: [], bcc: [], attachments: [], reply_to_message_id: nil)
+  def send_email(to:, subject:, body:, cc: [], bcc: [], attachments: [], reply_to_message_id: nil, from_address: nil)
+    # Use from_address if provided (for aliases), otherwise use credential's email
+    sender_address = from_address.presence || credential.email_address
+
     mail = Mail.new do |m|
-      m.from    credential.email_address
+      m.from    sender_address
       m.to      Array(to)
       m.cc      Array(cc) if cc.present?
       m.bcc     Array(bcc) if bcc.present?
