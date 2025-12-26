@@ -53,6 +53,9 @@ export interface Email {
   is_read: boolean;
   job_id?: number;
   conversation_id?: string;
+  // Threading fields
+  thread_count?: number;
+  is_latest_in_thread?: boolean;
 }
 
 // Category configuration

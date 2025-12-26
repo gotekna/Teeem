@@ -38,6 +38,7 @@ import {
   Clock,
   AlertCircle,
   AlertTriangle,
+  Activity,
   History,
   Building2,
   Layers,
@@ -59,6 +60,8 @@ import {
 import RecurringInvoicesTab from "@/components/financial/RecurringInvoicesTab";
 import PaymentLinksTab from "@/components/financial/PaymentLinksTab";
 import DuplicateBillsTab from "@/components/financial/DuplicateBillsTab";
+import AnomalyDetectionTab from "@/components/financial/AnomalyDetectionTab";
+import LatePaymentPredictionTab from "@/components/financial/LatePaymentPredictionTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -618,6 +621,14 @@ export default function GlPage() {
             <AlertTriangle className="h-4 w-4" />
             Duplicate Bills
           </TabsTrigger>
+          <TabsTrigger value="anomalies" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Anomaly Detection
+          </TabsTrigger>
+          <TabsTrigger value="predictions" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Late Payment Risk
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -979,6 +990,11 @@ export default function GlPage() {
         {/* Duplicate Bills Tab */}
         <TabsContent value="duplicates">
           <DuplicateBillsTab />
+        </TabsContent>
+
+        {/* Anomaly Detection Tab */}
+        <TabsContent value="anomalies">
+          <AnomalyDetectionTab />
         </TabsContent>
       </Tabs>
 

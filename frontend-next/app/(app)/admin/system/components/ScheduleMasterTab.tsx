@@ -115,8 +115,7 @@ interface SmTemplateRow {
   // Auto-PO configuration
   po_supplier_id?: number | null;
   po_supplier_name?: string | null;
-  po_price_history_ids?: number[];
-  po_line_items?: Array<{ price_history_id: number; qty: number }>;
+  po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -249,6 +248,7 @@ export function ScheduleMasterTab() {
   const [suppliers, setSuppliers] = React.useState<Array<{ id: number; display_name: string }>>([]);
   const [priceHistories, setPriceHistories] = React.useState<Array<{
     id: number;
+    pricebook_item_id: number;
     pricebook_item_name: string;
     pricebook_item_code: string;
     new_price: number | string;
@@ -256,7 +256,7 @@ export function ScheduleMasterTab() {
   const [loadingSuppliers, setLoadingSuppliers] = React.useState(false);
   const [loadingPriceHistories, setLoadingPriceHistories] = React.useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = React.useState<string>("");
-  const [poLineItems, setPoLineItems] = React.useState<Array<{ price_history_id: number; qty: number }>>([]);
+  const [poLineItems, setPoLineItems] = React.useState<Array<{ pricebook_item_id: number; qty: number }>>([]);
   const [savingAutoPO, setSavingAutoPO] = React.useState(false);
 
   // Column status tracking (persisted to localStorage)
@@ -538,12 +538,9 @@ export function ScheduleMasterTab() {
   const loadSuppliers = async () => {
     setLoadingSuppliers(true);
     try {
-      console.log("[Auto-PO] Loading suppliers...");
       const response = await api.get<{ success: boolean; contacts: Array<{ id: number; display_name: string }> }>(
         "/api/v1/contacts?type=suppliers&limit=500"
       );
-      console.log("[Auto-PO] Suppliers response:", response);
-      console.log("[Auto-PO] Suppliers count:", response.contacts?.length || 0);
       setSuppliers(response.contacts || []);
     } catch (error) {
       console.error("[Auto-PO] Failed to load suppliers:", error);
@@ -562,6 +559,7 @@ export function ScheduleMasterTab() {
     try {
       const response = await api.get<{ success: boolean; data: Array<{
         id: number;
+        pricebook_item_id: number;
         pricebook_item_name: string;
         pricebook_item_code: string;
         new_price: number | string;
@@ -578,12 +576,9 @@ export function ScheduleMasterTab() {
   const handleOpenAutoPODialog = () => {
     if (!editingRow) return;
     setSelectedSupplierId(editingRow.po_supplier_id ? String(editingRow.po_supplier_id) : "");
-    // Initialize from po_line_items if available, otherwise from legacy po_price_history_ids
+    // Initialize from po_line_items if available
     if (editingRow.po_line_items && editingRow.po_line_items.length > 0) {
       setPoLineItems(editingRow.po_line_items);
-    } else if (editingRow.po_price_history_ids && editingRow.po_price_history_ids.length > 0) {
-      // Migrate legacy format to new format with qty=1
-      setPoLineItems(editingRow.po_price_history_ids.map(id => ({ price_history_id: id, qty: 1 })));
     } else {
       setPoLineItems([]);
     }
@@ -606,23 +601,23 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Toggle price history selection (adds with qty=1 or removes)
-  const togglePriceHistorySelection = (phId: number) => {
+  // Toggle pricebook item selection (adds with qty=1 or removes)
+  const togglePricebookItemSelection = (pricebookItemId: number) => {
     setPoLineItems(prev => {
-      const existing = prev.find(item => item.price_history_id === phId);
+      const existing = prev.find(item => item.pricebook_item_id === pricebookItemId);
       if (existing) {
-        return prev.filter(item => item.price_history_id !== phId);
+        return prev.filter(item => item.pricebook_item_id !== pricebookItemId);
       } else {
-        return [...prev, { price_history_id: phId, qty: 1 }];
+        return [...prev, { pricebook_item_id: pricebookItemId, qty: 1 }];
       }
     });
   };
 
   // Update quantity for a line item
-  const updateLineItemQty = (phId: number, qty: number) => {
+  const updateLineItemQty = (pricebookItemId: number, qty: number) => {
     setPoLineItems(prev =>
       prev.map(item =>
-        item.price_history_id === phId ? { ...item, qty: Math.max(1, qty) } : item
+        item.pricebook_item_id === pricebookItemId ? { ...item, qty: Math.max(1, qty) } : item
       )
     );
   };
@@ -668,7 +663,7 @@ export function ScheduleMasterTab() {
         row: {
           create_po_on_job_start: false,
           po_supplier_id: null,
-          po_price_history_ids: [],
+          po_line_items: [],
         },
       });
       toast({ title: "Success", description: "Auto-PO cleared" });
@@ -678,7 +673,7 @@ export function ScheduleMasterTab() {
         create_po_on_job_start: false,
         po_supplier_id: null,
         po_supplier_name: null,
-        po_price_history_ids: [],
+        po_line_items: [],
       } : null);
       setEditRowForm(prev => ({ ...prev, create_po_on_job_start: false }));
       loadDataViewRows(dataViewTemplateId);
@@ -1747,8 +1742,8 @@ export function ScheduleMasterTab() {
                     {editingRow?.po_supplier_name && (
                       <p className="text-xs text-muted-foreground">
                         Supplier: {editingRow.po_supplier_name}
-                        {editingRow.po_price_history_ids && editingRow.po_price_history_ids.length > 0 && (
-                          <> · {editingRow.po_price_history_ids.length} items</>
+                        {editingRow.po_line_items && editingRow.po_line_items.length > 0 && (
+                          <> · {editingRow.po_line_items.length} items</>
                         )}
                       </p>
                     )}
@@ -1877,18 +1872,18 @@ export function ScheduleMasterTab() {
                         </TableHeader>
                         <TableBody>
                           {priceHistories.map((ph) => {
-                            const lineItem = poLineItems.find(item => item.price_history_id === ph.id);
+                            const lineItem = poLineItems.find(item => item.pricebook_item_id === ph.pricebook_item_id);
                             const isSelected = !!lineItem;
                             return (
                               <TableRow
                                 key={ph.id}
                                 className={`cursor-pointer ${isSelected ? "bg-accent/50" : ""}`}
-                                onClick={() => togglePriceHistorySelection(ph.id)}
+                                onClick={() => togglePricebookItemSelection(ph.pricebook_item_id)}
                               >
                                 <TableCell onClick={(e) => e.stopPropagation()}>
                                   <Checkbox
                                     checked={isSelected}
-                                    onCheckedChange={() => togglePriceHistorySelection(ph.id)}
+                                    onCheckedChange={() => togglePricebookItemSelection(ph.pricebook_item_id)}
                                   />
                                 </TableCell>
                                 <TableCell className="font-mono text-sm">
@@ -1899,12 +1894,12 @@ export function ScheduleMasterTab() {
                                   ${typeof ph.new_price === 'number' ? ph.new_price.toFixed(2) : (parseFloat(ph.new_price) || 0).toFixed(2)}
                                 </TableCell>
                                 <TableCell onClick={(e) => e.stopPropagation()}>
-                                  {isSelected && (
+                                  {isSelected && lineItem && (
                                     <Input
                                       type="number"
                                       min={1}
                                       value={lineItem.qty}
-                                      onChange={(e) => updateLineItemQty(ph.id, parseInt(e.target.value) || 1)}
+                                      onChange={(e) => updateLineItemQty(ph.pricebook_item_id, parseInt(e.target.value) || 1)}
                                       className="w-16 h-8 text-center"
                                     />
                                   )}

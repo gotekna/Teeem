@@ -38,9 +38,11 @@ import {
 } from "@/components/emails/SplitInboxTabs";
 import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp";
 import { BulkActionBar } from "@/components/emails/BulkActionBar";
+import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
+import { useEmailThreads, type ThreadEmail } from "@/hooks/useEmailThreads";
 import { useEmailState } from "@/components/emails/EmailActions";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -70,6 +72,11 @@ interface Email {
     content_type: string;
     size: number;
   }>;
+  // Threading fields
+  conversation_id?: string;
+  thread_count?: number;
+  is_latest_in_thread?: boolean;
+  thread?: Email[];
 }
 
 interface EmailAccount {
@@ -121,6 +128,12 @@ const EmailListItem = memo(function EmailListItem({
   hasSelections,
   onClick,
   onCheckboxChange,
+  // Thread props
+  threadCount = 0,
+  isExpanded = false,
+  onToggleThread,
+  threadEmails = [],
+  isLoadingThread = false,
 }: {
   email: Email;
   isSelected: boolean;
@@ -128,69 +141,141 @@ const EmailListItem = memo(function EmailListItem({
   hasSelections: boolean;
   onClick: (email: Email, event: React.MouseEvent) => void;
   onCheckboxChange: (email: Email) => void;
+  // Thread props
+  threadCount?: number;
+  isExpanded?: boolean;
+  onToggleThread?: (email: Email) => void;
+  threadEmails?: ThreadEmail[];
+  isLoadingThread?: boolean;
 }) {
-  return (
-    <div
-      data-email-id={email.id}
-      className={cn(
-        "group px-3 py-2.5 cursor-pointer border-l-2",
-        isSelected
-          ? "bg-primary/10 border-l-primary"
-          : isChecked
-          ? "bg-primary/5 border-l-primary/50"
-          : "hover:bg-muted/50 border-l-transparent",
-        !email.is_read && !isSelected && !isChecked && "bg-blue-50/50 dark:bg-blue-950/20"
-      )}
-      onClick={(e) => onClick(email, e)}
-    >
-      <div className="flex items-start gap-2">
-        {/* Checkbox - visible on hover or when any selections exist */}
-        <div
-          className={cn(
-            "shrink-0 pt-0.5",
-            hasSelections ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-            "transition-opacity"
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            onCheckboxChange(email);
-          }}
-        >
-          <Checkbox
-            checked={isChecked}
-            onCheckedChange={() => onCheckboxChange(email)}
-            className="h-4 w-4"
-          />
-        </div>
+  const hasThread = threadCount > 1;
 
-        <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className={cn(
-                "text-sm truncate",
-                !email.is_read ? "font-semibold" : "font-medium"
-              )}>
-                {email.from_name || email.from_email || email.from_address}
-              </span>
-              {email.has_attachments && (
-                <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
-              )}
-            </div>
-            <p className={cn(
-              "text-sm truncate",
-              !email.is_read ? "font-medium" : ""
-            )}>
-              {email.subject || "(No subject)"}
-            </p>
-            <p className="text-xs text-muted-foreground truncate mt-0.5">
-              {email.snippet || email.body_preview}
-            </p>
+  return (
+    <div data-email-id={email.id}>
+      {/* Main email row */}
+      <div
+        className={cn(
+          "group px-3 py-2.5 cursor-pointer border-l-2",
+          isSelected
+            ? "bg-primary/10 border-l-primary"
+            : isChecked
+            ? "bg-primary/5 border-l-primary/50"
+            : "hover:bg-muted/50 border-l-transparent",
+          !email.is_read && !isSelected && !isChecked && "bg-blue-50/50 dark:bg-blue-950/20"
+        )}
+        onClick={(e) => onClick(email, e)}
+      >
+        <div className="flex items-start gap-2">
+          {/* Thread expand/collapse chevron OR checkbox */}
+          <div className="shrink-0 pt-0.5 w-4 flex items-center justify-center">
+            {hasThread && !hasSelections ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleThread?.(email);
+                }}
+                className="p-0 hover:bg-muted rounded"
+              >
+                {isLoadingThread ? (
+                  <div className="h-3.5 w-3.5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                ) : isExpanded ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </button>
+            ) : (
+              <div
+                className={cn(
+                  hasSelections ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                  "transition-opacity"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCheckboxChange(email);
+                }}
+              >
+                <Checkbox
+                  checked={isChecked}
+                  onCheckedChange={() => onCheckboxChange(email)}
+                  className="h-4 w-4"
+                />
+              </div>
+            )}
           </div>
-          <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
-            {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+
+          <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className={cn(
+                  "text-sm truncate",
+                  !email.is_read ? "font-semibold" : "font-medium"
+                )}>
+                  {email.from_name || email.from_email || email.from_address}
+                </span>
+                {email.has_attachments && (
+                  <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                )}
+                {/* Thread count badge */}
+                <ThreadCountBadge count={threadCount} isExpanded={isExpanded} />
+              </div>
+              <p className={cn(
+                "text-sm truncate",
+                !email.is_read ? "font-medium" : ""
+              )}>
+                {email.subject || "(No subject)"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate mt-0.5">
+                {email.snippet || email.body_preview}
+              </p>
+            </div>
+            <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+              {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Expanded thread emails */}
+      {isExpanded && threadEmails.length > 0 && (
+        <div className="border-l-2 border-l-muted ml-3">
+          {threadEmails
+            .filter((te) => te.id !== email.id) // Don't show the main email again
+            .map((threadEmail) => (
+              <div
+                key={threadEmail.id}
+                data-email-id={threadEmail.id}
+                className={cn(
+                  "px-3 py-2 cursor-pointer hover:bg-muted/30 border-b border-border/50",
+                  !threadEmail.is_read && "bg-blue-50/30 dark:bg-blue-950/10"
+                )}
+                onClick={(e) => onClick(threadEmail as Email, e)}
+              >
+                <div className="flex items-start gap-2 pl-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn(
+                        "text-xs truncate",
+                        !threadEmail.is_read ? "font-semibold" : "font-medium"
+                      )}>
+                        {threadEmail.from_name || threadEmail.from_email || threadEmail.from_address}
+                      </span>
+                      {threadEmail.has_attachments && (
+                        <Paperclip className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {threadEmail.snippet || threadEmail.body_preview}
+                    </p>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                    {format(new Date(threadEmail.received_at), "MMM d, h:mm a")}
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -271,10 +356,26 @@ export default function EmailPage() {
   const selection = useEmailSelection();
   const [lastClickedEmailId, setLastClickedEmailId] = useState<number | null>(null);
 
+  // Thread expansion state
+  const threads = useEmailThreads();
+
   // Get current email list based on view mode
   const currentEmails = useMemo(() => {
     return viewMode === "split" ? (splitInbox.currentEmails as Email[]) : emails;
   }, [viewMode, splitInbox.currentEmails, emails]);
+
+  // Handle thread toggle
+  const handleToggleThread = useCallback(async (email: Email) => {
+    if (!email.conversation_id) return;
+
+    const isCurrentlyExpanded = threads.isExpanded(email.conversation_id);
+    threads.toggleThread(email.conversation_id);
+
+    // Fetch thread if expanding and not cached
+    if (!isCurrentlyExpanded && !threads.getThread(email.conversation_id)) {
+      await threads.fetchThread(email.id);
+    }
+  }, [threads]);
 
   // Bulk actions - refresh list and clear selection on success
   const handleBulkSuccess = useCallback(() => {
@@ -829,6 +930,11 @@ export default function EmailPage() {
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
+                    threadCount={(email as Email).thread_count || 0}
+                    isExpanded={threads.isExpanded((email as Email).conversation_id || '')}
+                    onToggleThread={handleToggleThread}
+                    threadEmails={threads.getThread((email as Email).conversation_id || '') || []}
+                    isLoadingThread={threads.isLoading((email as Email).conversation_id || '')}
                   />
                 ))}
               </div>
@@ -860,6 +966,11 @@ export default function EmailPage() {
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
+                    threadCount={email.thread_count || 0}
+                    isExpanded={threads.isExpanded(email.conversation_id || '')}
+                    onToggleThread={handleToggleThread}
+                    threadEmails={threads.getThread(email.conversation_id || '') || []}
+                    isLoadingThread={threads.isLoading(email.conversation_id || '')}
                   />
                 ))}
               </div>

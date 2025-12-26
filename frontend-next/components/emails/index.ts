@@ -62,3 +62,6 @@ export { KeyboardShortcutsHelp } from "./KeyboardShortcutsHelp";
 
 // Bulk Actions
 export { BulkActionBar } from "./BulkActionBar";
+
+// Threading
+export { ThreadCountBadge } from "./ThreadCountBadge";

@@ -195,15 +195,13 @@ module Api
           spawn_office_tasks: [],
           documentation_category_ids: [],
           subtask_names: [],
-          price_book_item_ids: [],
           tags: [],
           # New array fields
           plan_type_ids: [],
           start_entity_tab_ids: [],
           complete_entity_tab_ids: [],
-          po_price_history_ids: [],
           # PO line items with quantities
-          po_line_items: [ :price_history_id, :qty ]
+          po_line_items: [ :pricebook_item_id, :qty ]
         )
       end
 
@@ -250,7 +248,6 @@ module Api
           create_po_on_job_start: row.create_po_on_job_start,
           po_supplier_id: row.po_supplier_id,
           po_supplier_name: row.po_supplier&.name,
-          po_price_history_ids: row.po_price_history_ids || [],
           po_line_items: row.po_line_items || [],
           cert_lag_days: row.cert_lag_days,
           has_subtasks: row.has_subtasks,
@@ -264,7 +261,6 @@ module Api
           documentation_category_ids: row.documentation_category_ids,
           show_in_docs_tab: row.show_in_docs_tab,
           linked_task_ids: row.linked_task_ids,
-          price_book_item_ids: row.price_book_item_ids,
           tags: row.tags,
           color: row.color,
           is_active: row.is_active,

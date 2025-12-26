@@ -865,24 +865,6 @@ export default function PurchaseOrderDetailPage() {
                 </div>
               </>
             )}
-            {/* Linked SM Task - clickable link to Gantt view */}
-            {purchaseOrder.sm_tasks && purchaseOrder.sm_tasks.length > 0 && purchaseOrder.job && (
-              <>
-                <span className="text-muted-foreground">-</span>
-                <div className="flex items-center gap-2">
-                  <ListTodo className="h-4 w-4 text-muted-foreground" />
-                  <button
-                    onClick={() => router.push(`/jobs/${purchaseOrder.job!.id}/gantt?task=${purchaseOrder.sm_tasks![0].id}`)}
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
-                    title="View task in Schedule Master"
-                  >
-                    <span className="font-mono text-sm">#{purchaseOrder.sm_tasks[0].task_number}</span>
-                    <span className="text-sm">{purchaseOrder.sm_tasks[0].name}</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </button>
-                </div>
-              </>
-            )}
           </div>
 
           <div className="flex items-center gap-3 mt-2">
