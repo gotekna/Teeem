@@ -72,8 +72,8 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   }, [loadTasks]);
 
   const handleRowClick = (row: TableRow) => {
-    // Navigate to task detail or open in Gantt
-    router.push(`/jobs/${jobId}/gantt?task=${row.id}`);
+    // Navigate to Schedule Master (SSoT) with task filter
+    router.push(`/admin/system?tab=schedule-master`);
   };
 
   return (
@@ -88,10 +88,10 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push(`/jobs/${jobId}/gantt`)}
+            onClick={() => router.push(`/admin/system?tab=schedule-master`)}
           >
             <Calendar className="h-4 w-4 mr-2" />
-            Open Gantt
+            Schedule Master
           </Button>
         }
         enableExport={true}

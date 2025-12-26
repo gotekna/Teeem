@@ -996,6 +996,11 @@ export default function GlPage() {
         <TabsContent value="anomalies">
           <AnomalyDetectionTab />
         </TabsContent>
+
+        {/* Late Payment Prediction Tab */}
+        <TabsContent value="predictions">
+          <LatePaymentPredictionTab />
+        </TabsContent>
       </Tabs>
 
       {/* Full Sync Progress Modal */}

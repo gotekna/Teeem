@@ -65,3 +65,6 @@ export { BulkActionBar } from "./BulkActionBar";
 
 // Threading
 export { ThreadCountBadge } from "./ThreadCountBadge";
+
+// Search
+export { EmailSearchFilters } from "./EmailSearchFilters";

@@ -43,6 +43,8 @@ import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
 import { useEmailThreads, type ThreadEmail } from "@/hooks/useEmailThreads";
+import { useEmailFilters } from "@/hooks/useEmailFilters";
+import { EmailSearchFilters } from "@/components/emails/EmailSearchFilters";
 import { useEmailState } from "@/components/emails/EmailActions";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -333,7 +335,9 @@ export default function EmailPage() {
     total_pages: 0,
   });
 
-  const [search, setSearch] = useState("");
+  // Search filters
+  const emailFilters = useEmailFilters();
+
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [selectedFolder, setSelectedFolder] = useState<string>("");
   const [selectedFolderId, setSelectedFolderId] = useState<string>("");
@@ -469,15 +473,11 @@ export default function EmailPage() {
 
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: "50",
-        my_emails: "true",
-      });
-
-      if (search) {
-        params.append("search", search);
-      }
+      // Start with filters from hook
+      const params = emailFilters.toURLParams();
+      params.set("page", String(page));
+      params.set("per_page", "50");
+      params.set("my_emails", "true");
 
       // Filter by specific account
       if (selectedAccount === "outlook") {
@@ -501,7 +501,7 @@ export default function EmailPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, selectedAccount]);
+  }, [emailFilters, selectedAccount]);
 
   const fetchFolders = async (accountId: string, account?: EmailAccount) => {
     if (accountFolders[accountId] || loadingFolders.has(accountId)) {
@@ -869,19 +869,19 @@ export default function EmailPage() {
           </div>
         )}
 
-        {/* Search - Only in folder mode */}
+        {/* Search with filters - Only in folder mode */}
         {viewMode === "folders" && (
           <div className="px-3 py-2 border-b shrink-0">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search emails..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && fetchEmails(1)}
-                className="pl-8 h-8 text-sm"
-              />
-            </div>
+            <EmailSearchFilters
+              filters={emailFilters.filters}
+              setFilter={emailFilters.setFilter}
+              setSearch={emailFilters.setSearch}
+              clearFilters={emailFilters.clearFilters}
+              hasActiveFilters={emailFilters.hasActiveFilters}
+              activeFilterCount={emailFilters.activeFilterCount}
+              activeFilterLabels={emailFilters.getActiveFilterLabels()}
+              onSearch={() => fetchEmails(1)}
+            />
           </div>
         )}
 

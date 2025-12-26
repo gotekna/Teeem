@@ -920,7 +920,7 @@ export function ScheduleMasterTab() {
             <TeeemTableView
               key={dataViewRefreshKey}
               entries={dataViewRows as unknown as { id: number; [key: string]: unknown }[]}
-              foundationId="sm_template_rows"
+              foundationId="sm_schedule_master"
               foundationIdNumeric={426}
               tableName={dataViewTemplateId
                 ? templates.find(t => t.id === dataViewTemplateId)?.name || "Schedule Template Rows"
@@ -982,7 +982,7 @@ export function ScheduleMasterTab() {
                 <div>
                   <h2 className="text-lg font-semibold mb-1">Schedule Master Column Reference</h2>
                   <p className="text-sm text-muted-foreground">
-                    Complete documentation of all {totalColumns} columns in the sm_template_rows table.
+                    Complete documentation of all {totalColumns} columns in the sm_schedule_master table.
                   </p>
                 </div>
                 <div className="flex gap-6 text-sm">

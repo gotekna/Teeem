@@ -7292,89 +7292,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
     t.index ["task_id"], name: "index_sm_rollover_logs_on_task_id"
   end
 
-  create_table "sm_schedule_master", force: :cascade do |t|
-    t.bigint "parent_row_id"
-    t.integer "task_number", null: false
-    t.string "name", null: false
-    t.text "description"
-    t.decimal "sequence_order", precision: 10, scale: 2, null: false
-    t.integer "duration_days", default: 1, null: false
-    t.jsonb "predecessor_ids", default: []
-    t.string "trade"
-    t.string "stage"
-    t.string "assigned_role"
-    t.integer "documentation_category_ids", default: [], array: true
-    t.boolean "show_in_docs_tab", default: false
-    t.jsonb "linked_task_ids", default: []
-    t.boolean "spawn_photo_task", default: false
-    t.boolean "spawn_scan_task", default: false
-    t.jsonb "spawn_office_tasks", default: []
-    t.boolean "pass_fail_enabled", default: false
-    t.bigint "checklist_id"
-    t.integer "order_time_days"
-    t.integer "call_time_days"
-    t.boolean "require_photo", default: false
-    t.boolean "require_certificate", default: false
-    t.boolean "confirm", default: false
-    t.boolean "po_required", default: false
-    t.boolean "critical_po", default: false
-    t.boolean "create_po_on_job_start", default: false
-    t.integer "cert_lag_days", default: 0
-    t.boolean "has_subtasks", default: false
-    t.integer "subtask_count"
-    t.string "subtask_names", default: [], array: true
-    t.string "tags", default: [], array: true
-    t.string "color"
-    t.boolean "is_active", default: true
-    t.bigint "created_by_id"
-    t.bigint "updated_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "auto_include", default: true
-    t.boolean "allow_duplicates", default: false
-    t.boolean "ai_select", default: false
-    t.jsonb "plan_type_ids", default: []
-    t.jsonb "start_entity_tab_ids", default: []
-    t.jsonb "complete_entity_tab_ids", default: []
-    t.bigint "photo_entity_tab_id"
-    t.integer "linked_po_task_id"
-    t.string "cost_centre"
-    t.boolean "supplier_confirm", default: false
-    t.boolean "is_master", default: false
-    t.string "header"
-    t.jsonb "sm_template_ids", default: []
-    t.boolean "hold"
-    t.date "hold_date"
-    t.boolean "completed", default: false
-    t.date "completed_at"
-    t.jsonb "predecessor_ids_backup"
-    t.date "previous_manual_start_date"
-    t.boolean "dependency_broken", default: false
-    t.datetime "confirmed_at"
-    t.datetime "supplier_confirmed_at"
-    t.datetime "hold_at"
-    t.bigint "po_supplier_id"
-    t.integer "po_price_history_ids", default: [], array: true
-    t.jsonb "po_line_items", default: []
-    t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
-    t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"
-    t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"
-    t.index ["created_by_id"], name: "index_sm_schedule_master_on_created_by_id"
-    t.index ["dependency_broken"], name: "index_sm_schedule_master_on_dependency_broken", where: "(dependency_broken = true)"
-    t.index ["header"], name: "index_sm_schedule_master_on_header"
-    t.index ["hold"], name: "index_sm_schedule_master_on_hold", where: "(hold = true)"
-    t.index ["is_active"], name: "index_sm_schedule_master_on_is_active"
-    t.index ["linked_po_task_id"], name: "index_sm_schedule_master_on_linked_po_task_id"
-    t.index ["parent_row_id"], name: "index_sm_schedule_master_on_parent_row_id"
-    t.index ["po_supplier_id"], name: "index_sm_schedule_master_on_po_supplier_id"
-    t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids", using: :gin
-    t.index ["stage"], name: "index_sm_schedule_master_on_stage"
-    t.index ["supplier_confirm"], name: "index_sm_schedule_master_on_supplier_confirm", where: "(supplier_confirm = true)"
-    t.index ["task_number"], name: "index_sm_schedule_master_on_task_number"
-    t.index ["trade"], name: "index_sm_schedule_master_on_trade"
-    t.index ["updated_by_id"], name: "index_sm_schedule_master_on_updated_by_id"
-  end
-
   create_table "sm_settings", force: :cascade do |t|
     t.time "rollover_time", default: "2000-01-01 00:00:00", null: false
     t.string "rollover_timezone", limit: 50, default: "Australia/Brisbane", null: false
@@ -7480,6 +7397,89 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
     t.index ["supplier_id"], name: "index_sm_tasks_on_supplier_id"
     t.index ["trade"], name: "index_sm_tasks_on_trade"
     t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
+  end
+
+  create_table "sm_template_rows", force: :cascade do |t|
+    t.bigint "parent_row_id"
+    t.integer "task_number", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.decimal "sequence_order", precision: 10, scale: 2, null: false
+    t.integer "duration_days", default: 1, null: false
+    t.jsonb "predecessor_ids", default: []
+    t.string "trade"
+    t.string "stage"
+    t.string "assigned_role"
+    t.integer "documentation_category_ids", default: [], array: true
+    t.boolean "show_in_docs_tab", default: false
+    t.jsonb "linked_task_ids", default: []
+    t.boolean "spawn_photo_task", default: false
+    t.boolean "spawn_scan_task", default: false
+    t.jsonb "spawn_office_tasks", default: []
+    t.boolean "pass_fail_enabled", default: false
+    t.bigint "checklist_id"
+    t.integer "order_time_days"
+    t.integer "call_time_days"
+    t.boolean "require_photo", default: false
+    t.boolean "require_certificate", default: false
+    t.boolean "confirm", default: false
+    t.boolean "po_required", default: false
+    t.boolean "critical_po", default: false
+    t.boolean "create_po_on_job_start", default: false
+    t.integer "cert_lag_days", default: 0
+    t.boolean "has_subtasks", default: false
+    t.integer "subtask_count"
+    t.string "subtask_names", default: [], array: true
+    t.string "tags", default: [], array: true
+    t.string "color"
+    t.boolean "is_active", default: true
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "auto_include", default: true
+    t.boolean "allow_duplicates", default: false
+    t.boolean "ai_select", default: false
+    t.jsonb "plan_type_ids", default: []
+    t.jsonb "start_entity_tab_ids", default: []
+    t.jsonb "complete_entity_tab_ids", default: []
+    t.bigint "photo_entity_tab_id"
+    t.integer "linked_po_task_id"
+    t.string "cost_centre"
+    t.boolean "supplier_confirm", default: false
+    t.boolean "is_master", default: false
+    t.string "header"
+    t.jsonb "sm_template_ids", default: []
+    t.boolean "hold"
+    t.date "hold_date"
+    t.boolean "completed", default: false
+    t.date "completed_at"
+    t.jsonb "predecessor_ids_backup"
+    t.date "previous_manual_start_date"
+    t.boolean "dependency_broken", default: false
+    t.datetime "confirmed_at"
+    t.datetime "supplier_confirmed_at"
+    t.datetime "hold_at"
+    t.bigint "po_supplier_id"
+    t.integer "po_price_history_ids", default: [], array: true
+    t.jsonb "po_line_items", default: []
+    t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
+    t.index ["confirm"], name: "index_sm_template_rows_on_confirm", where: "(confirm = true)"
+    t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
+    t.index ["created_by_id"], name: "index_sm_template_rows_on_created_by_id"
+    t.index ["dependency_broken"], name: "index_sm_template_rows_on_dependency_broken", where: "(dependency_broken = true)"
+    t.index ["header"], name: "index_sm_template_rows_on_header"
+    t.index ["hold"], name: "index_sm_template_rows_on_hold", where: "(hold = true)"
+    t.index ["is_active"], name: "index_sm_template_rows_on_is_active"
+    t.index ["linked_po_task_id"], name: "index_sm_template_rows_on_linked_po_task_id"
+    t.index ["parent_row_id"], name: "index_sm_template_rows_on_parent_row_id"
+    t.index ["po_supplier_id"], name: "index_sm_template_rows_on_po_supplier_id"
+    t.index ["sm_template_ids"], name: "index_sm_template_rows_on_sm_template_ids", using: :gin
+    t.index ["stage"], name: "index_sm_template_rows_on_stage"
+    t.index ["supplier_confirm"], name: "index_sm_template_rows_on_supplier_confirm", where: "(supplier_confirm = true)"
+    t.index ["task_number"], name: "index_sm_template_rows_on_task_number"
+    t.index ["trade"], name: "index_sm_template_rows_on_trade"
+    t.index ["updated_by_id"], name: "index_sm_template_rows_on_updated_by_id"
   end
 
   create_table "sm_templates", force: :cascade do |t|
@@ -9315,10 +9315,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
-  add_foreign_key "sm_schedule_master", "sm_schedule_master", column: "parent_row_id"
-  add_foreign_key "sm_schedule_master", "supervisor_checklist_templates", column: "checklist_id"
-  add_foreign_key "sm_schedule_master", "users", column: "created_by_id"
-  add_foreign_key "sm_schedule_master", "users", column: "updated_by_id"
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
@@ -9326,8 +9322,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "purchase_orders", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
-  add_foreign_key "sm_tasks", "sm_schedule_master", column: "sm_template_row_id"
   add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_template_rows"
   add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "assigned_user_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "created_by_id", on_delete: :nullify
@@ -9335,6 +9331,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
   add_foreign_key "sm_tasks", "users", column: "hold_started_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "updated_by_id", on_delete: :nullify
+  add_foreign_key "sm_template_rows", "sm_template_rows", column: "parent_row_id"
+  add_foreign_key "sm_template_rows", "supervisor_checklist_templates", column: "checklist_id"
+  add_foreign_key "sm_template_rows", "users", column: "created_by_id"
+  add_foreign_key "sm_template_rows", "users", column: "updated_by_id"
   add_foreign_key "sm_templates", "users", column: "created_by_id"
   add_foreign_key "sm_templates", "users", column: "updated_by_id"
   add_foreign_key "sm_time_entries", "sm_resource_allocations", column: "allocation_id", on_delete: :nullify
