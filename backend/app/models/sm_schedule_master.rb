@@ -23,8 +23,6 @@ class SmScheduleMaster < ApplicationRecord
   # Note: sm_template_id is deprecated, use sm_template_ids (JSONB array) instead
   # Keeping belongs_to for backwards compatibility during migration
   belongs_to :sm_template, optional: true
-  belongs_to :parent_row, class_name: "SmScheduleMaster", optional: true
-  has_many :children, class_name: "SmScheduleMaster", foreign_key: :parent_row_id, dependent: :nullify
 
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 

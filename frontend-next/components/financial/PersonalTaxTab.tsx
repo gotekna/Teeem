@@ -76,13 +76,7 @@ interface TaxData {
   summary: TaxSummary;
   income_items: Record<string, { label: string; amount: number; transactions?: number }>;
   deduction_items: Record<string, { label: string; amount: number; category: string }>;
-  due_dates: {
-    fy_end: string;
-    self_lodge: DueDate;
-    tax_agent_registration: DueDate;
-    tax_agent_lodge: DueDate;
-    payment: DueDate;
-  };
+  due_dates: DueDate[];
 }
 
 function formatCurrency(amount: number): string {
@@ -128,10 +122,10 @@ export default function PersonalTaxTab() {
 
       const data: TaxData = {
         summary: summaryRes?.data || {} as TaxSummary,
-        income_items: incomeRes?.data?.items || {},
-        deduction_items: deductionsRes?.data?.items || {},
-        due_dates: datesRes?.data?.dates || {},
-      } as TaxData;
+        income_items: (incomeRes?.data?.items || {}) as TaxData["income_items"],
+        deduction_items: (deductionsRes?.data?.items || {}) as TaxData["deduction_items"],
+        due_dates: datesRes?.data?.dates || [],
+      };
 
       setTaxData(data);
 
