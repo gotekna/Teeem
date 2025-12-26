@@ -18,6 +18,7 @@ import {
   Briefcase,
   Package,
   ListTodo,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +39,7 @@ import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
 import { HeaderDebugTools } from "@/components/debug/HeaderDebugTools";
 import { NotificationBell } from "@/components/ui/notification-bell";
+import { CreateTaskDialog } from "@/components/task-hub/CreateTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -77,6 +79,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
+  const [showCreateTask, setShowCreateTask] = React.useState(false);
 
   // Prevent duplicate fetches (React StrictMode double-mount)
   const fetchingRef = React.useRef(false);
@@ -277,7 +280,16 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title="Go back"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+
+          {/* Quick Create Task */}
+          <button
+            onClick={() => setShowCreateTask(true)}
+            className="p-1.5 text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400 rounded-md"
+            title="Create Task"
+          >
+            <Plus className="h-5 w-5" />
           </button>
 
           {/* Chat Icon */}
@@ -471,6 +483,12 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Create Task Dialog - accessible from anywhere */}
+      <CreateTaskDialog
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+      />
     </header>
   );
 }
