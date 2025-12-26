@@ -201,6 +201,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
   // Check if the current category is a photo category
   const isPhotoCategory = (category: DocumentCategory | null): boolean => {
+    // First check initialCategory prop (most reliable when navigating directly)
+    if (initialCategory?.toLowerCase().includes("photo")) {
+      return true;
+    }
     if (!category) return false;
     const name = category.name?.toLowerCase() || "";
     const folderPath = category.folder_path?.toLowerCase() || "";
@@ -210,7 +214,16 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   // Generate photo filename based on category and current date/time
   const generatePhotoFilename = (extension: string): string => {
     const category = selectedSubCategory || selectedCategory;
-    const categoryName = category?.name?.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "") || "Photo";
+    // Use category name, or fallback to initialCategory, or default to "Photo"
+    let categoryName = category?.name || "";
+    if (!categoryName && initialCategory) {
+      // Convert "site-photo" to "Site_Photo"
+      categoryName = initialCategory
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join("_");
+    }
+    categoryName = categoryName.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "") || "Photo";
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, ""); // HHMMSS
@@ -226,9 +239,29 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     setError(null);
 
     try {
-      // Get the folder path from the current category
+      // Get the folder path from the current category or initialCategory
       const category = selectedSubCategory || selectedCategory;
-      const folderPath = category?.folder_path || "06 Photo";
+      let folderPath = category?.folder_path || "";
+
+      // If no folder path from category, derive from initialCategory
+      if (!folderPath && initialCategory) {
+        // Map tab names to folder paths
+        const folderMap: Record<string, string> = {
+          "site-photo": "06 Photo/01 SITE",
+          "client-photo": "06 Photo/02 Client",
+          "slab-photo": "06 Photo/02 SLAB",
+          "frame-photo": "06 Photo/03 FRAME",
+          "pc-photo": "06 Photo/06 Practical Completion",
+          "enclosed-photo": "06 Photo/04 ENCLOSED",
+          "fixing-photo": "06 Photo/05 FIXING",
+          "supervisor-photo": "06 Photo/07 Supervisor Photos",
+        };
+        folderPath = folderMap[initialCategory] || "06 Photo";
+      }
+
+      if (!folderPath) {
+        folderPath = "06 Photo";
+      }
 
       // Generate a proper filename based on category and date/time
       const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
@@ -879,8 +912,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                       </span>
                     )}
                   </CardTitle>
-                  {/* Add Photo button - only show for photo categories */}
-                  {isPhotoCategory(activeCategory) && orgStatus.connected && (
+                  {/* Add Photo button - show for photo categories or photo tabs */}
+                  {(isPhotoCategory(activeCategory) || initialCategory?.includes("photo")) && orgStatus.connected && (
                     <div className="relative">
                       <Button
                         size="sm"
