@@ -121,6 +121,7 @@ interface SmScheduleMaster {
   require_certificate?: boolean;
   cert_lag_days?: number | null;
   certificate_document_type_ids?: number[];
+  pass_fail_enabled?: boolean;
   // Auto-PO configuration
   po_supplier_id?: number | null;
   po_supplier_name?: string | null;
@@ -557,6 +558,7 @@ export function ScheduleMasterTab() {
         require_certificate: fullRow.require_certificate,
         cert_lag_days: fullRow.cert_lag_days,
         certificate_document_type_ids: fullRow.certificate_document_type_ids,
+        pass_fail_enabled: fullRow.pass_fail_enabled,
         spawn_photo_task: fullRow.spawn_photo_task,
         photo_entity_tab_id: fullRow.photo_entity_tab_id,
         spawn_order_task: fullRow.spawn_order_task,
@@ -1971,6 +1973,19 @@ export function ScheduleMasterTab() {
                     </div>
                   </div>
                 )}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="row-pass-fail">Pass/Fail Inspection</Label>
+                    <p className="text-xs text-muted-foreground">
+                      If failed, spawns "Re-inspect" task
+                    </p>
+                  </div>
+                  <Switch
+                    id="row-pass-fail"
+                    checked={editRowForm.pass_fail_enabled || false}
+                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
+                  />
+                </div>
 
                 {/* Photo Task Spawning */}
                 <div className="border-t pt-3 mt-3">

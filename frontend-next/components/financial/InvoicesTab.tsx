@@ -254,7 +254,7 @@ export default function InvoicesTab() {
             </p>
             {(summary?.totals?.sales_invoices?.overdue || 0) > 0 && (
               <p className="text-xs text-red-600 mt-1">
-                {formatCurrency(summary.totals.sales_invoices.overdue)} overdue
+                {formatCurrency(summary?.totals?.sales_invoices?.overdue || 0)} overdue
               </p>
             )}
           </CardContent>
@@ -274,7 +274,7 @@ export default function InvoicesTab() {
             </p>
             {(summary?.totals?.bills?.overdue || 0) > 0 && (
               <p className="text-xs text-red-600 mt-1">
-                {formatCurrency(summary.totals.bills.overdue)} overdue
+                {formatCurrency(summary?.totals?.bills?.overdue || 0)} overdue
               </p>
             )}
           </CardContent>

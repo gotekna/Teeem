@@ -13,10 +13,15 @@ class EmailDraft < ApplicationRecord
   belongs_to :organization
   belongs_to :imap_credential, optional: true
 
-  validates :to_addresses, presence: true
-  validates :subject, presence: true
-  validates :body, presence: true
+  # Drafts can have empty fields - only validate when sending
+  validates :to_addresses, presence: true, unless: :draft?
+  validates :subject, presence: true, unless: :draft?
+  validates :body, presence: true, unless: :draft?
   validates :status, presence: true, inclusion: { in: %w[draft sending sent] }
+
+  def draft?
+    status == "draft"
+  end
 
   # Scopes
   scope :recent, ->(limit = 50) { order(updated_at: :desc).limit(limit) }

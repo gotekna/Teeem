@@ -99,6 +99,16 @@ import PersonalTaxTab from "@/components/financial/PersonalTaxTab";
 import QuotesTab from "@/components/financial/QuotesTab";
 import ReportsBuilderTab from "@/components/financial/ReportsBuilderTab";
 import AuditTab from "@/components/financial/AuditTab";
+import InvoicesTab from "@/components/financial/InvoicesTab";
+import PaymentsTab from "@/components/financial/PaymentsTab";
+import ExpensesTab from "@/components/financial/ExpensesTab";
+import ProgressClaimsTab from "@/components/financial/ProgressClaimsTab";
+import BillingMilestonesTab from "@/components/financial/BillingMilestonesTab";
+import ConstructionTab from "@/components/financial/ConstructionTab";
+import CurrenciesTab from "@/components/financial/CurrenciesTab";
+import BudgetScenariosTab from "@/components/financial/BudgetScenariosTab";
+import ReportsTab from "@/components/financial/ReportsTab";
+import AITab from "@/components/financial/AITab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -790,6 +800,46 @@ export default function GlPage() {
             <History className="h-4 w-4" />
             Audit
           </TabsTrigger>
+          <TabsTrigger value="invoices" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Invoices
+          </TabsTrigger>
+          <TabsTrigger value="gl-payments" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            GL Payments
+          </TabsTrigger>
+          <TabsTrigger value="expenses" className="flex items-center gap-2">
+            <Receipt className="h-4 w-4" />
+            Expenses
+          </TabsTrigger>
+          <TabsTrigger value="progress-claims" className="flex items-center gap-2">
+            <Percent className="h-4 w-4" />
+            Progress Claims
+          </TabsTrigger>
+          <TabsTrigger value="billing-milestones" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Milestones
+          </TabsTrigger>
+          <TabsTrigger value="construction" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            Construction
+          </TabsTrigger>
+          <TabsTrigger value="currencies" className="flex items-center gap-2">
+            <Coins className="h-4 w-4" />
+            Currencies
+          </TabsTrigger>
+          <TabsTrigger value="budget-scenarios" className="flex items-center gap-2">
+            <Layers className="h-4 w-4" />
+            Scenarios
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Reports
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="flex items-center gap-2">
+            <Brain className="h-4 w-4" />
+            AI
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1316,6 +1366,56 @@ export default function GlPage() {
         {/* Audit Tab */}
         <TabsContent value="audit">
           <AuditTab />
+        </TabsContent>
+
+        {/* GL Invoices Tab */}
+        <TabsContent value="invoices">
+          <InvoicesTab />
+        </TabsContent>
+
+        {/* GL Payments Tab */}
+        <TabsContent value="gl-payments">
+          <PaymentsTab />
+        </TabsContent>
+
+        {/* GL Expenses Tab */}
+        <TabsContent value="expenses">
+          <ExpensesTab />
+        </TabsContent>
+
+        {/* Progress Claims Tab */}
+        <TabsContent value="progress-claims">
+          <ProgressClaimsTab />
+        </TabsContent>
+
+        {/* Billing Milestones Tab */}
+        <TabsContent value="billing-milestones">
+          <BillingMilestonesTab />
+        </TabsContent>
+
+        {/* Construction Tab */}
+        <TabsContent value="construction">
+          <ConstructionTab />
+        </TabsContent>
+
+        {/* Currencies Tab */}
+        <TabsContent value="currencies">
+          <CurrenciesTab />
+        </TabsContent>
+
+        {/* Budget Scenarios Tab */}
+        <TabsContent value="budget-scenarios">
+          <BudgetScenariosTab />
+        </TabsContent>
+
+        {/* Financial Reports Tab */}
+        <TabsContent value="reports">
+          <ReportsTab />
+        </TabsContent>
+
+        {/* AI Analytics Tab */}
+        <TabsContent value="ai">
+          <AITab />
         </TabsContent>
       </Tabs>
 
