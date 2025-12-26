@@ -67,6 +67,7 @@ import AICategorizationTab from "@/components/financial/AICategorizationTab";
 import CustomerPortalTab from "@/components/financial/CustomerPortalTab";
 import POInvoiceMatchingTab from "@/components/financial/POInvoiceMatchingTab";
 import BankRulesLearningTab from "@/components/financial/BankRulesLearningTab";
+import ProgressBillingTab from "@/components/financial/ProgressBillingTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -650,6 +651,10 @@ export default function GlPage() {
             <BookOpen className="h-4 w-4" />
             Bank Rules AI
           </TabsTrigger>
+          <TabsTrigger value="progress-billing" className="flex items-center gap-2">
+            <Percent className="h-4 w-4" />
+            Progress Billing
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1041,6 +1046,11 @@ export default function GlPage() {
         {/* Bank Rules Learning Tab */}
         <TabsContent value="bank-rules">
           <BankRulesLearningTab />
+        </TabsContent>
+
+        {/* Progress Billing Tab */}
+        <TabsContent value="progress-billing">
+          <ProgressBillingTab />
         </TabsContent>
       </Tabs>
 

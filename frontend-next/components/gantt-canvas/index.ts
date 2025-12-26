@@ -10,7 +10,6 @@ export type {
   GanttTask,
   GanttDependency,
   SmScheduleMaster,
-  SmTemplateRow, // @deprecated - Use SmScheduleMaster instead. Will be removed in Phase 7.
   SmTemplate,
   TaskClickEvent,
   TaskDragEvent,

@@ -32,9 +32,6 @@ class SmTemplate < ApplicationRecord
     SmScheduleMaster.for_template(id)
   end
 
-  # Alias for backwards compatibility
-  alias_method :sm_template_rows, :sm_schedule_master_rows
-
   # Get row count
   def row_count
     sm_schedule_master_rows.count

@@ -708,7 +708,6 @@ module Api
           parent_task_id: task.parent_task_id,
           sequence_order: task.sequence_order,
           sm_schedule_master_id: task.sm_schedule_master_id,
-          sm_template_row_id: task.sm_schedule_master_id,  # Deprecated - will be removed in Phase 7
           # Computed
           started_at: task.started_at,
           completed_at: task.completed_at,

@@ -43,11 +43,6 @@ class SmTask < ApplicationRecord
 
   # SSoT association - points to sm_schedule_master (THE ONE template system)
   belongs_to :sm_schedule_master, optional: true
-  # Alias for backwards compatibility (will be removed in Phase 7)
-  alias_method :sm_template_row, :sm_schedule_master
-
-  # Alias for backwards compatibility - old column name
-  alias_attribute :sm_template_row_id, :sm_schedule_master_id
   belongs_to :parent_task, class_name: "SmTask", optional: true
   has_many :children, class_name: "SmTask", foreign_key: :parent_task_id, dependent: :nullify
 

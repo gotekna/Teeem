@@ -300,7 +300,3 @@ class SmScheduleMaster < ApplicationRecord
     "#{task_name} (#{dep_string})"
   end
 end
-
-# DEPRECATED: Alias for backwards compatibility during migration
-# TODO: Remove this alias in Phase 7 after all code is updated
-SmTemplateRow = SmScheduleMaster

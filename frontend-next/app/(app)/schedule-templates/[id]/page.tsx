@@ -120,11 +120,6 @@ interface SmScheduleMaster {
   sm_template_ids: number[];
 }
 
-/**
- * @deprecated Use SmScheduleMaster instead. Will be removed in Phase 7.
- */
-type SmTemplateRow = SmScheduleMaster;
-
 interface PlanType {
   id: number;
   code: string;

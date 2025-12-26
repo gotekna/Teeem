@@ -134,11 +134,6 @@ export interface SmScheduleMaster {
 }
 
 /**
- * @deprecated Use SmScheduleMaster instead. Will be removed in Phase 7.
- */
-export type SmTemplateRow = SmScheduleMaster;
-
-/**
  * Schedule Template from API
  */
 export interface SmTemplate {

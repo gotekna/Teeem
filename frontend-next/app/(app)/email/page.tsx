@@ -710,6 +710,14 @@ export default function EmailPage() {
     setComposeOpen(true);
   };
 
+  // Handle snooze email (show toast for now, can integrate SnoozePicker later)
+  const handleSnoozeEmail = useCallback((email: Email) => {
+    toast({
+      title: "Snooze",
+      description: `Snooze feature coming soon for "${email.subject}"`,
+    });
+  }, [toast]);
+
   const toggleAccountExpanded = (accountId: string, account?: EmailAccount) => {
     const newExpanded = new Set(expandedAccounts);
     if (newExpanded.has(accountId)) {
@@ -943,7 +951,7 @@ export default function EmailPage() {
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
-                    onQuickAction={refresh}
+                    onQuickAction={() => fetchEmails()}
                     onSnooze={handleSnoozeEmail}
                     threadCount={(email as Email).thread_count || 0}
                     isExpanded={threads.isExpanded((email as Email).conversation_id || '')}
@@ -981,7 +989,7 @@ export default function EmailPage() {
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
-                    onQuickAction={refresh}
+                    onQuickAction={() => fetchEmails()}
                     onSnooze={handleSnoozeEmail}
                     threadCount={email.thread_count || 0}
                     isExpanded={threads.isExpanded(email.conversation_id || '')}
