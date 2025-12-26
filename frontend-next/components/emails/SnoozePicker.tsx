@@ -73,29 +73,29 @@ export interface EmailSnooze {
 
 // API Functions
 async function fetchPresets(): Promise<SnoozePreset[]> {
-  const response = await api.get("/api/v1/email_snoozes/presets");
-  return response.data.presets || [];
+  const response = await api.get<{ data: { presets: SnoozePreset[] } }>("/api/v1/email_snoozes/presets");
+  return (response as { data: { presets: SnoozePreset[] } }).data.presets || [];
 }
 
 async function fetchSnoozedEmails(): Promise<EmailSnooze[]> {
-  const response = await api.get("/api/v1/email_snoozes");
-  return response.data.snoozes || [];
+  const response = await api.get<{ data: { snoozes: EmailSnooze[] } }>("/api/v1/email_snoozes");
+  return (response as { data: { snoozes: EmailSnooze[] } }).data.snoozes || [];
 }
 
 async function checkEmailSnooze(emailId: number): Promise<{ is_snoozed: boolean; snooze: EmailSnooze | null }> {
-  const response = await api.get(`/api/v1/email_snoozes/for_email/${emailId}`);
-  return response.data;
+  const response = await api.get<{ data: { is_snoozed: boolean; snooze: EmailSnooze | null } }>(`/api/v1/email_snoozes/for_email/${emailId}`);
+  return (response as { data: { is_snoozed: boolean; snooze: EmailSnooze | null } }).data;
 }
 
 async function snoozeEmail(
   emailId: number,
   options: { preset?: string; snooze_until?: string; reason?: string }
 ): Promise<EmailSnooze> {
-  const response = await api.post("/api/v1/email_snoozes", {
+  const response = await api.post<{ data: EmailSnooze }>("/api/v1/email_snoozes", {
     email_id: emailId,
     ...options,
   });
-  return response.data;
+  return (response as { data: EmailSnooze }).data;
 }
 
 async function cancelSnooze(snoozeId: number): Promise<void> {
@@ -106,8 +106,8 @@ async function extendSnooze(
   snoozeId: number,
   options: { preset?: string; snooze_until?: string }
 ): Promise<EmailSnooze> {
-  const response = await api.patch(`/api/v1/email_snoozes/${snoozeId}/extend`, options);
-  return response.data;
+  const response = await api.patch<{ data: EmailSnooze }>(`/api/v1/email_snoozes/${snoozeId}/extend`, options);
+  return (response as { data: EmailSnooze }).data;
 }
 
 // Snooze Badge Component

@@ -230,6 +230,21 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # ========================================
+  # Team Email Domains (SSoT for Split Inbox)
+  # ========================================
+
+  # Get team email domains for split inbox "Team" category
+  def self.team_email_domains
+    instance.team_email_domains || []
+  end
+
+  # Update team email domains
+  def self.update_team_email_domains(domains)
+    normalized = domains.map { |d| d.to_s.downcase.strip }.reject(&:blank?)
+    instance.update!(team_email_domains: normalized)
+  end
+
+  # ========================================
   # Corporate Entity Types (SSoT)
   # ========================================
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_26_232003) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1795,6 +1795,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232003) do
     t.string "postcode"
     t.jsonb "corporate_entity_types", default: ["Company", "Trust", "Superfund", "Charity", "Corporate Trustee", "Sole Trader"], null: false
     t.date "gl_lock_date"
+    t.text "team_email_domains", default: [], array: true
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|
@@ -2570,6 +2571,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232003) do
     t.bigint "imap_credential_id"
     t.string "labels", default: [], array: true
     t.bigint "uid"
+    t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["labels"], name: "index_email_warehouse_on_labels", using: :gin
   end
