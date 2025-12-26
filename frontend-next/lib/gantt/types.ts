@@ -10,7 +10,7 @@
 // ============================================================================
 
 /**
- * Task status values matching backend sm_template_row states
+ * Task status values matching backend SmScheduleMaster states
  */
 export type TaskStatus =
   | 'not-started'
@@ -49,7 +49,7 @@ export type HoldReason =
 export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
 
 // ============================================================================
-// API Types (from sm_template_rows endpoint)
+// API Types (from sm_schedule_master endpoint)
 // ============================================================================
 
 /**
@@ -62,9 +62,9 @@ export interface ApiPredecessor {
 }
 
 /**
- * Schedule Template Row from API
+ * Schedule Master record from API
  */
-export interface SmTemplateRow {
+export interface SmScheduleMaster {
   id: number;
   task_number: number;
   name: string;
@@ -134,6 +134,11 @@ export interface SmTemplateRow {
 }
 
 /**
+ * @deprecated Use SmScheduleMaster instead. Will be removed in Phase 7.
+ */
+export type SmTemplateRow = SmScheduleMaster;
+
+/**
  * Schedule Template from API
  */
 export interface SmTemplate {
@@ -151,7 +156,7 @@ export interface SmTemplate {
 
 /**
  * Task for canvas rendering
- * Simplified from SmTemplateRow with computed dates
+ * Simplified from SmScheduleMaster with computed dates
  */
 export interface GanttTask {
   id: string;
@@ -165,7 +170,7 @@ export interface GanttTask {
   supplierId?: number;
   supplierName?: string;
   // Original row reference for full data access
-  rowData?: SmTemplateRow;
+  rowData?: SmScheduleMaster;
 }
 
 /**

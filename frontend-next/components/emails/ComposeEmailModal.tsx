@@ -57,21 +57,8 @@ interface EmailAccount {
   provider: string;
   is_active: boolean;
   is_default?: boolean;
+  email_signature?: string | null;
 }
-
-// Christmas signature for robert@teeem.au
-const CHRISTMAS_SIGNATURE = `
-
---
-🎄 Merry Christmas & Happy New Year! 🎄
-
-Robert Harder
-Product Owner
-📱 0407 397 541
-🌐 teeem.com.au
-
-Wishing you joy, peace and prosperity in 2025!
-`;
 
 interface ComposeEmailModalProps {
   open: boolean;
@@ -151,14 +138,11 @@ export function ComposeEmailModal({
     return () => clearTimeout(timer);
   }, [contactSearch]);
 
-  // Get signature for account (if applicable)
+  // Get signature for account from database
   const getSignatureForAccount = (account: EmailAccount | undefined): string => {
-    if (!account) return "";
-    // Christmas signature for robert@teeem.au
-    if (account.email_address?.toLowerCase() === "robert@teeem.au") {
-      return CHRISTMAS_SIGNATURE;
-    }
-    return "";
+    if (!account?.email_signature) return "";
+    // Return signature with proper separator
+    return `\n\n--\n${account.email_signature}`;
   };
 
   // Fetch accounts when modal opens
@@ -192,9 +176,9 @@ export function ComposeEmailModal({
     const signature = getSignatureForAccount(account);
 
     if (signature) {
-      // Only add signature if body doesn't already contain it
+      // Only add signature if body doesn't already contain it (check for the separator)
       setFormData((prev) => {
-        if (prev.body.includes("🎄 Merry Christmas")) return prev;
+        if (prev.body.includes("\n--\n")) return prev;
         return { ...prev, body: prev.body + signature };
       });
     }

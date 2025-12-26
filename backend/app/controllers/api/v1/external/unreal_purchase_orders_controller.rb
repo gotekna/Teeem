@@ -6,11 +6,11 @@ module Api
         before_action :authenticate_api_key!
 
         # POST /api/v1/external/unreal_purchase_orders
-        # Creates a PO shell from an SM Template Row (Schedule Master task)
+        # Creates a PO shell from an SmScheduleMaster record (Schedule Master task)
         #
         # Payload:
         #   {
-        #     "Task_ID": 10,           # SmTemplateRow ID in TEEEM
+        #     "Task_ID": 10,           # SmScheduleMaster ID in TEEEM
         #     "job_id": 30,            # Job ID in TEEEM
         #     "estimator_notes": "..." # Notes from Unreal estimator
         #   }
@@ -25,11 +25,11 @@ module Api
         #
         def create
           # Validate required params
-          sm_template_row_id = params[:Task_ID] || params[:task_id]
+          sm_schedule_master_id = params[:Task_ID] || params[:task_id]
           job_id = params[:job_id]
           estimator_notes = params[:estimator_notes]
 
-          if sm_template_row_id.blank?
+          if sm_schedule_master_id.blank?
             return render json: {
               success: false,
               error: "Task_ID is required"
@@ -43,12 +43,12 @@ module Api
             }, status: :unprocessable_entity
           end
 
-          # Find the SM template row
-          sm_template_row = SmTemplateRow.find_by(id: sm_template_row_id)
-          unless sm_template_row
+          # Find the SM Schedule Master record
+          sm_schedule_master = SmScheduleMaster.find_by(id: sm_schedule_master_id)
+          unless sm_schedule_master
             return render json: {
               success: false,
-              error: "SM template row not found with ID: #{sm_template_row_id}"
+              error: "SM Schedule Master not found with ID: #{sm_schedule_master_id}"
             }, status: :not_found
           end
 
@@ -64,11 +64,11 @@ module Api
           ActiveRecord::Base.transaction do
             # SSoT: Find or create SmTask first, then link PO to the task (not template)
             # This ensures PO always links to a job-level SmTask, never directly to template
-            sm_task = job.sm_tasks.find_by(sm_template_row_id: sm_template_row.id)
+            sm_task = job.sm_tasks.find_by(sm_schedule_master_id: sm_schedule_master.id)
 
             if sm_task.nil?
               # Task doesn't exist - use SmTemplateSyncService to create it
-              sync_result = SmTemplateSyncService.new(job, sm_template_row).sync!
+              sync_result = SmTemplateSyncService.new(job, sm_schedule_master).sync!
 
               unless sync_result[:success]
                 return render json: {
@@ -78,7 +78,7 @@ module Api
               end
 
               sm_task = sync_result[:task]
-              Rails.logger.info "[Unreal PO] Created SmTask #{sm_task.id} from template row #{sm_template_row.id}"
+              Rails.logger.info "[Unreal PO] Created SmTask #{sm_task.id} from SmScheduleMaster #{sm_schedule_master.id}"
             end
 
             # Create the PO shell linked to the SmTask (via task's data)

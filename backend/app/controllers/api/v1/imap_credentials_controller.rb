@@ -284,7 +284,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
         email_address: cred.email_address,
         provider: cred.provider,
         is_active: cred.is_active,
-        is_default: false
+        is_default: false,
+        email_signature: cred.email_signature
       }
     end
 
@@ -651,7 +652,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       :username,
       :password,
       :sync_interval_minutes,
-      :is_active
+      :is_active,
+      :email_signature
     )
   end
 
@@ -670,7 +672,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       last_synced_at: credential.last_synced_at,
       last_sync_status: credential.last_sync_status,
       last_sync_error: credential.last_sync_error,
-      created_at: credential.created_at
+      created_at: credential.created_at,
+      email_signature: credential.email_signature
     }
 
     if include_folders

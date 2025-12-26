@@ -65,6 +65,7 @@ import AnomalyDetectionTab from "@/components/financial/AnomalyDetectionTab";
 import LatePaymentPredictionTab from "@/components/financial/LatePaymentPredictionTab";
 import AICategorizationTab from "@/components/financial/AICategorizationTab";
 import CustomerPortalTab from "@/components/financial/CustomerPortalTab";
+import POInvoiceMatchingTab from "@/components/financial/POInvoiceMatchingTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -640,6 +641,10 @@ export default function GlPage() {
             <Users className="h-4 w-4" />
             Customer Portal
           </TabsTrigger>
+          <TabsTrigger value="po-matching" className="flex items-center gap-2">
+            <Link2 className="h-4 w-4" />
+            PO Matching
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1021,6 +1026,11 @@ export default function GlPage() {
         {/* Customer Portal Tab */}
         <TabsContent value="portal">
           <CustomerPortalTab />
+        </TabsContent>
+
+        {/* PO Invoice Matching Tab */}
+        <TabsContent value="po-matching">
+          <POInvoiceMatchingTab />
         </TabsContent>
       </Tabs>
 

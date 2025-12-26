@@ -24,7 +24,7 @@ module Api
               documentation_categories: DocumentationCategory.count,
               supervisor_checklist_templates: SupervisorChecklistTemplate.count,
               sm_templates: SmTemplate.count,
-              sm_template_rows: SmTemplateRow.count
+              sm_schedule_master: SmScheduleMaster.count
             }
           }
         rescue StandardError => e

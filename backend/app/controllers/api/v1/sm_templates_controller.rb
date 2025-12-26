@@ -79,7 +79,7 @@ module Api
 
         if new_template.save
           # Copy all rows
-          @template.sm_template_rows.ordered.each do |row|
+          @template.sm_schedule_master_rows.ordered.each do |row|
             new_row = row.dup
             new_row.sm_template = new_template
             new_row.save!

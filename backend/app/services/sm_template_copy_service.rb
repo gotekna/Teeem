@@ -4,7 +4,7 @@
 #
 # This is a critical service that instantiates a template into actual tasks.
 # It handles:
-# - Creating SmTask records from SmTemplateRow records
+# - Creating SmTask records from SmScheduleMaster records
 # - Creating SmDependency records based on predecessor relationships
 # - Calculating start/end dates based on dependencies
 # - Optionally creating Purchase Orders for tasks that require them
@@ -31,7 +31,7 @@ class SmTemplateCopyService
     @created_purchase_orders = [] # POs created from template auto-PO config
     @tasks_needing_pos = [] # Tasks where template row had create_po_on_job_start but no supplier configured
     @task_number_map = {} # Maps template row task_number to created SmTask
-    @row_map = {}         # Maps template row id to SmTemplateRow
+    @row_map = {}         # Maps template row id to SmScheduleMaster
   end
 
   def execute
@@ -39,7 +39,7 @@ class SmTemplateCopyService
     return failure("Job is required") unless job.present?
 
     # Build row lookup map
-    template.sm_template_rows.active.in_sequence.each do |row|
+    template.sm_schedule_master_rows.active.in_sequence.each do |row|
       @row_map[row.id] = row
     end
 
@@ -108,7 +108,7 @@ class SmTemplateCopyService
 
       task = SmTask.new(
         construction_id: job.id,
-        sm_template_row_id: row.id,  # Link to SSoT template row
+        sm_schedule_master_id: row.id,  # Link to SSoT SmScheduleMaster
         name: row.name,
         description: row.description,
         task_number: task_number,

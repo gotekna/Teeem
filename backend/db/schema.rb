@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010004) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5284,6 +5284,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010004) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "email_signature"
     t.index ["is_active"], name: "index_imap_credentials_on_is_active"
     t.index ["user_id", "email_address"], name: "index_imap_credentials_on_user_id_and_email_address", unique: true
     t.index ["user_id"], name: "index_imap_credentials_on_user_id"
@@ -7483,7 +7484,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010004) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "sm_template_row_id"
+    t.bigint "sm_schedule_master_id"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"
@@ -7499,7 +7500,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010004) do
     t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
     t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
     t.index ["sequence_order"], name: "index_sm_tasks_on_sequence_order"
-    t.index ["sm_template_row_id"], name: "index_sm_tasks_on_sm_template_row_id"
+    t.index ["sm_schedule_master_id"], name: "index_sm_tasks_on_sm_schedule_master_id"
     t.index ["start_date"], name: "index_sm_tasks_on_start_date"
     t.index ["status"], name: "index_sm_tasks_on_status"
     t.index ["supplier_confirmed_by_id"], name: "index_sm_tasks_on_supplier_confirmed_by_id"
@@ -9354,7 +9355,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010004) do
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "purchase_orders", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
-  add_foreign_key "sm_tasks", "sm_schedule_master", column: "sm_template_row_id"
+  add_foreign_key "sm_tasks", "sm_schedule_master"
   add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "assigned_user_id", on_delete: :nullify

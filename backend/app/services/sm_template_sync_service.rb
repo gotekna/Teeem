@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-# SmTemplateSyncService - Smart sync of SmTemplateRow to SmTask on a job
+# SmTemplateSyncService - Smart sync of SmScheduleMaster to SmTask on a job
 #
-# SSoT: SmTemplateRow is THE template definition, SmTask is THE job-level instance.
+# SSoT: SmScheduleMaster is THE template definition, SmTask is THE job-level instance.
 # This service syncs from template -> task while preserving "job reality" (actual work progress).
 #
 # Usage:
@@ -23,7 +23,7 @@
 class SmTemplateSyncService
   attr_reader :job, :template_row, :options
 
-  # Fields that are safe to sync from template (exist on BOTH SmTemplateRow and SmTask)
+  # Fields that are safe to sync from template (exist on BOTH SmScheduleMaster and SmTask)
   # These don't affect schedule or represent actual work progress
   SAFE_SYNC_FIELDS = %i[
     name
@@ -71,7 +71,7 @@ class SmTemplateSyncService
     return comparisons unless job.present? && template.present?
 
     # Get active template rows
-    rows = template.sm_template_rows.where(is_active: true).order(:sequence_order)
+    rows = template.sm_schedule_master_rows.where(is_active: true).order(:sequence_order)
 
     rows.each do |row|
       service = new(job, row, {})
@@ -96,7 +96,7 @@ class SmTemplateSyncService
     return results unless job.present? && template.present?
 
     # Get active template rows
-    rows = template.sm_template_rows.where(is_active: true).order(:sequence_order)
+    rows = template.sm_schedule_master_rows.where(is_active: true).order(:sequence_order)
 
     rows.each do |row|
       result = new(job, row, options).sync!
@@ -283,7 +283,7 @@ class SmTemplateSyncService
   end
 
   def find_existing_task
-    job.sm_tasks.find_by(sm_template_row_id: template_row.id)
+    job.sm_tasks.find_by(sm_schedule_master_id: template_row.id)
   end
 
   # Check if task has "job reality" that should not be overwritten
@@ -370,7 +370,7 @@ class SmTemplateSyncService
     task = SmTask.new(
       # Core identifiers
       construction_id: job.id,
-      sm_template_row_id: template_row.id,
+      sm_schedule_master_id: template_row.id,
       task_number: next_task_number,
       sequence_order: next_sequence,
 

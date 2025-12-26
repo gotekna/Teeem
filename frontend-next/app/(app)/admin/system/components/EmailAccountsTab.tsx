@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -61,6 +62,7 @@ interface ImapCredential {
   last_sync_status: string | null;
   last_sync_error: string | null;
   created_at: string;
+  email_signature: string | null;
 }
 
 interface Provider {
@@ -86,6 +88,7 @@ const DEFAULT_FORM = {
   smtp_port: 587,
   username: "",
   password: "",
+  email_signature: "",
 };
 
 // MS365 Organization with mailboxes for access configuration
@@ -603,6 +606,7 @@ export function EmailAccountsTab() {
       smtp_port: cred.smtp_port,
       username: cred.username || cred.email_address,
       password: "", // Don't prefill password for security
+      email_signature: cred.email_signature || "",
     });
     setTestResult(null);
     setDialogOpen(true);
@@ -722,6 +726,21 @@ export function EmailAccountsTab() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   For Gmail/Outlook, use an App Password instead of your regular password.
+                </p>
+              </div>
+
+              {/* Email Signature */}
+              <div className="space-y-2">
+                <Label>Email Signature</Label>
+                <Textarea
+                  placeholder="Your email signature (optional)..."
+                  value={formData.email_signature}
+                  onChange={(e) => setFormData({ ...formData, email_signature: e.target.value })}
+                  rows={4}
+                  className="resize-y font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This signature will be automatically added to emails sent from this account.
                 </p>
               </div>
 

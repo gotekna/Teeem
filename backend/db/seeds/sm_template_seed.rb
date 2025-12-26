@@ -9,7 +9,7 @@ template = SmTemplate.find_or_create_by(name: 'Default SM Schedule') do |t|
 end
 
 # Only seed rows if template is empty
-if template.sm_template_rows.count == 0
+if template.sm_schedule_master_rows.count == 0
   rows = [
     { task_number: 1, name: 'Site Preparation', duration_days: 2, trade: 'earthworks', stage: 'pre-construction' },
     { task_number: 2, name: 'Set Out', duration_days: 1, trade: 'surveyor', stage: 'pre-construction', predecessor_ids: [ { 'id' => 1, 'type' => 'FS', 'lag' => 0 } ] },
@@ -36,12 +36,12 @@ if template.sm_template_rows.count == 0
   ]
 
   rows.each_with_index do |row_data, idx|
-    template.sm_template_rows.create!(row_data.merge(sequence_order: idx + 1))
+    template.sm_schedule_master_rows.create!(row_data.merge(sequence_order: idx + 1))
   end
 
-  puts "Created #{template.sm_template_rows.count} template rows"
+  puts "Created #{template.sm_schedule_master_rows.count} Schedule Master rows"
 else
-  puts "Template already has #{template.sm_template_rows.count} rows, skipping seed"
+  puts "Template already has #{template.sm_schedule_master_rows.count} rows, skipping seed"
 end
 
 puts "Done! SM Template ID: #{template.id}"

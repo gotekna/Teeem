@@ -102,8 +102,8 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Use SmTemplateRow (THE ONE template system - SSoT)
-        template_row = SmTemplateRow.find_by(id: params[:template_row_id])
+        # Use SmScheduleMaster (THE ONE template system - SSoT)
+        template_row = SmScheduleMaster.find_by(id: params[:template_row_id])
 
         unless template_row
           return render json: {
@@ -121,7 +121,7 @@ module Api
           status: "not_started",
           duration_days: template_row.duration_days || 1,
           start_date: Date.current,
-          sm_template_row_id: template_row.id,
+          sm_schedule_master_id: template_row.id,
           sequence_order: max_sequence + 1,
           trade: template_row.trade,
           created_by: current_user
@@ -707,7 +707,8 @@ module Api
           supplier_id: task.supplier_id,
           parent_task_id: task.parent_task_id,
           sequence_order: task.sequence_order,
-          sm_template_row_id: task.sm_template_row_id,
+          sm_schedule_master_id: task.sm_schedule_master_id,
+          sm_template_row_id: task.sm_schedule_master_id,  # Deprecated - will be removed in Phase 7
           # Computed
           started_at: task.started_at,
           completed_at: task.completed_at,
