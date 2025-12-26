@@ -241,16 +241,12 @@ export function DocumentTypesTab() {
   const [showAddForm, setShowAddForm] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [showFolderConfig, setShowFolderConfig] = React.useState(false);
-  // SSoT: These templates define the folder structure for all document types
-  const DEFAULT_FOLDERS = {
-    company: "/Shared Documents/Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
-    job: "/Shared Documents/TEEEM Jobs/{{JobCode}}/{{Category}}",
-    people: "/Shared Documents/Corporate/People/{{ContactName}}"
-  };
+  // SSoT: These templates are loaded from backend (CorporateCompanySetting)
+  // No hardcoded defaults - backend is the source of truth
   const [baseFolders, setBaseFolders] = React.useState({
-    company: DEFAULT_FOLDERS.company,
-    job: DEFAULT_FOLDERS.job,
-    people: DEFAULT_FOLDERS.people
+    company: "",
+    job: "",
+    people: ""
   });
   const [newDocType, setNewDocType] = React.useState({
     name: "",
@@ -644,7 +640,7 @@ export function DocumentTypesTab() {
                       Company
                     </Badge>
                     <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                      {baseFolders.company}
+                      {baseFolders.company || "Not configured"}
                     </code>
                     <Button
                       variant="outline"
@@ -665,7 +661,7 @@ export function DocumentTypesTab() {
                       Job
                     </Badge>
                     <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                      {baseFolders.job}
+                      {baseFolders.job || "Not configured"}
                     </code>
                     <Button
                       variant="outline"
@@ -686,7 +682,7 @@ export function DocumentTypesTab() {
                       People
                     </Badge>
                     <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-xs font-mono flex-1">
-                      {baseFolders.people}
+                      {baseFolders.people || "Not configured"}
                     </code>
                     <Button
                       variant="outline"
@@ -837,32 +833,22 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Corporate/{{CompanyCode}}/{{Folder}}"
                   />
-                  <div className="flex gap-2 justify-between pt-2">
+                  <div className="flex gap-2 justify-end pt-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setBaseFolders(prev => ({ ...prev, company: DEFAULT_FOLDERS.company }))}
-                      className="text-muted-foreground"
+                      onClick={() => setShowFolderConfig(false)}
                     >
-                      Restore Default
+                      Cancel
                     </Button>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowFolderConfig(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={saveSharePointPathTemplates}
-                        disabled={saving}
-                      >
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Done
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      onClick={saveSharePointPathTemplates}
+                      disabled={saving}
+                    >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Done
+                    </Button>
                   </div>
                 </div>
               ) : scopeFilter === "job" ? (
@@ -920,32 +906,22 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Jobs/{{JobCode}}/{{Category}}"
                   />
-                  <div className="flex gap-2 justify-between pt-2">
+                  <div className="flex gap-2 justify-end pt-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setBaseFolders(prev => ({ ...prev, job: DEFAULT_FOLDERS.job }))}
-                      className="text-muted-foreground"
+                      onClick={() => setShowFolderConfig(false)}
                     >
-                      Restore Default
+                      Cancel
                     </Button>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowFolderConfig(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={saveSharePointPathTemplates}
-                        disabled={saving}
-                      >
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Done
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      onClick={saveSharePointPathTemplates}
+                      disabled={saving}
+                    >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Done
+                    </Button>
                   </div>
                 </div>
               ) : (
@@ -988,32 +964,22 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Contacts/{{ContactName}}"
                   />
-                  <div className="flex gap-2 justify-between pt-2">
+                  <div className="flex gap-2 justify-end pt-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setBaseFolders(prev => ({ ...prev, people: DEFAULT_FOLDERS.people }))}
-                      className="text-muted-foreground"
+                      onClick={() => setShowFolderConfig(false)}
                     >
-                      Restore Default
+                      Cancel
                     </Button>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowFolderConfig(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={saveSharePointPathTemplates}
-                        disabled={saving}
-                      >
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Done
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      onClick={saveSharePointPathTemplates}
+                      disabled={saving}
+                    >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Done
+                    </Button>
                   </div>
                 </div>
               )}
