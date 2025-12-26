@@ -38,7 +38,6 @@ class SmScheduleMasterSyncService
     call_time_days
     documentation_category_ids
     linked_task_ids
-    show_in_docs_tab
     spawn_photo_task
     spawn_scan_task
     spawn_office_tasks
@@ -46,7 +45,6 @@ class SmScheduleMasterSyncService
     spawn_call_task
     pass_fail_enabled
     assigned_role
-    photo_entity_tab_id
   ].freeze
 
   # Fields that affect schedule - NEVER sync these automatically
@@ -435,7 +433,6 @@ class SmScheduleMasterSyncService
       # Documentation (from template)
       documentation_category_ids: template_row.documentation_category_ids,
       linked_task_ids: template_row.linked_task_ids,
-      show_in_docs_tab: template_row.show_in_docs_tab,
 
       # Automation (from template)
       spawn_photo_task: template_row.spawn_photo_task,

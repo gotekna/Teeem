@@ -118,9 +118,6 @@ interface SmScheduleMaster {
   order_time_days?: number;
   call_time_days?: number;
   require_photo: boolean;
-  require_certificate?: boolean;
-  cert_lag_days?: number | null;
-  certificate_document_type_ids?: number[];
   pass_fail_enabled?: boolean;
   // Auto-PO configuration
   po_supplier_id?: number | null;
@@ -175,12 +172,11 @@ const ALL_COLUMNS = [
   "create_po_on_job_start", "po_line_items", "linked_po_task_id",
   "order_time_days", "call_time_days",
   // Completion Requirements
-  "require_photo", "require_certificate", "cert_lag_days", "certificate_document_type_ids", "pass_fail_enabled",
+  "require_photo", "pass_fail_enabled",
   // Subtasks
   "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids",
   // Documentation
-  "documentation_category_ids", "show_in_docs_tab", "start_entity_tab_ids",
-  "complete_entity_tab_ids", "photo_entity_tab_id", "plan_type_ids",
+  "documentation_category_ids", "photo_entity_tab_id", "plan_type_ids",
   // Spawning Tasks
   "spawn_photo_task", "spawn_scan_task", "spawn_office_tasks", "spawn_order_task", "spawn_call_task",
   // Checklists
@@ -283,9 +279,6 @@ export function ScheduleMasterTab() {
   // Job EntityTabs for photo storage dropdown
   const [jobEntityTabs, setJobEntityTabs] = React.useState<Array<{ id: number; display_name: string; tab_key: string }>>([]);
 
-  // Certification document types for certificate requirements
-  const [certificationDocTypes, setCertificationDocTypes] = React.useState<Array<{ id: number; name: string; display_name: string }>>([]);
-
   // Load column status from localStorage on mount
   React.useEffect(() => {
     const saved = localStorage.getItem(COLUMN_STATUS_KEY);
@@ -320,7 +313,6 @@ export function ScheduleMasterTab() {
   React.useEffect(() => {
     loadTemplates();
     loadJobEntityTabs();
-    loadCertificationDocTypes();
   }, []);
 
   // Load job EntityTabs for photo storage dropdown
@@ -332,18 +324,6 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load job EntityTabs:", error);
-    }
-  };
-
-  // Load certification document types for certificate requirements
-  const loadCertificationDocTypes = async () => {
-    try {
-      const data = await api.get<{ success: boolean; document_types: Array<{ id: number; name: string; display_name: string }> }>("/api/v1/document_types?scope=job&category=CERTIFICATION");
-      if (data?.document_types) {
-        setCertificationDocTypes(data.document_types);
-      }
-    } catch (error) {
-      console.error("Failed to load certification document types:", error);
     }
   };
 
@@ -557,9 +537,6 @@ export function ScheduleMasterTab() {
         critical_po: fullRow.critical_po,
         create_po_on_job_start: fullRow.create_po_on_job_start,
         require_photo: fullRow.require_photo,
-        require_certificate: fullRow.require_certificate,
-        cert_lag_days: fullRow.cert_lag_days,
-        certificate_document_type_ids: fullRow.certificate_document_type_ids,
         pass_fail_enabled: fullRow.pass_fail_enabled,
         spawn_photo_task: fullRow.spawn_photo_task,
         photo_entity_tab_id: fullRow.photo_entity_tab_id,
@@ -1350,18 +1327,6 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground">Photo evidence needed on completion</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["require_certificate"] || false} onCheckedChange={(v) => updateColumnStatus("require_certificate", !!v)} />
-                    <CopyableCode>require_certificate</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Certificate required (trades cert, inspection)</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["cert_lag_days"] || false} onCheckedChange={(v) => updateColumnStatus("cert_lag_days", !!v)} />
-                    <CopyableCode>cert_lag_days</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
-                    <span className="text-muted-foreground">Days after task for cert to arrive</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["pass_fail_enabled"] || false} onCheckedChange={(v) => updateColumnStatus("pass_fail_enabled", !!v)} />
                     <CopyableCode>pass_fail_enabled</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
@@ -1432,24 +1397,6 @@ export function ScheduleMasterTab() {
                     <CopyableCode>documentation_category_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer[]</Badge>
                     <span className="text-muted-foreground">Documentation tabs this task belongs to</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["show_in_docs_tab"] || false} onCheckedChange={(v) => updateColumnStatus("show_in_docs_tab", !!v)} />
-                    <CopyableCode>show_in_docs_tab</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Show in documents tab</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["start_entity_tab_ids"] || false} onCheckedChange={(v) => updateColumnStatus("start_entity_tab_ids", !!v)} />
-                    <CopyableCode>start_entity_tab_ids</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">EntityTabs for docs SENT on task START</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["complete_entity_tab_ids"] || false} onCheckedChange={(v) => updateColumnStatus("complete_entity_tab_ids", !!v)} />
-                    <CopyableCode>complete_entity_tab_ids</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">EntityTabs for docs RECEIVED on COMPLETE</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["photo_entity_tab_id"] || false} onCheckedChange={(v) => updateColumnStatus("photo_entity_tab_id", !!v)} />
@@ -1946,66 +1893,6 @@ export function ScheduleMasterTab() {
                     onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="row-require-cert">Require Certificate</Label>
-                  <Switch
-                    id="row-require-cert"
-                    checked={editRowForm.require_certificate || false}
-                    onCheckedChange={(checked) => {
-                      if (!checked) {
-                        setEditRowForm({ ...editRowForm, require_certificate: checked, cert_lag_days: undefined, certificate_document_type_ids: undefined });
-                      } else {
-                        setEditRowForm({ ...editRowForm, require_certificate: checked });
-                      }
-                    }}
-                  />
-                </div>
-                {editRowForm.require_certificate && (
-                  <div className="space-y-3 pl-4 border-l-2 border-amber-200 dark:border-amber-800">
-                    <div className="space-y-2">
-                      <Label htmlFor="row-cert-lag">Certificate Due (days after completion)</Label>
-                      <Input
-                        id="row-cert-lag"
-                        type="number"
-                        min={0}
-                        value={editRowForm.cert_lag_days ?? 0}
-                        onChange={(e) => setEditRowForm({ ...editRowForm, cert_lag_days: parseInt(e.target.value) || 0 })}
-                        className="w-24"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Days after task completion to receive certificate
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Required Certificate Types</Label>
-                      <MultipleSelector
-                        value={(editRowForm.certificate_document_type_ids || []).map(id => {
-                          const docType = certificationDocTypes.find(d => d.id === id);
-                          return { value: String(id), label: docType?.display_name || docType?.name || `Type ${id}` };
-                        })}
-                        onChange={(options) => {
-                          setEditRowForm({
-                            ...editRowForm,
-                            certificate_document_type_ids: options.map(o => parseInt(o.value))
-                          });
-                        }}
-                        defaultOptions={certificationDocTypes.map(d => ({
-                          value: String(d.id),
-                          label: d.display_name || d.name
-                        }))}
-                        placeholder="Select certificate types..."
-                        emptyIndicator={
-                          <p className="text-center text-sm text-muted-foreground">
-                            No certification document types found
-                          </p>
-                        }
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Which certificate types must be provided for this task
-                      </p>
-                    </div>
-                  </div>
-                )}
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label htmlFor="row-pass-fail">Pass/Fail Inspection</Label>

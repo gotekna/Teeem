@@ -96,7 +96,6 @@ interface SmScheduleMaster {
   order_time_days: number | null;
   call_time_days: number | null;
   documentation_category_ids: number[];
-  show_in_docs_tab: boolean;
   linked_task_ids: number[];
   price_book_item_ids: number[];
   tags: string[];
@@ -107,8 +106,6 @@ interface SmScheduleMaster {
   allow_duplicates: boolean;
   ai_select: boolean;
   plan_type_ids: number[];
-  start_entity_tab_ids: number[];
-  complete_entity_tab_ids: number[];
   photo_entity_tab_id: number | null;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
@@ -330,8 +327,6 @@ export default function ScheduleTemplateDetailPage() {
       allow_duplicates: row.allow_duplicates,
       ai_select: row.ai_select,
       plan_type_ids: row.plan_type_ids || [],
-      start_entity_tab_ids: row.start_entity_tab_ids || [],
-      complete_entity_tab_ids: row.complete_entity_tab_ids || [],
       photo_entity_tab_id: row.photo_entity_tab_id,
       linked_po_task_id: row.linked_po_task_id,
       supplier_confirm: row.supplier_confirm,
@@ -804,24 +799,6 @@ export default function ScheduleTemplateDetailPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {row.start_entity_tab_ids?.length > 0 ? (
-                          <Badge variant="secondary" className="text-xs">
-                            {row.start_entity_tab_ids.length}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {row.complete_entity_tab_ids?.length > 0 ? (
-                          <Badge variant="secondary" className="text-xs">
-                            {row.complete_entity_tab_ids.length}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
                         <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEditRow(row); }}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -1078,48 +1055,6 @@ export default function ScheduleTemplateDetailPage() {
                 options={planTypeOptions}
                 placeholder="Select plan types..."
                 emptyIndicator={<span className="text-muted-foreground">No plan types found</span>}
-              />
-            </div>
-
-            {/* Document EntityTabs - START */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-                Documents Sent on START
-              </h4>
-              <MultipleSelector
-                value={entityTabOptions.filter((opt) =>
-                  (editForm.start_entity_tab_ids || []).includes(parseInt(opt.value))
-                )}
-                onChange={(selected) =>
-                  setEditForm({
-                    ...editForm,
-                    start_entity_tab_ids: selected.map((s) => parseInt(s.value)),
-                  })
-                }
-                options={entityTabOptions}
-                placeholder="Select document tabs..."
-                emptyIndicator={<span className="text-muted-foreground">No tabs found</span>}
-              />
-            </div>
-
-            {/* Document EntityTabs - COMPLETE */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-                Documents Received on COMPLETE
-              </h4>
-              <MultipleSelector
-                value={entityTabOptions.filter((opt) =>
-                  (editForm.complete_entity_tab_ids || []).includes(parseInt(opt.value))
-                )}
-                onChange={(selected) =>
-                  setEditForm({
-                    ...editForm,
-                    complete_entity_tab_ids: selected.map((s) => parseInt(s.value)),
-                  })
-                }
-                options={entityTabOptions}
-                placeholder="Select document tabs..."
-                emptyIndicator={<span className="text-muted-foreground">No tabs found</span>}
               />
             </div>
 

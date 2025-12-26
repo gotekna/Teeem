@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010020) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010022) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7396,7 +7396,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010020) do
     t.string "stage"
     t.string "assigned_role"
     t.integer "documentation_category_ids", default: [], array: true
-    t.boolean "show_in_docs_tab", default: false
     t.jsonb "linked_task_ids", default: []
     t.boolean "spawn_photo_task", default: false
     t.boolean "spawn_scan_task", default: false
@@ -7423,10 +7422,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010020) do
     t.boolean "auto_include", default: true
     t.boolean "allow_duplicates", default: false
     t.boolean "ai_select", default: false
-    t.jsonb "plan_type_ids", default: []
-    t.jsonb "start_entity_tab_ids", default: []
-    t.jsonb "complete_entity_tab_ids", default: []
-    t.bigint "photo_entity_tab_id"
     t.integer "linked_po_task_id"
     t.string "cost_centre"
     t.boolean "supplier_confirm", default: false
@@ -7542,7 +7537,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010020) do
     t.string "trade", limit: 100
     t.string "stage", limit: 100
     t.integer "documentation_category_ids", default: [], array: true
-    t.boolean "show_in_docs_tab", default: false
     t.jsonb "linked_task_ids", default: []
     t.boolean "spawn_photo_task", default: false
     t.boolean "spawn_scan_task", default: false
@@ -7566,7 +7560,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010020) do
     t.boolean "spawn_call_task", default: false
     t.string "assigned_role"
     t.boolean "is_photo_task", default: false, null: false
-    t.bigint "photo_entity_tab_id"
     t.bigint "recurring_task_definition_id"
     t.integer "recurring_sequence"
     t.string "source_type", default: "manual"
@@ -7584,7 +7577,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010020) do
     t.index ["job_id", "task_number"], name: "index_sm_tasks_on_job_id_and_task_number", unique: true
     t.index ["job_id"], name: "index_sm_tasks_on_job_id"
     t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
-    t.index ["photo_entity_tab_id"], name: "index_sm_tasks_on_photo_entity_tab_id"
     t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
     t.index ["recurring_task_definition_id"], name: "index_sm_tasks_on_recurring_task_definition_id"
     t.index ["sequence_order"], name: "index_sm_tasks_on_sequence_order"

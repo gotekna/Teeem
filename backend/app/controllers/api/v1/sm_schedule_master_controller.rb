@@ -182,7 +182,7 @@ module Api
           :has_subtasks, :subtask_count,
           :spawn_photo_task, :spawn_scan_task, :spawn_order_task, :spawn_call_task, :pass_fail_enabled,
           :order_time_days, :call_time_days,
-          :show_in_docs_tab, :color,
+          :color,
           # New Schedule Master fields
           :auto_include, :allow_duplicates, :ai_select,
           :photo_entity_tab_id, :linked_po_task_id,
@@ -197,8 +197,6 @@ module Api
           tags: [],
           # New array fields
           plan_type_ids: [],
-          start_entity_tab_ids: [],
-          complete_entity_tab_ids: [],
           # PO line items with quantities
           po_line_items: [ :pricebook_item_id, :qty ]
         )
@@ -257,7 +255,6 @@ module Api
           order_time_days: row.order_time_days,
           call_time_days: row.call_time_days,
           documentation_category_ids: row.documentation_category_ids,
-          show_in_docs_tab: row.show_in_docs_tab,
           linked_task_ids: row.linked_task_ids,
           tags: row.tags,
           color: row.color,
@@ -269,8 +266,6 @@ module Api
           allow_duplicates: row.allow_duplicates,
           ai_select: row.ai_select,
           plan_type_ids: row.plan_type_ids || [],
-          start_entity_tab_ids: row.start_entity_tab_ids || [],
-          complete_entity_tab_ids: row.complete_entity_tab_ids || [],
           photo_entity_tab_id: row.photo_entity_tab_id,
           linked_po_task_id: row.linked_po_task_id,
           linked_po_task_name: row.linked_po_task&.name,

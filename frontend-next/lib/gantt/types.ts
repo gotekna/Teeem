@@ -107,7 +107,6 @@ export interface SmScheduleMaster {
   order_time_days: number | null;
   call_time_days: number | null;
   documentation_category_ids: number[];
-  show_in_docs_tab: boolean;
   linked_task_ids: number[];
   price_book_item_ids: number[];
   tags: string[];
@@ -118,8 +117,6 @@ export interface SmScheduleMaster {
   allow_duplicates: boolean;
   ai_select: boolean;
   plan_type_ids: number[];
-  start_entity_tab_ids: number[];
-  complete_entity_tab_ids: number[];
   photo_entity_tab_id: number | null;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
