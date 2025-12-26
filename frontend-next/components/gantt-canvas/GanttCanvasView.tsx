@@ -2252,6 +2252,29 @@ export function GanttCanvasView({
                   </div>
                 </div>
                 <div className="border-t pt-2 mt-2">
+                  <h4 className="font-medium text-sm mb-2">Task Shapes</h4>
+                  <div className="grid gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#9ca3af' }} />
+                      <span className="text-muted-foreground">Regular task (bar)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="12" viewBox="0 0 16 12">
+                        <polygon points="8,1 15,6 8,11 1,6" fill="#ea580c" stroke="#9a3412" strokeWidth="1" />
+                        <text x="8" y="7" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">O</text>
+                      </svg>
+                      <span className="text-muted-foreground">Order task (spawned)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="12" viewBox="0 0 16 12">
+                        <polygon points="8,1 15,6 8,11 1,6" fill="#2563eb" stroke="#1e40af" strokeWidth="1" />
+                        <text x="8" y="7" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">C</text>
+                      </svg>
+                      <span className="text-muted-foreground">Call task (spawned)</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t pt-2 mt-2">
                   <h4 className="font-medium text-sm mb-2">Dependency Lines (on selection)</h4>
                   <div className="grid gap-2 text-sm">
                     <div className="flex items-center gap-2">

@@ -79,6 +79,7 @@ class SmScheduleMaster < ApplicationRecord
 
   # Callbacks
   before_validation :set_task_number, on: :create
+  before_save :clear_spawn_tasks_if_not_po
 
   # Helper methods
   def predecessor_task_ids
@@ -171,6 +172,17 @@ class SmScheduleMaster < ApplicationRecord
     # Task numbers are now globally unique (not per-template)
     max_number = SmScheduleMaster.maximum(:task_number) || 0
     self.task_number = max_number + 1
+  end
+
+  # Clear spawn_order_task and spawn_call_task if po_required is false
+  # These spawn tasks are only valid for PO tasks
+  def clear_spawn_tasks_if_not_po
+    unless po_required || create_po_on_job_start
+      self.spawn_order_task = false
+      self.spawn_call_task = false
+      self.order_time_days = nil
+      self.call_time_days = nil
+    end
   end
 
   def subtask_names_match_count

@@ -351,6 +351,7 @@ export function RichTextEditor({
           "focus:outline-none px-3 py-2",
           "min-h-[inherit]"
         ),
+        spellcheck: "true",
       },
     },
     onUpdate: ({ editor }) => {

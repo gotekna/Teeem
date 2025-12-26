@@ -57,6 +57,11 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Timer,
+  Wallet,
+  Target,
+  BarChart3,
+  Send,
 } from "lucide-react";
 import RecurringInvoicesTab from "@/components/financial/RecurringInvoicesTab";
 import PaymentLinksTab from "@/components/financial/PaymentLinksTab";
@@ -75,6 +80,13 @@ import ASICEdgeTab from "@/components/financial/ASICEdgeTab";
 import InventoryTab from "@/components/financial/InventoryTab";
 import BudgetingTab from "@/components/financial/BudgetingTab";
 import WIPReportsTab from "@/components/financial/WIPReportsTab";
+import AgedReportsTab from "@/components/financial/AgedReportsTab";
+import ApprovalsTab from "@/components/financial/ApprovalsTab";
+import ScheduledInvoicesTab from "@/components/financial/ScheduledInvoicesTab";
+import CashFlowTab from "@/components/financial/CashFlowTab";
+import JobCostingTab from "@/components/financial/JobCostingTab";
+import PaymentBatchesTab from "@/components/financial/PaymentBatchesTab";
+import TimeBillingTab from "@/components/financial/TimeBillingTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -690,6 +702,34 @@ export default function GlPage() {
             <Layers className="h-4 w-4" />
             WIP Reports
           </TabsTrigger>
+          <TabsTrigger value="aged-reports" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Aged Reports
+          </TabsTrigger>
+          <TabsTrigger value="approvals" className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Approvals
+          </TabsTrigger>
+          <TabsTrigger value="scheduled-invoices" className="flex items-center gap-2">
+            <Send className="h-4 w-4" />
+            Scheduled Invoices
+          </TabsTrigger>
+          <TabsTrigger value="cash-flow" className="flex items-center gap-2">
+            <Wallet className="h-4 w-4" />
+            Cash Flow
+          </TabsTrigger>
+          <TabsTrigger value="job-costing" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Job Costing
+          </TabsTrigger>
+          <TabsTrigger value="payment-batches" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Payment Batches
+          </TabsTrigger>
+          <TabsTrigger value="time-billing" className="flex items-center gap-2">
+            <Timer className="h-4 w-4" />
+            Time Billing
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1121,6 +1161,41 @@ export default function GlPage() {
         {/* WIP Reports Tab */}
         <TabsContent value="wip-reports">
           <WIPReportsTab />
+        </TabsContent>
+
+        {/* Aged Reports Tab */}
+        <TabsContent value="aged-reports">
+          <AgedReportsTab />
+        </TabsContent>
+
+        {/* Approvals Tab */}
+        <TabsContent value="approvals">
+          <ApprovalsTab />
+        </TabsContent>
+
+        {/* Scheduled Invoices Tab */}
+        <TabsContent value="scheduled-invoices">
+          <ScheduledInvoicesTab />
+        </TabsContent>
+
+        {/* Cash Flow Tab */}
+        <TabsContent value="cash-flow">
+          <CashFlowTab />
+        </TabsContent>
+
+        {/* Job Costing Tab */}
+        <TabsContent value="job-costing">
+          <JobCostingTab />
+        </TabsContent>
+
+        {/* Payment Batches Tab */}
+        <TabsContent value="payment-batches">
+          <PaymentBatchesTab />
+        </TabsContent>
+
+        {/* Time Billing Tab */}
+        <TabsContent value="time-billing">
+          <TimeBillingTab />
         </TabsContent>
       </Tabs>
 

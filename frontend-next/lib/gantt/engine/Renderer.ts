@@ -381,6 +381,67 @@ export class Renderer {
         continue; // Skip normal task bar rendering for headers
       }
 
+      // Check if this is an Order or Call task (diamond shape)
+      const isOrderTask = task.shape === 'order';
+      const isCallTask = task.shape === 'call';
+      const isDiamondShape = isOrderTask || isCallTask;
+
+      if (isDiamondShape) {
+        // Draw diamond shape for Order/Call tasks
+        const diamondSize = barHeight * 0.8;
+        const centerX = startX + taskWidth / 2;
+        const centerY = barY + barHeight / 2;
+
+        // Diamond color - orange for Order, blue for Call
+        const diamondColor = isOrderTask
+          ? (this.config.darkMode ? '#f97316' : '#ea580c') // Orange
+          : (this.config.darkMode ? '#3b82f6' : '#2563eb'); // Blue
+
+        // Draw shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX + 2, centerY - diamondSize / 2 + 2);
+        this.ctx.lineTo(centerX + diamondSize / 2 + 2, centerY + 2);
+        this.ctx.lineTo(centerX + 2, centerY + diamondSize / 2 + 2);
+        this.ctx.lineTo(centerX - diamondSize / 2 + 2, centerY + 2);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Draw diamond
+        this.ctx.fillStyle = diamondColor;
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX, centerY - diamondSize / 2);
+        this.ctx.lineTo(centerX + diamondSize / 2, centerY);
+        this.ctx.lineTo(centerX, centerY + diamondSize / 2);
+        this.ctx.lineTo(centerX - diamondSize / 2, centerY);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Draw border
+        this.ctx.strokeStyle = isOrderTask
+          ? (this.config.darkMode ? '#c2410c' : '#9a3412')
+          : (this.config.darkMode ? '#1d4ed8' : '#1e40af');
+        this.ctx.lineWidth = 1.5;
+        this.ctx.stroke();
+
+        // Draw icon inside diamond
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 10px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        // O for Order, C for Call
+        this.ctx.fillText(isOrderTask ? 'O' : 'C', centerX, centerY);
+
+        // Draw task name to the right
+        this.ctx.fillStyle = this.config.colors.taskBarText;
+        this.ctx.font = '11px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(task.name, centerX + diamondSize / 2 + 8, centerY);
+
+        continue; // Skip normal task bar rendering
+      }
+
       // Get task color based on status
       const taskColor = this.getTaskColor(task);
 

@@ -105,6 +105,7 @@ class SmTask < ApplicationRecord
   before_validation :set_task_number, on: :create
   before_validation :calculate_end_date, if: -> { start_date_changed? || duration_days_changed? }
   before_save :sync_supplier_from_po, if: -> { purchase_order_id_changed? && purchase_order_id.present? }
+  before_save :clear_spawn_tasks_if_not_po
 
   # Lock hierarchy check (Rule 9.22)
   # Priority: supplier_confirm > confirm > started > completed > hold

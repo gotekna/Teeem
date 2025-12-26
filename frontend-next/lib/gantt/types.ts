@@ -40,6 +40,15 @@ export type HoldReason =
   | 'other';
 
 /**
+ * Task shape types for visual differentiation
+ * - task: Standard rectangular bar (default)
+ * - milestone: Diamond shape for single-day events
+ * - order: Diamond with order icon (spawned Order tasks)
+ * - call: Diamond with phone icon (spawned Call tasks)
+ */
+export type TaskShape = 'task' | 'milestone' | 'order' | 'call';
+
+/**
  * Dependency types between tasks
  * - FS: Finish-to-Start (default) - Task B starts when Task A finishes
  * - SS: Start-to-Start - Task B starts when Task A starts
@@ -164,6 +173,8 @@ export interface GanttTask {
   predecessorIds?: string[];
   supplierId?: number;
   supplierName?: string;
+  // Shape determines visual rendering (default: 'task')
+  shape?: TaskShape;
   // Original row reference for full data access
   rowData?: SmScheduleMaster;
 }
@@ -526,6 +537,17 @@ export function convertRowToTask(
     endDate = addWorkingDays(startDate, duration - 1);
   }
 
+  // Determine task shape based on name prefix (spawned tasks) or duration
+  let shape: TaskShape = 'task';
+  if (row.name.startsWith('Order ')) {
+    shape = 'order';
+  } else if (row.name.startsWith('Call ')) {
+    shape = 'call';
+  } else if (duration <= 1) {
+    // Single-day tasks could be milestones (optional - keep as task for now)
+    // shape = 'milestone';
+  }
+
   return {
     id: String(row.id),
     name: row.name,
@@ -537,6 +559,7 @@ export function convertRowToTask(
     predecessorIds: row.predecessor_ids?.map((p) => String(p.id)) || [],
     supplierId: row.supplier_id ?? undefined,
     supplierName: row.supplier_name ?? undefined,
+    shape,
     rowData: row,
   };
 }
