@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010019) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010020) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7406,12 +7406,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010019) do
     t.integer "order_time_days"
     t.integer "call_time_days"
     t.boolean "require_photo", default: false
-    t.boolean "require_certificate", default: false
     t.boolean "confirm", default: false
     t.boolean "po_required", default: false
     t.boolean "critical_po", default: false
     t.boolean "create_po_on_job_start", default: false
-    t.integer "cert_lag_days", default: 0
     t.boolean "has_subtasks", default: false
     t.integer "subtask_count"
     t.string "subtask_names", default: [], array: true
@@ -7449,7 +7447,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010019) do
     t.jsonb "po_line_items", default: []
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
-    t.jsonb "certificate_document_type_ids", default: []
     t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"
@@ -7557,7 +7554,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010019) do
     t.boolean "order_reminder_sent", default: false
     t.boolean "call_reminder_sent", default: false
     t.boolean "require_photo", default: false
-    t.boolean "require_certificate", default: false
     t.boolean "require_confirm", default: false
     t.boolean "po_required", default: false
     t.boolean "critical_po", default: false
@@ -7574,7 +7570,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010019) do
     t.bigint "recurring_task_definition_id"
     t.integer "recurring_sequence"
     t.string "source_type", default: "manual"
-    t.jsonb "certificate_document_type_ids", default: []
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
