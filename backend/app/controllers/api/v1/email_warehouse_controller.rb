@@ -1,5 +1,5 @@
 class Api::V1::EmailWarehouseController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact ]
 
   # GET /api/v1/email_warehouse
   # List emails from warehouse with filtering
@@ -533,6 +533,94 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
   end
 
+  # POST /api/v1/email_warehouse/:id/link_contact
+  # Link a contact to an email
+  def link_contact
+    contact = Contact.find(params[:contact_id])
+
+    # Add contact to contact_ids array if not already present
+    current_ids = @email.contact_ids || []
+    unless current_ids.include?(contact.id)
+      current_ids << contact.id
+    end
+
+    # Set as primary if requested or if no primary exists
+    set_primary = params[:set_primary] == "true" || @email.primary_contact_id.nil?
+
+    @email.update!(
+      contact_ids: current_ids,
+      primary_contact_id: set_primary ? contact.id : @email.primary_contact_id,
+      contacts_matched_at: Time.current
+    )
+
+    render json: {
+      success: true,
+      message: "Contact linked to email",
+      email: email_json(@email)
+    }
+  rescue ActiveRecord::RecordNotFound
+    render json: { success: false, error: "Contact not found" }, status: :not_found
+  end
+
+  # POST /api/v1/email_warehouse/:id/unlink_contact
+  # Unlink a contact from an email
+  def unlink_contact
+    contact_id = params[:contact_id].to_i
+
+    current_ids = @email.contact_ids || []
+    current_ids.delete(contact_id)
+
+    # Clear primary if we're unlinking the primary contact
+    new_primary = @email.primary_contact_id == contact_id ? current_ids.first : @email.primary_contact_id
+
+    @email.update!(
+      contact_ids: current_ids,
+      primary_contact_id: new_primary
+    )
+
+    render json: {
+      success: true,
+      message: "Contact unlinked from email",
+      email: email_json(@email)
+    }
+  end
+
+  # GET /api/v1/email_warehouse/:id/suggest_contacts
+  # Get contact suggestions for linking based on email addresses
+  def suggest_contacts
+    email = EmailWarehouse.find(params[:id])
+
+    # Extract all email addresses from the email
+    email_addresses = [ email.from_email ]
+    email_addresses.concat(email.to_emails || [])
+    email_addresses.concat(email.cc_emails || [])
+    email_addresses = email_addresses.compact.uniq.map(&:downcase)
+
+    # Find contacts matching these email addresses
+    suggestions = Contact.where("LOWER(email) IN (?)", email_addresses)
+                         .or(Contact.where("LOWER(secondary_email) IN (?)", email_addresses))
+                         .limit(10)
+
+    # Also check AI-extracted entities if available
+    if email.extracted_entities.present?
+      entities = email.extracted_entities.with_indifferent_access
+      if entities[:contacts].present?
+        entity_names = entities[:contacts].map { |c| c["name"] }.compact
+        name_matches = Contact.where("display_name ILIKE ANY(ARRAY[?])", entity_names.map { |n| "%#{n}%" }).limit(5)
+        suggestions = (suggestions + name_matches).uniq
+      end
+    end
+
+    render json: {
+      success: true,
+      data: {
+        suggestions: suggestions.map { |c| contact_summary(c) },
+        email_addresses: email_addresses,
+        already_linked: email.contact_ids || []
+      }
+    }
+  end
+
   # GET /api/v1/email_warehouse/rules
   # Get email classification rules and current user's email stats
   def rules
@@ -683,7 +771,14 @@ class Api::V1::EmailWarehouseController < ApplicationController
       is_read: true,
       conversation_id: email.conversation_id,
       source_type: email.source_type || "outlook",
-      imap_credential_id: email.imap_credential_id
+      imap_credential_id: email.imap_credential_id,
+      # AI Summary
+      ai_summary: email.ai_summary,
+      # Contact matching
+      primary_contact_id: email.primary_contact_id,
+      contact_ids: email.contact_ids || [],
+      primary_contact: email.primary_contact_id ? contact_summary(Contact.find_by(id: email.primary_contact_id)) : nil,
+      contacts: email.contact_ids.present? ? Contact.where(id: email.contact_ids).map { |c| contact_summary(c) } : []
     }
 
     if include_body
@@ -770,6 +865,19 @@ class Api::V1::EmailWarehouseController < ApplicationController
     else
       []
     end
+  end
+
+  def contact_summary(contact)
+    return nil unless contact
+
+    {
+      id: contact.id,
+      display_name: contact.display_name,
+      email: contact.email,
+      phone: contact.phone,
+      company_name: contact.company_name,
+      avatar_url: contact.try(:avatar_url)
+    }
   end
 
   # ========================================

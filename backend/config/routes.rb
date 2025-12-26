@@ -875,6 +875,9 @@ Rails.application.routes.draw do
           delete :delete_from_outlook
           post :move_to_folder
           post :summarize
+          post :link_contact
+          post :unlink_contact
+          get :suggest_contacts
         end
       end
 

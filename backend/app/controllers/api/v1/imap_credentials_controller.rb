@@ -321,49 +321,44 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # POST /api/v1/imap_credentials/send_email
-  # Send an email via IMAP credential or Outlook
+  # Send an email via IMAP credential, Outlook, or MS365
+  # SSoT: Uses EmailSendingService for all email sending
   def send_email
-    # Handle Outlook send
-    if params[:credential_id] == "outlook"
-      return send_via_outlook
-    end
-
-    credential = current_user.imap_credentials.find(params[:credential_id])
-
-    service = ImapEmailService.new(credential)
+    # Determine account type from credential_id
+    credential_id = params[:credential_id]
+    account_type = infer_account_type(credential_id)
 
     # Handle attachments from uploaded files
-    attachments = []
-    if params[:attachments].present?
-      params[:attachments].each do |file|
-        attachments << {
-          filename: file.original_filename,
-          content: file.read,
-          content_type: file.content_type
-        }
-      end
-    end
+    attachments = build_attachments_from_params
 
-    mail = service.send_email(
+    # Use unified EmailSendingService (SSoT)
+    result = EmailSendingService.send(
+      account_type: account_type,
+      credential_id: credential_id,
+      user: current_user,
       to: Array(params[:to]),
-      subject: params[:subject],
-      body: params[:body],
       cc: Array(params[:cc]),
       bcc: Array(params[:bcc]),
+      subject: params[:subject],
+      body: params[:body],
       attachments: attachments,
+      from_address: params[:from_address],
       reply_to_message_id: params[:reply_to_message_id],
-      from_address: params[:from_address]
+      mailbox_email: params[:mailbox_email]
     )
 
-    render json: {
-      success: true,
-      message: "Email sent successfully",
-      data: {
-        message_id: mail.message_id,
-        to: mail.to,
-        subject: mail.subject
+    if result.success?
+      render json: {
+        success: true,
+        message: "Email sent successfully",
+        data: result.data.merge(message_id: result.message_id)
       }
-    }
+    else
+      render json: {
+        success: false,
+        error: result.error || "Failed to send email"
+      }, status: :unprocessable_entity
+    end
   rescue => e
     render json: {
       success: false,
@@ -373,76 +368,39 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # POST /api/v1/imap_credentials/schedule_email
   # Schedule an email to be sent at a future time
+  # SSoT: Uses EmailSendingService for scheduling
   def schedule_email
-    scheduled_for = params[:scheduled_for]
-
-    unless scheduled_for.present?
-      return render json: {
-        success: false,
-        error: "scheduled_for is required"
-      }, status: :unprocessable_entity
-    end
-
-    # Parse the scheduled time
-    scheduled_time = Time.zone.parse(scheduled_for)
-
-    if scheduled_time <= Time.current
-      return render json: {
-        success: false,
-        error: "Scheduled time must be in the future"
-      }, status: :unprocessable_entity
-    end
-
-    # Determine account type
     credential_id = params[:credential_id]
-    account_type = nil
-    imap_credential_id = nil
-    microsoft_credential_id = nil
-    mailbox_email = nil
+    account_type = infer_account_type(credential_id)
 
-    if credential_id == "outlook"
-      account_type = "outlook"
-    elsif credential_id&.start_with?("ms365_")
-      account_type = "ms365"
-      parts = credential_id.split("_")
-      microsoft_credential_id = parts[1]
-      mailbox_email = params[:mailbox_email]
-    else
-      account_type = "imap"
-      imap_credential_id = credential_id
-    end
-
-    # Handle attachments - store as file metadata for later
-    # For now, we don't support attachments in scheduled emails
-    # TODO: Implement attachment storage for scheduled emails
-
-    scheduled = ScheduledEmail.create!(
-      imap_credential_id: imap_credential_id,
-      microsoft_credential_id: microsoft_credential_id,
+    # Use unified EmailSendingService (SSoT)
+    result = EmailSendingService.schedule(
       account_type: account_type,
-      mailbox_email: mailbox_email,
-      created_by: current_user,
-      to_addresses: Array(params[:to]).to_json,
-      cc_addresses: Array(params[:cc]).to_json,
-      bcc_addresses: Array(params[:bcc]).to_json,
+      credential_id: credential_id,
+      user: current_user,
+      to: Array(params[:to]),
+      cc: Array(params[:cc]),
+      bcc: Array(params[:bcc]),
       subject: params[:subject],
       body: params[:body],
+      from_address: params[:from_address],
       reply_to_message_id: params[:reply_to_message_id],
-      scheduled_for: scheduled_time,
-      status: "pending"
+      mailbox_email: params[:mailbox_email],
+      scheduled_for: params[:scheduled_for]
     )
 
-    render json: {
-      success: true,
-      message: "Email scheduled successfully",
-      data: {
-        id: scheduled.id,
-        scheduled_for: scheduled.scheduled_for,
-        status: scheduled.status,
-        to: scheduled.to_list,
-        subject: scheduled.subject
+    if result.success?
+      render json: {
+        success: true,
+        message: "Email scheduled successfully",
+        data: result.data
       }
-    }
+    else
+      render json: {
+        success: false,
+        error: result.error || "Failed to schedule email"
+      }, status: :unprocessable_entity
+    end
   rescue => e
     render json: {
       success: false,
@@ -638,6 +596,31 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   def set_credential
     @credential = current_user.imap_credentials.find(params[:id])
+  end
+
+  # Infer account type from credential_id format
+  def infer_account_type(credential_id)
+    case credential_id.to_s
+    when "outlook"
+      "outlook"
+    when /^ms365_/
+      "ms365"
+    else
+      "imap"
+    end
+  end
+
+  # Build attachments array from uploaded files
+  def build_attachments_from_params
+    return [] unless params[:attachments].present?
+
+    params[:attachments].map do |file|
+      {
+        filename: file.original_filename,
+        content: file.read,
+        content_type: file.content_type
+      }
+    end
   end
 
   def credential_params

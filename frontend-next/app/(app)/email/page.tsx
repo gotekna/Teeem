@@ -42,6 +42,8 @@ import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp
 import { BulkActionBar } from "@/components/emails/BulkActionBar";
 import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
 import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
+import { EmailSummary } from "@/components/emails/EmailSummary";
+import { EmailContactMatch } from "@/components/emails/EmailContactMatch";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
@@ -84,6 +86,24 @@ interface Email {
   thread_count?: number;
   is_latest_in_thread?: boolean;
   thread?: Email[];
+  // AI Summary fields
+  ai_summary?: string | null;
+  // Contact matching fields
+  primary_contact_id?: number | null;
+  primary_contact?: {
+    id: number;
+    display_name: string;
+    email?: string;
+    phone?: string;
+    company_name?: string;
+  } | null;
+  contacts?: Array<{
+    id: number;
+    display_name: string;
+    email?: string;
+    phone?: string;
+    company_name?: string;
+  }>;
 }
 
 interface EmailAccount {
@@ -1209,6 +1229,15 @@ To: ${email.to_emails?.join(", ") || ""}
                     <p className="text-xs text-muted-foreground mt-1">
                       To: {(selectedEmail.to_addresses || selectedEmail.to_emails)?.join(", ")}
                     </p>
+                    {/* Contact Matching */}
+                    <div className="mt-2">
+                      <EmailContactMatch
+                        emailId={selectedEmail.id}
+                        primaryContact={selectedEmail.primary_contact}
+                        contacts={selectedEmail.contacts || []}
+                        onContactsChanged={() => handleEmailClick(selectedEmail)}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
@@ -1240,6 +1269,12 @@ To: ${email.to_emails?.join(", ") || ""}
                 </div>
               </div>
             )}
+
+            {/* AI Summary */}
+            <EmailSummary
+              emailId={selectedEmail.id}
+              existingSummary={selectedEmail.ai_summary}
+            />
 
             {/* Email Body */}
             <div className="flex-1 overflow-auto px-6 py-4">

@@ -120,7 +120,7 @@ interface SmScheduleMaster {
   sm_template_ids: number[];
 }
 
-interface SmTemplate {
+interface SmScheduleMasterTemplate {
   id: number;
   name: string;
   description: string;
@@ -213,11 +213,11 @@ export function ScheduleMasterTab() {
   };
 
   // Schedule Templates state
-  const [templates, setTemplates] = React.useState<SmTemplate[]>([]);
+  const [templates, setTemplates] = React.useState<SmScheduleMasterTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [expandedTemplate, setExpandedTemplate] = React.useState<number | null>(null);
   const [showDialog, setShowDialog] = React.useState(false);
-  const [editingTemplate, setEditingTemplate] = React.useState<SmTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = React.useState<SmScheduleMasterTemplate | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [duplicating, setDuplicating] = React.useState<number | null>(null);
   const [deleting, setDeleting] = React.useState<number | null>(null);
@@ -303,8 +303,8 @@ export function ScheduleMasterTab() {
 
   const loadTemplates = async () => {
     try {
-      const data = await api.get<{ success: boolean; sm_templates: SmTemplate[] }>("/api/v1/sm_templates");
-      const loadedTemplates = data?.sm_templates || [];
+      const data = await api.get<{ success: boolean; sm_schedule_master_templates: SmScheduleMasterTemplate[] }>("/api/v1/sm_schedule_master_templates");
+      const loadedTemplates = data?.sm_schedule_master_templates || [];
       setTemplates(loadedTemplates);
 
       // Auto-select template for Gantt Preview if not already selected
@@ -350,7 +350,7 @@ export function ScheduleMasterTab() {
     setShowDialog(true);
   };
 
-  const handleOpenEditDialog = (template: SmTemplate) => {
+  const handleOpenEditDialog = (template: SmScheduleMasterTemplate) => {
     setFormData({
       name: template.name,
       description: template.description || "",
@@ -368,13 +368,13 @@ export function ScheduleMasterTab() {
     setSaving(true);
     try {
       if (editingTemplate) {
-        await api.patch(`/api/v1/sm_templates/${editingTemplate.id}`, {
-          sm_template: formData,
+        await api.patch(`/api/v1/sm_schedule_master_templates/${editingTemplate.id}`, {
+          sm_schedule_master_template: formData,
         });
         toast({ title: "Success", description: "Template updated successfully" });
       } else {
-        await api.post("/api/v1/sm_templates", {
-          sm_template: formData,
+        await api.post("/api/v1/sm_schedule_master_templates", {
+          sm_schedule_master_template: formData,
         });
         toast({ title: "Success", description: "Template created successfully" });
       }
@@ -391,7 +391,7 @@ export function ScheduleMasterTab() {
   const handleDuplicate = async (id: number) => {
     setDuplicating(id);
     try {
-      await api.post(`/api/v1/sm_templates/${id}/duplicate`);
+      await api.post(`/api/v1/sm_schedule_master_templates/${id}/duplicate`);
       toast({ title: "Success", description: "Template duplicated successfully" });
       loadTemplates();
     } catch (error) {
@@ -407,7 +407,7 @@ export function ScheduleMasterTab() {
 
     setDeleting(id);
     try {
-      await api.delete(`/api/v1/sm_templates/${id}`);
+      await api.delete(`/api/v1/sm_schedule_master_templates/${id}`);
       toast({ title: "Success", description: "Template archived successfully" });
       loadTemplates();
     } catch (error) {
@@ -434,10 +434,10 @@ export function ScheduleMasterTab() {
     // Fetch the template with rows
     setLoadingRows(id);
     try {
-      const data = await api.get<{ success: boolean; sm_template: SmTemplate }>(`/api/v1/sm_templates/${id}`);
-      if (data?.sm_template) {
+      const data = await api.get<{ success: boolean; sm_schedule_master_template: SmScheduleMasterTemplate }>(`/api/v1/sm_schedule_master_templates/${id}`);
+      if (data?.sm_schedule_master_template) {
         setTemplates(prev => prev.map(t =>
-          t.id === id ? { ...t, rows: data.sm_template.rows } : t
+          t.id === id ? { ...t, rows: data.sm_schedule_master_template.rows } : t
         ));
       }
       setExpandedTemplate(id);
@@ -463,7 +463,7 @@ export function ScheduleMasterTab() {
     setDataViewLoading(true);
     try {
       const data = await api.get<{ success: boolean; rows: SmScheduleMaster[] }>(
-        `/api/v1/sm_templates/${templateId}/rows`
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows`
       );
       setDataViewRows(data.rows || []);
     } catch (error) {
@@ -484,7 +484,7 @@ export function ScheduleMasterTab() {
       return { success: false, error: "No template selected" };
     }
     try {
-      await api.patch(`/api/v1/sm_templates/${dataViewTemplateId}/rows/${rowId}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${rowId}`, {
         row: { [field]: value },
       });
       // Refresh the data
@@ -522,7 +522,7 @@ export function ScheduleMasterTab() {
     if (!editingRow || !dataViewTemplateId) return;
     setSavingRow(true);
     try {
-      await api.patch(`/api/v1/sm_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
         row: editRowForm,
       });
       toast({ title: "Success", description: "Row updated" });
@@ -629,7 +629,7 @@ export function ScheduleMasterTab() {
     if (!editingRow || !dataViewTemplateId) return;
     setSavingAutoPO(true);
     try {
-      await api.patch(`/api/v1/sm_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
         row: {
           create_po_on_job_start: true,
           po_supplier_id: selectedSupplierId ? parseInt(selectedSupplierId) : null,
@@ -661,7 +661,7 @@ export function ScheduleMasterTab() {
     if (!editingRow || !dataViewTemplateId) return;
     setSavingAutoPO(true);
     try {
-      await api.patch(`/api/v1/sm_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
         row: {
           create_po_on_job_start: false,
           po_supplier_id: null,
@@ -693,7 +693,7 @@ export function ScheduleMasterTab() {
     setLoadingRows(templateId);
     try {
       const data = await api.get<{ success: boolean; rows: SmScheduleMaster[] }>(
-        `/api/v1/sm_templates/${templateId}/rows`
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows`
       );
       setGanttRows(data.rows || []);
     } catch (error) {

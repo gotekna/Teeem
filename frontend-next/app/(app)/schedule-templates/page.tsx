@@ -39,7 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 
-interface SmTemplate {
+interface SmScheduleMasterTemplate {
   id: number;
   name: string;
   description: string;
@@ -54,10 +54,10 @@ export default function ScheduleTemplatesPage() {
   useSetLayoutMode("full-height");
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
-  const [templates, setTemplates] = useState<SmTemplate[]>([]);
+  const [templates, setTemplates] = useState<SmScheduleMasterTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<SmTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<SmScheduleMasterTemplate | null>(null);
   const [saving, setSaving] = useState(false);
   const [duplicating, setDuplicating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
@@ -66,8 +66,8 @@ export default function ScheduleTemplatesPage() {
 
   const loadTemplates = useCallback(async () => {
     try {
-      const data = await api.get<{ success: boolean; sm_templates: SmTemplate[] }>("/api/v1/sm_templates");
-      setTemplates(data?.sm_templates || []);
+      const data = await api.get<{ success: boolean; sm_schedule_master_templates: SmScheduleMasterTemplate[] }>("/api/v1/sm_schedule_master_templates");
+      setTemplates(data?.sm_schedule_master_templates || []);
     } catch (error) {
       console.error("Failed to load templates:", error);
       setTemplates([]);
@@ -92,7 +92,7 @@ export default function ScheduleTemplatesPage() {
   };
 
   // Edit template handler
-  const handleEdit = (template: SmTemplate) => {
+  const handleEdit = (template: SmScheduleMasterTemplate) => {
     setFormData({ name: template.name, description: template.description || "" });
     setEditingTemplate(template);
     setShowDialog(true);
@@ -108,10 +108,10 @@ export default function ScheduleTemplatesPage() {
     setSaving(true);
     try {
       if (editingTemplate) {
-        await api.patch(`/api/v1/sm_templates/${editingTemplate.id}`, { sm_template: formData });
+        await api.patch(`/api/v1/sm_schedule_master_templates/${editingTemplate.id}`, { sm_schedule_master_template: formData });
         toast({ title: "Success", description: "Template updated successfully" });
       } else {
-        await api.post("/api/v1/sm_templates", { sm_template: formData });
+        await api.post("/api/v1/sm_schedule_master_templates", { sm_schedule_master_template: formData });
         toast({ title: "Success", description: "Template created successfully" });
       }
       setShowDialog(false);
@@ -128,7 +128,7 @@ export default function ScheduleTemplatesPage() {
   const handleDuplicate = async (id: number) => {
     setDuplicating(id);
     try {
-      await api.post(`/api/v1/sm_templates/${id}/duplicate`);
+      await api.post(`/api/v1/sm_schedule_master_templates/${id}/duplicate`);
       toast({ title: "Success", description: "Template duplicated successfully" });
       refresh();
     } catch (error) {
@@ -143,7 +143,7 @@ export default function ScheduleTemplatesPage() {
   const handleSetDefault = async (id: number) => {
     setSettingDefault(id);
     try {
-      await api.post(`/api/v1/sm_templates/${id}/set_default`);
+      await api.post(`/api/v1/sm_schedule_master_templates/${id}/set_default`);
       toast({ title: "Success", description: "Template set as default" });
       refresh();
     } catch (error) {
@@ -160,7 +160,7 @@ export default function ScheduleTemplatesPage() {
 
     setDeleting(id);
     try {
-      await api.delete(`/api/v1/sm_templates/${id}`);
+      await api.delete(`/api/v1/sm_schedule_master_templates/${id}`);
       toast({ title: "Success", description: "Template archived successfully" });
       refresh();
     } catch (error) {

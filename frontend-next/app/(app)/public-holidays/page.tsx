@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,12 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableRow as TeeemTableRow } from "@/components/table/types";
+import type { TableRow } from "@/components/table/types";
+
+// SSoT: Columns fetched from Foundation API (ID: 405)
 
 // Types
-interface PublicHoliday {
+interface PublicHoliday extends TableRow {
   id: number;
   name: string;
   date: string;
@@ -144,116 +146,66 @@ export default function PublicHolidaysPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      weekday: "short",
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
+  // Filter controls for TeeemTableView leftActions
+  const filterControls = (
+    <div className="flex flex-wrap items-center gap-4">
+      <div className="flex items-center gap-2">
+        <Label htmlFor="year" className="text-sm whitespace-nowrap">
+          Year
+        </Label>
+        <Select
+          value={selectedYear.toString()}
+          onValueChange={(value) => setSelectedYear(parseInt(value))}
+        >
+          <SelectTrigger className="w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((year) => (
+              <SelectItem key={year} value={year.toString()}>
+                {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Label htmlFor="region" className="text-sm whitespace-nowrap">
+          Region
+        </Label>
+        <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {REGIONS.map((region) => (
+              <SelectItem key={region} value={region}>
+                {region === "ALL" ? "All Regions" : region}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button onClick={() => setShowAddModal(true)} size="sm">
+        <PlusIcon className="mr-2 h-4 w-4" />
+        Add Holiday
+      </Button>
+    </div>
+  );
 
   return (
-    <div className="container py-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Public Holidays</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Manage public holidays for business day calculations
-        </p>
-      </div>
-
-      {/* Filters */}
-      <div className="mb-6 flex flex-wrap items-end gap-4">
-        <div>
-          <Label htmlFor="year" className="mb-1 block text-sm">
-            Year
-          </Label>
-          <Select
-            value={selectedYear.toString()}
-            onValueChange={(value) => setSelectedYear(parseInt(value))}
-          >
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((year) => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="region" className="mb-1 block text-sm">
-            Region
-          </Label>
-          <Select value={selectedRegion} onValueChange={setSelectedRegion}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {REGIONS.map((region) => (
-                <SelectItem key={region} value={region}>
-                  {region === "ALL" ? "All Regions" : region}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button onClick={() => setShowAddModal(true)}>
-          <PlusIcon className="mr-2 h-5 w-5" />
-          Add Holiday
-        </Button>
-      </div>
-
-      {/* Table */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : holidays.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No public holidays found for the selected filters
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Holiday Name</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Region</TableHead>
-                <TableHead className="w-20"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {holidays.map((holiday) => (
-                <TableRow key={holiday.id}>
-                  <TableCell className="font-medium">{holiday.name}</TableCell>
-                  <TableCell>{formatDate(holiday.date)}</TableCell>
-                  <TableCell>{holiday.region}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(holiday)}
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
+    <div className="flex flex-col h-full -mx-4">
+      <TeeemTableView
+        entries={holidays}
+        foundationIdNumeric={405}
+        tableName="Public Holidays"
+        onRefresh={loadHolidays}
+        leftActions={filterControls}
+        enableExport={true}
+        onDelete={(row) => handleDelete(row as PublicHoliday)}
+      />
 
       {/* Add Holiday Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>

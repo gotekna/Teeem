@@ -87,3 +87,9 @@ export { QuickEmailActions } from "./QuickEmailActions";
 // Folder Management
 export { MoveToFolderMenu, type EmailFolder } from "./MoveToFolderMenu";
 export { CreateFolderDialog, DeleteFolderDialog } from "./FolderManagementDialog";
+
+// AI Summary
+export { EmailSummary, type SummaryData, type ActionItem, type Entities } from "./EmailSummary";
+
+// Contact Matching
+export { EmailContactMatch, type ContactInfo } from "./EmailContactMatch";

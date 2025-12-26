@@ -53,7 +53,7 @@ import {
 import { api } from "@/lib/api";
 
 // Types
-interface SmTemplate {
+interface SmScheduleMasterTemplate {
   id: number;
   name: string;
   description: string;
@@ -240,7 +240,7 @@ export default function ScheduleTemplateDetailPage() {
   const templateId = params.id as string;
 
   // State
-  const [template, setTemplate] = React.useState<SmTemplate | null>(null);
+  const [template, setTemplate] = React.useState<SmScheduleMasterTemplate | null>(null);
   const [rows, setRows] = React.useState<SmScheduleMaster[]>([]);
   const [planTypes, setPlanTypes] = React.useState<PlanType[]>([]);
   const [entityTabs, setEntityTabs] = React.useState<EntityTab[]>([]);
@@ -286,13 +286,13 @@ export default function ScheduleTemplateDetailPage() {
 
       // Load template, rows, plan types, and entity tabs in parallel
       const [templateData, rowsData, planTypesData, entityTabsData] = await Promise.all([
-        api.get<{ success: boolean; sm_template: SmTemplate }>(`/api/v1/sm_templates/${templateId}`),
-        api.get<{ success: boolean; rows: SmScheduleMaster[] }>(`/api/v1/sm_templates/${templateId}/rows`),
+        api.get<{ success: boolean; sm_schedule_master_template: SmScheduleMasterTemplate }>(`/api/v1/sm_schedule_master_templates/${templateId}`),
+        api.get<{ success: boolean; rows: SmScheduleMaster[] }>(`/api/v1/sm_schedule_master_templates/${templateId}/rows`),
         api.get<{ success: boolean; data: PlanType[] }>("/api/v1/plan_types"),
         api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs/for_scope/job"),
       ]);
 
-      setTemplate(templateData.sm_template);
+      setTemplate(templateData.sm_schedule_master_template);
       setRows(rowsData.rows || []);
       setPlanTypes(planTypesData.data || []);
       setEntityTabs(entityTabsData.data?.tabs || []);
@@ -347,7 +347,7 @@ export default function ScheduleTemplateDetailPage() {
 
     setSaving(true);
     try {
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${editingRow.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${editingRow.id}`, {
         row: editForm,
       });
       toast({ title: "Success", description: "Row updated successfully" });
@@ -400,7 +400,7 @@ export default function ScheduleTemplateDetailPage() {
     setComparing(true);
     try {
       const response = await api.get<CompareResult>(
-        `/api/v1/sm_templates/${templateId}/compare_to_job?job_id=${selectedJobId}`
+        `/api/v1/sm_schedule_master_templates/${templateId}/compare_to_job?job_id=${selectedJobId}`
       );
       if (response) {
         setCompareResult(response);
@@ -424,7 +424,7 @@ export default function ScheduleTemplateDetailPage() {
 
     setSyncing(true);
     try {
-      const response = await api.post<SyncResult>(`/api/v1/sm_templates/${templateId}/sync_to_job`, {
+      const response = await api.post<SyncResult>(`/api/v1/sm_schedule_master_templates/${templateId}/sync_to_job`, {
         job_id: parseInt(selectedJobId),
       });
       if (response) {
@@ -462,7 +462,7 @@ export default function ScheduleTemplateDetailPage() {
 
     setCopying(true);
     try {
-      const response = await api.post<CopyResult>(`/api/v1/sm_templates/${templateId}/copy_to_job`, {
+      const response = await api.post<CopyResult>(`/api/v1/sm_schedule_master_templates/${templateId}/copy_to_job`, {
         job_id: parseInt(copyJobId),
         clear_existing: false,
       });
@@ -528,7 +528,7 @@ export default function ScheduleTemplateDetailPage() {
 
     setSavingAutoPO(true);
     try {
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${autoPORow.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${autoPORow.id}`, {
         row: {
           create_po_on_job_start: true,
           po_supplier_id: selectedSupplierId ? parseInt(selectedSupplierId) : null,
@@ -555,7 +555,7 @@ export default function ScheduleTemplateDetailPage() {
 
     setSavingAutoPO(true);
     try {
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${autoPORow.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${autoPORow.id}`, {
         row: {
           create_po_on_job_start: false,
           po_supplier_id: null,

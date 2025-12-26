@@ -21,7 +21,7 @@ import {
 import { GanttCanvasView } from "@/components/gantt-canvas";
 import { api } from "@/lib/api";
 
-interface SmTemplate {
+interface SmScheduleMasterTemplate {
   id: number;
   name: string;
   description: string;
@@ -31,7 +31,7 @@ interface SmTemplate {
 }
 
 export default function GanttSchedulePage() {
-  const [templates, setTemplates] = React.useState<SmTemplate[]>([]);
+  const [templates, setTemplates] = React.useState<SmScheduleMasterTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -39,10 +39,10 @@ export default function GanttSchedulePage() {
   React.useEffect(() => {
     const loadTemplates = async () => {
       try {
-        const data = await api.get<{ success: boolean; sm_templates: SmTemplate[] }>(
-          "/api/v1/sm_templates"
+        const data = await api.get<{ success: boolean; sm_schedule_master_templates: SmScheduleMasterTemplate[] }>(
+          "/api/v1/sm_schedule_master_templates"
         );
-        const loadedTemplates = data?.sm_templates || [];
+        const loadedTemplates = data?.sm_schedule_master_templates || [];
         setTemplates(loadedTemplates);
 
         // Auto-select "Schedule Master LIVE" template
