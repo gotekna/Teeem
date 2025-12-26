@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_072504) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8034,6 +8034,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
+  create_table "task_followers", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "sm_task_id", null: false
+    t.datetime "followed_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sm_task_id"], name: "index_task_followers_on_sm_task_id"
+    t.index ["user_id", "sm_task_id"], name: "index_task_followers_on_user_id_and_sm_task_id", unique: true
+  end
+
   create_table "trinity", force: :cascade do |t|
     t.integer "chapter_number", null: false
     t.string "chapter_name", null: false
@@ -9545,6 +9555,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
   add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "task_followers", "sm_tasks", on_delete: :cascade
+  add_foreign_key "task_followers", "users", on_delete: :cascade
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"

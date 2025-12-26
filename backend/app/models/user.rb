@@ -19,6 +19,8 @@ class User < ApplicationRecord
   has_one :microsoft_token, class_name: "UserMicrosoftToken", dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :user_navigation_configs, dependent: :destroy
+  has_many :task_followers, dependent: :destroy
+  has_many :followed_tasks, through: :task_followers, source: :sm_task
 
   # Placeholder for company association (not yet implemented)
   # Returns nil - callers should handle this gracefully

@@ -92,6 +92,23 @@ class SmTask < ApplicationRecord
   has_many :attached_emails, through: :sm_task_attachments, source: :attachable, source_type: "EmailWarehouse"
   has_many :attached_documents, through: :sm_task_attachments, source: :attachable, source_type: "CorporateCompanyDocument"
 
+  # Task Followers (for notifications)
+  has_many :task_followers, dependent: :destroy
+  has_many :followers, through: :task_followers, source: :user
+
+  # Follow/unfollow helper methods
+  def follow_by(user)
+    task_followers.find_or_create_by(user: user)
+  end
+
+  def unfollow_by(user)
+    task_followers.where(user: user).destroy_all
+  end
+
+  def followed_by?(user)
+    task_followers.exists?(user: user)
+  end
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   validates :task_number, presence: true, uniqueness: { scope: :construction_id }
