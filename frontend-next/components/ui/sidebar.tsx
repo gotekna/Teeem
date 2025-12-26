@@ -52,8 +52,14 @@ export function Sidebar() {
   const [loadingHref, setLoadingHref] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
+
+  // Track mounted state for theme hydration (next-themes fix)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Prevent duplicate fetches (React StrictMode double-mount)
   const badgeFetchingRef = useRef(false);
@@ -568,15 +574,15 @@ export function Sidebar() {
               </Link>
               <div className="my-1 border-t border-border" />
               <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
                 className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left"
               >
-                {theme === "dark" ? (
+                {mounted && resolvedTheme === "dark" ? (
                   <Sun className="h-4 w-4" />
                 ) : (
                   <Moon className="h-4 w-4" />
                 )}
-                {theme === "dark" ? "Light mode" : "Dark mode"}
+                {mounted ? (resolvedTheme === "dark" ? "Light mode" : "Dark mode") : "Toggle theme"}
               </button>
               <div className="my-1 border-t border-border" />
               <button
