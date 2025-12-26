@@ -21,13 +21,13 @@ class PurchaseOrder < ApplicationRecord
   # SSoT: SmTask.purchase_order_id is THE ONE link between PO and task
   has_many :sm_tasks, class_name: "SmTask", dependent: :nullify
 
-  # Virtual attribute for Foundation table display - returns first linked task name
-  def schedule_master_name
+  # SSoT: PO Task - returns first linked task name
+  def po_task_name
     sm_tasks.first&.name
   end
 
-  # Virtual attribute for Foundation - returns first linked task ID
-  def schedule_master_id
+  # SSoT: PO Task ID - returns first linked task ID
+  def po_task_id
     sm_tasks.first&.id
   end
 

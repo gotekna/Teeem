@@ -311,6 +311,13 @@ imap_email_sync:
   queue: default
   schedule: every 15 minutes
 
+# Wake up snoozed emails that have reached their snooze time
+# Runs every minute for responsive snooze experience
+email_snooze_wakeup:
+  class: EmailSnoozeWakeupJob
+  queue: default
+  schedule: every 1 minute
+
 # ============================================
 # FOUNDATION SYSTEM HEALTH
 # ============================================

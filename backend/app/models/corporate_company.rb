@@ -86,6 +86,23 @@ class CorporateCompany < ApplicationRecord
   has_many :gl_lien_waivers, class_name: "Gl::LienWaiver", dependent: :destroy
   has_many :gl_change_orders, class_name: "Gl::ChangeOrder", dependent: :destroy
   has_many :gl_equipment, class_name: "Gl::Equipment", dependent: :destroy
+  has_many :gl_portal_tokens, class_name: "Gl::PortalToken", dependent: :destroy
+  has_many :gl_portal_sessions, class_name: "Gl::PortalSession", dependent: :destroy
+  has_many :gl_customer_statements, class_name: "Gl::CustomerStatement", dependent: :destroy
+  has_many :gl_direct_debit_mandates, class_name: "Gl::DirectDebitMandate", dependent: :destroy
+  has_many :gl_billable_expenses, class_name: "Gl::BillableExpense", dependent: :destroy
+  has_many :gl_audit_logs, class_name: "Gl::AuditLog", dependent: :destroy
+  has_many :gl_audit_snapshots, class_name: "Gl::AuditSnapshot", dependent: :destroy
+  has_many :gl_retainage_releases, class_name: "Gl::RetainageRelease", dependent: :destroy
+  has_many :gl_custom_reports, class_name: "Gl::CustomReport", dependent: :destroy
+  has_many :gl_report_dashboards, class_name: "Gl::ReportDashboard", dependent: :destroy
+  has_many :gl_transaction_categories, class_name: "Gl::TransactionCategory", dependent: :destroy
+  has_many :gl_categorization_predictions, class_name: "Gl::CategorizationPrediction", dependent: :destroy
+  has_many :gl_anomalies, class_name: "Gl::Anomaly", dependent: :destroy
+  has_many :gl_anomaly_rules, class_name: "Gl::AnomalyRule", dependent: :destroy
+  has_many :gl_duplicate_groups, class_name: "Gl::DuplicateGroup", dependent: :destroy
+  has_many :gl_payment_predictions, class_name: "Gl::PaymentPrediction", dependent: :destroy
+  has_many :gl_customer_payment_stats, class_name: "Gl::CustomerPaymentStats", dependent: :destroy
 
   # Encrypted attributes
   encrypts :tfn, deterministic: true

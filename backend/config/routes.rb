@@ -907,6 +907,20 @@ Rails.application.routes.draw do
         end
       end
 
+      # Email Snoozes (temporarily hide emails, bring back later)
+      resources :email_snoozes, only: [:index, :show, :create] do
+        collection do
+          get :presets
+          get "for_email/:email_id", action: :for_email
+          post :bulk_snooze
+          delete :bulk_cancel
+        end
+        member do
+          delete :cancel
+          patch :extend
+        end
+      end
+
       # Email Blacklist (spam/marketing filters)
       resources :email_blacklist, only: [ :index, :create, :update, :destroy ] do
         collection do
@@ -2924,6 +2938,127 @@ Rails.application.routes.draw do
           post "batches/:id/generate_invoice", to: "time_billing#generate_invoice"
           # Summary
           get "summary", to: "time_billing#summary"
+        end
+
+        # Customer Portal (token-based access for customers)
+        scope :customer_portal do
+          # Token generation and validation
+          post "generate_token", to: "customer_portal#generate_token"
+          get "validate/:token", to: "customer_portal#validate_token"
+          post "login/:token", to: "customer_portal#portal_login"
+          # Customer-facing endpoints (no auth, token in params)
+          get "account/:token", to: "customer_portal#account_summary"
+          get "invoices/:token", to: "customer_portal#invoices"
+          get "invoices/:token/:id", to: "customer_portal#invoice_detail"
+          get "statements/:token", to: "customer_portal#statements"
+          get "statements/:token/:id", to: "customer_portal#statement_detail"
+          get "statements/:token/:id/download", to: "customer_portal#download_statement"
+          # Direct debit management
+          get "direct_debit/:token", to: "customer_portal#direct_debit_status"
+          post "direct_debit/:token/setup", to: "customer_portal#setup_direct_debit"
+          post "direct_debit/:token/cancel", to: "customer_portal#cancel_direct_debit"
+          # Payment processing
+          post "pay/:token", to: "customer_portal#make_payment"
+        end
+
+        # Billable Expenses
+        resources :expenses, only: [ :index, :show, :create, :update ] do
+          member do
+            post :approve
+          end
+          collection do
+            post :batch_approve
+            post :create_invoice
+            get :summary
+          end
+        end
+
+        # Audit Trail & Compliance
+        scope :audit do
+          get "logs", to: "audit#logs"
+          get "record/:type/:id", to: "audit#record_history"
+          get "snapshots", to: "audit#snapshots"
+          post "snapshots", to: "audit#create_snapshot"
+          get "snapshots/:id/export", to: "audit#export_snapshot"
+          get "summary", to: "audit#summary"
+          # Retainage releases
+          get "retainage_releases", to: "audit#retainage_releases"
+          post "retainage_releases", to: "audit#create_retainage_release"
+          post "retainage_releases/:id/approve", to: "audit#approve_retainage_release"
+          post "retainage_releases/:id/invoice", to: "audit#invoice_retainage_release"
+        end
+
+        # AI-Powered Features
+        scope :ai do
+          # Dashboard
+          get "dashboard", to: "ai#dashboard"
+          # Transaction Categorization
+          get "categories", to: "ai#categories"
+          post "categories", to: "ai#create_category"
+          patch "categories/:id", to: "ai#update_category"
+          post "categories/seed", to: "ai#seed_categories"
+          get "predictions", to: "ai#predictions"
+          post "predictions/:id/accept", to: "ai#accept_prediction"
+          post "predictions/:id/reject", to: "ai#reject_prediction"
+          post "predictions/:id/correct", to: "ai#correct_prediction"
+          get "predictions/accuracy", to: "ai#prediction_accuracy"
+          # Anomaly Detection
+          get "anomalies", to: "ai#anomalies"
+          get "anomalies/summary", to: "ai#anomaly_summary"
+          get "anomalies/:id", to: "ai#show_anomaly"
+          post "anomalies/:id/assign", to: "ai#assign_anomaly"
+          post "anomalies/:id/resolve", to: "ai#resolve_anomaly"
+          post "anomalies/:id/dismiss", to: "ai#dismiss_anomaly"
+          get "anomaly_rules", to: "ai#anomaly_rules"
+          post "anomaly_rules", to: "ai#create_anomaly_rule"
+          patch "anomaly_rules/:id", to: "ai#update_anomaly_rule"
+          post "anomaly_rules/seed", to: "ai#seed_anomaly_rules"
+          # Duplicate Detection
+          get "duplicates", to: "ai#duplicates"
+          get "duplicates/:id", to: "ai#show_duplicate"
+          post "duplicates/:id/keep_first", to: "ai#keep_first_duplicate"
+          post "duplicates/:id/keep_last", to: "ai#keep_last_duplicate"
+          post "duplicates/:id/merge", to: "ai#merge_duplicates"
+          post "duplicates/:id/not_duplicate", to: "ai#not_duplicate"
+          post "duplicates/scan", to: "ai#scan_duplicates"
+          # Late Payment Prediction
+          get "payment_predictions", to: "ai#payment_predictions"
+          get "payment_predictions/accuracy", to: "ai#prediction_accuracy_stats"
+          get "payment_predictions/for_invoice/:invoice_id", to: "ai#invoice_prediction"
+          # Customer Stats
+          get "customer_stats", to: "ai#customer_stats"
+          get "customer_stats/:contact_id", to: "ai#show_customer_stats"
+          post "customer_stats/:contact_id/recalculate", to: "ai#recalculate_customer_stats"
+        end
+
+        # Custom Report Builder
+        scope :reports_builder do
+          # Reports
+          get "", to: "reports_builder#index"
+          get "fields/:entity", to: "reports_builder#fields"
+          get "templates", to: "reports_builder#templates"
+          post "from_template/:template_id", to: "reports_builder#create_from_template"
+          get "favorites", to: "reports_builder#favorites"
+          post "", to: "reports_builder#create"
+          get ":id", to: "reports_builder#show"
+          patch ":id", to: "reports_builder#update"
+          delete ":id", to: "reports_builder#destroy"
+          post ":id/run", to: "reports_builder#run"
+          post ":id/export", to: "reports_builder#export"
+          post ":id/duplicate", to: "reports_builder#duplicate"
+          get ":id/history", to: "reports_builder#history"
+          post ":id/favorite", to: "reports_builder#add_favorite"
+          delete ":id/favorite", to: "reports_builder#remove_favorite"
+          # Dashboards
+          get "dashboards", to: "reports_builder#dashboards"
+          post "dashboards", to: "reports_builder#create_dashboard"
+          get "dashboards/:id", to: "reports_builder#show_dashboard"
+          patch "dashboards/:id", to: "reports_builder#update_dashboard"
+          delete "dashboards/:id", to: "reports_builder#destroy_dashboard"
+          post "dashboards/:id/add_widget", to: "reports_builder#add_widget"
+          patch "dashboards/:dashboard_id/widgets/:id", to: "reports_builder#update_widget"
+          delete "dashboards/:dashboard_id/widgets/:id", to: "reports_builder#remove_widget"
+          post "dashboards/:id/refresh", to: "reports_builder#refresh_dashboard"
         end
       end
 

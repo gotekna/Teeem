@@ -21,6 +21,9 @@ class EmailWarehouse < ApplicationRecord
   has_many :email_label_assignments, dependent: :destroy
   has_many :email_labels, through: :email_label_assignments
 
+  # Email Snooze (temporarily hide and bring back later)
+  has_many :email_snoozes, dependent: :destroy
+
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
 

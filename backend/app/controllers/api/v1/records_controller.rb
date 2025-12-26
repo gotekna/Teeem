@@ -842,6 +842,7 @@ module Api
           # This ensures table shows when materials are needed without data duplication
           if record.class.name == "PurchaseOrder"
             json[:required_date] = record.effective_required_date
+            json[:po_task_name] = record.po_task_name  # SSoT: SmTask.purchase_order_id is THE link
           end
 
           return json
