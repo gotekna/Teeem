@@ -281,6 +281,7 @@ export function useEmailWebSocket(
 /**
  * Construct WebSocket URL from API URL
  * Converts http(s)://host/api to ws(s)://host/cable
+ * Includes auth token as query param for iOS Safari/mobile support
  */
 function getWebSocketUrl(): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -291,6 +292,14 @@ function getWebSocketUrl(): string {
 
   // Change path to /cable (ActionCable default)
   url.pathname = "/cable";
+
+  // Add auth token as query parameter (iOS Safari can't send headers on WebSocket)
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("token");
+    if (token) {
+      url.searchParams.set("token", token);
+    }
+  }
 
   return url.toString();
 }

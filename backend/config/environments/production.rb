@@ -77,6 +77,14 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
+  # ActionCable WebSocket allowed origins
+  # Allow connections from Vercel frontend and Heroku backend
+  config.action_cable.allowed_request_origins = [
+    "https://teeemlive.vercel.app",
+    "https://teeemlive-ce8e2660a615.herokuapp.com",
+    %r{https://teeem.*\.vercel\.app},  # Preview deployments
+  ]
+
   # Enable DNS rebinding protection and other `Host` header attacks.
   # config.hosts = [
   #   "example.com",     # Allow requests from example.com

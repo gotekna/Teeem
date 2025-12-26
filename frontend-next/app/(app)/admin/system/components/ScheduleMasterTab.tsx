@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import {
   Plus,
   Loader2,
@@ -119,6 +120,7 @@ interface SmScheduleMaster {
   require_photo: boolean;
   require_certificate?: boolean;
   cert_lag_days?: number | null;
+  certificate_document_type_ids?: number[];
   // Auto-PO configuration
   po_supplier_id?: number | null;
   po_supplier_name?: string | null;
@@ -170,7 +172,7 @@ const ALL_COLUMNS = [
   "create_po_on_job_start", "po_line_items", "linked_po_task_id",
   "order_time_days", "call_time_days",
   // Completion Requirements
-  "require_photo", "require_certificate", "cert_lag_days", "pass_fail_enabled",
+  "require_photo", "require_certificate", "cert_lag_days", "certificate_document_type_ids", "pass_fail_enabled",
   // Subtasks
   "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids", "parent_row_id",
   // Documentation
@@ -278,6 +280,9 @@ export function ScheduleMasterTab() {
   // Job EntityTabs for photo storage dropdown
   const [jobEntityTabs, setJobEntityTabs] = React.useState<Array<{ id: number; display_name: string; tab_key: string }>>([]);
 
+  // Certification document types for certificate requirements
+  const [certificationDocTypes, setCertificationDocTypes] = React.useState<Array<{ id: number; name: string; display_name: string }>>([]);
+
   // Load column status from localStorage on mount
   React.useEffect(() => {
     const saved = localStorage.getItem(COLUMN_STATUS_KEY);
@@ -312,6 +317,7 @@ export function ScheduleMasterTab() {
   React.useEffect(() => {
     loadTemplates();
     loadJobEntityTabs();
+    loadCertificationDocTypes();
   }, []);
 
   // Load job EntityTabs for photo storage dropdown
@@ -323,6 +329,18 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load job EntityTabs:", error);
+    }
+  };
+
+  // Load certification document types for certificate requirements
+  const loadCertificationDocTypes = async () => {
+    try {
+      const data = await api.get<{ success: boolean; document_types: Array<{ id: number; name: string; display_name: string }> }>("/api/v1/document_types?scope=job&category=CERTIFICATION");
+      if (data?.document_types) {
+        setCertificationDocTypes(data.document_types);
+      }
+    } catch (error) {
+      console.error("Failed to load certification document types:", error);
     }
   };
 
@@ -537,6 +555,14 @@ export function ScheduleMasterTab() {
         create_po_on_job_start: fullRow.create_po_on_job_start,
         require_photo: fullRow.require_photo,
         require_certificate: fullRow.require_certificate,
+        cert_lag_days: fullRow.cert_lag_days,
+        certificate_document_type_ids: fullRow.certificate_document_type_ids,
+        spawn_photo_task: fullRow.spawn_photo_task,
+        photo_entity_tab_id: fullRow.photo_entity_tab_id,
+        spawn_order_task: fullRow.spawn_order_task,
+        spawn_call_task: fullRow.spawn_call_task,
+        order_time_days: fullRow.order_time_days,
+        call_time_days: fullRow.call_time_days,
       });
       setShowEditSheet(true);
     }
@@ -1892,7 +1918,7 @@ export function ScheduleMasterTab() {
                     checked={editRowForm.require_certificate || false}
                     onCheckedChange={(checked) => {
                       if (!checked) {
-                        setEditRowForm({ ...editRowForm, require_certificate: checked, cert_lag_days: undefined });
+                        setEditRowForm({ ...editRowForm, require_certificate: checked, cert_lag_days: undefined, certificate_document_type_ids: undefined });
                       } else {
                         setEditRowForm({ ...editRowForm, require_certificate: checked });
                       }
@@ -1900,19 +1926,49 @@ export function ScheduleMasterTab() {
                   />
                 </div>
                 {editRowForm.require_certificate && (
-                  <div className="space-y-2 pl-4 border-l-2 border-amber-200 dark:border-amber-800">
-                    <Label htmlFor="row-cert-lag">Certificate Due (days after completion)</Label>
-                    <Input
-                      id="row-cert-lag"
-                      type="number"
-                      min={0}
-                      value={editRowForm.cert_lag_days ?? 0}
-                      onChange={(e) => setEditRowForm({ ...editRowForm, cert_lag_days: parseInt(e.target.value) || 0 })}
-                      className="w-24"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Days after task completion to receive certificate
-                    </p>
+                  <div className="space-y-3 pl-4 border-l-2 border-amber-200 dark:border-amber-800">
+                    <div className="space-y-2">
+                      <Label htmlFor="row-cert-lag">Certificate Due (days after completion)</Label>
+                      <Input
+                        id="row-cert-lag"
+                        type="number"
+                        min={0}
+                        value={editRowForm.cert_lag_days ?? 0}
+                        onChange={(e) => setEditRowForm({ ...editRowForm, cert_lag_days: parseInt(e.target.value) || 0 })}
+                        className="w-24"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Days after task completion to receive certificate
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Required Certificate Types</Label>
+                      <MultipleSelector
+                        value={(editRowForm.certificate_document_type_ids || []).map(id => {
+                          const docType = certificationDocTypes.find(d => d.id === id);
+                          return { value: String(id), label: docType?.display_name || docType?.name || `Type ${id}` };
+                        })}
+                        onChange={(options) => {
+                          setEditRowForm({
+                            ...editRowForm,
+                            certificate_document_type_ids: options.map(o => parseInt(o.value))
+                          });
+                        }}
+                        defaultOptions={certificationDocTypes.map(d => ({
+                          value: String(d.id),
+                          label: d.display_name || d.name
+                        }))}
+                        placeholder="Select certificate types..."
+                        emptyIndicator={
+                          <p className="text-center text-sm text-muted-foreground">
+                            No certification document types found
+                          </p>
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Which certificate types must be provided for this task
+                      </p>
+                    </div>
                   </div>
                 )}
 
