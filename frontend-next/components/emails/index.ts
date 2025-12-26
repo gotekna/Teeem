@@ -56,3 +56,6 @@ export {
   type SplitInboxData,
   type CategoryData,
 } from "./SplitInboxTabs";
+
+// Keyboard Shortcuts
+export { KeyboardShortcutsHelp } from "./KeyboardShortcutsHelp";

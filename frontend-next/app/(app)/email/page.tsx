@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
   Settings2,
+  Keyboard,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
@@ -34,7 +35,11 @@ import {
   useSplitInbox,
   type SplitInboxCategory,
 } from "@/components/emails/SplitInboxTabs";
+import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp";
+import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
+import { useEmailState } from "@/components/emails/EmailActions";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Email {
   id: number;
@@ -116,6 +121,7 @@ const EmailListItem = memo(function EmailListItem({
 }) {
   return (
     <div
+      data-email-id={email.id}
       className={cn(
         "px-3 py-2.5 cursor-pointer border-l-2",
         isSelected
@@ -222,6 +228,79 @@ export default function EmailPage() {
   // Split Inbox State
   const [viewMode, setViewMode] = useState<"split" | "folders">("split");
   const splitInbox = useSplitInbox();
+
+  // Keyboard Shortcuts
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const { toast } = useToast();
+  const emailState = useEmailState(selectedEmail?.id);
+
+  // Get current email list based on view mode
+  const currentEmails = useMemo(() => {
+    return viewMode === "split" ? (splitInbox.currentEmails as Email[]) : emails;
+  }, [viewMode, splitInbox.currentEmails, emails]);
+
+  // Keyboard shortcut handlers
+  const handleKeyboardArchive = useCallback(async () => {
+    if (!selectedEmail) return;
+    await emailState.toggleArchive();
+    toast({ title: "Email archived" });
+  }, [selectedEmail, emailState, toast]);
+
+  const handleKeyboardStar = useCallback(async () => {
+    if (!selectedEmail) return;
+    await emailState.toggleStar();
+    toast({ title: emailState.state?.is_starred ? "Star removed" : "Email starred" });
+  }, [selectedEmail, emailState, toast]);
+
+  const handleKeyboardPin = useCallback(async () => {
+    if (!selectedEmail) return;
+    await emailState.togglePin();
+    toast({ title: emailState.state?.is_pinned ? "Pin removed" : "Email pinned" });
+  }, [selectedEmail, emailState, toast]);
+
+  const handleKeyboardVip = useCallback(async () => {
+    if (!selectedEmail) return;
+    try {
+      await api.post("/api/v1/vip_senders/toggle", {
+        email_address: selectedEmail.from_email || selectedEmail.from_address,
+      });
+      toast({ title: "VIP status toggled" });
+    } catch {
+      toast({ title: "Failed to toggle VIP", variant: "destructive" });
+    }
+  }, [selectedEmail, toast]);
+
+  const handleKeyboardReply = useCallback(() => {
+    if (selectedEmail) {
+      handleReply(selectedEmail);
+    }
+  }, [selectedEmail]);
+
+  const handleKeyboardCompose = useCallback(() => {
+    setReplyTo(null);
+    setComposeOpen(true);
+  }, []);
+
+  // Initialize keyboard shortcuts
+  useEmailKeyboardShortcuts({
+    emails: currentEmails,
+    selectedEmail,
+    onSelectEmail: (email) => {
+      if (email) {
+        handleEmailClick(email);
+      } else {
+        setSelectedEmail(null);
+      }
+    },
+    onArchive: handleKeyboardArchive,
+    onStar: handleKeyboardStar,
+    onPin: handleKeyboardPin,
+    onVip: handleKeyboardVip,
+    onReply: handleKeyboardReply,
+    onCompose: handleKeyboardCompose,
+    onShowHelp: () => setShowShortcutsHelp(true),
+    enabled: !composeOpen && !showShortcutsHelp,
+  });
 
   const fetchEmails = useCallback(async (page = 1) => {
     if (!selectedAccount) {
@@ -582,6 +661,15 @@ export default function EmailPage() {
               variant="ghost"
               size="icon"
               className="h-7 w-7"
+              onClick={() => setShowShortcutsHelp(true)}
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
               onClick={viewMode === "split" ? splitInbox.refresh : handleSync}
               disabled={syncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
             >
@@ -794,6 +882,12 @@ export default function EmailPage() {
           fetchEmails();
           setReplyTo(null);
         }}
+      />
+
+      {/* Keyboard Shortcuts Help Modal */}
+      <KeyboardShortcutsHelp
+        open={showShortcutsHelp}
+        onOpenChange={setShowShortcutsHelp}
       />
     </div>
   );

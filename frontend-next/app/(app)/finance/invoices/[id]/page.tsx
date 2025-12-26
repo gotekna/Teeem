@@ -17,7 +17,21 @@ import {
   FileWarning,
   RefreshCw,
   CheckCircle2,
+  Link2,
+  Copy,
+  Check,
+  Mail,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
@@ -108,6 +122,13 @@ export default function InvoiceDetailPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // Payment link state
+  const [paymentLinkDialogOpen, setPaymentLinkDialogOpen] = useState(false);
+  const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
+  const [paymentLinkCopied, setPaymentLinkCopied] = useState(false);
+  const [paymentLinkError, setPaymentLinkError] = useState<string | null>(null);
 
   useEffect(() => {
     if (invoiceId) {
@@ -248,6 +269,58 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  const handleCreatePaymentLink = async () => {
+    if (!invoice) return;
+
+    setPaymentLinkLoading(true);
+    setPaymentLinkError(null);
+    setPaymentLinkUrl(null);
+    setPaymentLinkCopied(false);
+
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { token: string; payment_url: string };
+        error?: string;
+      }>("/api/v1/payment_links", {
+        invoice_id: invoice.id,
+        expires_in_days: 30,
+      });
+
+      if (response?.success && response?.data) {
+        setPaymentLinkUrl(response.data.payment_url);
+      } else {
+        setPaymentLinkError(response?.error || "Failed to create payment link");
+      }
+    } catch (err) {
+      console.error("Failed to create payment link:", err);
+      setPaymentLinkError(
+        err instanceof Error ? err.message : "Failed to create payment link"
+      );
+    } finally {
+      setPaymentLinkLoading(false);
+    }
+  };
+
+  const handleCopyPaymentLink = async () => {
+    if (!paymentLinkUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(paymentLinkUrl);
+      setPaymentLinkCopied(true);
+      setTimeout(() => setPaymentLinkCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const handleOpenPaymentLinkDialog = () => {
+    setPaymentLinkDialogOpen(true);
+    setPaymentLinkUrl(null);
+    setPaymentLinkError(null);
+    setPaymentLinkCopied(false);
+  };
+
   return (
     <div className="flex gap-4 p-2 w-full overflow-hidden -mt-4 h-full">
       {/* LEFT HALF - Header + Details (flexible width) */}
@@ -343,6 +416,18 @@ export default function InvoiceDetailPage() {
                   >
                     <Building2 className="h-3 w-3 mr-1" />
                     View Contact
+                  </Button>
+                )}
+                {/* Send Payment Link - only for sales invoices with amount due */}
+                {!isBill && invoice.amount_due > 0 && invoice.status !== "PAID" && invoice.status !== "VOIDED" && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700"
+                    onClick={handleOpenPaymentLinkDialog}
+                  >
+                    <Link2 className="h-3 w-3 mr-1" />
+                    Send Payment Link
                   </Button>
                 )}
               </div>
@@ -630,6 +715,128 @@ export default function InvoiceDetailPage() {
           </CardContent>
         </Card>
       </div>{/* End Right Half */}
+
+      {/* Payment Link Dialog */}
+      <Dialog open={paymentLinkDialogOpen} onOpenChange={setPaymentLinkDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              Send Payment Link
+            </DialogTitle>
+            <DialogDescription>
+              Create a secure payment link for invoice {invoice.invoice_number}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Invoice Summary */}
+            <div className="p-3 rounded-lg bg-muted/50 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Invoice</span>
+                <span className="font-mono font-medium">{invoice.invoice_number}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Customer</span>
+                <span className="font-medium">{invoice.contact_name}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Amount Due</span>
+                <span className="font-mono font-semibold text-green-600">
+                  {formatCurrency(invoice.amount_due, invoice.currency_code)}
+                </span>
+              </div>
+            </div>
+
+            {/* Payment Link Generation */}
+            {!paymentLinkUrl ? (
+              <div className="text-center py-4">
+                {paymentLinkLoading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Spinner className="h-8 w-8" />
+                    <p className="text-sm text-muted-foreground">Generating payment link...</p>
+                  </div>
+                ) : paymentLinkError ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-red-600">{paymentLinkError}</p>
+                    <Button variant="outline" onClick={handleCreatePaymentLink}>
+                      Try Again
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Generate a secure link that allows your customer to pay this invoice online via credit card.
+                    </p>
+                    <Button onClick={handleCreatePaymentLink} className="bg-green-600 hover:bg-green-700">
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Generate Payment Link
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <Label htmlFor="payment-link">Payment Link (expires in 30 days)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="payment-link"
+                    value={paymentLinkUrl}
+                    readOnly
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyPaymentLink}
+                    title="Copy to clipboard"
+                  >
+                    {paymentLinkCopied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {paymentLinkCopied && (
+                  <p className="text-xs text-green-600">Copied to clipboard!</p>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => window.open(paymentLinkUrl, "_blank")}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open Link
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      const subject = encodeURIComponent(`Invoice ${invoice.invoice_number} - Payment Link`);
+                      const body = encodeURIComponent(
+                        `Hi,\n\nPlease use the following link to pay invoice ${invoice.invoice_number}:\n\n${paymentLinkUrl}\n\nAmount Due: ${formatCurrency(invoice.amount_due, invoice.currency_code)}\n\nThank you!`
+                      );
+                      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                    }}
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    Email Link
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentLinkDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

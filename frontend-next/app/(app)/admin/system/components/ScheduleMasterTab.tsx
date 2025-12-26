@@ -20,12 +20,29 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
   Plus,
   Loader2,
@@ -41,8 +58,9 @@ import {
   Camera,
   Settings,
   BarChart3,
-  Table,
+  Table as TableIcon,
   BookOpen,
+  X,
 } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas";
@@ -83,13 +101,21 @@ interface SmTemplateRow {
   id: number;
   task_number: number;
   name: string;
+  description?: string;
   duration_days: number;
   sequence_order: number;
   predecessor_ids: Array<{ id: number; type?: string; lag?: number }>;
   trade?: string;
   stage?: string;
   po_required: boolean;
+  critical_po?: boolean;
+  create_po_on_job_start?: boolean;
   require_photo: boolean;
+  require_certificate?: boolean;
+  // Auto-PO configuration
+  po_supplier_id?: number | null;
+  po_supplier_name?: string | null;
+  po_price_history_ids?: number[];
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -210,6 +236,27 @@ export function ScheduleMasterTab() {
   const [dataViewRows, setDataViewRows] = React.useState<SmTemplateRow[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
+
+  // Row Edit Sheet state
+  const [showEditSheet, setShowEditSheet] = React.useState(false);
+  const [editingRow, setEditingRow] = React.useState<SmTemplateRow | null>(null);
+  const [editRowForm, setEditRowForm] = React.useState<Partial<SmTemplateRow>>({});
+  const [savingRow, setSavingRow] = React.useState(false);
+
+  // Auto-PO Configuration state
+  const [showAutoPODialog, setShowAutoPODialog] = React.useState(false);
+  const [suppliers, setSuppliers] = React.useState<Array<{ id: number; display_name: string }>>([]);
+  const [priceHistories, setPriceHistories] = React.useState<Array<{
+    id: number;
+    pricebook_item_name: string;
+    pricebook_item_code: string;
+    new_price: number | string;
+  }>>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = React.useState(false);
+  const [loadingPriceHistories, setLoadingPriceHistories] = React.useState(false);
+  const [selectedSupplierId, setSelectedSupplierId] = React.useState<string>("");
+  const [selectedPriceHistoryIds, setSelectedPriceHistoryIds] = React.useState<number[]>([]);
+  const [savingAutoPO, setSavingAutoPO] = React.useState(false);
 
   // Column status tracking (persisted to localStorage)
   const [columnStatus, setColumnStatus] = React.useState<ColumnStatus>({
@@ -446,10 +493,177 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Handle row double-click - navigate to template detail page
+  // Handle row double-click - open edit sheet
   const handleDataViewRowDoubleClick = (row: Record<string, unknown>) => {
-    if (dataViewTemplateId && row.id) {
-      router.push(`/schedule-templates/${dataViewTemplateId}?row=${row.id}`);
+    const fullRow = dataViewRows.find(r => r.id === row.id);
+    if (fullRow) {
+      setEditingRow(fullRow);
+      setEditRowForm({
+        name: fullRow.name,
+        description: fullRow.description,
+        duration_days: fullRow.duration_days,
+        trade: fullRow.trade,
+        stage: fullRow.stage,
+        po_required: fullRow.po_required,
+        critical_po: fullRow.critical_po,
+        create_po_on_job_start: fullRow.create_po_on_job_start,
+        require_photo: fullRow.require_photo,
+        require_certificate: fullRow.require_certificate,
+      });
+      setShowEditSheet(true);
+    }
+  };
+
+  // Save row from edit sheet
+  const handleSaveRow = async () => {
+    if (!editingRow || !dataViewTemplateId) return;
+    setSavingRow(true);
+    try {
+      await api.patch(`/api/v1/sm_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
+        row: editRowForm,
+      });
+      toast({ title: "Success", description: "Row updated" });
+      setShowEditSheet(false);
+      loadDataViewRows(dataViewTemplateId);
+    } catch (error) {
+      console.error("Failed to save row:", error);
+      toast({ title: "Error", description: "Failed to save row", variant: "destructive" });
+    } finally {
+      setSavingRow(false);
+    }
+  };
+
+  // Load suppliers for auto-PO
+  const loadSuppliers = async () => {
+    setLoadingSuppliers(true);
+    try {
+      console.log("[Auto-PO] Loading suppliers...");
+      const response = await api.get<{ success: boolean; contacts: Array<{ id: number; display_name: string }> }>(
+        "/api/v1/contacts?type=suppliers&limit=500"
+      );
+      console.log("[Auto-PO] Suppliers response:", response);
+      console.log("[Auto-PO] Suppliers count:", response.contacts?.length || 0);
+      setSuppliers(response.contacts || []);
+    } catch (error) {
+      console.error("[Auto-PO] Failed to load suppliers:", error);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+
+  // Load price histories for supplier
+  const loadPriceHistoriesForSupplier = async (supplierId: string) => {
+    if (!supplierId) {
+      setPriceHistories([]);
+      return;
+    }
+    setLoadingPriceHistories(true);
+    try {
+      const response = await api.get<{ success: boolean; data: Array<{
+        id: number;
+        pricebook_item_name: string;
+        pricebook_item_code: string;
+        new_price: number | string;
+      }> }>(`/api/v1/pricebook/all_price_histories?supplier_id=${supplierId}&limit=500`);
+      setPriceHistories(response.data || []);
+    } catch (error) {
+      console.error("Failed to load price histories:", error);
+    } finally {
+      setLoadingPriceHistories(false);
+    }
+  };
+
+  // Open auto-PO config dialog
+  const handleOpenAutoPODialog = () => {
+    if (!editingRow) return;
+    setSelectedSupplierId(editingRow.po_supplier_id ? String(editingRow.po_supplier_id) : "");
+    setSelectedPriceHistoryIds(editingRow.po_price_history_ids || []);
+    setPriceHistories([]);
+    setShowAutoPODialog(true);
+    loadSuppliers();
+    if (editingRow.po_supplier_id) {
+      loadPriceHistoriesForSupplier(String(editingRow.po_supplier_id));
+    }
+  };
+
+  // Handle supplier change
+  const handleSupplierChange = (supplierId: string) => {
+    setSelectedSupplierId(supplierId);
+    setSelectedPriceHistoryIds([]);
+    if (supplierId) {
+      loadPriceHistoriesForSupplier(supplierId);
+    } else {
+      setPriceHistories([]);
+    }
+  };
+
+  // Toggle price history selection
+  const togglePriceHistorySelection = (phId: number) => {
+    setSelectedPriceHistoryIds(prev =>
+      prev.includes(phId) ? prev.filter(id => id !== phId) : [...prev, phId]
+    );
+  };
+
+  // Save auto-PO configuration
+  const handleSaveAutoPO = async () => {
+    if (!editingRow || !dataViewTemplateId) return;
+    setSavingAutoPO(true);
+    try {
+      await api.patch(`/api/v1/sm_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
+        row: {
+          create_po_on_job_start: true,
+          po_supplier_id: selectedSupplierId ? parseInt(selectedSupplierId) : null,
+          po_price_history_ids: selectedPriceHistoryIds,
+        },
+      });
+      toast({ title: "Success", description: "Auto-PO configuration saved" });
+      setShowAutoPODialog(false);
+      // Update the editing row state
+      setEditingRow(prev => prev ? {
+        ...prev,
+        create_po_on_job_start: true,
+        po_supplier_id: selectedSupplierId ? parseInt(selectedSupplierId) : null,
+        po_supplier_name: suppliers.find(s => s.id === parseInt(selectedSupplierId))?.display_name || null,
+        po_price_history_ids: selectedPriceHistoryIds,
+      } : null);
+      setEditRowForm(prev => ({ ...prev, create_po_on_job_start: true }));
+      loadDataViewRows(dataViewTemplateId);
+    } catch (error) {
+      console.error("Failed to save auto-PO:", error);
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    } finally {
+      setSavingAutoPO(false);
+    }
+  };
+
+  // Clear auto-PO configuration
+  const handleClearAutoPO = async () => {
+    if (!editingRow || !dataViewTemplateId) return;
+    setSavingAutoPO(true);
+    try {
+      await api.patch(`/api/v1/sm_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
+        row: {
+          create_po_on_job_start: false,
+          po_supplier_id: null,
+          po_price_history_ids: [],
+        },
+      });
+      toast({ title: "Success", description: "Auto-PO cleared" });
+      setShowAutoPODialog(false);
+      setEditingRow(prev => prev ? {
+        ...prev,
+        create_po_on_job_start: false,
+        po_supplier_id: null,
+        po_supplier_name: null,
+        po_price_history_ids: [],
+      } : null);
+      setEditRowForm(prev => ({ ...prev, create_po_on_job_start: false }));
+      loadDataViewRows(dataViewTemplateId);
+    } catch (error) {
+      console.error("Failed to clear auto-PO:", error);
+      toast({ title: "Error", description: "Failed to clear", variant: "destructive" });
+    } finally {
+      setSavingAutoPO(false);
     }
   };
 
@@ -495,7 +709,7 @@ export function ScheduleMasterTab() {
             Gantt Preview
           </TabsTrigger>
           <TabsTrigger value="data-view">
-            <Table className="h-4 w-4 mr-2" />
+            <TableIcon className="h-4 w-4 mr-2" />
             Data View
           </TabsTrigger>
           <TabsTrigger value="column-reference">
@@ -727,7 +941,7 @@ export function ScheduleMasterTab() {
             />
             {!dataViewTemplateId && (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Table className="h-12 w-12 mb-4 opacity-50" />
+                <TableIcon className="h-12 w-12 mb-4 opacity-50" />
                 <h3 className="text-lg font-medium mb-2">Select a template</h3>
                 <p className="text-center max-w-md">
                   Choose a schedule template from the dropdown above to view its rows.
@@ -1432,6 +1646,266 @@ export function ScheduleMasterTab() {
                 "Update Template"
               ) : (
                 "Create Template"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Row Edit Sheet */}
+      <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
+        <SheetContent className="w-[500px] sm:max-w-[500px]">
+          <SheetHeader>
+            <SheetTitle>Edit Row</SheetTitle>
+            <SheetDescription>
+              {editingRow?.name} (Task #{editingRow?.task_number})
+            </SheetDescription>
+          </SheetHeader>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="row-name">Name</Label>
+              <Input
+                id="row-name"
+                value={editRowForm.name || ""}
+                onChange={(e) => setEditRowForm({ ...editRowForm, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="row-duration">Duration (days)</Label>
+              <Input
+                id="row-duration"
+                type="number"
+                value={editRowForm.duration_days || 0}
+                onChange={(e) => setEditRowForm({ ...editRowForm, duration_days: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="row-trade">Trade</Label>
+                <Input
+                  id="row-trade"
+                  value={editRowForm.trade || ""}
+                  onChange={(e) => setEditRowForm({ ...editRowForm, trade: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="row-stage">Stage</Label>
+                <Input
+                  id="row-stage"
+                  value={editRowForm.stage || ""}
+                  onChange={(e) => setEditRowForm({ ...editRowForm, stage: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* PO Settings */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-3">PO Settings</h4>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="row-po-required">PO Required</Label>
+                  <Switch
+                    id="row-po-required"
+                    checked={editRowForm.po_required || false}
+                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, po_required: checked })}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="row-critical-po">Critical PO</Label>
+                  <Switch
+                    id="row-critical-po"
+                    checked={editRowForm.critical_po || false}
+                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, critical_po: checked })}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="row-create-po">Create PO on Job Start</Label>
+                    {editingRow?.po_supplier_name && (
+                      <p className="text-xs text-muted-foreground">
+                        Supplier: {editingRow.po_supplier_name}
+                        {editingRow.po_price_history_ids && editingRow.po_price_history_ids.length > 0 && (
+                          <> · {editingRow.po_price_history_ids.length} items</>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editRowForm.create_po_on_job_start && (
+                      <Button variant="outline" size="sm" onClick={handleOpenAutoPODialog}>
+                        Configure
+                      </Button>
+                    )}
+                    <Switch
+                      id="row-create-po"
+                      checked={editRowForm.create_po_on_job_start || false}
+                      onCheckedChange={(checked) => {
+                        setEditRowForm({ ...editRowForm, create_po_on_job_start: checked });
+                        if (checked && !editingRow?.po_supplier_id) {
+                          handleOpenAutoPODialog();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Completion Requirements */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-3">Completion Requirements</h4>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="row-require-photo">Require Photo</Label>
+                  <Switch
+                    id="row-require-photo"
+                    checked={editRowForm.require_photo || false}
+                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="row-require-cert">Require Certificate</Label>
+                  <Switch
+                    id="row-require-cert"
+                    checked={editRowForm.require_certificate || false}
+                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_certificate: checked })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setShowEditSheet(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveRow} disabled={savingRow}>
+              {savingRow ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Auto-PO Configuration Dialog */}
+      <Dialog open={showAutoPODialog} onOpenChange={setShowAutoPODialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Configure Auto-PO</DialogTitle>
+            <DialogDescription>
+              Select a supplier and items to automatically create a PO when this task&apos;s job starts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+            {/* Supplier Selection */}
+            <div className="space-y-2">
+              <Label>Supplier</Label>
+              {loadingSuppliers ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading suppliers...
+                </div>
+              ) : suppliers.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No suppliers found. Check the Contacts page to add suppliers.
+                </div>
+              ) : (
+                <ComboboxDropdown
+                  items={suppliers.map((s) => ({ id: String(s.id), label: s.display_name || `Supplier ${s.id}` }))}
+                  selectedItem={selectedSupplierId ? { id: selectedSupplierId, label: suppliers.find(s => String(s.id) === selectedSupplierId)?.display_name || "" } : undefined}
+                  onSelect={(item) => handleSupplierChange(item.id)}
+                  placeholder="Search suppliers..."
+                  emptyResults="No supplier found"
+                  className="w-full"
+                />
+              )}
+            </div>
+
+            {/* Price History Items */}
+            {selectedSupplierId && (
+              <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
+                <Label>Items to Include in PO</Label>
+                {loadingPriceHistories ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading items...
+                  </div>
+                ) : priceHistories.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No price history found for this supplier.
+                  </p>
+                ) : (
+                  <div className="border rounded-md overflow-hidden flex-1 flex flex-col">
+                    <div className="overflow-auto flex-1">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[40px]"></TableHead>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead className="text-right">Price</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {priceHistories.map((ph) => (
+                            <TableRow
+                              key={ph.id}
+                              className="cursor-pointer"
+                              onClick={() => togglePriceHistorySelection(ph.id)}
+                            >
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedPriceHistoryIds.includes(ph.id)}
+                                  onCheckedChange={() => togglePriceHistorySelection(ph.id)}
+                                />
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">
+                                {ph.pricebook_item_code}
+                              </TableCell>
+                              <TableCell>{ph.pricebook_item_name}</TableCell>
+                              <TableCell className="text-right">
+                                ${typeof ph.new_price === 'number' ? ph.new_price.toFixed(2) : (parseFloat(ph.new_price) || 0).toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {selectedPriceHistoryIds.length > 0 && (
+                      <div className="border-t bg-muted/50 p-2 text-sm">
+                        {selectedPriceHistoryIds.length} item{selectedPriceHistoryIds.length !== 1 ? "s" : ""} selected
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-shrink-0">
+            {editingRow?.po_supplier_id && (
+              <Button variant="destructive" onClick={handleClearAutoPO} disabled={savingAutoPO}>
+                Clear Auto-PO
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setShowAutoPODialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveAutoPO}
+              disabled={savingAutoPO || !selectedSupplierId}
+            >
+              {savingAutoPO ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Configuration"
               )}
             </Button>
           </DialogFooter>

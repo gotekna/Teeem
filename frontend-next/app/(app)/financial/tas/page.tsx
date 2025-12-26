@@ -50,8 +50,13 @@ import {
   FileSpreadsheet,
   Settings,
   Repeat,
+  Link2,
+  ExternalLink,
+  Copy,
+  Check,
 } from "lucide-react";
 import RecurringInvoicesTab from "@/components/financial/RecurringInvoicesTab";
+import PaymentLinksTab from "@/components/financial/PaymentLinksTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -603,6 +608,10 @@ export default function GlPage() {
             <History className="h-4 w-4" />
             Sync History
           </TabsTrigger>
+          <TabsTrigger value="payments" className="flex items-center gap-2">
+            <Link2 className="h-4 w-4" />
+            Payment Links
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -954,6 +963,11 @@ export default function GlPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Payment Links Tab */}
+        <TabsContent value="payments">
+          <PaymentLinksTab />
         </TabsContent>
       </Tabs>
 
