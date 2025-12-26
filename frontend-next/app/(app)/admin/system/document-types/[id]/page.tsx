@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, ChevronLeft, Type } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, ChevronLeft, Type, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -592,6 +592,35 @@ export default function DocumentTypeDetailPage() {
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!documentType) return;
+
+    try {
+      setSaving(true);
+      const response = await api.post<{ data: DocumentType; message: string }>(
+        `/api/v1/document_types/${documentTypeId}/duplicate`
+      );
+
+      if (response?.data) {
+        toast({
+          title: "Success",
+          description: response.message || `Duplicated as "${response.data.name}"`,
+        });
+        // Navigate to the new document type
+        router.push(`/admin/system/document-types/${response.data.id}`);
+      }
+    } catch (error: any) {
+      console.error("Failed to duplicate document type:", error);
+      toast({
+        title: "Error",
+        description: "Failed to duplicate document type",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Navigation functions - filter by current scope (case-insensitive)
   const currentScope = (documentType?.scope || "company").toLowerCase();
   const scopeFilteredTypes = allDocumentTypes.filter(dt => (dt.scope || "company").toLowerCase() === currentScope);
@@ -1039,10 +1068,16 @@ export default function DocumentTypeDetailPage() {
         </div>
         <div className="flex gap-2">
           {!isNew && (
-            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
+            <>
+              <Button variant="destructive" onClick={handleDelete} disabled={saving}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+              <Button variant="outline" onClick={handleDuplicate} disabled={saving}>
+                <Copy className="h-4 w-4 mr-2" />
+                Duplicate
+              </Button>
+            </>
           )}
           <Button onClick={handleSave} disabled={saving}>
             {saving ? (

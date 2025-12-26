@@ -63,28 +63,44 @@ class OutlookService
   end
 
   # Import emails matching criteria into the system
+  # Uses EmailWarehouse as the SSoT for email storage
   def import_emails(options = {})
     emails_data = search_emails(options)
     imported_count = 0
 
     emails_data.each do |email_data|
-      # Check if email already exists by message_id
-      next if Email.exists?(message_id: email_data[:message_id])
+      # Check if email already exists by internet_message_id
+      next if EmailWarehouse.exists?(internet_message_id: email_data[:message_id])
 
-      # Parse and create email
-      parser = EmailParserService.new(email_data)
-      parsed_data = parser.parse
-
-      email = Email.new(parsed_data)
-      email.user = @user
+      # Create EmailWarehouse record
+      email = EmailWarehouse.new(
+        internet_message_id: email_data[:message_id],
+        source_type: "outlook",
+        from_email: email_data[:from_email],
+        from_name: email_data[:from_email]&.split("@")&.first,
+        to_emails: email_data[:to_emails] || [],
+        cc_emails: email_data[:cc_emails] || [],
+        subject: email_data[:subject],
+        body_text: email_data[:body_text] || email_data[:text_body],
+        body_html: email_data[:body_html] || email_data[:html_body],
+        received_at: email_data[:received_at] || email_data[:date],
+        has_attachments: email_data[:has_attachments] || false,
+        conversation_id: email_data[:conversation_id],
+        outlook_id: email_data[:outlook_id],
+        folder_name: options[:folder] || "inbox",
+        synced_by_user: @user,
+        first_synced_at: Time.current,
+        last_synced_at: Time.current
+      )
 
       # Try to auto-match to a job
+      parser = EmailParserService.new(email_data)
       matched_job = parser.match_job
-      email.job = matched_job if matched_job
+      email.job_id = matched_job.id if matched_job
 
       if email.save
         imported_count += 1
-        Rails.logger.info "Imported email: #{email.subject} (ID: #{email.id})"
+        Rails.logger.info "Imported email to warehouse: #{email.subject} (ID: #{email.id})"
       else
         Rails.logger.error "Failed to import email: #{email.errors.full_messages.join(', ')}"
       end

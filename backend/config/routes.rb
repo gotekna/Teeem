@@ -2164,6 +2164,9 @@ Rails.application.routes.draw do
         collection do
           get :tabs
         end
+        member do
+          post :duplicate
+        end
       end
 
       # Entity Tabs (SSoT: Unified tab configuration)

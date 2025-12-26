@@ -1,7 +1,7 @@
 module Api
   module V1
     class DocumentTypesController < ApplicationController
-      before_action :set_document_type, only: [ :show, :update, :destroy ]
+      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate ]
 
       # GET /api/v1/document_types
       def index
@@ -102,6 +102,43 @@ module Api
 
         @document_type.destroy
         render json: { success: true }
+      end
+
+      # POST /api/v1/document_types/:id/duplicate
+      def duplicate
+        # Generate a unique name by appending a number
+        base_name = @document_type.name
+        new_name = "#{base_name} 1"
+        counter = 1
+
+        # Keep incrementing until we find a unique name
+        while DocumentType.exists?(name: new_name)
+          counter += 1
+          new_name = "#{base_name} #{counter}"
+        end
+
+        # Duplicate the document type with the new name
+        new_doc_type = @document_type.dup
+        new_doc_type.name = new_name
+        new_doc_type.display_name = new_name if @document_type.display_name.present?
+
+        if new_doc_type.save
+          # Copy entity_tab associations
+          @document_type.entity_tab_ids.each do |tab_id|
+            new_doc_type.entity_tab_ids << tab_id
+          end
+
+          render json: {
+            success: true,
+            data: serialize_document_type(new_doc_type),
+            message: "Document type duplicated as '#{new_name}'"
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: new_doc_type.errors.full_messages
+          }, status: :unprocessable_entity
+        end
       end
 
       private

@@ -274,8 +274,8 @@ class Api::V1::OutlookController < ApplicationController
 
     emails_data = outlook.search_emails(options)
 
-    # Mark which emails are already imported
-    existing_message_ids = Email.where(message_id: emails_data.map { |e| e[:message_id] }).pluck(:message_id)
+    # Mark which emails are already imported (using EmailWarehouse as SSoT)
+    existing_message_ids = EmailWarehouse.where(internet_message_id: emails_data.map { |e| e[:message_id] }).pluck(:internet_message_id)
 
     emails_with_status = emails_data.map do |email|
       email.merge(
@@ -330,21 +330,33 @@ class Api::V1::OutlookController < ApplicationController
         next unless message_ids_to_import.include?(email_data[:message_id])
       end
 
-      # Check if email already exists
-      if Email.exists?(message_id: email_data[:message_id])
+      # Check if email already exists (using EmailWarehouse as SSoT)
+      if EmailWarehouse.exists?(internet_message_id: email_data[:message_id])
         skipped_count += 1
         next
       end
 
-      # Parse and create email
-      parser = EmailParserService.new(email_data)
-      parsed_data = parser.parse
-
-      email = Email.new(parsed_data)
-      email.user = current_user
-
-      # Force assignment to this job
-      email.job = job
+      # Create EmailWarehouse record
+      email = EmailWarehouse.new(
+        internet_message_id: email_data[:message_id],
+        source_type: "outlook",
+        from_email: email_data[:from_email],
+        from_name: email_data[:from_email]&.split("@")&.first,
+        to_emails: email_data[:to_emails] || [],
+        cc_emails: email_data[:cc_emails] || [],
+        subject: email_data[:subject],
+        body_text: email_data[:body_text] || email_data[:text_body],
+        body_html: email_data[:body_html] || email_data[:html_body],
+        received_at: email_data[:received_at] || email_data[:date],
+        has_attachments: email_data[:has_attachments] || false,
+        conversation_id: email_data[:conversation_id],
+        outlook_id: email_data[:outlook_id],
+        folder_name: params[:folder] || "inbox",
+        synced_by_user: current_user,
+        first_synced_at: Time.current,
+        last_synced_at: Time.current,
+        job_id: job.id  # Force assignment to this job
+      )
 
       if email.save
         imported_count += 1
