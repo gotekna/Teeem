@@ -65,6 +65,7 @@ import {
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas";
 import { SMGanttTab } from "./SMGanttTab";
+import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Check } from "lucide-react";
@@ -758,6 +759,10 @@ export function ScheduleMasterTab() {
           <TabsTrigger value="column-reference">
             <BookOpen className="h-4 w-4 mr-2" />
             Column Reference
+          </TabsTrigger>
+          <TabsTrigger value="recurring-tasks">
+            <ClipboardList className="h-4 w-4 mr-2" />
+            Recurring Tasks
           </TabsTrigger>
         </TabsList>
 
@@ -1640,6 +1645,11 @@ export function ScheduleMasterTab() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Recurring Tasks Tab */}
+        <TabsContent value="recurring-tasks" className="mt-6">
+          <RecurringTasksSection />
         </TabsContent>
       </Tabs>
 
