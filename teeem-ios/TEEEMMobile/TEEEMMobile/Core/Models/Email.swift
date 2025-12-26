@@ -52,7 +52,7 @@ struct Email: Identifiable, Hashable {
     }
 }
 
-extension Email: Decodable {
+extension Email: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, subject
         case fromEmail = "from_email"

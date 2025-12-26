@@ -894,6 +894,42 @@ export default function EmailPage() {
     }
   };
 
+  // Sync ALL accounts (for Split Inbox mode)
+  const handleSplitSync = async () => {
+    setSyncing(true);
+    try {
+      const syncPromises: Promise<unknown>[] = [];
+
+      // Sync all accounts
+      accounts.forEach((account) => {
+        if (account.type === "outlook") {
+          syncPromises.push(api.post("/api/v1/email_warehouse/sync").catch(() => {}));
+        } else if (account.type === "imap") {
+          syncPromises.push(
+            api.post(`/api/v1/imap_credentials/${account.id}/sync`).catch(() => {})
+          );
+        }
+        // MS365 accounts use Outlook sync endpoint (org-level)
+      });
+
+      // If no accounts found, just sync the main inbox
+      if (syncPromises.length === 0) {
+        syncPromises.push(api.post("/api/v1/email_warehouse/sync").catch(() => {}));
+      }
+
+      await Promise.all(syncPromises);
+
+      // Wait for sync to complete, then refresh
+      setTimeout(() => {
+        splitInbox.refresh();
+        setSyncing(false);
+      }, 3000);
+    } catch (error) {
+      console.error("Failed to sync:", error);
+      setSyncing(false);
+    }
+  };
+
   const handleEmailClick = useCallback(async (email: Email) => {
     if (!email || !email.id) {
       console.error("Invalid email object:", email);
@@ -1217,8 +1253,9 @@ To: ${email.to_emails?.join(", ") || ""}
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={viewMode === "split" ? splitInbox.refresh : handleSync}
+              onClick={viewMode === "split" ? handleSplitSync : handleSync}
               disabled={syncing || wsIsSyncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
+              title={viewMode === "split" ? "Sync all accounts" : "Sync account"}
             >
               <RefreshCw className={cn("h-3.5 w-3.5", (syncing || wsIsSyncing || splitInbox.loading) && "animate-spin")} />
             </Button>
@@ -1240,8 +1277,8 @@ To: ${email.to_emails?.join(", ") || ""}
               isStale={splitInbox.isStale ?? false}
               lastFetched={splitInbox.lastFetched ?? null}
               isOffline={splitInbox.isOffline ?? false}
-              isRefreshing={splitInbox.isFetching ?? false}
-              onRefresh={splitInbox.refresh}
+              isRefreshing={splitInbox.isFetching ?? syncing}
+              onRefresh={handleSplitSync}
               className="mt-2"
             />
           </div>

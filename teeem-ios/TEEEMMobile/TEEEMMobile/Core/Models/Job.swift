@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 // Nested status object from API
-struct JobStatus: Decodable {
+struct JobStatus: Codable {
     let id: Int?
     let name: String?
     let color: String?
@@ -89,7 +89,7 @@ struct Job: Identifiable, Hashable {
     }
 }
 
-extension Job: Decodable {
+extension Job: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, name, suburb, state
         case contractPrice = "contract_price"
@@ -118,6 +118,19 @@ extension Job: Decodable {
         } else {
             contractPrice = nil
         }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(suburb, forKey: .suburb)
+        try container.encodeIfPresent(state, forKey: .state)
+        try container.encodeIfPresent(contractPrice, forKey: .contractPrice)
+        try container.encodeIfPresent(streetNumber, forKey: .streetNumber)
+        try container.encodeIfPresent(streetName, forKey: .streetName)
+        try container.encodeIfPresent(lotNumber, forKey: .lotNumber)
+        try container.encodeIfPresent(jobStatus, forKey: .jobStatus)
     }
 }
 

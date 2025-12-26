@@ -74,7 +74,7 @@ struct SMTask: Identifiable, Hashable {
     }
 }
 
-extension SMTask: Decodable {
+extension SMTask: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, name, status, trade
         case taskDescription = "description"
@@ -107,6 +107,25 @@ extension SMTask: Decodable {
         assignedUserName = try container.decodeIfPresent(String.self, forKey: .assignedUserName)
         isHoldTask = try container.decodeIfPresent(Bool.self, forKey: .isHoldTask)
         holdReason = try container.decodeIfPresent(String.self, forKey: .holdReason)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(taskDescription, forKey: .taskDescription)
+        try container.encodeIfPresent(status, forKey: .status)
+        try container.encodeIfPresent(trade, forKey: .trade)
+        try container.encodeIfPresent(constructionId, forKey: .constructionId)
+        try container.encodeIfPresent(jobName, forKey: .jobName)
+        try container.encodeIfPresent(startDate, forKey: .startDate)
+        try container.encodeIfPresent(endDate, forKey: .endDate)
+        try container.encodeIfPresent(durationDays, forKey: .durationDays)
+        try container.encodeIfPresent(isOverdueFromApi, forKey: .isOverdueFromApi)
+        try container.encodeIfPresent(daysUntilDue, forKey: .daysUntilDue)
+        try container.encodeIfPresent(assignedUserName, forKey: .assignedUserName)
+        try container.encodeIfPresent(isHoldTask, forKey: .isHoldTask)
+        try container.encodeIfPresent(holdReason, forKey: .holdReason)
     }
 }
 

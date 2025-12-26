@@ -8,12 +8,23 @@ class ContactsViewModel: ObservableObject {
     @Published var isLoading = false
 
     private let apiClient = APIClient.shared
+    private let cache = CacheManager.shared
+
+    init() {
+        if let cached = cache.load([Contact].self, forKey: CacheManager.contactsKey) {
+            contacts = cached
+        }
+    }
 
     func loadContacts() async {
         isLoading = true
         do {
-            contacts = try await apiClient.get("contacts")
-        } catch {}
+            let loadedContacts: [Contact] = try await apiClient.get("contacts")
+            contacts = loadedContacts
+            cache.save(loadedContacts, forKey: CacheManager.contactsKey)
+        } catch {
+            print("Contacts load error: \(error)")
+        }
         isLoading = false
     }
 

@@ -9,12 +9,22 @@ class JobsViewModel: ObservableObject {
     @Published var errorMessage = ""
 
     private let apiClient = APIClient.shared
+    private let cache = CacheManager.shared
+
+    init() {
+        // Load cached data immediately
+        if let cached = cache.load([Job].self, forKey: CacheManager.jobsKey) {
+            jobs = cached
+        }
+    }
 
     func loadJobs() async {
         isLoading = true
         print("Starting to load jobs...")
         do {
-            jobs = try await apiClient.get("jobs")
+            let loadedJobs: [Job] = try await apiClient.get("jobs")
+            jobs = loadedJobs
+            cache.save(loadedJobs, forKey: CacheManager.jobsKey)
             print("SUCCESS: Loaded \(jobs.count) jobs")
         } catch let decodingError as DecodingError {
             // Detailed decoding error info

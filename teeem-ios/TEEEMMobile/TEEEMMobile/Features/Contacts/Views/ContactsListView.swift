@@ -43,17 +43,17 @@ struct ContactRowView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(contact.displayName).font(.headline)
-                if let company = contact.company {
+                if let company = contact.companyName, !company.isEmpty {
                     Text(company).font(.subheadline).foregroundColor(.secondary)
                 }
             }
             Spacer()
-            Label(contact.contactType.displayName, systemImage: contact.contactType.icon)
+            Label(contact.type.displayName, systemImage: contact.type.icon)
                 .font(.caption2)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(contact.contactType.color.opacity(0.15))
-                .foregroundColor(contact.contactType.color)
+                .background(contact.type.color.opacity(0.15))
+                .foregroundColor(contact.type.color)
                 .cornerRadius(6)
         }
     }
@@ -65,16 +65,31 @@ struct ContactDetailView: View {
 
     var body: some View {
         List {
-            Section {
-                if let email = contact.email {
+            Section("Contact Info") {
+                if let email = contact.email, !email.isEmpty {
                     Button { viewModel.email(contact: contact) } label: {
                         LabeledContent("Email", value: email)
                     }
                 }
-                if let phone = contact.displayPhone {
+                if let phone = contact.mobilePhone, !phone.isEmpty {
                     Button { viewModel.call(contact: contact) } label: {
-                        LabeledContent("Phone", value: phone)
+                        LabeledContent("Mobile", value: phone)
                     }
+                }
+                if let phone = contact.officePhone, !phone.isEmpty {
+                    Button { viewModel.call(contact: contact) } label: {
+                        LabeledContent("Office", value: phone)
+                    }
+                }
+            }
+            if let company = contact.companyName, !company.isEmpty {
+                Section("Company") {
+                    Text(company)
+                }
+            }
+            if let address = contact.address, !address.isEmpty {
+                Section("Address") {
+                    Text(address)
                 }
             }
         }
