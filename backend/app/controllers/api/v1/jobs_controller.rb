@@ -967,19 +967,18 @@ module Api
         end
 
         # Use SmTemplateCopyService (THE ONE template copy service - SSoT)
-        result = SmTemplateCopyService.new(
-          template: template,
-          job: @job,
+        result = SmTemplateCopyService.new(template, @job, {
           start_date: Date.current,
           user: current_user
-        ).call
+        }).execute
 
         if result[:success]
           Rails.logger.info("Successfully instantiated template #{template.name} for job #{@job.id}")
           {
             success: true,
             template_name: template.name,
-            tasks_created: result[:tasks]&.count || 0
+            tasks_created: result[:tasks]&.count || 0,
+            tasks_needing_pos: result[:tasks_needing_pos] || []
           }
         else
           Rails.logger.error("Failed to instantiate template: #{result[:errors]&.join(', ')}")

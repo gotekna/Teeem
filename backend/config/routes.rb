@@ -876,6 +876,37 @@ Rails.application.routes.draw do
         end
       end
 
+      # Email Labels (Gmail-style multi-label system)
+      resources :email_labels, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          get :colors
+          post :reorder
+          post :bulk_assign
+          delete :bulk_remove
+          get "for_email/:email_id", action: :for_email
+        end
+        member do
+          post :toggle_email
+          get :emails
+        end
+      end
+
+      # Email Templates (reusable email templates with variables)
+      resources :email_templates, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          get :quick_replies
+          get :categories
+          get :variables
+          post :reorder
+          post :create_defaults
+        end
+        member do
+          post :apply
+          post :duplicate
+          post :toggle_favorite
+        end
+      end
+
       # Email Blacklist (spam/marketing filters)
       resources :email_blacklist, only: [ :index, :create, :update, :destroy ] do
         collection do
@@ -2797,6 +2828,102 @@ Rails.application.routes.draw do
           collection do
             get :summary
           end
+        end
+
+        # Payment Batches & ABA Files
+        resources :payment_batches do
+          member do
+            post :add_bills
+            post :add_payment
+            delete "items/:item_id", action: :remove_item
+            post :submit
+            post :approve
+            post :reject
+            post :generate_aba
+            get :download_aba
+            post :process_batch
+            post :complete
+          end
+          collection do
+            get :payable_bills
+            get :summary
+          end
+        end
+
+        # Sales Quotes
+        resources :quotes do
+          member do
+            post :send_quote
+            post :accept
+            post :reject
+            post :convert
+            post :duplicate
+            post :add_line
+            post :add_from_pricebook
+            post "toggle_line/:line_id", action: :toggle_line
+          end
+          collection do
+            get :summary
+            post :check_expired
+          end
+        end
+
+        # TPAR (Taxable Payments Annual Report)
+        scope :tpar do
+          get "/", to: "tpar#index"
+          get ":id", to: "tpar#show"
+          post "generate", to: "tpar#generate"
+          post ":id/refresh", to: "tpar#refresh"
+          post ":id/submit", to: "tpar#submit"
+          post ":id/lodge", to: "tpar#lodge"
+          get "contractors", to: "tpar#contractors"
+          post "mark_contractor", to: "tpar#mark_contractor"
+          get "preview", to: "tpar#preview"
+        end
+
+        # Construction Features
+        scope :construction do
+          # Lien Waivers
+          get "lien_waivers", to: "construction#lien_waivers"
+          post "lien_waivers", to: "construction#create_lien_waiver"
+          post "lien_waivers/:id/receive", to: "construction#receive_lien_waiver"
+          post "lien_waivers/:id/approve", to: "construction#approve_lien_waiver"
+          # Change Orders
+          get "change_orders", to: "construction#change_orders"
+          get "change_orders/:id", to: "construction#show_change_order"
+          post "change_orders", to: "construction#create_change_order"
+          patch "change_orders/:id", to: "construction#update_change_order"
+          post "change_orders/:id/submit", to: "construction#submit_change_order"
+          post "change_orders/:id/approve", to: "construction#approve_change_order"
+          # Equipment
+          get "equipment", to: "construction#equipment_list"
+          get "equipment/:id", to: "construction#show_equipment"
+          post "equipment", to: "construction#create_equipment"
+          patch "equipment/:id", to: "construction#update_equipment"
+          post "equipment/:id/record_usage", to: "construction#record_usage"
+          get "equipment/:id/usages", to: "construction#equipment_usages"
+          get "job/:job_id/equipment_costs", to: "construction#job_equipment_costs"
+        end
+
+        # Time-Based Billing
+        scope :time_billing do
+          # Rates
+          get "rates", to: "time_billing#rates"
+          post "rates", to: "time_billing#create_rate"
+          patch "rates/:id", to: "time_billing#update_rate"
+          # Entries
+          get "entries", to: "time_billing#entries"
+          post "entries", to: "time_billing#create_entry"
+          post "entries/:id/approve", to: "time_billing#approve_entry"
+          post "entries/batch_approve", to: "time_billing#batch_approve"
+          get "unbilled", to: "time_billing#unbilled"
+          # Batches
+          get "batches", to: "time_billing#batches"
+          post "batches", to: "time_billing#create_batch"
+          post "batches/:id/approve", to: "time_billing#approve_batch"
+          post "batches/:id/generate_invoice", to: "time_billing#generate_invoice"
+          # Summary
+          get "summary", to: "time_billing#summary"
         end
       end
 

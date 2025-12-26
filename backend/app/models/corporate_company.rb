@@ -77,6 +77,15 @@ class CorporateCompany < ApplicationRecord
   has_many :gl_stock_counts, class_name: "Gl::StockCount", dependent: :destroy
   has_many :gl_budget_scenarios, class_name: "Gl::BudgetScenario", dependent: :destroy
   has_many :gl_wip_reports, class_name: "Gl::WipReport", dependent: :destroy
+  has_many :gl_billable_rates, class_name: "Gl::BillableRate", dependent: :destroy
+  has_many :gl_billable_time_entries, class_name: "Gl::BillableTimeEntry", dependent: :destroy
+  has_many :gl_time_billing_batches, class_name: "Gl::TimeBillingBatch", dependent: :destroy
+  has_many :gl_quotes, class_name: "Gl::Quote", dependent: :destroy
+  has_many :gl_payment_batches, class_name: "Gl::PaymentBatch", dependent: :destroy
+  has_many :gl_tpar_reports, class_name: "Gl::TparReport", dependent: :destroy
+  has_many :gl_lien_waivers, class_name: "Gl::LienWaiver", dependent: :destroy
+  has_many :gl_change_orders, class_name: "Gl::ChangeOrder", dependent: :destroy
+  has_many :gl_equipment, class_name: "Gl::Equipment", dependent: :destroy
 
   # Encrypted attributes
   encrypts :tfn, deterministic: true

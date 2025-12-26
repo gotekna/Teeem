@@ -17,6 +17,10 @@ class EmailWarehouse < ApplicationRecord
   has_many :email_attachments, dependent: :destroy
   has_many :attachments, through: :email_attachments
 
+  # Email Labels (Gmail-style multi-label system)
+  has_many :email_label_assignments, dependent: :destroy
+  has_many :email_labels, through: :email_label_assignments
+
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
 

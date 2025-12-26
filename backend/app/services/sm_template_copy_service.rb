@@ -28,6 +28,7 @@ class SmTemplateCopyService
     @errors = []
     @created_tasks = []
     @created_dependencies = []
+    @tasks_needing_pos = [] # Tasks where template row had create_po_on_job_start = true
     @task_number_map = {} # Maps template row task_number to created SmTask
     @row_map = {}         # Maps template row id to SmTemplateRow
   end
@@ -138,6 +139,10 @@ class SmTemplateCopyService
       if task.save
         @created_tasks << task
         @task_number_map[row.task_number] = task
+        # Track tasks that need POs created (from template row setting)
+        if row.create_po_on_job_start
+          @tasks_needing_pos << task
+        end
         Rails.logger.debug "SmTemplateCopyService: Created task #{task.task_number}: #{task.name}"
       else
         @errors << "Row '#{row.name}': #{task.errors.full_messages.join(', ')}"
@@ -271,13 +276,17 @@ class SmTemplateCopyService
       dependencies_created: @created_dependencies.count,
       tasks: @created_tasks,
       dependencies: @created_dependencies,
+      tasks_needing_pos: @tasks_needing_pos.map { |t|
+        { id: t.id, name: t.name, task_number: t.task_number }
+      },
       errors: [],
       summary: {
         template_name: template.name,
         job_name: job.name,
         start_date: start_date.to_s,
         task_count: @created_tasks.count,
-        dependency_count: @created_dependencies.count
+        dependency_count: @created_dependencies.count,
+        tasks_needing_pos_count: @tasks_needing_pos.count
       }
     }
   end

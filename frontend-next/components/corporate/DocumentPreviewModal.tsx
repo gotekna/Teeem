@@ -35,6 +35,8 @@ import {
 import { cn } from "@/lib/utils";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { PDFEditor } from "@/components/ui/pdf-editor";
+import { ExcelViewer, ExcelViewerLoading, ExcelViewerError, type ExcelData } from "@/components/ui/excel-viewer";
+import { WordViewer, WordViewerLoading, WordViewerError, type WordData } from "@/components/ui/word-viewer";
 
 // Folder options for document organization
 const FOLDER_OPTIONS = [
@@ -315,6 +317,14 @@ export default function DocumentPreviewModal({
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [previewError, setPreviewError] = React.useState<string | null>(null);
 
+  // Universal Document Reader state - for Excel/Word preview
+  const [documentData, setDocumentData] = React.useState<{
+    type: string;
+    content: ExcelData | WordData | null;
+    error?: string;
+  } | null>(null);
+  const [documentDataLoading, setDocumentDataLoading] = React.useState(false);
+
   // PDF Editor mode
   const [isEditingPdf, setIsEditingPdf] = React.useState(false);
 
@@ -445,6 +455,58 @@ export default function DocumentPreviewModal({
 
     fetchPreviewUrl();
   }, [document?.id, document?.sharepoint_file_id, open]);
+
+  // Fetch document data for Excel/Word files using Universal Document Reader
+  React.useEffect(() => {
+    const fetchDocumentData = async () => {
+      // Only fetch for Excel/Word files
+      const fType = getFileType(document?.file_name);
+      if (!document?.id || !open || (fType !== "excel" && fType !== "word")) {
+        setDocumentData(null);
+        return;
+      }
+
+      setDocumentDataLoading(true);
+      setDocumentData(null);
+
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data?: {
+            type: string;
+            filename: string;
+            content: ExcelData | WordData;
+          };
+          error?: string;
+        }>(`/api/v1/documents/${document.id}/preview`);
+
+        if (response?.success && response.data) {
+          setDocumentData({
+            type: response.data.type,
+            content: response.data.content,
+          });
+        } else {
+          setDocumentData({
+            type: fType,
+            content: null,
+            error: response?.error || "Could not load document",
+          });
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("Failed to fetch document data:", error);
+        setDocumentData({
+          type: fType,
+          content: null,
+          error: errorMessage,
+        });
+      } finally {
+        setDocumentDataLoading(false);
+      }
+    };
+
+    fetchDocumentData();
+  }, [document?.id, document?.file_name, open]);
 
   // Get the full document type record from database (includes naming_format)
   const getDocumentTypeRecord = React.useCallback((docTypeName: string) => {
@@ -2115,6 +2177,36 @@ export default function DocumentPreviewModal({
                     className="max-w-full max-h-full object-contain"
                   />
                 </div>
+              ) : fileType === "excel" ? (
+                // Excel file - use ExcelViewer with Universal Document Reader
+                documentDataLoading ? (
+                  <ExcelViewerLoading className="flex-1" />
+                ) : documentData?.error ? (
+                  <ExcelViewerError error={documentData.error} className="flex-1" />
+                ) : documentData?.content ? (
+                  <ExcelViewer
+                    data={documentData.content as ExcelData}
+                    filename={document.file_name}
+                    className="flex-1"
+                  />
+                ) : (
+                  <ExcelViewerLoading className="flex-1" />
+                )
+              ) : fileType === "word" ? (
+                // Word file - use WordViewer with Universal Document Reader
+                documentDataLoading ? (
+                  <WordViewerLoading className="flex-1" />
+                ) : documentData?.error ? (
+                  <WordViewerError error={documentData.error} className="flex-1" />
+                ) : documentData?.content ? (
+                  <WordViewer
+                    data={documentData.content as WordData}
+                    filename={document.file_name}
+                    className="flex-1"
+                  />
+                ) : (
+                  <WordViewerLoading className="flex-1" />
+                )
               ) : previewUrl ? (
                 // For non-PDF OneDrive files (Word, Excel, etc), use iframe
                 <iframe

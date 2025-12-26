@@ -131,7 +131,8 @@ module Api
             message: "Template copied successfully",
             summary: result[:summary],
             tasks_created: result[:tasks].count,
-            dependencies_created: result[:dependencies].count
+            dependencies_created: result[:dependencies].count,
+            tasks_needing_pos: result[:tasks_needing_pos]
           }
         else
           render json: {

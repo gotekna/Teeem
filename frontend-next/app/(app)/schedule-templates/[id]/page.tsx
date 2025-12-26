@@ -159,6 +159,18 @@ interface SyncResult {
   }>;
 }
 
+interface CopyResult {
+  success: boolean;
+  message: string;
+  tasks_created: number;
+  dependencies_created: number;
+  tasks_needing_pos: Array<{
+    id: number;
+    name: string;
+    task_number: number;
+  }>;
+}
+
 interface CompareResult {
   success: boolean;
   template_id: number;
@@ -242,6 +254,13 @@ export default function ScheduleTemplateDetailPage() {
   const [comparing, setComparing] = React.useState(false);
   const [compareResult, setCompareResult] = React.useState<CompareResult | null>(null);
   const [syncStep, setSyncStep] = React.useState<"select" | "compare" | "result">("select");
+
+  // Copy to job state
+  const [showCopyDialog, setShowCopyDialog] = React.useState(false);
+  const [copying, setCopying] = React.useState(false);
+  const [copyResult, setCopyResult] = React.useState<CopyResult | null>(null);
+  const [copyJobId, setCopyJobId] = React.useState<string>("");
+  const [copyStep, setCopyStep] = React.useState<"select" | "result" | "pos">("select");
 
   // Load data
   const loadData = React.useCallback(async () => {
@@ -411,6 +430,50 @@ export default function ScheduleTemplateDetailPage() {
     }
   };
 
+  // Open copy dialog
+  const handleOpenCopyDialog = () => {
+    setCopyResult(null);
+    setCopyJobId("");
+    setCopyStep("select");
+    loadJobs();
+    setShowCopyDialog(true);
+  };
+
+  // Copy template to job (initial copy, creates tasks)
+  const handleCopyToJob = async () => {
+    if (!copyJobId) return;
+
+    setCopying(true);
+    try {
+      const response = await api.post<CopyResult>(`/api/v1/sm_templates/${templateId}/copy_to_job`, {
+        job_id: parseInt(copyJobId),
+        clear_existing: false,
+      });
+      if (response) {
+        setCopyResult(response);
+        // If there are tasks needing POs, go to PO step, otherwise show result
+        if (response.tasks_needing_pos && response.tasks_needing_pos.length > 0) {
+          setCopyStep("pos");
+        } else {
+          setCopyStep("result");
+        }
+        toast({
+          title: "Copy Complete",
+          description: `Created ${response.tasks_created} tasks, ${response.dependencies_created} dependencies`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy template to job",
+        variant: "destructive",
+      });
+    } finally {
+      setCopying(false);
+    }
+  };
+
   // Convert arrays to MultipleSelector options
   const planTypeOptions: Option[] = planTypes.map((pt) => ({
     value: String(pt.id),
@@ -465,6 +528,13 @@ export default function ScheduleTemplateDetailPage() {
               Default
             </Badge>
           )}
+          <Button
+            variant="outline"
+            onClick={handleOpenCopyDialog}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Copy to Job
+          </Button>
           <Button
             variant="outline"
             onClick={handleOpenSyncDialog}
@@ -581,11 +651,17 @@ export default function ScheduleTemplateDetailPage() {
                         {row.predecessor_display !== "None" ? row.predecessor_display : "-"}
                       </TableCell>
                       <TableCell className="text-center">
-                        {row.po_required ? (
-                          <Badge variant="secondary" className="text-xs">Yes</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                        <div className="flex items-center justify-center gap-1">
+                          {row.po_required && (
+                            <Badge variant="secondary" className="text-xs">Req</Badge>
+                          )}
+                          {row.create_po_on_job_start && (
+                            <Badge variant="outline" className="text-xs text-orange-600 dark:text-orange-400 border-orange-300">+PO</Badge>
+                          )}
+                          {!row.po_required && !row.create_po_on_job_start && (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         {row.require_photo ? (
@@ -787,6 +863,14 @@ export default function ScheduleTemplateDetailPage() {
                     onCheckedChange={(checked) => setEditForm({ ...editForm, critical_po: !!checked })}
                   />
                   <Label htmlFor="critical_po" className="text-sm">Critical PO</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="create_po_on_job_start"
+                    checked={editForm.create_po_on_job_start ?? false}
+                    onCheckedChange={(checked) => setEditForm({ ...editForm, create_po_on_job_start: !!checked })}
+                  />
+                  <Label htmlFor="create_po_on_job_start" className="text-sm">Create PO on Job Start</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -1243,6 +1327,156 @@ export default function ScheduleTemplateDetailPage() {
               <DialogFooter>
                 <Button onClick={() => setShowSyncDialog(false)}>
                   Done
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Copy to Job Dialog */}
+      <Dialog open={showCopyDialog} onOpenChange={setShowCopyDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              {copyStep === "select" && "Copy Template to Job"}
+              {copyStep === "result" && "Copy Complete"}
+              {copyStep === "pos" && "Create Purchase Orders"}
+            </DialogTitle>
+            <DialogDescription>
+              {copyStep === "select" && "Select a job to copy this template to. This will create new tasks."}
+              {copyStep === "result" && "Template has been copied successfully."}
+              {copyStep === "pos" && "The following tasks need Purchase Orders. Create them now or do it later."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Step 1: Select Job */}
+          {copyStep === "select" && (
+            <>
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <Label>Select Job</Label>
+                  {loadingJobs ? (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading jobs...
+                    </div>
+                  ) : (
+                    <Select value={copyJobId} onValueChange={setCopyJobId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a job..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobs.map((job) => (
+                          <SelectItem key={job.id} value={String(job.id)}>
+                            {job.name} - {job.address}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="text-sm text-muted-foreground bg-amber-50 dark:bg-amber-950 p-3 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 inline mr-1 text-amber-600" />
+                  This will create new tasks from the template. Use &quot;Sync to Job&quot; to update existing tasks instead.
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCopyDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCopyToJob} disabled={copying || !copyJobId}>
+                  {copying ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Copying...
+                    </>
+                  ) : (
+                    "Copy to Job"
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 2: Tasks Needing POs */}
+          {copyStep === "pos" && copyResult && (
+            <>
+              <div className="py-4 space-y-4">
+                <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg">
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    ✅ Created {copyResult.tasks_created} tasks, {copyResult.dependencies_created} dependencies
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tasks Needing Purchase Orders ({copyResult.tasks_needing_pos.length})</Label>
+                  <div className="max-h-60 overflow-y-auto space-y-2">
+                    {copyResult.tasks_needing_pos.map((task) => (
+                      <div
+                        key={task.id}
+                        className="flex items-center justify-between p-2 bg-muted rounded-lg"
+                      >
+                        <span className="text-sm">
+                          #{task.task_number} {task.name}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            // Navigate to job Gantt or PO creation
+                            window.open(`/jobs/${copyJobId}/schedule?task=${task.id}`, '_blank');
+                          }}
+                        >
+                          Create PO
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCopyDialog(false)}>
+                  Create POs Later
+                </Button>
+                <Button onClick={() => {
+                  // Navigate to job schedule
+                  router.push(`/jobs/${copyJobId}/schedule`);
+                  setShowCopyDialog(false);
+                }}>
+                  Go to Job Schedule
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 3: Result (no POs needed) */}
+          {copyStep === "result" && copyResult && (
+            <>
+              <div className="py-4">
+                <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg text-center">
+                  <CheckCircle className="h-8 w-8 mx-auto text-green-600 dark:text-green-400 mb-2" />
+                  <p className="text-lg font-medium text-green-700 dark:text-green-300">
+                    Template copied successfully
+                  </p>
+                  <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                    Created {copyResult.tasks_created} tasks, {copyResult.dependencies_created} dependencies
+                  </p>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCopyDialog(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  router.push(`/jobs/${copyJobId}/schedule`);
+                  setShowCopyDialog(false);
+                }}>
+                  Go to Job Schedule
                 </Button>
               </DialogFooter>
             </>
