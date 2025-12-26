@@ -33,6 +33,81 @@ module Api
         end
       end
 
+      # GET /api/v1/sm_settings/tags
+      def tags
+        @settings = SmSetting.instance
+        render json: {
+          success: true,
+          tags: @settings.tags
+        }
+      end
+
+      # POST /api/v1/sm_settings/tags
+      def add_tag
+        @settings = SmSetting.instance
+        tag_name = params[:tag]&.strip
+
+        if tag_name.blank?
+          return render json: { success: false, error: "Tag name is required" }, status: :unprocessable_entity
+        end
+
+        if @settings.add_tag(tag_name)
+          render json: {
+            success: true,
+            message: "Tag added",
+            tags: @settings.tags
+          }
+        else
+          render json: {
+            success: false,
+            error: "Tag already exists or invalid"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/sm_settings/tags/:tag
+      def remove_tag
+        @settings = SmSetting.instance
+        tag_name = params[:tag]
+
+        if @settings.remove_tag(tag_name)
+          render json: {
+            success: true,
+            message: "Tag removed",
+            tags: @settings.tags
+          }
+        else
+          render json: {
+            success: false,
+            error: "Tag not found"
+          }, status: :not_found
+        end
+      end
+
+      # PATCH /api/v1/sm_settings/tags/:tag
+      def rename_tag
+        @settings = SmSetting.instance
+        old_name = params[:tag]
+        new_name = params[:new_name]&.strip
+
+        if new_name.blank?
+          return render json: { success: false, error: "New name is required" }, status: :unprocessable_entity
+        end
+
+        if @settings.rename_tag(old_name, new_name)
+          render json: {
+            success: true,
+            message: "Tag renamed",
+            tags: @settings.tags
+          }
+        else
+          render json: {
+            success: false,
+            error: "Tag not found or new name already exists"
+          }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def settings_params
@@ -70,6 +145,8 @@ module Api
           gantt_column_config: settings.gantt_column_config,
           default_template_id: default_template&.id,
           default_template: default_template&.slice(:id, :name),
+          # Schedule Master tags for grouping
+          schedule_master_tags: settings.tags,
           # Computed values
           current_time: settings.current_time,
           today: settings.today,

@@ -62,7 +62,16 @@ import {
   Table as TableIcon,
   BookOpen,
   X,
+  MoreVertical,
+  Tag,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas";
 import { SMGanttTab } from "./SMGanttTab";
@@ -274,6 +283,15 @@ export function ScheduleMasterTab() {
   // Job EntityTabs for photo storage dropdown
   const [jobEntityTabs, setJobEntityTabs] = React.useState<Array<{ id: number; display_name: string; tab_key: string }>>([]);
 
+  // Tag management state
+  const [availableTags, setAvailableTags] = React.useState<string[]>([]);
+  const [selectedTagFilter, setSelectedTagFilter] = React.useState<string>("");
+  const [showTagDialog, setShowTagDialog] = React.useState(false);
+  const [newTagName, setNewTagName] = React.useState("");
+  const [editingTag, setEditingTag] = React.useState<string | null>(null);
+  const [editTagName, setEditTagName] = React.useState("");
+  const [savingTag, setSavingTag] = React.useState(false);
+
   // Load column status from localStorage on mount
   React.useEffect(() => {
     const saved = localStorage.getItem(COLUMN_STATUS_KEY);
@@ -308,6 +326,7 @@ export function ScheduleMasterTab() {
   React.useEffect(() => {
     loadTemplates();
     loadJobEntityTabs();
+    loadTags();
   }, []);
 
   // Load job EntityTabs for photo storage dropdown
@@ -319,6 +338,79 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load job EntityTabs:", error);
+    }
+  };
+
+  // Load available tags from SmSetting
+  const loadTags = async () => {
+    try {
+      const data = await api.get<{ success: boolean; tags: string[] }>("/api/v1/sm_settings/tags");
+      if (data?.tags) {
+        setAvailableTags(data.tags);
+      }
+    } catch (error) {
+      console.error("Failed to load tags:", error);
+    }
+  };
+
+  // Add a new tag
+  const handleAddTag = async () => {
+    if (!newTagName.trim()) return;
+    setSavingTag(true);
+    try {
+      const data = await api.post<{ success: boolean; tags: string[] }>("/api/v1/sm_settings/tags", { tag: newTagName.trim() });
+      if (data?.tags) {
+        setAvailableTags(data.tags);
+        setNewTagName("");
+        toast({ title: "Tag added", description: `"${newTagName.trim()}" has been added.` });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to add tag", variant: "destructive" });
+    } finally {
+      setSavingTag(false);
+    }
+  };
+
+  // Rename a tag
+  const handleRenameTag = async () => {
+    if (!editingTag || !editTagName.trim()) return;
+    setSavingTag(true);
+    try {
+      const data = await api.patch<{ success: boolean; tags: string[] }>(`/api/v1/sm_settings/tags/${encodeURIComponent(editingTag)}`, { new_name: editTagName.trim() });
+      if (data?.tags) {
+        setAvailableTags(data.tags);
+        // Update filter if the renamed tag was selected
+        if (selectedTagFilter === editingTag) {
+          setSelectedTagFilter(editTagName.trim());
+        }
+        setEditingTag(null);
+        setEditTagName("");
+        toast({ title: "Tag renamed" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to rename tag", variant: "destructive" });
+    } finally {
+      setSavingTag(false);
+    }
+  };
+
+  // Delete a tag
+  const handleDeleteTag = async (tagName: string) => {
+    setSavingTag(true);
+    try {
+      const data = await api.delete<{ success: boolean; tags: string[] }>(`/api/v1/sm_settings/tags/${encodeURIComponent(tagName)}`);
+      if (data?.tags) {
+        setAvailableTags(data.tags);
+        // Clear filter if the deleted tag was selected
+        if (selectedTagFilter === tagName) {
+          setSelectedTagFilter("");
+        }
+        toast({ title: "Tag deleted" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete tag", variant: "destructive" });
+    } finally {
+      setSavingTag(false);
     }
   };
 
@@ -951,8 +1043,18 @@ export function ScheduleMasterTab() {
           <div className="flex flex-col h-[calc(100vh-280px)] -mx-4">
             <TeeemTableView
               key={dataViewRefreshKey}
-              entries={dataViewRows as unknown as { id: number; [key: string]: unknown }[]}
-              totalCount={dataViewRows.length}
+              entries={(selectedTagFilter
+                ? dataViewRows.filter((row: SmScheduleMaster & { tags?: string[] }) =>
+                    row.tags?.includes(selectedTagFilter)
+                  )
+                : dataViewRows) as unknown as { id: number; [key: string]: unknown }[]
+              }
+              totalCount={selectedTagFilter
+                ? dataViewRows.filter((row: SmScheduleMaster & { tags?: string[] }) =>
+                    row.tags?.includes(selectedTagFilter)
+                  ).length
+                : dataViewRows.length
+              }
               foundationId="sm_schedule_master"
               foundationIdNumeric={426}
               tableName={dataViewTemplateId
@@ -969,25 +1071,62 @@ export function ScheduleMasterTab() {
               onRowDoubleClick={handleDataViewRowDoubleClick}
               initialShowTotals={true}
               leftActions={
-                <Select
-                  value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
-                  onValueChange={(value) => {
-                    if (value) {
-                      loadDataViewRows(parseInt(value));
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-[280px]">
-                    <SelectValue placeholder="Select a template to view..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((template) => (
-                      <SelectItem key={template.id} value={String(template.id)}>
-                        {template.name} ({template.row_count} rows)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  {/* Template selector */}
+                  <Select
+                    value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
+                    onValueChange={(value) => {
+                      if (value) {
+                        loadDataViewRows(parseInt(value));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[280px]">
+                      <SelectValue placeholder="Select a template to view..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={String(template.id)}>
+                          {template.name} ({template.row_count} rows)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Tag filter dropdown */}
+                  <Select
+                    value={selectedTagFilter}
+                    onValueChange={setSelectedTagFilter}
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <Tag className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <SelectValue placeholder="All Tags" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Tags</SelectItem>
+                      {availableTags.map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          {tag}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Tag management menu */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-9 w-9">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setShowTagDialog(true)}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Manage Tags
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               }
             />
             {!dataViewTemplateId && (
@@ -1994,6 +2133,110 @@ export function ScheduleMasterTab() {
               ) : (
                 "Save Configuration"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tag Management Dialog */}
+      <Dialog open={showTagDialog} onOpenChange={setShowTagDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Tags</DialogTitle>
+            <DialogDescription>
+              Create and manage tags for grouping schedule master tasks.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Add new tag */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="New tag name..."
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleAddTag();
+                  }
+                }}
+              />
+              <Button onClick={handleAddTag} disabled={savingTag || !newTagName.trim()}>
+                {savingTag ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {/* Tag list */}
+            <div className="border rounded-md max-h-[300px] overflow-y-auto">
+              {availableTags.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground text-sm">
+                  No tags yet. Add one above.
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {availableTags.map((tag) => (
+                    <div key={tag} className="flex items-center justify-between p-3">
+                      {editingTag === tag ? (
+                        <div className="flex items-center gap-2 flex-1 mr-2">
+                          <Input
+                            value={editTagName}
+                            onChange={(e) => setEditTagName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleRenameTag();
+                              } else if (e.key === "Escape") {
+                                setEditingTag(null);
+                                setEditTagName("");
+                              }
+                            }}
+                            className="h-8"
+                            autoFocus
+                          />
+                          <Button size="sm" variant="ghost" onClick={handleRenameTag} disabled={savingTag}>
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingTag(null); setEditTagName(""); }}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Tag className="h-4 w-4 text-muted-foreground" />
+                            <span>{tag}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingTag(tag);
+                                setEditTagName(tag);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteTag(tag)}
+                              disabled={savingTag}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTagDialog(false)}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

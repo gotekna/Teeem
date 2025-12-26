@@ -14,6 +14,39 @@ class SmSetting < ApplicationRecord
     first || create!(id: 1)
   end
 
+  # Tag management methods
+  def tags
+    schedule_master_tags || []
+  end
+
+  def add_tag(tag_name)
+    return false if tag_name.blank?
+    tag_name = tag_name.strip
+    return false if tags.include?(tag_name)
+
+    update!(schedule_master_tags: tags + [tag_name])
+    true
+  end
+
+  def remove_tag(tag_name)
+    return false unless tags.include?(tag_name)
+
+    update!(schedule_master_tags: tags - [tag_name])
+    true
+  end
+
+  def rename_tag(old_name, new_name)
+    return false unless tags.include?(old_name)
+    return false if new_name.blank?
+    new_name = new_name.strip
+    return false if old_name == new_name
+    return false if tags.include?(new_name)
+
+    new_tags = tags.map { |t| t == old_name ? new_name : t }
+    update!(schedule_master_tags: new_tags)
+    true
+  end
+
   # Validations
   validates :rollover_timezone, presence: true, length: { maximum: 50 }
   validates :rollover_time, presence: true

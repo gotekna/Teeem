@@ -119,7 +119,7 @@ export function QuickEmailActions({
     <TooltipProvider delayDuration={300}>
       <div
         className={cn(
-          "flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity",
+          "hidden items-center gap-0.5 group-hover:flex",
           className
         )}
         onClick={(e) => e.stopPropagation()}

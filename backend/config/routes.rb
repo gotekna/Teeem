@@ -1255,7 +1255,14 @@ Rails.application.routes.draw do
       end
 
       # SM Settings (singleton - admin)
-      resource :sm_settings, only: [ :show, :update ]
+      resource :sm_settings, only: [ :show, :update ] do
+        collection do
+          get :tags
+          post :tags, action: :add_tag
+          delete "tags/:tag", action: :remove_tag
+          patch "tags/:tag", action: :rename_tag
+        end
+      end
 
       # ============================================
       # SM Gantt Phase 2 - Resource Allocation
