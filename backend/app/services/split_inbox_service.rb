@@ -143,8 +143,9 @@ class SplitInboxService
   # Other: Everything else (business emails, unclassified)
   # EXCLUDES VIP, Team, and Newsletters
   def other_scope
+    # Use IS DISTINCT FROM to properly handle: NULL classification, empty hash {}, and non-marketing types
     scope = @base_scope
-      .where("email_classification->>'email_type' != ? OR email_classification IS NULL", "marketing")
+      .where("email_classification->>'email_type' IS DISTINCT FROM ?", "marketing")
 
     # Exclude VIP and Team emails
     excluded = (@vip_addresses + team_addresses).to_a

@@ -180,23 +180,20 @@ module Api
           :require_photo, :confirm,
           :po_required, :critical_po, :create_po_on_job_start, :po_supplier_id,
           :has_subtasks, :subtask_count,
-          :spawn_photo_task, :spawn_scan_task, :spawn_order_task, :spawn_call_task, :pass_fail_enabled,
+          :spawn_scan_task, :spawn_order_task, :spawn_call_task, :pass_fail_enabled,
           :order_time_days, :call_time_days,
           :color,
           # New Schedule Master fields
           :auto_include, :allow_duplicates, :ai_select,
-          :photo_entity_tab_id, :linked_po_task_id,
+          :linked_po_task_id,
           :supplier_confirm, :is_master,
           # Manual positioning
           :hold, :hold_date, :dependency_broken,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
-          spawn_office_tasks: [],
           documentation_category_ids: [],
           subtask_names: [],
           tags: [],
-          # New array fields
-          plan_type_ids: [],
           # PO line items with quantities
           po_line_items: [ :pricebook_item_id, :qty ]
         )
@@ -210,7 +207,7 @@ module Api
           :require_photo, :confirm,
           :po_required, :critical_po,
           :has_subtasks, :subtask_count,
-          :spawn_photo_task, :spawn_scan_task, :spawn_order_task, :spawn_call_task, :pass_fail_enabled,
+          :spawn_scan_task, :spawn_order_task, :spawn_call_task, :pass_fail_enabled,
           :order_time_days, :call_time_days,
           :color,
           predecessor_ids: [ :id, :type, :lag ],
@@ -247,7 +244,6 @@ module Api
           has_subtasks: row.has_subtasks,
           subtask_count: row.subtask_count,
           subtask_names: row.subtask_names,
-          spawn_photo_task: row.spawn_photo_task,
           spawn_scan_task: row.spawn_scan_task,
           spawn_order_task: row.spawn_order_task,
           spawn_call_task: row.spawn_call_task,
@@ -265,8 +261,6 @@ module Api
           auto_include: row.auto_include,
           allow_duplicates: row.allow_duplicates,
           ai_select: row.ai_select,
-          plan_type_ids: row.plan_type_ids || [],
-          photo_entity_tab_id: row.photo_entity_tab_id,
           linked_po_task_id: row.linked_po_task_id,
           linked_po_task_name: row.linked_po_task&.name,
           supplier_confirm: row.supplier_confirm,

@@ -101,7 +101,6 @@ export interface SmScheduleMaster {
   has_subtasks: boolean;
   subtask_count: number | null;
   subtask_names: string[] | null;
-  spawn_photo_task: boolean;
   spawn_scan_task: boolean;
   pass_fail_enabled: boolean;
   order_time_days: number | null;
@@ -116,8 +115,6 @@ export interface SmScheduleMaster {
   auto_include: boolean;
   allow_duplicates: boolean;
   ai_select: boolean;
-  plan_type_ids: number[];
-  photo_entity_tab_id: number | null;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
   supplier_confirm: boolean;

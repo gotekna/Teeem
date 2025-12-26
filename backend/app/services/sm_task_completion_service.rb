@@ -59,22 +59,8 @@ class SmTaskCompletionService
       spawns << { type: "inspection_retry", condition: "if inspection fails" }
     end
 
-    if task.spawn_photo_task?
-      spawns << { type: "photo", name: "#{task.name} - Photos", condition: "on completion" }
-    end
-
     if task.spawn_scan_task?
       spawns << { type: "scan", name: "#{task.name} - Document Scan", condition: "on completion" }
-    end
-
-    if task.spawn_office_tasks.present?
-      task.spawn_office_tasks.each do |office_task|
-        spawns << {
-          type: "office",
-          name: office_task["name"] || "Office Task",
-          condition: "on completion"
-        }
-      end
     end
 
     spawns
@@ -112,23 +98,7 @@ class SmTaskCompletionService
   end
 
   def spawn_follow_up_tasks
-    spawn_photo_task if task.spawn_photo_task?
     spawn_scan_task if task.spawn_scan_task?
-    spawn_office_tasks if task.spawn_office_tasks.present?
-  end
-
-  def spawn_photo_task
-    spawned = create_spawned_task(
-      name: "Photo #{task.name}",
-      description: "Take completion photos for: #{task.name}",
-      spawn_type: "photo",
-      duration_days: 1,
-      require_photo: true,
-      is_photo_task: true,
-      # Inherit photo storage location from parent task
-      photo_entity_tab_id: task.photo_entity_tab_id
-    )
-    log_spawn(spawned, "photo", "parent_complete") if spawned
   end
 
   def spawn_scan_task
@@ -139,20 +109,6 @@ class SmTaskCompletionService
       duration_days: 1
     )
     log_spawn(spawned, "scan", "parent_complete") if spawned
-  end
-
-  def spawn_office_tasks
-    task.spawn_office_tasks.each do |office_config|
-      spawned = create_spawned_task(
-        name: office_config["name"] || "#{task.name} - Office Task",
-        description: office_config["description"] || "Office follow-up for: #{task.name}",
-        spawn_type: "office",
-        duration_days: office_config["duration_days"] || 1,
-        assigned_user_id: office_config["assigned_user_id"],
-        trade: "Office"
-      )
-      log_spawn(spawned, "office", "parent_complete") if spawned
-    end
   end
 
   def spawn_inspection_retry
@@ -170,13 +126,10 @@ class SmTaskCompletionService
       duration_days: task.duration_days,
       pass_fail_enabled: true,
       # Inherit key settings from parent
-      spawn_photo_task: task.spawn_photo_task,
       spawn_scan_task: task.spawn_scan_task,
-      spawn_office_tasks: task.spawn_office_tasks,
       trade: task.trade,
       supplier_id: task.supplier_id,
-      checklist_id: task.checklist_id,
-      photo_entity_tab_id: task.photo_entity_tab_id
+      checklist_id: task.checklist_id
     )
     log_spawn(spawned, "inspection_retry", "inspection_fail") if spawned
   end

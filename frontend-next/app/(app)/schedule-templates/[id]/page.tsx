@@ -90,7 +90,6 @@ interface SmScheduleMaster {
   has_subtasks: boolean;
   subtask_count: number | null;
   subtask_names: string[] | null;
-  spawn_photo_task: boolean;
   spawn_scan_task: boolean;
   pass_fail_enabled: boolean;
   order_time_days: number | null;
@@ -105,8 +104,6 @@ interface SmScheduleMaster {
   auto_include: boolean;
   allow_duplicates: boolean;
   ai_select: boolean;
-  plan_type_ids: number[];
-  photo_entity_tab_id: number | null;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
   supplier_confirm: boolean;
@@ -326,8 +323,6 @@ export default function ScheduleTemplateDetailPage() {
       auto_include: row.auto_include,
       allow_duplicates: row.allow_duplicates,
       ai_select: row.ai_select,
-      plan_type_ids: row.plan_type_ids || [],
-      photo_entity_tab_id: row.photo_entity_tab_id,
       linked_po_task_id: row.linked_po_task_id,
       supplier_confirm: row.supplier_confirm,
       is_master: row.is_master,
@@ -790,15 +785,6 @@ export default function ScheduleTemplateDetailPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {row.plan_type_ids?.length > 0 ? (
-                          <Badge variant="secondary" className="text-xs">
-                            {row.plan_type_ids.length}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
                         <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEditRow(row); }}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -1037,49 +1023,6 @@ export default function ScheduleTemplateDetailPage() {
               </div>
             </div>
 
-            {/* Plan Types */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-                Plan Types (Attach to PO)
-              </h4>
-              <MultipleSelector
-                value={planTypeOptions.filter((opt) =>
-                  (editForm.plan_type_ids || []).includes(parseInt(opt.value))
-                )}
-                onChange={(selected) =>
-                  setEditForm({
-                    ...editForm,
-                    plan_type_ids: selected.map((s) => parseInt(s.value)),
-                  })
-                }
-                options={planTypeOptions}
-                placeholder="Select plan types..."
-                emptyIndicator={<span className="text-muted-foreground">No plan types found</span>}
-              />
-            </div>
-
-            {/* Photo Storage */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-                Photo Storage Location
-              </h4>
-              <Select
-                value={editForm.photo_entity_tab_id ? String(editForm.photo_entity_tab_id) : "none"}
-                onValueChange={(value) => setEditForm({ ...editForm, photo_entity_tab_id: value === "none" ? null : parseInt(value) })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select photo storage tab" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {entityTabs.map((tab) => (
-                    <SelectItem key={tab.id} value={String(tab.id)}>
-                      {tab.display_name || tab.tab_key}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <DialogFooter>

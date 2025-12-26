@@ -38,9 +38,7 @@ class SmScheduleMasterSyncService
     call_time_days
     documentation_category_ids
     linked_task_ids
-    spawn_photo_task
     spawn_scan_task
-    spawn_office_tasks
     spawn_order_task
     spawn_call_task
     pass_fail_enabled
@@ -435,9 +433,7 @@ class SmScheduleMasterSyncService
       linked_task_ids: template_row.linked_task_ids,
 
       # Automation (from template)
-      spawn_photo_task: template_row.spawn_photo_task,
       spawn_scan_task: template_row.spawn_scan_task,
-      spawn_office_tasks: template_row.spawn_office_tasks,
       spawn_order_task: template_row.spawn_order_task,
       spawn_call_task: template_row.spawn_call_task,
       pass_fail_enabled: template_row.pass_fail_enabled,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010022) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010024) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7397,9 +7397,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010022) do
     t.string "assigned_role"
     t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
-    t.boolean "spawn_photo_task", default: false
     t.boolean "spawn_scan_task", default: false
-    t.jsonb "spawn_office_tasks", default: []
     t.boolean "pass_fail_enabled", default: false
     t.bigint "checklist_id"
     t.integer "order_time_days"
@@ -7538,9 +7536,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010022) do
     t.string "stage", limit: 100
     t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
-    t.boolean "spawn_photo_task", default: false
     t.boolean "spawn_scan_task", default: false
-    t.jsonb "spawn_office_tasks", default: []
     t.boolean "pass_fail_enabled", default: false
     t.bigint "checklist_id"
     t.integer "order_time_days"

@@ -114,7 +114,6 @@ interface SmScheduleMaster {
   create_po_on_job_start?: boolean;
   spawn_order_task?: boolean;
   spawn_call_task?: boolean;
-  spawn_photo_task?: boolean;
   order_time_days?: number;
   call_time_days?: number;
   require_photo: boolean;
@@ -125,8 +124,6 @@ interface SmScheduleMaster {
   po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
   // Linked non-PO tasks (visibility follows this PO task)
   linked_task_ids?: number[];
-  // Photo storage location
-  photo_entity_tab_id?: number | null;
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -176,9 +173,9 @@ const ALL_COLUMNS = [
   // Subtasks
   "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids",
   // Documentation
-  "documentation_category_ids", "photo_entity_tab_id", "plan_type_ids",
+  "documentation_category_ids",
   // Spawning Tasks
-  "spawn_photo_task", "spawn_scan_task", "spawn_office_tasks", "spawn_order_task", "spawn_call_task",
+  "spawn_scan_task", "spawn_order_task", "spawn_call_task",
   // Checklists
   "checklist_id",
   // Template Membership
@@ -538,8 +535,6 @@ export function ScheduleMasterTab() {
         create_po_on_job_start: fullRow.create_po_on_job_start,
         require_photo: fullRow.require_photo,
         pass_fail_enabled: fullRow.pass_fail_enabled,
-        spawn_photo_task: fullRow.spawn_photo_task,
-        photo_entity_tab_id: fullRow.photo_entity_tab_id,
         spawn_order_task: fullRow.spawn_order_task,
         spawn_call_task: fullRow.spawn_call_task,
         order_time_days: fullRow.order_time_days,
@@ -1398,18 +1393,6 @@ export function ScheduleMasterTab() {
                     <Badge variant="outline" className="text-xs w-fit">integer[]</Badge>
                     <span className="text-muted-foreground">Documentation tabs this task belongs to</span>
                   </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["photo_entity_tab_id"] || false} onCheckedChange={(v) => updateColumnStatus("photo_entity_tab_id", !!v)} />
-                    <CopyableCode>photo_entity_tab_id</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
-                    <span className="text-muted-foreground">EntityTab where photos are stored</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["plan_type_ids"] || false} onCheckedChange={(v) => updateColumnStatus("plan_type_ids", !!v)} />
-                    <CopyableCode>plan_type_ids</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">Plan types to attach to this task</span>
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1429,22 +1412,10 @@ export function ScheduleMasterTab() {
                     <span>Description</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["spawn_photo_task"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_photo_task", !!v)} />
-                    <CopyableCode>spawn_photo_task</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Create a photo task when this starts</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["spawn_scan_task"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_scan_task", !!v)} />
                     <CopyableCode>spawn_scan_task</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Create a document scan task</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["spawn_office_tasks"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_office_tasks", !!v)} />
-                    <CopyableCode>spawn_office_tasks</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">Array of office tasks to spawn</span>
                   </div>
                 </div>
               </CardContent>
@@ -1905,52 +1876,6 @@ export function ScheduleMasterTab() {
                     checked={editRowForm.pass_fail_enabled || false}
                     onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
                   />
-                </div>
-
-                {/* Photo Task Spawning */}
-                <div className="border-t pt-3 mt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="row-spawn-photo">Spawn Photo Task</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Creates "Photo [Task]" when this task completes
-                      </p>
-                    </div>
-                    <Switch
-                      id="row-spawn-photo"
-                      checked={editRowForm.spawn_photo_task || false}
-                      onCheckedChange={(checked) => {
-                        if (!checked) {
-                          setEditRowForm({ ...editRowForm, spawn_photo_task: checked, photo_entity_tab_id: undefined });
-                        } else {
-                          setEditRowForm({ ...editRowForm, spawn_photo_task: checked });
-                        }
-                      }}
-                    />
-                  </div>
-                  {editRowForm.spawn_photo_task && (
-                    <div className="space-y-2 pl-4 border-l-2 border-purple-200 dark:border-purple-800">
-                      <Label htmlFor="row-photo-tab">Photo Storage Tab</Label>
-                      <Select
-                        value={editRowForm.photo_entity_tab_id ? String(editRowForm.photo_entity_tab_id) : ""}
-                        onValueChange={(value) => setEditRowForm({ ...editRowForm, photo_entity_tab_id: value ? parseInt(value) : undefined })}
-                      >
-                        <SelectTrigger id="row-photo-tab">
-                          <SelectValue placeholder="Select where to store photos..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {jobEntityTabs.map((tab) => (
-                            <SelectItem key={tab.id} value={String(tab.id)}>
-                              {tab.display_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Photos will be saved to this tab in the job
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

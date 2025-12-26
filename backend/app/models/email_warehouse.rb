@@ -52,7 +52,8 @@ class EmailWarehouse < ApplicationRecord
   scope :with_ai_summary, -> { where.not(ai_summary: nil) }
   scope :needs_ai_summary, -> { where(ai_summary: nil) }
   scope :spam, -> { where("email_classification->>'email_type' = ?", "spam") }
-  scope :not_spam, -> { where("email_classification->>'email_type' != ? OR email_classification IS NULL", "spam") }
+  # Use IS DISTINCT FROM to properly handle: NULL classification, empty hash {}, and non-spam types
+  scope :not_spam, -> { where("email_classification->>'email_type' IS DISTINCT FROM ?", "spam") }
 
   # Contact scopes
   scope :with_contact, ->(contact_id) { where("? = ANY(contact_ids)", contact_id) }
