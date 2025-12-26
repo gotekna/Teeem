@@ -138,6 +138,16 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.where(folder_name: params[:folder_name])
     end
 
+    # Filter by direction (sent, received, cc, bcc)
+    if params[:direction].present?
+      emails = emails.where(direction: params[:direction])
+    end
+
+    # Filter by importance (high, normal, low)
+    if params[:importance].present?
+      emails = emails.where(importance: params[:importance])
+    end
+
     # Filter by Microsoft 365 credential (org-level app credentials)
     # Also validates user has access to this credential's mailboxes
     if params[:microsoft_credential_id].present?
@@ -780,6 +790,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
       conversation_id: email.conversation_id,
       source_type: email.source_type || "outlook",
       imap_credential_id: email.imap_credential_id,
+      # Direction and importance
+      direction: email.direction,
+      importance: email.importance,
+      # Classification
+      email_classification: email.email_classification,
+      classification_type: email.email_classification&.dig("email_type"),
+      classification_confidence: email.email_classification&.dig("confidence"),
       # AI Summary
       ai_summary: email.ai_summary,
       # Contact matching

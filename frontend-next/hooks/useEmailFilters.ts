@@ -3,6 +3,9 @@
 import { useState, useCallback, useMemo } from "react";
 import type { DateRange } from "react-day-picker";
 
+export type EmailDirection = "" | "sent" | "received" | "cc" | "bcc";
+export type EmailImportance = "" | "high" | "normal" | "low";
+
 export interface EmailFilters {
   /** Text search query (may contain operators like from:, to:, subject:) */
   search: string;
@@ -16,6 +19,10 @@ export interface EmailFilters {
   unassigned: boolean;
   /** Only show unread emails */
   unread: boolean;
+  /** Filter by direction (sent/received/cc/bcc) */
+  direction: EmailDirection;
+  /** Filter by importance (high/normal/low) */
+  importance: EmailImportance;
 }
 
 /**
@@ -163,6 +170,8 @@ const DEFAULT_FILTERS: EmailFilters = {
   hasAttachments: false,
   unassigned: false,
   unread: false,
+  direction: "",
+  importance: "",
 };
 
 /**
@@ -200,7 +209,9 @@ export function useEmailFilters(): UseEmailFiltersReturn {
       filters.dateRange !== undefined ||
       filters.hasAttachments ||
       filters.unassigned ||
-      filters.unread
+      filters.unread ||
+      filters.direction !== "" ||
+      filters.importance !== ""
     );
   }, [filters]);
 
@@ -211,6 +222,8 @@ export function useEmailFilters(): UseEmailFiltersReturn {
     if (filters.hasAttachments) count++;
     if (filters.unassigned) count++;
     if (filters.unread) count++;
+    if (filters.direction) count++;
+    if (filters.importance) count++;
     return count;
   }, [filters]);
 
@@ -281,6 +294,16 @@ export function useEmailFilters(): UseEmailFiltersReturn {
       params.append("unread", "true");
     }
 
+    // Direction filter
+    if (filters.direction) {
+      params.append("direction", filters.direction);
+    }
+
+    // Importance filter
+    if (filters.importance) {
+      params.append("importance", filters.importance);
+    }
+
     return params;
   }, [filters]);
 
@@ -311,6 +334,25 @@ export function useEmailFilters(): UseEmailFiltersReturn {
 
     if (filters.unread) {
       labels.push("Unread");
+    }
+
+    if (filters.direction) {
+      const directionLabels: Record<string, string> = {
+        sent: "Sent",
+        received: "Received",
+        cc: "CC'd",
+        bcc: "BCC'd",
+      };
+      labels.push(directionLabels[filters.direction] || filters.direction);
+    }
+
+    if (filters.importance) {
+      const importanceLabels: Record<string, string> = {
+        high: "High importance",
+        normal: "Normal importance",
+        low: "Low importance",
+      };
+      labels.push(importanceLabels[filters.importance] || filters.importance);
     }
 
     return labels;

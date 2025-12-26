@@ -58,7 +58,6 @@ import { WorkflowsTab } from "./components/WorkflowsTab";
 import { FoldersTab } from "./components/FoldersTab";
 import { JobSetupTab } from "./components/JobSetupTab";
 import { WorkflowConfigTab } from "./components/WorkflowConfigTab";
-import { DocSetupTab } from "./components/DocSetupTab";
 import { ScheduleMasterTab } from "./components/ScheduleMasterTab";
 import { MeetingTypesTab } from "./components/MeetingTypesTab";
 import { SupervisorChecklistTab } from "./components/SupervisorChecklistTab";
@@ -141,7 +140,6 @@ const COMPANY_TABS = [
   { id: "sharepoint", label: "SharePoint" },
   { id: "job-setup", label: "Job Setup" },
   { id: "workflow-config", label: "Workflow Config" },
-  { id: "doc-setup", label: "Doc Setup" },
   { id: "doc-templates", label: "Doc Templates" },
 ];
 
@@ -679,9 +677,6 @@ function CompanySettingsTab() {
           </TabsContent>
           <TabsContent value="workflow-config">
             <WorkflowConfigTab />
-          </TabsContent>
-          <TabsContent value="doc-setup">
-            <DocSetupTab />
           </TabsContent>
           <TabsContent value="doc-templates">
             <DocumentTemplatesTab />

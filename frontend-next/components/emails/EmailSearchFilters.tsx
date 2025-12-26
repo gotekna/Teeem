@@ -15,6 +15,13 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Search,
   SlidersHorizontal,
   X,
@@ -22,6 +29,9 @@ import {
   Paperclip,
   Mail,
   Inbox,
+  ArrowUpRight,
+  ArrowDownLeft,
+  AlertCircle,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { format } from "date-fns";
