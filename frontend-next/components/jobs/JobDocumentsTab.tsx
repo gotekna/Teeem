@@ -879,15 +879,23 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
             }}
           >
             <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap gap-1 bg-transparent p-0">
-              {selectedCategory.children.map((subCat) => (
-                <TabsTrigger
-                  key={subCat.id}
-                  value={String(subCat.id)}
-                  className="border border-border bg-muted text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                >
-                  {subCat.name}
-                </TabsTrigger>
-              ))}
+              {selectedCategory.children.map((subCat) => {
+                // Check if this sub-tab matches the initialCategory
+                const isActiveByInitial = initialCategory &&
+                  subCat.name.toLowerCase().replace(/\s+/g, "-") === initialCategory.toLowerCase();
+                const isActive = selectedSubCategory?.id === subCat.id || isActiveByInitial;
+
+                return (
+                  <TabsTrigger
+                    key={subCat.id}
+                    value={String(subCat.id)}
+                    data-state={isActive ? "active" : "inactive"}
+                    className="border border-border bg-muted text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  >
+                    {subCat.name}
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
           </Tabs>
         )}
