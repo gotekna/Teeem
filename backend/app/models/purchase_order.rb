@@ -17,18 +17,16 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :quote_response, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
   has_many :payments, dependent: :destroy
-  # SSoT: SmTask is THE ONE task system
-  # SSoT: SmTask.purchase_order_id is THE ONE link between PO and task
-  has_many :sm_tasks, class_name: "SmTask", dependent: :nullify
 
-  # SSoT: PO Task - returns first linked task name
+  # SSoT: PO-Task Link
+  # Primary: PurchaseOrder.sm_task_id (single lookup)
+  # Legacy: SmTask.purchase_order_id (kept in sync via callback)
+  belongs_to :sm_task, class_name: "SmTask", optional: true
+  has_many :sm_tasks, class_name: "SmTask", foreign_key: :purchase_order_id, dependent: :nullify
+
+  # SSoT: PO Task name - used by Foundation column display
   def po_task_name
-    sm_tasks.first&.name
-  end
-
-  # SSoT: PO Task ID - returns first linked task ID
-  def po_task_id
-    sm_tasks.first&.id
+    sm_task&.name
   end
 
   # Virtual attribute for Foundation - returns the template row name via SmTask
@@ -98,6 +96,7 @@ class PurchaseOrder < ApplicationRecord
   after_create :log_po_created
   after_save :update_job_profit
   after_save :sync_supplier_to_sm_tasks
+  after_save :sync_sm_task_bidirectional
   after_destroy :update_job_profit
 
   # Scopes
@@ -409,6 +408,28 @@ class PurchaseOrder < ApplicationRecord
     Rails.logger.info "[PO-Task Sync] Updated #{sm_tasks.count} task(s) with supplier_id=#{supplier_id} for PO #{purchase_order_number}"
   rescue StandardError => e
     Rails.logger.error "[PO-Task Sync] Failed to sync supplier for PO #{id}: #{e.message}"
+  end
+
+  # Sync bidirectional PO-Task link when sm_task_id changes
+  # SSoT: PurchaseOrder.sm_task_id is primary, SmTask.purchase_order_id stays in sync
+  def sync_sm_task_bidirectional
+    return unless saved_change_to_sm_task_id?
+
+    old_task_id, new_task_id = saved_change_to_sm_task_id
+
+    # Clear old task's link
+    if old_task_id.present?
+      SmTask.where(id: old_task_id).update_all(purchase_order_id: nil)
+    end
+
+    # Set new task's link
+    if new_task_id.present?
+      SmTask.where(id: new_task_id).update_all(purchase_order_id: id)
+    end
+
+    Rails.logger.info "[PO-Task Sync] Bidirectional sync: PO #{id} task changed from #{old_task_id} to #{new_task_id}"
+  rescue StandardError => e
+    Rails.logger.error "[PO-Task Sync] Failed bidirectional sync for PO #{id}: #{e.message}"
   end
 
   # Activity logging

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_26_232003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6995,6 +6995,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.bigint "last_bill_inbox_id"
     t.string "source"
     t.date "due_date"
+    t.bigint "sm_task_id"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
@@ -7009,6 +7010,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["quote_response_id"], name: "index_purchase_orders_on_quote_response_id"
     t.index ["required_date"], name: "index_purchase_orders_on_required_date"
     t.index ["required_on_site_date"], name: "index_purchase_orders_on_required_on_site_date"
+    t.index ["sm_task_id"], name: "index_purchase_orders_on_sm_task_id"
     t.index ["status"], name: "index_purchase_orders_on_status"
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["visible_to_supplier"], name: "index_purchase_orders_on_visible_to_supplier"
