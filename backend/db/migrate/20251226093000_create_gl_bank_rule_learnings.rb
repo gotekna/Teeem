@@ -22,11 +22,11 @@ class CreateGlBankRuleLearnings < ActiveRecord::Migration[7.1]
               [:corporate_company_id, :transaction_description, :gl_account_id],
               name: "idx_bank_rule_learnings_pattern"
 
-    # Add auto_created flag to bank_rules if not exists
-    unless column_exists?(:gl_bank_rules, :auto_created)
-      add_column :gl_bank_rules, :auto_created, :boolean, default: false
-      add_column :gl_bank_rules, :confidence, :decimal, precision: 5, scale: 2
-      add_column :gl_bank_rules, :pattern_count, :integer
+    # Add auto_created flag to reconciliation_rules if not exists
+    unless column_exists?(:gl_reconciliation_rules, :auto_created)
+      add_column :gl_reconciliation_rules, :auto_created, :boolean, default: false
+      add_column :gl_reconciliation_rules, :confidence, :decimal, precision: 5, scale: 2
+      add_column :gl_reconciliation_rules, :pattern_count, :integer
     end
   end
 end

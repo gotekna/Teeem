@@ -5,7 +5,7 @@ class CreateGlInventory < ActiveRecord::Migration[7.1]
     # Inventory items
     create_table :gl_inventory_items do |t|
       t.references :corporate_company, null: false, foreign_key: true
-      t.references :pricebook_item, foreign_key: { to_table: :pricebook_items }
+      t.references :pricebook_item, foreign_key: { to_table: :pricebook }
       t.references :cogs_account, foreign_key: { to_table: :gl_accounts }
       t.references :inventory_account, foreign_key: { to_table: :gl_accounts }
       t.references :income_account, foreign_key: { to_table: :gl_accounts }

@@ -224,8 +224,12 @@ Rails.application.routes.draw do
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :show, :update, :destroy ] do
+        member do
+          get :preview  # Universal document preview (Excel/Word/PDF)
+        end
         collection do
           post :analyze
+          post :preview_upload  # Preview uploaded file
         end
       end
 
@@ -2766,6 +2770,33 @@ Rails.application.routes.draw do
           patch "stock_counts/:id/lines", to: "inventory#update_count_lines"
           post "stock_counts/:id/complete", to: "inventory#complete_stock_count"
           post "stock_counts/:id/approve", to: "inventory#approve_stock_count"
+        end
+
+        # Budget Scenarios
+        resources :budget_scenarios do
+          member do
+            post :set_default
+            post :activate
+            post :archive
+            get :variance
+          end
+          collection do
+            get :compare
+            get :fiscal_years
+          end
+        end
+
+        # Construction WIP Reports
+        resources :wip_reports do
+          member do
+            post :recalculate
+            post :finalize
+            post :archive
+            post :add_job
+          end
+          collection do
+            get :summary
+          end
         end
       end
 

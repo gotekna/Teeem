@@ -75,6 +75,8 @@ class CorporateCompany < ApplicationRecord
   has_many :gl_approval_requests, class_name: "Gl::ApprovalRequest", dependent: :destroy
   has_many :gl_inventory_items, class_name: "Gl::InventoryItem", dependent: :destroy
   has_many :gl_stock_counts, class_name: "Gl::StockCount", dependent: :destroy
+  has_many :gl_budget_scenarios, class_name: "Gl::BudgetScenario", dependent: :destroy
+  has_many :gl_wip_reports, class_name: "Gl::WipReport", dependent: :destroy
 
   # Encrypted attributes
   encrypts :tfn, deterministic: true
