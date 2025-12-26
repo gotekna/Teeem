@@ -231,7 +231,7 @@ function TabsDisplayCell({
 export function DocumentTypesTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "people" | "all") || "all";
+  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "contacts" | "all") || "all";
 
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -252,6 +252,10 @@ export function DocumentTypesTab() {
   // Filter document types by scope
   const filteredDocTypes = React.useMemo(() => {
     if (scopeFilter === "all") return documentTypes;
+    // SSoT: "contacts" scope includes legacy "people" scope for backwards compatibility
+    if (scopeFilter === "contacts") {
+      return documentTypes.filter(dt => dt.scope === "contacts" || dt.scope === "people");
+    }
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
 
@@ -454,7 +458,7 @@ export function DocumentTypesTab() {
           <SelectContent>
             <SelectItem value="company">Company</SelectItem>
             <SelectItem value="job">Job</SelectItem>
-            <SelectItem value="people">People</SelectItem>
+            <SelectItem value="contacts">Contacts</SelectItem>
             <SelectItem value="both">Both</SelectItem>
           </SelectContent>
         </Select>
@@ -548,9 +552,9 @@ export function DocumentTypesTab() {
             <Briefcase className="h-4 w-4" />
             Job ({documentTypes.filter(dt => dt.scope === "job" || dt.scope === "both").length})
           </TabsTrigger>
-          <TabsTrigger value="people" className="gap-2">
+          <TabsTrigger value="contacts" className="gap-2">
             <Users className="h-4 w-4" />
-            People ({documentTypes.filter(dt => dt.scope === "people").length})
+            Contacts ({documentTypes.filter(dt => dt.scope === "contacts" || dt.scope === "people").length})
           </TabsTrigger>
         </TabsList>
 

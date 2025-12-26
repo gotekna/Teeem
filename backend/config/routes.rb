@@ -2174,6 +2174,7 @@ Rails.application.routes.draw do
       resources :entity_tabs do
         collection do
           post :reorder
+          post :reset_paths
           get 'for_scope/:scope', action: :for_scope, as: :for_scope
           get :entity_types
           put :entity_types, action: :update_entity_types

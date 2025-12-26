@@ -32,7 +32,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Search } from "lucide-react";
+import { Search, RotateCcw } from "lucide-react";
 
 interface SharePointConfig {
   configured: boolean;
@@ -62,6 +62,7 @@ export function SharePointTab() {
   const [testing, setTesting] = React.useState(false);
   const [config, setConfig] = React.useState<SharePointConfig | null>(null);
   const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "company" | "people" | "contacts" | null>(null);
+  const [resetting, setResetting] = React.useState(false);
   const [formData, setFormData] = React.useState({
     // Site configuration
     sharepoint_site_url: "",
@@ -173,6 +174,30 @@ export function SharePointTab() {
       });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleResetAllPaths = async () => {
+    if (!confirm("This will reset ALL tabs to use the default SSoT path templates. Tabs with custom paths will be updated to inherit from the template. Continue?")) {
+      return;
+    }
+    try {
+      setResetting(true);
+      const response = await api.post<{ success: boolean; updated_count: number }>("/api/v1/entity_tabs/reset_paths");
+      if (response?.success) {
+        toast({
+          title: "Paths Reset",
+          description: `${response.updated_count} tabs updated to use default paths`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to reset paths",
+        variant: "destructive",
+      });
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -572,8 +597,21 @@ export function SharePointTab() {
         </CardContent>
       </Card>
 
-      {/* Save Button */}
-      <div className="flex justify-end">
+      {/* Action Buttons */}
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={handleResetAllPaths} disabled={resetting}>
+          {resetting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Resetting...
+            </>
+          ) : (
+            <>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Reset All Tabs to Default Paths
+            </>
+          )}
+        </Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? (
             <>
