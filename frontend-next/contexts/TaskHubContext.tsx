@@ -37,6 +37,21 @@ export interface SmTask {
   // Hold status
   is_hold_task: boolean;
   hold_reason?: string;
+  hold: boolean;
+  hold_date?: string;
+
+  // Confirmation status (for PO tasks)
+  confirm: boolean;
+  supplier_confirm: boolean;
+  confirm_date?: string;
+  supplier_confirm_date?: string;
+  started_at?: string;
+  completed_at?: string;
+
+  // PO relationship
+  purchase_order_id?: number;
+  purchase_order_number?: string;
+  po_required: boolean;
 
   // Computed fields
   is_overdue: boolean;
@@ -64,6 +79,7 @@ export interface TaskHubState {
   filters: TaskFilters;
   activeView: ViewType;
   selectedTaskIds: Set<number>;
+  expandedTaskId: number | null;
   loading: boolean;
   error: string | null;
 }
@@ -104,6 +120,18 @@ export interface TaskHubContextType extends TaskHubState {
   toggleTaskSelection: (taskId: number) => void;
   selectAll: () => void;
   deselectAll: () => void;
+
+  // Expansion
+  expandTask: (taskId: number) => void;
+  collapseTask: () => void;
+  toggleTaskExpansion: (taskId: number) => void;
+
+  // Task actions
+  startTask: (taskId: number) => Promise<void>;
+  completeTask: (taskId: number) => Promise<void>;
+  setTaskHold: (taskId: number, hold: boolean) => Promise<void>;
+  confirmTask: (taskId: number, date: string) => Promise<void>;
+  supplierConfirmTask: (taskId: number, date: string) => Promise<void>;
 
   // Refresh
   refresh: () => Promise<void>;
@@ -511,6 +539,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   });
 
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -793,6 +822,54 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     setSelectedTaskIds(new Set());
   }, []);
 
+  // Expansion handlers
+  const expandTask = useCallback((taskId: number) => {
+    setExpandedTaskId(taskId);
+  }, []);
+
+  const collapseTask = useCallback(() => {
+    setExpandedTaskId(null);
+  }, []);
+
+  const toggleTaskExpansion = useCallback((taskId: number) => {
+    setExpandedTaskId(prev => prev === taskId ? null : taskId);
+  }, []);
+
+  // Task action handlers
+  const startTask = useCallback(async (taskId: number) => {
+    const now = new Date().toISOString();
+    await updateTask(taskId, { status: 'started', started_at: now } as Partial<SmTask>);
+  }, [updateTask]);
+
+  const completeTask = useCallback(async (taskId: number) => {
+    try {
+      await api.post(`/api/v1/sm_tasks/${taskId}/complete`, {});
+      // Update local state with completion
+      const now = new Date().toISOString();
+      const today = new Date().toISOString().split('T')[0];
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, status: 'completed' as const, completed_at: now, end_date: today }
+          : t
+      ));
+    } catch (err) {
+      console.error('Failed to complete task:', err);
+      throw err;
+    }
+  }, []);
+
+  const setTaskHold = useCallback(async (taskId: number, hold: boolean) => {
+    await updateTask(taskId, { hold } as Partial<SmTask>);
+  }, [updateTask]);
+
+  const confirmTask = useCallback(async (taskId: number, date: string) => {
+    await updateTask(taskId, { confirm: true, hold_date: date } as Partial<SmTask>);
+  }, [updateTask]);
+
+  const supplierConfirmTask = useCallback(async (taskId: number, date: string) => {
+    await updateTask(taskId, { supplier_confirm: true, hold_date: date } as Partial<SmTask>);
+  }, [updateTask]);
+
   const refresh = useCallback(async () => {
     await loadTasks();
   }, [loadTasks]);
@@ -803,6 +880,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     filters,
     activeView,
     selectedTaskIds,
+    expandedTaskId,
     loading,
     error,
 
@@ -828,6 +906,14 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     toggleTaskSelection,
     selectAll,
     deselectAll,
+    expandTask,
+    collapseTask,
+    toggleTaskExpansion,
+    startTask,
+    completeTask,
+    setTaskHold,
+    confirmTask,
+    supplierConfirmTask,
     refresh,
   };
 

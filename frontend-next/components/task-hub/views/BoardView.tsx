@@ -7,9 +7,16 @@
  * See: frontend-next/components/ui/kanban
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { Badge } from '@/components/ui/badge';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { TaskExpandedRow } from '../TaskExpandedRow';
 import {
   KanbanBoard,
   KanbanCard,
@@ -78,6 +85,8 @@ function TaskCardContent({ task }: { task: TaskItem }) {
 
 export function BoardView() {
   const { filteredTasks, updateTask } = useTaskHub();
+  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Cast tasks to TaskItem (they already have id)
   const tasks = filteredTasks as TaskItem[];
@@ -99,6 +108,12 @@ export function BoardView() {
     }
   };
 
+  // Handle card click to open sheet
+  const handleCardClick = (task: TaskItem) => {
+    setSelectedTask(task);
+    setSheetOpen(true);
+  };
+
   // Render a task card
   const renderCard = (task: TaskItem, isDragging: boolean) => (
     <KanbanCard
@@ -109,21 +124,47 @@ export function BoardView() {
         task.is_overdue && task.status !== 'completed' && 'border-red-300'
       )}
     >
-      <TaskCardContent task={task} />
+      <div
+        onClick={() => handleCardClick(task)}
+        className="cursor-pointer"
+      >
+        <TaskCardContent task={task} />
+      </div>
     </KanbanCard>
   );
 
   return (
-    <KanbanBoard
-      columns={columns}
-      items={tasks}
-      getItemColumn={getItemColumn}
-      renderCard={renderCard}
-      onCardMove={handleCardMove}
-      columnsCollapsible={false}
-      columnGap="sm"
-      minColumnWidth={200}
-      className="h-full"
-    />
+    <>
+      <KanbanBoard
+        columns={columns}
+        items={tasks}
+        getItemColumn={getItemColumn}
+        renderCard={renderCard}
+        onCardMove={handleCardMove}
+        columnsCollapsible={false}
+        columnGap="sm"
+        minColumnWidth={200}
+        className="h-full"
+      />
+
+      {/* Task Detail Sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent className="sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle className="text-base">
+              {selectedTask?.name}
+            </SheetTitle>
+          </SheetHeader>
+          {selectedTask && (
+            <div className="mt-4">
+              <TaskExpandedRow
+                task={selectedTask}
+                onClose={() => setSheetOpen(false)}
+              />
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

@@ -32,6 +32,9 @@ class EntityTab < ApplicationRecord
   has_many :entity_tab_document_types, dependent: :destroy
   has_many :document_types, through: :entity_tab_document_types
 
+  # SSoT: Auto-inherit SharePoint folder flag from parent when document types assigned
+  before_save :inherit_sharepoint_from_parent
+
   # Set document types by IDs (SSoT: replaces existing assignments)
   def document_type_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
@@ -167,10 +170,13 @@ class EntityTab < ApplicationRecord
   # Get the EFFECTIVE SharePoint path for this tab
   # - If uses_custom_path: return the custom sharepoint_folder_path
   # - If NOT uses_custom_path: replace {{Category}}/{{TabName}} in template with display_name
+  #
+  # NOTE: For job-scope tabs, returns path RELATIVE to job folder (strips {{JobCode}})
+  # because job folder navigation is handled separately by the upload logic
   def effective_sharepoint_path
     return nil unless has_sharepoint_folder
 
-    if uses_custom_path && sharepoint_folder_path.present?
+    result = if uses_custom_path && sharepoint_folder_path.present?
       # Custom path - use exactly what's set
       sharepoint_folder_path
     else
@@ -184,6 +190,14 @@ class EntityTab < ApplicationRecord
       placeholder = scope_for_template == :company ? "TabName" : "Category"
       CorporateCompanySetting.resolve_template(template, { placeholder => display_name })
     end
+
+    # SSoT: For job-scope tabs, strip {{JobCode}} prefix since job folder is handled separately
+    # The upload logic already navigates to the job folder, so path should be relative
+    if scope == 'job' && result.present?
+      result = result.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
+    end
+
+    result.presence
   end
 
   # Build hierarchy path - SSoT: Use sharepoint_folder_path when set
@@ -238,6 +252,7 @@ class EntityTab < ApplicationRecord
       sharepoint_path_type: sharepoint_path_type || 'corporate',
       sharepoint_base_path: sharepoint_base_path,
       effective_sharepoint_path: effective_sharepoint_path,
+      folder_path: effective_sharepoint_path,  # Alias for frontend compatibility (JobDocumentsTab uses folder_path)
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
       document_count: document_count,
@@ -403,6 +418,21 @@ class EntityTab < ApplicationRecord
         tab.has_sharepoint_folder = true
         tab.sharepoint_folder_path = name.upcase
       end
+    end
+  end
+
+  private
+
+  # SSoT: Auto-inherit SharePoint folder settings from parent
+  # When a tab has document types AND has a parent with has_sharepoint_folder: true,
+  # automatically enable has_sharepoint_folder for this tab
+  def inherit_sharepoint_from_parent
+    return if has_sharepoint_folder  # Already enabled, skip
+
+    # Check if parent has SharePoint folder enabled
+    if parent&.has_sharepoint_folder
+      self.has_sharepoint_folder = true
+      Rails.logger.info "[EntityTab] Auto-inherited has_sharepoint_folder from parent '#{parent.display_name}' for tab '#{display_name}'"
     end
   end
 end

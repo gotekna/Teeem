@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { TaskExpandedRow } from '../TaskExpandedRow';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -13,7 +14,6 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
 
 const statusIcons = {
   not_started: Circle,
@@ -32,58 +32,75 @@ interface TaskRowProps {
 }
 
 function TaskRow({ task }: TaskRowProps) {
-  const { updateTask, toggleTaskSelection, selectedTaskIds } = useTaskHub();
+  const { updateTask, toggleTaskSelection, selectedTaskIds, expandedTaskId, toggleTaskExpansion } = useTaskHub();
   const StatusIcon = statusIcons[task.status];
+  const isExpanded = expandedTaskId === task.id;
 
-  const handleStatusClick = async () => {
+  const handleStatusClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     const nextStatus = task.status === 'not_started' ? 'started' :
                        task.status === 'started' ? 'completed' : 'not_started';
     await updateTask(task.id, { status: nextStatus });
   };
 
+  const handleCheckboxChange = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleRowClick = () => {
+    toggleTaskExpansion(task.id);
+  };
+
   return (
-    <div
-      className={cn(
-        'flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded text-sm group',
-        selectedTaskIds.has(task.id) && 'bg-primary/5',
-        task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/20'
-      )}
-    >
-      <Checkbox
-        checked={selectedTaskIds.has(task.id)}
-        onCheckedChange={() => toggleTaskSelection(task.id)}
-        className="h-3.5 w-3.5"
-      />
-      <button onClick={handleStatusClick} className="shrink-0">
-        <StatusIcon className={cn('h-4 w-4', statusColors[task.status])} />
-      </button>
-      <span className={cn(
-        'flex-1 truncate',
-        task.status === 'completed' && 'line-through text-muted-foreground'
-      )}>
-        {task.name}
-      </span>
-      {task.is_overdue && task.status !== 'completed' && (
-        <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
-      )}
-      {task.job_name && task.job_name !== 'Personal Task' && (
-        <span className="text-xs text-muted-foreground truncate max-w-[120px] hidden sm:inline">
-          {task.job_name}
+    <div>
+      <div
+        onClick={handleRowClick}
+        className={cn(
+          'flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded text-sm group cursor-pointer',
+          selectedTaskIds.has(task.id) && 'bg-primary/5',
+          task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/20',
+          isExpanded && 'bg-muted/50'
+        )}
+      >
+        <div onClick={handleCheckboxChange}>
+          <Checkbox
+            checked={selectedTaskIds.has(task.id)}
+            onCheckedChange={() => toggleTaskSelection(task.id)}
+            className="h-3.5 w-3.5"
+          />
+        </div>
+        <button onClick={handleStatusClick} className="shrink-0">
+          <StatusIcon className={cn('h-4 w-4', statusColors[task.status])} />
+        </button>
+        <span className={cn(
+          'flex-1 truncate',
+          task.status === 'completed' && 'line-through text-muted-foreground'
+        )}>
+          {task.name}
         </span>
-      )}
-      {task.assigned_role && (
-        <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 hidden md:inline-flex capitalize">
-          {task.assigned_role}
-        </Badge>
-      )}
-      {task.trade && (
-        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 hidden md:inline-flex">
-          {task.trade}
-        </Badge>
-      )}
-      <span className="text-xs text-muted-foreground w-16 text-right shrink-0">
-        {new Date(task.end_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
-      </span>
+        {task.is_overdue && task.status !== 'completed' && (
+          <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
+        )}
+        {task.job_name && task.job_name !== 'Personal Task' && (
+          <span className="text-xs text-muted-foreground truncate max-w-[120px] hidden sm:inline">
+            {task.job_name}
+          </span>
+        )}
+        {task.assigned_role && (
+          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 hidden md:inline-flex capitalize">
+            {task.assigned_role}
+          </Badge>
+        )}
+        {task.trade && (
+          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 hidden md:inline-flex">
+            {task.trade}
+          </Badge>
+        )}
+        <span className="text-xs text-muted-foreground w-16 text-right shrink-0">
+          {new Date(task.end_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+        </span>
+      </div>
+      {isExpanded && <TaskExpandedRow task={task} />}
     </div>
   );
 }

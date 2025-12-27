@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_072508) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_072509) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7570,7 +7570,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072508) do
   end
 
   create_table "sm_tasks", force: :cascade do |t|
-    t.bigint "job_id", null: false
+    t.bigint "job_id"
     t.bigint "parent_task_id"
     t.integer "task_number", null: false
     t.string "name", limit: 255, null: false

@@ -30,6 +30,7 @@ export interface EntityTab {
   sharepoint_path_type: 'corporate' | 'contacts';
   sharepoint_base_path: string | null;
   effective_sharepoint_path: string | null;
+  folder_path: string | null;  // Alias for effective_sharepoint_path (frontend compatibility)
   inherited_template: string | null;
   hierarchy_path: string;
   document_count: number;

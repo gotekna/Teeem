@@ -20,6 +20,13 @@ module Api
 
         uploaded_file = params[:file]
         folder_path = params[:folder_path] || "06 Photo"
+
+        # SSoT: Strip {{JobCode}} placeholder if present
+        # The folder_path comes from EntityTab.effective_sharepoint_path which may contain {{JobCode}}
+        # Since we're already navigating inside the job folder, strip the {{JobCode}} prefix entirely
+        # e.g., "{{JobCode}}/Site Photo" becomes "Site Photo"
+        folder_path = folder_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
+
         # Use provided filename or fallback to original
         filename = params[:filename].presence || uploaded_file&.original_filename
 
