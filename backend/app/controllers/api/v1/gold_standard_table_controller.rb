@@ -14,23 +14,25 @@ class Api::V1::GoldStandardTableController < ApplicationController
     # Start with base query
     query = GoldStandardTable.all
 
-    # Apply search if provided
+    # Apply search using SSoT SearchService
     if params[:search].present?
-      search_term = "%#{params[:search].downcase}%"
-      if params[:search_all] == "true"
-        # Search across all text columns
-        text_columns = GoldStandardTable.column_names.select do |col|
+      search_columns = if params[:search_all] == "true"
+        # Search all text columns
+        GoldStandardTable.column_names.select do |col|
           GoldStandardTable.columns_hash[col].type.in?([ :string, :text ])
         end
-        conditions = text_columns.map { |col| "LOWER(CAST(#{col} AS TEXT)) LIKE ?" }.join(" OR ")
-        query = query.where(conditions, *text_columns.map { search_term })
       else
-        # Search only primary text columns
-        query = query.where(
-          "LOWER(CAST(single_line_text AS TEXT)) LIKE ? OR LOWER(CAST(multiple_lines_text AS TEXT)) LIKE ? OR CAST(id AS TEXT) LIKE ?",
-          search_term, search_term, search_term
-        )
+        # Search primary columns only
+        %w[single_line_text multiple_lines_text]
       end
+
+      query = SearchService.apply(
+        query,
+        params[:search],
+        columns: search_columns,
+        mode: params[:search_mode] || 'contains',
+        model: GoldStandardTable
+      )
     end
 
     # Apply filters if provided

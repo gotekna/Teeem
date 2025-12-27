@@ -152,19 +152,16 @@ module Api
           @jobs = @jobs.where.not(latitude: nil).where.not(longitude: nil)
         end
 
-        # Search functionality
+        # Search using SSoT SearchService
         if params[:search].present?
-          search_term = "%#{params[:search].downcase}%"
-          if params[:search_all].to_s == "true"
-            # Search across multiple columns
-            @jobs = @jobs.where(
-              "LOWER(jobs.name) LIKE ? OR LOWER(jobs.address) LIKE ? OR CAST(jobs.id AS TEXT) LIKE ?",
-              search_term, search_term, search_term
-            )
-          else
-            # Default: search name only
-            @jobs = @jobs.where("LOWER(jobs.name) LIKE ?", search_term)
-          end
+          search_columns = params[:search_all].to_s == "true" ? %w[name address] : %w[name]
+          @jobs = SearchService.apply(
+            @jobs,
+            params[:search],
+            columns: search_columns,
+            mode: params[:search_mode] || 'contains',
+            model: Job
+          )
         end
 
         # Pagination

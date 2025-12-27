@@ -33,12 +33,14 @@ module Api
         # Filter by status
         @assets = @assets.where(status: params[:status]) if params[:status].present?
 
-        # Search
+        # Search using SSoT SearchService
         if params[:search].present?
-          @assets = @assets.where(
-            "name ILIKE ? OR make ILIKE ? OR model ILIKE ? OR registration_number ILIKE ?",
-            "%#{params[:search]}%", "%#{params[:search]}%",
-            "%#{params[:search]}%", "%#{params[:search]}%"
+          @assets = SearchService.apply(
+            @assets,
+            params[:search],
+            columns: %w[name make model registration_number],
+            mode: params[:search_mode] || 'contains',
+            model: Asset
           )
         end
 

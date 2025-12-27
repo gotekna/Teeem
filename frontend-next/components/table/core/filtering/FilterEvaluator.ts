@@ -182,77 +182,8 @@ export function evaluateAllFilters(
   }
 }
 
-/**
- * Apply client-side search filter to rows
- *
- * Searches across all specified columns (case-insensitive).
- *
- * @param entries - Table rows to search
- * @param searchQuery - Search string
- * @param searchableColumns - Columns to search in
- * @returns Filtered rows matching search
- */
-export function applySearchFilter(
-  entries: TableRow[],
-  searchQuery: string,
-  searchableColumns: Array<{ key: string }>
-): TableRow[] {
-  if (!searchQuery) return entries;
-
-  const searchLower = searchQuery.toLowerCase();
-
-  return entries.filter((entry) => {
-    return searchableColumns.some((col) => {
-      if (col.key === 'select' || col.key === 'actions') return false;
-      const value = entry[col.key];
-      if (value == null) return false;
-      return String(value).toLowerCase().includes(searchLower);
-    });
-  });
-}
-
-/**
- * Apply all filters (search + cascade filters) to table rows
- *
- * Main entry point for filtering. Applies:
- * 1. Client-side search (if provided)
- * 2. Cascade filters with group logic
- * 3. Inter-group logic
- *
- * Performance: ~O(n × m) where n = rows, m = filters
- * Optimized with pre-computed maps and early exits.
- *
- * @param entries - Table rows to filter
- * @param options - Filter options
- * @returns Filtered rows
- */
-export function applyAllFilters(
-  entries: TableRow[],
-  options: {
-    searchQuery?: string;
-    searchableColumns?: Array<{ key: string }>;
-    filters?: CascadeFilter[];
-    filterGroups?: FilterGroup[];
-    interGroupLogic?: 'AND' | 'OR';
-  }
-): TableRow[] {
-  let result = [...entries];
-
-  // Apply search filter
-  if (options.searchQuery && options.searchableColumns) {
-    result = applySearchFilter(result, options.searchQuery, options.searchableColumns);
-  }
-
-  // Apply cascade filters
-  if (options.filters && options.filters.length > 0) {
-    const filters = options.filters;
-    const filterGroups = options.filterGroups || [];
-    const interGroupLogic = options.interGroupLogic || 'AND';
-
-    result = result.filter((entry) =>
-      evaluateAllFilters(entry, filters, filterGroups, interGroupLogic)
-    );
-  }
-
-  return result;
-}
+// NOTE: Search filtering is handled by TeeemTableView directly with full search mode support
+// (contains, exact, starts_with, fuzzy, regex). See TeeemTableView.tsx filteredAndSortedEntries.
+//
+// The cascade filter functions above (evaluateSingleFilter, evaluateFilterGroup, evaluateAllFilters)
+// are still used by TeeemTableView for applying cascade filters.

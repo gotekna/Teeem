@@ -18,12 +18,14 @@ module Api
         @purchase_orders = @purchase_orders.by_status(params[:status])
         @purchase_orders = @purchase_orders.where(supplier_id: params[:supplier_id]) if params[:supplier_id].present?
 
-        # Search
+        # Search using SSoT SearchService
         if params[:search].present?
-          search_term = "%#{params[:search]}%"
-          @purchase_orders = @purchase_orders.where(
-            "purchase_order_number ILIKE ? OR description ILIKE ? OR ted_task ILIKE ?",
-            search_term, search_term, search_term
+          @purchase_orders = SearchService.apply(
+            @purchase_orders,
+            params[:search],
+            columns: %w[purchase_order_number description ted_task],
+            mode: params[:search_mode] || 'contains',
+            model: PurchaseOrder
           )
         end
 

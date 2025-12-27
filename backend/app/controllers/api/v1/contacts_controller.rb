@@ -40,22 +40,38 @@ module Api
         end
 
         # Search by name or email (includes company name for team contacts and employer name for employees)
+        # SSoT: Supports search_mode parameter (contains, exact, starts_with)
         if params[:search].present?
-          search_term = "%#{params[:search]}%"
+          search_mode = params[:search_mode] || 'contains'
+          search_term = case search_mode
+                        when 'exact' then params[:search]
+                        when 'starts_with' then "#{params[:search]}%"
+                        else "%#{params[:search]}%" # contains (default)
+                        end
 
-          # Find contacts that match the search term directly
-          # Note: left_outer_joins(:primary_company) creates alias "primary_companies_contacts"
-          direct_matches = @contacts.left_outer_joins(:primary_company).where(
+          # Build WHERE clause based on mode
+          ilike_op = search_mode == 'exact' ? '=' : 'ILIKE'
+          search_sql = if search_mode == 'exact'
+            "LOWER(contacts.display_name) = LOWER(:q) OR
+             LOWER(contacts.email) = LOWER(:q) OR
+             LOWER(contacts.first_name) = LOWER(:q) OR
+             LOWER(contacts.last_name) = LOWER(:q) OR
+             (contacts.is_team_contact = true AND LOWER(primary_companies_contacts.display_name) = LOWER(:q))"
+          else
             "contacts.display_name ILIKE :q OR
              contacts.email ILIKE :q OR
              contacts.first_name ILIKE :q OR
              contacts.last_name ILIKE :q OR
-             (contacts.is_team_contact = true AND primary_companies_contacts.display_name ILIKE :q)",
-            q: search_term
-          )
+             (contacts.is_team_contact = true AND primary_companies_contacts.display_name ILIKE :q)"
+          end
+
+          # Find contacts that match the search term directly
+          # Note: left_outer_joins(:primary_company) creates alias "primary_companies_contacts"
+          direct_matches = @contacts.left_outer_joins(:primary_company).where(search_sql, q: search_term)
 
           # Find companies that match the search term
-          matching_company_ids = Contact.where("display_name ILIKE ?", search_term)
+          company_search_sql = search_mode == 'exact' ? "LOWER(display_name) = LOWER(?)" : "display_name ILIKE ?"
+          matching_company_ids = Contact.where(company_search_sql, search_term)
                                        .where(entity_type: %w[company trust sole_trader])
                                        .pluck(:id)
 

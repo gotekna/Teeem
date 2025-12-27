@@ -25,13 +25,14 @@ module Api
         @companies = @companies.where(consolidation_parent_id: params[:consolidation_parent_id]) if params[:consolidation_parent_id].present?
         @companies = @companies.where(entity_type: params[:entity_type]) if params[:entity_type].present?
 
-        # Search
+        # Search using SSoT SearchService
         if params[:search].present?
-          @companies = @companies.where(
-            "name ILIKE ? OR acn ILIKE ? OR abn ILIKE ?",
-            "%#{params[:search]}%",
-            "%#{params[:search]}%",
-            "%#{params[:search]}%"
+          @companies = SearchService.apply(
+            @companies,
+            params[:search],
+            columns: %w[name acn abn],
+            mode: params[:search_mode] || 'contains',
+            model: CorporateCompany
           )
         end
 
