@@ -13,7 +13,10 @@ import {
   Clock,
   FileText,
   Loader2,
+  ChefHat,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 interface EstimatedScope {
@@ -94,7 +97,32 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Recipes Link */}
+      <Card className="border-primary/20 hover:border-primary/40 transition-colors">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                <ChefHat className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-medium">Recipes</h2>
+                <p className="text-sm text-muted-foreground">
+                  Manage cost recipes for materials, labour, and assemblies
+                </p>
+              </div>
+            </div>
+            <Link href="/recipes">
+              <Button variant="outline" className="gap-2">
+                Open Recipes
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AI Estimator Header */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start justify-between">

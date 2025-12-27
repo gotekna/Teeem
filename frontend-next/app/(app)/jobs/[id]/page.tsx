@@ -64,10 +64,12 @@ import { JobPlansTab } from "@/components/jobs/JobPlansTab";
 import { JobPurchaseOrdersTab } from "@/components/jobs/JobPurchaseOrdersTab";
 import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
 import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
+import { JobBOQTab } from "@/components/jobs/JobBOQTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
 import { JobScheduleTab } from "@/components/jobs/JobScheduleTab";
+import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
 import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
 import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
 
@@ -1267,6 +1269,10 @@ export default function JobDetailPage() {
           <JobEstimatorTab jobId={job.id} job={job} />
         </TabsContent>
 
+        <TabsContent value="boq" className="mt-4">
+          <JobBOQTab jobId={job.id} />
+        </TabsContent>
+
         <TabsContent value="profit" className="mt-4">
           <JobProfitTab jobId={job.id} />
         </TabsContent>
@@ -1281,6 +1287,10 @@ export default function JobDetailPage() {
 
         <TabsContent value="schedule" className="mt-4 h-[calc(100vh-300px)]">
           <JobScheduleTab jobId={jobId} />
+        </TabsContent>
+
+        <TabsContent value="site-presence" className="mt-4">
+          <JobSitePresenceTab jobId={job.id} onUpdate={loadJob} />
         </TabsContent>
 
         <TabsContent value="whs" className="mt-4">

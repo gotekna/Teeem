@@ -422,11 +422,14 @@ class PurchaseOrder < ApplicationRecord
   # JSON representation for API - includes virtual attributes for Foundation
   # SSoT: sm_task_id is the primary column, po_task_name is derived from linked SmTask
   def as_json(options = {})
-    super(options).merge(
+    result = super(options).merge(
       'sm_task_name' => po_task_name,
       'sm_schedule_master_name' => sm_schedule_master_name,
       'sm_schedule_master_id_via_task' => sm_schedule_master_id_via_task
     )
+    # Include labour summary if this is a labour PO
+    result['labour_summary'] = labour_summary if labour_po?
+    result
   end
 
   private

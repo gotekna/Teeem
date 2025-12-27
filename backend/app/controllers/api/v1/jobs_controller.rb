@@ -496,6 +496,88 @@ module Api
         }
       end
 
+      # GET /api/v1/jobs/:id/boq
+      # Returns BOQ (Bill of Quantities) vs Purchase Orders comparison
+      # Shows side-by-side view of estimated vs actual costs
+      def boq
+        purchase_orders = @job.purchase_orders
+                              .where.not(status: "cancelled")
+                              .includes(:supplier, :line_items, :sm_task)
+                              .order(:id)
+
+        # Group PO line items by category (using PO description as category)
+        # Build a hierarchical structure: Category -> PO -> Line Items
+        categories = {}
+
+        purchase_orders.each do |po|
+          category_name = po.description.presence || po.sm_task&.name.presence || "Uncategorized"
+          # Clean up category name - remove "Req " prefix if present
+          category_name = category_name.sub(/^Req\s+/i, "")
+
+          categories[category_name] ||= {
+            name: category_name,
+            purchase_orders: [],
+            boq_total: 0,
+            po_total: 0
+          }
+
+          po_data = {
+            id: po.id,
+            po_number: po.purchase_order_number,
+            supplier_name: po.supplier&.display_name || "Unknown",
+            status: po.status,
+            budget: (po.budget || 0).to_f,
+            total: (po.total || 0).to_f,
+            line_items: po.line_items.map do |item|
+              {
+                id: item.id,
+                description: item.description,
+                quantity: item.quantity.to_f,
+                unit_price: item.unit_price.to_f,
+                total: item.total_amount.to_f
+              }
+            end
+          }
+
+          categories[category_name][:purchase_orders] << po_data
+          categories[category_name][:boq_total] += po_data[:budget]
+          categories[category_name][:po_total] += po_data[:total]
+        end
+
+        # Convert to array and sort by name
+        boq_categories = categories.values.sort_by { |c| c[:name] }
+
+        # Calculate variance for each category
+        boq_categories.each do |cat|
+          cat[:variance] = cat[:po_total] - cat[:boq_total]
+          cat[:variance_percent] = cat[:boq_total] > 0 ? (cat[:variance] / cat[:boq_total] * 100).round(1) : 0
+        end
+
+        # Calculate totals
+        total_boq = boq_categories.sum { |c| c[:boq_total] }
+        total_po = boq_categories.sum { |c| c[:po_total] }
+        total_variance = total_po - total_boq
+
+        render json: {
+          success: true,
+          job: {
+            id: @job.id,
+            name: @job.name,
+            contract_value: @job.contract_value.to_f
+          },
+          categories: boq_categories,
+          summary: {
+            boq_total: total_boq.round(2),
+            po_total: total_po.round(2),
+            variance: total_variance.round(2),
+            variance_percent: total_boq > 0 ? (total_variance / total_boq * 100).round(1) : 0,
+            contract_value: @job.contract_value.to_f,
+            po_count: purchase_orders.count,
+            category_count: boq_categories.count
+          }
+        }
+      end
+
       # POST /api/v1/jobs/:id/merge
       # Merges secondary jobs into the primary job (this job)
       # Transfers all related records and then deletes the secondary jobs

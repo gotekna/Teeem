@@ -48,6 +48,8 @@ import {
   Lock,
   ListTodo,
   ExternalLink,
+  Clock,
+  Users,
 } from "lucide-react";
 import {
   Dialog,
@@ -232,6 +234,10 @@ interface PurchaseOrder {
   job_id?: number;
   line_items: LineItem[];
   sm_tasks?: SmTask[]; // SSoT: Linked tasks via SmTask.purchase_order_id
+  // Labour budget tracking (Site Presence)
+  is_labour_po?: boolean;
+  labour_budget?: number;
+  labour_actual?: number;
 }
 
 const STATUS_OPTIONS = [
@@ -984,6 +990,74 @@ export default function PurchaseOrderDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Labour Budget Card - Shows for labour POs */}
+        {(purchaseOrder.is_labour_po || purchaseOrder.labour_budget) && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                <Clock className="h-4 w-4" />
+                Labour Budget
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm text-muted-foreground">Budget:</span>
+                  <span className="text-lg font-semibold">
+                    {purchaseOrder.labour_budget ? formatCurrency(purchaseOrder.labour_budget) : "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm text-muted-foreground">Actual:</span>
+                  <span className={cn(
+                    "text-lg font-semibold",
+                    purchaseOrder.labour_actual && purchaseOrder.labour_budget &&
+                    purchaseOrder.labour_actual > purchaseOrder.labour_budget
+                      ? "text-red-500"
+                      : "text-green-500"
+                  )}>
+                    {purchaseOrder.labour_actual ? formatCurrency(purchaseOrder.labour_actual) : "$0.00"}
+                  </span>
+                </div>
+                {purchaseOrder.labour_budget && purchaseOrder.labour_budget > 0 && (
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm text-muted-foreground">Remaining:</span>
+                    <span className={cn(
+                      "text-lg font-semibold",
+                      (purchaseOrder.labour_budget - (purchaseOrder.labour_actual || 0)) < 0
+                        ? "text-red-500"
+                        : "text-muted-foreground"
+                    )}>
+                      {formatCurrency(purchaseOrder.labour_budget - (purchaseOrder.labour_actual || 0))}
+                    </span>
+                  </div>
+                )}
+                {/* Progress bar */}
+                {purchaseOrder.labour_budget && purchaseOrder.labour_budget > 0 && (
+                  <div className="mt-2">
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full transition-all",
+                          ((purchaseOrder.labour_actual || 0) / purchaseOrder.labour_budget) > 1
+                            ? "bg-red-500"
+                            : ((purchaseOrder.labour_actual || 0) / purchaseOrder.labour_budget) > 0.8
+                            ? "bg-yellow-500"
+                            : "bg-green-500"
+                        )}
+                        style={{
+                          width: `${Math.min(100, ((purchaseOrder.labour_actual || 0) / purchaseOrder.labour_budget) * 100)}%`
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center mt-1">
+                      {Math.round(((purchaseOrder.labour_actual || 0) / purchaseOrder.labour_budget) * 100)}% used
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Supplier Card */}
         <Card>

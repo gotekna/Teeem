@@ -293,6 +293,8 @@ Rails.application.routes.draw do
           post :generate_contract
           post :save_contract
           post :send_contract_for_signing
+          # BOQ (Bill of Quantities) comparison
+          get :boq
         end
 
         # Job contacts (nested under jobs)
