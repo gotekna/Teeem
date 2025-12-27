@@ -55,6 +55,8 @@ export interface ImageLightboxProps {
   showDownload?: boolean;
   /** Show open in SharePoint button */
   showOpenExternal?: boolean;
+  /** Optional callback to resolve full-size URL on demand (for SharePoint images) */
+  resolveFullUrl?: (photoId: string) => Promise<string | null>;
 }
 
 // Format date for display
@@ -77,12 +79,37 @@ export function ImageLightbox({
   onClose,
   showDownload = true,
   showOpenExternal = true,
+  resolveFullUrl,
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
   const [touchStart, setTouchStart] = React.useState<number | null>(null);
   const [touchEnd, setTouchEnd] = React.useState<number | null>(null);
+  // Cache for resolved full URLs (photoId -> url)
+  const [resolvedUrls, setResolvedUrls] = React.useState<Record<string, string>>({});
+  const [resolving, setResolving] = React.useState(false);
+
+  // Resolve full URL for current photo
+  const resolveCurrentPhotoUrl = React.useCallback(async () => {
+    const photo = photos[currentIndex];
+    if (!photo || !resolveFullUrl) return;
+
+    // Already have a resolved URL for this photo
+    if (resolvedUrls[photo.id]) return;
+
+    setResolving(true);
+    try {
+      const fullUrl = await resolveFullUrl(photo.id);
+      if (fullUrl) {
+        setResolvedUrls((prev) => ({ ...prev, [photo.id]: fullUrl }));
+      }
+    } catch (err) {
+      console.error("Failed to resolve full URL:", err);
+    } finally {
+      setResolving(false);
+    }
+  }, [currentIndex, photos, resolveFullUrl, resolvedUrls]);
 
   // Reset index when opening with new initialIndex
   React.useEffect(() => {
@@ -92,6 +119,13 @@ export function ImageLightbox({
       setError(false);
     }
   }, [open, initialIndex]);
+
+  // Resolve URL when photo changes
+  React.useEffect(() => {
+    if (open && resolveFullUrl) {
+      resolveCurrentPhotoUrl();
+    }
+  }, [open, currentIndex, resolveFullUrl, resolveCurrentPhotoUrl]);
 
   // Keyboard navigation
   React.useEffect(() => {
@@ -128,6 +162,11 @@ export function ImageLightbox({
   }, [open]);
 
   const currentPhoto = photos[currentIndex];
+
+  // Use resolved URL if available, otherwise fall back to photo.url
+  const currentImageUrl = currentPhoto
+    ? resolvedUrls[currentPhoto.id] || currentPhoto.url
+    : "";
 
   const goToPrev = () => {
     setLoading(true);
@@ -283,9 +322,12 @@ export function ImageLightbox({
         {/* Image container */}
         <div className="relative max-h-full max-w-full flex items-center justify-center">
           {/* Loading spinner */}
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center">
+          {(loading || resolving) && (
+            <div className="absolute inset-0 flex items-center justify-center flex-col gap-2">
               <Loader2 className="h-10 w-10 animate-spin text-white" />
+              {resolving && (
+                <p className="text-white/60 text-sm">Loading full image...</p>
+              )}
             </div>
           )}
 
@@ -300,8 +342,8 @@ export function ImageLightbox({
           {/* Image */}
           {!error && (
             <img
-              key={currentPhoto.id}
-              src={currentPhoto.url}
+              key={currentPhoto.id + (resolvedUrls[currentPhoto.id] ? "-resolved" : "")}
+              src={currentImageUrl}
               alt={currentPhoto.name}
               onLoad={() => setLoading(false)}
               onError={() => {
@@ -311,7 +353,7 @@ export function ImageLightbox({
               className={cn(
                 "max-h-[calc(100vh-180px)] max-w-full object-contain",
                 "transition-opacity duration-300",
-                loading ? "opacity-0" : "opacity-100"
+                loading || resolving ? "opacity-0" : "opacity-100"
               )}
             />
           )}

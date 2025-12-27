@@ -241,6 +241,26 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     return imageExtensions.some((ext) => name.endsWith(ext));
   };
 
+  // Resolve full-size download URL for lightbox viewing
+  // This fetches on-demand from Microsoft Graph (returns pre-authenticated URL valid ~1hr)
+  const resolveFullUrl = React.useCallback(async (fileId: string): Promise<string | null> => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+    try {
+      const response = await fetch(`${apiBase}/api/v1/organization_onedrive/download_url?file_id=${fileId}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        console.error("Failed to get download URL:", response.status);
+        return null;
+      }
+      const data = await response.json();
+      return data.download_url || null;
+    } catch (err) {
+      console.error("Error fetching download URL:", err);
+      return null;
+    }
+  }, []);
+
   // Convert LegacyItem to PhotoItem for gallery display
   const convertToPhotoItem = (item: LegacyItem): PhotoItem => {
     // Build API URL for fetching image through backend proxy (fallback)
@@ -1218,6 +1238,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
               initialIndex={categoryLightboxIndex}
               open={categoryLightboxOpen}
               onClose={() => setCategoryLightboxOpen(false)}
+              resolveFullUrl={resolveFullUrl}
             />
           </div>
         )}
@@ -1812,6 +1833,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
           initialIndex={lightboxIndex}
           open={lightboxOpen}
           onClose={() => setLightboxOpen(false)}
+          resolveFullUrl={resolveFullUrl}
         />
       </div>
     );

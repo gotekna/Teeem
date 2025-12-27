@@ -263,31 +263,10 @@ class EmailSendingService
     )
   end
 
-  # Outlook (personal) sending
+  # DEPRECATED: Personal Outlook sending has been removed
+  # Per-user Outlook credentials no longer exist - using org-wide credentials only
   def send_via_outlook
-    user = @params.user
-    raise CredentialNotFoundError, "User required for Outlook" unless user
-
-    unless user.outlook_credential&.valid_credential?
-      raise AuthenticationError, "Outlook not connected or token expired"
-    end
-
-    outlook = OutlookService.new(user)
-
-    result = outlook.send_email(
-      to: @params.to_list,
-      cc: @params.cc_list,
-      bcc: @params.bcc_list,
-      subject: @params.subject,
-      body: @params.body,
-      attachments: normalize_attachments_for_graph
-    )
-
-    if result[:success]
-      Result.new(success: true, message_id: result[:message_id])
-    else
-      Result.new(success: false, error: result[:error])
-    end
+    raise CredentialNotFoundError, "Personal Outlook sending has been deprecated. Use MS365 organization account instead."
   end
 
   # MS365 (organization) sending
@@ -359,8 +338,7 @@ class EmailSendingService
     case @account_type
     when "imap"
       @params.from_address.presence || find_imap_credential&.email_address
-    when "outlook"
-      @params.user&.outlook_credential&.email
+    # REMOVED: "outlook" case - per-user Outlook credentials deprecated
     when "ms365"
       @params.mailbox_email.presence || find_ms365_credential&.email
     end

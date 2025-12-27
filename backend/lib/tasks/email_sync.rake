@@ -1,47 +1,24 @@
 namespace :email_warehouse do
-  desc "Run full sync for all connected Outlook users"
+  # DEPRECATED: Per-user Outlook credentials have been removed
+  # Email sync now uses org-wide credentials via OrgEmailSyncJob
+  desc "DEPRECATED - Run full sync (use OrgEmailSyncJob instead)"
   task full_sync: :environment do
-    users_with_outlook = User.joins(:outlook_credential).to_a
-    puts "Found #{users_with_outlook.count} users with Outlook connected"
-
-    users_with_outlook.each do |user|
-      puts "\nSyncing for user #{user.id}: #{user.email}"
-      begin
-        service = EmailWarehouseSyncService.new(user)
-        count = service.full_sync!
-        puts "  Synced #{count} emails"
-      rescue => e
-        puts "  ERROR: #{e.class} - #{e.message}"
-        puts "  Backtrace: #{e.backtrace.first(5).join("\n  ")}"
-      end
-    end
-
-    puts "\n"
+    puts "DEPRECATED: Per-user Outlook sync has been removed."
+    puts "Email sync now runs automatically via OrgEmailSyncJob every 15 minutes."
+    puts ""
+    puts "To manually trigger org sync, run:"
+    puts "  OrgEmailSyncJob.perform_now('full')"
+    puts ""
     puts "Total emails in warehouse: #{EmailWarehouse.count}"
     puts "Assigned to jobs: #{EmailWarehouse.assigned.count}"
     puts "Unassigned: #{EmailWarehouse.unassigned.count}"
   end
 
-  desc "Refresh all Outlook tokens"
+  # DEPRECATED: Per-user Outlook credentials have been removed
+  desc "DEPRECATED - Refresh tokens (handled by RefreshIntegrationTokensJob)"
   task refresh_tokens: :environment do
-    users_with_outlook = User.joins(:outlook_credential).to_a
-    puts "Found #{users_with_outlook.count} users with Outlook credentials"
-
-    users_with_outlook.each do |user|
-      cred = user.outlook_credential
-      puts "\nUser #{user.id}: #{user.email}"
-      puts "  Expired: #{cred.expired?}"
-      puts "  Expires at: #{cred.expires_at}"
-
-      if cred.expired?
-        puts "  Refreshing token..."
-        result = cred.refresh!
-        puts "  Refresh result: #{result}"
-        cred.reload
-        puts "  New expires at: #{cred.expires_at}"
-        puts "  Now expired: #{cred.expired?}"
-      end
-    end
+    puts "DEPRECATED: Per-user Outlook tokens have been removed."
+    puts "Org credentials are automatically refreshed by RefreshIntegrationTokensJob every 15 minutes."
   end
 
   desc "Show warehouse stats"

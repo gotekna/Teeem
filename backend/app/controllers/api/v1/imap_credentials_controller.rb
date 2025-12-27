@@ -254,19 +254,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # Admins must configure access in Admin > System > Email Accounts.
     end
 
-    # Add user's personal Outlook credential (delegated access)
-    if current_user.outlook_credential.present?
-      outlook = current_user.outlook_credential
-      accounts << {
-        id: "outlook",
-        type: "outlook",
-        name: "Personal Outlook",
-        email_address: outlook.email,
-        provider: "outlook",
-        is_active: !outlook.expired?,
-        is_default: accounts.empty?
-      }
-    end
+    # REMOVED: Personal Outlook credential - using org-wide credentials only
 
     # Add IMAP accounts
     current_user.imap_credentials.where(is_active: true).order(created_at: :desc).each do |cred|
@@ -542,49 +530,14 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   private
 
+  # DEPRECATED: Per-user Outlook credentials have been removed
+  # Email sending via personal Outlook is no longer supported
+  # Use IMAP or MS365 org credentials instead
   def send_via_outlook
-    unless current_user.outlook_credential&.valid_credential?
-      return render json: {
-        success: false,
-        error: "Outlook not connected or token expired"
-      }, status: :unprocessable_entity
-    end
-
-    outlook = OutlookService.new(current_user)
-
-    # Build attachments array
-    attachments = []
-    if params[:attachments].present?
-      params[:attachments].each do |file|
-        attachments << {
-          name: file.original_filename,
-          content: Base64.strict_encode64(file.read),
-          content_type: file.content_type
-        }
-      end
-    end
-
-    result = outlook.send_email(
-      to: Array(params[:to]),
-      subject: params[:subject],
-      body: params[:body],
-      cc: Array(params[:cc]),
-      bcc: Array(params[:bcc]),
-      attachments: attachments
-    )
-
-    if result[:success]
-      render json: {
-        success: true,
-        message: "Email sent successfully via Outlook",
-        data: { message_id: result[:message_id] }
-      }
-    else
-      render json: {
-        success: false,
-        error: result[:error] || "Failed to send email via Outlook"
-      }, status: :unprocessable_entity
-    end
+    render json: {
+      success: false,
+      error: "Personal Outlook sending has been deprecated. Please use IMAP or MS365 organization account."
+    }, status: :gone
   end
 
   def set_credential
@@ -594,8 +547,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # Infer account type from credential_id format
   def infer_account_type(credential_id)
     case credential_id.to_s
-    when "outlook"
-      "outlook"
+    # REMOVED: "outlook" case - per-user Outlook credentials deprecated
     when /^ms365_/
       "ms365"
     else

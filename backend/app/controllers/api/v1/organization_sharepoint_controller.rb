@@ -1139,6 +1139,62 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/download_url
+      # Get a pre-authenticated download URL for a file (valid ~1 hour)
+      # Used for lightbox full-size image viewing - URL works directly in <img> tags
+      def download_url
+        credential = OrganizationSharePointCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+        end
+
+        file_id = params[:file_id]
+
+        unless file_id.present?
+          return render json: { error: "No file_id provided" }, status: :bad_request
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+
+          # Fetch single item - this returns @microsoft.graph.downloadUrl
+          item = client.get("#{drive_path}/items/#{file_id}")
+
+          download_url = item["@microsoft.graph.downloadUrl"]
+
+          unless download_url.present?
+            return render json: {
+              error: "Download URL not available for this file"
+            }, status: :unprocessable_entity
+          end
+
+          # Also return thumbnail URLs for caching
+          thumbnails = item.dig("thumbnails", 0) || {}
+
+          render json: {
+            success: true,
+            download_url: download_url,
+            thumbnail_url: thumbnails.dig("medium", "url"),
+            large_thumbnail_url: thumbnails.dig("large", "url"),
+            name: item["name"],
+            size: item["size"],
+            mime_type: item.dig("file", "mimeType"),
+            # URL valid for ~1 hour, suggest caching for 30 mins
+            cache_until: 30.minutes.from_now.iso8601
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "[DownloadURL] Failed to get download URL: #{e.message}"
+          render json: { error: "Failed to get download URL: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/preview_private_folders
       # Preview the folder structure that would be created in 00 TEEEM PRIVATE
       def preview_private_folders

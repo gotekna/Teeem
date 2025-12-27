@@ -203,6 +203,18 @@ class MicrosoftAppGraphClient
     }
   end
 
+  # Delete an email from a user's mailbox
+  # Microsoft Graph DELETE moves to Deleted Items (soft delete)
+  # Returns true on success
+  def delete_user_email(user_identifier, message_id)
+    endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}"
+    delete(endpoint)
+    true
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftAppGraphClient] Failed to delete email #{message_id}: #{e.message}"
+    false
+  end
+
   # ==========================================
   # Sync helpers
   # ==========================================

@@ -1783,6 +1783,7 @@ Rails.application.routes.draw do
       get "organization_onedrive/job_folders", to: "organization_sharepoint#list_job_items"
       post "organization_onedrive/upload", to: "organization_sharepoint#upload"
       get "organization_onedrive/download", to: "organization_sharepoint#download"
+      get "organization_onedrive/download_url", to: "organization_sharepoint#download_url"
       get "organization_onedrive/folder_contents", to: "organization_sharepoint#folder_contents"
       get "organization_onedrive/sharepoint_sites", to: "organization_sharepoint#sharepoint_sites"
       post "organization_onedrive/use_sharepoint_site", to: "organization_sharepoint#use_sharepoint_site"
