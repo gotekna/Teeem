@@ -1405,13 +1405,32 @@ export function EntityTabsConfig({
                               </div>
                             )}
 
-                            {/* Show inherited preview */}
-                            {editingTab?.inherited_template && (
-                              <div className="mt-2 text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">
-                                <span className="text-muted-foreground/60">Preview: </span>
-                                <span className="text-foreground">
-                                  {resolveSharePointPath(editingTab.inherited_template + "/" + (formData.display_name || editingTab.display_name))}
-                                </span>
+                            {/* Path Template Builder for inherited path */}
+                            {!formData.uses_custom_path && (
+                              <div className="mt-3">
+                                <TokenBuilder
+                                  label="Path Template"
+                                  value={formData.sharepoint_folder_path || editingTab?.effective_sharepoint_path || (formData.display_name || editingTab?.display_name || "")}
+                                  onChange={(value) =>
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      sharepoint_folder_path: value,
+                                    }))
+                                  }
+                                  scope="sharepoint"
+                                  showPreview={true}
+                                  placeholder="Click tokens to add..."
+                                  helpText="Add placeholders like {{Category}} to customize the path"
+                                />
+                                {/* Full path preview */}
+                                {editingTab?.sharepoint_base_path && (
+                                  <div className="mt-2 text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">
+                                    <span className="text-muted-foreground/60">Full Path: </span>
+                                    <span className="text-foreground">
+                                      {editingTab.sharepoint_base_path}/{resolveSharePointPath(formData.sharepoint_folder_path || formData.display_name || editingTab.display_name || "")}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
