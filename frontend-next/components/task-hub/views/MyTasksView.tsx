@@ -10,6 +10,7 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronRight,
+  Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -58,12 +59,17 @@ function TaskRow({ task }: TaskRowProps) {
         </div>
 
         {/* Col 2: Task name */}
-        <span className={cn(
-          'truncate',
-          task.status === 'completed' && 'line-through text-muted-foreground'
-        )}>
-          {task.name}
-        </span>
+        <div className="flex items-center gap-1 min-w-0">
+          <span className={cn(
+            'truncate',
+            task.status === 'completed' && 'line-through text-muted-foreground'
+          )}>
+            {task.name}
+          </span>
+          {(task.attachments_count ?? 0) > 0 && (
+            <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+          )}
+        </div>
 
         {/* Col 3: Status Checkboxes - fixed width for alignment */}
         <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
