@@ -1296,6 +1296,8 @@ export default function TeeemTableView({
   const [search, setSearch] = useAtom(searchQueryAtom);
   // searchAllColumns managed by atom (SSoT)
   const [searchAllColumns, setSearchAllColumns] = useAtom(searchAllColumnsAtom);
+  // Search mode for client-side filtering
+  const [currentSearchMode, setCurrentSearchMode] = useState<SearchMode>(propSearchMode || "contains");
 
   // Re-trigger server search on mount if there's a persisted search term
   // This handles browser back navigation where atom state is preserved but data isn't
@@ -1744,6 +1746,9 @@ export default function TeeemTableView({
   const handleSearchFromInput = useCallback(
     (value: string, mode?: SearchMode) => {
       setSearch(value);
+      if (mode) {
+        setCurrentSearchMode(mode);
+      }
       if (effectiveOnServerSearch) {
         effectiveOnServerSearch(value, mode);
       }
@@ -2911,18 +2916,37 @@ export default function TeeemTableView({
           if (!searchAllColumns && !searchableColumns[col.key]) return false;
           const value = entry[col.key];
           if (value == null) return false;
-          // Use fuzzy match for typo tolerance
-          const matched = fuzzyMatch(search, String(value));
-          // DEBUG: Log matches for name column
-          if (col.key === 'name' && entry.id === result[0]?.id) {
-            console.log('[TeeemTableView Search] Name column check:', {
-              colKey: col.key,
-              value,
-              search,
-              matched,
-              isSearchable: searchableColumns[col.key]
-            });
+
+          // Apply search based on current search mode
+          const strValue = String(value).toLowerCase();
+          const searchLower = search.toLowerCase();
+          let matched = false;
+
+          switch (currentSearchMode) {
+            case "contains":
+              matched = strValue.includes(searchLower);
+              break;
+            case "exact":
+              matched = strValue === searchLower;
+              break;
+            case "starts_with":
+              matched = strValue.startsWith(searchLower);
+              break;
+            case "fuzzy":
+              matched = fuzzyMatch(search, String(value));
+              break;
+            case "regex":
+              try {
+                const regex = new RegExp(search, "i");
+                matched = regex.test(strValue);
+              } catch {
+                matched = strValue.includes(searchLower);
+              }
+              break;
+            default:
+              matched = strValue.includes(searchLower);
           }
+
           return matched;
         });
         return matches;
@@ -3038,6 +3062,7 @@ export default function TeeemTableView({
   }, [
     effectiveEntries,
     search,
+    currentSearchMode,
     searchAllColumns,
     searchableColumns,
     onServerSearch,
@@ -4982,8 +5007,11 @@ export default function TeeemTableView({
             searchAllColumns={searchAllColumns}
             serverSearchLoading={effectiveServerSearchLoading}
             hasServerSearch={showSearchOptionsMenu}
-            searchMode={propSearchMode}
-            onSearchModeChange={onSearchModeChange}
+            searchMode={currentSearchMode}
+            onSearchModeChange={(mode) => {
+              setCurrentSearchMode(mode);
+              onSearchModeChange?.(mode);
+            }}
           />
           </div>
 

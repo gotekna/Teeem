@@ -300,6 +300,18 @@ Rails.application.routes.draw do
         # Job contacts (nested under jobs)
         resources :job_contacts, only: [ :index, :create, :update, :destroy ]
 
+        # Job recipes (for BOQ - applied recipes)
+        resources :recipes, controller: "job_recipes", only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            post :generate_pos
+            post :recalculate
+          end
+          collection do
+            post :bulk_apply
+            get :available
+          end
+        end
+
         # Job specifications (nested under jobs)
         resources :specifications, controller: "job_specifications", only: [ :index, :show, :create, :update, :destroy ] do
           collection do

@@ -66,6 +66,10 @@ class Job < ApplicationRecord
   # Quantity variables (for recipe calculations)
   has_many :job_quantity_variables, dependent: :destroy
 
+  # Recipes applied to this job (for BOQ)
+  has_many :job_recipes, dependent: :destroy
+  has_many :recipes, through: :job_recipes
+
   # Email proposals
   has_one :email_job_proposal, dependent: :nullify
 
@@ -254,6 +258,9 @@ class Job < ApplicationRecord
 
     values
   end
+
+  # Alias for recipe calculations
+  alias_method :quantity_variables_hash, :quantity_variable_values
 
   # Set a quantity variable value
   def set_quantity_variable(variable_name, value, updated_by: nil)

@@ -24,7 +24,7 @@ import { Calendar, RefreshCw, Loader2, SkipForward } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableRow, TableColumn } from "@/components/table/types";
+import type { TableRow } from "@/components/table/types";
 
 interface SmTask {
   id: number;
@@ -125,18 +125,8 @@ interface JobTemplate {
   name: string;
 }
 
-// Define columns for SmTasks table
-const SM_TASK_COLUMNS: TableColumn[] = [
-  { key: "task_number", label: "Task #", column_type: "number", width: 70 },
-  { key: "name", label: "Name", column_type: "text", width: 250 },
-  { key: "trade", label: "Trade", column_type: "text", width: 120 },
-  { key: "stage", label: "Stage", column_type: "text", width: 100 },
-  { key: "status", label: "Status", column_type: "badge", width: 100 },
-  { key: "start_date", label: "Start", column_type: "date", width: 100 },
-  { key: "end_date", label: "End", column_type: "date", width: 100 },
-  { key: "duration_days", label: "Days", column_type: "number", width: 60 },
-  { key: "supplier_name", label: "Supplier", column_type: "text", width: 150 },
-];
+// SSoT: Columns come from Foundation API (ID: 218, slug: sm-tasks)
+// DO NOT hardcode columns here - TeeemTableView auto-fetches from Foundation
 
 export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   const router = useRouter();
@@ -320,7 +310,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={tasks as unknown as TableRow[]}
-        columns={SM_TASK_COLUMNS}
+        foundationIdNumeric={218}
         tableName="Schedule Tasks"
         onRefresh={loadTasks}
         onRowClick={handleRowClick}

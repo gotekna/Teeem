@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -12,12 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import {
   RefreshCw,
   Loader2,
@@ -29,9 +24,13 @@ import {
   FileText,
   DollarSign,
   BarChart3,
+  Package,
+  Settings,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { JobQuantityVariablesForm } from "./JobQuantityVariablesForm";
+import { JobRecipesPanel } from "./JobRecipesPanel";
 
 interface LineItem {
   id: number;
@@ -184,9 +183,26 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
   const { summary, categories } = boqData;
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <Tabs defaultValue="comparison" className="space-y-6">
+      <TabsList>
+        <TabsTrigger value="comparison" className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4" />
+          BOQ vs PO
+        </TabsTrigger>
+        <TabsTrigger value="recipes" className="flex items-center gap-2">
+          <Package className="h-4 w-4" />
+          Recipes
+        </TabsTrigger>
+        <TabsTrigger value="variables" className="flex items-center gap-2">
+          <Settings className="h-4 w-4" />
+          House Specs
+        </TabsTrigger>
+      </TabsList>
+
+      {/* BOQ Comparison Tab */}
+      <TabsContent value="comparison" className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -409,7 +425,18 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </TabsContent>
+
+      {/* Recipes Tab */}
+      <TabsContent value="recipes">
+        <JobRecipesPanel jobId={jobId} onPOGenerated={loadBOQData} />
+      </TabsContent>
+
+      {/* House Specs Tab */}
+      <TabsContent value="variables">
+        <JobQuantityVariablesForm jobId={jobId} onSave={loadBOQData} />
+      </TabsContent>
+    </Tabs>
   );
 }
 

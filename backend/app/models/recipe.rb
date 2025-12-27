@@ -20,6 +20,8 @@ class Recipe < ApplicationRecord
   belongs_to :default_supplier, class_name: 'Contact', optional: true
   has_many :recipe_items, -> { order(:sequence_order) }, dependent: :destroy
   has_many :recipe_versions, dependent: :destroy
+  has_many :job_recipes, dependent: :destroy
+  has_many :jobs, through: :job_recipes
 
   # Accept nested attributes for items (for bulk create/update)
   accepts_nested_attributes_for :recipe_items, allow_destroy: true
@@ -89,6 +91,29 @@ class Recipe < ApplicationRecord
         calculated_quantity: item.calculate_quantity(variable_values),
         unit_price: item.effective_unit_price,
         line_total: item.calculate_line_total(variable_values)
+      }
+    end
+  end
+
+  # Calculate total with given variables and multiplier
+  def calculate_with_variables(variables, multiplier = 1.0)
+    recipe_items.sum do |item|
+      item.calculate_line_total(variables) * multiplier
+    end
+  end
+
+  # Calculate line items with given variables (for PO generation)
+  def calculate_line_items(variables, multiplier = 1.0)
+    recipe_items.map do |item|
+      quantity = item.calculate_quantity(variables) * multiplier
+      unit_price = item.effective_unit_price
+
+      {
+        description: item.description,
+        quantity: quantity,
+        unit_price: unit_price,
+        total: quantity * unit_price,
+        supplier_id: item.pricebook_item&.default_supplier_id
       }
     end
   end

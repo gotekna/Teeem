@@ -38,9 +38,10 @@ module Api
         # Combine global views (first) and user views (second)
         all_views = (global_views.to_a + user_views.to_a).uniq
 
+        # Sort by display_order first (allows user reordering), then by is_global as tiebreaker
         render json: {
           success: true,
-          views: all_views.sort_by { |v| [ v.is_global? ? 0 : 1, v.display_order || 999, v.created_at ] }
+          views: all_views.sort_by { |v| [ v.display_order || 999, v.is_global? ? 0 : 1, v.created_at ] }
         }
       end
 
