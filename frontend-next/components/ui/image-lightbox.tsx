@@ -13,6 +13,7 @@
  * - Photo counter
  * - Filename and date display
  * - Touch swipe support
+ * - Authenticated image loading for backend proxy URLs
  *
  * Usage:
  * ```tsx
@@ -40,6 +41,7 @@ import {
   ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
 import type { PhotoItem } from "@/components/ui/photo-gallery";
 
 export interface ImageLightboxProps {
@@ -72,6 +74,24 @@ function formatDate(dateStr?: string): string {
   });
 }
 
+// Check if URL needs authenticated fetch (backend proxy URLs)
+function needsAuthenticatedFetch(url: string): boolean {
+  // Backend proxy URLs that require authentication
+  return url.includes("/api/v1/organization_onedrive/download") ||
+         url.includes("/api/v1/organization_sharepoint/download");
+}
+
+// Extract the endpoint path from a full URL for api.getBlob
+function getEndpointFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.pathname + urlObj.search;
+  } catch {
+    // If it's already a path, return as-is
+    return url;
+  }
+}
+
 export function ImageLightbox({
   photos,
   initialIndex = 0,
@@ -91,6 +111,10 @@ export function ImageLightbox({
   const [resolving, setResolving] = React.useState(false);
   // Track which resolved URLs have failed (to fall back to proxy)
   const [failedUrls, setFailedUrls] = React.useState<Set<string>>(new Set());
+  // Cache for authenticated blob URLs (photoId -> object URL)
+  const [blobUrls, setBlobUrls] = React.useState<Record<string, string>>({});
+  // Track URLs currently being fetched
+  const fetchingRef = React.useRef<Set<string>>(new Set());
 
   // Resolve full URL for current photo
   const resolveCurrentPhotoUrl = React.useCallback(async () => {
@@ -129,6 +153,59 @@ export function ImageLightbox({
     }
   }, [open, currentIndex, resolveFullUrl, resolveCurrentPhotoUrl]);
 
+  // Fetch authenticated image for current photo
+  React.useEffect(() => {
+    if (!open) return;
+
+    const photo = photos[currentIndex];
+    if (!photo) return;
+
+    // Determine which URL to use
+    const resolvedUrl = resolvedUrls[photo.id];
+    const hasFailed = failedUrls.has(photo.id);
+    const urlToUse = (resolvedUrl && !hasFailed) ? resolvedUrl : photo.url;
+
+    // Skip if we already have a blob URL for this photo
+    if (blobUrls[photo.id]) return;
+
+    // Skip if URL doesn't need auth
+    if (!needsAuthenticatedFetch(urlToUse)) return;
+
+    // Skip if already fetching
+    if (fetchingRef.current.has(photo.id)) return;
+
+    // Mark as fetching
+    fetchingRef.current.add(photo.id);
+    setLoading(true);
+
+    const fetchImage = async () => {
+      try {
+        const endpoint = getEndpointFromUrl(urlToUse);
+        const blob = await api.getBlob(endpoint, { skipAuthRedirect: true });
+        const objectUrl = URL.createObjectURL(blob);
+        setBlobUrls((prev) => ({ ...prev, [photo.id]: objectUrl }));
+        setLoading(false);
+      } catch (err) {
+        console.error("[ImageLightbox] Failed to fetch authenticated image:", err);
+        setLoading(false);
+        setError(true);
+      } finally {
+        fetchingRef.current.delete(photo.id);
+      }
+    };
+
+    fetchImage();
+  }, [open, currentIndex, photos, resolvedUrls, failedUrls, blobUrls]);
+
+  // Cleanup blob URLs when component unmounts
+  React.useEffect(() => {
+    return () => {
+      Object.values(blobUrls).forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
+
   // Keyboard navigation
   React.useEffect(() => {
     if (!open) return;
@@ -165,13 +242,24 @@ export function ImageLightbox({
 
   const currentPhoto = photos[currentIndex];
 
-  // Use resolved URL if available and not failed, otherwise fall back to photo.url
-  // SharePoint download URLs don't work in <img> tags due to CORS, so we fall back to proxy
-  const currentImageUrl = currentPhoto
-    ? (resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id)
-        ? resolvedUrls[currentPhoto.id]
-        : currentPhoto.url)
-    : "";
+  // Determine the URL to display
+  // Priority: 1) blob URL (authenticated), 2) resolved URL (SharePoint direct), 3) photo.url (fallback)
+  const currentImageUrl = React.useMemo(() => {
+    if (!currentPhoto) return "";
+
+    // If we have a blob URL (authenticated fetch completed), use it
+    if (blobUrls[currentPhoto.id]) {
+      return blobUrls[currentPhoto.id];
+    }
+
+    // If we have a resolved URL that hasn't failed, use it (but it may fail due to CORS)
+    if (resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id)) {
+      return resolvedUrls[currentPhoto.id];
+    }
+
+    // Fall back to photo.url (may be a proxy URL that needs auth fetch)
+    return currentPhoto.url;
+  }, [currentPhoto, blobUrls, resolvedUrls, failedUrls]);
 
   const goToPrev = () => {
     setLoading(true);
@@ -219,8 +307,17 @@ export function ImageLightbox({
     if (!currentPhoto) return;
 
     try {
-      const response = await fetch(currentPhoto.url);
-      const blob = await response.blob();
+      let blob: Blob;
+
+      // Use authenticated fetch for backend proxy URLs
+      if (needsAuthenticatedFetch(currentPhoto.url)) {
+        const endpoint = getEndpointFromUrl(currentPhoto.url);
+        blob = await api.getBlob(endpoint, { skipAuthRedirect: true });
+      } else {
+        const response = await fetch(currentPhoto.url);
+        blob = await response.blob();
+      }
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -347,19 +444,32 @@ export function ImageLightbox({
           {/* Image */}
           {!error && (
             <img
-              key={currentPhoto.id + (resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id) ? "-resolved" : "")}
+              key={currentPhoto.id + (blobUrls[currentPhoto.id] ? "-blob" : resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id) ? "-resolved" : "")}
               src={currentImageUrl}
               alt={currentPhoto.name}
               onLoad={() => setLoading(false)}
               onError={() => {
-                // If we tried the resolved URL (SharePoint direct) and it failed,
-                // mark it as failed so we fall back to the proxy URL
+                // If using a blob URL, it shouldn't fail (local object URL)
+                if (blobUrls[currentPhoto.id]) {
+                  console.error("[ImageLightbox] Blob URL failed unexpectedly");
+                  setLoading(false);
+                  setError(true);
+                  return;
+                }
+
+                // If we tried the resolved URL (SharePoint direct) and it failed (CORS),
+                // mark it as failed so we trigger the authenticated fetch
                 if (currentPhoto && resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id)) {
-                  console.log("[ImageLightbox] SharePoint URL failed (CORS), falling back to proxy");
+                  console.log("[ImageLightbox] SharePoint URL failed (CORS), triggering auth fetch");
                   setFailedUrls((prev) => new Set(prev).add(currentPhoto.id));
-                  setLoading(true); // Retry with fallback
+                  setLoading(true); // Will trigger authenticated fetch via useEffect
+                } else if (needsAuthenticatedFetch(currentPhoto.url)) {
+                  // URL needs auth but we're here from img tag - wait for blob fetch
+                  // This shouldn't happen if the useEffect is working correctly
+                  console.log("[ImageLightbox] Waiting for authenticated fetch...");
+                  setLoading(true);
                 } else {
-                  // Both URLs failed
+                  // External URL failed and doesn't need our auth
                   setLoading(false);
                   setError(true);
                 }
