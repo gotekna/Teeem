@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_072507) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1486,6 +1486,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.string "tpar_industry_code", limit: 10
     t.integer "team_size"
     t.decimal "daily_rate_per_person", precision: 10, scale: 2, default: "800.0"
+    t.tsvector "searchable"
     t.index "lower((email)::text)", name: "idx_contacts_lower_email"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1497,6 +1498,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
+    t.index ["searchable"], name: "idx_contacts_searchable_gin", using: :gin
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
   end
@@ -1693,6 +1695,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.decimal "ocr_confidence", precision: 5, scale: 2
     t.string "ocr_method"
     t.decimal "human_confidence", precision: 5, scale: 2
+    t.tsvector "searchable"
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -1712,6 +1715,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.index ["job_id"], name: "index_corporate_company_documents_on_job_id"
     t.index ["loan_id"], name: "index_corporate_company_documents_on_loan_id"
     t.index ["orphaned_at"], name: "index_corporate_company_documents_on_orphaned_at", where: "(orphaned_at IS NOT NULL)"
+    t.index ["searchable"], name: "idx_documents_searchable_gin", using: :gin
     t.index ["sharepoint_file_id"], name: "index_corporate_company_documents_on_sharepoint_file_id", unique: true, where: "(sharepoint_file_id IS NOT NULL)"
     t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"
@@ -2626,6 +2630,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
     t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
     t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
+    t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
     t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
     t.index ["to_emails"], name: "idx_email_warehouse_to_emails_gin", using: :gin
   end
@@ -5911,6 +5916,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.date "finance_approval_date"
     t.decimal "external_sales_fee", precision: 15, scale: 2
     t.decimal "default_retainage_percentage", precision: 5, scale: 2, default: "0.0"
+    t.tsvector "searchable"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -5920,6 +5926,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["postcode"], name: "index_jobs_on_postcode"
+    t.index ["searchable"], name: "idx_jobs_searchable_gin", using: :gin
     t.index ["sharepoint_folder_status"], name: "index_jobs_on_sharepoint_folder_status"
     t.index ["suburb"], name: "index_jobs_on_suburb"
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
@@ -7070,6 +7077,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.string "source"
     t.date "due_date"
     t.bigint "sm_task_id"
+    t.tsvector "searchable"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
@@ -7084,6 +7092,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.index ["quote_response_id"], name: "index_purchase_orders_on_quote_response_id"
     t.index ["required_date"], name: "index_purchase_orders_on_required_date"
     t.index ["required_on_site_date"], name: "index_purchase_orders_on_required_on_site_date"
+    t.index ["searchable"], name: "idx_purchase_orders_searchable_gin", using: :gin
     t.index ["sm_task_id"], name: "index_purchase_orders_on_sm_task_id"
     t.index ["status"], name: "index_purchase_orders_on_status"
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
@@ -7620,6 +7629,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
     t.date "required_by"
+    t.tsvector "searchable"
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
@@ -7637,6 +7647,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
     t.index ["recurring_task_definition_id"], name: "index_sm_tasks_on_recurring_task_definition_id"
     t.index ["required_by"], name: "index_sm_tasks_on_required_by"
+    t.index ["searchable"], name: "idx_sm_tasks_searchable_gin", using: :gin
     t.index ["sequence_order"], name: "index_sm_tasks_on_sequence_order"
     t.index ["sm_schedule_master_id"], name: "index_sm_tasks_on_sm_schedule_master_id"
     t.index ["source_type"], name: "index_sm_tasks_on_source_type"
@@ -8032,6 +8043,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
+  end
+
+  create_table "task_followers", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "sm_task_id", null: false
+    t.datetime "followed_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sm_task_id"], name: "index_task_followers_on_sm_task_id"
+    t.index ["user_id", "sm_task_id"], name: "index_task_followers_on_user_id_and_sm_task_id", unique: true
   end
 
   create_table "trinity", force: :cascade do |t|
@@ -9545,6 +9566,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
   add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "task_followers", "sm_tasks", on_delete: :cascade
+  add_foreign_key "task_followers", "users", on_delete: :cascade
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"

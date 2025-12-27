@@ -3,7 +3,7 @@ class Contact < ApplicationRecord
   include Searchable
 
   # Searchable columns for full-text search (GIN index)
-  searchable_columns :first_name, :last_name, :email, :company_name, :display_name, :phone
+  searchable_columns :first_name, :last_name, :email, :company_name_or_trust, :display_name, :mobile_phone
 
   # Exclude soft-deleted contacts by default
   # Note: deleted column was removed in migration 20251210093313

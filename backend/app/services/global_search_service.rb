@@ -212,8 +212,8 @@ class GlobalSearchService
         type: "contact",
         title: record.display_name,
         subtitle: record.email,
-        company: record.company_name,
-        is_supplier: record.is_supplier?
+        company: record.company_name_or_trust,
+        is_supplier: record.respond_to?(:is_supplier?) ? record.is_supplier? : false
       }
     when "SmTask"
       {

@@ -64,7 +64,7 @@ class AddSearchTriggers < ActiveRecord::Migration[7.1]
     SQL
 
     # 3. contacts (includes suppliers)
-    # Columns: first_name, last_name, email, company_name, display_name, phone
+    # Columns: first_name, last_name, email, company_name_or_trust, display_name, mobile_phone
     execute <<-SQL
       CREATE OR REPLACE FUNCTION contacts_searchable_trigger() RETURNS trigger AS $$
       BEGIN
@@ -73,9 +73,9 @@ class AddSearchTriggers < ActiveRecord::Migration[7.1]
             coalesce(NEW.first_name, '') || ' ' ||
             coalesce(NEW.last_name, '') || ' ' ||
             coalesce(NEW.email, '') || ' ' ||
-            coalesce(NEW.company_name, '') || ' ' ||
+            coalesce(NEW.company_name_or_trust, '') || ' ' ||
             coalesce(NEW.display_name, '') || ' ' ||
-            coalesce(NEW.phone, ''),
+            coalesce(NEW.mobile_phone, ''),
             '[^a-zA-Z0-9\\s@.]', ' ', 'g'
           )
         );
@@ -112,15 +112,15 @@ class AddSearchTriggers < ActiveRecord::Migration[7.1]
     SQL
 
     # 5. purchase_orders
-    # Columns: po_number, description, notes
+    # Columns: purchase_order_number, description, special_instructions
     execute <<-SQL
       CREATE OR REPLACE FUNCTION purchase_orders_searchable_trigger() RETURNS trigger AS $$
       BEGIN
         NEW.searchable := to_tsvector('english',
           regexp_replace(
-            coalesce(NEW.po_number, '') || ' ' ||
+            coalesce(NEW.purchase_order_number, '') || ' ' ||
             coalesce(NEW.description, '') || ' ' ||
-            coalesce(NEW.notes, ''),
+            coalesce(NEW.special_instructions, ''),
             '[^a-zA-Z0-9\\s]', ' ', 'g'
           )
         );
