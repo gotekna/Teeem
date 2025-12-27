@@ -1141,6 +1141,7 @@ Rails.application.routes.draw do
       # Permissions management
       get "permissions", to: "permissions#index"
       get "permissions/roles", to: "permissions#roles"
+      post "permissions/roles", to: "permissions#create_role"
       get "permissions/user/:id", to: "permissions#user_permissions"
       post "permissions/grant", to: "permissions#grant"
 

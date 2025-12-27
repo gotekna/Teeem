@@ -65,6 +65,49 @@ module Api
         }
       end
 
+      # POST /api/v1/permissions/roles
+      def create_role
+        name = params[:name]&.strip&.downcase&.gsub(/\s+/, '_')
+        display_name = params[:display_name]&.strip || params[:name]&.strip&.titleize
+
+        if name.blank?
+          return render json: { success: false, error: "Role name is required" }, status: :unprocessable_entity
+        end
+
+        # Check if role already exists
+        if Role.exists?(name: name)
+          return render json: { success: false, error: "Role '#{name}' already exists" }, status: :unprocessable_entity
+        end
+
+        # Get next position
+        max_position = Role.maximum(:position) || 0
+
+        role = Role.new(
+          name: name,
+          display_name: display_name,
+          position: max_position + 1,
+          active: true
+        )
+
+        if role.save
+          render json: {
+            success: true,
+            role: {
+              id: role.id,
+              name: role.name,
+              display_name: role.display_name,
+              value: role.name,
+              label: role.display_name
+            }
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: role.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
       # GET /api/v1/permissions/user/:id
       def user_permissions
         user = User.find(params[:id])
