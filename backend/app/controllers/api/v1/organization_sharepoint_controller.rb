@@ -2061,7 +2061,8 @@ module Api
           current_id, depth, current_path = folders_to_process.shift
 
           begin
-            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$expand=thumbnails&$top=200"
+            # Include @microsoft.graph.downloadUrl for pre-authenticated direct download
+            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder,@microsoft.graph.downloadUrl&$expand=thumbnails&$top=200"
             result = client.get(url)
 
             result["value"]&.each do |item|
@@ -2072,6 +2073,9 @@ module Api
                                 item.dig("thumbnails", 0, "small", "url") ||
                                 item.dig("thumbnails", 0, "large", "url")
 
+                # Pre-authenticated download URL (valid for short time, no auth needed)
+                download_url = item["@microsoft.graph.downloadUrl"]
+
                 files << {
                   id: item["id"],
                   name: item["name"],
@@ -2081,7 +2085,8 @@ module Api
                   type: "file",
                   folder_path: current_path,
                   mime_type: item.dig("file", "mimeType"),
-                  thumbnail_url: thumbnail_url
+                  thumbnail_url: thumbnail_url,
+                  download_url: download_url
                 }
               elsif item["folder"] && depth < max_depth
                 folder_name = item["name"]

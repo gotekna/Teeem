@@ -147,6 +147,7 @@ interface LegacyItem {
   ai_reasoning?: string;
   rename_status?: string;
   thumbnail_url?: string; // Graph API thumbnail URL (publicly accessible)
+  download_url?: string; // Pre-authenticated download URL (publicly accessible, expires ~1hr)
 }
 
 interface AIStats {
@@ -242,12 +243,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
   // Convert LegacyItem to PhotoItem for gallery display
   const convertToPhotoItem = (item: LegacyItem): PhotoItem => {
-    // Build API URL for fetching image through backend proxy
-    // Using existing download endpoint with preview=true for inline display
+    // Build API URL for fetching image through backend proxy (fallback)
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
-    const imageUrl = `${apiBase}/api/v1/organization_onedrive/download?file_id=${item.id}&preview=true`;
-    // Use Graph API thumbnail URL if available (publicly accessible, no auth required)
+    const fallbackUrl = `${apiBase}/api/v1/organization_onedrive/download?file_id=${item.id}&preview=true`;
+    // Use pre-authenticated download URL if available (publicly accessible, expires ~1hr)
     // Falls back to download endpoint if not available
+    const imageUrl = item.download_url || fallbackUrl;
+    // Use Graph API thumbnail URL if available (publicly accessible, no auth required)
     const thumbnailUrl = item.thumbnail_url || imageUrl;
 
     return {
