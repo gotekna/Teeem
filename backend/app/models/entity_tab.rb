@@ -244,6 +244,7 @@ class EntityTab < ApplicationRecord
       id: id,
       scope: scope,
       tab_key: tab_key,
+      name: display_name,  # SSoT: Frontend expects 'name' for category matching
       display_name: display_name,
       display_code: display_code,
       description: description,
