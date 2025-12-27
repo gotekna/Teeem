@@ -1138,6 +1138,9 @@ Rails.application.routes.draw do
       resources :roles, only: [ :index, :create ]
       resources :user_roles, only: [ :index, :create, :destroy ]
 
+      # User groups
+      resources :groups, only: [ :index, :create, :update, :destroy ], controller: 'user_groups'
+
       # Permissions management
       get "permissions", to: "permissions#index"
       get "permissions/roles", to: "permissions#roles"
