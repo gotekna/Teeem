@@ -173,9 +173,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         </Button>
       </div>
 
-      {/* Status checkboxes - Only for PO tasks */}
-      {isPOTask && (
-        <div className="flex flex-wrap items-center gap-4 p-2 bg-background/50 rounded border">
+      {/* Status checkboxes - Always visible */}
+      <div className="flex flex-wrap items-center gap-4 p-2 bg-background/50 rounded border">
           {/* Started */}
           <div className="flex items-center gap-2">
             <Checkbox
@@ -305,7 +304,6 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             {loading === 'completed' && <Loader2 className="h-3 w-3 animate-spin" />}
           </div>
         </div>
-      )}
 
       {/* Duration and Assignment */}
       <div className="flex flex-wrap items-end gap-4">
@@ -369,22 +367,6 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           </Button>
         )}
 
-        {/* Complete button for non-PO tasks */}
-        {!isPOTask && task.status !== 'completed' && (
-          <Button
-            variant="default"
-            size="sm"
-            className="h-7 text-xs gap-1 ml-auto"
-            onClick={() => handleCompletedChange(true)}
-            disabled={!!loading}
-          >
-            {loading === 'completed' ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              'Mark Complete'
-            )}
-          </Button>
-        )}
       </div>
     </div>
   );
