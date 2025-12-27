@@ -232,14 +232,21 @@ class User < ApplicationRecord
   end
 
   def role_ids=(ids)
-    # Handle both array of IDs and array of objects with id property
-    normalized_ids = Array(ids).map do |item|
-      if item.is_a?(Hash)
-        item[:id] || item["id"]
-      else
-        item
-      end
-    end.compact.reject(&:blank?)
+    # Handle multiple formats:
+    # - Comma-separated string: "1,2,3" (from frontend inline editing)
+    # - Array of IDs: [1, 2, 3]
+    # - Array of objects with id property: [{id: 1}, {id: 2}] (from API)
+    normalized_ids = if ids.is_a?(String)
+                       ids.split(",").map(&:strip)
+                     else
+                       Array(ids).map do |item|
+                         if item.is_a?(Hash)
+                           item[:id] || item["id"]
+                         else
+                           item
+                         end
+                       end
+                     end.compact.reject(&:blank?)
 
     self.roles = Role.where(id: normalized_ids)
   end
