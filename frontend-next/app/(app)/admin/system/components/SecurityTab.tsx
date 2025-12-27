@@ -59,14 +59,14 @@ interface User {
   name: string;
   email: string;
   role: string;
-  status: string;
-  last_login_at: string | null;
-  last_seen_at: string | null;
-  last_email_sync_at: string | null;
-  presence_status: 'online' | 'away' | 'offline';
-  integrations: string[];
-  integrations_count: number;
-  created_at: string;
+  status?: string;
+  last_login_at?: string;
+  last_seen_at?: string;
+  last_email_sync_at?: string;
+  presence_status?: 'online' | 'away' | 'offline';
+  integrations?: string[];
+  integrations_count?: number;
+  created_at?: string;
   // For UserDetailSheet
   mobile_phone?: string;
   role_ids?: Array<{ id: number; display_value: string; name: string }>;
@@ -250,7 +250,7 @@ function UsersManagementTab() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {user.integrations_count > 0 ? (
+                  {(user.integrations_count ?? 0) > 0 ? (
                     <div className="flex gap-1">
                       {user.integrations?.includes('microsoft') && (
                         <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">

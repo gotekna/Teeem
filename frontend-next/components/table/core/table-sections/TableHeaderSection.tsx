@@ -409,7 +409,7 @@ export function TableHeaderSection({
                       <SelectContent className="max-h-[300px]">
                         <SelectItem value="all">All</SelectItem>
                         {/* Filter out options with empty/falsy ids - Select.Item cannot have empty string value */}
-                        {options.filter(opt => opt.id !== '' && opt.id != null).map((opt) => (
+                        {options.filter(opt => opt.id != null && String(opt.id) !== '').map((opt) => (
                           <SelectItem key={opt.id} value={String(opt.id)}>
                             {opt.display}
                           </SelectItem>

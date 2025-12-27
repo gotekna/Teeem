@@ -572,11 +572,14 @@ class MicrosoftGraphClient
   # File Operations
 
   # Upload small file (< 4MB)
+  # SSoT: Microsoft Graph API requires PUT for file uploads to path
   def upload_file(file, parent_folder_id, filename = nil)
     filename ||= File.basename(file.path)
+    # Sanitize filename for SharePoint
+    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
 
-    post(
-      "#{drive_path}/items/#{parent_folder_id}:/#{filename}:/content",
+    put(
+      "#{drive_path}/items/#{parent_folder_id}:/#{safe_filename}:/content",
       File.read(file),
       { "Content-Type" => "application/octet-stream" }
     )
