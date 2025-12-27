@@ -41,6 +41,9 @@ class EntityTab < ApplicationRecord
   # SSoT: Auto-inherit SharePoint folder flag from parent when document types assigned
   before_save :inherit_sharepoint_from_parent
 
+  # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
+  before_validation :sync_tab_key_from_display_name
+
   # Set document types by IDs (SSoT: replaces existing assignments)
   def document_type_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
@@ -468,6 +471,20 @@ class EntityTab < ApplicationRecord
       self.has_sharepoint_folder = true
       Rails.logger.info "[EntityTab] Auto-inherited has_sharepoint_folder from parent '#{parent.display_name}' for tab '#{display_name}'"
     end
+  end
+
+  # SSoT: display_name is the source of truth, tab_key is derived from it
+  # When display_name changes, auto-update tab_key to match
+  def sync_tab_key_from_display_name
+    return if display_name.blank?
+    return unless display_name_changed? || tab_key.blank?
+
+    self.tab_key = display_name
+      .downcase
+      .gsub(/[^a-z0-9\s-]/, '')  # Remove special chars
+      .gsub(/\s+/, '-')          # Spaces to hyphens
+      .gsub(/-+/, '-')           # Collapse multiple hyphens
+      .gsub(/^-|-$/, '')         # Remove leading/trailing hyphens
   end
 
   # SSoT: Root tabs must have unique icons within the same scope
