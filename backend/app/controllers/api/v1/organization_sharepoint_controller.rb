@@ -2060,11 +2060,17 @@ module Api
           current_id, depth, current_path = folders_to_process.shift
 
           begin
-            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$expand=thumbnails&$top=200"
             result = client.get(url)
 
             result["value"]&.each do |item|
               if item["file"]
+                # Extract thumbnail URL from Microsoft Graph response
+                # These URLs are publicly accessible (no auth required)
+                thumbnail_url = item.dig("thumbnails", 0, "medium", "url") ||
+                                item.dig("thumbnails", 0, "small", "url") ||
+                                item.dig("thumbnails", 0, "large", "url")
+
                 files << {
                   id: item["id"],
                   name: item["name"],
@@ -2073,7 +2079,8 @@ module Api
                   modified: item["lastModifiedDateTime"],
                   type: "file",
                   folder_path: current_path,
-                  mime_type: item.dig("file", "mimeType")
+                  mime_type: item.dig("file", "mimeType"),
+                  thumbnail_url: thumbnail_url
                 }
               elsif item["folder"] && depth < max_depth
                 folder_name = item["name"]

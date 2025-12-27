@@ -248,7 +248,12 @@ class User < ApplicationRecord
                        end
                      end.compact.reject(&:blank?)
 
-    self.roles = Role.where(id: normalized_ids)
+    assigned_roles = Role.where(id: normalized_ids)
+    self.roles = assigned_roles
+
+    # Sync legacy 'role' column with primary role for backwards compatibility
+    # This ensures the old single-role column stays in sync with the new multi-role system
+    self.role = assigned_roles.first&.name
   end
 
   def role_names

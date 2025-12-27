@@ -236,7 +236,15 @@ function UsersManagementTab() {
                 </TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{user.role || "user"}</Badge>
+                  <div className="flex flex-wrap gap-1">
+                    {user.role_ids && user.role_ids.length > 0 ? (
+                      user.role_ids.map((r) => (
+                        <Badge key={r.id} variant="outline">{r.display_value || r.name}</Badge>
+                      ))
+                    ) : (
+                      <Badge variant="outline">{user.role || "user"}</Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge

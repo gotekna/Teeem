@@ -146,6 +146,7 @@ interface LegacyItem {
   ai_confidence?: number;
   ai_reasoning?: string;
   rename_status?: string;
+  thumbnail_url?: string; // Graph API thumbnail URL (publicly accessible)
 }
 
 interface AIStats {
@@ -245,8 +246,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     // Using existing download endpoint with preview=true for inline display
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
     const imageUrl = `${apiBase}/api/v1/organization_onedrive/download?file_id=${item.id}&preview=true`;
-    // For thumbnails, we use the same endpoint - could be optimized with Graph API thumbnails later
-    const thumbnailUrl = imageUrl;
+    // Use Graph API thumbnail URL if available (publicly accessible, no auth required)
+    // Falls back to download endpoint if not available
+    const thumbnailUrl = item.thumbnail_url || imageUrl;
 
     return {
       id: item.id,
