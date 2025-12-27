@@ -22,6 +22,10 @@ class User < ApplicationRecord
   has_many :task_followers, dependent: :destroy
   has_many :followed_tasks, through: :task_followers, source: :sm_task
 
+  # Multi-role support (SSoT: user_roles join table)
+  has_many :user_roles, dependent: :destroy
+  has_many :roles, through: :user_roles
+
   # Placeholder for company association (not yet implemented)
   # Returns nil - callers should handle this gracefully
   def company
@@ -217,9 +221,32 @@ class User < ApplicationRecord
     provider.present? && uid.present?
   end
 
-  # Helper method to check if user has a specific assigned role
+  # Helper method to check if user has a specific assigned role (for Schedule Master)
   def has_assigned_role?(role_name)
     assigned_roles&.include?(role_name.to_s)
+  end
+
+  # Multi-role helpers (SSoT: user_roles join table)
+  def role_ids
+    roles.pluck(:id)
+  end
+
+  def role_ids=(ids)
+    self.roles = Role.where(id: ids.compact.reject(&:blank?))
+  end
+
+  def role_names
+    roles.pluck(:name)
+  end
+
+  # Check if user has a specific role (from user_roles table)
+  def has_role?(role_name)
+    roles.exists?(name: role_name.to_s)
+  end
+
+  # Primary role for backward compatibility (returns first role or legacy role column)
+  def primary_role
+    roles.first&.name || role
   end
 
   private

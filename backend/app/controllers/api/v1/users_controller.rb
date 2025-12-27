@@ -2,7 +2,7 @@ class Api::V1::UsersController < ApplicationController
   # GET /api/v1/users
   # Returns list of all users for chat/contact purposes
   def index
-    @users = User.includes(:email_sync_status)
+    @users = User.includes(:email_sync_status, :roles)
     .order("users.name")
 
     render json: { users: @users.map { |user| user_with_presence(user) } }
@@ -29,9 +29,9 @@ class Api::V1::UsersController < ApplicationController
 
     # Merge regular user params with admin-only params if user is admin
     update_params = user_params
-    if current_user&.admin? && (params[:user][:role] || params[:user][:assigned_roles])
+    if current_user&.admin? && (params[:user][:role] || params[:user][:assigned_roles] || params[:user][:role_ids])
       update_params = update_params.merge(admin_user_params)
-    elsif params[:user][:role] || params[:user][:assigned_roles]
+    elsif params[:user][:role] || params[:user][:assigned_roles] || params[:user][:role_ids]
       # Non-admin trying to change role - reject request
       return render json: {
         success: false,
