@@ -115,6 +115,8 @@ export function ImageLightbox({
   const [blobUrls, setBlobUrls] = React.useState<Record<string, string>>({});
   // Track URLs currently being fetched
   const fetchingRef = React.useRef<Set<string>>(new Set());
+  // Ref for cleanup to avoid stale closure issue
+  const blobUrlsRef = React.useRef<Record<string, string>>({});
 
   // Resolve full URL for current photo
   const resolveCurrentPhotoUrl = React.useCallback(async () => {
@@ -197,10 +199,15 @@ export function ImageLightbox({
     fetchImage();
   }, [open, currentIndex, photos, resolvedUrls, failedUrls, blobUrls]);
 
+  // Keep ref in sync with state for cleanup
+  React.useEffect(() => {
+    blobUrlsRef.current = blobUrls;
+  }, [blobUrls]);
+
   // Cleanup blob URLs when component unmounts
   React.useEffect(() => {
     return () => {
-      Object.values(blobUrls).forEach((url) => {
+      Object.values(blobUrlsRef.current).forEach((url) => {
         URL.revokeObjectURL(url);
       });
     };
