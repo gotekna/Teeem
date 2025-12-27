@@ -1386,6 +1386,84 @@ Rails.application.routes.draw do
       end
 
       # ============================================
+      # Site Presence & Cost Intelligence System
+      # Photo-verified time tracking with simPRO-style costing
+      # ============================================
+
+      resources :site_presence_sessions, only: [ :index, :show ] do
+        collection do
+          post :checkin
+          get :active
+          get :my_sessions
+          get :pending_approval
+          get :worker_profile
+          get "site_status/:job_id", action: :site_status
+          post :bulk_approve
+        end
+        member do
+          post :checkout
+          post :approve
+          post :reject
+          post :add_break
+        end
+      end
+
+      resources :worker_profiles, only: [ :index, :show, :create, :update ] do
+        collection do
+          get :employees
+          get :subcontractors
+        end
+        member do
+          post :upload_face_photo
+          post :verify_face
+        end
+      end
+
+      resources :cost_centres, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get :tree
+        end
+        member do
+          get :report
+          get :pnl
+        end
+      end
+
+      resources :labour_cost_entries, only: [ :index, :show, :create, :update ] do
+        collection do
+          get :for_job
+          get :for_worker
+          get :unbilled
+          post :bulk_mark_billed
+        end
+        member do
+          post :mark_billed
+          post :write_off
+        end
+      end
+
+      resources :job_cost_budgets, only: [ :index, :show, :create, :update ] do
+        collection do
+          get :alerts
+          get :over_budget
+        end
+        member do
+          post :recalculate
+        end
+      end
+
+      resources :ai_timesheet_suggestions, only: [ :index, :show ] do
+        collection do
+          post :generate
+          get :pending
+        end
+        member do
+          post :accept
+          post :reject
+        end
+      end
+
+      # ============================================
       # SM Gantt Phase 3 - Collaboration
       # ============================================
 

@@ -706,7 +706,8 @@ export function EntityTabsConfig({
 
   // Render a single tab item
   const renderTabItem = (tab: EntityTab, index: number, isChild = false, depth = 0) => {
-    const IconComponent = getIcon(tab.icon_name || "file");
+    // SSoT: Use effective_icon_name for inherited icons from parent
+    const IconComponent = getIcon(tab.effective_icon_name || tab.icon_name || "file");
     const hasChildren = tab.children && tab.children.length > 0;
     const isExpanded = expandedItems.has(tab.id);
 
