@@ -89,6 +89,8 @@ export function ImageLightbox({
   // Cache for resolved full URLs (photoId -> url)
   const [resolvedUrls, setResolvedUrls] = React.useState<Record<string, string>>({});
   const [resolving, setResolving] = React.useState(false);
+  // Track which resolved URLs have failed (to fall back to proxy)
+  const [failedUrls, setFailedUrls] = React.useState<Set<string>>(new Set());
 
   // Resolve full URL for current photo
   const resolveCurrentPhotoUrl = React.useCallback(async () => {
@@ -163,9 +165,12 @@ export function ImageLightbox({
 
   const currentPhoto = photos[currentIndex];
 
-  // Use resolved URL if available, otherwise fall back to photo.url
+  // Use resolved URL if available and not failed, otherwise fall back to photo.url
+  // SharePoint download URLs don't work in <img> tags due to CORS, so we fall back to proxy
   const currentImageUrl = currentPhoto
-    ? resolvedUrls[currentPhoto.id] || currentPhoto.url
+    ? (resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id)
+        ? resolvedUrls[currentPhoto.id]
+        : currentPhoto.url)
     : "";
 
   const goToPrev = () => {
@@ -342,13 +347,22 @@ export function ImageLightbox({
           {/* Image */}
           {!error && (
             <img
-              key={currentPhoto.id + (resolvedUrls[currentPhoto.id] ? "-resolved" : "")}
+              key={currentPhoto.id + (resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id) ? "-resolved" : "")}
               src={currentImageUrl}
               alt={currentPhoto.name}
               onLoad={() => setLoading(false)}
               onError={() => {
-                setLoading(false);
-                setError(true);
+                // If we tried the resolved URL (SharePoint direct) and it failed,
+                // mark it as failed so we fall back to the proxy URL
+                if (currentPhoto && resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id)) {
+                  console.log("[ImageLightbox] SharePoint URL failed (CORS), falling back to proxy");
+                  setFailedUrls((prev) => new Set(prev).add(currentPhoto.id));
+                  setLoading(true); // Retry with fallback
+                } else {
+                  // Both URLs failed
+                  setLoading(false);
+                  setError(true);
+                }
               }}
               className={cn(
                 "max-h-[calc(100vh-180px)] max-w-full object-contain",
