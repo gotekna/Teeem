@@ -167,16 +167,15 @@ class EntityTab < ApplicationRecord
     nil
   end
 
-  # Get the EFFECTIVE SharePoint path for this tab
+  # Get the EFFECTIVE SharePoint path for this tab (for UI display)
   # - If uses_custom_path: return the custom sharepoint_folder_path
   # - If NOT uses_custom_path: replace {{Category}}/{{TabName}} in template with display_name
   #
-  # NOTE: For job-scope tabs, returns path RELATIVE to job folder (strips {{JobCode}})
-  # because job folder navigation is handled separately by the upload logic
+  # NOTE: This keeps {{JobCode}} for UI display consistency. Use upload_folder_path for uploads.
   def effective_sharepoint_path
     return nil unless has_sharepoint_folder
 
-    result = if uses_custom_path && sharepoint_folder_path.present?
+    if uses_custom_path && sharepoint_folder_path.present?
       # Custom path - use exactly what's set
       sharepoint_folder_path
     else
@@ -191,14 +190,20 @@ class EntityTab < ApplicationRecord
         "TabName" => display_name
       })
     end
+  end
+
+  # Get the folder path for actual uploads (strips {{JobCode}} for job-scope tabs)
+  # Use this when uploading files - the upload logic navigates to job folder separately
+  def upload_folder_path
+    path = effective_sharepoint_path
+    return nil unless path.present?
 
     # SSoT: For job-scope tabs, strip {{JobCode}} prefix since job folder is handled separately
-    # The upload logic already navigates to the job folder, so path should be relative
-    if scope == 'job' && result.present?
-      result = result.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
+    if scope == 'job'
+      path = path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
     end
 
-    result.presence
+    path.presence
   end
 
   # Build hierarchy path - SSoT: Use sharepoint_folder_path when set
@@ -252,8 +257,8 @@ class EntityTab < ApplicationRecord
       uses_custom_path: uses_custom_path,
       sharepoint_path_type: sharepoint_path_type || 'corporate',
       sharepoint_base_path: sharepoint_base_path,
-      effective_sharepoint_path: effective_sharepoint_path,
-      folder_path: effective_sharepoint_path,  # Alias for frontend compatibility (JobDocumentsTab uses folder_path)
+      effective_sharepoint_path: effective_sharepoint_path,  # For UI display (keeps {{JobCode}})
+      folder_path: upload_folder_path,  # For uploads (strips {{JobCode}} for job-scope tabs)
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
       document_count: document_count,
