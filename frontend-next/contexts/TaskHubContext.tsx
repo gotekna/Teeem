@@ -37,12 +37,12 @@ export interface SmTask {
   // Hold status
   is_hold_task: boolean;
   hold_reason?: string;
-  hold: boolean;
+  hold?: boolean;
   hold_date?: string;
 
   // Confirmation status (for PO tasks)
-  confirm: boolean;
-  supplier_confirm: boolean;
+  confirm?: boolean;
+  supplier_confirm?: boolean;
   confirm_date?: string;
   supplier_confirm_date?: string;
   started_at?: string;
@@ -51,7 +51,7 @@ export interface SmTask {
   // PO relationship
   purchase_order_id?: number;
   purchase_order_number?: string;
-  po_required: boolean;
+  po_required?: boolean;
 
   // Computed fields
   is_overdue: boolean;

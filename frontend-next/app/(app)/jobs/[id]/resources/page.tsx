@@ -520,12 +520,12 @@ export default function SmResourcesPage() {
 
           <div className="flex items-center gap-3">
             {/* Type filter */}
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <Select value={typeFilter || "__all__"} onValueChange={(v) => setTypeFilter(v === "__all__" ? "" : v)}>
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="__all__">All Types</SelectItem>
                 <SelectItem value="person">People</SelectItem>
                 <SelectItem value="equipment">Equipment</SelectItem>
                 <SelectItem value="material">Materials</SelectItem>
@@ -534,12 +534,12 @@ export default function SmResourcesPage() {
 
             {/* Trade filter */}
             {trades.length > 0 && (
-              <Select value={tradeFilter} onValueChange={setTradeFilter}>
+              <Select value={tradeFilter || "__all__"} onValueChange={(v) => setTradeFilter(v === "__all__" ? "" : v)}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="All Trades" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Trades</SelectItem>
+                  <SelectItem value="__all__">All Trades</SelectItem>
                   {trades.map((trade) => (
                     <SelectItem key={trade} value={trade!}>
                       {trade}

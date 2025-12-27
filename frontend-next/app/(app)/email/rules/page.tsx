@@ -515,12 +515,12 @@ export default function EmailRulesPage() {
             {/* Account Selection */}
             <div className="space-y-2">
               <Label>Apply to Account</Label>
-              <Select value={formAccountId} onValueChange={setFormAccountId}>
+              <Select value={formAccountId || "__all__"} onValueChange={(v) => setFormAccountId(v === "__all__" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All IMAP accounts" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All IMAP accounts</SelectItem>
+                  <SelectItem value="__all__">All IMAP accounts</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={String(account.id)} value={String(account.id)}>
                       {account.name} ({account.email_address})

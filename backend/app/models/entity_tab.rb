@@ -180,15 +180,16 @@ class EntityTab < ApplicationRecord
       # Custom path - use exactly what's set
       sharepoint_folder_path
     else
-      # Inherit from global template, replacing {{Category}} or {{TabName}} with display_name
+      # Inherit from global template, replacing placeholders with display_name
       template = inherited_template
       return nil unless template.present?
 
-      # SSoT: Replace the folder placeholder with this tab's display_name
-      # - Job/People/Contact templates use {{Category}}
-      # - Company templates use {{TabName}}
-      placeholder = scope_for_template == :company ? "TabName" : "Category"
-      CorporateCompanySetting.resolve_template(template, { placeholder => display_name })
+      # SSoT: Replace ALL folder placeholders with this tab's display_name
+      # Templates may use {{Category}}, {{TabName}}, or both - replace all with display_name
+      CorporateCompanySetting.resolve_template(template, {
+        "Category" => display_name,
+        "TabName" => display_name
+      })
     end
 
     # SSoT: For job-scope tabs, strip {{JobCode}} prefix since job folder is handled separately

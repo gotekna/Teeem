@@ -920,6 +920,8 @@ module Api
           hold_started_at: task.hold_started_at,
           # Relations
           purchase_order_id: task.purchase_order_id,
+          purchase_order_number: task.purchase_order&.po_number,
+          po_required: task.po_required,
           assigned_user_id: task.assigned_user_id,
           supplier_id: task.supplier_id,
           parent_task_id: task.parent_task_id,

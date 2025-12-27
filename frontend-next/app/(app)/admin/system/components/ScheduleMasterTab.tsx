@@ -1095,15 +1095,15 @@ export function ScheduleMasterTab() {
 
                   {/* Tag filter dropdown */}
                   <Select
-                    value={selectedTagFilter}
-                    onValueChange={setSelectedTagFilter}
+                    value={selectedTagFilter || "__all__"}
+                    onValueChange={(v) => setSelectedTagFilter(v === "__all__" ? "" : v)}
                   >
                     <SelectTrigger className="w-[160px]">
                       <Tag className="h-4 w-4 mr-2 text-muted-foreground" />
                       <SelectValue placeholder="All Tags" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Tags</SelectItem>
+                      <SelectItem value="__all__">All Tags</SelectItem>
                       {availableTags.map((tag) => (
                         <SelectItem key={tag} value={tag}>
                           {tag}

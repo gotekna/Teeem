@@ -144,6 +144,16 @@ interface ColumnConfig {
   align?: 'left' | 'center' | 'right';
 }
 
+// SSoT: Must match backend User::ASSIGNABLE_ROLES
+const ASSIGNABLE_ROLES = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'sales', label: 'Sales' },
+  { value: 'site', label: 'Site' },
+  { value: 'supervisor', label: 'Supervisor' },
+  { value: 'builder', label: 'Builder' },
+  { value: 'estimator', label: 'Estimator' },
+];
+
 /** Default column configuration - matches preferred layout */
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'name', label: 'Name', width: 242, visible: true, align: 'left' },
@@ -154,6 +164,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
   { id: 'duration', label: 'Duration', shortLabel: 'Days', width: 50, visible: true, align: 'center' },
   { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
+  { id: 'role', label: 'Role', width: 90, visible: true, align: 'left' },
   { id: 'startDate', label: 'Start Date', shortLabel: 'Start', width: 80, visible: false, align: 'left' },
   { id: 'endDate', label: 'End Date', shortLabel: 'End', width: 80, visible: false, align: 'left' },
   { id: 'progress', label: 'Progress', shortLabel: '%', width: 50, visible: false, align: 'center' },
@@ -2512,6 +2523,27 @@ export function GanttCanvasView({
                           <div className="truncate px-1 text-muted-foreground" title={task.supplierName || ''}>
                             {task.supplierName || '-'}
                           </div>
+                        );
+                      case 'role':
+                        const currentRole = row?.assigned_role || '';
+                        return (
+                          <select
+                            value={currentRole}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const newRole = e.target.value || null;
+                              handleRowUpdate(task.id, { assigned_role: newRole });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full h-5 text-[10px] bg-transparent border-0 cursor-pointer hover:bg-muted/50 rounded px-0.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary capitalize"
+                          >
+                            <option value="">-</option>
+                            {ASSIGNABLE_ROLES.map((role) => (
+                              <option key={role.value} value={role.value}>
+                                {role.label}
+                              </option>
+                            ))}
+                          </select>
                         );
                       case 'dependencies':
                         // SSoT FIX: Use STABLE row numbers from full task list (rows)
