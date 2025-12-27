@@ -52,6 +52,51 @@ import {
   Activity,
   Cloud,
   MessageSquare,
+  // Photo icons
+  Camera,
+  Image,
+  Images,
+  ImagePlus,
+  // Certificate/Document icons
+  Award,
+  BadgeCheck,
+  FileCheck,
+  FileBadge,
+  ScrollText,
+  Medal,
+  Trophy,
+  // Plan/Blueprint icons
+  FileStack,
+  Files,
+  Ruler,
+  PenTool,
+  Compass,
+  LayoutDashboard,
+  // Construction/Site icons
+  HardHat,
+  Hammer,
+  Construction,
+  Truck,
+  // Finance icons
+  Receipt,
+  Wallet,
+  CreditCard,
+  PiggyBank,
+  Calculator,
+  // Communication icons
+  Phone,
+  Video,
+  Send,
+  Inbox,
+  // Misc useful
+  Eye,
+  EyeOff,
+  MoreHorizontal,
+  MoreVertical,
+  Info,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -110,6 +155,51 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Activity,
   Cloud,
   MessageSquare,
+  // Photo icons
+  Camera,
+  Image,
+  Images,
+  ImagePlus,
+  // Certificate/Document icons
+  Award,
+  BadgeCheck,
+  FileCheck,
+  FileBadge,
+  ScrollText,
+  Medal,
+  Trophy,
+  // Plan/Blueprint icons
+  FileStack,
+  Files,
+  Ruler,
+  PenTool,
+  Compass,
+  LayoutDashboard,
+  // Construction/Site icons
+  HardHat,
+  Hammer,
+  Construction,
+  Truck,
+  // Finance icons
+  Receipt,
+  Wallet,
+  CreditCard,
+  PiggyBank,
+  Calculator,
+  // Communication icons
+  Phone,
+  Video,
+  Send,
+  Inbox,
+  // Misc useful
+  Eye,
+  EyeOff,
+  MoreHorizontal,
+  MoreVertical,
+  Info,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
 };
 
 // List of available icons for the icon picker

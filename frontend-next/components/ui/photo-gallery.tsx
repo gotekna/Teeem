@@ -29,6 +29,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { ImageIcon, Loader2 } from "lucide-react";
+import { getTodayAsString, getCompanyTimezone } from "@/lib/timezone-utils";
 
 export interface PhotoItem {
   id: string;
@@ -162,33 +163,52 @@ function PhotoThumbnail({
   );
 }
 
-// Format date for group headers
+// Format date for group headers using company timezone (SSoT: Admin Settings)
 function formatGroupDate(dateStr: string): string {
+  const tz = getCompanyTimezone();
   const date = new Date(dateStr);
-  const now = new Date();
+
+  // Get today's date in company timezone (YYYY-MM-DD)
+  const todayStr = getTodayAsString();
+
+  // Get photo date in company timezone (YYYY-MM-DD)
+  const photoDateStr = date.toLocaleDateString("en-CA", { timeZone: tz });
+
+  // Calculate day difference using calendar dates in company timezone
+  const todayDate = new Date(todayStr + "T00:00:00");
+  const photoDate = new Date(photoDateStr + "T00:00:00");
   const diffDays = Math.floor(
-    (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
+    (todayDate.getTime() - photoDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays} days ago`;
 
+  // Get current year in company timezone for year display logic
+  const nowYear = parseInt(todayStr.split("-")[0]);
+  const photoYear = date.getFullYear();
+
   return date.toLocaleDateString("en-AU", {
+    timeZone: tz,
     weekday: "long",
     day: "numeric",
     month: "long",
-    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+    year: photoYear !== nowYear ? "numeric" : undefined,
   });
 }
 
-// Group photos by date
+// Group photos by date using company timezone (SSoT: Admin Settings)
 function groupPhotosByDate(photos: PhotoItem[]): Map<string, PhotoItem[]> {
   const groups = new Map<string, PhotoItem[]>();
+  const tz = getCompanyTimezone();
 
   photos.forEach((photo) => {
     const dateStr = photo.createdAt || photo.modifiedAt;
-    const dateKey = dateStr ? dateStr.split("T")[0] : "unknown";
+    // Convert to company timezone date (YYYY-MM-DD) for consistent grouping
+    const dateKey = dateStr
+      ? new Date(dateStr).toLocaleDateString("en-CA", { timeZone: tz })
+      : "unknown";
 
     if (!groups.has(dateKey)) {
       groups.set(dateKey, []);

@@ -55,6 +55,7 @@ interface SmTask {
   hold_reason?: string;
   purchase_order_id?: number;
   supplier_id?: number;
+  po_required?: boolean;
   sequence_order: number;
   // Frontend-only: Local state for dependency management (backend uses SmDependency model)
   dependencies?: string[];
@@ -218,28 +219,29 @@ export default function ScheduleMasterPage() {
     return deps;
   }, [tasks]);
 
-  // Stats - use meta from API or calculate from tasks
+  // Stats - calculated from tasks array
+  // A task is VISIBLE if: po_required=false OR (po_required=true AND has PO)
+  // "Total Tasks" shows only VISIBLE tasks in this schedule
   const stats = React.useMemo(() => {
-    if (tasksMeta) {
-      return {
-        total: tasksMeta.total_count,
-        completed: tasksMeta.completed_count,
-        inProgress: tasksMeta.active_count - tasksMeta.hold_count,
-        notStarted: tasksMeta.total_count - tasksMeta.active_count - tasksMeta.completed_count,
-        holdCount: tasksMeta.hold_count,
-        poLinked: tasks.filter((t) => t.purchase_order_id).length,
-      };
-    }
-    // Fallback to calculating from tasks array
-    const total = tasks.length;
-    const completed = tasks.filter((t) => t.status === "completed").length;
-    const started = tasks.filter((t) => t.status === "started").length;
-    const notStarted = tasks.filter((t) => t.status === "not_started").length;
-    const holdCount = tasks.filter((t) => t.is_hold_task && t.status === "not_started").length;
-    const poLinked = tasks.filter((t) => t.purchase_order_id).length;
+    // Filter to only visible tasks (po_required logic)
+    const visibleTasks = tasks.filter((t) => !t.po_required || t.purchase_order_id);
 
-    return { total, completed, inProgress: started, notStarted, holdCount, poLinked };
-  }, [tasks, tasksMeta]);
+    const total = visibleTasks.length;
+    const completed = visibleTasks.filter((t) => t.status === "completed").length;
+    const started = visibleTasks.filter((t) => t.status === "started").length;
+    const notStarted = visibleTasks.filter((t) => t.status === "not_started").length;
+    const holdCount = visibleTasks.filter((t) => t.is_hold_task && t.status === "not_started").length;
+    const poLinked = visibleTasks.filter((t) => t.purchase_order_id).length;
+
+    return {
+      total,
+      completed,
+      inProgress: started,
+      notStarted,
+      holdCount,
+      poLinked
+    };
+  }, [tasks]);
 
   // Handle task drag event from Canvas Gantt
   const handleTaskDrag = async (task: GanttTask, newStartDate: Date) => {
