@@ -773,7 +773,7 @@ function SystemAdminPageContent() {
           <TabsContent value="contact-types" className="flex-1 min-h-0 overflow-auto">
             <ContactTypesTab />
           </TabsContent>
-          <TabsContent value="schedule-master" className="flex flex-col min-h-0 flex-1 overflow-hidden mt-0">
+          <TabsContent value="schedule-master" className="flex flex-col min-h-0 flex-1 overflow-hidden mt-0 -mx-4">
             <ScheduleMasterTab />
           </TabsContent>
           <TabsContent value="meeting-types" className="flex-1 min-h-0 overflow-auto">

@@ -78,7 +78,7 @@ import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { Check } from "lucide-react";
+import { Check, AlertCircle } from "lucide-react";
 
 // Copyable code component for column names
 function CopyableCode({ children }: { children: string }) {
@@ -259,6 +259,9 @@ export function ScheduleMasterTab() {
   const [editingRow, setEditingRow] = React.useState<SmScheduleMaster | null>(null);
   const [editRowForm, setEditRowForm] = React.useState<Partial<SmScheduleMaster>>({});
   const [savingRow, setSavingRow] = React.useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const initialFormLoadRef = React.useRef(true);
 
   // Auto-PO Configuration state
   const [showAutoPODialog, setShowAutoPODialog] = React.useState(false);
@@ -614,6 +617,10 @@ export function ScheduleMasterTab() {
   const handleDataViewRowDoubleClick = (row: Record<string, unknown>) => {
     const fullRow = dataViewRows.find(r => r.id === row.id);
     if (fullRow) {
+      // Reset auto-save state for fresh sheet
+      initialFormLoadRef.current = true;
+      setAutoSaveStatus('idle');
+
       setEditingRow(fullRow);
       setEditRowForm({
         name: fullRow.name,
@@ -637,24 +644,78 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Save row from edit sheet
-  const handleSaveRow = async () => {
+  // Save row from edit sheet (supports both manual and auto-save)
+  const handleSaveRow = async (options?: { silent?: boolean }) => {
     if (!editingRow || !dataViewTemplateId) return;
-    setSavingRow(true);
+
+    const silent = options?.silent ?? false;
+
+    if (silent) {
+      setAutoSaveStatus('saving');
+    } else {
+      setSavingRow(true);
+    }
+
     try {
       await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
         row: editRowForm,
       });
-      toast({ title: "Success", description: "Row updated" });
-      setShowEditSheet(false);
-      loadDataViewRows(dataViewTemplateId);
+
+      if (silent) {
+        setAutoSaveStatus('saved');
+        // Reset to idle after 2 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 2000);
+        // Refresh data in background
+        loadDataViewRows(dataViewTemplateId);
+      } else {
+        toast({ title: "Success", description: "Row updated" });
+        setShowEditSheet(false);
+        loadDataViewRows(dataViewTemplateId);
+      }
     } catch (error) {
       console.error("Failed to save row:", error);
-      toast({ title: "Error", description: "Failed to save row", variant: "destructive" });
+      if (silent) {
+        setAutoSaveStatus('error');
+        // Reset to idle after 3 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 3000);
+      } else {
+        toast({ title: "Error", description: "Failed to save row", variant: "destructive" });
+      }
     } finally {
-      setSavingRow(false);
+      if (!silent) {
+        setSavingRow(false);
+      }
     }
   };
+
+  // Auto-save effect - debounced save when form changes
+  React.useEffect(() => {
+    // Skip auto-save on initial form load
+    if (initialFormLoadRef.current) {
+      initialFormLoadRef.current = false;
+      return;
+    }
+
+    // Skip if sheet is not open or no row is being edited
+    if (!showEditSheet || !editingRow) return;
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Set new timer for debounced save (500ms delay)
+    autoSaveTimerRef.current = setTimeout(() => {
+      handleSaveRow({ silent: true });
+    }, 500);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editRowForm]);
 
   // Load suppliers for auto-PO
   const loadSuppliers = async () => {
@@ -2005,19 +2066,33 @@ export function ScheduleMasterTab() {
               </div>
             </div>
           </div>
-          <SheetFooter>
-            <Button variant="outline" onClick={() => setShowEditSheet(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveRow} disabled={savingRow}>
-              {savingRow ? (
-                <>
+          <SheetFooter className="flex items-center justify-between sm:justify-between">
+            {/* Auto-save status indicator */}
+            <div className="flex items-center text-sm">
+              {autoSaveStatus === 'saving' && (
+                <span className="flex items-center text-muted-foreground">
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
-                </>
-              ) : (
-                "Save Changes"
+                </span>
               )}
+              {autoSaveStatus === 'saved' && (
+                <span className="flex items-center text-green-600 dark:text-green-500">
+                  <Check className="h-4 w-4 mr-2" />
+                  Saved
+                </span>
+              )}
+              {autoSaveStatus === 'error' && (
+                <span className="flex items-center text-red-600 dark:text-red-500">
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Save failed
+                </span>
+              )}
+              {autoSaveStatus === 'idle' && (
+                <span className="text-muted-foreground">Auto-save enabled</span>
+              )}
+            </div>
+            <Button variant="outline" onClick={() => setShowEditSheet(false)}>
+              Close
             </Button>
           </SheetFooter>
         </SheetContent>
