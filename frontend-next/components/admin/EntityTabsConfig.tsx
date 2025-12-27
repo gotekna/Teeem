@@ -1383,6 +1383,25 @@ export function EntityTabsConfig({
                   </div>
                 </div>
               )}
+
+              {/* Photo Category checkbox - SSoT: Explicit flag for photo gallery view */}
+              <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
+                <Checkbox
+                  id="is_photo_category_basic"
+                  checked={formData.is_photo_category || false}
+                  onCheckedChange={(checked) =>
+                    setFormData((prev) => ({ ...prev, is_photo_category: checked === true }))
+                  }
+                />
+                <div>
+                  <Label htmlFor="is_photo_category_basic" className="text-sm cursor-pointer font-medium">
+                    Photo Gallery View
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Show photos in grid instead of file table
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Column 2: SharePoint Configuration */}
@@ -1480,23 +1499,6 @@ export function EntityTabsConfig({
                 })()}
               </div>
             )}
-
-            {/* Photo Category checkbox (SSoT: explicit flag, no guessing) */}
-            <div className="flex items-center space-x-2 pt-4 border-t">
-              <Checkbox
-                id="is_photo_category"
-                checked={formData.is_photo_category || false}
-                onCheckedChange={(checked) =>
-                  setFormData((prev) => ({ ...prev, is_photo_category: checked === true }))
-                }
-              />
-              <Label htmlFor="is_photo_category" className="text-sm cursor-pointer">
-                Photo Gallery View
-              </Label>
-              <span className="text-xs text-muted-foreground">
-                (shows photos in grid instead of file table)
-              </span>
-            </div>
 
             </div>
 
