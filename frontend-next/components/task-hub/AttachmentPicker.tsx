@@ -138,10 +138,13 @@ function EmailSearchPanel({
   const loadAccounts = async () => {
     setLoadingAccounts(true);
     try {
-      const response = await api.get<{ accounts?: EmailAccount[] } | EmailAccount[]>(
+      const response = await api.get<{ success?: boolean; data?: EmailAccount[]; accounts?: EmailAccount[] } | EmailAccount[]>(
         '/api/v1/imap_credentials/all_accounts'
       );
-      const accountList = Array.isArray(response) ? response : response?.accounts || [];
+      // Handle multiple response formats: { data: [...] }, { accounts: [...] }, or raw array
+      const accountList = Array.isArray(response)
+        ? response
+        : (response as { data?: EmailAccount[] })?.data || (response as { accounts?: EmailAccount[] })?.accounts || [];
       setAccounts(accountList);
       // Auto-select first account if available
       if (accountList.length > 0) {

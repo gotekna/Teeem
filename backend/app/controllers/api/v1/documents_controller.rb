@@ -193,7 +193,7 @@ module Api
         {
           id: doc.id,
           name: doc.file_name || doc.title,
-          display_title: doc.display_title,
+          display_title: doc.respond_to?(:display_title) ? doc.display_title : (doc.file_name || doc.title),
           type: doc.mime_type || "application/octet-stream",
           size: doc.file_size || 0,
           url: doc.sharepoint_url,
