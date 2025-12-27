@@ -8,6 +8,13 @@ class Api::V1::UsersController < ApplicationController
     render json: { users: @users.map { |user| user_with_presence(user) } }
   end
 
+  # GET /api/v1/users/for_select
+  # Lightweight endpoint for dropdowns - returns only id and name
+  def for_select
+    users = User.order(:name).pluck(:id, :name)
+    render json: { users: users.map { |id, name| { id: id, name: name } } }
+  end
+
   # GET /api/v1/users/:id
   def show
     @user = User.find(params[:id])
