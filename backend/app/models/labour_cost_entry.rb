@@ -28,6 +28,7 @@ class LabourCostEntry < ApplicationRecord
   belongs_to :job
   belongs_to :sm_task, optional: true
   belongs_to :cost_centre, optional: true
+  belongs_to :purchase_order, optional: true
   # Note: invoice_id is a soft reference without FK constraint
   belongs_to :invoice, optional: true, class_name: "Invoice"
 
@@ -56,6 +57,8 @@ class LabourCostEntry < ApplicationRecord
   # Callbacks
   before_validation :calculate_costs, if: :needs_cost_calculation?
   after_save :update_job_cost_cache
+  after_save :update_purchase_order_labour_actual, if: :purchase_order_id_changed_or_total_changed?
+  after_destroy :update_purchase_order_labour_actual_on_destroy
 
   # Create from a completed SitePresenceSession
   def self.create_from_session(session)
@@ -194,5 +197,24 @@ class LabourCostEntry < ApplicationRecord
       variance_percent = (total / job.labour_budget * 100).round(2)
       job.update_column(:labour_variance_percent, variance_percent)
     end
+  end
+
+  def purchase_order_id_changed_or_total_changed?
+    saved_change_to_purchase_order_id? || saved_change_to_total_cost?
+  end
+
+  def update_purchase_order_labour_actual
+    # Update the new PO if one is assigned
+    purchase_order&.update_labour_actual!
+
+    # Update the old PO if we changed which PO this entry is linked to
+    if saved_change_to_purchase_order_id? && purchase_order_id_before_last_save.present?
+      old_po = PurchaseOrder.find_by(id: purchase_order_id_before_last_save)
+      old_po&.update_labour_actual!
+    end
+  end
+
+  def update_purchase_order_labour_actual_on_destroy
+    purchase_order&.update_labour_actual!
   end
 end

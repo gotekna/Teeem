@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
@@ -41,7 +43,6 @@ import {
   X,
   FileSignature,
   Palette,
-  Map,
   MoreVertical,
 } from "lucide-react";
 import {
@@ -50,7 +51,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { SortableList, SortableItem, DragHandle } from "@/components/ui/dnd";
+import { SortableList, SortableItem, DragHandle, reorderByPosition } from "@/components/ui/dnd";
 import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
@@ -635,10 +636,11 @@ export default function JobDetailPage() {
     if (tabOrder.length === 0) return jobTabs;
 
     // Sort tabs by user's custom order, keeping unordered tabs at end
-    const orderMap = new Map(tabOrder.map((key, idx) => [key, idx]));
+    const orderIndex: Record<string, number> = {};
+    tabOrder.forEach((key, idx) => { orderIndex[key] = idx; });
     return [...jobTabs].sort((a, b) => {
-      const orderA = orderMap.get(a.tab_key) ?? 999;
-      const orderB = orderMap.get(b.tab_key) ?? 999;
+      const orderA = orderIndex[a.tab_key] ?? 999;
+      const orderB = orderIndex[b.tab_key] ?? 999;
       return orderA - orderB;
     });
   }, [jobTabs, tabOrder]);
@@ -967,48 +969,54 @@ export default function JobDetailPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72 p-2">
               {/* Header row */}
-              <div className="flex items-center gap-2 px-2 pb-2 text-xs font-medium text-muted-foreground">
-                <span className="w-6"></span>
+              <div className="flex items-center gap-1 px-2 pb-2 text-xs font-medium text-muted-foreground">
+                <span className="w-7 text-center">#</span>
                 <span className="flex-1">Tab</span>
-                <span className="w-12 text-center">Show</span>
-                <span className="w-12 text-center">Default</span>
+                <span className="w-8 text-center">Show</span>
+                <span className="w-8 text-center">1st</span>
               </div>
               <DropdownMenuSeparator />
               {/* Sortable tab rows */}
-              <SortableList
-                items={orderedJobTabs}
-                onReorder={handleTabReorder}
-                className="py-1"
+              <RadioGroup
+                value={userDefaultTab || "overview"}
+                onValueChange={(value) => setDefaultTab(value)}
+                className="gap-0"
               >
-                {orderedJobTabs.map((tab) => (
-                  <SortableItem
-                    key={tab.id}
-                    id={tab.id}
-                    className="flex items-center gap-2 px-1 py-1.5 hover:bg-accent rounded-sm"
-                  >
-                    <DragHandle className="h-4 w-4 text-muted-foreground cursor-grab" />
-                    <span className="text-sm flex-1 truncate">{tab.display_name}</span>
-                    <div className="w-12 flex justify-center">
-                      <input
-                        type="checkbox"
-                        checked={!isTabHidden(tab.tab_key)}
-                        onChange={() => toggleTab(tab.tab_key)}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                    </div>
-                    <div className="w-12 flex justify-center">
-                      <input
-                        type="radio"
-                        name="defaultTab"
-                        checked={(userDefaultTab || "overview") === tab.tab_key}
-                        onChange={() => setDefaultTab(tab.tab_key)}
-                        disabled={isTabHidden(tab.tab_key)}
-                        className="h-4 w-4 border-gray-300"
-                      />
-                    </div>
-                  </SortableItem>
-                ))}
-              </SortableList>
+                <SortableList
+                  items={orderedJobTabs}
+                  onReorder={handleTabReorder}
+                  className="py-1"
+                >
+                  {orderedJobTabs.map((tab, index) => (
+                    <SortableItem
+                      key={tab.id}
+                      id={tab.id}
+                      position={index + 1}
+                      editableBadge
+                      maxPosition={orderedJobTabs.length}
+                      onPositionChange={(newPos) => {
+                        const reordered = reorderByPosition(orderedJobTabs, tab.id, newPos);
+                        handleTabReorder(reordered);
+                      }}
+                      showHandle={true}
+                      actions={
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={!isTabHidden(tab.tab_key)}
+                            onCheckedChange={() => toggleTab(tab.tab_key)}
+                          />
+                          <RadioGroupItem
+                            value={tab.tab_key}
+                            disabled={isTabHidden(tab.tab_key)}
+                          />
+                        </div>
+                      }
+                    >
+                      <span className="text-sm truncate">{tab.display_name}</span>
+                    </SortableItem>
+                  ))}
+                </SortableList>
+              </RadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
