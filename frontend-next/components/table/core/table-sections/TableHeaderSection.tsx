@@ -408,7 +408,8 @@ export function TableHeaderSection({
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px]">
                         <SelectItem value="all">All</SelectItem>
-                        {options.map((opt) => (
+                        {/* Filter out options with empty/falsy ids - Select.Item cannot have empty string value */}
+                        {options.filter(opt => opt.id !== '' && opt.id != null).map((opt) => (
                           <SelectItem key={opt.id} value={String(opt.id)}>
                             {opt.display}
                           </SelectItem>
@@ -431,7 +432,8 @@ export function TableHeaderSection({
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="all">All</SelectItem>
-                      {colMeta.choices.map((choice) => (
+                      {/* Filter out empty strings - Select.Item cannot have empty string value */}
+                      {colMeta.choices.filter(c => c && c !== '').map((choice) => (
                         <SelectItem key={choice} value={choice}>
                           {choice}
                         </SelectItem>
