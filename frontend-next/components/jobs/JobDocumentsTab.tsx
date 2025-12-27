@@ -101,6 +101,7 @@ interface FolderPath {
 
 interface DocumentCategory {
   id: number;
+  tab_key?: string;  // SSoT: Unique key for matching (e.g., "supervisor-photo")
   name: string;  // SSoT: Alias for display_name (backend sends both)
   display_name: string;  // SSoT: The actual field from EntityTab
   document_count?: number;
@@ -438,8 +439,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   useEffect(() => {
     checkOrganizationStatus();
     loadDocumentCategories();
-     
-  }, [jobId]);
+
+  }, [jobId, initialCategory]);  // SSoT: Re-run when initialCategory changes (e.g., switching photo tabs)
 
   // Track if initialCategory has been applied to prevent useEffect from overwriting it
   const initialCategoryAppliedRef = useRef(false);
@@ -534,26 +535,23 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
       const categories = response || [];
       console.log('[JobDocumentsTab] Loaded categories:', categories.length, categories.map(c => ({
         id: c.id,
+        tab_key: c.tab_key,
         name: c.name,
         is_photo_category: c.is_photo_category,
-        children: c.children?.map(ch => ({ id: ch.id, name: ch.name, is_photo_category: ch.is_photo_category }))
+        children: c.children?.map(ch => ({ id: ch.id, tab_key: ch.tab_key, name: ch.name, is_photo_category: ch.is_photo_category }))
       })));
       setDocumentCategories(categories);
 
-      if (categories.length > 0 && !selectedCategory) {
-        // If initialCategory is provided, find and select it
+      if (categories.length > 0) {
+        // If initialCategory is provided, ALWAYS try to find and select it
+        // This handles both first load AND tab switching (when initialCategory changes)
         if (initialCategory) {
-          // Convert "site-photo" to "Site Photo" for matching
-          const targetName = initialCategory
-            .split("-")
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(" ");
-
-          // Search for matching category in children
+          // SSoT: Match by tab_key directly (e.g., "supervisor-photo")
+          // No name conversion needed - tab_key is the unique identifier
           for (const parent of categories) {
             if (parent.children) {
               const matchingChild = parent.children.find(
-                (child) => child.name && child.name.toLowerCase() === targetName.toLowerCase()
+                (child) => child.tab_key === initialCategory
               );
               if (matchingChild) {
                 // Set flag BEFORE setting state to prevent useEffect from overwriting
@@ -564,14 +562,16 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
               }
             }
             // Also check if the parent itself matches
-            if (parent.name && parent.name.toLowerCase() === targetName.toLowerCase()) {
+            if (parent.tab_key === initialCategory) {
               setSelectedCategory(parent);
               return;
             }
           }
         }
-        // Default to first category
-        setSelectedCategory(categories[0]);
+        // Default to first category only if no initialCategory provided AND no selection yet
+        if (!selectedCategory) {
+          setSelectedCategory(categories[0]);
+        }
       }
     } catch (err) {
       console.error("[JobDocumentsTab] Failed to load document categories:", err);
