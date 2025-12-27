@@ -78,9 +78,9 @@ class CaseEmailAttachmentService
     return unless email.outlook_id.present?
 
     begin
-      # Use OutlookService to get attachments
-      # This is a simplified version - full implementation would use OutlookService
-      Rails.logger.info "[CaseEmailAttachment] Would sync attachments for email #{email.id}"
+      # SSoT: Per-user Outlook credentials removed - use org credentials via sync_attachments!
+      email.sync_attachments!
+      Rails.logger.info "[CaseEmailAttachment] Synced attachments for email #{email.id}"
     rescue => e
       @results[:errors] << { email_id: email.id, error: e.message }
     end

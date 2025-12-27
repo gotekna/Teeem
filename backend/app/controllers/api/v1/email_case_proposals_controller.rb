@@ -83,11 +83,11 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Sync PDF attachments from Outlook if not already synced
+        # Sync PDF attachments if not already synced
+        # SSoT: Per-user Outlook credentials removed - uses org credentials
         if email.has_attachments && !email.files.attached?
           begin
-            outlook_service = OutlookService.new(current_user)
-            email.sync_attachments_from_outlook(outlook_service)
+            email.sync_attachments!
           rescue StandardError => e
             Rails.logger.error "Failed to sync attachments: #{e.message}"
           end
@@ -196,10 +196,10 @@ module Api
         email = @proposal.email_warehouse
 
         # Sync PDF attachments if needed
+        # SSoT: Per-user Outlook credentials removed - uses org credentials
         if email.has_attachments && !email.files.attached?
           begin
-            outlook_service = OutlookService.new(current_user)
-            email.sync_attachments_from_outlook(outlook_service)
+            email.sync_attachments!
           rescue StandardError => e
             Rails.logger.error "Failed to sync attachments during re-extraction: #{e.message}"
           end

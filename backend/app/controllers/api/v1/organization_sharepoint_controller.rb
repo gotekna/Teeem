@@ -1156,38 +1156,73 @@ module Api
         end
 
         begin
-          client = MicrosoftGraphClient.new(credential)
-          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+          # Check if using app credentials (requires different API calls)
+          is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
 
-          # Fetch single item - this returns @microsoft.graph.downloadUrl
-          item = client.get("#{drive_path}/items/#{file_id}")
+          if is_app_credential
+            # App credentials use MicrosoftAppGraphClient with explicit site/drive
+            client = MicrosoftAppGraphClient.new(credential)
+            sharepoint_config = CorporateCompanySetting.sharepoint_config
 
-          download_url = item["@microsoft.graph.downloadUrl"]
+            unless sharepoint_config[:configured]
+              return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
+            end
 
-          unless download_url.present?
-            return render json: {
-              error: "Download URL not available for this file"
-            }, status: :unprocessable_entity
+            # Get file metadata with download URL
+            item_data = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+            download_url_value = item_data[:download_url]
+
+            unless download_url_value.present?
+              return render json: {
+                error: "Download URL not available for this file"
+              }, status: :unprocessable_entity
+            end
+
+            render json: {
+              success: true,
+              download_url: download_url_value,
+              thumbnail_url: nil, # App credentials don't include thumbnails in get_drive_item
+              large_thumbnail_url: nil,
+              name: item_data[:name],
+              size: item_data[:size],
+              mime_type: item_data[:mime_type],
+              cache_until: 30.minutes.from_now.iso8601
+            }
+          else
+            # Delegated credentials use MicrosoftGraphClient with /me endpoints
+            client = MicrosoftGraphClient.new(credential)
+            drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+
+            # Fetch single item - this returns @microsoft.graph.downloadUrl
+            item = client.get("#{drive_path}/items/#{file_id}")
+
+            download_url_value = item["@microsoft.graph.downloadUrl"]
+
+            unless download_url_value.present?
+              return render json: {
+                error: "Download URL not available for this file"
+              }, status: :unprocessable_entity
+            end
+
+            # Also return thumbnail URLs for caching
+            thumbnails = item.dig("thumbnails", 0) || {}
+
+            render json: {
+              success: true,
+              download_url: download_url_value,
+              thumbnail_url: thumbnails.dig("medium", "url"),
+              large_thumbnail_url: thumbnails.dig("large", "url"),
+              name: item["name"],
+              size: item["size"],
+              mime_type: item.dig("file", "mimeType"),
+              # URL valid for ~1 hour, suggest caching for 30 mins
+              cache_until: 30.minutes.from_now.iso8601
+            }
           end
 
-          # Also return thumbnail URLs for caching
-          thumbnails = item.dig("thumbnails", 0) || {}
-
-          render json: {
-            success: true,
-            download_url: download_url,
-            thumbnail_url: thumbnails.dig("medium", "url"),
-            large_thumbnail_url: thumbnails.dig("large", "url"),
-            name: item["name"],
-            size: item["size"],
-            mime_type: item.dig("file", "mimeType"),
-            # URL valid for ~1 hour, suggest caching for 30 mins
-            cache_until: 30.minutes.from_now.iso8601
-          }
-
-        rescue MicrosoftGraphClient::AuthenticationError => e
+        rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
+        rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
           render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "[DownloadURL] Failed to get download URL: #{e.message}"

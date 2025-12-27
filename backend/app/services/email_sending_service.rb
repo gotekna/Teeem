@@ -4,8 +4,8 @@
 #
 # This service provides a single entry point for sending emails across all account types:
 # - IMAP/SMTP (via ImapEmailService)
-# - Outlook Personal (via OutlookService)
 # - MS365 Organization (via MicrosoftAppGraphClient)
+# Note: Per-user Outlook Personal credentials have been deprecated in favor of org-wide credentials
 #
 # Usage:
 #   EmailSendingService.send(

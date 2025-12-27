@@ -40,10 +40,18 @@ class CleanupEphemeralEmailsJob < ApplicationJob
         Rails.logger.info "[EphemeralCleanup] Would delete: #{email.subject.to_s.truncate(50)} (#{ephemeral_type}, expired #{expires_at})"
       else
         begin
-          # Optionally delete from Outlook first
-          if delete_from_outlook && email.outlook_id.present?
-            outlook_service = OutlookService.new(email.synced_by_user)
-            outlook_service.delete_email(email.outlook_id)
+          # Optionally delete from Microsoft 365 first
+          # SSoT: Per-user Outlook credentials removed - uses org credentials
+          if delete_from_outlook && email.outlook_id.present? && email.mailbox_owner_email.present?
+            credential = if email.microsoft_credential_id.present?
+                           OrganizationMicrosoftAppCredential.find_by(id: email.microsoft_credential_id)
+                         else
+                           OrganizationMicrosoftAppCredential.connected.first
+                         end
+            if credential&.valid_credential?
+              client = MicrosoftAppGraphClient.new(credential)
+              client.delete_user_email(email.mailbox_owner_email, email.outlook_id)
+            end
           end
 
           # Remove from our database

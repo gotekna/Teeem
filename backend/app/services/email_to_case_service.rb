@@ -647,8 +647,8 @@ class EmailToCaseService
     return unless @email.has_attachments && !@email.files.attached?
 
     begin
-      outlook_service = OutlookService.new(@user)
-      @email.sync_attachments_from_outlook(outlook_service)
+      # SSoT: Per-user Outlook credentials removed - use org credentials via sync_attachments!
+      @email.sync_attachments!
       Rails.logger.info "Synced #{@email.files.count} PDF attachments for email #{@email.id}"
     rescue StandardError => e
       Rails.logger.error "Failed to sync attachments for email #{@email.id}: #{e.message}"

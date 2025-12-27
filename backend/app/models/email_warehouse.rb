@@ -594,21 +594,40 @@ class EmailWarehouse < ApplicationRecord
     pdf_texts.presence
   end
 
-  # Sync PDF attachments from Outlook
-  def sync_attachments_from_outlook(outlook_service)
+  # Sync PDF attachments from Microsoft 365 using org credentials
+  # SSoT: Uses org-level credentials via MicrosoftAppGraphClient (per-user credentials removed)
+  def sync_attachments!
     return unless outlook_id.present? && has_attachments
+    return if files.attached?  # Already synced
 
-    # Skip if attachments already synced
-    return if files.attached?
+    # Get the org credential that was used to sync this email
+    credential = if microsoft_credential_id.present?
+                   OrganizationMicrosoftAppCredential.find_by(id: microsoft_credential_id)
+                 else
+                   OrganizationMicrosoftAppCredential.connected.first
+                 end
+
+    unless credential&.valid_credential?
+      Rails.logger.warn "[EmailWarehouse] No valid org credential for attachment sync on email #{id}"
+      return
+    end
+
+    # Need the mailbox email to fetch attachments from
+    mailbox = mailbox_owner_email
+    unless mailbox.present?
+      Rails.logger.warn "[EmailWarehouse] No mailbox_owner_email for attachment sync on email #{id}"
+      return
+    end
 
     begin
-      attachments = outlook_service.get_attachments(outlook_id)
+      client = MicrosoftAppGraphClient.new(credential)
+      attachments = client.get_email_attachments(mailbox, outlook_id)
 
       attachments.each do |attachment|
         # Only download PDF files
         next unless attachment["contentType"] == "application/pdf"
 
-        file_data = outlook_service.download_attachment(outlook_id, attachment["id"])
+        file_data = client.download_email_attachment(mailbox, outlook_id, attachment["id"])
         next unless file_data
 
         # Attach to EmailWarehouse using ActiveStorage
@@ -618,11 +637,18 @@ class EmailWarehouse < ApplicationRecord
           content_type: file_data[:content_type]
         )
 
-        Rails.logger.info "Attached PDF #{file_data[:filename]} to email #{id}"
+        Rails.logger.info "[EmailWarehouse] Attached PDF #{file_data[:filename]} to email #{id}"
       end
     rescue StandardError => e
-      Rails.logger.error "Failed to sync attachments for email #{id}: #{e.message}"
+      Rails.logger.error "[EmailWarehouse] Failed to sync attachments for email #{id}: #{e.message}"
     end
+  end
+
+  # DEPRECATED: Old method signature for backward compatibility
+  # Per-user Outlook credentials removed - use sync_attachments! instead
+  def sync_attachments_from_outlook(_outlook_service)
+    Rails.logger.warn "[EmailWarehouse] sync_attachments_from_outlook is deprecated, using sync_attachments!"
+    sync_attachments!
   end
 
   private
