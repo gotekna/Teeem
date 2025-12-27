@@ -6,6 +6,12 @@ export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'contact';
 // Tab groups - matches backend EntityTab::TAB_GROUPS
 export type TabGroup = 'overview' | 'documents' | 'reports' | 'data' | 'setup' | 'main';
 
+// Display modes for tabs - matches backend EntityTab::DISPLAY_MODES
+// - 'both': Show icon + text (default)
+// - 'icon_only': Show only icon (root tabs only, tooltip shows name)
+// - 'text_only': Show only text (no icon)
+export type TabDisplayMode = 'both' | 'icon_only' | 'text_only';
+
 export interface EntityTab {
   id: number;
   scope: EntityTabScope;
@@ -20,6 +26,9 @@ export interface EntityTab {
   order_position: number;
   enabled: boolean;
   icon_name: string | null;
+  effective_icon_name: string;  // SSoT: Computed icon (inherits from parent if not set)
+  display_mode: TabDisplayMode;  // SSoT: How tab renders (icon_only, text_only, both)
+  hidden_by_default: boolean;  // SSoT: Tab hidden in overflow menu by default
   component_name: string | null;
   is_system_tab: boolean;
   has_sharepoint_folder: boolean;
@@ -82,6 +91,8 @@ export interface EntityTabCreateParams {
   sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
   document_type_ids?: number[];  // SSoT: Link document types to this tab
   is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
+  display_mode?: TabDisplayMode;  // SSoT: How tab renders
+  hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
 }
 
 export interface EntityTabUpdateParams {
@@ -101,6 +112,8 @@ export interface EntityTabUpdateParams {
   sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
   document_type_ids?: number[];  // SSoT: Link document types to this tab
   is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
+  display_mode?: TabDisplayMode;  // SSoT: How tab renders
+  hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
 }
 
 export interface ReorderTabParams {

@@ -195,6 +195,23 @@ module Api
         }
       end
 
+      # GET /api/v1/entity_tabs/used_icons?scope=job
+      # Returns list of icons already used by root tabs in a scope
+      # Used by IconPicker to gray out already-used icons
+      def used_icons
+        icons = EntityTab.for_scope(params[:scope])
+                         .root_tabs
+                         .global
+                         .where.not(icon_name: [nil, ''])
+                         .pluck(:id, :icon_name, :display_name)
+                         .map { |id, icon, name| { id: id, icon_name: icon, display_name: name } }
+
+        render json: {
+          success: true,
+          data: icons
+        }
+      end
+
       private
 
       def set_entity_tab
@@ -220,6 +237,8 @@ module Api
           :uses_custom_path,  # SSoT: Template inheritance flag
           :sharepoint_path_type,  # SSoT: "corporate" or "contacts" for contact tabs
           :is_photo_category,  # SSoT: Explicit photo gallery flag
+          :display_mode,  # SSoT: How tab renders (icon_only, text_only, both)
+          :hidden_by_default,  # SSoT: Tab hidden in overflow menu by default
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )

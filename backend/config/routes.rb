@@ -2195,6 +2195,7 @@ Rails.application.routes.draw do
           get :entity_types
           put :entity_types, action: :update_entity_types
           get :document_type_counts
+          get :used_icons  # SSoT: Get icons used by root tabs (for icon picker)
         end
         member do
           post :toggle

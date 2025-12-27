@@ -22,6 +22,12 @@ class EntityTab < ApplicationRecord
   # - setup: Configuration tabs (Connection, Settings)
   TAB_GROUPS = %w[overview documents reports data setup main].freeze
 
+  # Display modes for tabs (SSoT: how tabs render in UI)
+  # - both: Show icon + text (default)
+  # - icon_only: Show only icon (root tabs only, tooltip shows name)
+  # - text_only: Show only text (no icon)
+  DISPLAY_MODES = %w[both icon_only text_only].freeze
+
   # Associations
   belongs_to :parent, class_name: 'EntityTab', optional: true
   belongs_to :job, optional: true  # For per-job tabs
@@ -59,9 +65,16 @@ class EntityTab < ApplicationRecord
   validates :tab_key, presence: true
   validates :display_name, presence: true
   validates :tab_group, inclusion: { in: TAB_GROUPS }, allow_blank: true
+  validates :display_mode, inclusion: { in: DISPLAY_MODES }, allow_blank: true
 
   # Uniqueness within scope + job (allows same tab_key for different scopes or per-job tabs)
   validates :tab_key, uniqueness: { scope: [:scope, :job_id] }
+
+  # SSoT: Icon uniqueness - root tabs must have unique icons within scope
+  validate :icon_uniqueness_for_root_tabs
+
+  # SSoT: Child tabs must show text to differentiate from siblings
+  validate :child_tabs_must_show_text
 
   # Scopes
   scope :for_scope, ->(s) { where(scope: s) }
@@ -255,6 +268,9 @@ class EntityTab < ApplicationRecord
       order_position: order_position,
       enabled: enabled,
       icon_name: icon_name,
+      effective_icon_name: effective_icon_name,  # SSoT: Computed icon (inherits from parent)
+      display_mode: display_mode || 'both',      # SSoT: How tab renders (icon_only, text_only, both)
+      hidden_by_default: hidden_by_default,      # SSoT: Tab hidden in overflow menu by default
       component_name: component_name,
       is_system_tab: is_system_tab,
       has_sharepoint_folder: has_sharepoint_folder,
@@ -434,6 +450,11 @@ class EntityTab < ApplicationRecord
     end
   end
 
+  # SSoT: Get effective icon name (child tabs inherit from parent)
+  def effective_icon_name
+    icon_name.presence || parent&.effective_icon_name || 'Folder'
+  end
+
   private
 
   # SSoT: Auto-inherit SharePoint folder settings from parent
@@ -447,5 +468,28 @@ class EntityTab < ApplicationRecord
       self.has_sharepoint_folder = true
       Rails.logger.info "[EntityTab] Auto-inherited has_sharepoint_folder from parent '#{parent.display_name}' for tab '#{display_name}'"
     end
+  end
+
+  # SSoT: Root tabs must have unique icons within the same scope
+  # Child tabs can inherit parent's icon OR have their own unique icon
+  def icon_uniqueness_for_root_tabs
+    return if parent_id.present?  # Child tabs can share/inherit icons
+    return if icon_name.blank?    # No icon set, skip validation
+
+    existing = EntityTab.where(scope: scope, parent_id: nil, icon_name: icon_name)
+                        .where.not(id: id)
+
+    if existing.exists?
+      errors.add(:icon_name, "is already used by another root tab in this scope")
+    end
+  end
+
+  # SSoT: Child tabs must show text to differentiate from siblings
+  # icon_only is not allowed for child tabs
+  def child_tabs_must_show_text
+    return if parent_id.blank?           # Only applies to child tabs
+    return if display_mode != 'icon_only' # Only block icon_only mode
+
+    errors.add(:display_mode, "Sub-tabs must show text to differentiate from siblings. Use 'both' or 'text_only' instead.")
   end
 end

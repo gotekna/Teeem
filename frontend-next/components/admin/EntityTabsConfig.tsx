@@ -54,6 +54,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import { getIcon } from "@/lib/icon-map";
+import { IconPicker } from "@/components/ui/icon-picker";
 import {
   SortableList,
   SortableItem,
@@ -85,11 +86,40 @@ import type {
   EntityTab,
   EntityTabScope,
   TabGroup,
+  TabDisplayMode,
   EntityTabCreateParams,
   EntityTabUpdateParams,
   ReorderTabParams,
 } from "@/lib/types/entity-tabs";
 import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/entity-tabs";
+
+// Hook to fetch used icons for a scope
+function useUsedIcons(scope: EntityTabScope) {
+  const [usedIcons, setUsedIcons] = React.useState<Array<{ id: number; icon_name: string; display_name: string }>>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  const fetchUsedIcons = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; icon_name: string; display_name: string }> }>(
+        `/api/v1/entity_tabs/used_icons?scope=${scope}`
+      );
+      if (response?.success) {
+        setUsedIcons(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch used icons:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [scope]);
+
+  React.useEffect(() => {
+    fetchUsedIcons();
+  }, [fetchUsedIcons]);
+
+  return { usedIcons, loading, refetch: fetchUsedIcons };
+}
 
 // Generate display code from display name (max 3 chars)
 // Single word: first 3 letters (e.g., "Photo" -> "PHO")
@@ -196,6 +226,9 @@ export function EntityTabsConfig({
     updateEntityTypes,
   } = useEntityTypes();
 
+  // Fetch used icons for icon picker (SSoT: unique icons per root tab)
+  const { usedIcons, refetch: refetchUsedIcons } = useUsedIcons(scope);
+
   const [saving, setSaving] = React.useState(false);
   const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set());
   const [expandedDocTypes, setExpandedDocTypes] = React.useState<Set<number>>(new Set());
@@ -231,7 +264,7 @@ export function EntityTabsConfig({
   }, []);
 
   // Form state for create/edit
-  const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams & { sharepoint_path_type?: 'corporate' | 'contacts' }>>({});
+  const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams & { sharepoint_path_type?: 'corporate' | 'contacts'; display_mode?: TabDisplayMode; hidden_by_default?: boolean }>>({});
 
   // Convert entity types to MultipleSelector options
   const entityTypeOptions: Option[] = React.useMemo(() =>
@@ -372,6 +405,8 @@ export function EntityTabsConfig({
       sharepoint_folder_path: "",
       sharepoint_path_type: 'corporate',  // SSoT: Default to corporate path
       is_photo_category: false,  // SSoT: Explicit photo category flag
+      display_mode: 'both',  // SSoT: Default display mode
+      hidden_by_default: false,  // SSoT: Default visibility
     });
     setEditingTab(null);
     setIsCreateDialogOpen(true);
@@ -399,6 +434,8 @@ export function EntityTabsConfig({
       // SSoT: Include linked document type IDs
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
       is_photo_category: tab.is_photo_category || false,  // SSoT: Explicit photo category flag
+      display_mode: tab.display_mode || 'both',  // SSoT: Display mode
+      hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
     });
     setEditingTab(tab);
     setIsCreateDialogOpen(true);
@@ -432,8 +469,12 @@ export function EntityTabsConfig({
           // SSoT: Include linked document type IDs
           document_type_ids: formData.document_type_ids,
           is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
+          display_mode: formData.display_mode,  // SSoT: Display mode
+          hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
         };
         await updateTab(editingTab.id, updateParams);
+        // Refetch used icons after update (icon may have changed)
+        refetchUsedIcons();
       } else {
         // Create new
         const createParams: EntityTabCreateParams = {
@@ -450,8 +491,12 @@ export function EntityTabsConfig({
           sharepoint_folder_path: formData.sharepoint_folder_path,
           sharepoint_path_type: formData.sharepoint_path_type,  // SSoT: Path type for contacts
           is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
+          display_mode: formData.display_mode,  // SSoT: Display mode
+          hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
         };
         await createTab(createParams);
+        // Refetch used icons after create (new icon added)
+        refetchUsedIcons();
       }
       toast.success(editingTab ? "Tab updated" : "Tab created");
       setIsCreateDialogOpen(false);
@@ -1301,6 +1346,52 @@ export function EntityTabsConfig({
                   }
                   placeholder="Brief description"
                 />
+              </div>
+
+              {/* Icon Picker - SSoT: Visual icon selection with uniqueness enforcement */}
+              <IconPicker
+                value={formData.icon_name || null}
+                onChange={(iconName) =>
+                  setFormData((prev) => ({ ...prev, icon_name: iconName || "" }))
+                }
+                usedIcons={usedIcons}
+                disableUsed={!formData.parent_id && !editingTab?.parent_id}  // Only disable for root tabs
+                currentTabId={editingTab?.id}
+                label="Icon"
+                placeholder="Select an icon..."
+                showInheritedBadge={!!(formData.parent_id || editingTab?.parent_id) && !formData.icon_name}
+              />
+
+              {/* Display Mode - SSoT: How tab renders (icon_only disabled for child tabs) */}
+              <div className="space-y-2">
+                <Label>Display Mode</Label>
+                <Select
+                  value={formData.display_mode || 'both'}
+                  onValueChange={(value: TabDisplayMode) =>
+                    setFormData((prev) => ({ ...prev, display_mode: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select display mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="both">Icon + Text</SelectItem>
+                    <SelectItem
+                      value="icon_only"
+                      disabled={!!(formData.parent_id || editingTab?.parent_id)}
+                    >
+                      Icon Only {(formData.parent_id || editingTab?.parent_id) && "(not available for sub-tabs)"}
+                    </SelectItem>
+                    <SelectItem value="text_only">Text Only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {formData.display_mode === 'icon_only'
+                    ? "Tab shows icon only (tooltip shows name)"
+                    : formData.display_mode === 'text_only'
+                    ? "Tab shows text only (no icon)"
+                    : "Tab shows both icon and text"}
+                </p>
               </div>
 
               {/* Parent Tab (for nesting under another tab) */}

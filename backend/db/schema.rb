@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_061031) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -163,6 +163,41 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["service_type"], name: "index_ai_service_configs_on_service_type", unique: true
+  end
+
+  create_table "ai_timesheet_suggestions", force: :cascade do |t|
+    t.bigint "worker_profile_id", null: false
+    t.bigint "job_id", null: false
+    t.date "suggestion_date", null: false
+    t.datetime "suggested_start_time"
+    t.datetime "suggested_end_time"
+    t.decimal "suggested_hours", precision: 5, scale: 2
+    t.decimal "suggested_break_minutes", precision: 5, default: "0"
+    t.jsonb "photo_evidence", default: []
+    t.jsonb "gps_evidence", default: []
+    t.jsonb "calendar_evidence", default: []
+    t.decimal "confidence_score", precision: 5, scale: 2
+    t.text "reasoning"
+    t.string "model_version", limit: 50
+    t.string "detected_work_type", limit: 50
+    t.integer "detected_progress_percent"
+    t.string "status", limit: 20, default: "pending"
+    t.bigint "actioned_by_id"
+    t.datetime "actioned_at"
+    t.text "user_notes"
+    t.bigint "labour_cost_entry_id"
+    t.datetime "expires_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actioned_by_id"], name: "index_ai_timesheet_suggestions_on_actioned_by_id"
+    t.index ["confidence_score"], name: "index_ai_timesheet_suggestions_on_confidence_score"
+    t.index ["job_id"], name: "index_ai_timesheet_suggestions_on_job_id"
+    t.index ["labour_cost_entry_id"], name: "index_ai_timesheet_suggestions_on_labour_cost_entry_id"
+    t.index ["status", "expires_at"], name: "idx_ai_suggestions_pending"
+    t.index ["status"], name: "index_ai_timesheet_suggestions_on_status"
+    t.index ["suggestion_date"], name: "index_ai_timesheet_suggestions_on_suggestion_date"
+    t.index ["worker_profile_id", "suggestion_date"], name: "idx_ai_suggestions_worker_date"
+    t.index ["worker_profile_id"], name: "index_ai_timesheet_suggestions_on_worker_profile_id"
   end
 
   create_table "asset_depreciation_profiles", force: :cascade do |t|
@@ -1931,6 +1966,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.index ["name"], name: "index_corporate_groups_on_name", unique: true
   end
 
+  create_table "cost_centres", force: :cascade do |t|
+    t.bigint "parent_id"
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.text "description"
+    t.string "centre_type", limit: 30
+    t.decimal "overhead_allocation_percent", precision: 5, scale: 2, default: "0.0"
+    t.decimal "budget_amount", precision: 14, scale: 2
+    t.boolean "active", default: true
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_cost_centres_on_active"
+    t.index ["centre_type"], name: "index_cost_centres_on_centre_type"
+    t.index ["code"], name: "index_cost_centres_on_code", unique: true
+    t.index ["parent_id"], name: "index_cost_centres_on_parent_id"
+  end
+
   create_table "data_quality_issues", force: :cascade do |t|
     t.string "view_name", null: false
     t.string "check_name", null: false
@@ -2690,6 +2743,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.boolean "uses_custom_path", default: false, null: false
     t.string "sharepoint_path_type", default: "corporate"
     t.boolean "is_photo_category", default: false, null: false
+    t.string "display_mode", default: "both", null: false
+    t.boolean "hidden_by_default", default: false, null: false
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"
@@ -5605,6 +5660,49 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.index ["user_id"], name: "index_job_contacts_on_user_id"
   end
 
+  create_table "job_cost_budgets", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "cost_centre_id"
+    t.decimal "labour_budget", precision: 14, scale: 2, default: "0.0"
+    t.decimal "materials_budget", precision: 14, scale: 2, default: "0.0"
+    t.decimal "subcontractor_budget", precision: 14, scale: 2, default: "0.0"
+    t.decimal "equipment_budget", precision: 14, scale: 2, default: "0.0"
+    t.decimal "overhead_budget", precision: 14, scale: 2, default: "0.0"
+    t.decimal "contingency_budget", precision: 14, scale: 2, default: "0.0"
+    t.decimal "total_budget", precision: 14, scale: 2, default: "0.0"
+    t.decimal "warning_threshold_percent", precision: 5, scale: 2, default: "80.0"
+    t.decimal "critical_threshold_percent", precision: 5, scale: 2, default: "100.0"
+    t.decimal "labour_actual", precision: 14, scale: 2, default: "0.0"
+    t.decimal "materials_actual", precision: 14, scale: 2, default: "0.0"
+    t.decimal "subcontractor_actual", precision: 14, scale: 2, default: "0.0"
+    t.decimal "equipment_actual", precision: 14, scale: 2, default: "0.0"
+    t.decimal "overhead_actual", precision: 14, scale: 2, default: "0.0"
+    t.decimal "total_actual", precision: 14, scale: 2, default: "0.0"
+    t.decimal "labour_variance", precision: 14, scale: 2
+    t.decimal "labour_variance_percent", precision: 5, scale: 2
+    t.decimal "total_variance", precision: 14, scale: 2
+    t.decimal "total_variance_percent", precision: 5, scale: 2
+    t.decimal "estimated_margin", precision: 14, scale: 2
+    t.decimal "estimated_margin_percent", precision: 5, scale: 2
+    t.decimal "actual_margin", precision: 14, scale: 2
+    t.decimal "actual_margin_percent", precision: 5, scale: 2
+    t.string "alert_status", limit: 20, default: "ok"
+    t.datetime "last_alert_at"
+    t.datetime "last_alert_acknowledged_at"
+    t.bigint "alert_acknowledged_by_id"
+    t.datetime "last_calculated_at"
+    t.string "calculation_status", limit: 20, default: "pending"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["alert_acknowledged_by_id"], name: "index_job_cost_budgets_on_alert_acknowledged_by_id"
+    t.index ["alert_status"], name: "index_job_cost_budgets_on_alert_status"
+    t.index ["cost_centre_id"], name: "index_job_cost_budgets_on_cost_centre_id"
+    t.index ["job_id", "cost_centre_id"], name: "index_job_cost_budgets_on_job_id_and_cost_centre_id", unique: true
+    t.index ["job_id"], name: "index_job_cost_budgets_on_job_id"
+    t.index ["last_calculated_at"], name: "index_job_cost_budgets_on_last_calculated_at"
+  end
+
   create_table "job_documentation_tabs", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "name", null: false
@@ -5918,9 +6016,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.decimal "external_sales_fee", precision: 15, scale: 2
     t.decimal "default_retainage_percentage", precision: 5, scale: 2, default: "0.0"
     t.tsvector "searchable"
+    t.bigint "cost_centre_id"
+    t.integer "site_radius_meters", default: 100
+    t.boolean "require_photo_checkin", default: false
+    t.boolean "require_photo_checkout", default: false
+    t.boolean "require_face_verification", default: false
+    t.decimal "labour_budget", precision: 14, scale: 2
+    t.decimal "labour_actual_cached", precision: 14, scale: 2, default: "0.0"
+    t.decimal "labour_variance_percent", precision: 5, scale: 2
+    t.decimal "site_latitude", precision: 10, scale: 7
+    t.decimal "site_longitude", precision: 10, scale: 7
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
+    t.index ["cost_centre_id"], name: "index_jobs_on_cost_centre_id"
     t.index ["council"], name: "index_jobs_on_council"
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
@@ -5969,6 +6078,51 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.index ["quote_response_id"], name: "index_kudos_events_on_quote_response_id"
     t.index ["subcontractor_account_id", "event_type"], name: "index_kudos_events_on_subcontractor_account_id_and_event_type"
     t.index ["subcontractor_account_id"], name: "index_kudos_events_on_subcontractor_account_id"
+  end
+
+  create_table "labour_cost_entries", force: :cascade do |t|
+    t.bigint "site_presence_session_id"
+    t.bigint "worker_profile_id", null: false
+    t.bigint "job_id", null: false
+    t.bigint "sm_task_id"
+    t.bigint "cost_centre_id"
+    t.date "entry_date", null: false
+    t.decimal "regular_hours", precision: 5, scale: 2, default: "0.0"
+    t.decimal "overtime_1_5x_hours", precision: 5, scale: 2, default: "0.0"
+    t.decimal "overtime_2x_hours", precision: 5, scale: 2, default: "0.0"
+    t.decimal "travel_hours", precision: 5, scale: 2, default: "0.0"
+    t.decimal "standby_hours", precision: 5, scale: 2, default: "0.0"
+    t.decimal "base_rate", precision: 10, scale: 2
+    t.decimal "overtime_1_5x_rate", precision: 10, scale: 2
+    t.decimal "overtime_2x_rate", precision: 10, scale: 2
+    t.decimal "employment_cost_percent_used", precision: 5, scale: 2
+    t.decimal "overhead_percent_used", precision: 5, scale: 2
+    t.decimal "base_labour_cost", precision: 10, scale: 2, default: "0.0"
+    t.decimal "employment_cost", precision: 10, scale: 2, default: "0.0"
+    t.decimal "overhead_cost", precision: 10, scale: 2, default: "0.0"
+    t.decimal "total_cost", precision: 10, scale: 2, default: "0.0"
+    t.string "entry_source", limit: 20, default: "manual"
+    t.boolean "billable", default: true
+    t.decimal "billable_rate", precision: 10, scale: 2
+    t.decimal "billable_amount", precision: 10, scale: 2
+    t.string "billing_status", limit: 20, default: "unbilled"
+    t.bigint "invoice_id"
+    t.text "description"
+    t.text "internal_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["billable", "billing_status"], name: "idx_labour_cost_billing_queue"
+    t.index ["billing_status"], name: "index_labour_cost_entries_on_billing_status"
+    t.index ["cost_centre_id", "entry_date"], name: "index_labour_cost_entries_on_cost_centre_id_and_entry_date"
+    t.index ["cost_centre_id"], name: "index_labour_cost_entries_on_cost_centre_id"
+    t.index ["entry_date"], name: "index_labour_cost_entries_on_entry_date"
+    t.index ["entry_source"], name: "index_labour_cost_entries_on_entry_source"
+    t.index ["job_id", "entry_date"], name: "index_labour_cost_entries_on_job_id_and_entry_date"
+    t.index ["job_id"], name: "index_labour_cost_entries_on_job_id"
+    t.index ["site_presence_session_id"], name: "index_labour_cost_entries_on_site_presence_session_id"
+    t.index ["sm_task_id"], name: "index_labour_cost_entries_on_sm_task_id"
+    t.index ["worker_profile_id", "entry_date"], name: "index_labour_cost_entries_on_worker_profile_id_and_entry_date"
+    t.index ["worker_profile_id"], name: "index_labour_cost_entries_on_worker_profile_id"
   end
 
   create_table "leads", force: :cascade do |t|
@@ -7275,6 +7429,61 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.index ["transfer_date"], name: "index_share_transfers_on_transfer_date"
   end
 
+  create_table "site_presence_sessions", force: :cascade do |t|
+    t.bigint "worker_profile_id", null: false
+    t.bigint "job_id", null: false
+    t.bigint "sm_task_id"
+    t.bigint "cost_centre_id"
+    t.string "session_status", limit: 20, default: "active", null: false
+    t.datetime "checkin_at"
+    t.decimal "latitude_checkin", precision: 10, scale: 7
+    t.decimal "longitude_checkin", precision: 10, scale: 7
+    t.integer "distance_from_site_checkin"
+    t.bigint "checkin_photo_id"
+    t.datetime "checkout_at"
+    t.decimal "latitude_checkout", precision: 10, scale: 7
+    t.decimal "longitude_checkout", precision: 10, scale: 7
+    t.integer "distance_from_site_checkout"
+    t.bigint "checkout_photo_id"
+    t.boolean "face_verified_checkin", default: false
+    t.boolean "face_verified_checkout", default: false
+    t.decimal "face_confidence_checkin", precision: 5, scale: 2
+    t.decimal "face_confidence_checkout", precision: 5, scale: 2
+    t.boolean "gps_verified_checkin", default: false
+    t.boolean "gps_verified_checkout", default: false
+    t.boolean "site_visible_in_checkin_photo", default: false
+    t.boolean "site_visible_in_checkout_photo", default: false
+    t.decimal "total_hours", precision: 5, scale: 2
+    t.decimal "break_minutes", precision: 5, default: "0"
+    t.decimal "billable_hours", precision: 5, scale: 2
+    t.string "approval_status", limit: 20, default: "pending"
+    t.bigint "approved_by_id"
+    t.datetime "approved_at"
+    t.text "rejection_reason"
+    t.jsonb "anomalies", default: []
+    t.text "worker_notes"
+    t.text "admin_notes"
+    t.string "device_info", limit: 255
+    t.string "app_version", limit: 20
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approval_status", "created_at"], name: "idx_site_presence_approval_queue"
+    t.index ["approval_status"], name: "index_site_presence_sessions_on_approval_status"
+    t.index ["approved_by_id"], name: "index_site_presence_sessions_on_approved_by_id"
+    t.index ["checkin_at"], name: "index_site_presence_sessions_on_checkin_at"
+    t.index ["checkin_photo_id"], name: "index_site_presence_sessions_on_checkin_photo_id"
+    t.index ["checkout_at"], name: "index_site_presence_sessions_on_checkout_at"
+    t.index ["checkout_photo_id"], name: "index_site_presence_sessions_on_checkout_photo_id"
+    t.index ["cost_centre_id"], name: "index_site_presence_sessions_on_cost_centre_id"
+    t.index ["job_id", "checkin_at"], name: "index_site_presence_sessions_on_job_id_and_checkin_at"
+    t.index ["job_id"], name: "index_site_presence_sessions_on_job_id"
+    t.index ["session_status"], name: "index_site_presence_sessions_on_session_status"
+    t.index ["sm_task_id"], name: "index_site_presence_sessions_on_sm_task_id"
+    t.index ["worker_profile_id", "checkin_at"], name: "idx_on_worker_profile_id_checkin_at_2de5a18268"
+    t.index ["worker_profile_id", "session_status"], name: "idx_site_presence_worker_status"
+    t.index ["worker_profile_id"], name: "index_site_presence_sessions_on_worker_profile_id"
+  end
+
   create_table "sm_dependencies", force: :cascade do |t|
     t.bigint "predecessor_task_id", null: false
     t.bigint "successor_task_id", null: false
@@ -7567,6 +7776,45 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
     t.index ["sm_task_id", "attachable_type", "attachable_id"], name: "idx_sm_task_attachments_unique", unique: true
     t.index ["sm_task_id"], name: "index_sm_task_attachments_on_sm_task_id"
+  end
+
+  create_table "sm_task_photos", force: :cascade do |t|
+    t.bigint "sm_task_id"
+    t.bigint "job_id"
+    t.bigint "uploaded_by_id"
+    t.bigint "resource_id"
+    t.string "photo_url", null: false
+    t.string "photo_type", limit: 20
+    t.text "description"
+    t.text "notes"
+    t.datetime "taken_at"
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "is_checkin_photo", default: false
+    t.boolean "is_checkout_photo", default: false
+    t.jsonb "face_verification_result"
+    t.decimal "face_match_confidence", precision: 5, scale: 2
+    t.boolean "face_verified", default: false
+    t.decimal "site_visibility_score", precision: 5, scale: 2
+    t.boolean "site_visible"
+    t.jsonb "ai_analysis"
+    t.string "weather_detected", limit: 30
+    t.string "lighting_conditions", limit: 30
+    t.decimal "exif_latitude", precision: 10, scale: 7
+    t.decimal "exif_longitude", precision: 10, scale: 7
+    t.datetime "exif_timestamp"
+    t.index ["face_verified"], name: "index_sm_task_photos_on_face_verified"
+    t.index ["is_checkin_photo"], name: "index_sm_task_photos_on_is_checkin_photo"
+    t.index ["is_checkout_photo"], name: "index_sm_task_photos_on_is_checkout_photo"
+    t.index ["job_id"], name: "index_sm_task_photos_on_job_id"
+    t.index ["photo_type"], name: "index_sm_task_photos_on_photo_type"
+    t.index ["resource_id"], name: "index_sm_task_photos_on_resource_id"
+    t.index ["sm_task_id", "photo_type"], name: "index_sm_task_photos_on_sm_task_id_and_photo_type"
+    t.index ["sm_task_id"], name: "index_sm_task_photos_on_sm_task_id"
+    t.index ["taken_at"], name: "index_sm_task_photos_on_taken_at"
+    t.index ["uploaded_by_id"], name: "index_sm_task_photos_on_uploaded_by_id"
   end
 
   create_table "sm_tasks", force: :cascade do |t|
@@ -8702,6 +8950,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
     t.index ["whs_swms_id"], name: "index_whs_swms_hazards_on_whs_swms_id"
   end
 
+  create_table "worker_profiles", force: :cascade do |t|
+    t.bigint "user_id"
+    t.bigint "contact_id"
+    t.string "worker_type", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.string "profile_photo_url"
+    t.jsonb "face_encoding"
+    t.boolean "face_verified", default: false
+    t.datetime "face_verified_at"
+    t.bigint "cost_centre_id"
+    t.decimal "hourly_rate", precision: 10, scale: 2
+    t.decimal "overtime_rate_1_5x", precision: 10, scale: 2
+    t.decimal "overtime_rate_2x", precision: 10, scale: 2
+    t.decimal "weekend_rate", precision: 10, scale: 2
+    t.decimal "employment_cost_percent", precision: 5, scale: 2, default: "28.5"
+    t.decimal "day_rate", precision: 10, scale: 2
+    t.decimal "call_out_fee", precision: 10, scale: 2
+    t.string "abn", limit: 20
+    t.string "tax_file_number_provided", limit: 10
+    t.boolean "active", default: true
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["abn"], name: "index_worker_profiles_on_abn", unique: true, where: "(abn IS NOT NULL)"
+    t.index ["active"], name: "index_worker_profiles_on_active"
+    t.index ["contact_id"], name: "index_worker_profiles_on_contact_id", unique: true, where: "(contact_id IS NOT NULL)"
+    t.index ["cost_centre_id"], name: "index_worker_profiles_on_cost_centre_id"
+    t.index ["user_id"], name: "index_worker_profiles_on_user_id", unique: true, where: "(user_id IS NOT NULL)"
+    t.index ["worker_type"], name: "index_worker_profiles_on_worker_type"
+  end
+
   create_table "xero_accounts", force: :cascade do |t|
     t.string "code", null: false
     t.string "name", null: false
@@ -8907,6 +9186,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
   add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
   add_foreign_key "agent_definitions", "users", column: "updated_by_id"
   add_foreign_key "ai_processing_logs", "users", column: "corrected_by_id"
+  add_foreign_key "ai_timesheet_suggestions", "jobs"
+  add_foreign_key "ai_timesheet_suggestions", "labour_cost_entries", on_delete: :nullify
+  add_foreign_key "ai_timesheet_suggestions", "users", column: "actioned_by_id", on_delete: :nullify
+  add_foreign_key "ai_timesheet_suggestions", "worker_profiles"
   add_foreign_key "asset_depreciation_profiles", "assets"
   add_foreign_key "asset_depreciation_schedules", "assets"
   add_foreign_key "asset_depreciation_schedules", "users", column: "finalized_by_id"
@@ -9032,6 +9315,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
   add_foreign_key "corporate_company_xero_accounts", "corporate_company_xero_connections", column: "company_xero_connection_id"
   add_foreign_key "corporate_company_xero_connections", "corporate_companies", column: "company_id"
   add_foreign_key "corporate_company_xero_connections", "xero_credentials"
+  add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
   add_foreign_key "director_onboarding_requests", "contacts"
   add_foreign_key "director_onboarding_requests", "corporate_companies", column: "company_id"
   add_foreign_key "director_onboarding_requests", "users", column: "invited_by_id"
@@ -9383,6 +9667,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_contacts", "users"
+  add_foreign_key "job_cost_budgets", "cost_centres"
+  add_foreign_key "job_cost_budgets", "jobs"
+  add_foreign_key "job_cost_budgets", "users", column: "alert_acknowledged_by_id", on_delete: :nullify
   add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_documents", "document_types"
@@ -9407,6 +9694,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
   add_foreign_key "job_status_stages", "job_types"
   add_foreign_key "job_type_statuses", "job_status"
   add_foreign_key "job_type_statuses", "job_types"
+  add_foreign_key "jobs", "cost_centres", on_delete: :nullify
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
   add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
@@ -9415,6 +9703,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"
+  add_foreign_key "labour_cost_entries", "cost_centres"
+  add_foreign_key "labour_cost_entries", "jobs"
+  add_foreign_key "labour_cost_entries", "site_presence_sessions", on_delete: :nullify
+  add_foreign_key "labour_cost_entries", "sm_tasks"
+  add_foreign_key "labour_cost_entries", "worker_profiles"
   add_foreign_key "leads", "jobs"
   add_foreign_key "maintenance_requests", "contacts", column: "supplier_contact_id"
   add_foreign_key "maintenance_requests", "jobs"
@@ -9508,6 +9801,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
+  add_foreign_key "site_presence_sessions", "cost_centres"
+  add_foreign_key "site_presence_sessions", "jobs"
+  add_foreign_key "site_presence_sessions", "sm_task_photos", column: "checkin_photo_id", on_delete: :nullify
+  add_foreign_key "site_presence_sessions", "sm_task_photos", column: "checkout_photo_id", on_delete: :nullify
+  add_foreign_key "site_presence_sessions", "sm_tasks"
+  add_foreign_key "site_presence_sessions", "users", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "site_presence_sessions", "worker_profiles"
   add_foreign_key "sm_dependencies", "sm_tasks", column: "predecessor_task_id", on_delete: :cascade
   add_foreign_key "sm_dependencies", "sm_tasks", column: "successor_task_id", on_delete: :cascade
   add_foreign_key "sm_dependencies", "users", column: "created_by_id", on_delete: :nullify
@@ -9538,6 +9838,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
   add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
   add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "sm_task_photos", "jobs", on_delete: :cascade
+  add_foreign_key "sm_task_photos", "sm_resources", column: "resource_id", on_delete: :nullify
+  add_foreign_key "sm_task_photos", "sm_tasks", on_delete: :cascade
+  add_foreign_key "sm_task_photos", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "purchase_orders", on_delete: :nullify
@@ -9627,6 +9931,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072511) do
   add_foreign_key "whs_swms_acknowledgments", "whs_swms"
   add_foreign_key "whs_swms_controls", "whs_swms_hazards"
   add_foreign_key "whs_swms_hazards", "whs_swms"
+  add_foreign_key "worker_profiles", "contacts", on_delete: :nullify
+  add_foreign_key "worker_profiles", "cost_centres", on_delete: :nullify
+  add_foreign_key "worker_profiles", "users", on_delete: :nullify
   add_foreign_key "xero_alerts", "corporate_companies"
   add_foreign_key "xero_alerts", "users", column: "dismissed_by_id"
   add_foreign_key "xero_alerts", "xero_credentials"

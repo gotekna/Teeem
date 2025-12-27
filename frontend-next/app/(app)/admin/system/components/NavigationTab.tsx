@@ -499,7 +499,7 @@ export function NavigationTab() {
                 <Label>Icon</Label>
                 <IconPicker
                   value={itemForm.icon}
-                  onChange={(icon) => setItemForm((f) => ({ ...f, icon }))}
+                  onChange={(icon) => setItemForm((f) => ({ ...f, icon: icon || "" }))}
                 />
               </div>
               <div className="space-y-2">
@@ -607,7 +607,7 @@ export function NavigationTab() {
                 <Label>Icon</Label>
                 <IconPicker
                   value={itemForm.icon}
-                  onChange={(icon) => setItemForm((f) => ({ ...f, icon }))}
+                  onChange={(icon) => setItemForm((f) => ({ ...f, icon: icon || "" }))}
                 />
               </div>
               <div className="space-y-2">

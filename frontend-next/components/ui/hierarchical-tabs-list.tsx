@@ -4,6 +4,12 @@ import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/lib/utils";
 import { getIcon } from "@/lib/icon-map";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { EntityTab } from "@/lib/types/entity-tabs";
 
 interface HierarchicalTabsListProps {
@@ -75,11 +81,15 @@ export function HierarchicalTabsList({
         className="flex flex-wrap gap-1 rounded-lg bg-muted p-1"
       >
         {visibleTabs.map((tab) => {
-          const IconComponent = getIcon(tab.icon_name || "file");
+          // SSoT: Use effective_icon_name for inherited icons
+          const IconComponent = getIcon(tab.effective_icon_name || tab.icon_name || "file");
           const isParentOfActiveChild = selectedParent?.tab_key === tab.tab_key && tab.tab_key !== activeTab;
           const hasChildren = tab.children && tab.children.length > 0;
+          const displayMode = tab.display_mode || 'both';
+          const showIcon = displayMode !== 'text_only';
+          const showText = displayMode !== 'icon_only';
 
-          return (
+          const tabContent = (
             <TabsPrimitive.Trigger
               key={tab.tab_key}
               value={tab.tab_key}
@@ -90,20 +100,43 @@ export function HierarchicalTabsList({
                 "disabled:pointer-events-none disabled:opacity-50",
                 "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
                 "hover:bg-background/50",
-                "gap-2",
+                showIcon && showText && "gap-2",
                 // Highlight parent when a child is active
                 isParentOfActiveChild && "bg-background/30"
               )}
             >
-              <IconComponent className="h-4 w-4" />
-              {tab.display_name}
-              {hasChildren && (
+              {showIcon && <IconComponent className="h-4 w-4" />}
+              {showText && tab.display_name}
+              {showText && hasChildren && (
                 <span className="text-xs text-muted-foreground ml-0.5">
                   ({tab.children!.filter((c) => c.enabled).length})
                 </span>
               )}
             </TabsPrimitive.Trigger>
           );
+
+          // SSoT: Wrap icon-only tabs in tooltip to show name
+          if (displayMode === 'icon_only') {
+            return (
+              <TooltipProvider key={tab.tab_key}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {tabContent}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{tab.display_name}</p>
+                    {hasChildren && (
+                      <p className="text-xs text-muted-foreground">
+                        {tab.children!.filter((c) => c.enabled).length} sub-tabs
+                      </p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          }
+
+          return tabContent;
         })}
       </TabsPrimitive.List>
 
@@ -113,8 +146,13 @@ export function HierarchicalTabsList({
           className="flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1 ml-4"
         >
           {childrenToShow.map((child) => {
-            const ChildIcon = getIcon(child.icon_name || "file");
+            // SSoT: Use effective_icon_name for inherited icons
+            const ChildIcon = getIcon(child.effective_icon_name || child.icon_name || "file");
             const isChildActive = activeTab === child.tab_key;
+            // SSoT: Child tabs can only be 'both' or 'text_only' (not 'icon_only')
+            const displayMode = child.display_mode || 'both';
+            const showIcon = displayMode !== 'text_only';
+            const showText = true; // Child tabs always show text
             return (
               <TabsPrimitive.Trigger
                 key={child.tab_key}
@@ -127,11 +165,11 @@ export function HierarchicalTabsList({
                   "disabled:pointer-events-none disabled:opacity-50",
                   "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
                   "hover:bg-background/50",
-                  "gap-2"
+                  showIcon && "gap-2"
                 )}
               >
-                <ChildIcon className="h-4 w-4" />
-                {child.display_name}
+                {showIcon && <ChildIcon className="h-4 w-4" />}
+                {showText && child.display_name}
               </TabsPrimitive.Trigger>
             );
           })}
