@@ -208,9 +208,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  // Category folder photos state (for photo tabs like Site Photo, Client Photo, etc.)
-  const [categoryPhotos, setCategoryPhotos] = useState<LegacyItem[]>([]);
-  const [loadingCategoryPhotos, setLoadingCategoryPhotos] = useState(false);
+  // Category photo lightbox state
   const [categoryLightboxOpen, setCategoryLightboxOpen] = useState(false);
   const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
 
@@ -271,42 +269,24 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     setCategoryLightboxOpen(true);
   };
 
-  // Convert category photos to PhotoItems
+  // Get category photos by filtering allFiles by folder_path (more efficient than separate API call)
   const categoryPhotoItems: PhotoItem[] = useMemo(() => {
-    return categoryPhotos.filter(isImageFile).map(convertToPhotoItem);
-  }, [categoryPhotos, jobId]);
-
-  // Load photos from a category's folder path
-  const loadCategoryPhotos = async (folderPath: string) => {
-    if (!orgStatus.connected || !folderPath) {
-      setCategoryPhotos([]);
-      return;
+    const activeCategory = selectedSubCategory || selectedCategory;
+    if (!activeCategory?.folder_path || !isPhotoCategory(activeCategory)) {
+      return [];
     }
 
-    try {
-      setLoadingCategoryPhotos(true);
-      // Use the job_all_files endpoint with folder_path filter
-      const url = `/api/v1/organization_onedrive/job_all_files?job_id=${jobId}&folder_path=${encodeURIComponent(folderPath)}`;
+    const folderPath = activeCategory.folder_path;
+    // Filter allFiles to only those in this folder (or subfolders)
+    const photosInFolder = allFiles.filter((file) => {
+      if (!isImageFile(file)) return false;
+      const fileFolderPath = file.folder_path || "";
+      // Match exact folder or subfolders (case-insensitive)
+      return fileFolderPath.toLowerCase().includes(folderPath.toLowerCase());
+    });
 
-      const response = await api.get<{
-        success: boolean;
-        items: LegacyItem[];
-        count: number;
-        error?: string;
-      }>(url);
-
-      if (response?.success) {
-        setCategoryPhotos(response.items || []);
-      } else {
-        setCategoryPhotos([]);
-      }
-    } catch (err) {
-      console.error("[Category Photos] Failed to load:", err);
-      setCategoryPhotos([]);
-    } finally {
-      setLoadingCategoryPhotos(false);
-    }
-  };
+    return photosInFolder.map(convertToPhotoItem);
+  }, [allFiles, selectedCategory, selectedSubCategory, jobId]);
 
   // Generate photo filename based on category and current date/time
   const generatePhotoFilename = (extension: string): string => {
@@ -437,16 +417,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     }
 
   }, [selectedSubCategory]);
-
-  // Load photos when a photo category is selected
-  useEffect(() => {
-    const activeCategory = selectedSubCategory || selectedCategory;
-    if (activeCategory && isPhotoCategory(activeCategory) && activeCategory.folder_path) {
-      loadCategoryPhotos(activeCategory.folder_path);
-    } else {
-      setCategoryPhotos([]);
-    }
-  }, [selectedCategory, selectedSubCategory, orgStatus.connected]);
 
   const checkOrganizationStatus = async () => {
     try {
@@ -918,13 +888,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     }
   };
 
-  // Load all files when switching to the All Files tab
+  // Load all files when switching to the All Files tab or when viewing photo categories
   useEffect(() => {
-    if (viewMode === "allfiles" && orgStatus.connected) {
+    const activeCategory = selectedSubCategory || selectedCategory;
+    const needsPhotos = isPhotoCategory(activeCategory);
+
+    if (orgStatus.connected && (viewMode === "allfiles" || needsPhotos)) {
       loadAllFiles();
     }
-
-  }, [viewMode, orgStatus.connected]);
+  }, [viewMode, orgStatus.connected, selectedCategory, selectedSubCategory]);
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
@@ -1077,7 +1049,29 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {tasks.length === 0 ? (
+                {/* Show Photo Gallery for photo categories */}
+                {(isPhotoCategory(activeCategory) || initialCategory?.includes("photo")) ? (
+                  <div className="p-4">
+                    {loadingAllFiles ? (
+                      <PhotoGallery photos={[]} loading={true} />
+                    ) : categoryPhotoItems.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <Camera className="h-12 w-12 text-muted-foreground mb-3" />
+                        <p className="text-muted-foreground">No photos in this folder yet</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Use the "Add Photo" button to upload photos
+                        </p>
+                      </div>
+                    ) : (
+                      <PhotoGallery
+                        photos={categoryPhotoItems}
+                        onPhotoClick={handleCategoryPhotoClick}
+                        groupByDate
+                        thumbnailSize="lg"
+                      />
+                    )}
+                  </div>
+                ) : tasks.length === 0 ? (
                   <div className="py-12 text-center">
                     <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
                     <p className="text-muted-foreground">No document tasks in this category.</p>
@@ -1156,6 +1150,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                 )}
               </CardContent>
             </Card>
+
+            {/* Category Photo Lightbox */}
+            <ImageLightbox
+              photos={categoryPhotoItems}
+              initialIndex={categoryLightboxIndex}
+              open={categoryLightboxOpen}
+              onClose={() => setCategoryLightboxOpen(false)}
+            />
           </div>
         )}
       </div>
