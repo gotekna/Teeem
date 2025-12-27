@@ -72,7 +72,7 @@ export interface TaskFilters {
   showOverdueOnly: boolean;
 }
 
-export type ViewType = 'board' | 'list' | 'my-tasks' | 'workflow';
+export type ViewType = 'board' | 'list' | 'my-tasks' | 'all' | 'workflow';
 
 export interface TaskHubState {
   tasks: SmTask[];
@@ -531,7 +531,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     // Load saved view from localStorage
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('taskHub_activeView') as ViewType;
-      if (saved && ['board', 'list', 'my-tasks', 'workflow'].includes(saved)) {
+      if (saved && ['board', 'list', 'my-tasks', 'all', 'workflow'].includes(saved)) {
         return saved;
       }
     }

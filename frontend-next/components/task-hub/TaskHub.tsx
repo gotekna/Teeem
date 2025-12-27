@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   List,
   User,
+  Users,
   Plus,
   RefreshCw,
   AlertTriangle,
@@ -119,6 +120,10 @@ export function TaskHub() {
             <User className="h-3 w-3 mr-1" />
             Mine
           </TabsTrigger>
+          <TabsTrigger value="all" className="text-xs h-7 px-3">
+            <Users className="h-3 w-3 mr-1" />
+            All
+          </TabsTrigger>
           <TabsTrigger value="workflow" className="text-xs h-7 px-3">
             <Workflow className="h-3 w-3 mr-1" />
             Workflow
@@ -135,6 +140,10 @@ export function TaskHub() {
 
         <TabsContent value="my-tasks" className="mt-3">
           <MyTasksView />
+        </TabsContent>
+
+        <TabsContent value="all" className="mt-3">
+          <ListView />
         </TabsContent>
 
         <TabsContent value="workflow" className="mt-3">

@@ -133,7 +133,17 @@ class SmTask < ApplicationRecord
   scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
   scope :past_due, -> { where("start_date < ?", Date.current).active }
   scope :for_role, ->(role) { where(assigned_role: role) }
-  scope :for_user_roles, ->(user) { where(assigned_role: user.assigned_roles) if user&.assigned_roles.present? }
+  # Show tasks assigned directly to user OR assigned to user's roles
+  scope :for_user_roles, ->(user) {
+    return none unless user.present?
+
+    conditions = []
+    conditions << where(assigned_user_id: user.id) if user.id.present?
+    conditions << where(assigned_role: user.assigned_roles) if user.assigned_roles.present?
+
+    return none if conditions.empty?
+    conditions.reduce(:or)
+  }
   scope :recurring, -> { where(source_type: 'recurring') }
   scope :manual, -> { where(source_type: 'manual') }
   scope :from_job_template, -> { where(source_type: 'job') }
