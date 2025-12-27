@@ -467,6 +467,11 @@ export const useTaskHub = (): TaskHubContextType => {
   return context;
 };
 
+// Optional version that returns null when outside provider (safe for components used globally)
+export const useOptionalTaskHub = (): TaskHubContextType | null => {
+  return useContext(TaskHubContext);
+};
+
 interface TaskHubProviderProps {
   children: ReactNode;
   initialJobId?: number;

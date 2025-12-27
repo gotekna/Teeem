@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useTaskHub } from '@/contexts/TaskHubContext';
+import { useOptionalTaskHub } from '@/contexts/TaskHubContext';
 import {
   Dialog,
   DialogContent,
@@ -44,7 +44,8 @@ interface CreateTaskDialogProps {
 }
 
 export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) {
-  const { refresh } = useTaskHub();
+  // Use optional hook - this component can be used outside TaskHubProvider (e.g., in HeaderBar)
+  const taskHub = useOptionalTaskHub();
   const { toast } = useToast();
   const [saving, setSaving] = React.useState(false);
   const [jobs, setJobs] = React.useState<Job[]>([]);
@@ -193,7 +194,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
         });
         setPendingAttachments([]);
         onOpenChange(false);
-        refresh();
+        // Refresh task list if within TaskHubProvider context
+        taskHub?.refresh();
       } else {
         throw new Error(response?.message || 'Failed to create task');
       }
