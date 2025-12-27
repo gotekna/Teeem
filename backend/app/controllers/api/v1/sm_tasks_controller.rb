@@ -757,6 +757,7 @@ module Api
           :confirm,
           :supplier_confirm,
           :hold,
+          :hold_date,
           :purchase_order_id,
           :assigned_user_id,
           :assigned_role,
