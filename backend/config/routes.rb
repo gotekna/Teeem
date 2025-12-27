@@ -1019,6 +1019,19 @@ Rails.application.routes.draw do
         end
       end
 
+      # S3-Compatible Storage Credentials (AWS S3, Backblaze B2, MinIO, etc.)
+      resources :s3_credentials, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :test
+          get :providers
+          get :status
+        end
+        member do
+          post :test_connection
+          get :browse
+        end
+      end
+
       # Email Rules (inbox rules like Office 365)
       resources :email_rules do
         collection do

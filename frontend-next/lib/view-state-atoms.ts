@@ -96,6 +96,11 @@ export const currentSmartFitAtom = atom<boolean>(true);
 export const currentShowTotalsAtom = atom<boolean>(true);
 
 /**
+ * Which columns show totals (empty array means ALL numeric columns)
+ */
+export const currentTotalsColumnsAtom = atom<string[]>([]);
+
+/**
  * Pin actions column to right edge when scrolling horizontally
  * GOLD STANDARD: Part of position-based sticky columns
  */
@@ -285,6 +290,17 @@ export const applyViewAtom = atom(
       set(currentShowTotalsAtom, view.showTotals);
     } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
       set(currentShowTotalsAtom, viewAny.columns.showTotals);
+    }
+
+    // Totals columns - which columns show totals (empty = all numeric)
+    const viewWithTotalsColumns = view as SavedView & { totalsColumns?: string[]; columns?: { totalsColumns?: string[] } };
+    if (Array.isArray(viewWithTotalsColumns.totalsColumns)) {
+      set(currentTotalsColumnsAtom, viewWithTotalsColumns.totalsColumns);
+    } else if (viewWithTotalsColumns.columns && Array.isArray(viewWithTotalsColumns.columns.totalsColumns)) {
+      set(currentTotalsColumnsAtom, viewWithTotalsColumns.columns.totalsColumns);
+    } else {
+      // Default to empty (all numeric columns)
+      set(currentTotalsColumnsAtom, []);
     }
 
     // Sticky actions - default to true if not specified

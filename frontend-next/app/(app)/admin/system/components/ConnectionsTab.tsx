@@ -17,7 +17,34 @@ import {
   ExternalLink,
   RefreshCw,
   AlertTriangle,
+  HardDrive,
+  Plus,
+  Trash2,
+  Edit3,
+  TestTube,
+  ChevronDown,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -537,11 +564,558 @@ function TwilioConfiguration() {
   );
 }
 
+// S3-Compatible Storage Types
+interface S3Provider {
+  id: string;
+  name: string;
+  description: string;
+  endpoint_template: string | null;
+  region_hint: string;
+  help_url: string | null;
+}
+
+interface S3Credential {
+  id: number;
+  name: string;
+  provider_type: string;
+  provider_display_name: string;
+  endpoint: string | null;
+  region: string;
+  bucket: string;
+  bucket_url: string;
+  root_path: string;
+  is_active: boolean;
+  status: string;
+  access_key_id_masked: string;
+  created_at: string;
+}
+
+// S3 Storage Connection Component
+function S3StorageConnection() {
+  const { toast } = useToast();
+  const [credentials, setCredentials] = React.useState<S3Credential[]>([]);
+  const [providers, setProviders] = React.useState<S3Provider[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [editingCredential, setEditingCredential] = React.useState<S3Credential | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [testing, setTesting] = React.useState(false);
+  const [testResult, setTestResult] = React.useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+
+  const [formData, setFormData] = React.useState({
+    name: "",
+    provider_type: "backblaze_b2",
+    endpoint: "",
+    region: "",
+    bucket: "",
+    access_key_id: "",
+    secret_access_key: "",
+    root_path: "",
+  });
+
+  React.useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [credsData, providersData] = await Promise.all([
+        api.get<{ success: boolean; data: S3Credential[] }>("/api/v1/s3_credentials"),
+        api.get<{ success: boolean; data: S3Provider[] }>("/api/v1/s3_credentials/providers"),
+      ]);
+      setCredentials(credsData.data || []);
+      setProviders(providersData.data || []);
+    } catch (error) {
+      console.error("Failed to load S3 data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      provider_type: "backblaze_b2",
+      endpoint: "",
+      region: "",
+      bucket: "",
+      access_key_id: "",
+      secret_access_key: "",
+      root_path: "",
+    });
+    setTestResult(null);
+    setEditingCredential(null);
+  };
+
+  const handleProviderChange = (providerId: string) => {
+    const provider = providers.find((p) => p.id === providerId);
+    setFormData({
+      ...formData,
+      provider_type: providerId,
+      endpoint: provider?.endpoint_template || "",
+    });
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await api.post<{
+        success: boolean;
+        message?: string;
+        error?: string;
+      }>("/api/v1/s3_credentials/test", {
+        s3_credential: formData,
+      });
+      if (result) {
+        setTestResult({
+          success: result.success,
+          message: result.success ? result.message || "Connection successful" : result.error || "Connection failed",
+        });
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      setTestResult({
+        success: false,
+        message: err?.response?.data?.error || "Connection test failed",
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (editingCredential) {
+        await api.patch(`/api/v1/s3_credentials/${editingCredential.id}`, {
+          s3_credential: formData,
+        });
+        toast({ title: "Success", description: "S3 credential updated" });
+      } else {
+        await api.post("/api/v1/s3_credentials", {
+          s3_credential: formData,
+        });
+        toast({ title: "Success", description: "S3 storage connected successfully" });
+      }
+      setShowAddDialog(false);
+      resetForm();
+      loadData();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast({
+        title: "Error",
+        description: err?.response?.data?.error || "Failed to save credential",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (credential: S3Credential) => {
+    setEditingCredential(credential);
+    setFormData({
+      name: credential.name,
+      provider_type: credential.provider_type,
+      endpoint: credential.endpoint || "",
+      region: credential.region,
+      bucket: credential.bucket,
+      access_key_id: "",
+      secret_access_key: "",
+      root_path: credential.root_path || "",
+    });
+    setTestResult(null);
+    setShowAddDialog(true);
+  };
+
+  const handleDelete = async (credential: S3Credential) => {
+    if (!confirm(`Delete "${credential.name}"? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/api/v1/s3_credentials/${credential.id}`);
+      toast({ title: "Success", description: "S3 credential deleted" });
+      loadData();
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete credential", variant: "destructive" });
+    }
+  };
+
+  const handleTestExisting = async (credential: S3Credential) => {
+    try {
+      const result = await api.post<{
+        success: boolean;
+        message?: string;
+        error?: string;
+      }>(`/api/v1/s3_credentials/${credential.id}/test_connection`);
+      if (result) {
+        toast({
+          title: result.success ? "Success" : "Error",
+          description: result.success ? "Connection successful" : result.error || "Connection failed",
+          variant: result.success ? "default" : "destructive",
+        });
+        loadData();
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast({
+        title: "Error",
+        description: err?.response?.data?.error || "Connection test failed",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const selectedProvider = providers.find((p) => p.id === formData.provider_type);
+  const hasConnected = credentials.some((c) => c.status === "connected");
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-32">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900">
+                <HardDrive className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <CardTitle className="text-base">S3-Compatible Storage</CardTitle>
+                <CardDescription>
+                  Alternative document storage (Backblaze B2, AWS S3, MinIO, etc.)
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={hasConnected ? "default" : "secondary"}>
+                {hasConnected ? (
+                  <>
+                    <Check className="h-3 w-3 mr-1" />
+                    {credentials.filter((c) => c.status === "connected").length} Connected
+                  </>
+                ) : (
+                  <>
+                    <X className="h-3 w-3 mr-1" />
+                    Not Connected
+                  </>
+                )}
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  resetForm();
+                  setShowAddDialog(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {credentials.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <HardDrive className="h-10 w-10 mx-auto mb-2 opacity-50" />
+              <p>No S3 storage configured</p>
+              <p className="text-sm">Add a storage provider to use as alternative to SharePoint</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {credentials.map((cred) => (
+                <div
+                  key={cred.id}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+                >
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant={cred.status === "connected" ? "default" : "secondary"}
+                      className={cn(
+                        cred.status === "error" && "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                      )}
+                    >
+                      {cred.status === "connected" ? (
+                        <Check className="h-3 w-3 mr-1" />
+                      ) : cred.status === "error" ? (
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                      ) : (
+                        <X className="h-3 w-3 mr-1" />
+                      )}
+                      {cred.status}
+                    </Badge>
+                    <div>
+                      <p className="font-medium">{cred.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {cred.provider_display_name} • {cred.bucket} • {cred.region}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleTestExisting(cred)}
+                      title="Test Connection"
+                    >
+                      <TestTube className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(cred)}
+                      title="Edit"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(cred)}
+                      title="Delete"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
+            <p className="font-medium mb-1">Supported Providers:</p>
+            <p>
+              Backblaze B2 (~$0.006/GB) • AWS S3 • Wasabi • MinIO (self-hosted, free) • Synology NAS
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Add/Edit S3 Credential Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingCredential ? "Edit S3 Storage" : "Add S3 Storage"}
+            </DialogTitle>
+            <DialogDescription>
+              Connect an S3-compatible storage provider for document storage.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Provider Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="provider_type">Provider</Label>
+              <Select
+                value={formData.provider_type}
+                onValueChange={handleProviderChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      <div className="flex flex-col">
+                        <span>{provider.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {provider.description}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name">Display Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g., Job Documents Storage"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+
+            {/* Endpoint (not for AWS) */}
+            {formData.provider_type !== "aws_s3" && (
+              <div className="space-y-2">
+                <Label htmlFor="endpoint">Endpoint URL</Label>
+                <Input
+                  id="endpoint"
+                  placeholder={selectedProvider?.endpoint_template || "https://..."}
+                  value={formData.endpoint}
+                  onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {selectedProvider?.region_hint}
+                </p>
+              </div>
+            )}
+
+            {/* Region */}
+            <div className="space-y-2">
+              <Label htmlFor="region">Region</Label>
+              <Input
+                id="region"
+                placeholder={selectedProvider?.region_hint || "e.g., us-east-1"}
+                value={formData.region}
+                onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+              />
+            </div>
+
+            {/* Bucket */}
+            <div className="space-y-2">
+              <Label htmlFor="bucket">Bucket Name</Label>
+              <Input
+                id="bucket"
+                placeholder="my-teeem-documents"
+                value={formData.bucket}
+                onChange={(e) => setFormData({ ...formData, bucket: e.target.value })}
+              />
+            </div>
+
+            {/* Credentials */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="access_key_id">Access Key ID</Label>
+                <Input
+                  id="access_key_id"
+                  placeholder={editingCredential ? "(unchanged)" : "Your access key"}
+                  value={formData.access_key_id}
+                  onChange={(e) => setFormData({ ...formData, access_key_id: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secret_access_key">Secret Access Key</Label>
+                <Input
+                  id="secret_access_key"
+                  type="password"
+                  placeholder={editingCredential ? "(unchanged)" : "Your secret key"}
+                  value={formData.secret_access_key}
+                  onChange={(e) => setFormData({ ...formData, secret_access_key: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Root Path (Advanced) */}
+            <Accordion type="single" collapsible>
+              <AccordionItem value="advanced">
+                <AccordionTrigger className="text-sm">Advanced Settings</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="root_path">Root Path (Optional)</Label>
+                    <Input
+                      id="root_path"
+                      placeholder="e.g., teeem/documents"
+                      value={formData.root_path}
+                      onChange={(e) => setFormData({ ...formData, root_path: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      All files will be stored under this prefix in the bucket
+                    </p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            {/* Test Result */}
+            {testResult && (
+              <div
+                className={cn(
+                  "p-3 rounded-md text-sm",
+                  testResult.success
+                    ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                    : "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                )}
+              >
+                {testResult.success ? (
+                  <Check className="h-4 w-4 inline mr-2" />
+                ) : (
+                  <X className="h-4 w-4 inline mr-2" />
+                )}
+                {testResult.message}
+              </div>
+            )}
+
+            {/* Help Link */}
+            {selectedProvider?.help_url && (
+              <div className="text-sm text-muted-foreground">
+                <a
+                  href={selectedProvider.help_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {selectedProvider.name} Documentation{" "}
+                  <ExternalLink className="h-3 w-3 inline" />
+                </a>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleTest}
+              disabled={testing || !formData.bucket || !formData.region || (!editingCredential && (!formData.access_key_id || !formData.secret_access_key))}
+            >
+              {testing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <TestTube className="h-4 w-4 mr-2" />
+                  Test
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !formData.name || !formData.bucket || !formData.region || (!editingCredential && (!formData.access_key_id || !formData.secret_access_key))}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // Main Connections Tab
 export function ConnectionsTab() {
   return (
     <div className="space-y-6">
       <SharePointConnection />
+      <S3StorageConnection />
       <OutlookConnection />
       <TwilioConfiguration />
     </div>

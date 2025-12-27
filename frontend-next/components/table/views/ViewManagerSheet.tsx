@@ -53,6 +53,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
   Plus,
   Pencil,
   Eye,
@@ -164,6 +170,19 @@ export function ViewManagerSheet({
   const safeColumns = Array.isArray(columns) ? columns : [];
   const effectiveColumns = safeAllFoundationColumns.length > 0 ? safeAllFoundationColumns : safeColumns;
 
+  // Numeric column types that can have totals
+  const NUMERIC_TYPES = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
+  const SKIP_COLUMNS = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'design_id', 'user_id'];
+
+  // Get columns that can have totals (numeric types, not skipped)
+  const numericColumns = React.useMemo(() => {
+    return effectiveColumns.filter(col =>
+      col.column_type &&
+      NUMERIC_TYPES.includes(col.column_type) &&
+      !SKIP_COLUMNS.includes(col.column_name || col.key || '')
+    );
+  }, [effectiveColumns]);
+
   // Foundation names for lookup columns
   const [foundationNames, setFoundationNames] = React.useState<Record<number, string>>({});
 
@@ -194,6 +213,7 @@ export function ViewManagerSheet({
   const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(false);
   const [editSmartFit, setEditSmartFit] = React.useState(true); // Default to TEEEM Smart
   const [editShowTotals, setEditShowTotals] = React.useState(true);
+  const [editTotalsColumns, setEditTotalsColumns] = React.useState<Set<string>>(new Set()); // Which columns show totals
   const [editStickyActions, setEditStickyActions] = React.useState(true); // Pin actions column to right
   const [editSearchableColumns, setEditSearchableColumns] = React.useState<Record<string, boolean>>({});
 
@@ -269,6 +289,7 @@ export function ViewManagerSheet({
           autoFitColumns: v.columns?.autoFitColumns === true,
           smartFit: v.columns?.smartFit !== false, // Default to true
           showTotals: v.columns?.showTotals !== false,
+          totalsColumns: v.columns?.totalsColumns || [], // Which columns show totals
           stickyActions: v.columns?.stickyActions !== false, // Default to true
           sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
           groupByColumns: v.group_by_columns || [],
@@ -348,6 +369,8 @@ export function ViewManagerSheet({
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
     setEditShowTotals(view.showTotals !== false);
+    // Load totalsColumns - empty array means "all columns" (default)
+    setEditTotalsColumns(new Set(view.totalsColumns || []));
     setEditStickyActions(view.stickyActions !== false); // Default to true - actions pinned
 
     // Load searchable columns - default to foundation schema's searchable settings
@@ -426,6 +449,7 @@ export function ViewManagerSheet({
         autoFitColumns: editAutoFitColumns,
         smartFit: editSmartFit,
         showTotals: editShowTotals,
+        totalsColumns: Array.from(editTotalsColumns), // Convert Set to array for saving
         stickyActions: editStickyActions,
         searchableColumns: editSearchableColumns,
         filters: editFilters,
@@ -453,6 +477,7 @@ export function ViewManagerSheet({
           autoFitColumns: false, // Always use manual widths
           smartFit: false, // Always use manual widths
           showTotals: currentEditState.showTotals,
+          totalsColumns: currentEditState.totalsColumns, // Which columns show totals
           stickyActions: currentEditState.stickyActions,
           searchable: currentEditState.searchableColumns,
         },
@@ -491,6 +516,7 @@ export function ViewManagerSheet({
           autoFitColumns: false, // Always use manual widths
           smartFit: false, // Always use manual widths
           showTotals: currentEditState.showTotals,
+          totalsColumns: currentEditState.totalsColumns, // Which columns show totals
           stickyActions: currentEditState.stickyActions,
           searchableColumns: currentEditState.searchableColumns,
           filters: currentEditState.filters,
@@ -1636,14 +1662,94 @@ export function ViewManagerSheet({
                           </AccordionTrigger>
                           {columnsExpanded && (
                             <div className="flex items-center gap-4">
-                              <div className="flex items-center gap-2">
-                                <Label htmlFor="show-totals" className="text-xs text-muted-foreground">Totals</Label>
-                                <Switch
-                                  id="show-totals"
-                                  checked={editShowTotals}
-                                  onCheckedChange={handleShowTotalsChange}
-                                />
-                              </div>
+                              {/* Totals Popover - Select which columns show totals */}
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 px-2">
+                                    Totals
+                                    {editShowTotals && (
+                                      <Badge variant="secondary" className="text-[10px] px-1 py-0 ml-1">
+                                        {editTotalsColumns.size > 0 ? editTotalsColumns.size : numericColumns.length}
+                                      </Badge>
+                                    )}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-64 p-3" align="end">
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-sm font-medium">Show Totals</Label>
+                                      <Switch
+                                        checked={editShowTotals}
+                                        onCheckedChange={handleShowTotalsChange}
+                                      />
+                                    </div>
+                                    {editShowTotals && numericColumns.length > 0 && (
+                                      <>
+                                        <Separator />
+                                        <div className="space-y-2">
+                                          <Label className="text-xs text-muted-foreground">Columns with totals:</Label>
+                                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                                            {numericColumns.map(col => (
+                                              <label
+                                                key={col.column_name}
+                                                className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5"
+                                              >
+                                                <Checkbox
+                                                  checked={editTotalsColumns.size === 0 || editTotalsColumns.has(col.column_name)}
+                                                  onCheckedChange={(checked) => {
+                                                    setEditTotalsColumns(prev => {
+                                                      const newSet = new Set(prev);
+                                                      // If first interaction and set is empty, initialize with all columns
+                                                      if (prev.size === 0 && !checked) {
+                                                        numericColumns.forEach(c => newSet.add(c.column_name));
+                                                        newSet.delete(col.column_name);
+                                                        return newSet;
+                                                      }
+                                                      if (checked) {
+                                                        newSet.add(col.column_name);
+                                                      } else {
+                                                        newSet.delete(col.column_name);
+                                                      }
+                                                      return newSet;
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="truncate">{col.name || col.column_name}</span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                          <div className="flex gap-2 pt-1">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 text-xs"
+                                              onClick={() => setEditTotalsColumns(new Set())}
+                                            >
+                                              All
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 text-xs"
+                                              onClick={() => {
+                                                // Set to explicit empty selection (shows as 0)
+                                                const noneSet = new Set<string>();
+                                                noneSet.add('__none__'); // Marker to indicate explicit "none" selection
+                                                setEditTotalsColumns(noneSet);
+                                              }}
+                                            >
+                                              None
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
+                                    {editShowTotals && numericColumns.length === 0 && (
+                                      <p className="text-xs text-muted-foreground italic">No numeric columns available</p>
+                                    )}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
                               <div className="flex items-center gap-2">
                                 <Label htmlFor="sticky-actions" className="text-xs text-muted-foreground">Pin Actions</Label>
                                 <Switch

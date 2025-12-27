@@ -84,6 +84,7 @@ import { AiProcessingTab } from "./components/AiProcessingTab";
 import { XeroHealthTab } from "./components/XeroHealthTab";
 import { CostTab } from "./components/CostTab";
 import { UnrealEngineTab } from "./components/UnrealEngineTab";
+import { ConnectionsTab } from "./components/ConnectionsTab";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 const TIMEZONES = [
@@ -150,6 +151,7 @@ const COMPANY_TABS = [
   { id: "workflows", label: "Workflows" },
   { id: "folders", label: "Folders" },
   { id: "sharepoint", label: "SharePoint" },
+  { id: "connections", label: "Connections" },
   { id: "job-setup", label: "Job Setup" },
   { id: "workflow-config", label: "Workflow Config" },
   { id: "doc-templates", label: "Doc Templates" },
@@ -683,6 +685,9 @@ function CompanySettingsTab() {
           </TabsContent>
           <TabsContent value="sharepoint">
             <SharePointTab />
+          </TabsContent>
+          <TabsContent value="connections">
+            <ConnectionsTab />
           </TabsContent>
           <TabsContent value="job-setup">
             <JobSetupTab />

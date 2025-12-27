@@ -82,6 +82,7 @@ export interface SavedView {
   autoFitColumns?: boolean;
   smartFit?: boolean;
   showTotals?: boolean;
+  totalsColumns?: string[]; // Which columns show totals (empty = all numeric columns)
   stickyActions?: boolean; // Pin actions column to right edge when scrolling horizontally
   display_order?: number;
   isDefault?: boolean;

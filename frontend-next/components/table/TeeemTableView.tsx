@@ -326,6 +326,7 @@ import {
   currentAutoFitColumnsAtom,
   currentSmartFitAtom,
   currentShowTotalsAtom,
+  currentTotalsColumnsAtom,
   currentStickyActionsAtom,
   collapsedGroupsAtom,
   foundationViewsAtom,
@@ -408,7 +409,7 @@ const SYSTEM_COLUMN_BG = '#fee2e2'; // red-100
 const DEFAULT_COLUMNS: TableColumn[] = [
   { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
   { key: "id", label: "ID", resizable: true, sortable: true, filterable: true, width: 50 },
-  { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 180 },
+  { key: "actions", label: "", resizable: false, sortable: false, filterable: false, width: 50 },
 ];
 
 // Filter operators for display
@@ -1237,7 +1238,7 @@ export default function TeeemTableView({
       result.unshift({ key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 });
     }
     if (!hasActions) {
-      result.push({ key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 180 });
+      result.push({ key: "actions", label: "", resizable: false, sortable: false, filterable: false, width: 50 });
     }
     return result;
   }, [effectiveColumns]);
@@ -1504,6 +1505,7 @@ export default function TeeemTableView({
 
   // Display options managed by atoms
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
+  const totalsColumns = useAtomValue(currentTotalsColumnsAtom); // Which columns show totals (empty = all)
   const [autoFitColumns, setAutoFitColumns] = useAtom(currentAutoFitColumnsAtom);
   const [smartFit, setSmartFit] = useAtom(currentSmartFitAtom);
   // GOLD STANDARD: Position-based sticky actions toggle
@@ -3776,13 +3778,23 @@ export default function TeeemTableView({
   }, [visibleColumnsInOrder]);
 
   // Calculate column totals for numeric columns
+  // Respects totalsColumns setting - empty array means ALL numeric columns
   const columnTotals = useMemo(() => {
     const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
     const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'design_id', 'user_id']; // Never show totals for these
     const totals: Record<string, { value: number; type: string; label: string; isAverage: boolean }> = {};
 
+    // Check if specific columns are selected (empty = all, '__none__' marker = none)
+    const hasSpecificSelection = totalsColumns.length > 0;
+    const hasNoneMarker = totalsColumns.includes('__none__');
+
     visibleDataColumns.forEach(col => {
       if (col.column_type && numericTypes.includes(col.column_type) && !skipColumns.includes(col.key)) {
+        // Skip if specific columns selected and this column isn't in the list
+        // Empty array means "all columns" (default behavior)
+        if (hasNoneMarker) return; // '__none__' marker means show no totals
+        if (hasSpecificSelection && !totalsColumns.includes(col.key)) return;
+
         let count = 0;
         const sum = filteredAndSortedEntries.reduce((acc, row) => {
           const val = row[col.key];
@@ -3808,7 +3820,7 @@ export default function TeeemTableView({
     });
 
     return totals;
-  }, [visibleDataColumns, filteredAndSortedEntries]);
+  }, [visibleDataColumns, filteredAndSortedEntries, totalsColumns]);
 
   // Format total value based on column type
   const formatTotal = (key: string): string | null => {
@@ -5270,16 +5282,6 @@ export default function TeeemTableView({
               <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
                 DISPLAY
               </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => setStickyActions(!stickyActions)}
-                className="flex items-center justify-between"
-              >
-                <span className="flex items-center gap-2">
-                  <Pin className="h-4 w-4" />
-                  Pin Actions Column
-                </span>
-                {stickyActions && <Check className="h-4 w-4" />}
-              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowColumnFilters(!showColumnFilters)}
                 className="flex items-center justify-between"

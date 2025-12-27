@@ -3,18 +3,24 @@
 /**
  * ActionsButtons Component
  *
- * Renders View, Edit, and Delete action buttons for table rows.
+ * Renders a three-dot menu with View, Edit, and Delete actions for table rows.
  * Respects viewOnly prop and conditional handlers.
  *
  * Preserves row-adding permission logic:
- * - Edit/Delete buttons hidden when viewOnly={true}
- * - Edit button shown only when onRowUpdate or onEdit provided
- * - Delete button shown only when onDelete provided
+ * - Edit/Delete options hidden when viewOnly={true}
+ * - Edit option shown only when onRowUpdate or onEdit provided
+ * - Delete option shown only when onDelete provided
  */
 
 import React, { memo } from 'react';
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Trash2, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export interface ActionsButtonsProps<T = unknown> {
   /** The row entry */
@@ -68,37 +74,62 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
     }
   };
 
+  const hasAnyAction = onView || (!viewOnly && (onRowUpdate || onEdit)) || (!viewOnly && onDelete);
+
+  if (!hasAnyAction) {
+    return null;
+  }
+
   return (
-    <div className="flex items-center justify-center gap-1">
-      {/* View button - removed */}
+    <div className="flex items-center justify-center">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 hover:bg-muted"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-32">
+          {/* View option */}
+          {onView && (
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onView(entry);
+              }}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              View
+            </DropdownMenuItem>
+          )}
 
-      {/* Edit button - hidden when viewOnly=true */}
-      {!viewOnly && (onRowUpdate || onEdit) && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 hover:bg-gray-100"
-          onClick={handleEditClick}
-          onDoubleClick={(e) => e.stopPropagation()}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-      )}
+          {/* Edit option - hidden when viewOnly=true */}
+          {!viewOnly && (onRowUpdate || onEdit) && (
+            <DropdownMenuItem onClick={handleEditClick}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
+          )}
 
-      {/* Delete button - hidden when viewOnly=true */}
-      {!viewOnly && onDelete && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 hover:bg-gray-100 hover:text-red-600"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(entry);
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      )}
+          {/* Delete option - hidden when viewOnly=true */}
+          {!viewOnly && onDelete && (
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(entry);
+              }}
+              className="text-red-600 focus:text-red-600"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }) as <T extends { id: string | number }>(props: ActionsButtonsProps<T>) => React.ReactElement;
