@@ -342,6 +342,13 @@ return (
 The Gold Standard Table (`admin/system → Gold Standard Table tab`) is THE canonical demo of TeeemTableView.
 See `GoldStandardTab.tsx` lines 820-848 for the correct pattern.
 
+**🔴 CRITICAL: "Gold Standard Table" = TeeemTableView**
+When user says "Gold Standard Table" or "gold std table", they mean **TeeemTableView**.
+- Gold Standard Table is a DEMO page showing TeeemTableView capabilities
+- Changes should go to `TeeemTableView.tsx`, NOT `GoldStandardTab.tsx`
+- GoldStandardTab is just a thin wrapper that passes `foundationIdNumeric={1}`
+- The goal: fix TeeemTableView once → all tables benefit
+
 **For pages with extra content (tabs, stats cards):**
 ```tsx
 return (

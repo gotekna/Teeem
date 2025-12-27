@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_061040) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_061041) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7516,6 +7516,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061040) do
     t.index ["position"], name: "index_roles_on_position"
   end
 
+  create_table "s3_compatible_credentials", force: :cascade do |t|
+    t.bigint "organization_id"
+    t.string "name", null: false
+    t.string "provider_type", null: false
+    t.string "endpoint"
+    t.string "region", null: false
+    t.string "bucket", null: false
+    t.string "access_key_id", null: false
+    t.string "secret_access_key", null: false
+    t.string "root_path", default: ""
+    t.boolean "is_active", default: true, null: false
+    t.string "status", default: "pending"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_s3_compatible_credentials_on_is_active"
+    t.index ["organization_id", "is_active"], name: "idx_on_organization_id_is_active_359ae937e1"
+    t.index ["organization_id"], name: "index_s3_compatible_credentials_on_organization_id"
+    t.index ["provider_type"], name: "index_s3_compatible_credentials_on_provider_type"
+    t.index ["status"], name: "index_s3_compatible_credentials_on_status"
+  end
+
   create_table "scheduled_emails", force: :cascade do |t|
     t.bigint "imap_credential_id"
     t.string "microsoft_credential_id"
@@ -9957,6 +9979,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061040) do
   add_foreign_key "recipes", "recipe_categories"
   add_foreign_key "reconciliation_reports", "corporate_groups", column: "company_group_id"
   add_foreign_key "role_permissions", "permissions"
+  add_foreign_key "s3_compatible_credentials", "organizations"
   add_foreign_key "scheduled_emails", "imap_credentials"
   add_foreign_key "scheduled_emails", "users", column: "created_by_id"
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
