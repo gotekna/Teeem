@@ -89,6 +89,7 @@ function formatRelativeTime(dateString: string): string {
 interface Role {
   id: number;
   name: string;
+  display_name?: string;
   description: string;
   users_count: number;
 }
@@ -353,13 +354,16 @@ function RolesManagementTab() {
   const [roles, setRoles] = React.useState<Role[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [showEditDialog, setShowEditDialog] = React.useState(false);
+  const [editingRole, setEditingRole] = React.useState<Role | null>(null);
   const [newRoleName, setNewRoleName] = React.useState("");
   const [newRoleDescription, setNewRoleDescription] = React.useState("");
+  const [editDisplayName, setEditDisplayName] = React.useState("");
+  const [editDescription, setEditDescription] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     loadRoles();
-     
   }, []);
 
   const loadRoles = async () => {
@@ -380,19 +384,70 @@ function RolesManagementTab() {
     if (!newRoleName) return;
     setSaving(true);
     try {
-      await api.post("/api/v1/permissions/roles", {
+      const response = await api.post<{ success: boolean; error?: string }>("/api/v1/permissions/roles", {
         role: { name: newRoleName, description: newRoleDescription },
       });
-      toast({ title: "Success", description: "Role created successfully" });
-      setShowAddDialog(false);
-      setNewRoleName("");
-      setNewRoleDescription("");
-      loadRoles();
-    } catch (error) {
+      if (response?.success === false && response?.error) {
+        toast({ title: "Error", description: response.error, variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Role created successfully" });
+        setShowAddDialog(false);
+        setNewRoleName("");
+        setNewRoleDescription("");
+        loadRoles();
+      }
+    } catch (error: any) {
       console.error("Failed to create role:", error);
-      toast({ title: "Error", description: "Failed to create role", variant: "destructive" });
+      const errorMessage = error?.response?.data?.error || error?.message || "Failed to create role";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEditRole = (role: Role) => {
+    setEditingRole(role);
+    setEditDisplayName(role.display_name || role.name);
+    setEditDescription(role.description || "");
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRole) return;
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/permissions/roles/${editingRole.id}`, {
+        role: { display_name: editDisplayName, description: editDescription },
+      });
+      toast({ title: "Success", description: "Role updated successfully" });
+      setShowEditDialog(false);
+      setEditingRole(null);
+      loadRoles();
+    } catch (error: any) {
+      console.error("Failed to update role:", error);
+      const errorMessage = error?.response?.data?.error || "Failed to update role";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteRole = async (role: Role) => {
+    if (!confirm(`Are you sure you want to delete the role "${role.display_name || role.name}"?`)) {
+      return;
+    }
+    try {
+      const response = await api.delete<{ success: boolean; error?: string }>(`/api/v1/permissions/roles/${role.id}`);
+      if (response?.success === false && response?.error) {
+        toast({ title: "Error", description: response.error, variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Role deleted successfully" });
+        loadRoles();
+      }
+    } catch (error: any) {
+      console.error("Failed to delete role:", error);
+      const errorMessage = error?.response?.data?.error || "Failed to delete role";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
 
@@ -418,7 +473,7 @@ function RolesManagementTab() {
           <Card key={role.id}>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{role.name}</CardTitle>
+                <CardTitle className="text-base">{role.display_name || role.name}</CardTitle>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon">
@@ -426,11 +481,14 @@ function RolesManagementTab() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleEditRole(role)}>
                       <Pencil className="h-4 w-4 mr-2" />
                       Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => handleDeleteRole(role)}
+                    >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete
                     </DropdownMenuItem>
@@ -450,6 +508,7 @@ function RolesManagementTab() {
         ))}
       </div>
 
+      {/* Add Role Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
@@ -490,6 +549,56 @@ function RolesManagementTab() {
                 </>
               ) : (
                 "Create Role"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Role Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Role</DialogTitle>
+            <DialogDescription>
+              Update the display name and description for this role.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Role ID</Label>
+              <Input value={editingRole?.name || ""} disabled className="bg-muted" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editDisplayName">Display Name</Label>
+              <Input
+                id="editDisplayName"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editDescription">Description</Label>
+              <Input
+                id="editDescription"
+                placeholder="Brief description of this role"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
               )}
             </Button>
           </DialogFooter>

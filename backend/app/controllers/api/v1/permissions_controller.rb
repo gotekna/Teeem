@@ -51,11 +51,14 @@ module Api
 
       # GET /api/v1/permissions/roles
       def roles
-        roles_data = User::ROLES.map do |role|
+        roles_data = Role.order(:position, :name).map do |role|
           {
-            name: role,
-            display_name: role.titleize,
-            permissions: get_role_permissions(role)
+            id: role.id,
+            name: role.name,
+            display_name: role.display_name,
+            description: role.description,
+            users_count: User.where(role: role.name).count,
+            permissions: get_role_permissions(role.name)
           }
         end
 
@@ -63,6 +66,54 @@ module Api
           success: true,
           roles: roles_data
         }
+      end
+
+      # PATCH /api/v1/permissions/roles/:id
+      def update_role
+        role = Role.find(params[:id])
+        role_params = params[:role] || params
+
+        if role.update(
+          display_name: role_params[:display_name],
+          description: role_params[:description]
+        )
+          render json: {
+            success: true,
+            role: {
+              id: role.id,
+              name: role.name,
+              display_name: role.display_name,
+              description: role.description
+            }
+          }
+        else
+          render json: { success: false, errors: role.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/permissions/roles/:id
+      def destroy_role
+        role = Role.find(params[:id])
+
+        # Prevent deleting roles that have users
+        users_count = User.where(role: role.name).count
+        if users_count > 0
+          return render json: {
+            success: false,
+            error: "Cannot delete role '#{role.display_name}' - #{users_count} user(s) are assigned to it"
+          }, status: :unprocessable_entity
+        end
+
+        # Prevent deleting system roles
+        if %w[user admin].include?(role.name)
+          return render json: {
+            success: false,
+            error: "Cannot delete system role '#{role.display_name}'"
+          }, status: :unprocessable_entity
+        end
+
+        role.destroy
+        render json: { success: true }
       end
 
       # POST /api/v1/permissions/roles

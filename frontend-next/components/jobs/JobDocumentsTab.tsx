@@ -494,8 +494,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
   const loadDocumentCategories = async () => {
     try {
+      console.log('[JobDocumentsTab] Loading documentation_tabs for job:', jobId);
       const response = await api.get<DocumentCategory[]>(`/api/v1/jobs/${jobId}/documentation_tabs`);
       const categories = response || [];
+      console.log('[JobDocumentsTab] Loaded categories:', categories.length, categories.map(c => ({
+        id: c.id,
+        name: c.name,
+        is_photo_category: c.is_photo_category,
+        children: c.children?.map(ch => ({ id: ch.id, name: ch.name, is_photo_category: ch.is_photo_category }))
+      })));
       setDocumentCategories(categories);
 
       if (categories.length > 0 && !selectedCategory) {
@@ -532,7 +539,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
         setSelectedCategory(categories[0]);
       }
     } catch (err) {
-      console.error("Failed to load document categories:", err);
+      console.error("[JobDocumentsTab] Failed to load document categories:", err);
+      console.error("[JobDocumentsTab] Error details:", JSON.stringify(err, null, 2));
     }
   };
 
@@ -941,6 +949,23 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
   // Document Tasks View
   const renderTasksView = () => {
+    // DEBUG: Log state for photo upload debugging
+    const activeCategory = selectedSubCategory || selectedCategory;
+    const parentCategory = selectedSubCategory ? selectedCategory : null;
+    const photoCheck = isPhotoCategory(activeCategory, parentCategory);
+    console.log('[JobDocumentsTab] DEBUG:', {
+      viewMode,
+      documentCategoriesCount: documentCategories.length,
+      selectedCategory: selectedCategory?.name,
+      selectedSubCategory: selectedSubCategory?.name,
+      activeCategory: activeCategory?.name,
+      isPhotoCategory: photoCheck,
+      activeCategoryIsPhotoFlag: activeCategory?.is_photo_category,
+      parentIsPhotoFlag: parentCategory?.is_photo_category,
+      orgStatusConnected: orgStatus.connected,
+      initialCategory,
+    });
+
     if (documentCategories.length === 0) {
       return (
         <Card>
@@ -953,8 +978,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
       );
     }
 
-    // Get the current active category (either the subcategory or the parent if no children)
-    const activeCategory = selectedSubCategory || selectedCategory;
+    // activeCategory already declared in debug block above
 
     return (
       <div className="space-y-4">
