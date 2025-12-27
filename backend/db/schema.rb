@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_061033) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_061036) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6124,6 +6124,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061033) do
     t.text "internal_notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "purchase_order_id"
     t.index ["billable", "billing_status"], name: "idx_labour_cost_billing_queue"
     t.index ["billing_status"], name: "index_labour_cost_entries_on_billing_status"
     t.index ["cost_centre_id", "entry_date"], name: "index_labour_cost_entries_on_cost_centre_id_and_entry_date"
@@ -6132,6 +6133,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061033) do
     t.index ["entry_source"], name: "index_labour_cost_entries_on_entry_source"
     t.index ["job_id", "entry_date"], name: "index_labour_cost_entries_on_job_id_and_entry_date"
     t.index ["job_id"], name: "index_labour_cost_entries_on_job_id"
+    t.index ["purchase_order_id"], name: "index_labour_cost_entries_on_purchase_order_id"
     t.index ["site_presence_session_id"], name: "index_labour_cost_entries_on_site_presence_session_id"
     t.index ["sm_task_id"], name: "index_labour_cost_entries_on_sm_task_id"
     t.index ["worker_profile_id", "entry_date"], name: "index_labour_cost_entries_on_worker_profile_id_and_entry_date"
@@ -7246,6 +7248,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061033) do
     t.date "due_date"
     t.bigint "sm_task_id"
     t.tsvector "searchable"
+    t.decimal "labour_budget", precision: 12, scale: 2
+    t.decimal "labour_actual", precision: 12, scale: 2, default: "0.0"
+    t.boolean "is_labour_po", default: false
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
@@ -8519,6 +8524,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061033) do
     t.index ["start_date", "end_date"], name: "index_user_absences_on_start_date_and_end_date"
     t.index ["user_id", "start_date", "end_date"], name: "index_user_absences_on_user_id_and_start_date_and_end_date"
     t.index ["user_id"], name: "index_user_absences_on_user_id"
+  end
+
+  create_table "user_entity_tab_preferences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "scope", null: false
+    t.jsonb "hidden_tabs", default: []
+    t.string "default_tab"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "tab_order", default: []
+    t.index ["user_id", "scope"], name: "idx_user_entity_tab_prefs_unique", unique: true
+    t.index ["user_id"], name: "index_user_entity_tab_preferences_on_user_id"
   end
 
   create_table "user_groups", force: :cascade do |t|
@@ -9818,6 +9835,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061033) do
   add_foreign_key "kudos_events", "subcontractor_accounts"
   add_foreign_key "labour_cost_entries", "cost_centres"
   add_foreign_key "labour_cost_entries", "jobs"
+  add_foreign_key "labour_cost_entries", "purchase_orders"
   add_foreign_key "labour_cost_entries", "site_presence_sessions", on_delete: :nullify
   add_foreign_key "labour_cost_entries", "sm_tasks"
   add_foreign_key "labour_cost_entries", "worker_profiles"
@@ -10011,6 +10029,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061033) do
   add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
+  add_foreign_key "user_entity_tab_preferences", "users"
   add_foreign_key "user_job_tab_configs", "job_tabs"
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
   add_foreign_key "user_job_tab_configs", "users"

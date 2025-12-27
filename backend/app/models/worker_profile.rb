@@ -156,6 +156,11 @@ class WorkerProfile < ApplicationRecord
     active_session.present?
   end
 
+  # Display name for UI
+  def display_name
+    name
+  end
+
   # Class methods
 
   # Find or create worker profile for a user

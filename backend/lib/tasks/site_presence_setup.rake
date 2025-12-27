@@ -155,8 +155,8 @@ namespace :site_presence do
       puts "  ✗ Skipped user #{user.id}: #{e.message}"
     end
 
-    # Create worker profiles for some contacts (subcontractors)
-    Contact.where(is_supplier: true).or(Contact.where(is_vendor: true)).limit(3).each do |contact|
+    # Create worker profiles for some contacts (subcontractors with day rates)
+    Contact.where.not(daily_rate_per_person: nil).or(Contact.where(entity_type: 'contractor')).limit(3).each do |contact|
       wp = WorkerProfile.find_by(contact: contact)
       unless wp
         wp = WorkerProfile.create!(
@@ -173,22 +173,70 @@ namespace :site_presence do
       puts "  ✗ Skipped contact #{contact.id}: #{e.message}"
     end
 
-    # Create sample job cost budgets
-    Job.where(status: "active").limit(3).each do |job|
-      budget = JobCostBudget.find_or_create_by!(job: job) do |b|
-        b.labour_budget = rand(10000..50000)
-        b.materials_budget = rand(5000..25000)
-        b.subcontractor_budget = rand(5000..30000)
-        b.warning_threshold_percent = 80
-        b.critical_threshold_percent = 100
+    # Create sample job cost budgets (recent jobs)
+    Job.order(created_at: :desc).limit(3).each do |job|
+      budget = JobCostBudget.find_by(job: job)
+      unless budget
+        budget = JobCostBudget.create!(
+          job: job,
+          labour_budget: rand(10000..50000),
+          materials_budget: rand(5000..25000),
+          subcontractor_budget: rand(5000..30000),
+          warning_threshold_percent: 80,
+          critical_threshold_percent: 100
+        )
       end
       puts "  ✓ Budget: #{job.name} ($#{budget.total_budget})"
+    rescue => e
+      puts "  ✗ Skipped job #{job.id}: #{e.message}"
     end
 
     puts "\nSample data creation complete!"
     puts "  - Cost Centres: #{CostCentre.count}"
     puts "  - Worker Profiles: #{WorkerProfile.count}"
     puts "  - Job Cost Budgets: #{JobCostBudget.count}"
+  end
+
+  desc "Add navigation items for Site Presence"
+  task setup_navigation: :environment do
+    puts "Adding Site Presence navigation items..."
+
+    # Find or create a parent item for Site Presence
+    parent = NavigationItem.find_by(name: "Site Presence")
+    unless parent
+      parent = NavigationItem.create!(
+        name: "Site Presence",
+        href: "/admin/site-presence",
+        icon: "Clock",
+        is_active: true,
+        is_collapsed_default: true,
+        position: NavigationItem.where(parent_id: nil).count
+      )
+    end
+    puts "  ✓ Parent: #{parent.name}"
+
+    # Child navigation items
+    children = [
+      { name: "Active Sessions", href: "/site_presence_sessions", icon: "Timer" },
+      { name: "Worker Profiles", href: "/worker_profiles", icon: "Users" },
+      { name: "Cost Centres", href: "/cost_centres", icon: "Building2" },
+      { name: "Labour Costs", href: "/labour_cost_entries", icon: "DollarSign" },
+      { name: "Job Budgets", href: "/job_cost_budgets", icon: "PieChart" },
+      { name: "AI Suggestions", href: "/ai_timesheet_suggestions", icon: "Sparkles" }
+    ]
+
+    children.each_with_index do |attrs, idx|
+      nav = NavigationItem.find_or_create_by!(name: attrs[:name], parent_id: parent.id) do |item|
+        item.href = attrs[:href]
+        item.icon = attrs[:icon]
+        item.is_active = true
+        item.position = idx
+      end
+      puts "  ✓ Child: #{nav.name}"
+    end
+
+    puts "\nNavigation setup complete!"
+    puts "Site Presence menu added with #{children.length} items."
   end
 
   def sync_columns_for(foundation)

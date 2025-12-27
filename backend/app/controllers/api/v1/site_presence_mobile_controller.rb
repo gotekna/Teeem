@@ -218,8 +218,9 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   # Available jobs for check-in
   def jobs
     # Get jobs the user can check into
-    # This could be filtered by assignment, location, or active status
-    jobs = Job.where(status: %w[active in_progress])
+    # Filter by site_presence_enabled or recent activity
+    jobs = Job.where(site_presence_enabled: true)
+              .or(Job.where("created_at > ?", 6.months.ago))
               .order(:name)
               .limit(50)
 

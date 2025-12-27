@@ -346,7 +346,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                           View the full Schedule Master for task management
                         </p>
                         <Button onClick={() => router.push(`/jobs/${job.id}/schedule`)}>
-                          Open Schedule Master
+                          Open Schedule
                         </Button>
                       </CardContent>
                     </Card>

@@ -51,6 +51,9 @@ class PurchaseOrder < ApplicationRecord
   has_many :subcontractor_invoices, dependent: :destroy
   has_many :pay_now_requests, dependent: :destroy
 
+  # Site Presence - Labour Cost Tracking
+  has_many :labour_cost_entries, dependent: :nullify
+
   # Finance / Accounts Payable
   has_many :bill_inboxes, foreign_key: :matched_purchase_order_id, dependent: :nullify
   has_many :bill_payments, dependent: :nullify
@@ -216,6 +219,56 @@ class PurchaseOrder < ApplicationRecord
     return 0 if invoiced_amount.nil? || invoiced_amount.zero?
 
     (invoiced_amount / total * 100).round(2)
+  end
+
+  # =============================================================================
+  # Labour Cost Tracking (Site Presence Integration)
+  # =============================================================================
+
+  # Check if this PO is for labour/time tracking
+  def labour_po?
+    is_labour_po || labour_budget.present?
+  end
+
+  # Calculate total labour cost from linked entries
+  def calculate_labour_actual
+    labour_cost_entries.sum(:total_cost)
+  end
+
+  # Update cached labour_actual from entries
+  def update_labour_actual!
+    update_column(:labour_actual, calculate_labour_actual)
+  end
+
+  # Labour budget remaining
+  def labour_remaining
+    return nil unless labour_budget.present?
+    labour_budget - (labour_actual || 0)
+  end
+
+  # Labour utilization percentage
+  def labour_utilization_percent
+    return 0 unless labour_budget.present? && labour_budget.positive?
+    ((labour_actual || 0) / labour_budget * 100).round(1)
+  end
+
+  # Is labour over budget?
+  def labour_over_budget?
+    return false unless labour_budget.present?
+    (labour_actual || 0) > labour_budget
+  end
+
+  # Labour tracking summary for API
+  def labour_summary
+    return nil unless labour_po?
+    {
+      budget: labour_budget,
+      actual: labour_actual || 0,
+      remaining: labour_remaining,
+      utilization_percent: labour_utilization_percent,
+      over_budget: labour_over_budget?,
+      entry_count: labour_cost_entries.count
+    }
   end
 
   # SSoT: Get effective required date (falls back to linked task's start_date)

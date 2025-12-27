@@ -42,7 +42,16 @@ import {
   FileSignature,
   Palette,
   Map,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { SortableList, SortableItem, DragHandle } from "@/components/ui/dnd";
+import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
@@ -611,6 +620,45 @@ export default function JobDetailPage() {
   // Dynamic job tabs configuration - SSoT: unified EntityTabs API directly (Phase 5)
   const { tabs: jobTabs, loading: tabsLoading } = useEntityTabs({ scope: "job" });
 
+  // User tab preferences (visibility, order, default tab)
+  const {
+    defaultTab: userDefaultTab,
+    setDefaultTab,
+    isTabHidden,
+    toggleTab,
+    tabOrder,
+    setTabOrder,
+  } = useUserTabPreferences("job");
+
+  // Sort and filter tabs based on user preferences
+  const orderedJobTabs = React.useMemo(() => {
+    if (tabOrder.length === 0) return jobTabs;
+
+    // Sort tabs by user's custom order, keeping unordered tabs at end
+    const orderMap = new Map(tabOrder.map((key, idx) => [key, idx]));
+    return [...jobTabs].sort((a, b) => {
+      const orderA = orderMap.get(a.tab_key) ?? 999;
+      const orderB = orderMap.get(b.tab_key) ?? 999;
+      return orderA - orderB;
+    });
+  }, [jobTabs, tabOrder]);
+
+  // Filter tabs based on visibility preferences
+  const visibleJobTabs = React.useMemo(() => {
+    return orderedJobTabs
+      .filter((tab) => !isTabHidden(tab.tab_key))
+      .map((tab) => ({
+        ...tab,
+        children: tab.children?.filter((child) => !isTabHidden(child.tab_key)),
+      }));
+  }, [orderedJobTabs, isTabHidden]);
+
+  // Handle tab reorder from drag and drop
+  const handleTabReorder = React.useCallback((newOrder: typeof jobTabs) => {
+    const newTabOrder = newOrder.map((tab) => tab.tab_key);
+    setTabOrder(newTabOrder);
+  }, [setTabOrder]);
+
   // Edit mode state
   const [isEditing, setIsEditing] = React.useState(false);
   const [editForm, setEditForm] = React.useState<Partial<Job>>({});
@@ -628,23 +676,31 @@ export default function JobDetailPage() {
   const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
   const [linkingXero, setLinkingXero] = React.useState(false);
 
-  // Get tab from URL or default to "overview"
-  const tabFromUrl = searchParams.get("tab") || "overview";
-  const [activeTab, setActiveTab] = React.useState(tabFromUrl);
+  // Get tab from URL, user preference, or default to "overview"
+  const tabFromUrl = searchParams.get("tab");
+  const effectiveDefaultTab = tabFromUrl || userDefaultTab || "overview";
+  const [activeTab, setActiveTab] = React.useState(effectiveDefaultTab);
+
+  // Update activeTab when user's default tab preference loads
+  React.useEffect(() => {
+    if (!tabFromUrl && userDefaultTab && activeTab === "overview") {
+      setActiveTab(userDefaultTab);
+    }
+  }, [userDefaultTab, tabFromUrl, activeTab]);
 
   // Helper: find first enabled child of a parent tab
   const findFirstChildTab = React.useCallback((tabKey: string): string | null => {
-    const parentTab = jobTabs.find(t => t.tab_key === tabKey);
+    const parentTab = visibleJobTabs.find(t => t.tab_key === tabKey);
     if (parentTab?.children?.length) {
       const firstEnabledChild = parentTab.children.find(c => c.enabled);
       return firstEnabledChild?.tab_key || null;
     }
     return null;
-  }, [jobTabs]);
+  }, [visibleJobTabs]);
 
   // Auto-select first child when landing on a parent tab
   React.useEffect(() => {
-    if (jobTabs.length > 0) {
+    if (visibleJobTabs.length > 0) {
       const firstChild = findFirstChildTab(activeTab);
       if (firstChild) {
         setActiveTab(firstChild);
@@ -652,7 +708,7 @@ export default function JobDetailPage() {
         router.replace(newUrl, { scroll: false });
       }
     }
-  }, [jobTabs, activeTab, findFirstChildTab, jobId, router]);
+  }, [visibleJobTabs, activeTab, findFirstChildTab, jobId, router]);
 
   // Update URL when tab changes - keep numeric ID in URL
   const handleTabChange = React.useCallback((newTab: string) => {
@@ -899,8 +955,62 @@ export default function JobDetailPage() {
             <span className="text-muted-foreground text-sm">({Number(job.profit_percentage ?? 0).toFixed(1)}%)</span>
           </div>
           <Button onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
-            Open Schedule Master
+            Open Schedule
           </Button>
+
+          {/* Tab Preferences Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" title="Tab preferences">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72 p-2">
+              {/* Header row */}
+              <div className="flex items-center gap-2 px-2 pb-2 text-xs font-medium text-muted-foreground">
+                <span className="w-6"></span>
+                <span className="flex-1">Tab</span>
+                <span className="w-12 text-center">Show</span>
+                <span className="w-12 text-center">Default</span>
+              </div>
+              <DropdownMenuSeparator />
+              {/* Sortable tab rows */}
+              <SortableList
+                items={orderedJobTabs}
+                onReorder={handleTabReorder}
+                className="py-1"
+              >
+                {orderedJobTabs.map((tab) => (
+                  <SortableItem
+                    key={tab.id}
+                    id={tab.id}
+                    className="flex items-center gap-2 px-1 py-1.5 hover:bg-accent rounded-sm"
+                  >
+                    <DragHandle className="h-4 w-4 text-muted-foreground cursor-grab" />
+                    <span className="text-sm flex-1 truncate">{tab.display_name}</span>
+                    <div className="w-12 flex justify-center">
+                      <input
+                        type="checkbox"
+                        checked={!isTabHidden(tab.tab_key)}
+                        onChange={() => toggleTab(tab.tab_key)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </div>
+                    <div className="w-12 flex justify-center">
+                      <input
+                        type="radio"
+                        name="defaultTab"
+                        checked={(userDefaultTab || "overview") === tab.tab_key}
+                        onChange={() => setDefaultTab(tab.tab_key)}
+                        disabled={isTabHidden(tab.tab_key)}
+                        className="h-4 w-4 border-gray-300"
+                      />
+                    </div>
+                  </SortableItem>
+                ))}
+              </SortableList>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -908,7 +1018,7 @@ export default function JobDetailPage() {
         <div className="px-3 pb-2">
           <Tabs value={activeTab} onValueChange={handleTabChange}>
             <HierarchicalTabsList
-              tabs={jobTabs}
+              tabs={visibleJobTabs}
               activeTab={activeTab}
               onTabChange={handleTabChange}
             />

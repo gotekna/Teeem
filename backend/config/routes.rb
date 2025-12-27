@@ -316,6 +316,14 @@ Rails.application.routes.draw do
           end
         end
 
+        # Job quantity variables (for recipe calculations)
+        resources :quantity_variables, controller: "job_quantity_variables", only: [ :index ] do
+          collection do
+            patch :update  # Bulk update
+            post :calculate
+          end
+        end
+
         # Document tasks (nested under jobs)
         resources :document_tasks, only: [ :index ] do
           member do
@@ -1992,6 +2000,24 @@ Rails.application.routes.draw do
       # Estimate Reviews (AI Plan Analysis)
       resources :estimate_reviews, only: [ :show, :destroy ]
 
+      # Recipe system (DataBuild-style estimating)
+      resources :recipe_categories
+      resources :recipes do
+        member do
+          post :duplicate
+          post :activate
+          post :archive
+          post :calculate
+        end
+        resources :items, controller: "recipe_items", only: [:index, :show, :create, :update, :destroy] do
+          collection do
+            post :reorder
+            post :bulk_create
+          end
+        end
+      end
+      resources :quantity_variables
+
       # Unreal Variables management
       resources :unreal_variables
 
@@ -2308,6 +2334,18 @@ Rails.application.routes.draw do
         end
         member do
           post :toggle
+        end
+      end
+
+      # User Entity Tab Preferences (per-user tab visibility, order, and defaults)
+      resources :user_entity_tab_preferences, only: [], param: :scope do
+        member do
+          get '/', action: :show
+          patch '/', action: :update
+          delete '/', action: :destroy
+          post :toggle_tab
+          post :set_default
+          post :reorder
         end
       end
 

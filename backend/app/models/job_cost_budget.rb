@@ -28,6 +28,9 @@ class JobCostBudget < ApplicationRecord
 
   validate :warning_less_than_critical
 
+  # Callbacks
+  before_save :compute_total_budget
+
   # Scopes
   scope :ok, -> { where(alert_status: "ok") }
   scope :warning, -> { where(alert_status: "warning") }
@@ -218,6 +221,11 @@ class JobCostBudget < ApplicationRecord
   end
 
   private
+
+  def compute_total_budget
+    self.total_budget = (labour_budget || 0) + (materials_budget || 0) +
+                        (subcontractor_budget || 0) + (equipment_budget || 0)
+  end
 
   def warning_less_than_critical
     return unless warning_threshold_percent.present? && critical_threshold_percent.present?
