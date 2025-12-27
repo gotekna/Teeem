@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_061039) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_061040) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7878,6 +7878,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061039) do
     t.datetime "updated_at", null: false
     t.jsonb "gantt_column_config", default: {}
     t.jsonb "schedule_master_tags", default: [], null: false
+    t.jsonb "schedule_master_trades", default: []
+    t.jsonb "schedule_master_stages", default: []
+    t.jsonb "schedule_master_roles", default: []
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|

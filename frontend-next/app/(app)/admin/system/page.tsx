@@ -129,6 +129,18 @@ const MAIN_TABS = [
   { id: "unreal-engine", label: "Unreal Engine", icon: Box },
 ];
 
+// SSoT: Tabs that need full-height table layout (edge-to-edge, no scroll)
+// Add tab IDs here to get: flex flex-col overflow-hidden -mx-4 mt-0 min-h-0 flex-1
+const FULL_HEIGHT_TABS = ['components', 'schedule-master', 'email-accounts'];
+
+// Helper to get TabsContent className based on layout type
+const getTabContentClass = (tabId: string) => {
+  if (FULL_HEIGHT_TABS.includes(tabId)) {
+    return "flex flex-col overflow-hidden -mx-4 mt-0 min-h-0 flex-1";
+  }
+  return "flex-1 min-h-0 overflow-auto";
+};
+
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "security", label: "Security" },
@@ -763,23 +775,23 @@ function SystemAdminPageContent() {
         </TabsList>
 
         <div className="mt-4 flex-1 min-h-0 [&>*]:h-full [&>*[data-state=inactive]]:hidden">
-          <TabsContent value="company" className="overflow-auto">
+          <TabsContent value="company" className={getTabContentClass('company')}>
             <CompanySettingsTab />
           </TabsContent>
           {/* Warehouse removed - Document Types now in Entity Configuration (SSoT) */}
-          <TabsContent value="brand-guidelines" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="brand-guidelines" className={getTabContentClass('brand-guidelines')}>
             <BrandGuidelinesTab />
           </TabsContent>
-          <TabsContent value="contact-types" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="contact-types" className={getTabContentClass('contact-types')}>
             <ContactTypesTab />
           </TabsContent>
-          <TabsContent value="schedule-master" className="flex flex-col min-h-0 flex-1 overflow-hidden mt-0 -mx-4">
+          <TabsContent value="schedule-master" className={getTabContentClass('schedule-master')}>
             <ScheduleMasterTab />
           </TabsContent>
-          <TabsContent value="meeting-types" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="meeting-types" className={getTabContentClass('meeting-types')}>
             <MeetingTypesTab />
           </TabsContent>
-          <TabsContent value="whs" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="whs" className={getTabContentClass('whs')}>
             <Card>
               <CardHeader>
                 <CardTitle>Workplace Health & Safety</CardTitle>
@@ -809,7 +821,7 @@ function SystemAdminPageContent() {
               </CardContent>
             </Card>
           </TabsContent>
-          <TabsContent value="financial" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="financial" className={getTabContentClass('financial')}>
             <Card>
               <CardHeader>
                 <CardTitle>Financial Tracking & Reporting</CardTitle>
@@ -835,51 +847,51 @@ function SystemAdminPageContent() {
               </CardContent>
             </Card>
           </TabsContent>
-          <TabsContent value="cost" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="cost" className={getTabContentClass('cost')}>
             <CostTab />
           </TabsContent>
-          <TabsContent value="pricebook" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="pricebook" className={getTabContentClass('pricebook')}>
             <PlaceholderTab title="Price Book" description="Price book configuration" />
           </TabsContent>
-          <TabsContent value="supervisor-checklist" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="supervisor-checklist" className={getTabContentClass('supervisor-checklist')}>
             <SupervisorChecklistTab />
           </TabsContent>
-          <TabsContent value="components" className="flex flex-col overflow-hidden -mx-4">
+          <TabsContent value="components" className={getTabContentClass('components')}>
             <GoldStandardTab />
           </TabsContent>
-          <TabsContent value="developer-tools" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="developer-tools" className={getTabContentClass('developer-tools')}>
             <DeveloperToolsTab />
           </TabsContent>
-          <TabsContent value="navigation" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="navigation" className={getTabContentClass('navigation')}>
             <NavigationTab />
           </TabsContent>
-          <TabsContent value="entity-config" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="entity-config" className={getTabContentClass('entity-config')}>
             <EntityConfigurationTab onClose={() => handleTabChange("company")} />
           </TabsContent>
-          <TabsContent value="user-manual" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="user-manual" className={getTabContentClass('user-manual')}>
             <UserManualTab />
           </TabsContent>
-          <TabsContent value="inspiring-quotes" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="inspiring-quotes" className={getTabContentClass('inspiring-quotes')}>
             <InspiringQuotesTab />
           </TabsContent>
           {/* Performance tab removed - SSoT is /system-health → Performance tab */}
-          <TabsContent value="scheduled-jobs" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="scheduled-jobs" className={getTabContentClass('scheduled-jobs')}>
             <ScheduledJobsTab />
           </TabsContent>
-          <TabsContent value="email-accounts" className="min-h-0">
+          <TabsContent value="email-accounts" className={getTabContentClass('email-accounts')}>
             <EmailAccountsTab />
           </TabsContent>
-          <TabsContent value="pdf-fields" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="pdf-fields" className={getTabContentClass('pdf-fields')}>
             <PdfFieldsTab />
           </TabsContent>
 
-          <TabsContent value="ai-processing" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="ai-processing" className={getTabContentClass('ai-processing')}>
             <AiProcessingTab />
           </TabsContent>
-          <TabsContent value="xero-health" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="xero-health" className={getTabContentClass('xero-health')}>
             <XeroHealthTab />
           </TabsContent>
-          <TabsContent value="unreal-engine" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="unreal-engine" className={getTabContentClass('unreal-engine')}>
             <UnrealEngineTab />
           </TabsContent>
         </div>

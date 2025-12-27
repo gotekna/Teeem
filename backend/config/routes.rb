@@ -1305,6 +1305,18 @@ Rails.application.routes.draw do
           post :tags, action: :add_tag
           delete "tags/:tag", action: :remove_tag
           patch "tags/:tag", action: :rename_tag
+
+          get :trades
+          post :trades, action: :add_trade
+          delete "trades/:trade", action: :remove_trade
+
+          get :stages
+          post :stages, action: :add_stage
+          delete "stages/:stage", action: :remove_stage
+
+          get :roles
+          post :roles, action: :add_role
+          delete "roles/:role", action: :remove_role
         end
       end
 

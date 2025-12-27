@@ -108,6 +108,159 @@ module Api
         end
       end
 
+      # GET /api/v1/sm_settings/trades
+      def trades
+        @settings = SmSetting.instance
+        render json: {
+          success: true,
+          trades: @settings.trades
+        }
+      end
+
+      # POST /api/v1/sm_settings/trades
+      def add_trade
+        @settings = SmSetting.instance
+        trade_name = params[:trade]&.strip
+
+        if trade_name.blank?
+          return render json: { success: false, error: "Trade name is required" }, status: :unprocessable_entity
+        end
+
+        if @settings.add_trade(trade_name)
+          render json: {
+            success: true,
+            message: "Trade added",
+            trades: @settings.trades
+          }
+        else
+          render json: {
+            success: false,
+            error: "Trade already exists or invalid"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/sm_settings/trades/:trade
+      def remove_trade
+        @settings = SmSetting.instance
+        trade_name = params[:trade]
+
+        if @settings.remove_trade(trade_name)
+          render json: {
+            success: true,
+            message: "Trade removed",
+            trades: @settings.trades
+          }
+        else
+          render json: {
+            success: false,
+            error: "Trade not found"
+          }, status: :not_found
+        end
+      end
+
+      # GET /api/v1/sm_settings/stages
+      def stages
+        @settings = SmSetting.instance
+        render json: {
+          success: true,
+          stages: @settings.stages
+        }
+      end
+
+      # POST /api/v1/sm_settings/stages
+      def add_stage
+        @settings = SmSetting.instance
+        stage_name = params[:stage]&.strip
+
+        if stage_name.blank?
+          return render json: { success: false, error: "Stage name is required" }, status: :unprocessable_entity
+        end
+
+        if @settings.add_stage(stage_name)
+          render json: {
+            success: true,
+            message: "Stage added",
+            stages: @settings.stages
+          }
+        else
+          render json: {
+            success: false,
+            error: "Stage already exists or invalid"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/sm_settings/stages/:stage
+      def remove_stage
+        @settings = SmSetting.instance
+        stage_name = params[:stage]
+
+        if @settings.remove_stage(stage_name)
+          render json: {
+            success: true,
+            message: "Stage removed",
+            stages: @settings.stages
+          }
+        else
+          render json: {
+            success: false,
+            error: "Stage not found"
+          }, status: :not_found
+        end
+      end
+
+      # GET /api/v1/sm_settings/roles
+      def roles
+        @settings = SmSetting.instance
+        render json: {
+          success: true,
+          roles: @settings.roles
+        }
+      end
+
+      # POST /api/v1/sm_settings/roles
+      def add_role
+        @settings = SmSetting.instance
+        role_name = params[:role]&.strip
+
+        if role_name.blank?
+          return render json: { success: false, error: "Role name is required" }, status: :unprocessable_entity
+        end
+
+        if @settings.add_role(role_name)
+          render json: {
+            success: true,
+            message: "Role added",
+            roles: @settings.roles
+          }
+        else
+          render json: {
+            success: false,
+            error: "Role already exists or invalid"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/sm_settings/roles/:role
+      def remove_role
+        @settings = SmSetting.instance
+        role_name = params[:role]
+
+        if @settings.remove_role(role_name)
+          render json: {
+            success: true,
+            message: "Role removed",
+            roles: @settings.roles
+          }
+        else
+          render json: {
+            success: false,
+            error: "Role not found"
+          }, status: :not_found
+        end
+      end
+
       private
 
       def settings_params

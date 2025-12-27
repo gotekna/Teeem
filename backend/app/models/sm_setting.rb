@@ -47,6 +47,69 @@ class SmSetting < ApplicationRecord
     true
   end
 
+  # Trade management methods
+  def trades
+    schedule_master_trades || []
+  end
+
+  def add_trade(name)
+    return false if name.blank?
+    name = name.strip.upcase
+    return false if trades.include?(name)
+
+    update!(schedule_master_trades: trades + [name])
+    true
+  end
+
+  def remove_trade(name)
+    return false unless trades.include?(name)
+
+    update!(schedule_master_trades: trades - [name])
+    true
+  end
+
+  # Stage management methods
+  def stages
+    schedule_master_stages || []
+  end
+
+  def add_stage(name)
+    return false if name.blank?
+    name = name.strip.upcase
+    return false if stages.include?(name)
+
+    update!(schedule_master_stages: stages + [name])
+    true
+  end
+
+  def remove_stage(name)
+    return false unless stages.include?(name)
+
+    update!(schedule_master_stages: stages - [name])
+    true
+  end
+
+  # Role management methods
+  def roles
+    schedule_master_roles || []
+  end
+
+  def add_role(name)
+    return false if name.blank?
+    name = name.strip.downcase
+    return false if roles.include?(name)
+
+    update!(schedule_master_roles: roles + [name])
+    true
+  end
+
+  def remove_role(name)
+    return false unless roles.include?(name)
+
+    update!(schedule_master_roles: roles - [name])
+    true
+  end
+
   # Validations
   validates :rollover_timezone, presence: true, length: { maximum: 50 }
   validates :rollover_time, presence: true

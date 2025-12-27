@@ -296,6 +296,18 @@ export function ScheduleMasterTab() {
   const [editTagName, setEditTagName] = React.useState("");
   const [savingTag, setSavingTag] = React.useState(false);
 
+  // Trade, Stage, Role dropdown management
+  const [availableTrades, setAvailableTrades] = React.useState<string[]>([]);
+  const [availableStages, setAvailableStages] = React.useState<string[]>([]);
+  const [availableRoles, setAvailableRoles] = React.useState<string[]>([]);
+  const [showAddTradeDialog, setShowAddTradeDialog] = React.useState(false);
+  const [showAddStageDialog, setShowAddStageDialog] = React.useState(false);
+  const [showAddRoleDialog, setShowAddRoleDialog] = React.useState(false);
+  const [newTradeName, setNewTradeName] = React.useState("");
+  const [newStageName, setNewStageName] = React.useState("");
+  const [newRoleName, setNewRoleName] = React.useState("");
+  const [savingDropdownItem, setSavingDropdownItem] = React.useState(false);
+
   // Load column status from localStorage on mount
   React.useEffect(() => {
     const saved = localStorage.getItem(COLUMN_STATUS_KEY);
@@ -331,6 +343,9 @@ export function ScheduleMasterTab() {
     loadTemplates();
     loadJobEntityTabs();
     loadTags();
+    loadTrades();
+    loadStages();
+    loadRoles();
   }, []);
 
   // Load job EntityTabs for photo storage dropdown
@@ -415,6 +430,99 @@ export function ScheduleMasterTab() {
       toast({ title: "Error", description: "Failed to delete tag", variant: "destructive" });
     } finally {
       setSavingTag(false);
+    }
+  };
+
+  // Load trades from SmSetting
+  const loadTrades = async () => {
+    try {
+      const data = await api.get<{ success: boolean; trades: string[] }>("/api/v1/sm_settings/trades");
+      if (data?.trades) {
+        setAvailableTrades(data.trades);
+      }
+    } catch (error) {
+      console.error("Failed to load trades:", error);
+    }
+  };
+
+  // Add a new trade
+  const handleAddTrade = async () => {
+    if (!newTradeName.trim()) return;
+    setSavingDropdownItem(true);
+    try {
+      const data = await api.post<{ success: boolean; trades: string[] }>("/api/v1/sm_settings/trades", { trade: newTradeName.trim() });
+      if (data?.trades) {
+        setAvailableTrades(data.trades);
+        setNewTradeName("");
+        setShowAddTradeDialog(false);
+        toast({ title: "Trade added" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to add trade", variant: "destructive" });
+    } finally {
+      setSavingDropdownItem(false);
+    }
+  };
+
+  // Load stages from SmSetting
+  const loadStages = async () => {
+    try {
+      const data = await api.get<{ success: boolean; stages: string[] }>("/api/v1/sm_settings/stages");
+      if (data?.stages) {
+        setAvailableStages(data.stages);
+      }
+    } catch (error) {
+      console.error("Failed to load stages:", error);
+    }
+  };
+
+  // Add a new stage
+  const handleAddStage = async () => {
+    if (!newStageName.trim()) return;
+    setSavingDropdownItem(true);
+    try {
+      const data = await api.post<{ success: boolean; stages: string[] }>("/api/v1/sm_settings/stages", { stage: newStageName.trim() });
+      if (data?.stages) {
+        setAvailableStages(data.stages);
+        setNewStageName("");
+        setShowAddStageDialog(false);
+        toast({ title: "Stage added" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to add stage", variant: "destructive" });
+    } finally {
+      setSavingDropdownItem(false);
+    }
+  };
+
+  // Load roles from SmSetting
+  const loadRoles = async () => {
+    try {
+      const data = await api.get<{ success: boolean; roles: string[] }>("/api/v1/sm_settings/roles");
+      if (data?.roles) {
+        setAvailableRoles(data.roles);
+      }
+    } catch (error) {
+      console.error("Failed to load roles:", error);
+    }
+  };
+
+  // Add a new role
+  const handleAddRole = async () => {
+    if (!newRoleName.trim()) return;
+    setSavingDropdownItem(true);
+    try {
+      const data = await api.post<{ success: boolean; roles: string[] }>("/api/v1/sm_settings/roles", { role: newRoleName.trim() });
+      if (data?.roles) {
+        setAvailableRoles(data.roles);
+        setNewRoleName("");
+        setShowAddRoleDialog(false);
+        toast({ title: "Role added" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to add role", variant: "destructive" });
+    } finally {
+      setSavingDropdownItem(false);
     }
   };
 
@@ -1103,7 +1211,7 @@ export function ScheduleMasterTab() {
 
         {/* Data View Tab - Full TeeemTableView */}
         <TabsContent value="data-view" className="mt-0 flex-1 min-h-0 flex flex-col">
-          <div className="flex flex-col h-full -mx-4">
+          <div className="flex flex-col h-full">
             <TeeemTableView
               key={dataViewRefreshKey}
               entries={(selectedTagFilter
@@ -1844,42 +1952,108 @@ export function ScheduleMasterTab() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="row-trade">Trade</Label>
-                <Input
-                  id="row-trade"
-                  value={editRowForm.trade || ""}
-                  onChange={(e) => setEditRowForm({ ...editRowForm, trade: e.target.value })}
-                />
+                <div className="flex gap-1">
+                  <Select
+                    value={editRowForm.trade || "_none"}
+                    onValueChange={(value) => setEditRowForm({ ...editRowForm, trade: value === "_none" ? "" : value })}
+                  >
+                    <SelectTrigger id="row-trade" className="flex-1">
+                      <SelectValue placeholder="Select trade..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">None</SelectItem>
+                      {availableTrades.map((trade) => (
+                        <SelectItem key={trade} value={trade}>{trade}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setShowAddTradeDialog(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add New Trade
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="row-stage">Stage</Label>
-                <Input
-                  id="row-stage"
-                  value={editRowForm.stage || ""}
-                  onChange={(e) => setEditRowForm({ ...editRowForm, stage: e.target.value })}
-                />
+                <div className="flex gap-1">
+                  <Select
+                    value={editRowForm.stage || "_none"}
+                    onValueChange={(value) => setEditRowForm({ ...editRowForm, stage: value === "_none" ? "" : value })}
+                  >
+                    <SelectTrigger id="row-stage" className="flex-1">
+                      <SelectValue placeholder="Select stage..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">None</SelectItem>
+                      {availableStages.map((stage) => (
+                        <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setShowAddStageDialog(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add New Stage
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="row-assigned-role">Assigned Role</Label>
-              <Select
-                value={editRowForm.assigned_role || "_none"}
-                onValueChange={(value) => setEditRowForm({ ...editRowForm, assigned_role: value === "_none" ? null : value })}
-              >
-                <SelectTrigger id="row-assigned-role">
-                  <SelectValue placeholder="Select a role..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">None</SelectItem>
-                  <SelectItem value="accounts">Accounts</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="builder">Builder</SelectItem>
-                  <SelectItem value="estimator">Estimator</SelectItem>
-                  <SelectItem value="pre_construction">Pre Construction</SelectItem>
-                  <SelectItem value="sales">Sales</SelectItem>
-                  <SelectItem value="site">Site</SelectItem>
-                  <SelectItem value="supervisor">Supervisor</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-1">
+                <Select
+                  value={editRowForm.assigned_role || "_none"}
+                  onValueChange={(value) => setEditRowForm({ ...editRowForm, assigned_role: value === "_none" ? null : value })}
+                >
+                  <SelectTrigger id="row-assigned-role" className="flex-1">
+                    <SelectValue placeholder="Select a role..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">None</SelectItem>
+                    <SelectItem value="accounts">Accounts</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="builder">Builder</SelectItem>
+                    <SelectItem value="estimator">Estimator</SelectItem>
+                    <SelectItem value="pre_construction">Pre Construction</SelectItem>
+                    <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="site">Site</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                    {availableRoles.filter(r => !["accounts", "admin", "builder", "estimator", "pre_construction", "sales", "site", "supervisor"].includes(r)).map((role) => (
+                      <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ')}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setShowAddRoleDialog(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Role
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             {/* PO Settings */}
@@ -2336,6 +2510,102 @@ export function ScheduleMasterTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTagDialog(false)}>
               Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Trade Dialog */}
+      <Dialog open={showAddTradeDialog} onOpenChange={setShowAddTradeDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add New Trade</DialogTitle>
+            <DialogDescription>
+              Add a new trade option to the dropdown list.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-trade">Trade Name</Label>
+              <Input
+                id="new-trade"
+                value={newTradeName}
+                onChange={(e) => setNewTradeName(e.target.value.toUpperCase())}
+                placeholder="e.g., PLUMBING"
+                onKeyDown={(e) => e.key === "Enter" && handleAddTrade()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddTradeDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddTrade} disabled={savingDropdownItem || !newTradeName.trim()}>
+              {savingDropdownItem ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Trade"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Stage Dialog */}
+      <Dialog open={showAddStageDialog} onOpenChange={setShowAddStageDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add New Stage</DialogTitle>
+            <DialogDescription>
+              Add a new stage option to the dropdown list.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-stage">Stage Name</Label>
+              <Input
+                id="new-stage"
+                value={newStageName}
+                onChange={(e) => setNewStageName(e.target.value.toUpperCase())}
+                placeholder="e.g., LOCK-UP"
+                onKeyDown={(e) => e.key === "Enter" && handleAddStage()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddStageDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddStage} disabled={savingDropdownItem || !newStageName.trim()}>
+              {savingDropdownItem ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Stage"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Role Dialog */}
+      <Dialog open={showAddRoleDialog} onOpenChange={setShowAddRoleDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add New Role</DialogTitle>
+            <DialogDescription>
+              Add a new role option to the dropdown list.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-role">Role Name</Label>
+              <Input
+                id="new-role"
+                value={newRoleName}
+                onChange={(e) => setNewRoleName(e.target.value.toLowerCase())}
+                placeholder="e.g., project_manager"
+                onKeyDown={(e) => e.key === "Enter" && handleAddRole()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddRoleDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddRole} disabled={savingDropdownItem || !newRoleName.trim()}>
+              {savingDropdownItem ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Role"}
             </Button>
           </DialogFooter>
         </DialogContent>
