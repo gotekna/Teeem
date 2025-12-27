@@ -1147,6 +1147,7 @@ Rails.application.routes.draw do
       post "permissions/roles", to: "permissions#create_role"
       patch "permissions/roles/:id", to: "permissions#update_role"
       delete "permissions/roles/:id", to: "permissions#destroy_role"
+      get "permissions/roles/:id/users", to: "permissions#role_users"
       get "permissions/user/:id", to: "permissions#user_permissions"
       post "permissions/grant", to: "permissions#grant"
 

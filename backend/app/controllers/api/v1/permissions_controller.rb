@@ -51,13 +51,16 @@ module Api
 
       # GET /api/v1/permissions/roles
       def roles
-        roles_data = Role.order(:position, :name).map do |role|
+        roles_data = Role.includes(:users).order(:position, :name).map do |role|
           {
             id: role.id,
             name: role.name,
             display_name: role.display_name,
             description: role.description,
-            users_count: User.where(role: role.name).count,
+            # SSoT: Use user_roles join table (role.users) not legacy role column
+            users_count: role.users.count,
+            # Schedule Master task count for this role
+            tasks_count: SmTask.for_role(role.name).count,
             permissions: get_role_permissions(role.name)
           }
         end
@@ -66,6 +69,25 @@ module Api
           success: true,
           roles: roles_data
         }
+      end
+
+      # GET /api/v1/permissions/roles/:id/users
+      # Returns users assigned to a specific role via user_roles join table
+      def role_users
+        role = Role.find(params[:id])
+        users = role.users.order(:name).select(:id, :name, :email)
+
+        render json: {
+          success: true,
+          role: {
+            id: role.id,
+            name: role.name,
+            display_name: role.display_name
+          },
+          users: users.map { |u| { id: u.id, name: u.name, email: u.email } }
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Role not found" }, status: :not_found
       end
 
       # PATCH /api/v1/permissions/roles/:id
@@ -96,7 +118,8 @@ module Api
         role = Role.find(params[:id])
 
         # Prevent deleting roles that have users
-        users_count = User.where(role: role.name).count
+        # SSoT: Use user_roles join table (role.users) not legacy role column
+        users_count = role.users.count
         if users_count > 0
           return render json: {
             success: false,

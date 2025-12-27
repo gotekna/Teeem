@@ -97,6 +97,7 @@ interface Role {
   display_name?: string;
   description: string;
   users_count: number;
+  tasks_count?: number;
 }
 
 interface Group {
@@ -568,9 +569,16 @@ function RolesManagementTab() {
               <p className="text-sm text-muted-foreground mb-2">
                 {role.description || "No description"}
               </p>
-              <Badge variant="secondary">
-                {role.users_count || 0} users
-              </Badge>
+              <div className="flex gap-2 flex-wrap">
+                <Badge variant="secondary">
+                  {role.users_count || 0} users
+                </Badge>
+                {(role.tasks_count ?? 0) > 0 && (
+                  <Badge variant="outline">
+                    {role.tasks_count} tasks
+                  </Badge>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}

@@ -151,7 +151,7 @@ class Api::V1::UsersController < ApplicationController
       integrations: integrations,
       integrations_count: integrations.count,
       status: presence_status == "online" ? "active" : (user.last_login_at.present? ? "active" : "pending"),
-      last_email_sync_at: user.respond_to?(:last_email_sync_at) ? user.last_email_sync_at : nil,
+      last_email_sync_at: user.email_sync_status&.last_sync_at,
       # Multi-role support - format for multiple_lookups column type
       role_ids: safe_roles.map { |r| { id: r.id, display_value: r.display_name, name: r.name } },
       role_names: user.role_names
