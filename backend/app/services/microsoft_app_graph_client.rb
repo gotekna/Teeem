@@ -841,6 +841,19 @@ class MicrosoftAppGraphClient
     end
   end
 
+  def delete(endpoint)
+    url = "#{GRAPH_API_BASE}#{endpoint}"
+
+    with_retry do
+      response = HTTP.auth("Bearer #{access_token}").delete(url)
+
+      # DELETE returns 204 No Content on success
+      return true if response.status.code == 204
+
+      handle_response(response)
+    end
+  end
+
   # Retry wrapper for handling token expiration and rate limiting
   # Now includes dead token detection (SSoT migration)
   def with_retry(max_retries: 3, &block)
