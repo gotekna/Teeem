@@ -1809,13 +1809,14 @@ export function ScheduleMasterTab() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_none">None</SelectItem>
+                  <SelectItem value="accounts">Accounts</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="supervisor">Supervisor</SelectItem>
                   <SelectItem value="builder">Builder</SelectItem>
                   <SelectItem value="estimator">Estimator</SelectItem>
+                  <SelectItem value="pre_construction">Pre Construction</SelectItem>
                   <SelectItem value="sales">Sales</SelectItem>
                   <SelectItem value="site">Site</SelectItem>
-                  <SelectItem value="pre_construction">Pre Construction</SelectItem>
+                  <SelectItem value="supervisor">Supervisor</SelectItem>
                 </SelectContent>
               </Select>
             </div>
