@@ -937,29 +937,31 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
     return (
       <div className="space-y-4">
-        {/* Main Tabs (Parent Categories) */}
-        <Tabs
-          value={String(selectedCategory?.id)}
-          onValueChange={(val) => {
-            const cat = documentCategories.find((c) => String(c.id) === val);
-            if (cat) setSelectedCategory(cat);
-          }}
-        >
-          <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 p-1">
-            {documentCategories.map((cat) => (
-              <TabsTrigger
-                key={cat.id}
-                value={String(cat.id)}
-                className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
-              >
-                {cat.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        {/* Main Tabs (Parent Categories) - HIDE when initialCategory is set (job page handles navigation) */}
+        {!initialCategory && (
+          <Tabs
+            value={String(selectedCategory?.id)}
+            onValueChange={(val) => {
+              const cat = documentCategories.find((c) => String(c.id) === val);
+              if (cat) setSelectedCategory(cat);
+            }}
+          >
+            <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 p-1">
+              {documentCategories.map((cat) => (
+                <TabsTrigger
+                  key={cat.id}
+                  value={String(cat.id)}
+                  className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                >
+                  {cat.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
 
-        {/* Sub Tabs (Child Categories) - only show if selected parent has children */}
-        {selectedCategory?.children && selectedCategory.children.length > 0 && (
+        {/* Sub Tabs (Child Categories) - HIDE when initialCategory is set (job page handles navigation) */}
+        {!initialCategory && selectedCategory?.children && selectedCategory.children.length > 0 && (
           <Tabs
             value={String(selectedSubCategory?.id)}
             onValueChange={(val) => {
