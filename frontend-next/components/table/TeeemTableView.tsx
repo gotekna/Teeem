@@ -224,6 +224,11 @@ import { SaveViewModal } from "./modals/SaveViewModal";
 import { SchemaModals } from "./modals/SchemaModals";
 import { EditColumnsModal } from "./modals/EditColumnsModal";
 
+// Record CRUD Modals (Phase 8 refactoring)
+import { CreateRecordDialog } from "./CreateRecordDialog";
+import { EditRecordModal } from "./modals/EditRecordModal";
+import { ViewRecordModal } from "./modals/ViewRecordModal";
+
 // Handler hooks (Phase 5 refactoring)
 import { useExportHandlers } from "./core/hooks/useExportHandlers";
 import { useSchemaHandlers } from "./core/hooks/useSchemaHandlers";
@@ -967,6 +972,29 @@ export default function TeeemTableView({
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 
+  // ============================================================================
+  // AUTO-ENABLE RECORD CRUD MODALS (Phase 8)
+  // When foundationIdNumeric is set, tables automatically get Add/Edit/View dialogs
+  // ============================================================================
+  const defaultOnAddRow = useCallback(() => {
+    setShowAddRecordModal(true);
+  }, []);
+
+  const defaultOnEdit = useCallback((row: TableRowType) => {
+    setSelectedRecordForModal(row);
+    setShowEditRecordModal(true);
+  }, []);
+
+  const defaultOnView = useCallback((row: TableRowType) => {
+    setSelectedRecordForModal(row);
+    setShowViewRecordModal(true);
+  }, []);
+
+  // Use provided callbacks or fall back to auto-enabled defaults
+  const effectiveOnAddRow = onAddRow || (shouldAutoEnable ? defaultOnAddRow : undefined);
+  const effectiveOnEdit = onEdit || (shouldAutoEnable ? defaultOnEdit : undefined);
+  const effectiveOnView = onView || (shouldAutoEnable ? defaultOnView : undefined);
+
   // Auto-enable search options menu when foundationIdNumeric is set
   // This shows the three-dot menu next to search (search modes, search all columns)
   // SSoT: When foundationIdNumeric is set, tables automatically get Gold Standard features
@@ -1547,6 +1575,12 @@ export default function TeeemTableView({
 
   // Email to Contacts modal state (local state)
   const [showEmailToContactsModal, setShowEmailToContactsModal] = useState(false);
+
+  // Record CRUD modal state (Phase 8) - auto-enabled when foundationIdNumeric is set
+  const [showAddRecordModal, setShowAddRecordModal] = useState(false);
+  const [showEditRecordModal, setShowEditRecordModal] = useState(false);
+  const [showViewRecordModal, setShowViewRecordModal] = useState(false);
+  const [selectedRecordForModal, setSelectedRecordForModal] = useState<TableRowType | null>(null);
 
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
@@ -3985,8 +4019,8 @@ export default function TeeemTableView({
             <ActionsButtons
               entry={entry}
               viewOnly={viewOnly}
-              onView={onView}
-              onEdit={onEdit}
+              onView={effectiveOnView}
+              onEdit={effectiveOnEdit}
               onRowUpdate={onRowUpdate}
               onDelete={onDelete}
               onStartEditing={startEditing}
@@ -4718,7 +4752,7 @@ export default function TeeemTableView({
                     // Clear cascade filters
                     setCascadeFilters([]);
                   } : undefined}
-                  onAddRecord={onAddRow}
+                  onAddRecord={effectiveOnAddRow}
                 />
               </TableCell>
             </TableRow>
@@ -5001,12 +5035,12 @@ export default function TeeemTableView({
             "toolbar-left flex items-center gap-2 flex-shrink-0",
             debugGrid && "border border-purple-300 bg-purple-100/50 dark:bg-purple-900/30 mt-6"
           )}>
-            {/* Add Row button - auto-shown when onAddRow is provided */}
-            {onAddRow && (
+            {/* Add Row button - auto-shown when effectiveOnAddRow is available */}
+            {effectiveOnAddRow && (
               <Button
                 variant="default"
                 size="sm"
-                onClick={onAddRow}
+                onClick={effectiveOnAddRow}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Record
@@ -5807,6 +5841,58 @@ export default function TeeemTableView({
           currentColumnWidths={columnWidths}
           activeViewId={activeViewId}
         />
+      )}
+
+      {/* ============================================================================ */}
+      {/* RECORD CRUD MODALS (Phase 8) - Auto-enabled when foundationIdNumeric is set */}
+      {/* ============================================================================ */}
+      {foundationIdNumeric && (
+        <>
+          {/* Add Record Dialog */}
+          <CreateRecordDialog
+            open={showAddRecordModal}
+            onOpenChange={setShowAddRecordModal}
+            foundationId={foundationIdNumeric}
+            tableName={tableName}
+            columns={COLUMNS}
+            onSuccess={() => {
+              setShowAddRecordModal(false);
+              onRefresh?.();
+            }}
+          />
+
+          {/* Edit Record Modal */}
+          <EditRecordModal
+            open={showEditRecordModal}
+            onOpenChange={setShowEditRecordModal}
+            foundationId={foundationIdNumeric}
+            tableName={tableName}
+            columns={COLUMNS}
+            record={selectedRecordForModal}
+            onSuccess={() => {
+              setShowEditRecordModal(false);
+              setSelectedRecordForModal(null);
+              onRefresh?.();
+            }}
+          />
+
+          {/* View Record Modal */}
+          <ViewRecordModal
+            open={showViewRecordModal}
+            onOpenChange={(open) => {
+              setShowViewRecordModal(open);
+              if (!open) setSelectedRecordForModal(null);
+            }}
+            tableName={tableName}
+            columns={COLUMNS}
+            record={selectedRecordForModal}
+            onEdit={() => {
+              // Switch from View to Edit mode
+              setShowViewRecordModal(false);
+              setShowEditRecordModal(true);
+            }}
+          />
+        </>
       )}
     </div>
   );

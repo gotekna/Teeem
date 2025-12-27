@@ -2353,7 +2353,7 @@ export function ScheduleMasterTab() {
                                 </TableCell>
                                 <TableCell>{ph.pricebook_item_name}</TableCell>
                                 <TableCell className="text-right">
-                                  ${typeof ph.new_price === 'number' ? ph.new_price.toFixed(2) : (parseFloat(ph.new_price) || 0).toFixed(2)}
+                                  ${(Number(ph.new_price) || 0).toFixed(2)}
                                 </TableCell>
                                 <TableCell onClick={(e) => e.stopPropagation()}>
                                   {isSelected && lineItem && (
