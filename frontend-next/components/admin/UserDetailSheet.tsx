@@ -75,7 +75,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         name: user.name,
         email: user.email,
         mobile_phone: user.mobile_phone || "",
-        role_ids: user.role_ids || [],
+        // SSoT: Always ensure role_ids is an array to prevent .map errors
+        role_ids: Array.isArray(user.role_ids) ? user.role_ids : [],
       });
     }
   }, [user]);
@@ -86,7 +87,9 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
     setSaving(true);
     try {
       // Extract role IDs from the selected options
-      const roleIds = (editData.role_ids as Array<{ id: number }> || []).map(r => r.id);
+      // SSoT: Always ensure role_ids is an array before calling .map
+      const roleIdsData = Array.isArray(editData.role_ids) ? editData.role_ids : [];
+      const roleIds = roleIdsData.map((r: { id: number }) => r.id);
 
       const response = await api.patch<{ success: boolean }>(
         `/api/v1/users/${user.id}`,
@@ -127,7 +130,9 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   }));
 
   // Get selected role options
-  const selectedRoleIds = (editData.role_ids as Array<{ id: number }> || []).map(r => String(r.id));
+  // SSoT: Always ensure role_ids is an array before calling .map
+  const roleIdsArray = Array.isArray(editData.role_ids) ? editData.role_ids : [];
+  const selectedRoleIds = roleIdsArray.map((r: { id: number }) => String(r.id));
   const selectedOptions = roleOptions.filter((opt) => selectedRoleIds.includes(opt.value));
 
   if (!user) return null;

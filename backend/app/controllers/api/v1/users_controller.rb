@@ -143,6 +143,9 @@ class Api::V1::UsersController < ApplicationController
     integrations << "microsoft" if microsoft_token.present?
     integrations << "outlook" if outlook_credential.present?
 
+    # SSoT: Ensure role_ids is always an array (even if roles association is somehow nil)
+    safe_roles = user.roles.to_a rescue []
+
     user.as_json.merge(
       presence_status: presence_status,
       integrations: integrations,
@@ -150,7 +153,7 @@ class Api::V1::UsersController < ApplicationController
       status: presence_status == "online" ? "active" : (user.last_login_at.present? ? "active" : "pending"),
       last_email_sync_at: user.respond_to?(:last_email_sync_at) ? user.last_email_sync_at : nil,
       # Multi-role support - format for multiple_lookups column type
-      role_ids: user.roles.map { |r| { id: r.id, display_value: r.display_name, name: r.name } },
+      role_ids: safe_roles.map { |r| { id: r.id, display_value: r.display_name, name: r.name } },
       role_names: user.role_names
     )
   end
