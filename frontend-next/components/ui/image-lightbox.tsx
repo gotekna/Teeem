@@ -39,6 +39,7 @@ import {
   ExternalLink,
   Loader2,
   ImageIcon,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -57,8 +58,12 @@ export interface ImageLightboxProps {
   showDownload?: boolean;
   /** Show open in SharePoint button */
   showOpenExternal?: boolean;
+  /** Show delete button */
+  showDelete?: boolean;
   /** Optional callback to resolve full-size URL on demand (for SharePoint images) */
   resolveFullUrl?: (photoId: string) => Promise<string | null>;
+  /** Optional callback when photo is deleted */
+  onDelete?: (photoId: string) => Promise<void>;
 }
 
 // Format date for display
@@ -99,7 +104,9 @@ export function ImageLightbox({
   onClose,
   showDownload = true,
   showOpenExternal = true,
+  showDelete = false,
   resolveFullUrl,
+  onDelete,
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
   const [loading, setLoading] = React.useState(true);
@@ -117,6 +124,8 @@ export function ImageLightbox({
   const fetchingRef = React.useRef<Set<string>>(new Set());
   // Ref for cleanup to avoid stale closure issue
   const blobUrlsRef = React.useRef<Record<string, string>>({});
+  // Track delete in progress
+  const [deleting, setDeleting] = React.useState(false);
 
   // Resolve full URL for current photo
   const resolveCurrentPhotoUrl = React.useCallback(async () => {
@@ -338,6 +347,37 @@ export function ImageLightbox({
     }
   };
 
+  // Handle delete
+  const handleDelete = async () => {
+    if (!currentPhoto || !onDelete) return;
+
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${currentPhoto.name}"?\n\nThis will permanently delete the file from SharePoint.`
+    );
+
+    if (!confirmDelete) return;
+
+    setDeleting(true);
+    try {
+      await onDelete(currentPhoto.id);
+      // If this was the last photo, close the lightbox
+      if (photos.length <= 1) {
+        onClose();
+      } else {
+        // Move to next photo (or previous if at end)
+        if (currentIndex >= photos.length - 1) {
+          setCurrentIndex(Math.max(0, currentIndex - 1));
+        }
+        // The parent component should update the photos array
+      }
+    } catch (err) {
+      console.error("Failed to delete image:", err);
+      alert("Failed to delete the image. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!open || !currentPhoto) return null;
 
   return (
@@ -386,6 +426,22 @@ export function ImageLightbox({
               title="Open in SharePoint"
             >
               <ExternalLink className="h-5 w-5" />
+            </Button>
+          )}
+          {showDelete && onDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-white hover:bg-red-500/20 hover:text-red-400"
+              title="Delete photo"
+            >
+              {deleting ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Trash2 className="h-5 w-5" />
+              )}
             </Button>
           )}
           <Button

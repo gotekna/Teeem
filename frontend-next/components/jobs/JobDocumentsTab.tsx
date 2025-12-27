@@ -256,6 +256,21 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     }
   }, []);
 
+  // Delete a photo from SharePoint
+  const handleDeletePhoto = React.useCallback(async (fileId: string): Promise<void> => {
+    const response = await api.delete<{ success: boolean; error?: string }>(
+      "/api/v1/organization_onedrive/delete_file",
+      { params: { file_id: fileId } }
+    );
+
+    if (!response || !response.success) {
+      throw new Error(response?.error || "Failed to delete file");
+    }
+
+    // Remove from local state - categoryPhotoItems is derived via useMemo from allFiles
+    setAllFiles((prev: LegacyItem[]) => prev.filter((f: LegacyItem) => f.id !== fileId));
+  }, []);
+
   // Convert LegacyItem to PhotoItem for gallery display
   const convertToPhotoItem = (item: LegacyItem): PhotoItem => {
     // Build API URL for fetching image through backend proxy (with auth)
@@ -1234,6 +1249,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
               open={categoryLightboxOpen}
               onClose={() => setCategoryLightboxOpen(false)}
               resolveFullUrl={resolveFullUrl}
+              showDelete={true}
+              onDelete={handleDeletePhoto}
             />
           </div>
         )}
@@ -1829,6 +1846,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
           open={lightboxOpen}
           onClose={() => setLightboxOpen(false)}
           resolveFullUrl={resolveFullUrl}
+          showDelete={true}
+          onDelete={handleDeletePhoto}
         />
       </div>
     );

@@ -1771,6 +1771,7 @@ Rails.application.routes.draw do
       post "organization_onedrive/upload", to: "organization_sharepoint#upload"
       get "organization_onedrive/download", to: "organization_sharepoint#download"
       get "organization_onedrive/download_url", to: "organization_sharepoint#download_url"
+      delete "organization_onedrive/delete_file", to: "organization_sharepoint#delete_file"
       get "organization_onedrive/folder_contents", to: "organization_sharepoint#folder_contents"
       get "organization_onedrive/sharepoint_sites", to: "organization_sharepoint#sharepoint_sites"
       post "organization_onedrive/use_sharepoint_site", to: "organization_sharepoint#use_sharepoint_site"

@@ -1139,6 +1139,54 @@ module Api
         end
       end
 
+      # DELETE /api/v1/organization_onedrive/delete_file
+      # Delete a file from SharePoint/OneDrive
+      def delete_file
+        credential = OrganizationSharePointCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { success: false, error: "SharePoint not connected" }, status: :unauthorized
+        end
+
+        file_id = params[:file_id]
+
+        unless file_id
+          return render json: { success: false, error: "No file_id provided" }, status: :bad_request
+        end
+
+        begin
+          # Check if using app credentials (requires different API calls)
+          is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+
+          if is_app_credential
+            client = MicrosoftAppGraphClient.new(credential)
+            sharepoint_config = CorporateCompanySetting.sharepoint_config
+
+            unless sharepoint_config[:configured]
+              return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
+            end
+
+            client.delete_drive_item(
+              drive_id: sharepoint_config[:drive_id],
+              item_id: file_id
+            )
+          else
+            client = MicrosoftGraphClient.new(credential)
+            client.delete_file(file_id)
+          end
+
+          render json: { success: true, message: "File deleted successfully" }
+
+        rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
+          render json: { success: false, error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
+          render json: { success: false, error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to delete file: #{e.message}"
+          render json: { success: false, error: "Failed to delete file: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/download_url
       # Get a pre-authenticated download URL for a file (valid ~1 hour)
       # Used for lightbox full-size image viewing - URL works directly in <img> tags
