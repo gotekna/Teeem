@@ -317,6 +317,8 @@ class SmScheduleMasterSyncService
 
   # Check if task has "job reality" that should not be overwritten
   # These represent actual work progress, confirmations, or commitments
+  # NOTE: PO attachment does NOT block sync - PO handles supplier commitments separately,
+  # and sync only touches safe fields (name, trade, stage, etc.) not schedule/PO fields
   def should_skip_task?(task)
     return false if task.nil?
 
@@ -326,8 +328,7 @@ class SmScheduleMasterSyncService
       task.completed_at.present? ||
       task.supplier_confirm == true ||
       task.confirm == true ||
-      task.hold == true ||
-      task.purchase_order_id.present?
+      task.hold == true
   end
 
   # Return human-readable reason why task was skipped
@@ -338,7 +339,6 @@ class SmScheduleMasterSyncService
     reasons << "supplier confirmed" if task.supplier_confirm == true
     reasons << "confirmation locked" if task.confirm == true
     reasons << "on hold" if task.hold == true
-    reasons << "has PO ##{task.purchase_order_id}" if task.purchase_order_id.present?
     reasons.join(", ")
   end
 
