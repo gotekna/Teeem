@@ -30,8 +30,8 @@ class PayNowNotificationJob < ApplicationJob
   private
 
   def notify_supervisors(request)
-    # Get all supervisors and builders
-    supervisors = User.where(role: [ "supervisor", "builder", "admin" ])
+    # SSoT: Get all supervisors and builders via user_roles join table
+    supervisors = User.joins(:roles).where(roles: { name: %w[supervisor builder admin] }).distinct
 
     supervisors.each do |supervisor|
       PayNowMailer.supervisor_review_needed(request, supervisor).deliver_now

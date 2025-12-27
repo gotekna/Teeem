@@ -15,19 +15,23 @@ module Api
         end
 
         # Try to find an existing user (prefer robert@tekna.com.au for local dev)
+        # SSoT: Use user_roles join table to find admins
         dev_user = User.find_by(email: "robert@tekna.com.au") ||
                    User.find_by(email: "rob@teeem.com.au") ||
-                   User.where(role: "admin").first ||
+                   User.joins(:roles).where(roles: { name: "admin" }).first ||
                    User.first
 
-        # If no users exist, create a dev user
+        # If no users exist, create a dev user with admin role
         unless dev_user
           dev_user = User.create!(
             email: "dev@teeem.local",
             name: "Dev User",
             password: "DevPassword123!",
-            role: "admin"
+            role: "admin"  # Legacy column (still required by validation)
           )
+          # SSoT: Assign admin role via user_roles join table
+          admin_role = Role.find_by(name: "admin")
+          dev_user.roles << admin_role if admin_role
         end
 
         token = JsonWebToken.encode(user_id: dev_user.id)
@@ -49,16 +53,19 @@ module Api
       def signup
         user = User.new(signup_params)
 
+        # Set default role for validation (legacy column still required)
+        user.role ||= "user"
+
         # Auto-approve Tekna employees
         if user.email&.end_with?("@tekna.com.au")
-          user.role ||= "user"  # Default role for Tekna employees
           Rails.logger.info "Auto-approving Tekna employee: #{user.email}"
-        else
-          # Non-Tekna emails default to user role as well
-          user.role ||= "user"
         end
 
         if user.save
+          # SSoT: Assign default "user" role via user_roles join table
+          default_role = Role.find_by(name: "user")
+          user.roles << default_role if default_role && !user.roles.exists?(id: default_role.id)
+
           token = JsonWebToken.encode(user_id: user.id)
           render json: {
             success: true,
@@ -67,7 +74,7 @@ module Api
               id: user.id,
               email: user.email,
               name: user.name,
-              role: user.role,
+              role_names: user.role_names,  # SSoT: Return role names array
               permissions: user.permissions
             }
           }, status: :created
@@ -95,7 +102,7 @@ module Api
               id: user.id,
               email: user.email,
               name: user.name,
-              role: user.role,
+              role_names: user.role_names,  # SSoT: Return role names array
               permissions: user.permissions
             }
           }
@@ -140,7 +147,7 @@ module Api
             id: user.id,
             email: user.email,
             name: user.name,
-            role: user.role,
+            role_names: user.role_names,  # SSoT: Return role names array
             permissions: user.permissions
           }
         }
@@ -158,12 +165,13 @@ module Api
           return
         end
 
-        users = User.where("email LIKE ?", "%@tekna.com.au").order(:name).map do |u|
+        # SSoT: Include roles association for efficiency
+        users = User.includes(:roles).where("email LIKE ?", "%@tekna.com.au").order(:name).map do |u|
           {
             id: u.id,
             email: u.email,
             name: u.name,
-            role: u.role,
+            role_names: u.role_names,  # SSoT: Return role names array
             has_outlook: u.outlook_credential.present?,
             last_login_at: u.last_login_at
           }
@@ -180,7 +188,7 @@ module Api
             id: @current_user.id,
             email: @current_user.email,
             name: @current_user.name,
-            role: @current_user.role,
+            role_names: @current_user.role_names,  # SSoT: Return role names array
             permissions: @current_user.permissions,
             preload_price_books: @current_user.preload_price_books
           }

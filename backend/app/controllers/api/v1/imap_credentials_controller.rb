@@ -144,33 +144,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
     account_id = params[:account_id]
     mailbox_email = params[:mailbox_email]  # For ms365 accounts
 
-    if account_id == "outlook"
-      # Fetch Outlook folders via Graph API (user's personal OAuth)
-      unless current_user.outlook_credential&.valid_credential?
-        return render json: {
-          success: false,
-          error: "Outlook not connected or token expired"
-        }, status: :unprocessable_entity
-      end
+    # REMOVED: Personal Outlook account_id == "outlook" case
+    # Per-user Outlook credentials have been removed - using org-wide credentials only
 
-      outlook = OutlookService.new(current_user)
-      folders = outlook.list_folders
-
-      render json: {
-        success: true,
-        data: folders.map { |f|
-          {
-            id: f[:id],
-            name: f[:name],
-            unread_count: f[:unread_count],
-            total_items: f[:total_items],
-            type: folder_type_from_name(f[:name]),
-            depth: f[:depth] || 0,
-            parent_id: f[:parent_id]
-          }
-        }
-      }
-    elsif account_id&.start_with?("ms365_")
+    if account_id&.start_with?("ms365_")
       # Fetch folders from Microsoft 365 org using app credentials
       parts = account_id.split("_")
       org_cred_id = parts[1].to_i

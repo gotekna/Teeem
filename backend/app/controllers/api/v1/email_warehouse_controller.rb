@@ -10,7 +10,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Skip this filter if microsoft_credential_id is provided (we'll filter by that instead)
     if params[:my_emails] == "true" && params[:microsoft_credential_id].blank?
       user_imap_ids = current_user.imap_credentials.pluck(:id)
-      user_outlook_email = current_user.outlook_credential&.email
+      # REMOVED: user_outlook_email from per-user credentials - using org credentials only
 
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
@@ -32,12 +32,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
         bind_values << user_imap_ids
       end
 
-      # Personal Outlook
-      if user_outlook_email.present?
-        conditions << "(source_type = 'outlook' AND (from_email = ? OR ? = ANY(to_emails)))"
-        bind_values << user_outlook_email
-        bind_values << user_outlook_email
-      end
+      # REMOVED: Personal Outlook filtering - using org credentials only
 
       # MS365 org mailboxes - filter by credential AND mailbox email
       if ms365_cred_ids.any?
@@ -385,9 +380,16 @@ class Api::V1::EmailWarehouseController < ApplicationController
   def mark_as_spam
     delete_from_outlook = params[:delete_from_outlook] == "true"
 
-    if delete_from_outlook && current_user.outlook_credential&.valid_credential?
-      outlook_service = OutlookService.new(current_user)
-      @email.mark_as_spam!(delete_from_outlook: true, outlook_service: outlook_service)
+    # SSoT: Use org credentials for email operations (per-user Outlook removed)
+    if delete_from_outlook && @email.microsoft_credential_id.present? && @email.outlook_id.present?
+      org_cred = OrganizationMicrosoftAppCredential.find_by(id: @email.microsoft_credential_id)
+      if org_cred&.connected?
+        graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
+        graph_client.delete_user_email(@email.mailbox_owner_email, @email.outlook_id)
+        @email.mark_as_spam!(delete_from_outlook: true)
+      else
+        @email.mark_as_spam!(delete_from_outlook: false)
+      end
     else
       @email.mark_as_spam!(delete_from_outlook: false)
     end
@@ -401,18 +403,22 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
   # DELETE /api/v1/email_warehouse/:id/delete_from_outlook
   # Delete a single email from Outlook (without marking as spam)
+  # SSoT: Uses org credentials (per-user Outlook removed)
   def delete_from_outlook
-    unless current_user.outlook_credential&.valid_credential?
-      return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
-    end
-
     unless @email.outlook_id.present?
       return render json: { error: "Email has no Outlook ID" }, status: :unprocessable_entity
     end
 
-    outlook_service = OutlookService.new(current_user)
+    # SSoT: Use org credentials for email operations
+    org_cred = OrganizationMicrosoftAppCredential.find_by(id: @email.microsoft_credential_id)
+    unless org_cred&.connected?
+      return render json: { error: "Organization MS365 not connected" }, status: :unprocessable_entity
+    end
 
-    if outlook_service.delete_email(@email.outlook_id)
+    graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
+    result = graph_client.delete_user_email(@email.mailbox_owner_email, @email.outlook_id)
+
+    if result
       # Mark as deleted in our database
       @email.update!(
         email_classification: (@email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
@@ -430,6 +436,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
   # POST /api/v1/email_warehouse/:id/move_to_folder
   # Move email to a different folder (Outlook/MS365)
+  # SSoT: Uses org credentials (per-user Outlook removed)
   def move_to_folder
     folder_id = params[:folder_id]
     folder_name = params[:folder_name]
@@ -438,27 +445,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       return render json: { error: "folder_id or folder_name required" }, status: :unprocessable_entity
     end
 
-    # Determine which service to use based on source type
-    if @email.source_type == "outlook" && @email.outlook_id.present?
-      unless current_user.outlook_credential&.valid_credential?
-        return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
-      end
-
-      outlook_service = OutlookService.new(current_user)
-      result = outlook_service.move_email(@email.outlook_id, folder_id)
-
-      if result
-        @email.update!(folder_name: folder_name || folder_id)
-        render json: {
-          success: true,
-          message: "Email moved to #{folder_name || folder_id}",
-          email: email_json(@email)
-        }
-      else
-        render json: { error: "Failed to move email" }, status: :unprocessable_entity
-      end
-    elsif @email.microsoft_credential_id.present? && @email.outlook_id.present?
-      # MS365 app credential
+    # SSoT: Use org credentials for MS365 emails
+    if @email.microsoft_credential_id.present? && @email.outlook_id.present?
       org_cred = OrganizationMicrosoftAppCredential.find_by(id: @email.microsoft_credential_id)
       unless org_cred&.connected?
         return render json: { error: "MS365 organization not connected" }, status: :unprocessable_entity
@@ -694,32 +682,37 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
   # POST /api/v1/email_warehouse/bulk_delete_spam
   # Delete all spam emails from Outlook (and optionally from database)
+  # SSoT: Uses org credentials (per-user Outlook removed)
   def bulk_delete_spam
-    unless current_user.outlook_credential&.valid_credential?
-      return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
-    end
-
-    outlook_service = OutlookService.new(current_user)
-    spam_emails = EmailWarehouse.spam.where.not(outlook_id: nil)
+    spam_emails = EmailWarehouse.spam.where.not(outlook_id: nil).where.not(microsoft_credential_id: nil)
 
     deleted_count = 0
     failed_count = 0
     errors = []
 
-    spam_emails.find_each do |email|
-      if outlook_service.delete_email(email.outlook_id)
-        # Mark as deleted in our database
-        email.update!(
-          email_classification: (email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
-        )
-        deleted_count += 1
-      else
+    # Group by credential to minimize client creation
+    spam_emails.group_by(&:microsoft_credential_id).each do |cred_id, emails|
+      org_cred = OrganizationMicrosoftAppCredential.find_by(id: cred_id)
+      next unless org_cred&.connected?
+
+      graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
+
+      emails.each do |email|
+        result = graph_client.delete_user_email(email.mailbox_owner_email, email.outlook_id)
+        if result
+          # Mark as deleted in our database
+          email.update!(
+            email_classification: (email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
+          )
+          deleted_count += 1
+        else
+          failed_count += 1
+          errors << "Failed to delete email #{email.id}"
+        end
+      rescue StandardError => e
         failed_count += 1
-        errors << "Failed to delete email #{email.id}"
+        errors << "Error deleting email #{email.id}: #{e.message}"
       end
-    rescue StandardError => e
-      failed_count += 1
-      errors << "Error deleting email #{email.id}: #{e.message}"
     end
 
     # Optionally delete from our database too

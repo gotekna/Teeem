@@ -1,3 +1,10 @@
+# DEPRECATED: This service used per-user Outlook credentials (UserOutlookCredential)
+# which have been removed. Email sync now uses org-wide credentials (OrgEmailSyncJob).
+#
+# The methods in this service will fail because UserOutlookCredential no longer exists.
+# For email operations, use MicrosoftAppGraphClient with org credentials instead.
+#
+# TODO: Either delete this service or refactor to use org credentials.
 require "net/http"
 require "json"
 
@@ -6,6 +13,7 @@ class OutlookService
 
   class NotConnectedError < StandardError; end
 
+  # DEPRECATED: Per-user credentials have been removed
   # Initialize with a user to get their personal credentials
   def initialize(user)
     @user = user

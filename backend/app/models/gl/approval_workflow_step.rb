@@ -23,7 +23,8 @@ module Gl
       when "user"
         [approver].compact
       when "role"
-        User.where(role: required_role)
+        # SSoT: Use user_roles join table to find users by role
+        User.joins(:roles).where(roles: { name: required_role }).distinct
       when "any_of", "all_of"
         User.where(id: approver_ids_array)
       else

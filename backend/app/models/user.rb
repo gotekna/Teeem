@@ -79,8 +79,9 @@ class User < ApplicationRecord
 
   # SSoT: God View access (internal staff sees everything)
   # God View users see all entities in all groups they have access to
+  # SSoT: Check against user_roles join table, not legacy role column
   def god_view?
-    role.in?(%w[admin product_owner user estimator supervisor builder])
+    (role_names & %w[admin product_owner user estimator supervisor builder]).any?
   end
 
   # SSoT: Can this user view confidential fields (TFN, passport, bank details)?
@@ -138,17 +139,27 @@ class User < ApplicationRecord
   end
 
   # Returns array of permission strings for this user
+  # SSoT: Aggregates permissions from ALL roles via user_roles join table
   def permissions
     perms = []
 
     # Base permissions for all users
     perms += [ "view_dashboard", "view_jobs", "view_contacts" ]
 
-    # Role-specific permissions
-    case role
+    # SSoT: Get permissions from all assigned roles
+    role_names.each do |role_name|
+      perms += permissions_for_role(role_name)
+    end
+
+    perms.uniq
+  end
+
+  # Permission definitions for each role
+  # SSoT: This is THE ONE place where role->permission mappings are defined
+  def permissions_for_role(role_name)
+    case role_name
     when "admin"
-      # Admins get all permissions
-      perms += [
+      [
         "manage_permissions",
         "manage_users",
         "manage_system",
@@ -161,61 +172,69 @@ class User < ApplicationRecord
         "view_gantt",
         "manage_company_settings",
         "manage_integrations",
-        # SSoT Corporate permissions
         "god_view",
         "view_confidential_fields",
         "view_all_company_groups",
         "edit_company_group_memberships",
         "run_investigations",
-        # Corporate & Case data permissions
         "view_corporate_data",
         "edit_corporate_data",
         "view_case_data",
         "edit_case_data"
       ]
     when "product_owner"
-      perms += [
+      [
         "create_templates",
         "edit_schedule",
         "edit_projects",
         "view_gantt",
-        # SSoT Corporate permissions
         "god_view",
         "view_all_company_groups",
-        # Corporate & Case data permissions (view only)
         "view_corporate_data",
         "view_case_data"
       ]
     when "estimator"
-      perms += [
+      [
         "edit_schedule",
         "edit_projects",
         "view_gantt"
       ]
     when "supervisor"
-      perms += [
+      [
         "view_supervisor_tasks",
         "view_gantt"
       ]
     when "builder"
-      perms += [
+      [
         "view_builder_tasks"
       ]
+    else
+      []
     end
-
-    perms.uniq
   end
 
   # OAuth helper methods
   def self.from_omniauth(auth)
-    where(provider: auth.provider, uid: auth.uid).first_or_create do |user|
-      user.email = auth.info.email
-      user.name = auth.info.name
-      user.oauth_token = auth.credentials.token
-      user.oauth_expires_at = Time.at(auth.credentials.expires_at) if auth.credentials.expires_at
-      user.role = "user"  # Default role for new OAuth users
-      user.password = SecureRandom.hex(32)  # Set random password for OAuth users
-    end
+    existing_user = find_by(provider: auth.provider, uid: auth.uid)
+    return existing_user if existing_user
+
+    # Create new OAuth user
+    user = create!(
+      provider: auth.provider,
+      uid: auth.uid,
+      email: auth.info.email,
+      name: auth.info.name,
+      oauth_token: auth.credentials.token,
+      oauth_expires_at: auth.credentials.expires_at ? Time.at(auth.credentials.expires_at) : nil,
+      role: "user",  # Legacy column (still required by validation)
+      password: SecureRandom.hex(32)
+    )
+
+    # SSoT: Assign default "user" role via user_roles join table
+    default_role = Role.find_by(name: "user")
+    user.roles << default_role if default_role && !user.roles.exists?(id: default_role.id)
+
+    user
   end
 
   def oauth_user?

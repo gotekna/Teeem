@@ -53,7 +53,8 @@ class CompanyApprovalRule < ApplicationRecord
     when "user"
       [ User.find_by(id: approver_id) ].compact
     when "role"
-      User.where(role: approver_role)
+      # SSoT: Use user_roles join table to find users by role
+      User.joins(:roles).where(roles: { name: approver_role }).distinct
     when "group"
       # If UserGroup model exists
       if defined?(UserGroup) && approver_group_id.present?

@@ -1,7 +1,16 @@
+# DEPRECATED: This controller used per-user Outlook credentials (UserOutlookCredential)
+# which have been removed. Email sync now uses org-wide credentials (OrgEmailSyncJob).
+#
+# The methods in this controller will fail because UserOutlookCredential no longer exists.
+# Use microsoft_auth_controller.rb for Microsoft OAuth (personal OneDrive/SharePoint).
+# For email operations, emails are synced via OrgEmailSyncJob using OrganizationMicrosoftAppCredential.
+#
+# TODO: Either delete this controller or refactor to use org credentials.
 class Api::V1::OutlookController < ApplicationController
   # Skip authentication for OAuth callback - Microsoft redirects here without auth token
   skip_before_action :authorize_request, only: [ :callback ]
 
+  # DEPRECATED: Per-user OAuth has been removed
   # GET /api/v1/outlook/auth_url
   # Get the OAuth authorization URL for connecting the current user's Outlook
   def auth_url

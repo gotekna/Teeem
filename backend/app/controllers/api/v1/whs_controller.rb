@@ -77,7 +77,8 @@ class Api::V1::WHSController < ApplicationController
     swms_coverage = (jobs_with_swms.to_f / total_jobs * 40).round
 
     # Induction completion rate (40%)
-    total_workers = User.where(role: [ "worker", "subcontractor" ]).count
+    # SSoT: Use user_roles join table to find workers/subcontractors
+    total_workers = User.joins(:roles).where(roles: { name: %w[worker subcontractor] }).distinct.count
     return swms_coverage if total_workers.zero?
 
     inducted_workers = WHSInduction.where(status: "valid").distinct.count(:user_id)

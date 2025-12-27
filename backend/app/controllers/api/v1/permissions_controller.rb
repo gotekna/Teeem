@@ -185,7 +185,7 @@ module Api
 
       # GET /api/v1/permissions/user/:id
       def user_permissions
-        user = User.find(params[:id])
+        user = User.includes(:roles).find(params[:id])
 
         render json: {
           success: true,
@@ -193,10 +193,11 @@ module Api
             id: user.id,
             name: user.name,
             email: user.email,
-            role: user.role
+            role_names: user.role_names  # SSoT: Return role names array
           },
           permissions: user.permissions,
-          role_permissions: get_role_permissions(user.role)
+          # SSoT: Aggregate permissions from all user's roles
+          role_permissions: user.role_names.flat_map { |r| get_role_permissions(r) }.uniq
         }
       end
 
@@ -214,10 +215,11 @@ module Api
 
       # Note: require_admin is inherited from ApplicationController
 
-      def get_role_permissions(role)
-        # Create a temporary user instance to get permissions for a role
-        temp_user = User.new(role: role)
-        temp_user.permissions
+      def get_role_permissions(role_name)
+        # SSoT: Use User.permissions_for_role directly
+        # Base permissions + role-specific permissions
+        base = [ "view_dashboard", "view_jobs", "view_contacts" ]
+        base + User.new.permissions_for_role(role_name)
       end
     end
   end

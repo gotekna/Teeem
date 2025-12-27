@@ -112,8 +112,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     microsoft_token = user.microsoft_token || user.build_microsoft_token
     microsoft_token.mark_connected!(tokens.merge(email: microsoft_email))
 
-    # Also update the legacy outlook_credential for backward compatibility
-    update_legacy_outlook_credential(user, tokens, microsoft_email)
+    # REMOVED: update_legacy_outlook_credential - using org-wide credentials (OrgEmailSyncJob)
 
     # Also create/update organization-level OneDrive credential for SharePoint access
     # This allows the org to have shared OneDrive/SharePoint access via any user's connection
@@ -135,19 +134,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   def status
     microsoft_token = current_user.microsoft_token
 
-    # Load outlook credential with error handling for decryption errors
-    # (tokens are encrypted and may fail to decrypt if encrypted with different keys)
-    outlook_credential = begin
-      cred = current_user.outlook_credential
-      # Try to access an encrypted field to verify decryption works
-      cred&.access_token if cred
-      cred
-    rescue ActiveRecord::Encryption::Errors::Decryption => e
-      Rails.logger.warn "[Microsoft Status] Decryption error loading outlook credential: #{e.message}"
-      nil
-    end
+    # SSoT: Using org-wide credentials for email sync (OrgEmailSyncJob)
+    # Per-user OAuth removed - only UserMicrosoftToken needed for personal OneDrive/SharePoint
 
-    # Use new unified token if available, otherwise fall back to legacy
     if microsoft_token.present?
       # Auto-refresh if token is expired or about to expire
       needs_reconnect = false
@@ -184,22 +173,6 @@ class Api::V1::MicrosoftAuthController < ApplicationController
           onedrive: microsoft_token.status == "connected",
           sharepoint: microsoft_token.status == "connected"
         }
-      }
-    elsif outlook_credential.present?
-      # Legacy outlook credential exists
-      render json: {
-        connected: true,
-        email: outlook_credential.email,
-        status: outlook_credential.expired? ? "needs_refresh" : "connected",
-        expires_at: outlook_credential.expires_at,
-        needs_refresh: outlook_credential.expired?,
-        services: {
-          outlook: true,
-          onedrive: false,  # Legacy doesn't have OneDrive scope
-          sharepoint: false
-        },
-        legacy: true,
-        message: "Please reconnect to enable OneDrive and SharePoint access"
       }
     else
       render json: {
@@ -243,10 +216,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   # Disconnect current user's Microsoft account
   def disconnect
     microsoft_token = current_user.microsoft_token
-    outlook_credential = current_user.outlook_credential
+    # REMOVED: outlook_credential - using org-wide credentials (OrgEmailSyncJob)
 
     microsoft_token&.disconnect!
-    outlook_credential&.destroy
 
     render json: { success: true, message: "Microsoft account disconnected successfully" }
   end
@@ -422,17 +394,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     response.status.success? ? response.parse : nil
   end
 
-  def update_legacy_outlook_credential(user, tokens, email)
-    # Keep legacy credential in sync for backward compatibility with existing email sync
-    credential = user.outlook_credential || user.build_outlook_credential
-    credential.update!(
-      access_token: tokens[:access_token],
-      refresh_token: tokens[:refresh_token],
-      expires_at: Time.current + tokens[:expires_in].to_i.seconds,
-      email: email,
-      tenant_id: ENV["OUTLOOK_TENANT_ID"] || "common"
-    )
-  end
+  # REMOVED: update_legacy_outlook_credential - using org-wide credentials (OrgEmailSyncJob)
 
   # DUAL-WRITE: Create/update unified MicrosoftCredential for the user
   # This is part of SSoT migration - eventually replaces UserMicrosoftToken
