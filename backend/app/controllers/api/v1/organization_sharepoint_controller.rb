@@ -2061,8 +2061,8 @@ module Api
           current_id, depth, current_path = folders_to_process.shift
 
           begin
-            # Include @microsoft.graph.downloadUrl for pre-authenticated direct download
-            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder,@microsoft.graph.downloadUrl&$expand=thumbnails&$top=200"
+            # Note: @microsoft.graph.downloadUrl is automatically included in drive item responses
+            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$expand=thumbnails&$top=200"
             result = client.get(url)
 
             result["value"]&.each do |item|
