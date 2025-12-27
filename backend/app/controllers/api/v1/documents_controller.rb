@@ -7,10 +7,19 @@ module Api
 
       # GET /api/v1/documents
       # Returns documents with folder structure for the documents page
+      # Params:
+      #   search: Full-text search query (uses PostgreSQL tsvector + GIN index)
+      #   folder: Filter by folder path
+      #   limit: Max results (default: 100)
       def index
         documents = CorporateCompanyDocument.includes(:corporate_company, :user, :document_type_record)
                                    .order(created_at: :desc)
                                    .limit(params[:limit] || 100)
+
+        # Full-text search using Searchable concern (GIN-indexed tsvector)
+        if params[:search].present?
+          documents = documents.search_text(params[:search])
+        end
 
         # Filter by folder if provided
         documents = documents.by_folder(params[:folder]) if params[:folder].present?

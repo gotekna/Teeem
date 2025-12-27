@@ -1,5 +1,9 @@
 class CorporateCompanyDocument < ApplicationRecord
   include DocumentTemplatable
+  include Searchable
+
+  # Searchable columns for full-text search (GIN index)
+  searchable_columns :file_name, :display_name, :description, :folder
 
   # Associations
   belongs_to :corporate_company, foreign_key: "company_id", optional: true

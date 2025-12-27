@@ -6,6 +6,11 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.1
 #
 class SmTask < ApplicationRecord
+  include Searchable
+
+  # Searchable columns for full-text search (GIN index)
+  searchable_columns :name, :description
+
   self.table_name = "sm_tasks"
 
   # Status enum

@@ -1,5 +1,9 @@
 class Contact < ApplicationRecord
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
+  include Searchable
+
+  # Searchable columns for full-text search (GIN index)
+  searchable_columns :first_name, :last_name, :email, :company_name, :display_name, :phone
 
   # Exclude soft-deleted contacts by default
   # Note: deleted column was removed in migration 20251210093313

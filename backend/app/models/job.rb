@@ -9,6 +9,10 @@ class Job < ApplicationRecord
 
   # BPMN Workflow Triggers - fires when job status changes
   include BpmnTriggerable
+  include Searchable
+
+  # Searchable columns for full-text search (GIN index)
+  searchable_columns :name, :location, :suburb, :street_name
   bpmn_status_trigger :job_status_id
 
   # SSoT: Standard includes - define once, use everywhere

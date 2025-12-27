@@ -13,6 +13,16 @@ Rails.application.routes.draw do
   # API routes
   namespace :api do
     namespace :v1 do
+      # Global Search (Gold Standard Search Infrastructure)
+      # GET /api/v1/search?q=query&types=emails,documents
+      # GET /api/v1/search/:type?q=query (single type with pagination)
+      # GET /api/v1/search/types (list available types)
+      resources :search, only: [:index, :show] do
+        collection do
+          get :types
+        end
+      end
+
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 

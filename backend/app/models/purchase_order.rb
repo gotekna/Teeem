@@ -1,4 +1,9 @@
 class PurchaseOrder < ApplicationRecord
+  include Searchable
+
+  # Searchable columns for full-text search (GIN index)
+  searchable_columns :purchase_order_number, :description
+
   # SSoT Aliases - Backwards compatibility
   alias_attribute :po_number, :purchase_order_number
   alias_attribute :notes, :description

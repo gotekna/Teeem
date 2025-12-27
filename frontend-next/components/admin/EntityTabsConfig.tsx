@@ -379,11 +379,8 @@ export function EntityTabsConfig({
   // Open edit dialog - always opens the edit dialog for tab settings
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: EntityTab) => {
-    // SSoT: Auto-swap {{TabName}} → {{SubTabName}} for subtabs
-    let folderPath = tab.sharepoint_folder_path || "";
-    if (tab.parent_id && folderPath.includes("{{TabName}}")) {
-      folderPath = folderPath.replace(/\{\{TabName\}\}/g, "{{SubTabName}}");
-    }
+    // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
+    const folderPath = tab.sharepoint_folder_path || "";
 
     setFormData({
       display_name: tab.display_name,
@@ -1310,23 +1307,9 @@ export function EntityTabsConfig({
                     value={formData.parent_id?.toString() || "none"}
                     onValueChange={(value) => {
                       const newParentId = value === "none" ? null : parseInt(value, 10);
-                      const wasSubtab = !!formData.parent_id;
-                      const isNowSubtab = !!newParentId;
-
-                      // SSoT: Auto-swap placeholders when parent changes
-                      let newFolderPath = formData.sharepoint_folder_path || "";
-                      if (wasSubtab && !isNowSubtab) {
-                        // Was subtab, now root: {{SubTabName}} → {{TabName}}
-                        newFolderPath = newFolderPath.replace(/\{\{SubTabName\}\}/g, "{{TabName}}");
-                      } else if (!wasSubtab && isNowSubtab) {
-                        // Was root, now subtab: {{TabName}} → {{SubTabName}}
-                        newFolderPath = newFolderPath.replace(/\{\{TabName\}\}/g, "{{SubTabName}}");
-                      }
-
                       setFormData((prev) => ({
                         ...prev,
                         parent_id: newParentId,
-                        sharepoint_folder_path: newFolderPath,
                       }));
                     }}
                   >
@@ -1430,14 +1413,16 @@ export function EntityTabsConfig({
                       sharepoint_folder_path: value,
                     }))
                   }
-                  // SSoT: Filter placeholders - subtabs get {{SubTabName}}, root tabs get {{TabName}}
+                  // SSoT: Filter placeholders based on tab hierarchy
+                  // - Root tabs: show {{TabName}} only (no subtab)
+                  // - Subtabs: show BOTH {{TabName}} (parent) and {{SubTabName}} (current)
                   placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) => {
                     const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
                     if (isSubtab) {
-                      // Subtabs: show SubTabName, hide TabName
-                      return p.code !== "{{TabName}}";
+                      // Subtabs: show BOTH TabName (parent) and SubTabName (current)
+                      return true;
                     } else {
-                      // Root tabs: show TabName, hide SubTabName
+                      // Root tabs: show TabName only, hide SubTabName
                       return p.code !== "{{SubTabName}}";
                     }
                   })}
@@ -1455,7 +1440,18 @@ export function EntityTabsConfig({
 
                   // Get actual tab names for preview
                   const parentId = formData.parent_id || editingTab?.parent_id;
-                  const parentTab = parentId ? tabs.find(t => t.id === parentId) : null;
+                  // Recursive search to find parent tab (might be nested)
+                  const findTabById = (tabList: EntityTab[], id: number): EntityTab | null => {
+                    for (const tab of tabList) {
+                      if (tab.id === id) return tab;
+                      if (tab.children?.length) {
+                        const found = findTabById(tab.children, id);
+                        if (found) return found;
+                      }
+                    }
+                    return null;
+                  };
+                  const parentTab = parentId ? findTabById(tabs, parentId) : null;
                   const currentTabName = formData.display_name || editingTab?.display_name || "";
                   const parentTabName = parentTab?.display_name || "";
 

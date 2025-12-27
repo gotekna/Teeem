@@ -1,4 +1,10 @@
 class EmailWarehouse < ApplicationRecord
+  include Searchable
+
+  # Searchable columns for full-text search (GIN index)
+  # Note: Uses custom update_searchable_vector callback instead of trigger
+  searchable_columns :subject, :from_email, :body_text
+
   self.table_name = "email_warehouse"
 
   # ActiveStorage attachments
