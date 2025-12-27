@@ -160,7 +160,7 @@ module Api
       def sync_to_job
         job = Job.find(params[:job_id])
 
-        results = SmScheduleMasterSyncService.sync_all_for_job(@template, job, {
+        results = SmScheduleMasterSyncService.sync_all_for_job(job, @template, {
           user: current_user,
           force: params[:force] == true || params[:force] == "true"
         })
