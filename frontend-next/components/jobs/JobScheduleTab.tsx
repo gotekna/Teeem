@@ -127,6 +127,7 @@ interface JobTemplate {
 
 // SSoT: Columns come from Foundation API (ID: 218, slug: sm-tasks)
 // DO NOT hardcode columns here - TeeemTableView auto-fetches from Foundation
+// Global views are inherited from Schedule Master (foundation 426) - allows "PO Tasks Only" etc. to appear here
 
 export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   const router = useRouter();
@@ -311,6 +312,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
       <TeeemTableView
         entries={tasks as unknown as TableRow[]}
         foundationIdNumeric={218}
+        inheritViewsFrom={426}
         tableName="Schedule Tasks"
         onRefresh={loadTasks}
         onRowClick={handleRowClick}

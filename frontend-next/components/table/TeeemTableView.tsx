@@ -908,6 +908,7 @@ export default function TeeemTableView({
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
   onLoadViewReady,
+  inheritViewsFrom,
   onServerSearch,
   serverSearchLoading = false,
   searchMode: propSearchMode,
@@ -2686,7 +2687,8 @@ export default function TeeemTableView({
 
       try {
         // Load views using atom (handles caching, mapping, sorting automatically)
-        const result = await loadViews(foundationIdNumeric);
+        // Pass inheritViewsFrom to include global views from related foundations
+        const result = await loadViews(foundationIdNumeric, inheritViewsFrom);
 
         if (!result.success) {
           console.error('[loadSavedViews] Failed to load views:', result.error);
@@ -2728,7 +2730,7 @@ export default function TeeemTableView({
 
     loadSavedViews();
 
-  }, [foundationIdNumeric, preloadedViews, disableSavedViews]);
+  }, [foundationIdNumeric, preloadedViews, disableSavedViews, inheritViewsFrom]);
 
   // Expose loadViewState to parent via callback
   useEffect(() => {

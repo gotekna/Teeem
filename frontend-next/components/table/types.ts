@@ -151,6 +151,7 @@ export interface TeeemTableViewProps {
   hideUpdateViewButton?: boolean;
   initialGroupByColumn?: string | null;
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
+  inheritViewsFrom?: number | number[]; // Include global views from related foundations (e.g., SM Tasks inherits from Schedule Master)
 
   // Server-side operations
   // Note: Second parameter can be:

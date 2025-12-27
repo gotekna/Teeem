@@ -115,7 +115,8 @@ export const collapsedGroupsAtom = atom<Set<string>>(new Set<string>());
  * Per-foundation view cache with TTL
  * Persisted to localStorage for faster page loads
  */
-export const viewsCacheAtom = atomWithStorage<Record<number, {
+// Cache key can be a number (foundationId) or string (e.g., "218_inherit_426")
+export const viewsCacheAtom = atomWithStorage<Record<string | number, {
   views: SavedView[];
   timestamp: number;
 }>>('teeem_views_cache', {});
@@ -415,27 +416,41 @@ export const invalidateViewsCacheAtom = atom(
 
 /**
  * Load views for a foundation (from cache or API)
+ * Optional includeViewsFrom parameter inherits global views from related foundations
+ * Example: SM Tasks (218) can inherit global views from Schedule Master (426)
  */
 export const loadFoundationViewsAtom = atom(
   null,
-  async (get, set, foundationId: number) => {
+  async (get, set, foundationId: number, includeViewsFrom?: number | number[]) => {
     set(viewsLoadingAtom, true);
 
+    // Build cache key that includes related foundations
+    const includeFromArray = includeViewsFrom
+      ? (Array.isArray(includeViewsFrom) ? includeViewsFrom : [includeViewsFrom])
+      : [];
+    const cacheKey = includeFromArray.length > 0
+      ? `${foundationId}_inherit_${includeFromArray.join(',')}`
+      : foundationId;
+
     try {
-      // Check cache first
+      // Check cache first (using extended key for inherited views)
       const cache = get(viewsCacheAtom);
-      const cached = cache[foundationId];
+      const cached = cache[cacheKey];
 
       if (cached && (Date.now() - cached.timestamp < VIEWS_CACHE_TTL)) {
         set(foundationViewsAtom, cached.views);
         return { success: true, views: cached.views, source: 'cache' };
       }
 
+      // Build API URL with optional include_views_from param
+      let apiUrl = `/api/v1/foundation_views?foundation_id=${foundationId}`;
+      if (includeFromArray.length > 0) {
+        apiUrl += `&include_views_from=${includeFromArray.join(',')}`;
+      }
+
       // Fetch from API
       const { api } = await import('@/lib/api');
-      const response = await api.get<{ success: boolean; views: SavedView[] }>(
-        `/api/v1/foundation_views?foundation_id=${foundationId}`
-      );
+      const response = await api.get<{ success: boolean; views: SavedView[] }>(apiUrl);
 
       if (response.success && response.views) {
         // Map API response to frontend format
@@ -469,10 +484,10 @@ export const loadFoundationViewsAtom = atom(
           } as SavedView;
         });
 
-        // Update cache
+        // Update cache (using extended key for inherited views)
         set(viewsCacheAtom, (prev) => ({
           ...prev,
-          [foundationId]: {
+          [cacheKey]: {
             views: mappedViews,
             timestamp: Date.now(),
           },

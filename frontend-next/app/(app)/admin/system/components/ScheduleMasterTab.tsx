@@ -833,9 +833,9 @@ export function ScheduleMasterTab() {
   }
 
   return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
+    <div className="h-full flex flex-col">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col">
+        <TabsList className="shrink-0">
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
             Schedule Templates
@@ -862,7 +862,7 @@ export function ScheduleMasterTab() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="schedule-templates" className="space-y-6 mt-6">
+        <TabsContent value="schedule-templates" className="space-y-6 mt-6 flex-1 overflow-auto">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Schedule Master Templates</h2>
@@ -1017,11 +1017,11 @@ export function ScheduleMasterTab() {
           )}
         </TabsContent>
 
-        <TabsContent value="display-settings" className="mt-6">
+        <TabsContent value="display-settings" className="mt-6 flex-1 overflow-auto">
           <SMGanttTab />
         </TabsContent>
 
-        <TabsContent value="gantt-preview" className="mt-0 h-[calc(100vh-200px)]">
+        <TabsContent value="gantt-preview" className="mt-0 flex-1 min-h-0">
           {loadingRows === ganttTemplateId && (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1041,8 +1041,8 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
         {/* Data View Tab - Full TeeemTableView */}
-        <TabsContent value="data-view" className="mt-6">
-          <div className="flex flex-col h-[calc(100vh-280px)] -mx-4">
+        <TabsContent value="data-view" className="mt-0 flex-1 min-h-0 flex flex-col">
+          <div className="flex flex-col h-full -mx-4">
             <TeeemTableView
               key={dataViewRefreshKey}
               entries={(selectedTagFilter
@@ -1149,7 +1149,7 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
         {/* Column Reference Tab */}
-        <TabsContent value="column-reference" className="mt-6">
+        <TabsContent value="column-reference" className="mt-6 flex-1 overflow-auto">
           <div className="space-y-8 max-w-5xl">
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -1695,7 +1695,7 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
         {/* Recurring Tasks Tab */}
-        <TabsContent value="recurring-tasks" className="mt-6">
+        <TabsContent value="recurring-tasks" className="mt-6 flex-1 overflow-auto">
           <RecurringTasksSection />
         </TabsContent>
       </Tabs>
