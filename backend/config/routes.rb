@@ -1135,7 +1135,7 @@ Rails.application.routes.draw do
       end
 
       # User roles
-      resources :roles, only: [ :index ]
+      resources :roles, only: [ :index, :create ]
       resources :user_roles, only: [ :index, :create, :destroy ]
 
       # Permissions management
