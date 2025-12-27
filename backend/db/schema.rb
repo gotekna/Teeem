@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_061031) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_061033) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5861,6 +5861,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061031) do
     t.index ["plan_type_id"], name: "index_job_plans_on_plan_type_id"
   end
 
+  create_table "job_quantity_variables", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "quantity_variable_id", null: false
+    t.string "value"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "quantity_variable_id"], name: "idx_job_quantity_vars_unique", unique: true
+    t.index ["job_id"], name: "index_job_quantity_variables_on_job_id"
+    t.index ["quantity_variable_id"], name: "index_job_quantity_variables_on_quantity_variable_id"
+    t.index ["updated_by_id"], name: "index_job_quantity_variables_on_updated_by_id"
+  end
+
   create_table "job_specifications", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "section_key", null: false
@@ -7255,6 +7268,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061031) do
     t.index ["xero_invoice_id"], name: "index_purchase_orders_on_xero_invoice_id"
   end
 
+  create_table "quantity_variables", force: :cascade do |t|
+    t.string "variable_name", null: false
+    t.string "display_name", null: false
+    t.string "category", null: false
+    t.string "data_type", default: "number"
+    t.string "unit_label"
+    t.decimal "min_value", precision: 12, scale: 4
+    t.decimal "max_value", precision: 12, scale: 4
+    t.decimal "default_value", precision: 12, scale: 4
+    t.jsonb "select_options", default: []
+    t.string "formula"
+    t.boolean "is_computed", default: false
+    t.boolean "required_for_po_generation", default: false
+    t.boolean "is_system_variable", default: false
+    t.integer "position", default: 0
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_quantity_variables_on_category"
+    t.index ["position"], name: "index_quantity_variables_on_position"
+    t.index ["variable_name"], name: "index_quantity_variables_on_variable_name", unique: true
+  end
+
   create_table "quote_request_contacts", force: :cascade do |t|
     t.bigint "quote_request_id", null: false
     t.bigint "contact_id", null: false
@@ -7333,6 +7369,80 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061031) do
     t.index ["job_id", "date"], name: "index_rain_logs_on_job_id_and_date", unique: true
     t.index ["job_id"], name: "index_rain_logs_on_job_id"
     t.index ["source"], name: "index_rain_logs_on_source"
+  end
+
+  create_table "recipe_categories", force: :cascade do |t|
+    t.string "code", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.bigint "parent_id"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_recipe_categories_on_code", unique: true
+    t.index ["parent_id", "position"], name: "index_recipe_categories_on_parent_id_and_position"
+    t.index ["parent_id"], name: "index_recipe_categories_on_parent_id"
+  end
+
+  create_table "recipe_items", force: :cascade do |t|
+    t.bigint "recipe_id", null: false
+    t.bigint "pricebook_item_id"
+    t.string "description", null: false
+    t.string "unit_of_measure", default: "ea"
+    t.string "cost_type", default: "materials"
+    t.decimal "base_quantity", precision: 12, scale: 4
+    t.string "quantity_formula"
+    t.boolean "uses_formula", default: false
+    t.decimal "unit_price_override", precision: 12, scale: 2
+    t.boolean "use_pricebook_price", default: true
+    t.decimal "cached_unit_price", precision: 12, scale: 2
+    t.decimal "cached_line_total", precision: 12, scale: 2
+    t.integer "sequence_order", default: 0
+    t.text "notes"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["pricebook_item_id"], name: "index_recipe_items_on_pricebook_item_id"
+    t.index ["recipe_id", "sequence_order"], name: "index_recipe_items_on_recipe_id_and_sequence_order"
+    t.index ["recipe_id"], name: "index_recipe_items_on_recipe_id"
+  end
+
+  create_table "recipe_versions", force: :cascade do |t|
+    t.bigint "recipe_id", null: false
+    t.integer "version_number", null: false
+    t.decimal "total_amount", precision: 12, scale: 2
+    t.jsonb "snapshot_data"
+    t.string "change_reason"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_recipe_versions_on_created_by_id"
+    t.index ["recipe_id", "version_number"], name: "index_recipe_versions_on_recipe_id_and_version_number", unique: true
+    t.index ["recipe_id"], name: "index_recipe_versions_on_recipe_id"
+  end
+
+  create_table "recipes", force: :cascade do |t|
+    t.string "code", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.string "recipe_type", default: "full_assembly"
+    t.string "status", default: "draft"
+    t.bigint "recipe_category_id"
+    t.bigint "default_supplier_id"
+    t.decimal "cached_total", precision: 12, scale: 2
+    t.datetime "cached_total_at"
+    t.integer "version_number", default: 1
+    t.text "notes"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_recipes_on_code", unique: true
+    t.index ["default_supplier_id"], name: "index_recipes_on_default_supplier_id"
+    t.index ["recipe_category_id", "name"], name: "index_recipes_on_recipe_category_id_and_name"
+    t.index ["recipe_category_id"], name: "index_recipes_on_recipe_category_id"
+    t.index ["recipe_type"], name: "index_recipes_on_recipe_type"
+    t.index ["status"], name: "index_recipes_on_status"
   end
 
   create_table "reconciliation_reports", force: :cascade do |t|
@@ -9687,6 +9797,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061031) do
   add_foreign_key "job_plans", "job_plan_tabs"
   add_foreign_key "job_plans", "jobs"
   add_foreign_key "job_plans", "plan_types"
+  add_foreign_key "job_quantity_variables", "jobs"
+  add_foreign_key "job_quantity_variables", "quantity_variables"
+  add_foreign_key "job_quantity_variables", "users", column: "updated_by_id"
   add_foreign_key "job_specifications", "jobs"
   add_foreign_key "job_specifications", "pricebook", column: "pricebook_item_id"
   add_foreign_key "job_status_stages", "job_stages"
@@ -9794,6 +9907,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061031) do
   add_foreign_key "quote_responses", "quote_requests"
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
+  add_foreign_key "recipe_categories", "recipe_categories", column: "parent_id"
+  add_foreign_key "recipe_items", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "recipe_items", "recipes"
+  add_foreign_key "recipe_versions", "recipes"
+  add_foreign_key "recipe_versions", "users", column: "created_by_id"
+  add_foreign_key "recipes", "contacts", column: "default_supplier_id"
+  add_foreign_key "recipes", "recipe_categories"
   add_foreign_key "reconciliation_reports", "corporate_groups", column: "company_group_id"
   add_foreign_key "role_permissions", "permissions"
   add_foreign_key "scheduled_emails", "imap_credentials"

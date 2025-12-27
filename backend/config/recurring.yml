@@ -393,6 +393,28 @@ sm_rollover:
   schedule: at midnight every day
 
 # ============================================
+# SITE PRESENCE & COST INTELLIGENCE
+# ============================================
+# Photo-verified time tracking with simPRO-style costing
+# See: .claude/plans/piped-orbiting-whisper.md
+
+# Generate AI timesheet suggestions for yesterday's work
+# Runs at 6am Brisbane time to analyze previous day's sessions/photos
+# Creates AiTimesheetSuggestion records for worker review
+generate_ai_timesheet_suggestions:
+  class: GenerateAiTimesheetSuggestionsJob
+  queue: default
+  schedule: at 6am every day
+
+# Generate daily progress reports from site photos
+# Runs at 7pm Brisbane time to analyze today's work photos
+# Uses Claude Vision to detect work completed
+generate_daily_progress_report:
+  class: GenerateDailyProgressReportJob
+  queue: low
+  schedule: at 7pm every day
+
+# ============================================
 # SSOT COMPLIANCE
 # ============================================
 

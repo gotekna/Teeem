@@ -139,13 +139,15 @@ class CostCentre < ApplicationRecord
   private
 
   def parent_not_self
-    return unless parent_id == id
+    return if new_record? # Skip on new records since id is not yet assigned
+    return unless parent_id.present? && parent_id == id
 
     errors.add(:parent_id, "cannot be self")
   end
 
   def parent_not_descendant
-    return unless parent_id && descendants.pluck(:id).include?(parent_id)
+    return if new_record? # Skip on new records since there are no descendants yet
+    return unless parent_id.present? && descendants.pluck(:id).include?(parent_id)
 
     errors.add(:parent_id, "cannot be a descendant (circular reference)")
   end

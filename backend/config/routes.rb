@@ -1463,6 +1463,36 @@ Rails.application.routes.draw do
         end
       end
 
+      # Site Presence Dashboards (admin views)
+      resources :site_presence_dashboards, only: [] do
+        collection do
+          get :overview
+          get :live
+          get :daily_activity
+          get :job_profitability
+          get :worker_productivity
+          get :cost_centre_breakdown
+          get :anomaly_summary
+          get :pending_approvals
+          get :ai_suggestions_summary
+        end
+      end
+
+      # Site Presence Mobile (iOS app endpoints)
+      resources :site_presence_mobile, only: [] do
+        collection do
+          get :home
+          post :quick_checkin
+          post :quick_checkout
+          get :timer
+          get :history
+          get :jobs
+          post :add_break
+          get :suggestions
+          post "accept_suggestion/:id", action: :accept_suggestion
+        end
+      end
+
       # ============================================
       # SM Gantt Phase 3 - Collaboration
       # ============================================

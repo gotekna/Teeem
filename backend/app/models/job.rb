@@ -57,6 +57,9 @@ class Job < ApplicationRecord
   # Activity tracking
   has_many :job_activities, dependent: :destroy
 
+  # Quantity variables (for recipe calculations)
+  has_many :job_quantity_variables, dependent: :destroy
+
   # Email proposals
   has_one :email_job_proposal, dependent: :nullify
 
@@ -225,6 +228,34 @@ class Job < ApplicationRecord
   # Get client contact (from invoices)
   def client
     job_contacts.find_by(role: "client")&.contact
+  end
+
+  # Get all quantity variable values as a hash (for recipe calculations)
+  # Returns { variable_name => typed_value } including defaults for missing values
+  def quantity_variable_values
+    # Start with all system variables and their defaults
+    values = QuantityVariable.all.index_by(&:variable_name).transform_values(&:typed_default)
+
+    # Override with job-specific values
+    job_quantity_variables.includes(:quantity_variable).each do |jqv|
+      values[jqv.quantity_variable.variable_name] = jqv.typed_value
+    end
+
+    # Calculate computed variables
+    QuantityVariable.where(is_computed: true).each do |var|
+      values[var.variable_name] = var.calculate(values)
+    end
+
+    values
+  end
+
+  # Set a quantity variable value
+  def set_quantity_variable(variable_name, value, updated_by: nil)
+    var = QuantityVariable.find_by!(variable_name: variable_name)
+    jqv = job_quantity_variables.find_or_initialize_by(quantity_variable: var)
+    jqv.value = value.to_s
+    jqv.updated_by = updated_by
+    jqv.save!
   end
 
   # Initialize claim stages from template for this job's type
