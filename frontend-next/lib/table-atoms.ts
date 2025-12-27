@@ -578,6 +578,12 @@ export const healthPanelOpenAtom = atom<boolean>(false);
 export const filterPanelOpenAtom = atom<boolean>(false);
 
 /**
+ * Whether inline column filters row is visible
+ * Shows a row of filter inputs directly under each column header
+ */
+export const showColumnFiltersAtom = atom<boolean>(false);
+
+/**
  * Row limit for pagination
  */
 export const rowLimitAtom = atom<number>(100);

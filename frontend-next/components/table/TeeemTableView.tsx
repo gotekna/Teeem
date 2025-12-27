@@ -260,6 +260,7 @@ import {
   showFiltersAtom,
   healthPanelOpenAtom,
   filterPanelOpenAtom,
+  showColumnFiltersAtom,
   rowLimitAtom,
   showAllRowsAtom,
   groupViewModeAtom,
@@ -1504,6 +1505,9 @@ export default function TeeemTableView({
   // Filter panel state managed by atom (SSoT)
   const [filterPanelOpen, setFilterPanelOpen] = useAtom(filterPanelOpenAtom);
 
+  // Inline column filters visibility (SSoT)
+  const [showColumnFilters, setShowColumnFilters] = useAtom(showColumnFiltersAtom);
+
   // Bulk update modal state managed by atoms (SSoT)
   const [showBulkUpdateModal, setShowBulkUpdateModal] = useAtom(showBulkUpdateModalAtom);
   const [bulkUpdateColumn, setBulkUpdateColumn] = useAtom(bulkUpdateColumnAtom);
@@ -1893,7 +1897,21 @@ export default function TeeemTableView({
       },
     ]);
     setFilterPanelOpen(true); // Open the filter panel so user can set the value
-     
+
+  }, []);
+
+  // Create filter with value (for inline column filters - doesn't open panel)
+  const createFilterWithValue = useCallback((columnKey: string, value: string) => {
+    setCascadeFilters((prev) => [
+      ...prev,
+      {
+        id: `filter_${Date.now()}`,
+        column: columnKey,
+        operator: "contains",
+        value,
+        groupId: "default",
+      },
+    ]);
   }, []);
 
   // Hide a column
@@ -4086,6 +4104,12 @@ export default function TeeemTableView({
       handleOpenColumnEdit={handleOpenColumnEdit}
       getStickyColumnStyles={getStickyColumnStyles}
       isSystemGeneratedColumn={isSystemGeneratedColumn}
+      showColumnFilters={showColumnFilters}
+      cascadeFilters={safeFilters}
+      updateFilter={updateFilter}
+      removeFilter={removeFilter}
+      createFilterWithValue={createFilterWithValue}
+      columns={COLUMNS}
     />
   );
 
@@ -5168,6 +5192,16 @@ export default function TeeemTableView({
                   Pin Actions Column
                 </span>
                 {stickyActions && <Check className="h-4 w-4" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setShowColumnFilters(!showColumnFilters)}
+                className="flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Column Filters
+                </span>
+                {showColumnFilters && <Check className="h-4 w-4" />}
               </DropdownMenuItem>
 
               {/* Table Info Section */}

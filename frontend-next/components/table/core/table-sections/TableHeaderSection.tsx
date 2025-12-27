@@ -7,13 +7,15 @@
  * @see Phase 6 refactoring - Render Functions extraction
  */
 
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { X } from 'lucide-react';
 import { ResizableColumnHeader } from '../../components/ResizableColumnHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { TableColumn } from '../../types';
+import type { TableColumn, CascadeFilter } from '../../types';
 
 /**
  * Xero column tooltips - explains what each Xero-related field means
@@ -83,6 +85,24 @@ export interface TableHeaderSectionProps {
 
   /** Function to check if column is system-generated */
   isSystemGeneratedColumn: (column: TableColumn) => boolean;
+
+  /** Whether to show inline column filters */
+  showColumnFilters?: boolean;
+
+  /** Current cascade filters */
+  cascadeFilters?: CascadeFilter[];
+
+  /** Update a filter */
+  updateFilter?: (id: string | number, updates: Partial<CascadeFilter>) => void;
+
+  /** Remove a filter */
+  removeFilter?: (id: string | number) => void;
+
+  /** Create a filter with a value (for inline column filters) */
+  createFilterWithValue?: (columnKey: string, value: string) => void;
+
+  /** All columns (for creating new filters) */
+  columns?: TableColumn[];
 }
 
 /**
@@ -105,11 +125,70 @@ export function TableHeaderSection({
   handleOpenColumnEdit,
   getStickyColumnStyles,
   isSystemGeneratedColumn,
+  showColumnFilters = false,
+  cascadeFilters = [],
+  updateFilter,
+  removeFilter,
+  createFilterWithValue,
+  columns = [],
 }: TableHeaderSectionProps) {
+  // Local state for filter input values (debounced updates to cascade filters)
+  const [localFilterValues, setLocalFilterValues] = useState<Record<string, string>>({});
+
   // GOLD STANDARD: Sticky is position-based
   // Position 1 (select), Position 2 (first data column), and actions are sticky
   const isStickyColumn = (key: string, index: number) =>
     key === 'select' || index === 1 || key === 'actions';
+
+  // Get the filter for a specific column (if any)
+  const getColumnFilter = useCallback((columnKey: string): CascadeFilter | undefined => {
+    return cascadeFilters.find(f => f.column === columnKey && f.operator === 'contains');
+  }, [cascadeFilters]);
+
+  // Handle filter input change
+  const handleFilterChange = useCallback((columnKey: string, value: string) => {
+    setLocalFilterValues(prev => ({ ...prev, [columnKey]: value }));
+
+    const existingFilter = cascadeFilters.find(f => f.column === columnKey && f.operator === 'contains');
+
+    if (value.trim() === '') {
+      // Remove filter if value is empty
+      if (existingFilter && removeFilter) {
+        removeFilter(existingFilter.id);
+      }
+    } else if (existingFilter && updateFilter) {
+      // Update existing filter
+      updateFilter(existingFilter.id, { value });
+    } else if (createFilterWithValue) {
+      // Create new filter with value (inline - doesn't open panel)
+      createFilterWithValue(columnKey, value);
+    }
+  }, [cascadeFilters, updateFilter, removeFilter, createFilterWithValue]);
+
+  // Clear filter for a column
+  const clearFilter = useCallback((columnKey: string) => {
+    setLocalFilterValues(prev => {
+      const updated = { ...prev };
+      delete updated[columnKey];
+      return updated;
+    });
+
+    const existingFilter = cascadeFilters.find(f => f.column === columnKey);
+    if (existingFilter && removeFilter) {
+      removeFilter(existingFilter.id);
+    }
+  }, [cascadeFilters, removeFilter]);
+
+  // Get display value for filter input
+  const getFilterDisplayValue = useCallback((columnKey: string): string => {
+    // First check local state (for immediate typing feedback)
+    if (localFilterValues[columnKey] !== undefined) {
+      return localFilterValues[columnKey];
+    }
+    // Fall back to cascade filter value
+    const filter = cascadeFilters.find(f => f.column === columnKey);
+    return filter?.value?.toString() || '';
+  }, [localFilterValues, cascadeFilters]);
 
   return (
     <TableHeader>
@@ -192,6 +271,76 @@ export function TableHeaderSection({
           );
         })}
       </TableRow>
+
+      {/* Inline Column Filters Row */}
+      {showColumnFilters && (
+        <TableRow className="bg-muted/30 dark:bg-muted/10">
+          {visibleColumnsInOrder.map((column, colIndex) => {
+            const stickyStyles = getStickyColumnStyles(column.key, true);
+            const isSticky = isStickyColumn(column.key, colIndex);
+            const filterValue = getFilterDisplayValue(column.key);
+            const hasFilter = filterValue.length > 0;
+
+            // Skip filter inputs for select and actions columns
+            if (column.key === "select" || column.key === "actions") {
+              return (
+                <TableHead
+                  key={`filter-${column.key}-${colIndex}`}
+                  style={{
+                    width: columnWidths[column.key] || column.width,
+                    minWidth: columnWidths[column.key] || column.width || 50,
+                    backgroundColor: 'hsl(var(--muted) / 0.3)',
+                    ...stickyStyles,
+                  }}
+                  className={cn(
+                    "sticky top-[41px] py-1 px-1",
+                    isSticky ? "z-30" : "z-20",
+                    column.key === "select" && "!border-r-0",
+                    column.key === "actions" && "!border-l-0"
+                  )}
+                />
+              );
+            }
+
+            return (
+              <TableHead
+                key={`filter-${column.key}-${colIndex}`}
+                style={{
+                  width: columnWidths[column.key] || column.width,
+                  minWidth: columnWidths[column.key] || column.width || 50,
+                  backgroundColor: 'hsl(var(--muted) / 0.3)',
+                  ...stickyStyles,
+                }}
+                className={cn(
+                  "sticky top-[41px] py-1 px-1",
+                  isSticky ? "z-30" : "z-20"
+                )}
+              >
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Filter..."
+                    value={filterValue}
+                    onChange={(e) => handleFilterChange(column.key, e.target.value)}
+                    className={cn(
+                      "h-7 text-xs pr-6",
+                      hasFilter && "border-primary"
+                    )}
+                  />
+                  {hasFilter && (
+                    <button
+                      onClick={() => clearFilter(column.key)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </TableHead>
+            );
+          })}
+        </TableRow>
+      )}
     </TableHeader>
   );
 }
