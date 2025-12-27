@@ -157,7 +157,12 @@ class Api::V1::EmailWarehouseController < ApplicationController
         user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
         if user_mailboxes.any?
           emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
-                         .where(mailbox_owner_email: user_mailboxes)
+          # If specific mailbox requested, filter to that (if user has access)
+          if params[:mailbox].present? && user_mailboxes.map(&:downcase).include?(params[:mailbox].downcase)
+            emails = emails.where(mailbox_owner_email: params[:mailbox])
+          else
+            emails = emails.where(mailbox_owner_email: user_mailboxes)
+          end
         else
           # User has no access to this credential's mailboxes
           emails = emails.none

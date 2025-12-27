@@ -51,10 +51,10 @@ interface EmailResult {
 
 interface DocumentResult {
   id: number;
-  file_name: string;
-  display_name?: string;
-  document_type?: string;
-  sharepoint_url?: string;
+  name: string;
+  display_title?: string;
+  document_type?: { id: number; name: string; abbreviation: string } | null;
+  url?: string;
 }
 
 export function AttachmentPicker({ attachments, onAdd, onRemove, jobId }: AttachmentPickerProps) {
@@ -173,6 +173,9 @@ function EmailSearchPanel({
       if (account?.type === 'ms365' && account.org_credential_id) {
         params.append('microsoft_credential_id', String(account.org_credential_id));
         params.append('mailbox', account.email_address);
+      } else if (account?.type === 'outlook') {
+        // Personal Outlook - filter by email
+        params.append('my_emails', 'true');
       } else if (account?.type === 'imap' && typeof account.id === 'number') {
         params.append('imap_credential_id', String(account.id));
       }
@@ -331,8 +334,8 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
                 onSelect({
                   type: 'document',
                   id: doc.id,
-                  displayName: doc.display_name || doc.file_name,
-                  metadata: { type: doc.document_type, url: doc.sharepoint_url },
+                  displayName: doc.display_title || doc.name,
+                  metadata: { type: doc.document_type?.name, url: doc.url },
                 })
               }
             >
@@ -340,10 +343,10 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">
-                    {doc.display_name || doc.file_name}
+                    {doc.display_title || doc.name}
                   </div>
                   {doc.document_type && (
-                    <div className="text-xs text-muted-foreground">{doc.document_type}</div>
+                    <div className="text-xs text-muted-foreground">{doc.document_type.name}</div>
                   )}
                 </div>
               </div>
