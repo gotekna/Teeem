@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { AddUserModal } from "@/components/admin/AddUserModal";
+import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
 
@@ -20,6 +21,7 @@ interface User {
   role: string;
   assigned_role?: string;
   last_login_at?: string;
+  role_ids?: Array<{ id: number; display_value: string; name: string }>;
   [key: string]: unknown;
 }
 
@@ -28,6 +30,8 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showDetailSheet, setShowDetailSheet] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -154,6 +158,12 @@ export default function UsersPage() {
     );
   }
 
+  const handleRowDoubleClick = (row: TableRow) => {
+    const user = row as User;
+    setSelectedUser(user);
+    setShowDetailSheet(true);
+  };
+
   return (
     <TablePage>
       <TeeemTableView
@@ -166,6 +176,7 @@ export default function UsersPage() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
+        onRowDoubleClick={handleRowDoubleClick}
         leftActions={
           <Button onClick={() => setShowAddModal(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
@@ -187,6 +198,17 @@ export default function UsersPage() {
             description: "User added successfully",
           });
         }}
+      />
+
+      {/* User Detail Sheet - opens on double-click */}
+      <UserDetailSheet
+        user={selectedUser}
+        isOpen={showDetailSheet}
+        onClose={() => {
+          setShowDetailSheet(false);
+          setSelectedUser(null);
+        }}
+        onSave={loadUsers}
       />
     </TablePage>
   );
