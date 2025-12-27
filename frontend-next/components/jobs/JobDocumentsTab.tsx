@@ -245,9 +245,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   // This fetches on-demand from Microsoft Graph (returns pre-authenticated URL valid ~1hr)
   const resolveFullUrl = React.useCallback(async (fileId: string): Promise<string | null> => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     try {
       const response = await fetch(`${apiBase}/api/v1/organization_onedrive/download_url?file_id=${fileId}`, {
         credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!response.ok) {
         console.error("Failed to get download URL:", response.status);
