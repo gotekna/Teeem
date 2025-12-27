@@ -67,7 +67,7 @@ module Api
       # GET /api/v1/documents/:id/preview
       # Universal document preview - returns structured data for Excel/Word/PDF
       def preview
-        unless @document.sharepoint_url.present?
+        unless @document.file_url.present?
           return render json: { success: false, error: "No file attached" }, status: :not_found
         end
 
@@ -171,14 +171,14 @@ module Api
       end
 
       def download_document_content(document)
-        return nil unless document.sharepoint_url.present?
-
-        # Try to download from SharePoint
-        begin
-          response = HTTParty.get(document.sharepoint_url, timeout: 30)
-          return response.body if response.success?
-        rescue => e
-          Rails.logger.warn "[DocumentsController] SharePoint download failed: #{e.message}"
+        # Try file_url (SharePoint) first
+        if document.file_url.present?
+          begin
+            response = HTTParty.get(document.file_url, timeout: 30)
+            return response.body if response.success?
+          rescue => e
+            Rails.logger.warn "[DocumentsController] SharePoint download failed: #{e.message}"
+          end
         end
 
         # Fallback to ActiveStorage if available
@@ -192,11 +192,11 @@ module Api
       def document_to_json(doc)
         {
           id: doc.id,
-          name: doc.file_name || doc.title,
-          display_title: doc.respond_to?(:display_title) ? doc.display_title : (doc.file_name || doc.title),
+          name: doc.file_name,
+          display_title: doc.display_name || doc.file_name,
           type: doc.mime_type || "application/octet-stream",
           size: doc.file_size || 0,
-          url: doc.sharepoint_url,
+          url: doc.file_url,
           job_title: nil, # CorporateCompanyDocuments aren't linked to jobs
           job_id: nil,
           uploaded_at: doc.created_at&.iso8601,
@@ -207,10 +207,10 @@ module Api
             name: doc.document_type_record.name,
             abbreviation: doc.document_type_record.abbreviation || doc.document_type_record.name[0..2].upcase
           } : nil,
-          fiscal_year: doc.year&.to_s,
+          fiscal_year: doc.financial_years&.first&.to_s,
           company_name: doc.corporate_company&.name,
           verified: doc.ai_verification_status == "verified",
-          verified_at: doc.validated_at&.iso8601,
+          verified_at: doc.user_validated_at&.iso8601,
           verified_by: doc.user_validated_by&.name
         }
       end

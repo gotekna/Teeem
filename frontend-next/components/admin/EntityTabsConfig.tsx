@@ -1188,26 +1188,38 @@ export function EntityTabsConfig({
 
       {/* Create/Edit Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>
-              {editingTab ? "Edit Tab" : "Create New Tab"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingTab
-                ? `Update settings for "${editingTab.display_name}"`
-                : "Add a new custom tab to this scope"}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[95vw] h-[90vh] overflow-hidden flex flex-col">
+          {/* Compact header with inline save button */}
+          <div className="flex items-center justify-between border-b pb-3 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {editingTab ? `Edit: ${editingTab.display_name}` : "Create New Tab"}
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCreateDialogOpen(false)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleFormSubmit} disabled={saving}>
+                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingTab ? "Save Changes" : "Create Tab"}
+              </Button>
+            </div>
+          </div>
 
-          {/* Two-column layout */}
-          <div className="grid grid-cols-2 gap-6 py-4">
-            {/* Left Column: Basic Info */}
-            <div className="space-y-4">
+          {/* Three-column layout */}
+          <div className="grid grid-cols-3 gap-6 flex-1 overflow-hidden">
+            {/* Column 1: Basic Info + Tab Settings */}
+            <div className="space-y-4 overflow-y-auto">
               <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Basic Information</h3>
 
-              {/* Display Name and Display Code */}
-              <div className="grid grid-cols-3 gap-4">
+              {/* Display Name and Code side by side */}
+              <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2 space-y-2">
                   <Label htmlFor="display_name">Display Name</Label>
                   <Input
@@ -1216,7 +1228,6 @@ export function EntityTabsConfig({
                     onChange={(e) => {
                       const newName = e.target.value;
                       setFormData((prev) => {
-                        // Auto-generate display_code if empty or matches auto-generated pattern
                         const currentCode = prev.display_code || "";
                         const shouldAutoGenerate = !currentCode || currentCode === generateDisplayCode(prev.display_name || "");
                         return {
@@ -1230,7 +1241,7 @@ export function EntityTabsConfig({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="display_code">Code (max 3)</Label>
+                  <Label htmlFor="display_code">Code</Label>
                   <Input
                     id="display_code"
                     value={formData.display_code || ""}
@@ -1240,7 +1251,7 @@ export function EntityTabsConfig({
                         display_code: e.target.value.toUpperCase().slice(0, 3),
                       }))
                     }
-                    placeholder="e.g., TAX"
+                    placeholder="TAX"
                     maxLength={3}
                     className="font-mono uppercase"
                   />
@@ -1257,7 +1268,7 @@ export function EntityTabsConfig({
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, tab_key: e.target.value }))
                     }
-                    placeholder="e.g., tax-returns (auto-generated if empty)"
+                    placeholder="e.g., tax-returns"
                   />
                 </div>
               )}
@@ -1271,7 +1282,7 @@ export function EntityTabsConfig({
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  placeholder="Brief description of this tab"
+                  placeholder="Brief description"
                 />
               </div>
 
@@ -1284,13 +1295,12 @@ export function EntityTabsConfig({
                     onValueChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
-                        // Use null (not undefined) so JSON serialization includes it
                         parent_id: value === "none" ? null : parseInt(value, 10),
                       }))
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select parent tab (optional)" />
+                      <SelectValue placeholder="Select parent tab" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No parent (root level)</SelectItem>
@@ -1301,9 +1311,6 @@ export function EntityTabsConfig({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Move this tab under another tab to create a sub-tab
-                  </p>
                 </div>
               )}
 
@@ -1348,8 +1355,8 @@ export function EntityTabsConfig({
               </div>
             </div>
 
-            {/* Right Column: SharePoint & Document Types */}
-            <div className="space-y-4">
+            {/* Column 2: SharePoint Configuration */}
+            <div className="space-y-4 overflow-y-auto">
               <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">SharePoint Configuration</h3>
 
             {/* SharePoint Folder - SSoT: Template Inheritance */}
@@ -1369,15 +1376,13 @@ export function EntityTabsConfig({
                   <Label htmlFor="has_sharepoint">Has SharePoint Folder</Label>
                 </div>
                 {formData.has_sharepoint_folder && (
-                  <div className="space-y-4 pl-6 border-l-2 border-muted ml-2">
+                  <div className="space-y-3">
                     {/* Path Mode Toggle - SSoT: Template Inheritance */}
                     <div className="space-y-2">
-                      <Label>Path Mode</Label>
-                      <div className="space-y-2">
                         {/* Option: Inherit from global template */}
                         <label
                           className={cn(
-                            "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                            "flex items-start gap-2 p-2 rounded border cursor-pointer transition-colors",
                             !formData.uses_custom_path
                               ? "bg-primary/5 border-primary"
                               : "bg-background hover:bg-muted/50"
@@ -1446,8 +1451,8 @@ export function EntityTabsConfig({
                                 />
                                 {/* Full path preview */}
                                 {editingTab?.sharepoint_base_path && (
-                                  <div className="mt-2 text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">
-                                    <span className="text-muted-foreground/60">Full Path: </span>
+                                  <div className="mt-2 text-xs bg-muted/50 rounded px-2 py-1 font-mono truncate" title={`${editingTab.sharepoint_base_path}/${resolveSharePointPath(formData.sharepoint_folder_path || formData.display_name || editingTab.display_name || "")}`}>
+                                    <span className="text-muted-foreground/60">Path: </span>
                                     <span className="text-foreground">
                                       {editingTab.sharepoint_base_path}/{resolveSharePointPath(formData.sharepoint_folder_path || formData.display_name || editingTab.display_name || "")}
                                     </span>
@@ -1456,7 +1461,6 @@ export function EntityTabsConfig({
                               </div>
                             )}
                           </div>
-                          <Badge variant="secondary" className="text-xs shrink-0">Recommended</Badge>
                         </label>
 
                         {/* Option: Use custom path */}
@@ -1497,7 +1501,6 @@ export function EntityTabsConfig({
                             </div>
                           </div>
                         </label>
-                      </div>
                     </div>
 
                     {/* Custom Path Input - Only shown when using custom path */}
@@ -1611,106 +1614,94 @@ export function EntityTabsConfig({
               </div>
             )}
 
-            {/* Document Types (SSoT: Link document types to this tab) */}
-            {(editingTab?.tab_group === 'documents' || formData.tab_group === 'documents') && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Linked Document Types</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      // Map EntityTabScope to document type scope
-                      const docTypeScope = scope === 'corporate_entity' ? 'company' : scope;
-                      // Pass tab ID so it can be pre-selected as the folder
-                      const tabId = editingTab?.id;
-                      window.open(`/admin/system/document-types/new?scope=${docTypeScope}${tabId ? `&tab=${tabId}` : ''}`, '_blank');
-                    }}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    New Document Type
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Select which document types should appear under this tab
-                </p>
-                <MultipleSelector
-                  value={
-                    (formData.document_type_ids || []).map((id) => {
-                      const dt = allDocumentTypes.find((d) => d.id === id);
-                      return {
-                        value: id.toString(),
-                        label: dt?.display_name || dt?.name || `Type ${id}`,
-                      };
-                    })
-                  }
-                  onChange={(options: Option[]) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      document_type_ids: options.map((o: Option) => parseInt(o.value)),
-                    }))
-                  }
-                  defaultOptions={allDocumentTypes.map((dt) => ({
-                    value: dt.id.toString(),
-                    label: dt.display_name || dt.name,
-                  }))}
-                  placeholder="Type to search document types..."
-                  hidePlaceholderWhenSelected={false}
-                  emptyIndicator={
-                    <p className="text-center text-sm text-muted-foreground">
-                      No document types found
-                    </p>
-                  }
-                  inputProps={{
-                    className: "min-w-[200px]",
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {(formData.document_type_ids || []).length} document types linked
-                  {(formData.document_type_ids || []).length > 0 && (
-                    <span className="ml-2">
-                      — Click badge to edit document type
-                    </span>
-                  )}
-                </p>
-                {/* Clickable links to edit document types */}
-                {(formData.document_type_ids || []).length > 0 && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {(formData.document_type_ids || []).map((id) => {
-                      const dt = allDocumentTypes.find((d) => d.id === id);
-                      return (
-                        <Badge
-                          key={id}
-                          variant="outline"
-                          className="cursor-pointer hover:bg-primary/10 text-xs"
-                          onClick={() => window.open(`/admin/system/document-types/${id}`, '_blank')}
-                        >
-                          {dt?.display_name || dt?.name || `Type ${id}`}
-                          <span className="ml-1 opacity-50">↗</span>
-                        </Badge>
-                      );
-                    })}
+            </div>
+
+            {/* Column 4: Linked Document Types */}
+            <div className="space-y-4 overflow-y-auto">
+              <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 sticky top-0 bg-background">Document Types</h3>
+
+              {/* Document Types (SSoT: Link document types to this tab) */}
+              {(editingTab?.tab_group === 'documents' || formData.tab_group === 'documents') ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Linked Types</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        // Map EntityTabScope to document type scope
+                        const docTypeScope = scope === 'corporate_entity' ? 'company' : scope;
+                        // Pass tab ID so it can be pre-selected as the folder
+                        const tabId = editingTab?.id;
+                        window.open(`/admin/system/document-types/new?scope=${docTypeScope}${tabId ? `&tab=${tabId}` : ''}`, '_blank');
+                      }}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      New
+                    </Button>
                   </div>
-                )}
-              </div>
-            )}
+                  <p className="text-xs text-muted-foreground">
+                    Select document types for this tab
+                  </p>
+                  <MultipleSelector
+                    value={
+                      (formData.document_type_ids || []).map((id) => {
+                        const dt = allDocumentTypes.find((d) => d.id === id);
+                        return {
+                          value: id.toString(),
+                          label: dt?.display_name || dt?.name || `Type ${id}`,
+                        };
+                      })
+                    }
+                    onChange={(options: Option[]) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        document_type_ids: options.map((o: Option) => parseInt(o.value)),
+                      }))
+                    }
+                    defaultOptions={allDocumentTypes.map((dt) => ({
+                      value: dt.id.toString(),
+                      label: dt.display_name || dt.name,
+                    }))}
+                    placeholder="Search types..."
+                    hidePlaceholderWhenSelected={false}
+                    emptyIndicator={
+                      <p className="text-center text-sm text-muted-foreground">
+                        No document types found
+                      </p>
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {(formData.document_type_ids || []).length} linked
+                  </p>
+                  {/* Clickable links to edit document types */}
+                  {(formData.document_type_ids || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {(formData.document_type_ids || []).map((id) => {
+                        const dt = allDocumentTypes.find((d) => d.id === id);
+                        return (
+                          <Badge
+                            key={id}
+                            variant="outline"
+                            className="cursor-pointer hover:bg-primary/10 text-xs"
+                            onClick={() => window.open(`/admin/system/document-types/${id}`, '_blank')}
+                          >
+                            {dt?.display_name || dt?.name || `Type ${id}`}
+                            <span className="ml-1 opacity-50">↗</span>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Only available for document tabs
+                </p>
+              )}
             </div>
           </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsCreateDialogOpen(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleFormSubmit} disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {editingTab ? "Save Changes" : "Create Tab"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

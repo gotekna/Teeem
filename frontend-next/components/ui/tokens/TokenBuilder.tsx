@@ -85,6 +85,8 @@ export interface TokenBuilderProps {
   error?: string;
   /** Help text */
   helpText?: string;
+  /** Whether palette is expanded by default */
+  defaultExpanded?: boolean;
 }
 
 // Token item with unique ID for drag-and-drop
@@ -201,10 +203,11 @@ export function TokenBuilder({
   className,
   error,
   helpText,
+  defaultExpanded = true,
 }: TokenBuilderProps) {
   const [customText, setCustomText] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
-  const [paletteExpanded, setPaletteExpanded] = React.useState(true);
+  const [paletteExpanded, setPaletteExpanded] = React.useState(defaultExpanded);
   const [search, setSearch] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const sensors = createDndSensors();
