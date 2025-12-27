@@ -36,6 +36,7 @@ export interface EntityTab {
   can_delete: boolean;
   children: EntityTab[];
   document_types: EntityTabDocumentType[];
+  is_photo_category: boolean;
 }
 
 export interface EntityTabDocumentType {
@@ -79,6 +80,7 @@ export interface EntityTabCreateParams {
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
   sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
   document_type_ids?: number[];  // SSoT: Link document types to this tab
+  is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
 }
 
 export interface EntityTabUpdateParams {
@@ -97,6 +99,7 @@ export interface EntityTabUpdateParams {
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
   sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
   document_type_ids?: number[];  // SSoT: Link document types to this tab
+  is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
 }
 
 export interface ReorderTabParams {

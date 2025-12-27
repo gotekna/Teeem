@@ -213,15 +213,31 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
 
   // Check if the current category is a photo category
-  const isPhotoCategory = (category: DocumentCategory | null): boolean => {
+  const isPhotoCategory = (category: DocumentCategory | null, parentCategory?: DocumentCategory | null): boolean => {
     // First check initialCategory prop (most reliable when navigating directly)
     if (initialCategory && initialCategory.toLowerCase().includes("photo")) {
       return true;
     }
     if (!category) return false;
+
     const name = category.name?.toLowerCase() || "";
     const folderPath = category.folder_path?.toLowerCase() || "";
-    return name.includes("photo") || folderPath.includes("photo");
+
+    // Check if THIS category is a photo category
+    if (name.includes("photo") || folderPath.includes("photo")) {
+      return true;
+    }
+
+    // Check if PARENT category is a photo category (subtabs inherit from parent)
+    if (parentCategory) {
+      const parentName = parentCategory.name?.toLowerCase() || "";
+      const parentFolderPath = parentCategory.folder_path?.toLowerCase() || "";
+      if (parentName.includes("photo") || parentFolderPath.includes("photo")) {
+        return true;
+      }
+    }
+
+    return false;
   };
 
   // Check if a file is an image
@@ -272,7 +288,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   // Get category photos by filtering allFiles by folder_path (more efficient than separate API call)
   const categoryPhotoItems: PhotoItem[] = useMemo(() => {
     const activeCategory = selectedSubCategory || selectedCategory;
-    if (!activeCategory?.folder_path || !isPhotoCategory(activeCategory)) {
+    const parentCategory = selectedSubCategory ? selectedCategory : null;
+    if (!activeCategory?.folder_path || !isPhotoCategory(activeCategory, parentCategory)) {
       return [];
     }
 
@@ -891,7 +908,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   // Load all files when switching to the All Files tab or when viewing photo categories
   useEffect(() => {
     const activeCategory = selectedSubCategory || selectedCategory;
-    const needsPhotos = isPhotoCategory(activeCategory);
+    const parentCategory = selectedSubCategory ? selectedCategory : null;
+    const needsPhotos = isPhotoCategory(activeCategory, parentCategory);
 
     if (orgStatus.connected && (viewMode === "allfiles" || needsPhotos)) {
       loadAllFiles();
@@ -1000,7 +1018,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                     )}
                   </CardTitle>
                   {/* Add Photo button - show for photo categories or photo tabs */}
-                  {(isPhotoCategory(activeCategory) || initialCategory?.includes("photo")) && orgStatus.connected && (
+                  {(isPhotoCategory(activeCategory, selectedCategory) || initialCategory?.includes("photo")) && orgStatus.connected && (
                     <div className="relative">
                       <Button
                         size="sm"

@@ -31,6 +31,7 @@ interface EmailResult {
   received_at: string;
   has_attachments?: boolean;
   mailbox?: string;
+  to_emails?: string[];
 }
 
 interface DocumentResult {
@@ -166,31 +167,35 @@ function EmailSearchPanel({
             Search for emails by subject, sender, or content
           </p>
         )}
-        {emails.map((email) => (
-          <Card
-            key={email.id}
-            className="p-2 cursor-pointer hover:bg-accent transition-colors"
-            onClick={() =>
-              onSelect({
-                type: 'email',
-                id: email.id,
-                displayName: email.subject || 'No Subject',
-                metadata: { from: email.from_email, date: email.received_at, mailbox: email.mailbox },
-              })
-            }
-          >
-            <div className="text-sm font-medium truncate">{email.subject || 'No Subject'}</div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="truncate">{email.from_email}</span>
-              {email.mailbox && (
-                <>
-                  <span className="text-muted-foreground/50">→</span>
-                  <span className="truncate font-medium">{email.mailbox}</span>
-                </>
-              )}
-            </div>
-          </Card>
-        ))}
+        {emails.map((email) => {
+          // Use mailbox if available, otherwise fall back to first "to" email
+          const receivingAccount = email.mailbox || email.to_emails?.[0];
+          return (
+            <Card
+              key={email.id}
+              className="p-2 cursor-pointer hover:bg-accent transition-colors"
+              onClick={() =>
+                onSelect({
+                  type: 'email',
+                  id: email.id,
+                  displayName: email.subject || 'No Subject',
+                  metadata: { from: email.from_email, date: email.received_at, mailbox: receivingAccount },
+                })
+              }
+            >
+              <div className="text-sm font-medium truncate">{email.subject || 'No Subject'}</div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="truncate">{email.from_email}</span>
+                {receivingAccount && (
+                  <>
+                    <span className="text-muted-foreground/50">→</span>
+                    <span className="truncate font-medium">{receivingAccount}</span>
+                  </>
+                )}
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

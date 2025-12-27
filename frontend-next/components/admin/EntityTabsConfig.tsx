@@ -371,6 +371,7 @@ export function EntityTabsConfig({
       has_sharepoint_folder: false,
       sharepoint_folder_path: "",
       sharepoint_path_type: 'corporate',  // SSoT: Default to corporate path
+      is_photo_category: false,  // SSoT: Explicit photo category flag
     });
     setEditingTab(null);
     setIsCreateDialogOpen(true);
@@ -397,6 +398,7 @@ export function EntityTabsConfig({
       sharepoint_path_type: tab.sharepoint_path_type || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
+      is_photo_category: tab.is_photo_category || false,  // SSoT: Explicit photo category flag
     });
     setEditingTab(tab);
     setIsCreateDialogOpen(true);
@@ -429,6 +431,7 @@ export function EntityTabsConfig({
           sharepoint_path_type: formData.sharepoint_path_type,  // SSoT: Path type for contacts
           // SSoT: Include linked document type IDs
           document_type_ids: formData.document_type_ids,
+          is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
         };
         await updateTab(editingTab.id, updateParams);
       } else {
@@ -446,6 +449,7 @@ export function EntityTabsConfig({
           has_sharepoint_folder: formData.has_sharepoint_folder,
           sharepoint_folder_path: formData.sharepoint_folder_path,
           sharepoint_path_type: formData.sharepoint_path_type,  // SSoT: Path type for contacts
+          is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
         };
         await createTab(createParams);
       }
@@ -1476,6 +1480,23 @@ export function EntityTabsConfig({
                 })()}
               </div>
             )}
+
+            {/* Photo Category checkbox (SSoT: explicit flag, no guessing) */}
+            <div className="flex items-center space-x-2 pt-4 border-t">
+              <Checkbox
+                id="is_photo_category"
+                checked={formData.is_photo_category || false}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, is_photo_category: checked === true }))
+                }
+              />
+              <Label htmlFor="is_photo_category" className="text-sm cursor-pointer">
+                Photo Gallery View
+              </Label>
+              <span className="text-xs text-muted-foreground">
+                (shows photos in grid instead of file table)
+              </span>
+            </div>
 
             </div>
 
