@@ -219,6 +219,7 @@ module Api
           :sharepoint_folder_path,
           :uses_custom_path,  # SSoT: Template inheritance flag
           :sharepoint_path_type,  # SSoT: "corporate" or "contacts" for contact tabs
+          :is_photo_category,  # SSoT: Explicit photo gallery flag
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )

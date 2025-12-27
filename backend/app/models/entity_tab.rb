@@ -241,6 +241,7 @@ class EntityTab < ApplicationRecord
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
       document_count: document_count,
+      is_photo_category: is_photo_category,  # SSoT: Explicit photo gallery flag
       can_delete: can_delete?,
       children: children.enabled.ordered.map(&:as_nested_json),
       document_types: document_types.map { |dt| {

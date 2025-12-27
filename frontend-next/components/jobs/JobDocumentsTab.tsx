@@ -108,6 +108,7 @@ interface DocumentCategory {
   sequence_order?: number;
   is_active?: boolean;
   folder_path?: string;
+  is_photo_category?: boolean;  // SSoT: Explicit photo gallery flag from EntityTab
   children?: DocumentCategory[];
 }
 
@@ -213,28 +214,18 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
 
   // Check if the current category is a photo category
+  // SSoT: Uses explicit is_photo_category flag from EntityTab (no guessing)
   const isPhotoCategory = (category: DocumentCategory | null, parentCategory?: DocumentCategory | null): boolean => {
-    // First check initialCategory prop (most reliable when navigating directly)
-    if (initialCategory && initialCategory.toLowerCase().includes("photo")) {
-      return true;
-    }
     if (!category) return false;
 
-    const name = category.name?.toLowerCase() || "";
-    const folderPath = category.folder_path?.toLowerCase() || "";
-
-    // Check if THIS category is a photo category
-    if (name.includes("photo") || folderPath.includes("photo")) {
+    // Check this category's explicit flag
+    if (category.is_photo_category) {
       return true;
     }
 
-    // Check if PARENT category is a photo category (subtabs inherit from parent)
-    if (parentCategory) {
-      const parentName = parentCategory.name?.toLowerCase() || "";
-      const parentFolderPath = parentCategory.folder_path?.toLowerCase() || "";
-      if (parentName.includes("photo") || parentFolderPath.includes("photo")) {
-        return true;
-      }
+    // Check parent's explicit flag (subtabs inherit from parent)
+    if (parentCategory?.is_photo_category) {
+      return true;
     }
 
     return false;
@@ -1017,8 +1008,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                       </span>
                     )}
                   </CardTitle>
-                  {/* Add Photo button - show for photo categories or photo tabs */}
-                  {(isPhotoCategory(activeCategory, selectedCategory) || initialCategory?.includes("photo")) && orgStatus.connected && (
+                  {/* Add Photo button - show for photo categories (SSoT: uses is_photo_category flag) */}
+                  {isPhotoCategory(activeCategory, selectedCategory) && orgStatus.connected && (
                     <div className="relative">
                       <Button
                         size="sm"
@@ -1067,8 +1058,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {/* Show Photo Gallery for photo categories */}
-                {(isPhotoCategory(activeCategory) || initialCategory?.includes("photo")) ? (
+                {/* Show Photo Gallery for photo categories (SSoT: uses is_photo_category flag) */}
+                {isPhotoCategory(activeCategory, selectedCategory) ? (
                   <div className="p-4">
                     {loadingAllFiles ? (
                       <PhotoGallery photos={[]} loading={true} />

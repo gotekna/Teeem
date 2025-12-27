@@ -236,7 +236,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-5xl max-h-[95vh]">
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
           <DialogDescription>
@@ -250,9 +250,9 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-2 gap-6 py-4">
+            <div className="grid grid-cols-2 gap-4 py-2">
               {/* Left Column - Task Details */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {/* Task Name */}
                 <div className="space-y-2">
                   <Label htmlFor="name">
@@ -403,14 +403,14 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                 </div>
 
                 {/* Description */}
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
                     value={formData.description}
                     onChange={(e) => handleChange('description', e.target.value)}
                     placeholder="Task description (optional)"
-                    rows={3}
+                    rows={2}
                   />
                 </div>
               </div>
@@ -431,7 +431,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
               </div>
             </div>
 
-            <DialogFooter className="pt-4">
+            <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
