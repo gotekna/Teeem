@@ -101,7 +101,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     setLoadingData(true);
     try {
       const [jobsResponse, usersResponse] = await Promise.all([
-        api.get<{ jobs?: Job[] }>('/api/v1/jobs'),
+        api.get<{ jobs?: Job[] }>('/api/v1/jobs/for_select'),  // Fast lightweight endpoint
         api.get<{ users: User[] }>('/api/v1/users'),
       ]);
       setJobs(jobsResponse?.jobs || []);
@@ -130,26 +130,23 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
       return;
     }
 
-    if (!formData.job_id) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please select a job',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setSaving(true);
     try {
       // Determine status based on started checkbox
       const status = formData.started ? 'started' : 'not_started';
 
+      // Use nested route if job selected, otherwise use standalone route
+      const url = formData.job_id
+        ? `/api/v1/jobs/${formData.job_id}/sm_tasks`
+        : '/api/v1/sm_tasks';
+
       const response = await api.post<{ success: boolean; sm_task: { id: number }; message?: string }>(
-        `/api/v1/jobs/${formData.job_id}/sm_tasks`,
+        url,
         {
           sm_task: {
             name: formData.name,
             description: formData.description || null,
+            job_id: formData.job_id || null,
             assigned_user_id: formData.assigned_user_id || null,
             assigned_role: formData.assigned_role || null,
             start_date: formData.start_date || new Date().toISOString().split('T')[0],
@@ -239,11 +236,11 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
           <DialogDescription>
-            Add a new task to a job. Tasks will appear in the Gantt chart and task hub.
+            Create a task. Optionally assign to a job to show in Gantt chart.
           </DialogDescription>
         </DialogHeader>
 
@@ -272,9 +269,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
                 {/* Job Selection */}
                 <div className="space-y-2">
-                  <Label htmlFor="job">
-                    Job <span className="text-destructive">*</span>
-                  </Label>
+                  <Label htmlFor="job">Job</Label>
                   <Select
                     value={formData.job_id}
                     onValueChange={(value) => handleChange('job_id', value)}

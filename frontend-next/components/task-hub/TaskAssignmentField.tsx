@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { Label } from '@/components/ui/label';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import {
   Select,
@@ -65,7 +64,6 @@ export function TaskAssignmentField({
 
   return (
     <div className="space-y-2">
-      <Label>Assign To</Label>
       <Tabs value={mode} onValueChange={handleModeChange} className="w-full">
         <TabsList className="grid w-full grid-cols-2 h-8">
           <TabsTrigger value="user" className="text-xs h-7" disabled={disabled}>

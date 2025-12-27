@@ -30,6 +30,7 @@ interface EmailResult {
   from_email: string;
   received_at: string;
   has_attachments?: boolean;
+  mailbox?: string;
 }
 
 interface DocumentResult {
@@ -174,12 +175,20 @@ function EmailSearchPanel({
                 type: 'email',
                 id: email.id,
                 displayName: email.subject || 'No Subject',
-                metadata: { from: email.from_email, date: email.received_at },
+                metadata: { from: email.from_email, date: email.received_at, mailbox: email.mailbox },
               })
             }
           >
             <div className="text-sm font-medium truncate">{email.subject || 'No Subject'}</div>
-            <div className="text-xs text-muted-foreground truncate">{email.from_email}</div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="truncate">{email.from_email}</span>
+              {email.mailbox && (
+                <>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="truncate font-medium">{email.mailbox}</span>
+                </>
+              )}
+            </div>
           </Card>
         ))}
       </div>

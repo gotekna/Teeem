@@ -42,7 +42,7 @@ class SmTask < ApplicationRecord
   end
 
   # Associations
-  belongs_to :job
+  belongs_to :job, optional: true  # Tasks can exist without a job
   alias_method :construction, :job  # Backwards compatibility
   alias_attribute :construction_id, :job_id  # Backwards compatibility for queries
 

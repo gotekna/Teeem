@@ -818,6 +818,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
       conversation_id: email.conversation_id,
       source_type: email.source_type || "outlook",
       imap_credential_id: email.imap_credential_id,
+      mailbox: email.mailbox_owner_email,
       # Direction and importance
       direction: email.direction,
       importance: email.importance,

@@ -111,6 +111,21 @@ module Api
         end
       end
 
+      # GET /api/v1/jobs/for_select
+      # Lightweight endpoint for dropdowns - returns only id, name, job_number
+      def for_select
+        jobs = Job.joins(:job_status)
+                  .where.not(job_status: { name: ["Lost - Pre Contract", "Lost - Contract", "Archived"] })
+                  .order(created_at: :desc)
+                  .limit(500)
+                  .pluck(:id, :name, :job_number)
+
+        render json: {
+          success: true,
+          jobs: jobs.map { |id, name, job_number| { id: id, name: name, job_number: job_number } }
+        }
+      end
+
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
       # GET /api/v1/jobs?contact_id=123

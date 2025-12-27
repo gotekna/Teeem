@@ -266,6 +266,7 @@ Rails.application.routes.draw do
       resources :jobs do
         collection do
           get :pipeline  # GET /api/v1/jobs/pipeline - Enquiry jobs grouped by stage
+          get :for_select  # GET /api/v1/jobs/for_select - Lightweight dropdown data
         end
         member do
           get :saved_messages
@@ -1197,7 +1198,7 @@ Rails.application.routes.draw do
       end
 
       # SM Tasks (non-nested routes)
-      resources :sm_tasks, only: [ :index, :show, :update, :destroy ] do
+      resources :sm_tasks, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :bulk_update
         end

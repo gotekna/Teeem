@@ -3,7 +3,8 @@
 module Api
   module V1
     class SmTasksController < ApplicationController
-      before_action :set_job, only: [ :job_index, :create, :gantt_data, :copy_from_template, :import ]
+      before_action :set_job, only: [ :job_index, :gantt_data, :copy_from_template, :import ]
+      before_action :set_job_optional, only: [ :create ]
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
@@ -73,17 +74,23 @@ module Api
         }
       end
 
-      # POST /api/v1/constructions/:job_id/sm_tasks
+      # POST /api/v1/constructions/:job_id/sm_tasks (nested)
+      # POST /api/v1/sm_tasks (standalone - no job required)
       def create
-        @task = @job.sm_tasks.new(sm_task_params)
+        if @job
+          @task = @job.sm_tasks.new(sm_task_params)
+          # Generate unique name for duplicates (e.g., "Req Bath 1", "Req Bath 2")
+          @task.name = generate_unique_task_name(@job, @task.name)
+          # Set sequence order to be last + 1
+          max_sequence = @job.sm_tasks.maximum(:sequence_order) || 0
+          @task.sequence_order = max_sequence + 1
+        else
+          @task = SmTask.new(sm_task_params)
+          # Default sequence order for standalone tasks
+          @task.sequence_order ||= 1
+        end
+
         @task.created_by = current_user
-
-        # Generate unique name for duplicates (e.g., "Req Bath 1", "Req Bath 2")
-        @task.name = generate_unique_task_name(@job, @task.name)
-
-        # Set sequence order to be last + 1
-        max_sequence = @job.sm_tasks.maximum(:sequence_order) || 0
-        @task.sequence_order = max_sequence + 1
 
         if @task.save
           render json: {
@@ -720,6 +727,11 @@ module Api
         }, status: :not_found
       end
 
+      # Optional job lookup - allows creating tasks without a job
+      def set_job_optional
+        @job = Job.find_by(id: params[:job_id]) if params[:job_id].present?
+      end
+
       def set_sm_task
         @task = SmTask.find(params[:id])
       rescue ActiveRecord::RecordNotFound
@@ -751,6 +763,7 @@ module Api
           :supplier_id,
           :parent_task_id,
           :sequence_order,
+          :job_id,  # Allow setting job_id for standalone task creation
           documentation_category_ids: []
         )
       end
