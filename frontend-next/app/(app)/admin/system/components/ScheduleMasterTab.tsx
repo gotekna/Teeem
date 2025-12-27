@@ -118,6 +118,7 @@ interface SmScheduleMaster {
   predecessor_ids: Array<{ id: number; type?: string; lag?: number }>;
   trade?: string;
   stage?: string;
+  assigned_role?: string | null;
   po_required: boolean;
   critical_po?: boolean;
   create_po_on_job_start?: boolean;
@@ -620,6 +621,7 @@ export function ScheduleMasterTab() {
         duration_days: fullRow.duration_days,
         trade: fullRow.trade,
         stage: fullRow.stage,
+        assigned_role: fullRow.assigned_role,
         po_required: fullRow.po_required,
         critical_po: fullRow.critical_po,
         create_po_on_job_start: fullRow.create_po_on_job_start,
@@ -1795,6 +1797,27 @@ export function ScheduleMasterTab() {
                   onChange={(e) => setEditRowForm({ ...editRowForm, stage: e.target.value })}
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="row-assigned-role">Assigned Role</Label>
+              <Select
+                value={editRowForm.assigned_role || ""}
+                onValueChange={(value) => setEditRowForm({ ...editRowForm, assigned_role: value || null })}
+              >
+                <SelectTrigger id="row-assigned-role">
+                  <SelectValue placeholder="Select a role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="supervisor">Supervisor</SelectItem>
+                  <SelectItem value="builder">Builder</SelectItem>
+                  <SelectItem value="estimator">Estimator</SelectItem>
+                  <SelectItem value="sales">Sales</SelectItem>
+                  <SelectItem value="site">Site</SelectItem>
+                  <SelectItem value="pre_construction">Pre Construction</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* PO Settings */}
