@@ -52,6 +52,7 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
 
 interface User {
   id: number;
@@ -66,6 +67,10 @@ interface User {
   integrations: string[];
   integrations_count: number;
   created_at: string;
+  // For UserDetailSheet
+  mobile_phone?: string;
+  role_ids?: Array<{ id: number; display_value: string; name: string }>;
+  [key: string]: unknown;
 }
 
 // Format relative time (e.g., "2 hours ago", "Yesterday", "Dec 3")
@@ -112,6 +117,8 @@ function UsersManagementTab() {
   const [inviteRole, setInviteRole] = React.useState("");
   const [roles, setRoles] = React.useState<Role[]>([]);
   const [inviting, setInviting] = React.useState(false);
+  const [selectedUser, setSelectedUser] = React.useState<User | null>(null);
+  const [showDetailSheet, setShowDetailSheet] = React.useState(false);
 
   React.useEffect(() => {
     loadUsers();
@@ -208,7 +215,14 @@ function UsersManagementTab() {
           </TableHeader>
           <TableBody>
             {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
+              <TableRow
+                key={user.id}
+                className="cursor-pointer"
+                onDoubleClick={() => {
+                  setSelectedUser(user);
+                  setShowDetailSheet(true);
+                }}
+              >
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
                     <div className={cn(
@@ -344,6 +358,17 @@ function UsersManagementTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* User Detail Sheet - opens on double-click */}
+      <UserDetailSheet
+        user={selectedUser}
+        isOpen={showDetailSheet}
+        onClose={() => {
+          setShowDetailSheet(false);
+          setSelectedUser(null);
+        }}
+        onSave={loadUsers}
+      />
     </div>
   );
 }

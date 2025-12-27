@@ -249,12 +249,19 @@ module Api
             Rails.logger.info "[JobPhotos] Created new folder '#{folder_name}' with id #{current_folder_id}"
           rescue MicrosoftGraphClient::APIError => e
             if e.message.include?("nameAlreadyExists") || e.message.include?("409")
-              # Folder exists - get it by path
-              Rails.logger.info "[JobPhotos] Folder '#{folder_name}' already exists, looking it up..."
+              # Folder exists - list children and find by name
+              Rails.logger.info "[JobPhotos] Folder '#{folder_name}' already exists, listing children to find it..."
               begin
-                existing = client.get("#{drive_path}/items/#{current_folder_id}:/#{folder_name}")
-                current_folder_id = existing["id"]
-                Rails.logger.info "[JobPhotos] Found existing folder '#{folder_name}' with id #{current_folder_id}"
+                children_response = client.get("#{drive_path}/items/#{current_folder_id}/children")
+                items = children_response["value"] || []
+                existing = items.find { |item| item["folder"] && item["name"]&.downcase == folder_name.downcase }
+                if existing && existing["id"].present?
+                  current_folder_id = existing["id"]
+                  Rails.logger.info "[JobPhotos] Found existing folder '#{folder_name}' with id #{current_folder_id}"
+                else
+                  Rails.logger.error "[JobPhotos] Folder '#{folder_name}' reported as existing but not found in children list"
+                  return nil
+                end
               rescue StandardError => lookup_error
                 Rails.logger.error "[JobPhotos] Failed to lookup existing folder '#{folder_name}': #{lookup_error.message}"
                 return nil
