@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const statusColors: Record<string, string> = {
   not_started: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
@@ -44,6 +45,11 @@ export function ListView() {
     updateTask,
     expandedTaskId,
     toggleTaskExpansion,
+    startTask,
+    completeTask,
+    setTaskHold,
+    confirmTask,
+    supplierConfirmTask,
   } = useTaskHub();
 
   const [sort, setSort] = useState<{ field: SortField; direction: SortDirection }>({
@@ -120,7 +126,7 @@ export function ListView() {
   return (
     <div className="border rounded overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-[28px_1fr_70px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-[11px] font-medium text-muted-foreground border-b">
+      <div className="grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-[11px] font-medium text-muted-foreground border-b">
         <div>
           <Checkbox
             checked={allSelected}
@@ -129,7 +135,7 @@ export function ListView() {
           />
         </div>
         <SortHeader field="name">Task</SortHeader>
-        <SortHeader field="status">Status</SortHeader>
+        <div className="text-center">Progress</div>
         <SortHeader field="start_date">Start</SortHeader>
         <SortHeader field="end_date">End</SortHeader>
         <SortHeader field="job_name">Job</SortHeader>
@@ -146,7 +152,7 @@ export function ListView() {
               <div
                 onClick={() => toggleTaskExpansion(task.id)}
                 className={cn(
-                  'grid grid-cols-[28px_1fr_70px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30 cursor-pointer',
+                  'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30 cursor-pointer',
                   selectedTaskIds.has(task.id) && 'bg-primary/5',
                   task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/20',
                   isExpanded && 'bg-muted/50'
@@ -178,10 +184,97 @@ export function ListView() {
                   )}
                 </div>
 
-                <div>
-                  <Badge className={cn('text-[10px] px-1.5 py-0 h-4', statusColors[task.status])}>
-                    {task.status === 'not_started' ? 'todo' : task.status === 'started' ? 'active' : 'done'}
-                  </Badge>
+                {/* Inline Status Checkboxes */}
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <TooltipProvider delayDuration={300}>
+                    {/* Started - always show */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Checkbox
+                            checked={task.status === 'started' || task.status === 'completed'}
+                            onCheckedChange={(checked) => {
+                              if (checked) startTask(task.id);
+                              else updateTask(task.id, { status: 'not_started' });
+                            }}
+                            disabled={task.status === 'completed'}
+                            className="h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-[10px]">Started</TooltipContent>
+                    </Tooltip>
+
+                    {/* PO-only checkboxes */}
+                    {task.purchase_order_id && (
+                      <>
+                        {/* Hold */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox
+                                checked={task.hold}
+                                onCheckedChange={(checked) => setTaskHold(task.id, !!checked)}
+                                className="h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[10px]">Hold</TooltipContent>
+                        </Tooltip>
+
+                        {/* Confirmed */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox
+                                checked={task.confirm}
+                                onCheckedChange={(checked) => {
+                                  if (checked) confirmTask(task.id, new Date().toISOString().split('T')[0]);
+                                  else updateTask(task.id, { confirm: false });
+                                }}
+                                className="h-3.5 w-3.5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[10px]">Confirmed</TooltipContent>
+                        </Tooltip>
+
+                        {/* Supplier */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox
+                                checked={task.supplier_confirm}
+                                onCheckedChange={(checked) => {
+                                  if (checked) supplierConfirmTask(task.id, new Date().toISOString().split('T')[0]);
+                                  else updateTask(task.id, { supplier_confirm: false });
+                                }}
+                                className="h-3.5 w-3.5 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[10px]">Supplier</TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
+
+                    {/* Done - always show */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Checkbox
+                            checked={task.status === 'completed'}
+                            onCheckedChange={(checked) => {
+                              if (checked) completeTask(task.id);
+                              else updateTask(task.id, { status: 'started' });
+                            }}
+                            className="h-3.5 w-3.5 data-[state=checked]:bg-gray-500 data-[state=checked]:border-gray-500"
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-[10px]">Done</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
 
                 <div className="text-[11px] text-muted-foreground">{formatDate(task.start_date)}</div>
