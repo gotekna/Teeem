@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SmTask, useTaskHub } from '@/contexts/TaskHubContext';
+import { SmTask, TaskAttachment, useTaskHub } from '@/contexts/TaskHubContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { TaskAssignmentInline } from './TaskAssignmentInline';
+import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
+import { api } from '@/lib/api';
 import {
   AlertTriangle,
   Calendar as CalendarIcon,
@@ -19,6 +21,7 @@ import {
   Loader2,
   Mail,
   Paperclip,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -58,6 +61,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [selectedSupplierDate, setSelectedSupplierDate] = useState<Date | undefined>(
     task.hold_date ? new Date(task.hold_date) : new Date()
   );
+
+  // Attachment state
+  const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [localAttachments, setLocalAttachments] = useState<TaskAttachment[]>(task.attachments || []);
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
 
   // Check if this is a PO task
   const isPOTask = !!task.purchase_order_id;
@@ -155,6 +164,39 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const handleClose = () => {
     collapseTask();
     onClose?.();
+  };
+
+  // Handler for adding an attachment
+  const handleAddAttachment = async (attachment: PendingAttachment) => {
+    if (!attachment.id || attachment.type === 'upload') {
+      // For file uploads, just add to pending (would need file upload API)
+      setPendingAttachments((prev) => [...prev, attachment]);
+      return;
+    }
+
+    setAttachmentLoading(true);
+    try {
+      const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
+        `/api/v1/sm_tasks/${task.id}/attachments`,
+        {
+          attachment_type: attachment.type,
+          attachable_id: attachment.id,
+        }
+      );
+
+      if (response?.success && response.attachment) {
+        setLocalAttachments((prev) => [...prev, response.attachment]);
+        setShowAttachmentPicker(false);
+      }
+    } catch (error) {
+      console.error('Failed to add attachment:', error);
+    } finally {
+      setAttachmentLoading(false);
+    }
+  };
+
+  const handleRemovePendingAttachment = (index: number) => {
+    setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -372,16 +414,46 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       </div>
 
       {/* Attachments Section */}
-      {task.attachments && task.attachments.length > 0 && (
-        <div className="border-t pt-3">
-          <div className="flex items-center gap-2 mb-2">
+      <div className="border-t pt-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
             <Paperclip className="h-4 w-4 text-muted-foreground" />
             <span className="text-xs font-medium text-muted-foreground">
-              Attachments ({task.attachments.length})
+              Attachments {localAttachments.length > 0 && `(${localAttachments.length})`}
             </span>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs gap-1"
+            onClick={() => setShowAttachmentPicker(!showAttachmentPicker)}
+            disabled={attachmentLoading}
+          >
+            {attachmentLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Plus className="h-3 w-3" />
+            )}
+            Add
+          </Button>
+        </div>
+
+        {/* Attachment Picker */}
+        {showAttachmentPicker && (
+          <div className="mb-3 p-2 border rounded bg-background">
+            <AttachmentPicker
+              attachments={pendingAttachments}
+              onAdd={handleAddAttachment}
+              onRemove={handleRemovePendingAttachment}
+              jobId={task.construction_id > 0 ? String(task.construction_id) : undefined}
+            />
+          </div>
+        )}
+
+        {/* Existing Attachments */}
+        {localAttachments.length > 0 && (
           <div className="space-y-2">
-            {task.attachments.map((attachment) => (
+            {localAttachments.map((attachment) => (
               <div
                 key={attachment.id}
                 className="flex items-center gap-3 p-2 bg-background/50 rounded border hover:bg-muted/50 transition-colors"
@@ -434,8 +506,14 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+
+        {localAttachments.length === 0 && !showAttachmentPicker && (
+          <p className="text-xs text-muted-foreground text-center py-2">
+            No attachments yet
+          </p>
+        )}
+      </div>
     </div>
   );
 }
