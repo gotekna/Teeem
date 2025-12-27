@@ -307,69 +307,18 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # POST /api/v1/email_warehouse/sync
-  # Trigger manual sync for current user
-  def sync
-    unless current_user.outlook_credential&.valid_credential?
-      return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
-    end
-
-    sync_type = params[:full] == "true" ? "full" : "incremental"
-
-    # Queue the sync job
-    EmailWarehouseSyncJob.perform_later(current_user.id, sync_type)
-
-    render json: {
-      success: true,
-      message: "#{sync_type.capitalize} sync queued. This may take a few minutes.",
-      sync_type: sync_type
-    }
-  end
-
   # GET /api/v1/email_warehouse/sync_status
-  # Get sync status for current user
+  # Get sync status - org-wide sync runs automatically every 15 minutes
   def sync_status
-    status = EmailSyncStatus.find_by(user: current_user)
-
-    if status.nil?
-      return render json: {
-        status: "not_started",
-        message: "No sync has been performed yet",
-        outlook_connected: current_user.outlook_credential.present?
-      }
-    end
+    # Get org credential for Tekna
+    org_cred = OrganizationMicrosoftAppCredential.find_by(name: "Tekna")
 
     render json: {
-      status: status.status,
-      last_sync_at: status.last_sync_at,
-      total_emails_synced: status.total_emails_synced,
-      emails_synced_this_run: status.emails_synced_this_run,
-      sync_started_at: status.sync_started_at,
-      last_error: status.last_error,
-      outlook_connected: current_user.outlook_credential.present?
+      status: "automatic",
+      message: "Email sync runs automatically every 15 minutes via org-wide sync",
+      last_sync_at: org_cred&.last_sync_at,
+      sync_interval: "15 minutes"
     }
-  end
-
-  # POST /api/v1/email_warehouse/sync_for_job
-  # Sync emails specifically for a job
-  def sync_for_job
-    job = Job.find(params[:job_id])
-
-    unless current_user.outlook_credential&.valid_credential?
-      return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
-    end
-
-    service = EmailWarehouseSyncService.new(current_user)
-    synced_count = service.sync_for_job(job)
-
-    render json: {
-      success: true,
-      message: "Synced #{synced_count} emails for #{job.title}",
-      synced_count: synced_count,
-      job_id: job.id
-    }
-  rescue EmailWarehouseSyncService::SyncError => e
-    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # GET /api/v1/email_warehouse/search
