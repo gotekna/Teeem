@@ -168,23 +168,29 @@ class EntityTab < ApplicationRecord
   end
 
   # Get the EFFECTIVE SharePoint path for this tab (for UI display)
-  # - If uses_custom_path: return the custom sharepoint_folder_path
-  # - If NOT uses_custom_path: replace {{Category}}/{{TabName}} in template with display_name
+  # SSoT: Child tabs INHERIT from parent's path, not from global template directly
   #
-  # NOTE: This keeps {{JobCode}} for UI display consistency. Use upload_folder_path for uploads.
+  # Inheritance chain:
+  #   CorporateCompanySetting.sharepoint_job_template → "{{JobCode}} {{TabName}}"
+  #   Photo (root tab) → "{{JobCode}} Photo"
+  #   Site Photo (child) → "{{JobCode}} Photo/Site Photo"  ← inherits parent + adds own name
   def effective_sharepoint_path
     return nil unless has_sharepoint_folder
 
     if uses_custom_path && sharepoint_folder_path.present?
       # Custom path - use exactly what's set
       sharepoint_folder_path
+    elsif parent&.has_sharepoint_folder
+      # SSoT: INHERIT FROM PARENT - child path = parent path + "/" + display_name
+      parent_path = parent.effective_sharepoint_path
+      return nil unless parent_path.present?
+      "#{parent_path}/#{display_name}"
     else
-      # Inherit from global template, replacing placeholders with display_name
+      # Root tab - use global template from CorporateCompanySetting (SSoT)
       template = inherited_template
       return nil unless template.present?
 
-      # SSoT: Replace ALL folder placeholders with this tab's display_name
-      # Templates may use {{Category}}, {{TabName}}, or both - replace all with display_name
+      # Replace ALL folder placeholders with this tab's display_name
       CorporateCompanySetting.resolve_template(template, {
         "Category" => display_name,
         "TabName" => display_name
