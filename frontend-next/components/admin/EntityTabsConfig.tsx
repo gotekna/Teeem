@@ -1445,14 +1445,31 @@ export function EntityTabsConfig({
                   placeholder="Click tokens to add..."
                 />
 
-                {/* Full path preview - reactive to Corporate Path toggle */}
+                {/* Full path preview - uses ACTUAL tab names, not generic examples */}
                 {(() => {
                   const basePath = scope === "contact"
                     ? (formData.sharepoint_path_type === 'corporate'
                         ? "/Shared Documents/Corporate/People"
                         : "/Shared Documents/Contacts")
                     : (editingTab?.sharepoint_base_path || "/Shared Documents");
-                  const folderPath = resolveSharePointPath(formData.sharepoint_folder_path || formData.display_name || editingTab?.display_name || "");
+
+                  // Get actual tab names for preview
+                  const parentId = formData.parent_id || editingTab?.parent_id;
+                  const parentTab = parentId ? tabs.find(t => t.id === parentId) : null;
+                  const currentTabName = formData.display_name || editingTab?.display_name || "";
+                  const parentTabName = parentTab?.display_name || "";
+
+                  // Resolve with ACTUAL values, not generic examples
+                  let folderPath = formData.sharepoint_folder_path || currentTabName;
+                  folderPath = folderPath
+                    .replace(/\{\{SubTabName\}\}/g, currentTabName)
+                    .replace(/\{\{TabName\}\}/g, parentTabName || currentTabName)
+                    .replace(/\{\{JobCode\}\}/g, "077")
+                    .replace(/\{\{Category\}\}/g, currentTabName)
+                    .replace(/\{\{CompanyGroup\}\}/g, "Tekna Group")
+                    .replace(/\{\{CompanyCode\}\}/g, "TH")
+                    .replace(/\{\{ContactName\}\}/g, "Robert Harder");
+
                   const fullPath = `${basePath}/${folderPath}`;
                   return (
                     <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
