@@ -25,6 +25,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { TokenBuilder } from "@/components/ui/tokens";
 import {
   Sheet,
   SheetContent,
@@ -499,38 +500,23 @@ export function SharePointTab() {
             Path Templates (SSoT)
           </CardTitle>
           <CardDescription>
-            Dynamic path templates using placeholders. These define how documents are organized within each folder.
+            Dynamic path templates using placeholders. Click tokens below to add them, drag to reorder.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Info about placeholders */}
-          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>Available Placeholders:</strong>
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              <Badge variant="outline" className="font-mono">{"{{JobCode}}"}</Badge>
-              <Badge variant="outline" className="font-mono">{"{{Category}}"}</Badge>
-              <Badge variant="outline" className="font-mono">{"{{CompanyGroup}}"}</Badge>
-              <Badge variant="outline" className="font-mono">{"{{CompanyCode}}"}</Badge>
-              <Badge variant="outline" className="font-mono">{"{{Folder}}"}</Badge>
-              <Badge variant="outline" className="font-mono">{"{{ContactName}}"}</Badge>
-            </div>
-          </div>
-
           {/* Templates */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="job_template" className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-sm font-medium">
                 <Briefcase className="h-3 w-3 text-orange-500" />
                 Job Template
-              </Label>
-              <Input
-                id="job_template"
+              </div>
+              <TokenBuilder
                 value={formData.sharepoint_job_template}
-                onChange={(e) => handleChange("sharepoint_job_template", e.target.value)}
-                placeholder="{{JobCode}}/{{Category}}"
-                className="font-mono text-sm"
+                onChange={(value) => handleChange("sharepoint_job_template", value)}
+                scope="sharepoint"
+                showPreview={false}
+                placeholder="Click tokens below to build path..."
               />
               <div className="text-xs space-y-1">
                 <p className="text-muted-foreground">Full path preview:</p>
@@ -541,16 +527,16 @@ export function SharePointTab() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="company_template" className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-sm font-medium">
                 <Building2 className="h-3 w-3 text-purple-500" />
                 Company Template
-              </Label>
-              <Input
-                id="company_template"
+              </div>
+              <TokenBuilder
                 value={formData.sharepoint_company_template}
-                onChange={(e) => handleChange("sharepoint_company_template", e.target.value)}
-                placeholder="{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
-                className="font-mono text-sm"
+                onChange={(value) => handleChange("sharepoint_company_template", value)}
+                scope="sharepoint"
+                showPreview={false}
+                placeholder="Click tokens below to build path..."
               />
               <div className="text-xs space-y-1">
                 <p className="text-muted-foreground">Full path preview:</p>
@@ -561,16 +547,16 @@ export function SharePointTab() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="people_template" className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-sm font-medium">
                 <Users className="h-3 w-3 text-green-500" />
                 Corporate People Template
-              </Label>
-              <Input
-                id="people_template"
+              </div>
+              <TokenBuilder
                 value={formData.sharepoint_people_template}
-                onChange={(e) => handleChange("sharepoint_people_template", e.target.value)}
-                placeholder="{{ContactName}}/{{Category}}"
-                className="font-mono text-sm"
+                onChange={(value) => handleChange("sharepoint_people_template", value)}
+                scope="sharepoint"
+                showPreview={false}
+                placeholder="Click tokens below to build path..."
               />
               <div className="text-xs space-y-1">
                 <p className="text-muted-foreground">Full path preview:</p>
@@ -581,16 +567,16 @@ export function SharePointTab() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="contacts_template" className="flex items-center gap-1">
+              <div className="flex items-center gap-1 text-sm font-medium">
                 <Users className="h-3 w-3 text-blue-500" />
                 Contacts Template
-              </Label>
-              <Input
-                id="contacts_template"
+              </div>
+              <TokenBuilder
                 value={formData.sharepoint_contacts_template}
-                onChange={(e) => handleChange("sharepoint_contacts_template", e.target.value)}
-                placeholder="{{ContactName}}/{{Category}}"
-                className="font-mono text-sm"
+                onChange={(value) => handleChange("sharepoint_contacts_template", value)}
+                scope="sharepoint"
+                showPreview={false}
+                placeholder="Click tokens below to build path..."
               />
               <div className="text-xs space-y-1">
                 <p className="text-muted-foreground">Full path preview:</p>
