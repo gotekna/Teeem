@@ -43,6 +43,23 @@ module Api
           job_folder = client.find_job_folder(job)
           Rails.logger.info "[JobPhotos] find_job_folder result: #{job_folder&.slice('id', 'name', 'webUrl')}"
 
+          # Verify the folder actually exists in SharePoint (it might be a stale cached ID)
+          if job_folder && job_folder["id"].present?
+            begin
+              Rails.logger.info "[JobPhotos] Verifying folder exists: #{job_folder['id']}"
+              drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+              client.get("#{drive_path}/items/#{job_folder['id']}")
+              Rails.logger.info "[JobPhotos] Folder verified to exist"
+            rescue MicrosoftGraphClient::APIError => e
+              if e.message.include?("404") || e.message.include?("itemNotFound")
+                Rails.logger.warn "[JobPhotos] Folder ID #{job_folder['id']} no longer exists, will recreate"
+                job_folder = nil # Force recreation
+              else
+                raise e
+              end
+            end
+          end
+
           # If job folder doesn't exist or has no valid ID, create it
           unless job_folder && job_folder["id"].present?
             Rails.logger.info "[JobPhotos] Job folder not found, creating structure..."
