@@ -258,19 +258,19 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
   // Convert LegacyItem to PhotoItem for gallery display
   const convertToPhotoItem = (item: LegacyItem): PhotoItem => {
-    // Build API URL for fetching image through backend proxy (fallback)
+    // Build API URL for fetching image through backend proxy (with auth)
+    // IMPORTANT: Always use proxy URL for main image because SharePoint direct URLs
+    // fail due to CORS when used in <img> tags. The lightbox fetches via api.getBlob()
+    // with proper auth to bypass this.
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
-    const fallbackUrl = `${apiBase}/api/v1/organization_onedrive/download?file_id=${item.id}&preview=true`;
-    // Use pre-authenticated download URL if available (publicly accessible, expires ~1hr)
-    // Falls back to download endpoint if not available
-    const imageUrl = item.download_url || fallbackUrl;
+    const proxyUrl = `${apiBase}/api/v1/organization_onedrive/download?file_id=${item.id}&preview=true`;
     // Use Graph API thumbnail URL if available (publicly accessible, no auth required)
-    const thumbnailUrl = item.thumbnail_url || imageUrl;
+    const thumbnailUrl = item.thumbnail_url || proxyUrl;
 
     return {
       id: item.id,
       name: item.name,
-      url: imageUrl,
+      url: proxyUrl, // Always use proxy - lightbox fetches with auth via api.getBlob()
       thumbnailUrl: thumbnailUrl,
       webUrl: item.web_url,
       createdAt: item.modified, // Use modified as fallback for created
