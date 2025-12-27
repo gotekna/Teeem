@@ -441,6 +441,7 @@ export default function EmailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const accountParam = searchParams.get("account");
+  const emailIdParam = searchParams.get("id");
 
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -916,6 +917,27 @@ export default function EmailPage() {
       } catch { /* ignore storage errors */ }
     }
   }, [selectedAccount, selectedFolder, selectedFolderId, viewMode]);
+
+  // Load specific email when id param is provided (e.g., from task attachment link)
+  useEffect(() => {
+    if (emailIdParam) {
+      const loadEmailById = async () => {
+        try {
+          setLoading(true);
+          const response = await api.get<Email>(`/api/v1/email_warehouse/${emailIdParam}`);
+          if (response) {
+            setSelectedEmail(response);
+            // Clear loading - we have the email to show
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error("Failed to load email by ID:", error);
+          setLoading(false);
+        }
+      };
+      loadEmailById();
+    }
+  }, [emailIdParam]);
 
   const handleSync = async () => {
     setSyncing(true);
