@@ -7,11 +7,18 @@
  * @see Phase 6 refactoring - Render Functions extraction
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ResizableColumnHeader } from '../../components/ResizableColumnHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -99,10 +106,19 @@ export interface TableHeaderSectionProps {
   removeFilter?: (id: string | number) => void;
 
   /** Create a filter with a value (for inline column filters) */
-  createFilterWithValue?: (columnKey: string, value: string) => void;
+  createFilterWithValue?: (columnKey: string, value: string, operator?: '=' | 'contains') => void;
 
   /** All columns (for creating new filters) */
   columns?: TableColumn[];
+
+  /** Lookup options for dropdown filters */
+  lookupOptions?: Record<string, Array<{ id: number; display: string }>>;
+
+  /** Loading state for lookup options */
+  lookupLoading?: Record<string, boolean>;
+
+  /** Fetch lookup options for a column */
+  onFetchLookupOptions?: (column: TableColumn) => void;
 }
 
 /**
@@ -131,6 +147,9 @@ export function TableHeaderSection({
   removeFilter,
   createFilterWithValue,
   columns = [],
+  lookupOptions = {},
+  lookupLoading = {},
+  onFetchLookupOptions,
 }: TableHeaderSectionProps) {
   // Local state for filter input values (debounced updates to cascade filters)
   const [localFilterValues, setLocalFilterValues] = useState<Record<string, string>>({});
@@ -140,12 +159,29 @@ export function TableHeaderSection({
   const isStickyColumn = (key: string, index: number) =>
     key === 'select' || index === 1 || key === 'actions';
 
+  // Pre-fetch lookup options for visible lookup columns when filters are shown
+  useEffect(() => {
+    if (!showColumnFilters || !onFetchLookupOptions) return;
+
+    visibleColumnsInOrder.forEach(column => {
+      const isLookup = column.column_type === 'lookup' || column.column_type === 'relation';
+      if (isLookup && column.lookup_foundation_id && !lookupOptions[column.key]) {
+        onFetchLookupOptions(column);
+      }
+    });
+  }, [showColumnFilters, visibleColumnsInOrder, lookupOptions, onFetchLookupOptions]);
+
+  // Get column metadata from columns array
+  const getColumnMeta = useCallback((columnKey: string): TableColumn | undefined => {
+    return columns.find(c => c.key === columnKey) || visibleColumnsInOrder.find(c => c.key === columnKey);
+  }, [columns, visibleColumnsInOrder]);
+
   // Get the filter for a specific column (if any)
   const getColumnFilter = useCallback((columnKey: string): CascadeFilter | undefined => {
-    return cascadeFilters.find(f => f.column === columnKey && f.operator === 'contains');
+    return cascadeFilters.find(f => f.column === columnKey);
   }, [cascadeFilters]);
 
-  // Handle filter input change
+  // Handle filter input change (for text inputs)
   const handleFilterChange = useCallback((columnKey: string, value: string) => {
     setLocalFilterValues(prev => ({ ...prev, [columnKey]: value }));
 
@@ -162,6 +198,24 @@ export function TableHeaderSection({
     } else if (createFilterWithValue) {
       // Create new filter with value (inline - doesn't open panel)
       createFilterWithValue(columnKey, value);
+    }
+  }, [cascadeFilters, updateFilter, removeFilter, createFilterWithValue]);
+
+  // Handle dropdown filter change (boolean, lookup, choice)
+  const handleDropdownFilterChange = useCallback((columnKey: string, value: string, operator: '=' | 'contains' = '=') => {
+    const existingFilter = cascadeFilters.find(f => f.column === columnKey);
+
+    if (value === '' || value === 'all') {
+      // Remove filter if "All" is selected
+      if (existingFilter && removeFilter) {
+        removeFilter(existingFilter.id);
+      }
+    } else if (existingFilter && updateFilter) {
+      // Update existing filter with new value and operator
+      updateFilter(existingFilter.id, { value, operator });
+    } else if (createFilterWithValue) {
+      // Create new filter with the specified operator
+      createFilterWithValue(columnKey, value, operator);
     }
   }, [cascadeFilters, updateFilter, removeFilter, createFilterWithValue]);
 
@@ -281,6 +335,16 @@ export function TableHeaderSection({
             const filterValue = getFilterDisplayValue(column.key);
             const hasFilter = filterValue.length > 0;
 
+            // Get column metadata for type detection
+            const colMeta = getColumnMeta(column.key) || column;
+            const colType = colMeta.column_type || '';
+            const isBoolean = colType === 'boolean';
+            const isLookup = colType === 'lookup' || colType === 'relation';
+            const isChoice = colType === 'choice' || colType === 'single_select';
+            const hasChoices = colMeta.choices && colMeta.choices.length > 0;
+            const options = lookupOptions[column.key] || [];
+            const isLoading = lookupLoading[column.key] || false;
+
             // Skip filter inputs for select and actions columns
             if (column.key === "select" || column.key === "actions") {
               return (
@@ -302,20 +366,83 @@ export function TableHeaderSection({
               );
             }
 
-            return (
-              <TableHead
-                key={`filter-${column.key}-${colIndex}`}
-                style={{
-                  width: columnWidths[column.key] || column.width,
-                  minWidth: columnWidths[column.key] || column.width || 50,
-                  backgroundColor: 'hsl(var(--muted) / 0.3)',
-                  ...stickyStyles,
-                }}
-                className={cn(
-                  "sticky top-[41px] py-1 px-1",
-                  isSticky ? "z-30" : "z-20"
-                )}
-              >
+            // Render the appropriate filter input based on column type
+            const renderFilterInput = () => {
+              // Boolean column - Yes/No dropdown
+              if (isBoolean) {
+                return (
+                  <Select
+                    value={filterValue || 'all'}
+                    onValueChange={(value) => handleDropdownFilterChange(column.key, value, '=')}
+                  >
+                    <SelectTrigger className={cn("h-7 text-xs", hasFilter && "border-primary")}>
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="true">Yes</SelectItem>
+                      <SelectItem value="false">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                );
+              }
+
+              // Lookup column - dropdown with lookup values
+              if (isLookup && colMeta.lookup_foundation_id) {
+                if (isLoading) {
+                  return (
+                    <div className="h-7 flex items-center justify-center text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    </div>
+                  );
+                }
+
+                if (options.length > 0) {
+                  return (
+                    <Select
+                      value={filterValue || 'all'}
+                      onValueChange={(value) => handleDropdownFilterChange(column.key, value, '=')}
+                    >
+                      <SelectTrigger className={cn("h-7 text-xs", hasFilter && "border-primary")}>
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        <SelectItem value="all">All</SelectItem>
+                        {options.map((opt) => (
+                          <SelectItem key={opt.id} value={String(opt.id)}>
+                            {opt.display}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                }
+              }
+
+              // Choice column - dropdown with choices
+              if ((isChoice || hasChoices) && colMeta.choices && colMeta.choices.length > 0) {
+                return (
+                  <Select
+                    value={filterValue || 'all'}
+                    onValueChange={(value) => handleDropdownFilterChange(column.key, value, '=')}
+                  >
+                    <SelectTrigger className={cn("h-7 text-xs", hasFilter && "border-primary")}>
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="all">All</SelectItem>
+                      {colMeta.choices.map((choice) => (
+                        <SelectItem key={choice} value={choice}>
+                          {choice}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              }
+
+              // Default: text input
+              return (
                 <div className="relative">
                   <Input
                     type="text"
@@ -336,6 +463,24 @@ export function TableHeaderSection({
                     </button>
                   )}
                 </div>
+              );
+            };
+
+            return (
+              <TableHead
+                key={`filter-${column.key}-${colIndex}`}
+                style={{
+                  width: columnWidths[column.key] || column.width,
+                  minWidth: columnWidths[column.key] || column.width || 50,
+                  backgroundColor: 'hsl(var(--muted) / 0.3)',
+                  ...stickyStyles,
+                }}
+                className={cn(
+                  "sticky top-[41px] py-1 px-1",
+                  isSticky ? "z-30" : "z-20"
+                )}
+              >
+                {renderFilterInput()}
               </TableHead>
             );
           })}

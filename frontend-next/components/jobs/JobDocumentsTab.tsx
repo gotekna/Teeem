@@ -406,17 +406,26 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
      
   }, [jobId]);
 
+  // Track if initialCategory has been applied to prevent useEffect from overwriting it
+  const initialCategoryAppliedRef = useRef(false);
+
   useEffect(() => {
     // When a parent category is selected, auto-select the first child (or the parent itself if no children)
+    // BUT skip if initialCategory was just applied (to prevent overwriting the correct subcategory)
     if (selectedCategory) {
       if (selectedCategory.children && selectedCategory.children.length > 0) {
+        // If initialCategory was applied and subcategory is already set correctly, don't overwrite
+        if (initialCategoryAppliedRef.current && selectedSubCategory) {
+          initialCategoryAppliedRef.current = false; // Reset flag after first use
+          return;
+        }
         setSelectedSubCategory(selectedCategory.children[0]);
       } else {
         setSelectedSubCategory(null);
         loadDocumentTasks(selectedCategory.id);
       }
     }
-     
+
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -505,6 +514,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                 (child) => child.name && child.name.toLowerCase() === targetName.toLowerCase()
               );
               if (matchingChild) {
+                // Set flag BEFORE setting state to prevent useEffect from overwriting
+                initialCategoryAppliedRef.current = true;
                 setSelectedCategory(parent);
                 setSelectedSubCategory(matchingChild);
                 return;
@@ -898,13 +909,23 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   };
 
   // Load all files when switching to the All Files tab or when viewing photo categories
+  // Use a ref to prevent duplicate in-flight requests
+  const loadAllFilesInFlightRef = useRef(false);
+
   useEffect(() => {
     const activeCategory = selectedSubCategory || selectedCategory;
     const parentCategory = selectedSubCategory ? selectedCategory : null;
     const needsPhotos = isPhotoCategory(activeCategory, parentCategory);
 
     if (orgStatus.connected && (viewMode === "allfiles" || needsPhotos)) {
-      loadAllFiles();
+      // Prevent duplicate requests if one is already in flight
+      if (loadAllFilesInFlightRef.current) {
+        return;
+      }
+      loadAllFilesInFlightRef.current = true;
+      loadAllFiles().finally(() => {
+        loadAllFilesInFlightRef.current = false;
+      });
     }
   }, [viewMode, orgStatus.connected, selectedCategory, selectedSubCategory]);
 

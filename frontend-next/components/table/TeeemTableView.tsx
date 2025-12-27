@@ -1901,13 +1901,13 @@ export default function TeeemTableView({
   }, []);
 
   // Create filter with value (for inline column filters - doesn't open panel)
-  const createFilterWithValue = useCallback((columnKey: string, value: string) => {
+  const createFilterWithValue = useCallback((columnKey: string, value: string, operator: '=' | 'contains' = 'contains') => {
     setCascadeFilters((prev) => [
       ...prev,
       {
         id: `filter_${Date.now()}`,
         column: columnKey,
-        operator: "contains",
+        operator,
         value,
         groupId: "default",
       },
@@ -4110,6 +4110,9 @@ export default function TeeemTableView({
       removeFilter={removeFilter}
       createFilterWithValue={createFilterWithValue}
       columns={COLUMNS}
+      lookupOptions={lookupOptions}
+      lookupLoading={lookupLoading}
+      onFetchLookupOptions={fetchLookupOptions}
     />
   );
 

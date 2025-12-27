@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_072509) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_072510) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7631,6 +7631,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072509) do
     t.integer "spawn_scan_lag_days", default: 0
     t.date "required_by"
     t.tsvector "searchable"
+    t.date "hold_date"
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
