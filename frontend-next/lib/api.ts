@@ -458,6 +458,120 @@ export const api = {
     return response.blob();
   },
 
+  /**
+   * GET request returning a Blob (for images, PDFs, file downloads)
+   */
+  async getBlob(endpoint: string, options: GetOptions = {}): Promise<Blob> {
+    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = false, signal, skipAuthRedirect = false, ...restOptions } = options;
+
+    let url = `${API_URL}${endpoint}`;
+
+    if (restOptions.params) {
+      const queryString = new URLSearchParams(
+        Object.entries(restOptions.params).map(([k, v]) => [k, String(v)])
+      ).toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+    }
+
+    const doRequest = async () => {
+      const response = await withRetry(
+        () => fetchWithTimeout(url, {
+          method: 'GET',
+          headers: getAuthHeaders(false), // No Content-Type for blob requests
+          credentials: 'include',
+        }, timeout, signal),
+        signal ? 0 : retries
+      );
+
+      if (!response.ok) {
+        await handleErrorResponse(response, skipAuthRedirect);
+      }
+
+      return response.blob();
+    };
+
+    // Blob requests typically shouldn't be deduplicated (different uses of same URL)
+    return doRequest();
+  },
+
+  /**
+   * GET request returning text (for HTML previews, templates)
+   */
+  async getText(endpoint: string, options: GetOptions = {}): Promise<string> {
+    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = true, signal, skipAuthRedirect = false, ...restOptions } = options;
+
+    let url = `${API_URL}${endpoint}`;
+
+    if (restOptions.params) {
+      const queryString = new URLSearchParams(
+        Object.entries(restOptions.params).map(([k, v]) => [k, String(v)])
+      ).toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+    }
+
+    const requestKey = getRequestKey('GET_TEXT', url);
+
+    const doRequest = async () => {
+      const response = await withRetry(
+        () => fetchWithTimeout(url, {
+          method: 'GET',
+          headers: getAuthHeaders(false), // No Content-Type needed
+          credentials: 'include',
+        }, timeout, signal),
+        signal ? 0 : retries
+      );
+
+      if (!response.ok) {
+        await handleErrorResponse(response, skipAuthRedirect);
+      }
+
+      return response.text();
+    };
+
+    if (dedupe) {
+      return withDeduplication(requestKey, doRequest);
+    }
+
+    return doRequest();
+  },
+
+  /**
+   * GET request returning raw Response (for streaming, custom handling)
+   */
+  async getRaw(endpoint: string, options: GetOptions = {}): Promise<Response> {
+    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, signal, skipAuthRedirect = false, ...restOptions } = options;
+
+    let url = `${API_URL}${endpoint}`;
+
+    if (restOptions.params) {
+      const queryString = new URLSearchParams(
+        Object.entries(restOptions.params).map(([k, v]) => [k, String(v)])
+      ).toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+    }
+
+    const response = await withRetry(
+      () => fetchWithTimeout(url, {
+        method: 'GET',
+        headers: getAuthHeaders(false),
+        credentials: 'include',
+      }, timeout, signal),
+      signal ? 0 : retries
+    );
+
+    if (!response.ok) {
+      await handleErrorResponse(response, skipAuthRedirect);
+    }
+
+    return response;
+  },
+
   async delete<T = unknown>(endpoint: string, options: DeleteOptions = {}): Promise<T | null> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, ...restOptions } = options;
 

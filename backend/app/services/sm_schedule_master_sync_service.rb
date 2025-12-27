@@ -236,7 +236,6 @@ class SmScheduleMasterSyncService
       trade: template_row.trade,
       stage: template_row.stage,
       require_photo: template_row.require_photo,
-      require_certificate: template_row.require_certificate,
       po_required: template_row.po_required,
       critical_po: template_row.critical_po
     }
@@ -253,7 +252,6 @@ class SmScheduleMasterSyncService
       stage: task.stage,
       status: task.status,
       require_photo: task.require_photo,
-      require_certificate: task.require_certificate,
       po_required: task.po_required,
       critical_po: task.critical_po,
       started_at: task.started_at,
@@ -425,7 +423,6 @@ class SmScheduleMasterSyncService
 
       # Requirements (from template)
       require_photo: template_row.require_photo,
-      require_certificate: template_row.require_certificate,
       po_required: template_row.po_required,
       critical_po: template_row.critical_po,
 

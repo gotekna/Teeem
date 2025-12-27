@@ -11,6 +11,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 interface Notification {
   id: number;
@@ -33,23 +34,14 @@ export function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) return;
+      // Skip if not authenticated (api client handles token automatically)
+      if (typeof window !== "undefined" && !localStorage.getItem("token")) return;
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/notifications`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const data = await api.get<{ notifications: Notification[]; unread_count: number }>(
+        "/api/v1/notifications"
       );
-
-      if (response?.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unread_count || 0);
-      }
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unread_count || 0);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
     }
@@ -57,22 +49,12 @@ export function NotificationBell() {
 
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) return;
+      if (typeof window !== "undefined" && !localStorage.getItem("token")) return;
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/notifications/unread_count`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const data = await api.get<{ unread_count: number }>(
+        "/api/v1/notifications/unread_count"
       );
-
-      if (response?.ok) {
-        const data = await response.json();
-        setUnreadCount(data.unread_count || 0);
-      }
+      setUnreadCount(data.unread_count || 0);
     } catch (error) {
       console.error("Failed to fetch unread count:", error);
     }
@@ -80,25 +62,11 @@ export function NotificationBell() {
 
   const markAsRead = async (id: number) => {
     try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) return;
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/notifications/${id}/mark_read`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      await api.patch(`/api/v1/notifications/${id}/mark_read`);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
       );
-
-      if (response?.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
     }
@@ -107,23 +75,9 @@ export function NotificationBell() {
   const markAllAsRead = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem("auth_token");
-      if (!token) return;
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/notifications/mark_all_read`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response?.ok) {
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-        setUnreadCount(0);
-      }
+      await api.post("/api/v1/notifications/mark_all_read");
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
     } catch (error) {
       console.error("Failed to mark all as read:", error);
     } finally {

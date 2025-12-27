@@ -244,18 +244,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   // Resolve full-size download URL for lightbox viewing
   // This fetches on-demand from Microsoft Graph (returns pre-authenticated URL valid ~1hr)
   const resolveFullUrl = React.useCallback(async (fileId: string): Promise<string | null> => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     try {
-      const response = await fetch(`${apiBase}/api/v1/organization_onedrive/download_url?file_id=${fileId}`, {
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) {
-        console.error("Failed to get download URL:", response.status);
-        return null;
-      }
-      const data = await response.json();
+      const data = await api.get<{ download_url?: string }>(
+        "/api/v1/organization_onedrive/download_url",
+        { params: { file_id: fileId }, skipAuthRedirect: true }
+      );
       return data.download_url || null;
     } catch (err) {
       console.error("Error fetching download URL:", err);
