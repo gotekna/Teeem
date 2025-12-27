@@ -1801,14 +1801,14 @@ export function ScheduleMasterTab() {
             <div className="space-y-2">
               <Label htmlFor="row-assigned-role">Assigned Role</Label>
               <Select
-                value={editRowForm.assigned_role || ""}
-                onValueChange={(value) => setEditRowForm({ ...editRowForm, assigned_role: value || null })}
+                value={editRowForm.assigned_role || "_none"}
+                onValueChange={(value) => setEditRowForm({ ...editRowForm, assigned_role: value === "_none" ? null : value })}
               >
                 <SelectTrigger id="row-assigned-role">
                   <SelectValue placeholder="Select a role..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="_none">None</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="supervisor">Supervisor</SelectItem>
                   <SelectItem value="builder">Builder</SelectItem>
