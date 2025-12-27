@@ -100,7 +100,8 @@ interface FolderPath {
 
 interface DocumentCategory {
   id: number;
-  name: string;
+  name: string;  // SSoT: Alias for display_name (backend sends both)
+  display_name: string;  // SSoT: The actual field from EntityTab
   document_count?: number;
   icon?: string;
   color?: string;
