@@ -19,7 +19,8 @@ class NavigationItem < ApplicationRecord
 
   def visible_to?(user)
     return true if visible_to_roles.blank?
-    visible_to_roles.include?(user.role)
+    # SSoT: Check against user_roles join table, not legacy role column
+    (visible_to_roles & user.role_names).any?
   end
 
   def has_children?

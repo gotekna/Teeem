@@ -82,7 +82,8 @@ module Api
       end
 
       def skip
-        unless current_user&.admin? || current_user&.role == "admin"
+        # SSoT: admin? now checks user_roles join table
+        unless current_user&.admin?
           return render json: { success: false, error: "Only admins can skip tasks" }, status: :forbidden
         end
 

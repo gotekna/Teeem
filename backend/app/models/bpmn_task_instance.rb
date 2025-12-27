@@ -118,14 +118,15 @@ class BpmnTaskInstance < ApplicationRecord
     end
 
     # If assigned to role (from bpmn_node config or standalone task)
+    # SSoT: Check against user_roles join table, not legacy role column
     if bpmn_node.present?
       config = bpmn_node.config
       if config&.dig("assignee_type") == "role"
-        return user.role == config["assignee_value"]
+        return user.has_role?(config["assignee_value"])
       end
     elsif assigned_to_role.present?
       # Standalone task with role assignment
-      return user.role == assigned_to_role
+      return user.has_role?(assigned_to_role)
     end
 
     # Allow any user if not specifically assigned

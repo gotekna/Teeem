@@ -49,7 +49,8 @@ module Gl
       when "user"
         approver_id == user.id
       when "role"
-        user.role == required_role || user.roles&.include?(required_role)
+        # SSoT: Check user_roles join table via has_role? helper
+        user.has_role?(required_role)
       when "any_of", "all_of"
         approver_ids_array.include?(user.id)
       else

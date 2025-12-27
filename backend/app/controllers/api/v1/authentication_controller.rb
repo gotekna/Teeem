@@ -39,7 +39,7 @@ module Api
             id: dev_user.id,
             email: dev_user.email,
             name: dev_user.name,
-            role: dev_user.role,
+            role_names: dev_user.role_names,
             permissions: dev_user.permissions
           }
         }
@@ -49,16 +49,13 @@ module Api
       def signup
         user = User.new(signup_params)
 
-        # Auto-approve Tekna employees
-        if user.email&.end_with?("@tekna.com.au")
-          user.role ||= "user"  # Default role for Tekna employees
-          Rails.logger.info "Auto-approving Tekna employee: #{user.email}"
-        else
-          # Non-Tekna emails default to user role as well
-          user.role ||= "user"
-        end
-
         if user.save
+          # SSoT: Assign default role via user_roles join table
+          default_role = Role.find_by(name: "user")
+          user.roles << default_role if default_role && user.roles.empty?
+
+          Rails.logger.info "New user signup: #{user.email}"
+
           token = JsonWebToken.encode(user_id: user.id)
           render json: {
             success: true,
@@ -67,7 +64,7 @@ module Api
               id: user.id,
               email: user.email,
               name: user.name,
-              role: user.role,
+              role_names: user.role_names,
               permissions: user.permissions
             }
           }, status: :created
@@ -95,7 +92,7 @@ module Api
               id: user.id,
               email: user.email,
               name: user.name,
-              role: user.role,
+              role_names: user.role_names,
               permissions: user.permissions
             }
           }
@@ -140,7 +137,7 @@ module Api
             id: user.id,
             email: user.email,
             name: user.name,
-            role: user.role,
+            role_names: user.role_names,
             permissions: user.permissions
           }
         }
@@ -163,7 +160,7 @@ module Api
             id: u.id,
             email: u.email,
             name: u.name,
-            role: u.role,
+            role_names: u.role_names,
             has_outlook: u.outlook_credential.present?,
             last_login_at: u.last_login_at
           }
@@ -180,7 +177,7 @@ module Api
             id: @current_user.id,
             email: @current_user.email,
             name: @current_user.name,
-            role: @current_user.role,
+            role_names: @current_user.role_names,
             permissions: @current_user.permissions,
             preload_price_books: @current_user.preload_price_books
           }

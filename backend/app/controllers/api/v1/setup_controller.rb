@@ -134,14 +134,18 @@ module Api
           if user.new_record?
             user.name = row[:name]
             user.password = row[:password] || "changeme123"
-            user.role = row[:role] || "user"
             user.save!
+            # SSoT: Assign role via user_roles join table
+            role_name = row[:role] || "user"
+            role = Role.find_by(name: role_name)
+            user.roles << role if role && !user.roles.include?(role)
             user_count += 1
           else
-            user.update!(
-              name: row[:name],
-              role: row[:role] || "user"
-            )
+            user.update!(name: row[:name])
+            # SSoT: Assign role via user_roles join table
+            role_name = row[:role] || "user"
+            role = Role.find_by(name: role_name)
+            user.roles << role if role && !user.roles.include?(role)
             updated_count += 1
           end
         end

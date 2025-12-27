@@ -45,8 +45,7 @@ class ApplicationController < ActionController::API
   end
 
   def require_admin
-    # DEBUG: Log admin check details
-    Rails.logger.info "[ADMIN_CHECK] current_user: #{current_user&.email || 'nil'}, admin?: #{current_user&.admin?}, role: #{current_user&.role}, roles: #{current_user&.roles&.pluck(:name)}"
+    # SSoT: admin? now checks user_roles join table
     unless current_user&.admin?
       render json: { error: "Unauthorized. Admin access required." }, status: :forbidden
     end

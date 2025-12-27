@@ -114,12 +114,13 @@ class Api::V1::UsersController < ApplicationController
     params.require(:user).permit(:name, :email, :mobile_phone)
   end
 
-  # Admin-only params (role, role_ids, and assigned_roles)
+  # Admin-only params (role_ids and assigned_roles)
   # Only administrators should be able to modify these fields
   # Brakeman warning can be ignored: authorization check in update() prevents
   # non-admin users from accessing these params (returns 403 Forbidden)
+  # SSoT: :role param removed - use role_ids via user_roles join table
   def admin_user_params
-    params.require(:user).permit(:role, assigned_roles: [], role_ids: [])
+    params.require(:user).permit(assigned_roles: [], role_ids: [])
   end
 
   # Returns user data with presence status and integration info

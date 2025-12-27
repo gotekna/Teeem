@@ -953,7 +953,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
   private
 
   def current_user_admin?
-    current_user&.role == "admin" || current_user&.permissions&.include?("admin")
+    # SSoT: admin? now checks user_roles join table
+    current_user&.admin? || current_user&.permissions&.include?("admin")
   end
 
   # SSoT: Find organization by ID, name, or slug

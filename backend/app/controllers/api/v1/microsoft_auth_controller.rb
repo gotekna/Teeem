@@ -323,7 +323,8 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   # GET /api/v1/microsoft/admin_consent_url
   # Get the admin consent URL - allows Azure AD admin to grant permissions for all users
   def admin_consent_url
-    unless current_user.role == "admin"
+    # SSoT: admin? now checks user_roles join table
+    unless current_user&.admin?
       render json: { error: "Only admins can request organization-wide consent" }, status: :forbidden
       return
     end

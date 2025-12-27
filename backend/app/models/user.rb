@@ -42,33 +42,34 @@ class User < ApplicationRecord
   validates :name, presence: true
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
-  validates :role, inclusion: { in: ROLES }
+  # SSoT: role column deprecated - use user_roles join table instead
+  # validates :role, inclusion: { in: ROLES }
   validate :validate_assigned_roles
 
   # Role helper methods
-  # SSoT: Check both legacy role column AND user_roles join table for backward compatibility
+  # SSoT: user_roles join table is THE ONLY source of truth for roles
   def admin?
-    role == "admin" || roles.exists?(name: "admin")
+    roles.exists?(name: "admin")
   end
 
   def user?
-    role == "user" || roles.exists?(name: "user")
+    roles.exists?(name: "user")
   end
 
   def product_owner?
-    role == "product_owner" || roles.exists?(name: "product_owner")
+    roles.exists?(name: "product_owner")
   end
 
   def estimator?
-    role == "estimator" || roles.exists?(name: "estimator")
+    roles.exists?(name: "estimator")
   end
 
   def supervisor?
-    role == "supervisor" || roles.exists?(name: "supervisor")
+    roles.exists?(name: "supervisor")
   end
 
   def builder?
-    role == "builder" || roles.exists?(name: "builder")
+    roles.exists?(name: "builder")
   end
 
   # Get user initials from name (e.g., "Robert Harder" -> "RH")
@@ -213,8 +214,13 @@ class User < ApplicationRecord
       user.name = auth.info.name
       user.oauth_token = auth.credentials.token
       user.oauth_expires_at = Time.at(auth.credentials.expires_at) if auth.credentials.expires_at
-      user.role = "user"  # Default role for new OAuth users
       user.password = SecureRandom.hex(32)  # Set random password for OAuth users
+    end.tap do |user|
+      # SSoT: Assign default role via user_roles join table if new user has no roles
+      if user.roles.empty?
+        default_role = Role.find_by(name: "user")
+        user.roles << default_role if default_role
+      end
     end
   end
 
@@ -251,10 +257,7 @@ class User < ApplicationRecord
 
     assigned_roles = Role.where(id: normalized_ids)
     self.roles = assigned_roles
-
-    # Sync legacy 'role' column with primary role for backwards compatibility
-    # This ensures the old single-role column stays in sync with the new multi-role system
-    self.role = assigned_roles.first&.name
+    # SSoT: No longer syncing to legacy role column - user_roles is THE source
   end
 
   def role_names

@@ -38,7 +38,8 @@ module Gl
       rate ||= rates.find_by(user: user, job: nil, contact: nil)
       rate ||= rates.find_by(job: job, user: nil) if job
       rate ||= rates.find_by(contact: contact, user: nil) if contact
-      rate ||= rates.find_by(rate_type: "role", role_name: user&.role)
+      # SSoT: Check all user roles from user_roles join table
+      rate ||= rates.where(rate_type: "role", role_name: user&.role_names).first
       rate ||= rates.find_by(rate_type: "default")
 
       rate

@@ -193,10 +193,11 @@ module Api
             id: user.id,
             name: user.name,
             email: user.email,
-            role: user.role
+            role_names: user.role_names
           },
           permissions: user.permissions,
-          role_permissions: get_role_permissions(user.role)
+          # Get permissions for all user's roles
+          role_permissions: user.role_names.flat_map { |r| get_role_permissions(r) }.uniq
         }
       end
 
