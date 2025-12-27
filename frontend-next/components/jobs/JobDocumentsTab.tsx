@@ -96,6 +96,7 @@ interface SharePointFolder {
 interface FolderPath {
   id: string;
   name: string;
+  webUrl?: string;
 }
 
 interface DocumentCategory {
@@ -622,7 +623,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     fileInputRef.current?.click();
   };
 
-  const loadFolderContents = async (folderId: string, folderName: string) => {
+  const loadFolderContents = async (folderId: string, folderName: string, webUrl?: string) => {
     try {
       setLoadingContents(true);
       const response = await api.get<{ items: SharePointItem[] }>(
@@ -631,7 +632,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
       setFolderContents(response?.items || []);
       setCurrentFolderId(folderId);
-      setFolderPath((prev) => [...prev, { id: folderId, name: folderName }]);
+      setFolderPath((prev) => [...prev, { id: folderId, name: folderName, webUrl }]);
     } catch (err) {
       console.error("Failed to load folder contents:", err);
       setError("Failed to load folder contents");
@@ -651,7 +652,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
       const newPath = folderPath.slice(0, -2);
       const parentFolder = folderPath[folderPath.length - 2];
       setFolderPath(newPath);
-      loadFolderContents(parentFolder.id, parentFolder.name);
+      loadFolderContents(parentFolder.id, parentFolder.name, parentFolder.webUrl);
     }
   };
 
@@ -1348,8 +1349,18 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                   <RefreshCw className="h-4 w-4 mr-1" />
                   Refresh
                 </Button>
-                {jobFolderStatus.webUrl && (
-                  <Button variant="outline" size="sm" onClick={() => window.open(jobFolderStatus.webUrl!, "_blank")}>
+                {(folderPath.length > 0 ? folderPath[folderPath.length - 1]?.webUrl : jobFolderStatus.webUrl) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Use current folder's webUrl if inside a subfolder, otherwise use job root folder
+                      const url = folderPath.length > 0
+                        ? folderPath[folderPath.length - 1]?.webUrl
+                        : jobFolderStatus.webUrl;
+                      if (url) window.open(url, "_blank");
+                    }}
+                  >
                     <ExternalLink className="h-4 w-4 mr-1" />
                     Open in SharePoint
                   </Button>
@@ -1398,7 +1409,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                     <div
                       key={item.id}
                       className={`flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors group ${item.folder ? "cursor-pointer" : ""}`}
-                      onClick={() => item.folder && loadFolderContents(item.id, item.name)}
+                      onClick={() => item.folder && loadFolderContents(item.id, item.name, item.webUrl)}
                     >
                       <div className="flex items-center gap-3">
                         {item.folder ? (
@@ -1452,7 +1463,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                     <div
                       key={folder.id}
                       className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors group cursor-pointer"
-                      onClick={() => loadFolderContents(folder.id, folder.name)}
+                      onClick={() => loadFolderContents(folder.id, folder.name, folder.webUrl)}
                     >
                       <div className="flex items-center gap-3">
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
