@@ -271,14 +271,14 @@ export function EmailSearchFilters({
                   Direction
                 </Label>
                 <Select
-                  value={filters.direction}
-                  onValueChange={(value) => setFilter("direction", value as "" | "sent" | "received" | "cc" | "bcc")}
+                  value={filters.direction || "__all__"}
+                  onValueChange={(value) => setFilter("direction", (value === "__all__" ? "" : value) as "" | "sent" | "received" | "cc" | "bcc")}
                 >
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue placeholder="All directions" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All directions</SelectItem>
+                    <SelectItem value="__all__">All directions</SelectItem>
                     <SelectItem value="received">
                       <span className="flex items-center gap-1.5">
                         <ArrowDownLeft className="h-3 w-3" />
@@ -304,14 +304,14 @@ export function EmailSearchFilters({
                   Importance
                 </Label>
                 <Select
-                  value={filters.importance}
-                  onValueChange={(value) => setFilter("importance", value as "" | "high" | "normal" | "low")}
+                  value={filters.importance || "__all__"}
+                  onValueChange={(value) => setFilter("importance", (value === "__all__" ? "" : value) as "" | "high" | "normal" | "low")}
                 >
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue placeholder="All importance" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All importance</SelectItem>
+                    <SelectItem value="__all__">All importance</SelectItem>
                     <SelectItem value="high">
                       <span className="flex items-center gap-1.5">
                         <AlertCircle className="h-3 w-3 text-red-500" />

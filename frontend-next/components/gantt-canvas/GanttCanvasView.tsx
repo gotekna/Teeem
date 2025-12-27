@@ -1682,6 +1682,30 @@ export function GanttCanvasView({
     }
   }, [confirmDialog, templateId, tasks, toast]);
 
+  // Handle role update
+  const handleRoleUpdate = React.useCallback(async (taskId: string, newRole: string | null) => {
+    if (isStaticMode || !templateId) return;
+
+    try {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${taskId}`, {
+        row: { assigned_role: newRole }
+      });
+
+      setRows(prev => prev.map(r =>
+        String(r.id) === taskId
+          ? { ...r, assigned_role: newRole }
+          : r
+      ));
+    } catch (err) {
+      console.error('Failed to update role:', err);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "Failed to update role. Please try again.",
+      });
+    }
+  }, [isStaticMode, templateId, toast]);
+
   // Initialize canvas engine - recreated when data changes
   // Note: Using rows in dependencies causes recreation, but this is needed for proper handler binding
   React.useEffect(() => {
@@ -2532,7 +2556,7 @@ export function GanttCanvasView({
                             onChange={(e) => {
                               e.stopPropagation();
                               const newRole = e.target.value || null;
-                              handleRowUpdate(task.id, { assigned_role: newRole });
+                              handleRoleUpdate(task.id, newRole);
                             }}
                             onClick={(e) => e.stopPropagation()}
                             className="w-full h-5 text-[10px] bg-transparent border-0 cursor-pointer hover:bg-muted/50 rounded px-0.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary capitalize"

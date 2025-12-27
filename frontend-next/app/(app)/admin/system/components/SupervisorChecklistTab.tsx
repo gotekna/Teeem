@@ -217,14 +217,14 @@ export function SupervisorChecklistTab() {
               <div className="space-y-2">
                 <Label htmlFor="new-category">Category</Label>
                 <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  value={formData.category || "__none__"}
+                  onValueChange={(value) => setFormData({ ...formData, category: value === "__none__" ? "" : value })}
                 >
                   <SelectTrigger id="new-category">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No category</SelectItem>
+                    <SelectItem value="__none__">No category</SelectItem>
                     {CATEGORIES.map((cat) => (
                       <SelectItem key={cat} value={cat}>
                         {cat}
@@ -318,14 +318,14 @@ export function SupervisorChecklistTab() {
                     <TableCell>
                       {editingId === template.id ? (
                         <Select
-                          value={formData.category}
-                          onValueChange={(value) => setFormData({ ...formData, category: value })}
+                          value={formData.category || "__none__"}
+                          onValueChange={(value) => setFormData({ ...formData, category: value === "__none__" ? "" : value })}
                         >
                           <SelectTrigger className="w-[140px]">
                             <SelectValue placeholder="Select" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">No category</SelectItem>
+                            <SelectItem value="__none__">No category</SelectItem>
                             {CATEGORIES.map((cat) => (
                               <SelectItem key={cat} value={cat}>
                                 {cat}

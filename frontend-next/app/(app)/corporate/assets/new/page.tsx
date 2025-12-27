@@ -400,14 +400,14 @@ export default function NewAssetPage() {
             <div className="space-y-2">
               <Label htmlFor="assigned_user">Assigned To</Label>
               <Select
-                value={form.assigned_user_id?.toString() || ""}
-                onValueChange={(value) => updateForm("assigned_user_id", value ? parseInt(value) : null)}
+                value={form.assigned_user_id?.toString() || "__none__"}
+                onValueChange={(value) => updateForm("assigned_user_id", value && value !== "__none__" ? parseInt(value) : null)}
               >
                 <SelectTrigger id="assigned_user">
                   <SelectValue placeholder="Select user (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Not assigned</SelectItem>
+                  <SelectItem value="__none__">Not assigned</SelectItem>
                   {users.map((user) => (
                     <SelectItem key={user.id} value={user.id.toString()}>
                       {user.full_name}

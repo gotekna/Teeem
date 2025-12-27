@@ -252,7 +252,7 @@ export function DeveloperToolsTab() {
   };
 
   // Filter and sort tables
-  const uniqueFeatures = [...new Set(tables.map(t => t.feature).filter(Boolean))].sort();
+  const uniqueFeatures = [...new Set(tables.map(t => t.feature).filter((f): f is string => Boolean(f)))].sort();
 
   const filteredTables = tables.filter(table => {
     const matchesSearch = !searchQuery ||
@@ -437,7 +437,7 @@ export function DeveloperToolsTab() {
                   <SelectItem value="all">All Features</SelectItem>
                   <SelectItem value="none">No Feature</SelectItem>
                   {uniqueFeatures.map(feature => (
-                    <SelectItem key={feature} value={feature || ""}>{feature}</SelectItem>
+                    <SelectItem key={feature} value={feature}>{feature}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
