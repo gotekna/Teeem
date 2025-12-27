@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getApiBaseUrl } from '@/lib/api';
+import { api, getApiBaseUrl } from '@/lib/api';
 
 /**
  * Table ID mappings from the API
@@ -59,13 +59,7 @@ async function fetchTableIds(): Promise<TableIdMappings> {
   if (cachedTableIds) return cachedTableIds;
 
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/foundations/table_ids`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch table IDs: ${response.status}`);
-    }
-
-    const data: TableIdsResponse = await response.json();
+    const data = await api.get<TableIdsResponse>('/api/v1/foundations/table_ids');
 
     if (data.success && data.TABLE_IDS) {
       cachedTableIds = {

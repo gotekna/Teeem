@@ -58,6 +58,21 @@ const eslintConfig = defineConfig([
     }
   },
   // ==========================================================================
+  // API CLIENT SSoT ENFORCEMENT
+  // Warn when using raw fetch for backend API calls
+  // SSoT: Use api.get/post/getBlob/getText from @/lib/api
+  // ==========================================================================
+  {
+    rules: {
+      "no-restricted-syntax": ["warn",
+        {
+          selector: "CallExpression[callee.name='fetch'][arguments.0.type='TemplateLiteral']",
+          message: "Prefer api.get/post/getBlob/getText from @/lib/api for backend calls. Raw fetch bypasses auth, retry, and error handling. See: lib/api.ts"
+        }
+      ]
+    }
+  },
+  // ==========================================================================
   // COMPONENT SSoT ENFORCEMENT
   // Warn when importing deprecated components - use THE ONE instead
   // See: frontend-next/lib/component-registry.ts for the full list

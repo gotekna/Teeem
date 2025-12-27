@@ -169,11 +169,10 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
   const loadPreview = async () => {
     setPreviewLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/tekna_documents/${templateKey}/preview?format=html`);
-      if (response.ok) {
-        const html = await response.text();
-        setPreviewHtml(html);
-      }
+      const html = await api.getText(`/api/v1/tekna_documents/${templateKey}/preview`, {
+        params: { format: "html" }
+      });
+      setPreviewHtml(html);
     } catch (error) {
       console.error("Failed to load preview:", error);
       setPreviewHtml("<p>Failed to load preview</p>");
