@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { resolveWithExamples, resolveSharePointPath } from "@/lib/placeholders";
+import { resolveWithExamples, resolveSharePointPath, SHAREPOINT_PLACEHOLDERS } from "@/lib/placeholders";
 import { TokenBuilder } from "@/components/ui/tokens";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -379,6 +379,12 @@ export function EntityTabsConfig({
   // Open edit dialog - always opens the edit dialog for tab settings
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: EntityTab) => {
+    // SSoT: Auto-swap {{TabName}} → {{SubTabName}} for subtabs
+    let folderPath = tab.sharepoint_folder_path || "";
+    if (tab.parent_id && folderPath.includes("{{TabName}}")) {
+      folderPath = folderPath.replace(/\{\{TabName\}\}/g, "{{SubTabName}}");
+    }
+
     setFormData({
       display_name: tab.display_name,
       display_code: tab.display_code || "",
@@ -389,7 +395,7 @@ export function EntityTabsConfig({
       enabled: tab.enabled,
       icon_name: tab.icon_name || "",
       has_sharepoint_folder: tab.has_sharepoint_folder,
-      sharepoint_folder_path: tab.sharepoint_folder_path || "",
+      sharepoint_folder_path: folderPath,
       uses_custom_path: tab.uses_custom_path || false,  // SSoT: Template inheritance flag
       sharepoint_path_type: tab.sharepoint_path_type || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
@@ -1191,10 +1197,20 @@ export function EntityTabsConfig({
         <DialogContent className="sm:max-w-[95vw] h-[90vh] overflow-hidden flex flex-col">
           {/* Compact header with inline save button */}
           <div className="flex items-center justify-between border-b pb-3 mb-4">
-            <div>
+            <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold">
                 {editingTab ? `Edit: ${editingTab.display_name}` : "Create New Tab"}
               </h2>
+              {/* SSoT: Show subtab indicator when editing a child tab */}
+              {(formData.parent_id || editingTab?.parent_id) && (() => {
+                const parentId = formData.parent_id || editingTab?.parent_id;
+                const parentTab = tabs.find(t => t.id === parentId);
+                return (
+                  <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700">
+                    <span className="text-xs">↳ Subtab of: {parentTab?.display_name || "Unknown"}</span>
+                  </Badge>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -1292,12 +1308,27 @@ export function EntityTabsConfig({
                   <Label htmlFor="parent_id">Parent Tab</Label>
                   <Select
                     value={formData.parent_id?.toString() || "none"}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
+                      const newParentId = value === "none" ? null : parseInt(value, 10);
+                      const wasSubtab = !!formData.parent_id;
+                      const isNowSubtab = !!newParentId;
+
+                      // SSoT: Auto-swap placeholders when parent changes
+                      let newFolderPath = formData.sharepoint_folder_path || "";
+                      if (wasSubtab && !isNowSubtab) {
+                        // Was subtab, now root: {{SubTabName}} → {{TabName}}
+                        newFolderPath = newFolderPath.replace(/\{\{SubTabName\}\}/g, "{{TabName}}");
+                      } else if (!wasSubtab && isNowSubtab) {
+                        // Was root, now subtab: {{TabName}} → {{SubTabName}}
+                        newFolderPath = newFolderPath.replace(/\{\{TabName\}\}/g, "{{SubTabName}}");
+                      }
+
                       setFormData((prev) => ({
                         ...prev,
-                        parent_id: value === "none" ? null : parseInt(value, 10),
-                      }))
-                    }
+                        parent_id: newParentId,
+                        sharepoint_folder_path: newFolderPath,
+                      }));
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select parent tab" />
@@ -1399,7 +1430,17 @@ export function EntityTabsConfig({
                       sharepoint_folder_path: value,
                     }))
                   }
-                  scope="sharepoint"
+                  // SSoT: Filter placeholders - subtabs get {{SubTabName}}, root tabs get {{TabName}}
+                  placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) => {
+                    const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
+                    if (isSubtab) {
+                      // Subtabs: show SubTabName, hide TabName
+                      return p.code !== "{{TabName}}";
+                    } else {
+                      // Root tabs: show TabName, hide SubTabName
+                      return p.code !== "{{SubTabName}}";
+                    }
+                  })}
                   showPreview={true}
                   placeholder="Click tokens to add..."
                 />
