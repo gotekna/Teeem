@@ -147,6 +147,30 @@ class MicrosoftAppGraphClient
     response["value"] || []
   end
 
+  # Download a specific email attachment
+  # Returns { content:, filename:, content_type: } or nil on failure
+  def download_email_attachment(user_identifier, message_id, attachment_id)
+    endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments/#{attachment_id}"
+    attachment = get(endpoint)
+
+    return nil unless attachment
+
+    # Handle file attachments (contentBytes contains base64-encoded content)
+    if attachment["@odata.type"] == "#microsoft.graph.fileAttachment" && attachment["contentBytes"]
+      {
+        content: Base64.decode64(attachment["contentBytes"]),
+        filename: attachment["name"] || "attachment",
+        content_type: attachment["contentType"] || "application/octet-stream"
+      }
+    else
+      Rails.logger.warn "[MicrosoftAppGraphClient] Unsupported attachment type: #{attachment['@odata.type']}"
+      nil
+    end
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftAppGraphClient] Failed to download attachment #{attachment_id}: #{e.message}"
+    nil
+  end
+
   # Get email in MIME format (.eml)
   # Returns the raw MIME content of the email message
   def get_email_mime_content(user_identifier, message_id)

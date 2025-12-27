@@ -18,64 +18,23 @@ class PlanEmailService
       return { success: false, message: 'No plan files found to attach' }
     end
 
-    # Try to send via Microsoft Graph (user's Outlook) if available
-    if @sender&.outlook_credential&.valid_credential?
-      send_via_outlook(attachments)
-    else
-      send_via_mailer(attachments)
-    end
+    # SSoT: Per-user Outlook credentials removed - using system mailer
+    send_via_mailer(attachments)
   rescue StandardError => e
     Rails.logger.error("PlanEmailService error: #{e.message}")
     { success: false, message: e.message }
   end
 
   # Get the sender email address that will be used
+  # SSoT: Per-user Outlook credentials removed - always uses system email
   def self.sender_email_for(user)
-    if user&.outlook_credential&.valid_credential?
-      user.email
-    else
-      # Fallback to system email (from ApplicationMailer default)
-      "noreply@teeem.com.au"
-    end
+    "noreply@teeem.com.au"
   end
 
   private
 
-  def send_via_outlook(attachments)
-    outlook = OutlookService.new(@sender)
-
-    # Convert attachments to Outlook format (base64 encoded)
-    outlook_attachments = attachments.map do |att|
-      {
-        name: att[:filename],
-        content_type: att[:content_type],
-        content: Base64.strict_encode64(att[:content])
-      }
-    end
-
-    # Convert plain text body to HTML
-    html_body = @body.gsub("\n", "<br>")
-
-    result = outlook.send_email(
-      to: @recipients,
-      subject: @subject,
-      body: html_body,
-      attachments: outlook_attachments
-    )
-
-    if result[:success]
-      {
-        success: true,
-        message: "Email sent successfully with #{attachments.size} plan(s)",
-        sent_to: @recipients,
-        sent_from: @sender.email
-      }
-    else
-      # Fall back to mailer if Outlook fails
-      Rails.logger.warn("Outlook send failed: #{result[:error]}, falling back to mailer")
-      send_via_mailer(attachments)
-    end
-  end
+  # REMOVED: send_via_outlook - per-user Outlook credentials deprecated
+  # Email now always sent via system mailer
 
   def send_via_mailer(attachments)
     # Send email using BpmnMailer (handles attachments)

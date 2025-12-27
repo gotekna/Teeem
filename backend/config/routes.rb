@@ -857,21 +857,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Outlook integration (legacy - kept for backward compatibility)
-      resources :outlook, only: [] do
-        collection do
-          get :auth_url
-          get :callback
-          get :status
-          delete :disconnect
-          get :folders
-          post :search
-          post :import
-          post :import_for_job
-          post :search_for_job
-          get "job_search_suggestions/:job_id", action: :job_search_suggestions
-        end
-      end
+      # REMOVED: Outlook integration routes - per-user Outlook credentials deprecated
+      # Email sync now uses org-wide credentials via OrgEmailSyncJob
 
       # Email Warehouse
       resources :email_warehouse, only: [ :index, :show ] do

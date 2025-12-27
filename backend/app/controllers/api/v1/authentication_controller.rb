@@ -172,7 +172,7 @@ module Api
             email: u.email,
             name: u.name,
             role_names: u.role_names,  # SSoT: Return role names array
-            has_outlook: u.outlook_credential.present?,
+            # REMOVED: has_outlook - per-user Outlook credentials deprecated (using org credentials)
             last_login_at: u.last_login_at
           }
         end

@@ -2584,20 +2584,28 @@ module Api
       end
 
       # GET /api/v1/contacts/connected_mailboxes
-      # Returns list of users with connected Outlook mailboxes for employee extraction
+      # Returns list of connected org mailboxes for employee extraction
+      # SSoT: Per-user Outlook credentials removed - using org-wide credentials
       def connected_mailboxes
-        users_with_outlook = User.joins(:outlook_credential)
-          .select("users.id, users.name, users.email, user_outlook_credentials.email as outlook_email")
+        # Get org credentials and their configured mailboxes
+        org_mailboxes = []
+
+        OrganizationMicrosoftAppCredential.connected.each do |org_cred|
+          sync_config = org_cred.sync_config || {}
+          mailbox_emails = sync_config["mailbox_emails"] || []
+
+          mailbox_emails.each do |email|
+            org_mailboxes << {
+              org_name: org_cred.name,
+              org_id: org_cred.id,
+              email: email
+            }
+          end
+        end
 
         render json: {
           success: true,
-          mailboxes: users_with_outlook.map { |u|
-            {
-              user_id: u.id,
-              user_name: u.name,
-              email: u.outlook_email || u.email
-            }
-          }
+          mailboxes: org_mailboxes
         }
       rescue => e
         Rails.logger.error("Connected mailboxes error: #{e.message}")
