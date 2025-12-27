@@ -67,24 +67,13 @@ refresh_integration_tokens:
   schedule: every 15 minutes
 
 # ============================================
-# EMAIL SYNC (every 10-15 minutes)
+# EMAIL SYNC - Org-wide via app permissions
 # ============================================
-# Microsoft Graph email sync for users with UserOutlookCredential
-email_warehouse_sync:
-  class: EmailWarehouseSyncAllJob
-  queue: default
-  schedule: every 10 minutes
-
-# process_new_job_emails:
-#   class: ProcessNewJobEmailsJob
-#   queue: default
-#   schedule: every 10 minutes
-
-# Organization-wide Microsoft email sync
-# org_email_sync:
-#   class: OrgEmailSyncJob
-#   queue: low
-#   schedule: every 15 minutes
+# Syncs ALL mailboxes using Microsoft app credentials (no per-user OAuth needed)
+org_email_sync:
+  class: OrgEmailSyncJob
+  queue: low
+  schedule: every 15 minutes
 
 # ============================================
 # XERO INTEGRATION
