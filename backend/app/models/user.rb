@@ -46,28 +46,29 @@ class User < ApplicationRecord
   validate :validate_assigned_roles
 
   # Role helper methods
+  # SSoT: Check both legacy role column AND user_roles join table for backward compatibility
   def admin?
-    role == "admin"
+    role == "admin" || roles.exists?(name: "admin")
   end
 
   def user?
-    role == "user"
+    role == "user" || roles.exists?(name: "user")
   end
 
   def product_owner?
-    role == "product_owner"
+    role == "product_owner" || roles.exists?(name: "product_owner")
   end
 
   def estimator?
-    role == "estimator"
+    role == "estimator" || roles.exists?(name: "estimator")
   end
 
   def supervisor?
-    role == "supervisor"
+    role == "supervisor" || roles.exists?(name: "supervisor")
   end
 
   def builder?
-    role == "builder"
+    role == "builder" || roles.exists?(name: "builder")
   end
 
   # Get user initials from name (e.g., "Robert Harder" -> "RH")

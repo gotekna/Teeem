@@ -69,11 +69,11 @@ refresh_integration_tokens:
 # ============================================
 # EMAIL SYNC (every 10-15 minutes)
 # ============================================
-# DISABLED - All email sync jobs disabled per Sam's request
-# email_warehouse_sync:
-#   class: EmailWarehouseSyncAllJob
-#   queue: default
-#   schedule: every 10 minutes
+# Microsoft Graph email sync for users with UserOutlookCredential
+email_warehouse_sync:
+  class: EmailWarehouseSyncAllJob
+  queue: default
+  schedule: every 10 minutes
 
 # process_new_job_emails:
 #   class: ProcessNewJobEmailsJob
