@@ -102,10 +102,11 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     try {
       const [jobsResponse, usersResponse] = await Promise.all([
         api.get<{ jobs?: Job[] }>('/api/v1/jobs/for_select'),  // Fast lightweight endpoint
-        api.get<{ users: User[] }>('/api/v1/users'),
+        api.get<{ users?: User[] } | User[]>('/api/v1/users'),
       ]);
       setJobs(jobsResponse?.jobs || []);
-      setUsers(usersResponse?.users || []);
+      // Handle both array and object response formats
+      setUsers(Array.isArray(usersResponse) ? usersResponse : usersResponse?.users || []);
     } catch (error) {
       console.error('Failed to load data:', error);
       toast({
