@@ -17,6 +17,8 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Mail,
+  Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -368,6 +370,72 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         )}
 
       </div>
+
+      {/* Attachments Section */}
+      {task.attachments && task.attachments.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Paperclip className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">
+              Attachments ({task.attachments.length})
+            </span>
+          </div>
+          <div className="space-y-2">
+            {task.attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="flex items-center gap-3 p-2 bg-background/50 rounded border hover:bg-muted/50 transition-colors"
+              >
+                {attachment.email ? (
+                  <>
+                    <Mail className="h-4 w-4 text-blue-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{attachment.email.subject}</p>
+                      <p className="text-xs text-muted-foreground">
+                        From: {attachment.email.from_email} • {format(new Date(attachment.email.received_at), 'dd MMM yyyy')}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => window.open(`/email?id=${attachment.email!.id}`, '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      View
+                    </Button>
+                  </>
+                ) : attachment.document ? (
+                  <>
+                    <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {attachment.document.display_name || attachment.document.file_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {attachment.document.document_type || 'Document'} • {format(new Date(attachment.document.created_at), 'dd MMM yyyy')}
+                      </p>
+                    </div>
+                    {attachment.document.sharepoint_url && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs shrink-0"
+                        onClick={() => window.open(attachment.document!.sharepoint_url, '_blank')}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Open
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Unknown attachment type</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

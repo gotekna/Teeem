@@ -5,6 +5,34 @@ import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
 
 // Types
+// Task attachment types
+export interface TaskAttachmentEmail {
+  id: number;
+  subject: string;
+  from_email: string;
+  received_at: string;
+  has_attachments: boolean;
+}
+
+export interface TaskAttachmentDocument {
+  id: number;
+  file_name: string;
+  display_name: string;
+  document_type?: string;
+  sharepoint_url?: string;
+  created_at: string;
+}
+
+export interface TaskAttachment {
+  id: number;
+  attachment_type: string;
+  notes?: string;
+  added_by?: string;
+  created_at: string;
+  email?: TaskAttachmentEmail;
+  document?: TaskAttachmentDocument;
+}
+
 export interface SmTask {
   id: number;
   task_number: number;
@@ -58,6 +86,10 @@ export interface SmTask {
   days_until_due: number;
   predecessor_count?: number;
   successor_count?: number;
+
+  // Attachments
+  attachments_count?: number;
+  attachments?: TaskAttachment[];
 }
 
 export interface TaskFilters {

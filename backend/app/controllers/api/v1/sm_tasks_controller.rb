@@ -935,7 +935,9 @@ module Api
           updated_at: task.updated_at,
           # Required by date (independent of schedule)
           required_by: task.required_by,
-          attachments_count: task.sm_task_attachments.count
+          attachments_count: task.sm_task_attachments.count,
+          # Include full attachments for task detail view
+          attachments: task.sm_task_attachments.includes(:attachable).map { |a| attachment_to_json(a) }
         }
 
         if include_dependencies
