@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,11 @@ import {
   ArrowRight,
   Camera,
   ImagePlus,
+  LayoutGrid,
+  List,
 } from "lucide-react";
+import { PhotoGallery, type PhotoItem } from "@/components/ui/photo-gallery";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
 import {
   Dialog,
   DialogContent,
@@ -199,6 +203,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const photoLibraryInputRef = useRef<HTMLInputElement>(null);
 
+  // Photo gallery state
+  const [allFilesDisplayMode, setAllFilesDisplayMode] = useState<"table" | "gallery">("table");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Category folder photos state (for photo tabs like Site Photo, Client Photo, etc.)
+  const [categoryPhotos, setCategoryPhotos] = useState<LegacyItem[]>([]);
+  const [loadingCategoryPhotos, setLoadingCategoryPhotos] = useState(false);
+  const [categoryLightboxOpen, setCategoryLightboxOpen] = useState(false);
+  const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
+
   // Check if the current category is a photo category
   const isPhotoCategory = (category: DocumentCategory | null): boolean => {
     // First check initialCategory prop (most reliable when navigating directly)
@@ -209,6 +224,88 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     const name = category.name?.toLowerCase() || "";
     const folderPath = category.folder_path?.toLowerCase() || "";
     return name.includes("photo") || folderPath.includes("photo");
+  };
+
+  // Check if a file is an image
+  const isImageFile = (item: LegacyItem): boolean => {
+    const name = item.name?.toLowerCase() || "";
+    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic", ".heif"];
+    return imageExtensions.some((ext) => name.endsWith(ext));
+  };
+
+  // Convert LegacyItem to PhotoItem for gallery display
+  const convertToPhotoItem = (item: LegacyItem): PhotoItem => {
+    // Build API URL for fetching image through backend proxy
+    // Using existing download endpoint with preview=true for inline display
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+    const imageUrl = `${apiBase}/api/v1/organization_onedrive/download?file_id=${item.id}&preview=true`;
+    // For thumbnails, we use the same endpoint - could be optimized with Graph API thumbnails later
+    const thumbnailUrl = imageUrl;
+
+    return {
+      id: item.id,
+      name: item.name,
+      url: imageUrl,
+      thumbnailUrl: thumbnailUrl,
+      webUrl: item.web_url,
+      createdAt: item.modified, // Use modified as fallback for created
+      modifiedAt: item.modified,
+      size: item.size,
+    };
+  };
+
+  // Get filtered image files as PhotoItems
+  const imagePhotos: PhotoItem[] = useMemo(() => {
+    return allFiles.filter(isImageFile).map(convertToPhotoItem);
+  }, [allFiles, jobId]);
+
+  // Handle photo click to open lightbox (All Files tab)
+  const handlePhotoClick = (photo: PhotoItem, index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
+
+  // Handle photo click for category gallery
+  const handleCategoryPhotoClick = (photo: PhotoItem, index: number) => {
+    setCategoryLightboxIndex(index);
+    setCategoryLightboxOpen(true);
+  };
+
+  // Convert category photos to PhotoItems
+  const categoryPhotoItems: PhotoItem[] = useMemo(() => {
+    return categoryPhotos.filter(isImageFile).map(convertToPhotoItem);
+  }, [categoryPhotos, jobId]);
+
+  // Load photos from a category's folder path
+  const loadCategoryPhotos = async (folderPath: string) => {
+    if (!orgStatus.connected || !folderPath) {
+      setCategoryPhotos([]);
+      return;
+    }
+
+    try {
+      setLoadingCategoryPhotos(true);
+      // Use the job_all_files endpoint with folder_path filter
+      const url = `/api/v1/organization_onedrive/job_all_files?job_id=${jobId}&folder_path=${encodeURIComponent(folderPath)}`;
+
+      const response = await api.get<{
+        success: boolean;
+        items: LegacyItem[];
+        count: number;
+        error?: string;
+      }>(url);
+
+      if (response?.success) {
+        setCategoryPhotos(response.items || []);
+      } else {
+        setCategoryPhotos([]);
+      }
+    } catch (err) {
+      console.error("[Category Photos] Failed to load:", err);
+      setCategoryPhotos([]);
+    } finally {
+      setLoadingCategoryPhotos(false);
+    }
   };
 
   // Generate photo filename based on category and current date/time
@@ -338,8 +435,18 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     if (selectedSubCategory) {
       loadDocumentTasks(selectedSubCategory.id);
     }
-     
+
   }, [selectedSubCategory]);
+
+  // Load photos when a photo category is selected
+  useEffect(() => {
+    const activeCategory = selectedSubCategory || selectedCategory;
+    if (activeCategory && isPhotoCategory(activeCategory) && activeCategory.folder_path) {
+      loadCategoryPhotos(activeCategory.folder_path);
+    } else {
+      setCategoryPhotos([]);
+    }
+  }, [selectedCategory, selectedSubCategory, orgStatus.connected]);
 
   const checkOrganizationStatus = async () => {
     try {
@@ -1335,9 +1442,33 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
             <h3 className="font-semibold">All Files</h3>
             <span className="text-sm text-muted-foreground">
               {loadingAllFiles ? "Loading..." : `${allFiles.length} files`}
+              {allFilesDisplayMode === "gallery" && imagePhotos.length > 0 && (
+                <span className="ml-1">({imagePhotos.length} photos)</span>
+              )}
             </span>
           </div>
           <div className="flex gap-2">
+            {/* Table/Gallery Toggle */}
+            <div className="flex items-center rounded-md border border-border bg-muted p-0.5">
+              <Button
+                variant={allFilesDisplayMode === "table" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setAllFilesDisplayMode("table")}
+                className="h-7 px-2"
+              >
+                <List className="h-4 w-4 mr-1" />
+                Table
+              </Button>
+              <Button
+                variant={allFilesDisplayMode === "gallery" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setAllFilesDisplayMode("gallery")}
+                className="h-7 px-2"
+              >
+                <LayoutGrid className="h-4 w-4 mr-1" />
+                Gallery
+              </Button>
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -1490,98 +1621,135 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
           </Card>
         )}
 
-        {/* Files table */}
-        <Card>
-          <CardContent className="p-0">
-            {loadingAllFiles ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>File Name</TableHead>
-                    <TableHead>Folder</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>AI Status</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allFiles.length === 0 ? (
+        {/* Files display - Table or Gallery */}
+        {allFilesDisplayMode === "gallery" ? (
+          // Gallery View
+          <Card>
+            <CardContent className="p-4">
+              {loadingAllFiles ? (
+                <PhotoGallery photos={[]} loading={true} />
+              ) : imagePhotos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <LayoutGrid className="h-12 w-12 text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">No photos found</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {allFiles.length > 0
+                      ? `${allFiles.length} files in this folder, but none are images`
+                      : "Upload some photos to see them here"}
+                  </p>
+                </div>
+              ) : (
+                <PhotoGallery
+                  photos={imagePhotos}
+                  onPhotoClick={handlePhotoClick}
+                  groupByDate
+                  thumbnailSize="lg"
+                />
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          // Table View
+          <Card>
+            <CardContent className="p-0">
+              {loadingAllFiles ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No files found
-                      </TableCell>
+                      <TableHead>File Name</TableHead>
+                      <TableHead>Folder</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>AI Status</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
-                  ) : (
-                    allFiles.map((item) => (
-                      <TableRow key={item.id} className={item.rename_status === "completed" ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                            <div className="min-w-0">
-                              <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
-                              {item.original_name && item.name !== item.original_name && (
-                                <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-muted-foreground">
-                            {item.folder_path || "-"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {item.ai_suggested_type_name ? (
-                            <Badge variant="secondary" className="text-xs">
-                              {item.ai_suggested_type_name}
-                            </Badge>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {item.rename_status === "completed" ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Renamed
-                            </Badge>
-                          ) : item.rename_status === "rejected" ? (
-                            <Badge variant="secondary" className="text-muted-foreground">
-                              Skipped
-                            </Badge>
-                          ) : item.ai_analyzed ? (
-                            <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                              <Sparkles className="h-3 w-3 mr-1" />
-                              Pending
-                            </Badge>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {item.web_url && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => window.open(item.web_url, "_blank")}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          )}
+                  </TableHeader>
+                  <TableBody>
+                    {allFiles.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          No files found
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                    ) : (
+                      allFiles.map((item) => (
+                        <TableRow key={item.id} className={item.rename_status === "completed" ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
+                                {item.original_name && item.name !== item.original_name && (
+                                  <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {item.folder_path || "-"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {item.ai_suggested_type_name ? (
+                              <Badge variant="secondary" className="text-xs">
+                                {item.ai_suggested_type_name}
+                              </Badge>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {item.rename_status === "completed" ? (
+                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Renamed
+                              </Badge>
+                            ) : item.rename_status === "rejected" ? (
+                              <Badge variant="secondary" className="text-muted-foreground">
+                                Skipped
+                              </Badge>
+                            ) : item.ai_analyzed ? (
+                              <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                Pending
+                              </Badge>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {item.web_url && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => window.open(item.web_url, "_blank")}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Image Lightbox */}
+        <ImageLightbox
+          photos={imagePhotos}
+          initialIndex={lightboxIndex}
+          open={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+        />
       </div>
     );
   };

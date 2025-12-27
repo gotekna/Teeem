@@ -518,6 +518,30 @@ const TIER_4_COMPONENTS: StandardComponent[] = [
     whenToUse: "Document lists with preview (Job Plans, Corporate Documents, any PDF list)",
     usageCount: 1,
   },
+  {
+    id: "photo-gallery",
+    name: "PhotoGallery",
+    displayName: "Photo Gallery",
+    category: "document",
+    tier: 4,
+    status: "standard",
+    importPath: "@/components/ui/photo-gallery",
+    description: "Grid view for displaying photo thumbnails with lazy loading, date grouping",
+    whenToUse: "Display photos in a grid layout, job photos, site photos",
+    usageCount: 1,
+  },
+  {
+    id: "image-lightbox",
+    name: "ImageLightbox",
+    displayName: "Image Lightbox",
+    category: "document",
+    tier: 4,
+    status: "standard",
+    importPath: "@/components/ui/image-lightbox",
+    description: "Fullscreen image viewer with navigation, keyboard shortcuts, touch gestures",
+    whenToUse: "View photos fullscreen with prev/next navigation",
+    usageCount: 1,
+  },
 ];
 
 // =============================================================================

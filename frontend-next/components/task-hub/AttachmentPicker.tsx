@@ -6,13 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { Mail, FileText, Upload, X, Search, Loader2 } from 'lucide-react';
 
@@ -29,16 +22,6 @@ interface AttachmentPickerProps {
   onAdd: (attachment: PendingAttachment) => void;
   onRemove: (index: number) => void;
   jobId?: string;
-}
-
-interface EmailAccount {
-  id: string | number;
-  type: string;
-  name: string;
-  email_address: string;
-  provider: string;
-  is_active: boolean;
-  org_credential_id?: number;
 }
 
 interface EmailResult {
@@ -123,62 +106,20 @@ function EmailSearchPanel({
   onSelect: (att: PendingAttachment) => void;
   jobId?: string;
 }) {
-  const [accounts, setAccounts] = React.useState<EmailAccount[]>([]);
-  const [selectedAccount, setSelectedAccount] = React.useState<string>('');
   const [search, setSearch] = React.useState('');
   const [emails, setEmails] = React.useState<EmailResult[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const [loadingAccounts, setLoadingAccounts] = React.useState(true);
 
-  // Load email accounts on mount
-  React.useEffect(() => {
-    loadAccounts();
-  }, []);
-
-  const loadAccounts = async () => {
-    setLoadingAccounts(true);
-    try {
-      const response = await api.get<{ success?: boolean; data?: EmailAccount[]; accounts?: EmailAccount[] } | EmailAccount[]>(
-        '/api/v1/imap_credentials/all_accounts'
-      );
-      // Handle multiple response formats: { data: [...] }, { accounts: [...] }, or raw array
-      const accountList = Array.isArray(response)
-        ? response
-        : (response as { data?: EmailAccount[] })?.data || (response as { accounts?: EmailAccount[] })?.accounts || [];
-      setAccounts(accountList);
-      // Auto-select first account if available
-      if (accountList.length > 0) {
-        setSelectedAccount(String(accountList[0].id));
-      }
-    } catch (error) {
-      console.error('Failed to load email accounts:', error);
-    } finally {
-      setLoadingAccounts(false);
-    }
-  };
-
-  const searchEmails = async () => {
-    if (!search.trim()) return;
-    if (!selectedAccount) {
+  const searchEmails = React.useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setEmails([]);
       return;
     }
 
     setLoading(true);
     try {
-      const params = new URLSearchParams({ search, limit: '20' });
+      const params = new URLSearchParams({ search: query, limit: '20' });
       if (jobId) params.append('job_id', jobId);
-
-      // Find the selected account to get credential info
-      const account = accounts.find(a => String(a.id) === selectedAccount);
-      if (account?.type === 'ms365' && account.org_credential_id) {
-        params.append('microsoft_credential_id', String(account.org_credential_id));
-        params.append('mailbox', account.email_address);
-      } else if (account?.type === 'outlook') {
-        // Personal Outlook - filter by email
-        params.append('my_emails', 'true');
-      } else if (account?.type === 'imap' && typeof account.id === 'number') {
-        params.append('imap_credential_id', String(account.id));
-      }
 
       const response = await api.get<{ emails?: EmailResult[] } | EmailResult[]>(
         `/api/v1/email_warehouse?${params}`
@@ -190,69 +131,38 @@ function EmailSearchPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId]);
 
-  if (loadingAccounts) {
-    return (
-      <div className="flex justify-center py-4">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (accounts.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground text-center py-4">
-        No email accounts connected
-      </p>
-    );
-  }
+  // Debounced search-as-you-type
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      searchEmails(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, searchEmails]);
 
   return (
     <div className="space-y-3">
-      {/* Account Selector */}
-      <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select email account" />
-        </SelectTrigger>
-        <SelectContent>
-          {accounts.map((account) => (
-            <SelectItem key={String(account.id)} value={String(account.id)}>
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span>{account.email_address}</span>
-                <span className="text-xs text-muted-foreground">({account.name})</span>
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
       {/* Search */}
-      <div className="flex gap-2">
+      <div className="relative">
         <Input
-          placeholder="Search emails..."
+          placeholder="Search all emails..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && searchEmails()}
-          className="text-sm"
+          className="text-sm pr-8"
         />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={searchEmails}
-          disabled={loading || !selectedAccount}
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-        </Button>
+        {loading ? (
+          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        )}
       </div>
 
       {/* Results */}
-      <div className="max-h-48 overflow-y-auto space-y-1">
+      <div className="max-h-[320px] overflow-y-auto space-y-1">
         {emails.length === 0 && !loading && (
           <p className="text-xs text-muted-foreground text-center py-4">
-            Select an account and search for emails
+            Search for emails by subject, sender, or content
           </p>
         )}
         {emails.map((email) => (
@@ -282,11 +192,11 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
   const [loading, setLoading] = React.useState(false);
   const [search, setSearch] = React.useState('');
 
-  const loadDocuments = async () => {
+  const loadDocuments = React.useCallback(async (query: string) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: '50' });
-      if (search) params.append('search', search);
+      if (query) params.append('search', query);
 
       const response = await api.get<{ documents?: DocumentResult[] } | DocumentResult[]>(
         `/api/v1/documents?${params}`
@@ -298,27 +208,37 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
     } finally {
       setLoading(false);
     }
-  };
-
-  React.useEffect(() => {
-    loadDocuments();
   }, []);
+
+  // Load on mount
+  React.useEffect(() => {
+    loadDocuments('');
+  }, [loadDocuments]);
+
+  // Debounced search-as-you-type
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      loadDocuments(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, loadDocuments]);
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
+      <div className="relative">
         <Input
           placeholder="Search documents..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && loadDocuments()}
-          className="text-sm"
+          className="text-sm pr-8"
         />
-        <Button type="button" variant="outline" size="sm" onClick={loadDocuments} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-        </Button>
+        {loading ? (
+          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        )}
       </div>
-      <div className="max-h-48 overflow-y-auto space-y-1">
+      <div className="max-h-[320px] overflow-y-auto space-y-1">
         {loading ? (
           <div className="flex justify-center py-4">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
