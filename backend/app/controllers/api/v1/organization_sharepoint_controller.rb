@@ -24,6 +24,11 @@ module Api
       # Will attempt to refresh expired tokens automatically
       # Falls back to user's Microsoft token if org credential not set up
       def status
+        # Prevent browser caching - status can change at any time
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+
         # Wrap credential loading in rescue - tokens are encrypted and may fail to decrypt
         # if encrypted with different keys across environments
         credential = begin
