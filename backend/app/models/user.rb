@@ -232,7 +232,16 @@ class User < ApplicationRecord
   end
 
   def role_ids=(ids)
-    self.roles = Role.where(id: ids.compact.reject(&:blank?))
+    # Handle both array of IDs and array of objects with id property
+    normalized_ids = Array(ids).map do |item|
+      if item.is_a?(Hash)
+        item[:id] || item["id"]
+      else
+        item
+      end
+    end.compact.reject(&:blank?)
+
+    self.roles = Role.where(id: normalized_ids)
   end
 
   def role_names

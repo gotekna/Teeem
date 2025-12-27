@@ -67,8 +67,9 @@ module Api
 
       # POST /api/v1/permissions/roles
       def create_role
-        name = params[:name]&.strip&.downcase&.gsub(/\s+/, '_')
-        display_name = params[:display_name]&.strip || params[:name]&.strip&.titleize
+        role_params = params[:role] || params
+        name = role_params[:name]&.strip&.downcase&.gsub(/\s+/, '_')
+        display_name = role_params[:display_name]&.strip || role_params[:name]&.strip&.titleize
 
         if name.blank?
           return render json: { success: false, error: "Role name is required" }, status: :unprocessable_entity

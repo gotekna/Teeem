@@ -114,12 +114,12 @@ class Api::V1::UsersController < ApplicationController
     params.require(:user).permit(:name, :email, :mobile_phone)
   end
 
-  # Admin-only params (role and assigned_roles)
+  # Admin-only params (role, role_ids, and assigned_roles)
   # Only administrators should be able to modify these fields
   # Brakeman warning can be ignored: authorization check in update() prevents
   # non-admin users from accessing these params (returns 403 Forbidden)
   def admin_user_params
-    params.require(:user).permit(:role, assigned_roles: [])
+    params.require(:user).permit(:role, assigned_roles: [], role_ids: [])
   end
 
   # Returns user data with presence status and integration info
@@ -148,7 +148,10 @@ class Api::V1::UsersController < ApplicationController
       integrations: integrations,
       integrations_count: integrations.count,
       status: presence_status == "online" ? "active" : (user.last_login_at.present? ? "active" : "pending"),
-      last_email_sync_at: user.respond_to?(:last_email_sync_at) ? user.last_email_sync_at : nil
+      last_email_sync_at: user.respond_to?(:last_email_sync_at) ? user.last_email_sync_at : nil,
+      # Multi-role support - format for multiple_lookups column type
+      role_ids: user.roles.map { |r| { id: r.id, display_value: r.display_name, name: r.name } },
+      role_names: user.role_names
     )
   end
 end
