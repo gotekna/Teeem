@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { resolveWithExamples, resolveSharePointPath } from "@/lib/placeholders";
+import { TokenBuilder } from "@/components/ui/tokens";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -751,7 +752,7 @@ export function EntityTabsConfig({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-xs gap-1 font-normal max-w-md",
+                          "text-xs gap-1 font-normal max-w-xs",
                           tab.uses_custom_path
                             ? "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                             : "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
@@ -767,8 +768,15 @@ export function EntityTabsConfig({
                         }</span>
                       </Badge>
                     </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{tab.uses_custom_path ? "Custom path (overrides global template)" : "Using global template"}</p>
+                    <TooltipContent side="bottom" className="max-w-lg">
+                      <p className="font-mono text-xs break-all">{
+                        tab.uses_custom_path
+                          ? (tab.sharepoint_folder_path || tab.display_name)
+                          : (tab.sharepoint_base_path && tab.effective_sharepoint_path
+                              ? `${tab.sharepoint_base_path}/${tab.effective_sharepoint_path}`
+                              : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name))
+                      }</p>
+                      <p className="text-muted-foreground mt-1">{tab.uses_custom_path ? "Custom path" : "Global template"}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -1375,56 +1383,25 @@ export function EntityTabsConfig({
                             {/* SSoT: Corporate/Contacts path toggle - only for contact scope */}
                             {scope === "contact" && !formData.uses_custom_path && (
                               <div className="mt-3 p-2 rounded bg-muted/30 border">
-                                <Label className="text-xs font-medium">SharePoint Base Path</Label>
-                                <div className="flex gap-2 mt-1.5">
-                                  <label
-                                    className={cn(
-                                      "flex-1 flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-sm",
-                                      formData.sharepoint_path_type === 'corporate'
-                                        ? "bg-primary/10 border-primary"
-                                        : "bg-background hover:bg-muted/50"
-                                    )}
-                                  >
-                                    <input
-                                      type="radio"
-                                      name="sharepoint_path_type"
-                                      checked={formData.sharepoint_path_type === 'corporate'}
-                                      onChange={() =>
-                                        setFormData((prev) => ({
-                                          ...prev,
-                                          sharepoint_path_type: 'corporate',
-                                        }))
-                                      }
-                                    />
-                                    <span>Corporate</span>
-                                  </label>
-                                  <label
-                                    className={cn(
-                                      "flex-1 flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-sm",
-                                      formData.sharepoint_path_type === 'contacts'
-                                        ? "bg-primary/10 border-primary"
-                                        : "bg-background hover:bg-muted/50"
-                                    )}
-                                  >
-                                    <input
-                                      type="radio"
-                                      name="sharepoint_path_type"
-                                      checked={formData.sharepoint_path_type === 'contacts'}
-                                      onChange={() =>
-                                        setFormData((prev) => ({
-                                          ...prev,
-                                          sharepoint_path_type: 'contacts',
-                                        }))
-                                      }
-                                    />
-                                    <span>Contacts</span>
-                                  </label>
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <Label className="text-xs font-medium">Use Corporate Path</Label>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {formData.sharepoint_path_type === 'corporate'
+                                        ? "Stores in Corporate/People folder"
+                                        : "Stores in Contacts folder"}
+                                    </p>
+                                  </div>
+                                  <Switch
+                                    checked={formData.sharepoint_path_type === 'corporate'}
+                                    onCheckedChange={(checked) =>
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        sharepoint_path_type: checked ? 'corporate' : 'contacts',
+                                      }))
+                                    }
+                                  />
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-1.5">
-                                  {formData.sharepoint_path_type === 'contacts'
-                                    ? "Uses Contacts SharePoint folder for this tab"
-                                    : "Uses Corporate SharePoint folder for this tab (default)"}
-                                </p>
                               </div>
                             )}
 
@@ -1507,25 +1484,27 @@ export function EntityTabsConfig({
                           </Button>
                         </div>
 
-                        {/* Path Template Input */}
+                        {/* Path Template Builder */}
                         <div className="space-y-2">
-                          <Label>Custom Path Template</Label>
-                          <Input
+                          <TokenBuilder
+                            label="Custom Path Template"
                             value={formData.sharepoint_folder_path || ""}
-                            onChange={(e) =>
+                            onChange={(value) =>
                               setFormData((prev) => ({
                                 ...prev,
-                                sharepoint_folder_path: e.target.value,
+                                sharepoint_folder_path: value,
                               }))
                             }
-                            placeholder="e.g., {{JobCode}}/{{Category}}/Custom Folder"
-                            className="font-mono text-sm"
+                            scope="sharepoint"
+                            showPreview={true}
+                            placeholder="Click tokens below to build path..."
+                            helpText="Drag tokens to reorder, click X to remove"
                           />
-                          {/* Path Preview */}
-                          {formData.sharepoint_folder_path && (
+                          {/* Full Path Preview */}
+                          {formData.sharepoint_folder_path && editingTab?.sharepoint_base_path && (
                             <div className="text-xs text-muted-foreground bg-background rounded px-2 py-1.5 font-mono border">
-                              <span className="text-muted-foreground/60">Preview: </span>
-                              <span className="text-foreground">{resolveSharePointPath(formData.sharepoint_folder_path)}</span>
+                              <span className="text-muted-foreground/60">Full Path: </span>
+                              <span className="text-foreground">{editingTab.sharepoint_base_path}/{resolveSharePointPath(formData.sharepoint_folder_path)}</span>
                             </div>
                           )}
                         </div>
