@@ -14,9 +14,11 @@ class FaceVerificationJob < ApplicationJob
   # Minimum similarity threshold for face match (90%)
   SIMILARITY_THRESHOLD = 90.0
 
-  # Retry on AWS transient errors
-  retry_on Aws::Rekognition::Errors::ThrottlingException, wait: :exponentially_longer, attempts: 5
-  retry_on Aws::Rekognition::Errors::ProvisionedThroughputExceededException, wait: 30.seconds, attempts: 3
+  # Retry on AWS transient errors (only if AWS SDK is loaded)
+  if defined?(Aws::Rekognition)
+    retry_on Aws::Rekognition::Errors::ThrottlingException, wait: :exponentially_longer, attempts: 5
+    retry_on Aws::Rekognition::Errors::ProvisionedThroughputExceededException, wait: 30.seconds, attempts: 3
+  end
 
   def perform(session_id, photo_type)
     session = SitePresenceSession.find_by(id: session_id)
