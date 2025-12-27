@@ -32,7 +32,6 @@ import { Plus, GripVertical, X, Search, ChevronDown, ChevronUp } from "lucide-re
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   type PlaceholderScope,
   type PlaceholderToken,
@@ -413,35 +412,33 @@ export function TokenBuilder({
                 </Button>
               </div>
 
-              {/* Token Grid */}
-              <ScrollArea className="max-h-[200px]">
-                <div className="p-2 flex flex-wrap gap-1.5">
-                  {filteredPlaceholders.map((p, index) => {
-                    const colorClasses = PLACEHOLDER_COLOR_CLASSES[p.color];
-                    return (
-                      <button
-                        key={`${p.code}-${index}`}
-                        type="button"
-                        onClick={() => insertToken(p.code)}
-                        className={cn(
-                          "inline-flex items-center gap-1 px-2 py-1 rounded-none border text-xs font-mono",
-                          "hover:shadow-sm transition-all cursor-pointer hover:scale-105",
-                          colorClasses.bg,
-                          colorClasses.text,
-                          colorClasses.border
-                        )}
-                        title={p.description || `Add ${p.code}`}
-                      >
-                        <Plus className="h-2.5 w-2.5 opacity-60" />
-                        {p.code}
-                      </button>
-                    );
-                  })}
-                  {filteredPlaceholders.length === 0 && (
-                    <span className="text-xs text-muted-foreground p-2">No tokens found</span>
-                  )}
-                </div>
-              </ScrollArea>
+              {/* Token Grid - 2 columns */}
+              <div className="p-2 grid grid-cols-2 gap-1.5">
+                {filteredPlaceholders.map((p, index) => {
+                  const colorClasses = PLACEHOLDER_COLOR_CLASSES[p.color];
+                  return (
+                    <button
+                      key={`${p.code}-${index}`}
+                      type="button"
+                      onClick={() => insertToken(p.code)}
+                      className={cn(
+                        "inline-flex items-center gap-1 px-2 py-1 rounded-none border text-xs font-mono",
+                        "hover:shadow-sm transition-all cursor-pointer hover:scale-105",
+                        colorClasses.bg,
+                        colorClasses.text,
+                        colorClasses.border
+                      )}
+                      title={p.description || `Add ${p.code}`}
+                    >
+                      <Plus className="h-2.5 w-2.5 opacity-60" />
+                      {p.code}
+                    </button>
+                  );
+                })}
+                {filteredPlaceholders.length === 0 && (
+                  <span className="text-xs text-muted-foreground p-2 col-span-2">No tokens found</span>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -752,14 +752,14 @@ export function EntityTabsConfig({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-xs gap-1 font-normal max-w-xs",
+                          "text-xs gap-1 font-normal",
                           tab.uses_custom_path
                             ? "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                             : "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         )}
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{
+                        <span>{
                           tab.uses_custom_path
                             ? (tab.sharepoint_folder_path || tab.display_name)
                             : (tab.sharepoint_base_path && tab.effective_sharepoint_path
