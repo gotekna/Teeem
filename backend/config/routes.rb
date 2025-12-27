@@ -873,13 +873,15 @@ Rails.application.routes.draw do
         end
       end
 
-      # Email Warehouse (org-wide sync runs automatically every 15 minutes)
+      # Email Warehouse
       resources :email_warehouse, only: [ :index, :show ] do
         collection do
           get :unassigned
           get :search
           get :stats
           get :sync_status
+          post :sync
+          post :sync_for_job
           get "for_job/:job_id", action: :for_job
           get :spam
           post :bulk_delete_spam

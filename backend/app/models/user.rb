@@ -5,7 +5,7 @@ class User < ApplicationRecord
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :foundation_views, dependent: :destroy
-  has_one :outlook_credential, class_name: "UserOutlookCredential", dependent: :destroy
+  # REMOVED: has_one :outlook_credential - using org-wide credentials instead (OrgEmailSyncJob)
   has_many :imap_credentials, dependent: :destroy
   has_many :email_rules, dependent: :destroy
   has_many :email_labels, dependent: :destroy

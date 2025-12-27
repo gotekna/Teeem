@@ -143,10 +143,9 @@ class JobDocumentSyncJob < ApplicationJob
 
         result["value"]&.each do |item|
           if item["file"]
-            # Extract thumbnail URL from Microsoft Graph response (publicly accessible)
-            thumbnail_url = item.dig("thumbnails", 0, "medium", "url") ||
-                            item.dig("thumbnails", 0, "small", "url") ||
-                            item.dig("thumbnails", 0, "large", "url")
+            # Extract thumbnail URLs from Microsoft Graph response (publicly accessible)
+            thumbnails = item.dig("thumbnails", 0) || {}
+            thumbnail_url = thumbnails.dig("medium", "url") || thumbnails.dig("small", "url")
 
             files << {
               id: item["id"],

@@ -2072,14 +2072,15 @@ module Api
 
             result["value"]&.each do |item|
               if item["file"]
-                # Extract thumbnail URL from Microsoft Graph response
+                # Extract thumbnail URLs from Microsoft Graph response
                 # These URLs are publicly accessible (no auth required)
-                thumbnail_url = item.dig("thumbnails", 0, "medium", "url") ||
-                                item.dig("thumbnails", 0, "small", "url") ||
-                                item.dig("thumbnails", 0, "large", "url")
-
-                # Pre-authenticated download URL (valid for short time, no auth needed)
-                download_url = item["@microsoft.graph.downloadUrl"]
+                # Use medium for grid thumbnails, large for full-size lightbox view
+                thumbnails = item.dig("thumbnails", 0) || {}
+                thumbnail_url = thumbnails.dig("medium", "url") ||
+                                thumbnails.dig("small", "url")
+                # Large thumbnail for full-size view in lightbox (usually 800-1200px)
+                large_thumbnail_url = thumbnails.dig("large", "url") ||
+                                      thumbnails.dig("medium", "url")
 
                 files << {
                   id: item["id"],
@@ -2091,7 +2092,7 @@ module Api
                   folder_path: current_path,
                   mime_type: item.dig("file", "mimeType"),
                   thumbnail_url: thumbnail_url,
-                  download_url: download_url
+                  download_url: large_thumbnail_url
                 }
               elsif item["folder"] && depth < max_depth
                 folder_name = item["name"]

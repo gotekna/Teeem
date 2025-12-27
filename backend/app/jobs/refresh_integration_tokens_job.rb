@@ -39,7 +39,7 @@ class RefreshIntegrationTokensJob < ApplicationJob
 
   def perform
     refresh_user_microsoft_tokens
-    refresh_user_outlook_tokens  # SSoT fix: was missing, caused Rachel's token to expire
+    # REMOVED: refresh_user_outlook_tokens - using org-wide credentials (OrgEmailSyncJob)
     refresh_onedrive_tokens
     refresh_xero_tokens
 
@@ -91,26 +91,7 @@ class RefreshIntegrationTokensJob < ApplicationJob
     end
   end
 
-  # Refresh UserOutlookCredential tokens (for Outlook email access)
-  # SSoT fix: This was missing, causing tokens like Rachel's to expire without auto-refresh
-  # Ultra thinking: Proactive refresh 1 HOUR before expiry, not reactive 20 minutes
-  def refresh_user_outlook_tokens
-    # Proactively refresh tokens expiring in the next HOUR
-    # This gives 4x buffer vs 15-min job interval - tokens never get close to expiring
-    UserOutlookCredential.where("expires_at <= ?", 1.hour.from_now).find_each do |credential|
-      Rails.logger.info "[TokenRefresh] Refreshing UserOutlookCredential for #{credential.email || credential.user_id} expiring at #{credential.expires_at}"
-
-      begin
-        if credential.refresh!
-          Rails.logger.info "[TokenRefresh] UserOutlookCredential refreshed successfully for #{credential.email || credential.user_id}"
-        else
-          Rails.logger.warn "[TokenRefresh] UserOutlookCredential refresh failed for #{credential.email || credential.user_id}"
-        end
-      rescue StandardError => e
-        Rails.logger.error "[TokenRefresh] Failed to refresh UserOutlookCredential for #{credential.email || credential.user_id}: #{e.message}"
-      end
-    end
-  end
+  # REMOVED: refresh_user_outlook_tokens - using org-wide credentials instead (OrgEmailSyncJob)
 
   def refresh_onedrive_tokens
     # Proactively refresh tokens expiring in the next HOUR
