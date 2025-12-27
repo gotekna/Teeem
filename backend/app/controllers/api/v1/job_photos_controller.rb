@@ -35,10 +35,13 @@ module Api
         end
 
         begin
+          Rails.logger.info "[JobPhotos] Starting upload for job #{job.id}, folder_path: #{folder_path}, filename: #{filename}"
           client = MicrosoftGraphClient.new(credential)
+          Rails.logger.info "[JobPhotos] MicrosoftGraphClient created successfully"
 
           # Find or create the job folder
           job_folder = client.find_job_folder(job)
+          Rails.logger.info "[JobPhotos] find_job_folder result: #{job_folder&.slice('id', 'name', 'webUrl')}"
 
           # If job folder doesn't exist or has no valid ID, create it
           unless job_folder && job_folder["id"].present?
@@ -74,7 +77,9 @@ module Api
 
           # Navigate to the photo folder within the job folder
           # folder_path can be like "06 Photo/01 SITE" or just "Photo"
+          Rails.logger.info "[JobPhotos] Navigating to folder_path: #{folder_path} within job_folder_id: #{job_folder['id']}"
           target_folder = find_or_create_folder_path(client, credential, job_folder["id"], folder_path)
+          Rails.logger.info "[JobPhotos] target_folder result: #{target_folder.inspect}"
 
           unless target_folder
             return render json: {
