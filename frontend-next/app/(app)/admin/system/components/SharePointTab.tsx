@@ -78,7 +78,7 @@ export function SharePointTab() {
     sharepoint_contacts_path: "Contacts",
     // Path templates
     sharepoint_job_template: "{{JobCode}}/{{Category}}",
-    sharepoint_company_template: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+    sharepoint_company_template: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
     sharepoint_people_template: "{{ContactName}}/{{Category}}",
     sharepoint_contacts_template: "{{ContactName}}/{{Category}}",
   });
@@ -107,7 +107,7 @@ export function SharePointTab() {
           sharepoint_company_path: response.data.paths?.company || "00 TEEEM PRIVATE",
           sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
           sharepoint_job_template: response.data.templates?.job || "{{JobCode}}/{{Category}}",
-          sharepoint_company_template: response.data.templates?.company || "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+          sharepoint_company_template: response.data.templates?.company || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
           sharepoint_people_template: response.data.templates?.people || "{{ContactName}}/{{Category}}",
           sharepoint_contacts_template: response.data.templates?.contacts || "{{ContactName}}/{{Category}}",
         });
@@ -221,7 +221,7 @@ export function SharePointTab() {
       .replace("{{Category}}", "Plans")
       .replace("{{CompanyGroup}}", "Tekna Group")
       .replace("{{CompanyCode}}", "TEK")
-      .replace("{{Folder}}", "ASIC")
+      .replace("{{TabName}}", "ASIC")
       .replace("{{ContactName}}", "John Smith");
   };
 

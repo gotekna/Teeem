@@ -5,7 +5,7 @@
 #
 # Usage:
 #   SystemSetting.get('sharepoint_path_template_company')
-#   SystemSetting.set('sharepoint_path_template_company', '/Teeem/Companies/{{CompanyCode}}/{{Folder}}')
+#   SystemSetting.set('sharepoint_path_template_company', '/Teeem/Companies/{{CompanyCode}}/{{TabName}}')
 #
 class SystemSetting < ApplicationRecord
   validates :setting_key, presence: true, uniqueness: true
@@ -65,7 +65,7 @@ class SystemSetting < ApplicationRecord
     return nil unless template
 
     folder_path = build_folder_hierarchy_path(folder)
-    template.gsub("{{Folder}}", folder_path)
+    template.gsub("{{TabName}}", folder_path)
   end
 
   # Build folder path from hierarchy (e.g., "Xero/BankStatements" for a sub-folder)

@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { Mail, FileText, Upload, X, Search, Loader2 } from 'lucide-react';
 
@@ -22,6 +29,16 @@ interface AttachmentPickerProps {
   onAdd: (attachment: PendingAttachment) => void;
   onRemove: (index: number) => void;
   jobId?: string;
+}
+
+interface EmailAccount {
+  id: string | number;
+  type: string;
+  name: string;
+  email_address: string;
+  provider: string;
+  is_active: boolean;
+  org_credential_id?: number;
 }
 
 interface EmailResult {
@@ -106,21 +123,60 @@ function EmailSearchPanel({
   onSelect: (att: PendingAttachment) => void;
   jobId?: string;
 }) {
+  const [accounts, setAccounts] = React.useState<EmailAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = React.useState<string>('');
   const [search, setSearch] = React.useState('');
   const [emails, setEmails] = React.useState<EmailResult[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [loadingAccounts, setLoadingAccounts] = React.useState(true);
+
+  // Load email accounts on mount
+  React.useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  const loadAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      const response = await api.get<{ accounts?: EmailAccount[] } | EmailAccount[]>(
+        '/api/v1/imap_credentials/all_accounts'
+      );
+      const accountList = Array.isArray(response) ? response : response?.accounts || [];
+      setAccounts(accountList);
+      // Auto-select first account if available
+      if (accountList.length > 0) {
+        setSelectedAccount(String(accountList[0].id));
+      }
+    } catch (error) {
+      console.error('Failed to load email accounts:', error);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
 
   const searchEmails = async () => {
     if (!search.trim()) return;
+    if (!selectedAccount) {
+      return;
+    }
+
     setLoading(true);
     try {
       const params = new URLSearchParams({ search, limit: '20' });
       if (jobId) params.append('job_id', jobId);
 
+      // Find the selected account to get credential info
+      const account = accounts.find(a => String(a.id) === selectedAccount);
+      if (account?.type === 'ms365' && account.org_credential_id) {
+        params.append('microsoft_credential_id', String(account.org_credential_id));
+        params.append('mailbox', account.email_address);
+      } else if (account?.type === 'imap' && typeof account.id === 'number') {
+        params.append('imap_credential_id', String(account.id));
+      }
+
       const response = await api.get<{ emails?: EmailResult[] } | EmailResult[]>(
         `/api/v1/email_warehouse?${params}`
       );
-      // Handle both response formats
       const emailList = Array.isArray(response) ? response : response?.emails || [];
       setEmails(emailList);
     } catch (error) {
@@ -130,8 +186,43 @@ function EmailSearchPanel({
     }
   };
 
+  if (loadingAccounts) {
+    return (
+      <div className="flex justify-center py-4">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (accounts.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-4">
+        No email accounts connected
+      </p>
+    );
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {/* Account Selector */}
+      <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Select email account" />
+        </SelectTrigger>
+        <SelectContent>
+          {accounts.map((account) => (
+            <SelectItem key={String(account.id)} value={String(account.id)}>
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <span>{account.email_address}</span>
+                <span className="text-xs text-muted-foreground">({account.name})</span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Search */}
       <div className="flex gap-2">
         <Input
           placeholder="Search emails..."
@@ -140,14 +231,22 @@ function EmailSearchPanel({
           onKeyDown={(e) => e.key === 'Enter' && searchEmails()}
           className="text-sm"
         />
-        <Button type="button" variant="outline" size="sm" onClick={searchEmails} disabled={loading}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={searchEmails}
+          disabled={loading || !selectedAccount}
+        >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
         </Button>
       </div>
-      <div className="max-h-40 overflow-y-auto space-y-1">
+
+      {/* Results */}
+      <div className="max-h-48 overflow-y-auto space-y-1">
         {emails.length === 0 && !loading && (
           <p className="text-xs text-muted-foreground text-center py-4">
-            Search for emails to attach
+            Select an account and search for emails
           </p>
         )}
         {emails.map((email) => (
@@ -213,7 +312,7 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
         </Button>
       </div>
-      <div className="max-h-40 overflow-y-auto space-y-1">
+      <div className="max-h-48 overflow-y-auto space-y-1">
         {loading ? (
           <div className="flex justify-center py-4">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

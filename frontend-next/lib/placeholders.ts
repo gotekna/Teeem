@@ -402,10 +402,10 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Company code",
   },
   {
-    code: "{{Folder}}",
+    code: "{{TabName}}",
     example: "Finance",
     color: "blue",
-    description: "Folder name",
+    description: "Tab/folder name (from EntityTab display_name)",
   },
   {
     code: "{{ContactName}}",
@@ -589,7 +589,7 @@ export function resolveSharePointPath(template: string): string {
     // Double brace format - Company examples
     "{{CompanyGroup}}": "Tekna Group",
     "{{CompanyCode}}": "TH",
-    "{{Folder}}": "Finance",
+    "{{TabName}}": "Finance",
     "{{ContactName}}": "Robert Harder",
     "{{EntityName}}": "Tekna Homes Pty Ltd",
     // Single brace format (also common in paths)
@@ -598,7 +598,7 @@ export function resolveSharePointPath(template: string): string {
     "{CategoryCode}": "ConD",
     "{JobName}": "Tulum Street Jimboomba",
     "{JobTitle}": "Tulum Street Jimboomba QLD",
-    "{Folder}": "Finance",
+    "{TabName}": "Finance",
     "{CompanyGroup}": "Tekna Group",
     "{CompanyCode}": "TH",
   };

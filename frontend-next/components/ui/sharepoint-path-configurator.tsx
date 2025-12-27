@@ -67,7 +67,7 @@ export const SCOPE_PLACEHOLDERS: Record<ScopeType, PlaceholderDef[]> = {
   company: [
     { key: "{{CompanyGroup}}", example: "Tekna Group", description: "Parent company group" },
     { key: "{{CompanyCode}}", example: "ABC123", description: "Company code" },
-    { key: "{{Folder}}", example: "Invoices", description: "Document folder" },
+    { key: "{{TabName}}", example: "Invoices", description: "Tab/folder name" },
   ],
   people: [
     { key: "{{ContactName}}", example: "John Smith", description: "Contact/person name" },
@@ -82,7 +82,7 @@ export const SCOPE_PLACEHOLDERS: Record<ScopeType, PlaceholderDef[]> = {
 // SSoT: Default path templates (templates only, not full paths)
 export const DEFAULT_TEMPLATES: Record<ScopeType, string> = {
   job: "{{JobCode}}/{{Category}}",
-  company: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+  company: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
   people: "{{ContactName}}/{{Category}}",
   contacts: "{{ContactName}}/{{Category}}",
 };

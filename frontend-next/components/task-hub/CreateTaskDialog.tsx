@@ -217,7 +217,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
           <DialogDescription>
@@ -230,159 +230,163 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            {/* Task Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Task Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                placeholder="Enter task name"
-                autoFocus
-              />
-            </div>
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-2 gap-6 py-4">
+              {/* Left Column - Task Details */}
+              <div className="space-y-4">
+                {/* Task Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="name">
+                    Task Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
+                    placeholder="Enter task name"
+                    autoFocus
+                  />
+                </div>
 
-            {/* Job Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="job">
-                Job <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.job_id}
-                onValueChange={(value) => handleChange('job_id', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a job" />
-                </SelectTrigger>
-                <SelectContent>
-                  {jobs.length === 0 ? (
-                    <SelectItem value="_none" disabled>
-                      No jobs available
-                    </SelectItem>
-                  ) : (
-                    jobs.map((job) => (
-                      <SelectItem key={job.id} value={String(job.id)}>
-                        {job.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+                {/* Job Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="job">
+                    Job <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={formData.job_id}
+                    onValueChange={(value) => handleChange('job_id', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a job" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobs.length === 0 ? (
+                        <SelectItem value="_none" disabled>
+                          No jobs available
+                        </SelectItem>
+                      ) : (
+                        jobs.map((job) => (
+                          <SelectItem key={job.id} value={String(job.id)}>
+                            {job.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Assign To (User or Role) */}
-            <TaskAssignmentField
-              users={users}
-              assignedUserId={formData.assigned_user_id}
-              assignedRole={formData.assigned_role}
-              onAssignedUserChange={(userId) => handleChange('assigned_user_id', userId)}
-              onAssignedRoleChange={(role) => handleChange('assigned_role', role)}
-            />
+                {/* Assign To (User or Role) */}
+                <TaskAssignmentField
+                  users={users}
+                  assignedUserId={formData.assigned_user_id}
+                  assignedRole={formData.assigned_role}
+                  onAssignedUserChange={(userId) => handleChange('assigned_user_id', userId)}
+                  onAssignedRoleChange={(role) => handleChange('assigned_role', role)}
+                />
 
-            {/* Start Date & Duration */}
-            <div className="grid grid-cols-2 gap-4">
+                {/* Start Date & Duration */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="start_date">Start Date</Label>
+                    <Input
+                      id="start_date"
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) => handleChange('start_date', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">Duration (days)</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min="1"
+                      value={formData.duration_days}
+                      onChange={(e) => handleChange('duration_days', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Required By & Trade */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="required_by">Required By</Label>
+                    <Input
+                      id="required_by"
+                      type="date"
+                      value={formData.required_by}
+                      onChange={(e) => handleChange('required_by', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="trade">Trade</Label>
+                    <Input
+                      id="trade"
+                      value={formData.trade}
+                      onChange={(e) => handleChange('trade', e.target.value)}
+                      placeholder="e.g., Electrical"
+                    />
+                  </div>
+                </div>
+
+                {/* Started & Follow Checkboxes */}
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="started"
+                      checked={formData.started}
+                      onCheckedChange={(checked) => handleChange('started', checked === true)}
+                    />
+                    <Label
+                      htmlFor="started"
+                      className="text-sm font-medium leading-none cursor-pointer"
+                    >
+                      Mark as Started
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="follow"
+                      checked={formData.follow}
+                      onCheckedChange={(checked) => handleChange('follow', checked === true)}
+                    />
+                    <Label
+                      htmlFor="follow"
+                      className="text-sm font-medium leading-none cursor-pointer"
+                    >
+                      Follow (get notifications)
+                    </Label>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => handleChange('description', e.target.value)}
+                    placeholder="Task description (optional)"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              {/* Right Column - Attachments */}
               <div className="space-y-2">
-                <Label htmlFor="start_date">Start Date</Label>
-                <Input
-                  id="start_date"
-                  type="date"
-                  value={formData.start_date}
-                  onChange={(e) => handleChange('start_date', e.target.value)}
-                />
+                <Label>Attachments</Label>
+                <div className="border rounded-lg p-4 dark:border-gray-700">
+                  <AttachmentPicker
+                    attachments={pendingAttachments}
+                    onAdd={(attachment) => setPendingAttachments([...pendingAttachments, attachment])}
+                    onRemove={(index) =>
+                      setPendingAttachments(pendingAttachments.filter((_, i) => i !== index))
+                    }
+                    jobId={formData.job_id}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duration (days)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min="1"
-                  value={formData.duration_days}
-                  onChange={(e) => handleChange('duration_days', e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Required By Date */}
-            <div className="space-y-2">
-              <Label htmlFor="required_by">Required By</Label>
-              <Input
-                id="required_by"
-                type="date"
-                value={formData.required_by}
-                onChange={(e) => handleChange('required_by', e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                When this task must be completed (independent of schedule)
-              </p>
-            </div>
-
-            {/* Started & Follow Checkboxes */}
-            <div className="flex items-center gap-6">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="started"
-                  checked={formData.started}
-                  onCheckedChange={(checked) => handleChange('started', checked === true)}
-                />
-                <Label
-                  htmlFor="started"
-                  className="text-sm font-medium leading-none cursor-pointer"
-                >
-                  Mark as Started
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="follow"
-                  checked={formData.follow}
-                  onCheckedChange={(checked) => handleChange('follow', checked === true)}
-                />
-                <Label
-                  htmlFor="follow"
-                  className="text-sm font-medium leading-none cursor-pointer"
-                >
-                  Follow (get notifications)
-                </Label>
-              </div>
-            </div>
-
-            {/* Trade */}
-            <div className="space-y-2">
-              <Label htmlFor="trade">Trade</Label>
-              <Input
-                id="trade"
-                value={formData.trade}
-                onChange={(e) => handleChange('trade', e.target.value)}
-                placeholder="e.g., Electrical, Plumbing, Framing"
-              />
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => handleChange('description', e.target.value)}
-                placeholder="Task description (optional)"
-                rows={3}
-              />
-            </div>
-
-            {/* Attachments */}
-            <div className="space-y-2">
-              <Label>Attachments</Label>
-              <AttachmentPicker
-                attachments={pendingAttachments}
-                onAdd={(attachment) => setPendingAttachments([...pendingAttachments, attachment])}
-                onRemove={(index) =>
-                  setPendingAttachments(pendingAttachments.filter((_, i) => i !== index))
-                }
-                jobId={formData.job_id}
-              />
             </div>
 
             <DialogFooter className="pt-4">

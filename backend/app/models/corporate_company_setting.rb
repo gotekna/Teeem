@@ -139,7 +139,7 @@ class CorporateCompanySetting < ApplicationRecord
       },
       templates: {
         job: setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}",
-        company: setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+        company: setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
         people: setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}",
         contacts: setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
       }
@@ -159,7 +159,7 @@ class CorporateCompanySetting < ApplicationRecord
     when :people
       setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}"
     when :company
-      setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
+      setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
     when :contacts
       setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
     else
@@ -180,14 +180,14 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Resolve a full path for a company document
-  # Returns: "/Shared Documents/00 TEEEM PRIVATE/GroupName/COMP-001/Folder"
-  def self.company_path(company_group: nil, company_code: nil, folder: nil)
+  # Returns: "/Shared Documents/00 TEEEM PRIVATE/GroupName/COMP-001/TabName"
+  def self.company_path(company_group: nil, company_code: nil, tab_name: nil)
     base = sharepoint_full_path(:company)
     template = sharepoint_template(:company)
     resolved = resolve_template(template, {
       "CompanyGroup" => company_group || "",
       "CompanyCode" => company_code || "",
-      "Folder" => folder || ""
+      "TabName" => tab_name || ""
     })
     clean_path("#{base}/#{resolved}")
   end
