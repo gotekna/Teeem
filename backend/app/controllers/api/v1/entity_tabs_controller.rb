@@ -212,6 +212,52 @@ module Api
         }
       end
 
+      # GET /api/v1/entity_tabs/global_icon_usage
+      # Returns ALL icon usages across the system for consistency tracking
+      # SSoT: Shows where each icon is used (entity tabs, navigation) to ensure design consistency
+      def global_icon_usage
+        usages = {}
+
+        # Collect icon usage from ALL entity tab scopes
+        EntityTab::SCOPES.each do |scope|
+          EntityTab.for_scope(scope)
+                   .root_tabs
+                   .global
+                   .where.not(icon_name: [nil, ''])
+                   .each do |tab|
+            icon = tab.icon_name
+            usages[icon] ||= []
+            usages[icon] << {
+              area: "Entity Tabs",
+              scope: scope.humanize,
+              name: tab.display_name,
+              id: tab.id,
+              type: "entity_tab"
+            }
+          end
+        end
+
+        # Collect icon usage from navigation items
+        if defined?(NavigationItem)
+          NavigationItem.where.not(icon: [nil, '']).each do |item|
+            icon = item.icon
+            usages[icon] ||= []
+            usages[icon] << {
+              area: "Navigation",
+              scope: item.navigation_group&.name || "Main",
+              name: item.name,
+              id: item.id,
+              type: "navigation_item"
+            }
+          end
+        end
+
+        render json: {
+          success: true,
+          data: usages
+        }
+      end
+
       private
 
       def set_entity_tab

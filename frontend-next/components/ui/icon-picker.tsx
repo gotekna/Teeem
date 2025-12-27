@@ -18,12 +18,22 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AVAILABLE_ICONS, getIcon, ICON_MAP } from "@/lib/icon-map";
-import { Search, X, Check } from "lucide-react";
+import { Search, X, Check, Globe } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface UsedIcon {
   id: number;
   icon_name: string;
   display_name: string;
+}
+
+// SSoT: Global icon usage tracking for consistency across the app
+interface GlobalIconUsage {
+  area: string;      // "Entity Tabs" | "Navigation"
+  scope: string;     // "Job" | "Corporate entity" | "Main Nav" etc
+  name: string;      // Display name of the item using this icon
+  id: number;
+  type: string;      // "entity_tab" | "navigation_item"
 }
 
 interface IconPickerProps {
@@ -35,6 +45,7 @@ interface IconPickerProps {
   label?: string;
   placeholder?: string;
   showInheritedBadge?: boolean;  // Show "Inherited from parent" badge when no value
+  showGlobalUsage?: boolean;  // SSoT: Show where icon is used globally (for consistency)
   className?: string;
 }
 
@@ -43,16 +54,17 @@ const ICON_CATEGORIES: Record<string, string[]> = {
   "Photo": ["Camera", "Image", "Images", "ImagePlus"],
   "Documents": ["FileText", "Folder", "FolderOpen", "FileCheck", "FileBadge", "FileStack", "Files", "ScrollText"],
   "Awards": ["Award", "BadgeCheck", "Medal", "Trophy"],
-  "Plans": ["Ruler", "PenTool", "Compass", "LayoutDashboard"],
+  "Plans": ["Ruler", "PenTool", "Compass", "LayoutDashboard", "House", "LandPlot", "MapPin", "Landmark"],
+  "Schedule": ["Calendar", "CalendarClock", "CalendarDays", "CalendarCheck", "CalendarRange", "Clock", "Timer", "Hourglass", "AlarmClock"],
+  "Tasks": ["ListTodo", "ListChecks", "CheckSquare", "SquareCheck", "CircleCheck", "ListOrdered", "ClipboardList", "ClipboardCheck"],
   "Construction": ["HardHat", "Hammer", "Construction", "Truck"],
   "Finance": ["DollarSign", "TrendingUp", "Receipt", "Wallet", "CreditCard", "PiggyBank", "Calculator", "Banknote"],
   "Communication": ["Mail", "Phone", "Video", "Send", "Inbox", "MessageSquare"],
   "Navigation": ["Home", "Map", "Target", "ExternalLink"],
   "People": ["Users", "UserCog"],
   "Business": ["Briefcase", "Building2", "Package"],
-  "Time": ["Calendar", "CalendarClock", "Clock"],
   "Status": ["Eye", "EyeOff", "Check", "X", "Info", "AlertTriangle", "CheckCircle", "XCircle"],
-  "Other": ["Shield", "Settings", "Wrench", "Scale", "History", "Workflow", "Layers", "ListTodo", "FileQuestion", "Sparkles", "Zap", "Star", "Tag", "Palette", "Activity", "Cloud", "ClipboardList", "FileSignature", "ShoppingCart", "ClipboardCheck", "BookOpen", "MoreHorizontal", "MoreVertical"],
+  "Other": ["Shield", "Settings", "Wrench", "Scale", "History", "Workflow", "Layers", "FileQuestion", "Sparkles", "Zap", "Star", "Tag", "Palette", "Activity", "Cloud", "FileSignature", "ShoppingCart", "BookOpen", "MoreHorizontal", "MoreVertical"],
 };
 
 // Get category for an icon
@@ -74,10 +86,25 @@ export function IconPicker({
   label,
   placeholder = "Select an icon...",
   showInheritedBadge = false,
+  showGlobalUsage = true,  // SSoT: Show global usage by default
   className,
 }: IconPickerProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const [globalUsage, setGlobalUsage] = React.useState<Record<string, GlobalIconUsage[]>>({});
+
+  // SSoT: Fetch global icon usage when picker opens
+  React.useEffect(() => {
+    if (open && showGlobalUsage && Object.keys(globalUsage).length === 0) {
+      api.get<{ success: boolean; data: Record<string, GlobalIconUsage[]> }>('/api/v1/entity_tabs/global_icon_usage')
+        .then((response) => {
+          if (response?.success) {
+            setGlobalUsage(response.data);
+          }
+        })
+        .catch((err) => console.error('Failed to fetch global icon usage:', err));
+    }
+  }, [open, showGlobalUsage, globalUsage]);
 
   // Get the selected icon component
   const SelectedIcon = value ? getIcon(value) : null;
@@ -103,7 +130,7 @@ export function IconPicker({
     });
 
     // Sort categories to put common ones first
-    const categoryOrder = ["Photo", "Documents", "Awards", "Plans", "Finance", "Communication", "Business", "Navigation", "People", "Time", "Construction", "Status", "Other"];
+    const categoryOrder = ["Photo", "Documents", "Awards", "Plans", "Schedule", "Tasks", "Finance", "Communication", "Business", "Navigation", "People", "Construction", "Status", "Other"];
     const sortedGroups: Record<string, string[]> = {};
 
     categoryOrder.forEach((cat) => {
@@ -190,6 +217,9 @@ export function IconPicker({
                     const user = isUsed ? getIconUser(iconName) : null;
                     const isSelected = value === iconName;
                     const isDisabled = disableUsed && isUsed;
+                    // SSoT: Get global usage for this icon
+                    const globalUsages = globalUsage[iconName] || [];
+                    const hasGlobalUsage = globalUsages.length > 0;
 
                     return (
                       <TooltipProvider key={iconName}>
@@ -210,21 +240,44 @@ export function IconPicker({
                                 isSelected && "bg-primary text-primary-foreground border-primary",
                                 !isSelected && !isDisabled && "hover:bg-muted",
                                 isDisabled && "opacity-30 cursor-not-allowed",
-                                isUsed && !isDisabled && "border-orange-300 dark:border-orange-700"
+                                isUsed && !isDisabled && "border-orange-300 dark:border-orange-700",
+                                // SSoT: Blue border for icons used elsewhere in the app
+                                !isUsed && hasGlobalUsage && "border-blue-300 dark:border-blue-700"
                               )}
                             >
                               {isSelected && (
                                 <Check className="h-3 w-3 absolute top-0.5 right-0.5 text-primary-foreground" />
                               )}
+                              {/* SSoT: Small globe indicator for global usage */}
+                              {!isSelected && hasGlobalUsage && (
+                                <Globe className="h-2 w-2 absolute top-0.5 right-0.5 text-blue-500" />
+                              )}
                               <IconComponent className="h-4 w-4" />
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom">
+                          <TooltipContent side="bottom" className="max-w-xs">
                             <p className="font-medium">{iconName}</p>
                             {isUsed && user && (
                               <p className="text-xs text-orange-500">
-                                Used by: {user.display_name}
+                                Used in this scope: {user.display_name}
                               </p>
+                            )}
+                            {/* SSoT: Show global usage for consistency */}
+                            {hasGlobalUsage && (
+                              <div className="mt-1 pt-1 border-t border-border/50">
+                                <p className="text-xs text-blue-500 flex items-center gap-1">
+                                  <Globe className="h-3 w-3" />
+                                  Used elsewhere:
+                                </p>
+                                <ul className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                                  {globalUsages.slice(0, 5).map((usage, idx) => (
+                                    <li key={idx}>• {usage.scope}: {usage.name}</li>
+                                  ))}
+                                  {globalUsages.length > 5 && (
+                                    <li className="text-blue-400">...and {globalUsages.length - 5} more</li>
+                                  )}
+                                </ul>
+                              </div>
                             )}
                           </TooltipContent>
                         </Tooltip>
@@ -243,12 +296,22 @@ export function IconPicker({
           </div>
 
           {/* Footer with legend */}
-          {disableUsed && usedIcons.length > 0 && (
-            <div className="border-t p-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <span className="w-3 h-3 border border-orange-300 rounded" />
-                Used by another tab
-              </span>
+          {(disableUsed || showGlobalUsage) && (
+            <div className="border-t p-2 text-xs text-muted-foreground flex flex-wrap gap-3">
+              {disableUsed && usedIcons.length > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-3 h-3 border border-orange-300 rounded" />
+                  Used in this scope
+                </span>
+              )}
+              {showGlobalUsage && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-3 h-3 border border-blue-300 rounded relative">
+                    <Globe className="h-2 w-2 absolute -top-0.5 -right-0.5 text-blue-500" />
+                  </span>
+                  Used elsewhere (for consistency)
+                </span>
+              )}
             </div>
           )}
         </PopoverContent>

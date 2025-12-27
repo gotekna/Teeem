@@ -72,6 +72,10 @@ import {
   PenTool,
   Compass,
   LayoutDashboard,
+  House,
+  LandPlot,
+  MapPin,
+  Landmark,
   // Construction/Site icons
   HardHat,
   Hammer,
@@ -88,6 +92,19 @@ import {
   Video,
   Send,
   Inbox,
+  // Schedule icons
+  CalendarDays,
+  CalendarCheck,
+  CalendarRange,
+  Timer,
+  Hourglass,
+  AlarmClock,
+  // Task icons
+  ListChecks,
+  CheckSquare,
+  SquareCheck,
+  CircleCheck,
+  ListOrdered,
   // Misc useful
   Eye,
   EyeOff,
@@ -175,6 +192,10 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   PenTool,
   Compass,
   LayoutDashboard,
+  House,
+  LandPlot,
+  MapPin,
+  Landmark,
   // Construction/Site icons
   HardHat,
   Hammer,
@@ -191,6 +212,19 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Video,
   Send,
   Inbox,
+  // Schedule icons
+  CalendarDays,
+  CalendarCheck,
+  CalendarRange,
+  Timer,
+  Hourglass,
+  AlarmClock,
+  // Task icons
+  ListChecks,
+  CheckSquare,
+  SquareCheck,
+  CircleCheck,
+  ListOrdered,
   // Misc useful
   Eye,
   EyeOff,
