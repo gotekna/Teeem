@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useOptionalTaskHub } from '@/contexts/TaskHubContext';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,7 @@ interface CreateTaskDialogProps {
 export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) {
   // Use optional hook - this component can be used outside TaskHubProvider (e.g., in HeaderBar)
   const taskHub = useOptionalTaskHub();
+  const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = React.useState(false);
   const [jobs, setJobs] = React.useState<Job[]>([]);
@@ -61,7 +63,6 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     assigned_role: '',
     start_date: new Date().toISOString().split('T')[0],
     duration_days: '1',
-    trade: '',
     started: false,
     required_by: '',
     follow: false,
@@ -70,12 +71,31 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
   // Track pending attachments (before task is created)
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingAttachment[]>([]);
 
+  // Check if assigned to someone else (for showing Follow checkbox)
+  const isAssignedToOther = React.useMemo(() => {
+    if (!currentUser) return false;
+    if (formData.assigned_role) return true; // Role assignment = might be others
+    if (!formData.assigned_user_id) return false;
+    return formData.assigned_user_id !== String(currentUser.id);
+  }, [formData.assigned_user_id, formData.assigned_role, currentUser]);
+
   // Load jobs and users when dialog opens
   React.useEffect(() => {
     if (open) {
       loadData();
     }
   }, [open]);
+
+  // Set default assigned user to current user when users load
+  React.useEffect(() => {
+    if (currentUser && users.length > 0 && !formData.assigned_user_id) {
+      // Check if current user is in the users list
+      const currentUserInList = users.find(u => u.id === currentUser.id);
+      if (currentUserInList) {
+        setFormData(prev => ({ ...prev, assigned_user_id: String(currentUser.id) }));
+      }
+    }
+  }, [currentUser, users, formData.assigned_user_id]);
 
   const loadData = async () => {
     setLoadingData(true);
@@ -134,7 +154,6 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             assigned_role: formData.assigned_role || null,
             start_date: formData.start_date || new Date().toISOString().split('T')[0],
             duration_days: parseInt(formData.duration_days) || 1,
-            trade: formData.trade || null,
             status: status,
             required_by: formData.required_by || null,
           },
@@ -164,8 +183,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           }
         }
 
-        // Follow the task if requested
-        if (taskId && formData.follow) {
+        // Follow the task if requested (only when assigned to others)
+        if (taskId && formData.follow && isAssignedToOther) {
           try {
             await api.post(`/api/v1/sm_tasks/${taskId}/follow`);
           } catch (followError) {
@@ -183,11 +202,10 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           name: '',
           description: '',
           job_id: '',
-          assigned_user_id: '',
+          assigned_user_id: currentUser ? String(currentUser.id) : '',
           assigned_role: '',
           start_date: new Date().toISOString().split('T')[0],
           duration_days: '1',
-          trade: '',
           started: false,
           required_by: '',
           follow: false,
@@ -213,6 +231,10 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const setDuration = (days: number) => {
+    setFormData((prev) => ({ ...prev, duration_days: String(days) }));
   };
 
   return (
@@ -276,14 +298,34 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                   </Select>
                 </div>
 
-                {/* Assign To (User or Role) */}
-                <TaskAssignmentField
-                  users={users}
-                  assignedUserId={formData.assigned_user_id}
-                  assignedRole={formData.assigned_role}
-                  onAssignedUserChange={(userId) => handleChange('assigned_user_id', userId)}
-                  onAssignedRoleChange={(role) => handleChange('assigned_role', role)}
-                />
+                {/* Assign To (User or Role) + Follow checkbox */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Assign To</Label>
+                    {isAssignedToOther && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="follow"
+                          checked={formData.follow}
+                          onCheckedChange={(checked) => handleChange('follow', checked === true)}
+                        />
+                        <Label
+                          htmlFor="follow"
+                          className="text-sm font-medium leading-none cursor-pointer"
+                        >
+                          Follow
+                        </Label>
+                      </div>
+                    )}
+                  </div>
+                  <TaskAssignmentField
+                    users={users}
+                    assignedUserId={formData.assigned_user_id}
+                    assignedRole={formData.assigned_role}
+                    onAssignedUserChange={(userId) => handleChange('assigned_user_id', userId)}
+                    onAssignedRoleChange={(role) => handleChange('assigned_role', role)}
+                  />
+                </div>
 
                 {/* Start Date & Duration */}
                 <div className="grid grid-cols-2 gap-4">
@@ -308,8 +350,39 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                   </div>
                 </div>
 
-                {/* Required By & Trade */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Duration Quick Buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={formData.duration_days === '1' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setDuration(1)}
+                    className="flex-1"
+                  >
+                    1 Day
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={formData.duration_days === '7' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setDuration(7)}
+                    className="flex-1"
+                  >
+                    1 Week
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={formData.duration_days === '30' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setDuration(30)}
+                    className="flex-1"
+                  >
+                    1 Month
+                  </Button>
+                </div>
+
+                {/* Required By & Started */}
+                <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
                     <Label htmlFor="required_by">Required By</Label>
                     <Input
@@ -319,20 +392,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                       onChange={(e) => handleChange('required_by', e.target.value)}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="trade">Trade</Label>
-                    <Input
-                      id="trade"
-                      value={formData.trade}
-                      onChange={(e) => handleChange('trade', e.target.value)}
-                      placeholder="e.g., Electrical"
-                    />
-                  </div>
-                </div>
-
-                {/* Started & Follow Checkboxes */}
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 pb-2">
                     <Checkbox
                       id="started"
                       checked={formData.started}
@@ -343,19 +403,6 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                       className="text-sm font-medium leading-none cursor-pointer"
                     >
                       Mark as Started
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="follow"
-                      checked={formData.follow}
-                      onCheckedChange={(checked) => handleChange('follow', checked === true)}
-                    />
-                    <Label
-                      htmlFor="follow"
-                      className="text-sm font-medium leading-none cursor-pointer"
-                    >
-                      Follow (get notifications)
                     </Label>
                   </div>
                 </div>

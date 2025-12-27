@@ -1188,7 +1188,7 @@ export function EntityTabsConfig({
 
       {/* Create/Edit Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>
               {editingTab ? "Edit Tab" : "Create New Tab"}
@@ -1200,135 +1200,157 @@ export function EntityTabsConfig({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* Display Name and Display Code */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="display_name">Display Name</Label>
-                <Input
-                  id="display_name"
-                  value={formData.display_name || ""}
-                  onChange={(e) => {
-                    const newName = e.target.value;
-                    setFormData((prev) => {
-                      // Auto-generate display_code if empty or matches auto-generated pattern
-                      const currentCode = prev.display_code || "";
-                      const shouldAutoGenerate = !currentCode || currentCode === generateDisplayCode(prev.display_name || "");
-                      return {
+          {/* Two-column layout */}
+          <div className="grid grid-cols-2 gap-6 py-4">
+            {/* Left Column: Basic Info */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Basic Information</h3>
+
+              {/* Display Name and Display Code */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="display_name">Display Name</Label>
+                  <Input
+                    id="display_name"
+                    value={formData.display_name || ""}
+                    onChange={(e) => {
+                      const newName = e.target.value;
+                      setFormData((prev) => {
+                        // Auto-generate display_code if empty or matches auto-generated pattern
+                        const currentCode = prev.display_code || "";
+                        const shouldAutoGenerate = !currentCode || currentCode === generateDisplayCode(prev.display_name || "");
+                        return {
+                          ...prev,
+                          display_name: newName,
+                          display_code: shouldAutoGenerate ? generateDisplayCode(newName) : currentCode,
+                        };
+                      });
+                    }}
+                    placeholder="e.g., Tax Returns"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="display_code">Code (max 3)</Label>
+                  <Input
+                    id="display_code"
+                    value={formData.display_code || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
                         ...prev,
-                        display_name: newName,
-                        display_code: shouldAutoGenerate ? generateDisplayCode(newName) : currentCode,
-                      };
-                    });
-                  }}
-                  placeholder="e.g., Tax Returns"
+                        display_code: e.target.value.toUpperCase().slice(0, 3),
+                      }))
+                    }
+                    placeholder="e.g., TAX"
+                    maxLength={3}
+                    className="font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Tab Key (only for new tabs) */}
+              {!editingTab && (
+                <div className="space-y-2">
+                  <Label htmlFor="tab_key">Tab Key (URL slug)</Label>
+                  <Input
+                    id="tab_key"
+                    value={formData.tab_key || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, tab_key: e.target.value }))
+                    }
+                    placeholder="e.g., tax-returns (auto-generated if empty)"
+                  />
+                </div>
+              )}
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  value={formData.description || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  placeholder="Brief description of this tab"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="display_code">Code (max 3)</Label>
-                <Input
-                  id="display_code"
-                  value={formData.display_code || ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      display_code: e.target.value.toUpperCase().slice(0, 3),
-                    }))
+
+              {/* Parent Tab (for nesting under another tab) */}
+              {editingTab && availableParents.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="parent_id">Parent Tab</Label>
+                  <Select
+                    value={formData.parent_id?.toString() || "none"}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        // Use null (not undefined) so JSON serialization includes it
+                        parent_id: value === "none" ? null : parseInt(value, 10),
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select parent tab (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No parent (root level)</SelectItem>
+                      {availableParents.map((parent) => (
+                        <SelectItem key={parent.id} value={parent.id.toString()}>
+                          {parent.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Move this tab under another tab to create a sub-tab
+                  </p>
+                </div>
+              )}
+
+              {/* Entity Filters (for corporate_entity) */}
+              {showEntityFilters && (
+                <div className="space-y-2">
+                  <Label>Show for Entity Types</Label>
+                  <MultipleSelector
+                    value={
+                      formData.entity_filters?.map((type) => ({
+                        value: type,
+                        label: type,
+                      })) || []
+                    }
+                    onChange={(options: Option[]) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        entity_filters: options.map((o: Option) => o.value),
+                      }))
+                    }
+                    defaultOptions={entityTypeOptions}
+                    placeholder="Select entity types..."
+                    emptyIndicator={
+                      <p className="text-center text-sm text-muted-foreground">
+                        No options available
+                      </p>
+                    }
+                  />
+                </div>
+              )}
+
+              {/* Enabled toggle */}
+              <div className="flex items-center gap-2 pt-2">
+                <Switch
+                  id="enabled"
+                  checked={formData.enabled ?? true}
+                  onCheckedChange={(checked) =>
+                    setFormData((prev) => ({ ...prev, enabled: checked }))
                   }
-                  placeholder="e.g., TAX"
-                  maxLength={3}
-                  className="font-mono uppercase"
                 />
+                <Label htmlFor="enabled">Enabled</Label>
               </div>
             </div>
 
-            {/* Tab Key (only for new tabs) */}
-            {!editingTab && (
-              <div className="space-y-2">
-                <Label htmlFor="tab_key">Tab Key (URL slug)</Label>
-                <Input
-                  id="tab_key"
-                  value={formData.tab_key || ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, tab_key: e.target.value }))
-                  }
-                  placeholder="e.g., tax-returns (auto-generated if empty)"
-                />
-              </div>
-            )}
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                value={formData.description || ""}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, description: e.target.value }))
-                }
-                placeholder="Brief description of this tab"
-              />
-            </div>
-
-            {/* Parent Tab (for nesting under another tab) */}
-            {editingTab && availableParents.length > 0 && (
-              <div className="space-y-2">
-                <Label htmlFor="parent_id">Parent Tab</Label>
-                <Select
-                  value={formData.parent_id?.toString() || "none"}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      // Use null (not undefined) so JSON serialization includes it
-                      parent_id: value === "none" ? null : parseInt(value, 10),
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select parent tab (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No parent (root level)</SelectItem>
-                    {availableParents.map((parent) => (
-                      <SelectItem key={parent.id} value={parent.id.toString()}>
-                        {parent.display_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Move this tab under another tab to create a sub-tab
-                </p>
-              </div>
-            )}
-
-            {/* Entity Filters (for corporate_entity) */}
-            {showEntityFilters && (
-              <div className="space-y-2">
-                <Label>Show for Entity Types</Label>
-                <MultipleSelector
-                  value={
-                    formData.entity_filters?.map((type) => ({
-                      value: type,
-                      label: type,
-                    })) || []
-                  }
-                  onChange={(options: Option[]) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      entity_filters: options.map((o: Option) => o.value),
-                    }))
-                  }
-                  defaultOptions={entityTypeOptions}
-                  placeholder="Select entity types..."
-                  emptyIndicator={
-                    <p className="text-center text-sm text-muted-foreground">
-                      No options available
-                    </p>
-                  }
-                />
-              </div>
-            )}
+            {/* Right Column: SharePoint & Document Types */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">SharePoint Configuration</h3>
 
             {/* SharePoint Folder - SSoT: Template Inheritance */}
             {showSharePointPaths && (
@@ -1673,17 +1695,6 @@ export function EntityTabsConfig({
                 )}
               </div>
             )}
-
-            {/* Enabled */}
-            <div className="flex items-center gap-2">
-              <Switch
-                id="enabled"
-                checked={formData.enabled ?? true}
-                onCheckedChange={(checked) =>
-                  setFormData((prev) => ({ ...prev, enabled: checked }))
-                }
-              />
-              <Label htmlFor="enabled">Enabled</Label>
             </div>
           </div>
 
