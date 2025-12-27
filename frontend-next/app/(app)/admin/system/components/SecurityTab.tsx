@@ -386,6 +386,11 @@ function RolesManagementTab() {
   const [editDisplayName, setEditDisplayName] = React.useState("");
   const [editDescription, setEditDescription] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  // View users in role
+  const [showUsersDialog, setShowUsersDialog] = React.useState(false);
+  const [selectedRoleForUsers, setSelectedRoleForUsers] = React.useState<Role | null>(null);
+  const [roleUsers, setRoleUsers] = React.useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [loadingRoleUsers, setLoadingRoleUsers] = React.useState(false);
 
   React.useEffect(() => {
     loadRoles();
@@ -402,6 +407,32 @@ function RolesManagementTab() {
       toast({ title: "Error", description: "Failed to load roles", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleViewRoleUsers = async (role: Role) => {
+    setSelectedRoleForUsers(role);
+    setShowUsersDialog(true);
+    setLoadingRoleUsers(true);
+    try {
+      const data = await api.get<{ users: Array<{ id: number; name: string; email: string }> }>(
+        `/api/v1/permissions/roles/${role.id}/users`
+      );
+      setRoleUsers(data?.users || []);
+    } catch (error) {
+      console.error("Failed to load role users:", error);
+      // Fallback: load all users and filter by role
+      try {
+        const allUsers = await api.get<{ users: User[] }>("/api/v1/users");
+        const filtered = (allUsers?.users || []).filter(u =>
+          Array.isArray(u.role_ids) && u.role_ids.some(r => r.id === role.id)
+        );
+        setRoleUsers(filtered.map(u => ({ id: u.id, name: u.name, email: u.email })));
+      } catch {
+        setRoleUsers([]);
+      }
+    } finally {
+      setLoadingRoleUsers(false);
     }
   };
 
@@ -495,7 +526,11 @@ function RolesManagementTab() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {roles.map((role) => (
-          <Card key={role.id}>
+          <Card
+            key={role.id}
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onDoubleClick={() => handleViewRoleUsers(role)}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">{role.display_name || role.name}</CardTitle>
@@ -625,6 +660,54 @@ function RolesManagementTab() {
               ) : (
                 "Save Changes"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Users in Role Dialog */}
+      <Dialog open={showUsersDialog} onOpenChange={setShowUsersDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {selectedRoleForUsers?.display_name || selectedRoleForUsers?.name} Users
+            </DialogTitle>
+            <DialogDescription>
+              Users assigned to this role
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto">
+            {loadingRoleUsers ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : roleUsers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No users assigned to this role
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {roleUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
+                      {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{user.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUsersDialog(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

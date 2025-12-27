@@ -131,12 +131,14 @@ module Api
             end
           end
 
-          # Log the activity
-          Activity.create(
-            subject: job,
-            user: current_user,
-            action: "photo_uploaded",
-            description: "Photo #{filename} uploaded to #{folder_path}"
+          Rails.logger.info "[JobPhotos] Successfully uploaded #{filename} to #{folder_path}"
+
+          # SSoT: Use JobActivity for consistent activity logging across the job
+          JobActivity.log_document_uploaded(
+            job,
+            document_name: filename,
+            document_url: result["webUrl"],
+            user: current_user
           )
 
           render json: {
