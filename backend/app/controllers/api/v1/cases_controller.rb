@@ -32,9 +32,15 @@ module Api
         # Filter overdue
         cases = cases.overdue if params[:overdue] == "true"
 
-        # Search by title/number
+        # Search using SSoT SearchService
         if params[:search].present?
-          cases = cases.where("title ILIKE ? OR case_number ILIKE ?", "%#{params[:search]}%", "%#{params[:search]}%")
+          cases = SearchService.apply(
+            cases,
+            params[:search],
+            columns: %w[title case_number],
+            mode: params[:search_mode] || 'contains',
+            model: LegalCase
+          )
         end
 
         # Sorting

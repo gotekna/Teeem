@@ -12,9 +12,15 @@ module Api
           @company_groups = @company_groups.where(active: params[:active] == "true")
         end
 
-        # Search by name
+        # Search using SSoT SearchService
         if params[:search].present?
-          @company_groups = @company_groups.where("name ILIKE ?", "%#{params[:search]}%")
+          @company_groups = SearchService.apply(
+            @company_groups,
+            params[:search],
+            columns: %w[name],
+            mode: params[:search_mode] || 'contains',
+            model: CompanyGroup
+          )
         end
 
         @company_groups = @company_groups.order(:name)

@@ -10,9 +10,15 @@ module Api
         # Filter by active status
         @designs = @designs.active if params[:active] == "true"
 
-        # Search by name
+        # Search using SSoT SearchService
         if params[:search].present?
-          @designs = @designs.where("name ILIKE ?", "%#{params[:search]}%")
+          @designs = SearchService.apply(
+            @designs,
+            params[:search],
+            columns: %w[name],
+            mode: params[:search_mode] || 'contains',
+            model: Design
+          )
         end
 
         # Sorting

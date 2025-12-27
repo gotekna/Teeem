@@ -26,12 +26,14 @@ module Api
           bills = bills.where("invoice_date <= ?", params[:to_date])
         end
 
-        # Search
+        # Search using SSoT SearchService
         if params[:search].present?
-          search_term = "%#{params[:search]}%"
-          bills = bills.where(
-            "supplier_name_raw ILIKE ? OR invoice_number ILIKE ?",
-            search_term, search_term
+          bills = SearchService.apply(
+            bills,
+            params[:search],
+            columns: %w[supplier_name_raw invoice_number],
+            mode: params[:search_mode] || 'contains',
+            model: BillInboxItem
           )
         end
 

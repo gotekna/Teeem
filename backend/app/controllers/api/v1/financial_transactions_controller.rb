@@ -214,9 +214,15 @@ module Api
           scope = scope.where("transaction_date <= ?", Date.parse(params[:to_date]))
         end
 
-        # Search by description
+        # Search using SSoT SearchService
         if params[:search].present?
-          scope = scope.where("description ILIKE ?", "%#{params[:search]}%")
+          scope = SearchService.apply(
+            scope,
+            params[:search],
+            columns: %w[description],
+            mode: params[:search_mode] || 'contains',
+            model: FinancialTransaction
+          )
         end
 
         scope

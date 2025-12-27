@@ -11,12 +11,14 @@ module Api
         # Apply filters
         @accounts = @accounts.where(kind: params[:kind]) if params[:kind].present?
 
-        # Search by name or number
+        # Search using SSoT SearchService
         if params[:search].present?
-          @accounts = @accounts.where(
-            "name ILIKE ? OR CAST(number AS TEXT) LIKE ?",
-            "%#{params[:search]}%",
-            "%#{params[:search]}%"
+          @accounts = SearchService.apply(
+            @accounts,
+            params[:search],
+            columns: %w[name number],
+            mode: params[:search_mode] || 'contains',
+            model: ChartOfAccount
           )
         end
 

@@ -13,9 +13,15 @@ class Api::V1::VipSendersController < ApplicationController
       vips = vips.by_category(params[:category])
     end
 
-    # Search
+    # Search using SSoT SearchService
     if params[:search].present?
-      vips = vips.where("name ILIKE ? OR email_address ILIKE ?", "%#{params[:search]}%", "%#{params[:search]}%")
+      vips = SearchService.apply(
+        vips,
+        params[:search],
+        columns: %w[name email_address],
+        mode: params[:search_mode] || 'contains',
+        model: VipSender
+      )
     end
 
     render json: {

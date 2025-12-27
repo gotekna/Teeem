@@ -28,9 +28,15 @@ class Api::V1::EmailTemplatesController < ApplicationController
       templates = templates.where(user: current_user)
     end
 
-    # Search by name
+    # Search using SSoT SearchService
     if params[:search].present?
-      templates = templates.where("name ILIKE ?", "%#{params[:search]}%")
+      templates = SearchService.apply(
+        templates,
+        params[:search],
+        columns: %w[name],
+        mode: params[:search_mode] || 'contains',
+        model: EmailTemplate
+      )
     end
 
     # Ordering
