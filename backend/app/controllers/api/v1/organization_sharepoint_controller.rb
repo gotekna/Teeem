@@ -1419,6 +1419,7 @@ module Api
               ai_confidence: doc.ai_confidence&.to_f,
               ai_reasoning: doc.ai_reasoning,
               rename_status: doc.rename_status,
+              thumbnail_url: doc.thumbnail_url,
               from_cache: true
             }
           end

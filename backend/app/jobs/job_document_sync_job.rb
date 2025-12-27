@@ -110,6 +110,7 @@ class JobDocumentSyncJob < ApplicationJob
       file_size: file[:size],
       folder_path: file[:folder_path],
       web_url: file[:web_url],
+      thumbnail_url: file[:thumbnail_url],
       last_modified_at: file[:modified],
       sync_status: "synced",
       last_synced_at: Time.current
@@ -137,18 +138,24 @@ class JobDocumentSyncJob < ApplicationJob
       current_id, depth, current_path = folders_to_process.shift
 
       begin
-        url = "/drives/#{@drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+        url = "/drives/#{@drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$expand=thumbnails&$top=200"
         result = @client.get(url)
 
         result["value"]&.each do |item|
           if item["file"]
+            # Extract thumbnail URL from Microsoft Graph response (publicly accessible)
+            thumbnail_url = item.dig("thumbnails", 0, "medium", "url") ||
+                            item.dig("thumbnails", 0, "small", "url") ||
+                            item.dig("thumbnails", 0, "large", "url")
+
             files << {
               id: item["id"],
               name: item["name"],
               size: item["size"],
               web_url: item["webUrl"],
               modified: item["lastModifiedDateTime"],
-              folder_path: current_path
+              folder_path: current_path,
+              thumbnail_url: thumbnail_url
             }
           elsif item["folder"] && depth < max_depth
             folder_name = item["name"]
