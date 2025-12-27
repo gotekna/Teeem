@@ -1362,6 +1362,8 @@ export default function TeeemTableView({
   // This prevents "ghost selection" where IDs remain selected after records are deleted/merged
   // Only runs when entries change (not when selectedRows changes, to avoid infinite loop)
   const entriesRef = useRef(entries);
+  // Ref to hold current filteredAndSortedEntries for use in callbacks before useMemo is defined
+  const filteredAndSortedEntriesRef = useRef<Record<string, unknown>[]>([]);
   useEffect(() => {
     // Skip if entries haven't actually changed (same reference)
     if (entriesRef.current === entries) return;
@@ -2452,17 +2454,25 @@ export default function TeeemTableView({
     console.log('[Bulk Update] Starting bulk update...');
     console.log('[Bulk Update] Column:', bulkUpdateColumn);
     console.log('[Bulk Update] Value:', bulkUpdateValue);
-    console.log('[Bulk Update] Selected rows count:', selectedRows.size);
-    console.log('[Bulk Update] Selected row IDs:', Array.from(selectedRows));
 
-    if (!bulkUpdateColumn || selectedRows.size === 0) {
-      console.warn('[Bulk Update] Aborted - missing column or no rows selected');
+    // SSoT FIX: Only update VISIBLE selected rows (intersection of selected + filtered)
+    // This prevents accidentally updating rows hidden by filters
+    // Use ref to access current filtered entries (avoids dependency order issues)
+    const visibleIds = new Set(filteredAndSortedEntriesRef.current.map(e => e.id));
+    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
+
+    console.log('[Bulk Update] Total selected rows:', selectedRows.size);
+    console.log('[Bulk Update] Visible selected rows:', visibleSelectedIds.length);
+    console.log('[Bulk Update] Visible selected IDs:', visibleSelectedIds);
+
+    if (!bulkUpdateColumn || visibleSelectedIds.length === 0) {
+      console.warn('[Bulk Update] Aborted - missing column or no visible rows selected');
       return;
     }
 
     setBulkUpdateSaving(true);
     try {
-      const ids = Array.from(selectedRows);
+      const ids = visibleSelectedIds;
       const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
       console.log('[Bulk Update] Selected column config:', selectedCol);
 
@@ -3075,6 +3085,16 @@ export default function TeeemTableView({
     evaluateFilter,
     pendingDeleteIds,
   ]);
+
+  // Keep ref in sync with filteredAndSortedEntries for use in callbacks
+  filteredAndSortedEntriesRef.current = filteredAndSortedEntries;
+
+  // SSoT: Compute visible selected count (intersection of selected rows and filtered rows)
+  // This ensures bulk operations only affect rows the user can currently see
+  const visibleSelectedCount = useMemo(() => {
+    const visibleIds = new Set(filteredAndSortedEntries.map(e => e.id));
+    return Array.from(selectedRows).filter(id => visibleIds.has(id)).length;
+  }, [filteredAndSortedEntries, selectedRows]);
 
   // ============================================================================
   // KEYBOARD NAVIGATION - Arrow keys, Enter, Space, Escape, /
@@ -5619,7 +5639,7 @@ export default function TeeemTableView({
               [5] FOOTER (YELLOW/RED) - shrink-0
             </div>
           )}
-          <span>{selectedRows.size} selected</span>
+          <span>{visibleSelectedCount} selected{selectedRows.size !== visibleSelectedCount && ` (${selectedRows.size - visibleSelectedCount} hidden)`}</span>
         </div>
       )}
 
@@ -5627,7 +5647,7 @@ export default function TeeemTableView({
       <BulkUpdateModal
         open={showBulkUpdateModal}
         onOpenChange={setShowBulkUpdateModal}
-        selectedRowsCount={selectedRows.size}
+        selectedRowsCount={visibleSelectedCount}
         COLUMNS={COLUMNS}
         bulkUpdateColumn={bulkUpdateColumn}
         setBulkUpdateColumn={setBulkUpdateColumn}
