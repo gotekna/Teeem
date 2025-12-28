@@ -462,7 +462,7 @@ function GoldStandardDataTab() {
             available_choices?: string[];
           }>;
         };
-      }>("/api/v1/foundations/1");
+      }>("/api/v1/foundations/gold_standard_table");
 
       // Fetch gold standard items
       const itemsData = await api.get<{

@@ -1222,7 +1222,6 @@ export function ScheduleMasterTab() {
                 : dataViewRows.length
               }
               foundationId="sm_schedule_master"
-              foundationIdNumeric={426}
               tableName={dataViewTemplateId
                 ? templates.find(t => t.id === dataViewTemplateId)?.name || "Schedule Template Rows"
                 : "Schedule Template Rows"

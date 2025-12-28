@@ -55,7 +55,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   useEffect(() => {
     const loadRoles = async () => {
       try {
-        const response = await api.get<{ records: Role[] }>("/api/v1/foundations/413/records");
+        const response = await api.get<{ records: Role[] }>("/api/v1/foundations/roles/records");
         if (response?.records) {
           setRoles(response.records);
         }
