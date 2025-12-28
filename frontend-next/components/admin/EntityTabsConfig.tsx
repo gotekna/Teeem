@@ -1242,10 +1242,17 @@ export function EntityTabsConfig({
       {/* Create/Edit Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="sm:max-w-[95vw] h-[90vh] overflow-hidden flex flex-col">
+          {/* Visually hidden title for screen reader accessibility */}
+          <DialogTitle className="sr-only">
+            {editingTab ? `Edit: ${editingTab.display_name}` : "Create New Tab"}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Configure tab settings including name, icon, visibility, and content options
+          </DialogDescription>
           {/* Compact header with inline save button */}
           <div className="flex items-center justify-between border-b pb-3 mb-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold" aria-hidden="true">
                 {editingTab ? `Edit: ${editingTab.display_name}` : "Create New Tab"}
               </h2>
               {/* SSoT: Show subtab indicator when editing a child tab */}
