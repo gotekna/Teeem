@@ -77,6 +77,13 @@ module Api
         @ticket.is_ticket = true
         @ticket.submitted_via_portal = params[:submitted_via_portal] || false
 
+        # Auto-set saas_customer_id if the current user is a SaaS customer
+        # and no explicit saas_customer_id was provided
+        if @ticket.saas_customer_id.blank? && current_user.contact&.is_saas_customer?
+          @ticket.saas_customer_id = current_user.contact.id
+          @ticket.customer_visible = true
+        end
+
         # Set defaults
         @ticket.status ||= "not_started"
         @ticket.start_date ||= Date.current
@@ -167,6 +174,29 @@ module Api
         }
       end
 
+      # GET /api/v1/support_tickets/my_tickets
+      # Returns tickets for the current user's SaaS customer contact
+      def my_tickets
+        # Find contact linked to current user
+        contact = current_user.contact
+
+        if contact.nil? || !contact.is_saas_customer?
+          render json: { success: true, data: [] }
+          return
+        end
+
+        tickets = SmTask.tickets
+          .where(saas_customer_id: contact.id)
+          .where(customer_visible: true)
+          .includes(:comments)
+          .order(created_at: :desc)
+
+        render json: {
+          success: true,
+          data: tickets.map { |t| my_ticket_json(t) }
+        }
+      end
+
       private
 
       def set_ticket
@@ -213,6 +243,15 @@ module Api
           data[:comments_count] = ticket.comments.count
           data[:time_entries_count] = ticket.time_entries.count
           data[:attachments_count] = ticket.sm_task_attachments.count
+          # Include actual comments for ticket detail view
+          data[:comments] = ticket.comments.not_deleted.oldest_first.map do |c|
+            {
+              id: c.id,
+              body: c.body,
+              created_at: c.created_at,
+              author_name: c.author&.name
+            }
+          end
         end
 
         data
@@ -238,6 +277,22 @@ module Api
               author: c.user&.display_name
             }
           end
+        }
+      end
+
+      def my_ticket_json(ticket)
+        {
+          id: ticket.id,
+          task_number: ticket.task_number,
+          name: ticket.name,
+          description: ticket.description,
+          status: ticket.status,
+          ticket_priority: ticket.ticket_priority,
+          ticket_category: ticket.ticket_category,
+          created_at: ticket.created_at,
+          updated_at: ticket.updated_at,
+          sla_status: ticket.sla_status,
+          comments_count: ticket.comments.not_deleted.count
         }
       end
 

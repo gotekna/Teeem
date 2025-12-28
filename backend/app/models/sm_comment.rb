@@ -27,9 +27,9 @@ class SmComment < ApplicationRecord
   scope :for_task, ->(task_id) { where(sm_task_id: task_id) }
 
   # Callbacks
-  after_create :extract_mentions
-  after_create :track_activity
-  after_create :notify_mentions
+  after_create :extract_mentions, if: -> { defined?(SmCommentMention) }
+  after_create :track_activity, if: -> { defined?(SmActivity) }
+  after_create :notify_mentions, if: -> { defined?(NotifyMentionJob) }
 
   # Instance methods
   def edited?
@@ -86,6 +86,8 @@ class SmComment < ApplicationRecord
   end
 
   def track_activity
+    return unless defined?(SmActivity) && SmActivity.respond_to?(:track)
+
     SmActivity.track(
       "comment_added",
       construction: task.construction,

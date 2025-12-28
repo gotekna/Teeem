@@ -744,18 +744,24 @@ function SystemAdminPageContent() {
     );
   }
 
+  // Tabs that should hide the page header for more space
+  const isCompactTab = currentTab === 'schedule-master';
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="shrink-0 mb-4">
-        <h1 className="text-2xl font-bold tracking-tight font-serif">System Administration</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Configure system settings, integrations, and developer tools
-        </p>
-      </div>
+      {/* Header - hidden for compact tabs like Schedule Master */}
+      {!isCompactTab && (
+        <div className="shrink-0 mb-4">
+          <h1 className="text-2xl font-bold tracking-tight font-serif">System Administration</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure system settings, integrations, and developer tools
+          </p>
+        </div>
+      )}
 
       {/* Main Tab Navigation */}
       <Tabs value={currentTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
+        {!isCompactTab && (
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 justify-start shrink-0">
           {MAIN_TABS.map((tab) => {
             const Icon = tab.icon;
@@ -778,8 +784,9 @@ function SystemAdminPageContent() {
             );
           })}
         </TabsList>
+        )}
 
-        <div className="mt-4 flex-1 min-h-0 [&>*]:h-full [&>*[data-state=inactive]]:hidden">
+        <div className={`${isCompactTab ? 'mt-0' : 'mt-4'} flex-1 min-h-0 [&>*]:h-full [&>*[data-state=inactive]]:hidden`}>
           <TabsContent value="company" className={getTabContentClass('company')}>
             <CompanySettingsTab />
           </TabsContent>

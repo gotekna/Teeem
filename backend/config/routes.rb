@@ -760,6 +760,7 @@ Rails.application.routes.draw do
         collection do
           get :dashboard
           get :pricing_calculator
+          get :select  # Lightweight endpoint for dropdown/select
         end
       end
 
@@ -770,8 +771,11 @@ Rails.application.routes.draw do
         end
         collection do
           get :dashboard
+          get :my_tickets  # Current user's tickets (SaaS customer view)
           get "for_customer/:customer_id", action: :for_customer
         end
+        # Nested comments
+        resources :comments, only: [:create], controller: "support_ticket_comments"
       end
 
       # SaaS Billing
@@ -3552,6 +3556,13 @@ Rails.application.routes.draw do
           end
           collection do
             get :stats
+          end
+        end
+
+        # Support Tickets (customer-facing)
+        resources :tickets, only: [:index, :show, :create] do
+          member do
+            post :add_comment
           end
         end
 

@@ -44,6 +44,11 @@ import {
   Palette,
   Map,
   Clock,
+  // Support/Ticket icons
+  Ticket,
+  LifeBuoy,
+  Headphones,
+  HelpCircle,
   // Job tab icons
   ClipboardList,
   FileSignature,
@@ -164,6 +169,11 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Palette,
   Map,
   Clock,
+  // Support/Ticket icons
+  Ticket,
+  LifeBuoy,
+  Headphones,
+  HelpCircle,
   // Job tab icons
   ClipboardList,
   FileSignature,

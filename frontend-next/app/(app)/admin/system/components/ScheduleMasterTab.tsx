@@ -64,6 +64,8 @@ import {
   X,
   MoreVertical,
   Tag,
+  Expand,
+  Minimize2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -253,6 +255,7 @@ export function ScheduleMasterTab() {
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
+  const [dataViewFullscreen, setDataViewFullscreen] = React.useState(false);
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
@@ -976,6 +979,20 @@ export function ScheduleMasterTab() {
     }
   };
 
+  // Exit Data View fullscreen on Escape key
+  React.useEffect(() => {
+    if (!dataViewFullscreen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDataViewFullscreen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [dataViewFullscreen]);
+
   // Gantt Preview functions
   const loadGanttRows = async (templateId: number) => {
     setGanttTemplateId(templateId);
@@ -1002,8 +1019,8 @@ export function ScheduleMasterTab() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
         <TabsList className="shrink-0">
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
@@ -1031,7 +1048,7 @@ export function ScheduleMasterTab() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="schedule-templates" className="space-y-6 mt-6 flex-1 overflow-auto">
+        <TabsContent value="schedule-templates" className="space-y-6 mt-0 pt-4 flex-1 overflow-auto px-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Schedule Master Templates</h2>
@@ -1186,11 +1203,11 @@ export function ScheduleMasterTab() {
           )}
         </TabsContent>
 
-        <TabsContent value="display-settings" className="mt-6 flex-1 overflow-auto">
+        <TabsContent value="display-settings" className="mt-0 pt-4 flex-1 overflow-auto px-4">
           <SMGanttTab />
         </TabsContent>
 
-        <TabsContent value="gantt-preview" className="mt-0 flex-1 min-h-0">
+        <TabsContent value="gantt-preview" className="mt-0 flex-1 min-h-0 overflow-hidden">
           {loadingRows === ganttTemplateId && (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1210,8 +1227,8 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
         {/* Data View Tab - Full TeeemTableView */}
-        <TabsContent value="data-view" className="mt-0 flex-1 min-h-0 flex flex-col">
-          <div className="flex flex-col h-full">
+        <TabsContent value="data-view" className="mt-0 flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className={`flex flex-col h-full ${dataViewFullscreen ? "fixed inset-0 z-50 bg-background p-4" : ""}`}>
             <TeeemTableView
               key={dataViewRefreshKey}
               entries={(selectedTagFilter
@@ -1243,6 +1260,17 @@ export function ScheduleMasterTab() {
               initialShowTotals={true}
               leftActions={
                 <div className="flex items-center gap-2">
+                  {/* Fullscreen toggle */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDataViewFullscreen(!dataViewFullscreen)}
+                    title={dataViewFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen"}
+                    className="h-9 w-9"
+                  >
+                    {dataViewFullscreen ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+                  </Button>
+
                   {/* Template selector */}
                   <Select
                     value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
@@ -1318,8 +1346,8 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
         {/* Column Reference Tab */}
-        <TabsContent value="column-reference" className="mt-6 flex-1 overflow-auto">
-          <div className="space-y-8 max-w-5xl">
+        <TabsContent value="column-reference" className="mt-0 pt-4 flex-1 overflow-auto">
+          <div className="space-y-8 max-w-5xl px-4">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -1864,7 +1892,7 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
         {/* Recurring Tasks Tab */}
-        <TabsContent value="recurring-tasks" className="mt-6 flex-1 overflow-auto">
+        <TabsContent value="recurring-tasks" className="mt-0 pt-4 flex-1 overflow-auto px-4">
           <RecurringTasksSection />
         </TabsContent>
       </Tabs>

@@ -140,6 +140,17 @@ module Api
         }
       end
 
+      # GET /api/v1/saas_customers/select
+      # Lightweight endpoint for dropdown/select components
+      def select
+        customers = Contact.active_saas.order(:name).pluck(:id, :name, :display_name)
+
+        render json: {
+          success: true,
+          data: customers.map { |id, name, display_name| { id: id, name: display_name.presence || name } }
+        }
+      end
+
       # GET /api/v1/saas_customers/pricing_calculator
       # Public endpoint for pricing calculator (used by CostTab)
       def pricing_calculator

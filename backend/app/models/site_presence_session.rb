@@ -62,11 +62,13 @@ class SitePresenceSession < ApplicationRecord
   after_save :create_labour_cost_entry_if_completed, if: :saved_change_to_session_status?
 
   # Check-in method
-  def self.check_in(worker_profile:, job:, latitude:, longitude:, photo: nil, task: nil, device_info: nil)
+  # @param saas_customer_id [Integer, nil] SaaS customer being supported (for cost-to-serve tracking)
+  def self.check_in(worker_profile:, job:, latitude:, longitude:, photo: nil, task: nil, device_info: nil, saas_customer_id: nil)
     session = new(
       worker_profile: worker_profile,
       job: job,
       sm_task: task,
+      saas_customer_id: saas_customer_id,
       checkin_at: Time.current,
       latitude_checkin: latitude,
       longitude_checkin: longitude,

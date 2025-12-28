@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_070001) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_070004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6174,6 +6174,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "purchase_order_id"
+    t.bigint "saas_customer_id"
     t.index ["billable", "billing_status"], name: "idx_labour_cost_billing_queue"
     t.index ["billing_status"], name: "index_labour_cost_entries_on_billing_status"
     t.index ["cost_centre_id", "entry_date"], name: "index_labour_cost_entries_on_cost_centre_id_and_entry_date"
@@ -6183,6 +6184,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070001) do
     t.index ["job_id", "entry_date"], name: "index_labour_cost_entries_on_job_id_and_entry_date"
     t.index ["job_id"], name: "index_labour_cost_entries_on_job_id"
     t.index ["purchase_order_id"], name: "index_labour_cost_entries_on_purchase_order_id"
+    t.index ["saas_customer_id"], name: "index_labour_cost_entries_on_saas_customer_id"
     t.index ["site_presence_session_id"], name: "index_labour_cost_entries_on_site_presence_session_id"
     t.index ["sm_task_id"], name: "index_labour_cost_entries_on_sm_task_id"
     t.index ["worker_profile_id", "entry_date"], name: "index_labour_cost_entries_on_worker_profile_id_and_entry_date"
@@ -7667,6 +7669,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070001) do
     t.string "app_version", limit: 20
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "saas_customer_id"
     t.index ["approval_status", "created_at"], name: "idx_site_presence_approval_queue"
     t.index ["approval_status"], name: "index_site_presence_sessions_on_approval_status"
     t.index ["approved_by_id"], name: "index_site_presence_sessions_on_approved_by_id"
@@ -7677,11 +7680,42 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070001) do
     t.index ["cost_centre_id"], name: "index_site_presence_sessions_on_cost_centre_id"
     t.index ["job_id", "checkin_at"], name: "index_site_presence_sessions_on_job_id_and_checkin_at"
     t.index ["job_id"], name: "index_site_presence_sessions_on_job_id"
+    t.index ["saas_customer_id"], name: "index_site_presence_sessions_on_saas_customer_id"
     t.index ["session_status"], name: "index_site_presence_sessions_on_session_status"
     t.index ["sm_task_id"], name: "index_site_presence_sessions_on_sm_task_id"
     t.index ["worker_profile_id", "checkin_at"], name: "idx_on_worker_profile_id_checkin_at_2de5a18268"
     t.index ["worker_profile_id", "session_status"], name: "idx_site_presence_worker_status"
     t.index ["worker_profile_id"], name: "index_site_presence_sessions_on_worker_profile_id"
+  end
+
+  create_table "sm_comment_mentions", force: :cascade do |t|
+    t.bigint "sm_comment_id", null: false
+    t.bigint "user_id"
+    t.bigint "resource_id"
+    t.datetime "mentioned_at", null: false
+    t.datetime "read_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["read_at"], name: "index_sm_comment_mentions_on_read_at"
+    t.index ["resource_id"], name: "index_sm_comment_mentions_on_resource_id"
+    t.index ["sm_comment_id"], name: "index_sm_comment_mentions_on_sm_comment_id"
+    t.index ["user_id"], name: "index_sm_comment_mentions_on_user_id"
+  end
+
+  create_table "sm_comments", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "author_id", null: false
+    t.bigint "parent_id"
+    t.bigint "resource_id"
+    t.text "body", null: false
+    t.datetime "deleted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_sm_comments_on_author_id"
+    t.index ["deleted_at"], name: "index_sm_comments_on_deleted_at"
+    t.index ["parent_id"], name: "index_sm_comments_on_parent_id"
+    t.index ["resource_id"], name: "index_sm_comments_on_resource_id"
+    t.index ["sm_task_id"], name: "index_sm_comments_on_sm_task_id"
   end
 
   create_table "sm_dependencies", force: :cascade do |t|
@@ -10050,6 +10084,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070001) do
   add_foreign_key "site_presence_sessions", "sm_tasks"
   add_foreign_key "site_presence_sessions", "users", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "site_presence_sessions", "worker_profiles"
+  add_foreign_key "sm_comment_mentions", "sm_comments"
+  add_foreign_key "sm_comment_mentions", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_comment_mentions", "users"
+  add_foreign_key "sm_comments", "sm_comments", column: "parent_id"
+  add_foreign_key "sm_comments", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_comments", "sm_tasks"
+  add_foreign_key "sm_comments", "users", column: "author_id"
   add_foreign_key "sm_dependencies", "sm_tasks", column: "predecessor_task_id", on_delete: :cascade
   add_foreign_key "sm_dependencies", "sm_tasks", column: "successor_task_id", on_delete: :cascade
   add_foreign_key "sm_dependencies", "users", column: "created_by_id", on_delete: :nullify
