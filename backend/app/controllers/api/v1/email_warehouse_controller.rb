@@ -10,7 +10,6 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Skip this filter if microsoft_credential_id is provided (we'll filter by that instead)
     if params[:my_emails] == "true" && params[:microsoft_credential_id].blank?
       user_imap_ids = current_user.imap_credentials.pluck(:id)
-      # REMOVED: user_outlook_email from per-user credentials - using org credentials only
 
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
@@ -31,8 +30,6 @@ class Api::V1::EmailWarehouseController < ApplicationController
         conditions << "(source_type = 'imap' AND imap_credential_id IN (?))"
         bind_values << user_imap_ids
       end
-
-      # REMOVED: Personal Outlook filtering - using org credentials only
 
       # MS365 org mailboxes - filter by credential AND mailbox email
       if ms365_cred_ids.any?

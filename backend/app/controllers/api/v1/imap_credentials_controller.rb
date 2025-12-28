@@ -144,9 +144,6 @@ class Api::V1::ImapCredentialsController < ApplicationController
     account_id = params[:account_id]
     mailbox_email = params[:mailbox_email]  # For ms365 accounts
 
-    # REMOVED: Personal Outlook account_id == "outlook" case
-    # Per-user Outlook credentials have been removed - using org-wide credentials only
-
     if account_id&.start_with?("ms365_")
       # Fetch folders from Microsoft 365 org using app credentials
       parts = account_id.split("_")
@@ -253,8 +250,6 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # Note: We no longer fall back to showing all mailboxes or guessing by name.
       # Admins must configure access in Admin > System > Email Accounts.
     end
-
-    # REMOVED: Personal Outlook credential - using org-wide credentials only
 
     # Add IMAP accounts
     current_user.imap_credentials.where(is_active: true).order(created_at: :desc).each do |cred|
@@ -547,7 +542,6 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # Infer account type from credential_id format
   def infer_account_type(credential_id)
     case credential_id.to_s
-    # REMOVED: "outlook" case - per-user Outlook credentials deprecated
     when /^ms365_/
       "ms365"
     else

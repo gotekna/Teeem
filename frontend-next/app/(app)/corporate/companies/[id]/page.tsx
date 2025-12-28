@@ -230,9 +230,6 @@ export default function CompanyDetailPage() {
     return iconMap[folderName] || FileText;
   };
 
-  // REMOVED: loadEntityTabs - now using useEntityTabs hook directly (SSoT)
-  // REMOVED: loadXeroTabs - now using XeroTabRenderer with useEntityTabs (SSoT)
-
   // Load company details
   const loadCompany = React.useCallback(async () => {
     try {

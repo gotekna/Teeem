@@ -2223,7 +2223,6 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
 
       if (wasRealDrag) {
         console.log('✅ Real drag completed')
-        // REMOVED: Delayed render - no longer needed, causes shake
       }
 
       return true

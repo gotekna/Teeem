@@ -253,7 +253,6 @@ class Contact < ApplicationRecord
   # Validations
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }
   validate :roles_must_be_valid
-  validate :roles_only_for_persons
   # Note: primary_contact_type column removed - use roles[0] instead
 
   # Entity type validation
@@ -1106,13 +1105,6 @@ class Contact < ApplicationRecord
     if invalid_roles.any?
       errors.add(:roles, "contains invalid roles: #{invalid_roles.join(', ')}")
     end
-  end
-
-  def roles_only_for_persons
-    # REMOVED: Companies can also be customers/suppliers in Xero
-    # Roles (customer, supplier) can be assigned to any entity type (person, company, trust, etc.)
-    # This validation was blocking Xero sync for companies that are suppliers/customers
-    nil
   end
 
   def validate_name_fields_for_entity_type

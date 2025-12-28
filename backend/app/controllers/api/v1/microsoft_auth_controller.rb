@@ -390,8 +390,6 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     response.status.success? ? response.parse : nil
   end
 
-  # REMOVED: update_legacy_outlook_credential - using org-wide credentials (OrgEmailSyncJob)
-
   # DUAL-WRITE: Create/update unified MicrosoftCredential for the user
   # This is part of SSoT migration - eventually replaces UserMicrosoftToken
   def update_unified_microsoft_credential(user, tokens, email)

@@ -338,7 +338,6 @@ class EmailSendingService
     case @account_type
     when "imap"
       @params.from_address.presence || find_imap_credential&.email_address
-    # REMOVED: "outlook" case - per-user Outlook credentials deprecated
     when "ms365"
       @params.mailbox_email.presence || find_ms365_credential&.email
     end

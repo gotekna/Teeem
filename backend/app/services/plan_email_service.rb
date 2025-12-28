@@ -33,9 +33,6 @@ class PlanEmailService
 
   private
 
-  # REMOVED: send_via_outlook - per-user Outlook credentials deprecated
-  # Email now always sent via system mailer
-
   def send_via_mailer(attachments)
     # Send email using BpmnMailer (handles attachments)
     BpmnMailer.workflow_email(
