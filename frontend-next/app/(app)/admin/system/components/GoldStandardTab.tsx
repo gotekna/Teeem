@@ -846,8 +846,8 @@ function GoldStandardDataTab() {
         foundationId="components"
         foundationIdNumeric={1}
         tableName="Gold Standard Table"
-        // SSoT: onView, onEdit, leftActions (Add button) are now auto-enabled by TeeemTableView
-        // when foundationIdNumeric is set. No need to pass custom handlers.
+        // SSoT: onView, onEdit, onDelete (Add/Edit/View/Delete buttons) are now auto-enabled
+        // by TeeemTableView when foundationIdNumeric is set. No need to pass custom handlers.
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         onRowDoubleClick={handleRowDoubleClick}
@@ -860,6 +860,34 @@ function GoldStandardDataTab() {
         enableExport={true}
         enableSchemaEditor={true}
         initialShowTotals={true}
+        // ============================================================================
+        // DEMO: Custom Action Placeholders
+        // These show all available customization points for page-specific buttons
+        // ============================================================================
+        leftActions={
+          <Button variant="outline" size="sm" className="gap-1.5" title="leftActions prop - page-specific buttons go here">
+            <Settings className="h-4 w-4" />
+            leftActions
+          </Button>
+        }
+        customActions={
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="customActions prop - extra action buttons">
+            <Briefcase className="h-4 w-4" />
+          </Button>
+        }
+        customBulkActions={(selectedIds, clearSelection) => (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              alert(`customBulkActions prop - runs on ${selectedIds.length} selected rows`);
+            }}
+            title="customBulkActions prop - bulk operations for selected rows"
+          >
+            <Copy className="h-4 w-4 mr-1.5" />
+            customBulkActions ({selectedIds.length})
+          </Button>
+        )}
       />
       {/* SSoT: Add/Edit/View dialogs are now handled automatically by TeeemTableView
           when foundationIdNumeric is set. No custom dialogs needed here. */}

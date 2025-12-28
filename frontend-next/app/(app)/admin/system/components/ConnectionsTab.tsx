@@ -48,6 +48,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { StorageCostTab } from "./StorageCostTab";
 
 // SharePoint Connection Component
 function SharePointConnection() {
@@ -1194,9 +1195,39 @@ function DocumentStorageProvider() {
 
 // Main Connections Tab
 export function ConnectionsTab() {
+  const [activeTab, setActiveTab] = React.useState("provider");
+
   return (
-    <div className="space-y-6">
-      <DocumentStorageProvider />
+    <div className="space-y-4">
+      {/* Sub-tabs */}
+      <div className="flex gap-1 border-b">
+        <button
+          onClick={() => setActiveTab("provider")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeTab === "provider"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Storage Provider
+        </button>
+        <button
+          onClick={() => setActiveTab("costs")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeTab === "costs"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Cost Comparison
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "provider" && <DocumentStorageProvider />}
+      {activeTab === "costs" && <StorageCostTab />}
     </div>
   );
 }
