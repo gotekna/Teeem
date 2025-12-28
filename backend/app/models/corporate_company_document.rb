@@ -46,6 +46,19 @@ class CorporateCompanyDocument < ApplicationRecord
   # Active Storage for file upload
   has_one_attached :file
 
+  # File upload validation (security: prevents storage DoS and malware upload)
+  ALLOWED_CONTENT_TYPES = %w[
+    application/pdf
+    image/jpeg image/png image/tiff image/heic
+    application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+    application/vnd.ms-excel application/msword
+    text/plain text/csv
+  ].freeze
+
+  validates :file, content_type: ALLOWED_CONTENT_TYPES,
+                   size: { less_than: 50.megabytes, message: "must be less than 50MB" }
+
   # Storage types for Company Register tracking
   STORAGE_TYPES = %w[manual electronic both].freeze
 

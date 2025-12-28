@@ -10,6 +10,20 @@ class JobDocument < ApplicationRecord
   # Active Storage for file upload (for migrated documents)
   has_one_attached :file
 
+  # File upload validation (security: prevents storage DoS and malware upload)
+  ALLOWED_CONTENT_TYPES = %w[
+    application/pdf
+    image/jpeg image/png image/tiff image/heic
+    application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+    application/vnd.ms-excel application/msword
+    text/plain text/csv
+    application/octet-stream
+  ].freeze
+
+  validates :file, content_type: ALLOWED_CONTENT_TYPES,
+                   size: { less_than: 100.megabytes, message: "must be less than 100MB" }
+
   # Activity log
   has_many :document_activities, as: :document, dependent: :destroy
 

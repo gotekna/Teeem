@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_102011) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2702,6 +2702,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_102011) do
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
     t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
+    t.index ["job_id", "received_at"], name: "idx_email_warehouse_job_received", order: { received_at: :desc }
     t.index ["labels"], name: "index_email_warehouse_on_labels", using: :gin
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
     t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
@@ -5679,6 +5680,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_102011) do
     t.index ["contact_id"], name: "index_job_contacts_on_contact_id"
     t.index ["job_id", "contact_id"], name: "index_job_contacts_on_job_id_and_contact_id", unique: true
     t.index ["job_id", "primary"], name: "index_job_contacts_on_job_id_and_primary"
+    t.index ["job_id", "role"], name: "idx_job_contacts_job_role"
     t.index ["job_id"], name: "index_job_contacts_on_job_id"
     t.index ["user_id"], name: "index_job_contacts_on_user_id"
   end
@@ -6384,6 +6386,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_102011) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "organization_id", null: false
+    t.integer "lock_version", default: 0, null: false
     t.index ["connected_by_id"], name: "index_microsoft_credentials_on_connected_by_id"
     t.index ["credential_type", "is_active"], name: "idx_ms_creds_type_active"
     t.index ["name", "is_active"], name: "idx_ms_creds_name_unique_active", unique: true, where: "((is_active = true) AND (name IS NOT NULL))"
@@ -9300,6 +9303,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_102011) do
     t.string "granted_scopes"
     t.datetime "token_poisoned_at"
     t.string "poisoned_reason"
+    t.integer "lock_version", default: 0, null: false
     t.index ["circuit_state"], name: "index_xero_credentials_on_circuit_state"
     t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
     t.index ["last_successful_api_call_at"], name: "index_xero_credentials_on_last_successful_api_call_at"

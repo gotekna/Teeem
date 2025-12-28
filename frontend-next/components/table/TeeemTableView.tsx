@@ -1097,11 +1097,20 @@ export default function TeeemTableView({
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  // Auto-refresh key: increment to trigger re-fetch when using autoFetchRecords
+  const [autoFetchRefreshKey, setAutoFetchRefreshKey] = useState(0);
 
   // CRITICAL: Auto-fetch must be EXPLICITLY enabled via prop
   // Previously this used a heuristic based on entries.length which broke when entries was empty during loading
   // Now pages must explicitly set autoFetchRecords={true} if they want TeeemTableView to fetch its own records
   const useAutoFetch = autoFetchRecords && !!effectiveFoundationId;
+
+  // Trigger internal refresh for autoFetch mode (called after updates/deletes)
+  const triggerAutoRefresh = useCallback(() => {
+    if (useAutoFetch) {
+      setAutoFetchRefreshKey(prev => prev + 1);
+    }
+  }, [useAutoFetch]);
 
   // Auto-fetch columns when effectiveFoundationId is set
   useEffect(() => {
@@ -1197,6 +1206,7 @@ export default function TeeemTableView({
   }, [effectiveFoundationId, columns]);
 
   // Auto-fetch records when foundationIdNumeric is set AND entries not provided
+  // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
   useEffect(() => {
     if (!useAutoFetch) return;
 
@@ -1217,7 +1227,7 @@ export default function TeeemTableView({
     };
 
     fetchInitialRecords();
-  }, [useAutoFetch, effectiveFoundationId]);
+  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey]);
 
   // Auto-load more records in background after initial render
   useEffect(() => {
@@ -1461,13 +1471,13 @@ export default function TeeemTableView({
   // SSoT FIX: Sync selectedRows with entries - remove stale IDs that no longer exist
   // This prevents "ghost selection" where IDs remain selected after records are deleted/merged
   // Only runs when entries change (not when selectedRows changes, to avoid infinite loop)
-  const entriesRef = useRef(rawEntries);
+  const entriesRef = useRef(entries);
   // Ref to hold current filteredAndSortedEntries for use in callbacks before useMemo is defined
   const filteredAndSortedEntriesRef = useRef<Record<string, unknown>[]>([]);
   useEffect(() => {
     // Skip if entries haven't actually changed (same reference)
-    if (entriesRef.current === rawEntries) return;
-    entriesRef.current = rawEntries;
+    if (entriesRef.current === entries) return;
+    entriesRef.current = entries;
 
     setSelectedRows(prev => {
       if (prev.size === 0) return prev;
@@ -1483,7 +1493,7 @@ export default function TeeemTableView({
       }
       return prev;
     });
-  }, [rawEntries, effectiveEntries, setSelectedRows]);
+  }, [entries, effectiveEntries, setSelectedRows]);
 
   // Filter state managed by atoms
   const [cascadeFilters, setCascadeFilters] = useAtom(currentFiltersAtom);
@@ -1670,6 +1680,8 @@ export default function TeeemTableView({
       });
       setShowDeleteConfirmModal(false);
       setRecordToDelete(null);
+      // Refresh data - both internal (autoFetch) and external (parent callback)
+      triggerAutoRefresh();
       onRefresh?.();
     } catch (err) {
       console.error("Failed to delete record:", err);
@@ -1681,7 +1693,7 @@ export default function TeeemTableView({
     } finally {
       setIsDeleting(false);
     }
-  }, [effectiveFoundationId, recordToDelete, onRefresh, toast]);
+  }, [effectiveFoundationId, recordToDelete, onRefresh, toast, triggerAutoRefresh]);
 
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
@@ -2556,7 +2568,9 @@ export default function TeeemTableView({
         }
 
         // Only refresh once after all updates
-        const refreshStartTime = performance.now();
+        // For autoFetch mode: trigger internal refresh
+        // For manual mode: call parent's onRefresh callback
+        triggerAutoRefresh();
         onRefresh?.();
       } else {
         // Fallback: call onRowUpdate for each field (triggers refresh per field - slow)
@@ -2565,6 +2579,8 @@ export default function TeeemTableView({
             await onRowUpdate(rowId, key, value);
           }
         }
+        // After all updates via onRowUpdate, trigger internal refresh for autoFetch mode
+        triggerAutoRefresh();
       }
 
       setEditingRowIds(new Set());
@@ -2583,7 +2599,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, validationErrors]);
+  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, validationErrors, triggerAutoRefresh]);
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {
@@ -2725,7 +2741,9 @@ export default function TeeemTableView({
       setBulkUpdateColumn("");
       setBulkUpdateValue("");
       setSelectedRows(new Set<string | number>());
-      console.log('[Bulk Update] Calling onRefresh...');
+      console.log('[Bulk Update] Calling refresh...');
+      // Refresh data - both internal (autoFetch) and external (parent callback)
+      triggerAutoRefresh();
       onRefresh?.();
       console.log('[Bulk Update] Complete!');
     } catch (error) {
@@ -2739,7 +2757,7 @@ export default function TeeemTableView({
       setBulkUpdateSaving(false);
       console.log('[Bulk Update] Saving state reset');
     }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS]);
+  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS, triggerAutoRefresh]);
 
   // Fetch lookup options when bulk update column changes to a lookup column
   useEffect(() => {
@@ -6002,6 +6020,8 @@ export default function TeeemTableView({
             columns={COLUMNS}
             onSuccess={() => {
               setShowAddRecordModal(false);
+              // Refresh data - both internal (autoFetch) and external (parent callback)
+              triggerAutoRefresh();
               onRefresh?.();
             }}
           />
@@ -6017,6 +6037,8 @@ export default function TeeemTableView({
             onSuccess={() => {
               setShowEditRecordModal(false);
               setSelectedRecordForModal(null);
+              // Refresh data - both internal (autoFetch) and external (parent callback)
+              triggerAutoRefresh();
               onRefresh?.();
             }}
           />

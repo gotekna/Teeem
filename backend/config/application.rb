@@ -43,8 +43,17 @@ module Backend
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
 
+    # Response compression (performance: reduces large JSON responses by 70-90%)
+    # Compresses responses larger than 1KB using gzip/deflate
+    config.middleware.use Rack::Deflater
+
     # Enable Rack::Attack for rate limiting
     config.middleware.use Rack::Attack
+
+    # Request body size limit middleware (security: prevents DoS via large uploads)
+    # 100MB limit for file uploads, applied before request body is read
+    require_relative "../app/middleware/request_size_limit_middleware"
+    config.middleware.insert_before Rack::Attack, RequestSizeLimitMiddleware, max_bytes: 100.megabytes
 
     # Performance Observatory - Request Timing Middleware
     # Captures request duration with zero production impact (~0.1ms overhead)

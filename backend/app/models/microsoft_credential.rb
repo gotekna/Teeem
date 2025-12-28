@@ -24,6 +24,9 @@ class MicrosoftCredential < ApplicationRecord
   belongs_to :setup_by, class_name: "User", optional: true
   belongs_to :connected_by, class_name: "User", optional: true
 
+  # Allowed polymorphic types for owner (security: prevents arbitrary type injection)
+  ALLOWED_OWNER_TYPES = %w[User Construction].freeze
+
   # Encrypt ALL tokens and secrets (SSoT - fixes UserMicrosoftToken security gap)
   encrypts :client_secret
   encrypts :access_token
@@ -69,6 +72,7 @@ class MicrosoftCredential < ApplicationRecord
   validates :name, uniqueness: { scope: :is_active, conditions: -> { where(is_active: true) } },
                    allow_nil: true
   validates :client_id, :client_secret, :tenant_id, presence: true, if: :app_credential?
+  validates :owner_type, inclusion: { in: ALLOWED_OWNER_TYPES }, allow_nil: true
 
   # Scopes
   scope :active, -> { where(is_active: true) }
@@ -136,6 +140,7 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # App credential: fetch new token (client credentials flow)
+  # Wrapped in transaction to ensure atomic update of all token fields
   def fetch_app_token!
     return false unless app_credential?
 
@@ -151,14 +156,17 @@ class MicrosoftCredential < ApplicationRecord
 
     if response.status.success?
       data = response.parse
-      update!(
-        access_token: data["access_token"],
-        token_expires_at: Time.current + data["expires_in"].to_i.seconds,
-        status: "connected",
-        error_code: nil,
-        error_message: nil,
-        consecutive_failures: 0
-      )
+      # Transaction ensures all token fields are updated atomically
+      transaction do
+        update!(
+          access_token: data["access_token"],
+          token_expires_at: Time.current + data["expires_in"].to_i.seconds,
+          status: "connected",
+          error_code: nil,
+          error_message: nil,
+          consecutive_failures: 0
+        )
+      end
       Rails.logger.info "[MicrosoftCredential] App token fetched for #{name || id}"
       true
     else
@@ -172,6 +180,7 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # Delegated credential: refresh token
+  # Wrapped in transaction to ensure atomic update of all token fields
   def refresh_delegated_token!
     return false unless delegated_credential?
     return false if refresh_token.blank?
@@ -190,18 +199,22 @@ class MicrosoftCredential < ApplicationRecord
 
     if response.status.success?
       data = response.parse
-      update!(
-        access_token: data["access_token"],
-        refresh_token: data["refresh_token"] || refresh_token,
-        token_expires_at: Time.current + data["expires_in"].to_i.seconds,
-        scopes: data["scope"],
-        status: "connected",
-        error_code: nil,
-        error_message: nil,
-        consecutive_failures: 0,
-        refresh_token_dead: false,
-        last_refresh_attempt_at: Time.current
-      )
+      # Transaction ensures all token fields are updated atomically
+      # Prevents partial updates that could leave credential in unusable state
+      transaction do
+        update!(
+          access_token: data["access_token"],
+          refresh_token: data["refresh_token"] || refresh_token,
+          token_expires_at: Time.current + data["expires_in"].to_i.seconds,
+          scopes: data["scope"],
+          status: "connected",
+          error_code: nil,
+          error_message: nil,
+          consecutive_failures: 0,
+          refresh_token_dead: false,
+          last_refresh_attempt_at: Time.current
+        )
+      end
       Rails.logger.info "[MicrosoftCredential] Token refreshed for #{owner_type}##{owner_id || name}"
       true
     else

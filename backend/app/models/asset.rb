@@ -18,6 +18,10 @@ class Asset < ApplicationRecord
   # Active Storage for photos
   has_many_attached :photos
 
+  # File upload validation (security: prevents storage DoS and malware upload)
+  validates :photos, content_type: %w[image/jpeg image/png image/heic image/webp image/gif],
+                     size: { less_than: 10.megabytes, message: "must be less than 10MB" }
+
   # Asset type codes for asset number generation
   ASSET_TYPE_CODES = {
     "vehicle" => "VEH",

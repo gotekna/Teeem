@@ -518,6 +518,24 @@ module Api
           end
         end
 
+        # Special handling for SmScheduleMaster's assigned_role column
+        # It's a string column but has lookup metadata - convert lookup ID to role name
+        if @foundation.model_class == "SmScheduleMaster" && filtered_updates.key?("assigned_role")
+          value = filtered_updates["assigned_role"]
+          if value.is_a?(Integer)
+            role_col = @foundation.columns.find_by(column_name: "assigned_role")
+            if role_col&.lookup_foundation_id.present?
+              lookup_foundation = Foundation.find_by(id: role_col.lookup_foundation_id)
+              if lookup_foundation
+                lookup_model = lookup_foundation.dynamic_model
+                display_col = role_col.lookup_display_column || "name"
+                role_name = lookup_model.find_by(id: value)&.send(display_col)
+                filtered_updates["assigned_role"] = role_name&.downcase&.gsub(" ", "_")
+              end
+            end
+          end
+        end
+
         updated_count = 0
         errors = []
 

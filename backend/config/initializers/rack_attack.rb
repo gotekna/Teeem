@@ -77,6 +77,46 @@ class Rack::Attack
     end
   end
 
+  # ============================================
+  # EXPENSIVE ENDPOINT THROTTLES
+  # Protect CPU-intensive and AI-powered endpoints
+  # ============================================
+
+  # PDF generation endpoints (CPU-intensive, uses Puppeteer)
+  throttle("pdf/ip", limit: 10, period: 1.minute) do |req|
+    if req.path =~ %r{^/api/v1/(documents|invoices|quotes)/.*/(pdf|generate_pdf|preview_pdf)}
+      req.ip
+    end
+  end
+
+  # AI processing endpoints (Claude API costs, slow responses)
+  throttle("ai/ip", limit: 20, period: 1.minute) do |req|
+    if req.path =~ %r{^/api/v1/(ai_|classify|analyze|extract)}
+      req.ip
+    end
+  end
+
+  # Document analysis endpoints (OCR, PDF parsing)
+  throttle("document_analysis/ip", limit: 15, period: 1.minute) do |req|
+    if req.path =~ %r{^/api/v1/(bill_inbox|invoices)/\d+/analyze}
+      req.ip
+    end
+  end
+
+  # Financial export endpoints (large data queries)
+  throttle("exports/ip", limit: 5, period: 1.minute) do |req|
+    if req.path =~ %r{^/api/v1/financial_exports/}
+      req.ip
+    end
+  end
+
+  # SharePoint sync endpoints (external API calls)
+  throttle("sharepoint/ip", limit: 30, period: 1.minute) do |req|
+    if req.path =~ %r{^/api/v1/(sharepoint|onedrive)/}
+      req.ip
+    end
+  end
+
   # Custom response for throttled requests
   self.throttled_responder = lambda do |request|
     match_data = request.env["rack.attack.match_data"] || {}

@@ -93,7 +93,8 @@ export interface SavedView {
 // Props for TeeemTableView component
 export interface TeeemTableViewProps {
   // Data
-  entries: TableRow[];
+  // Optional when autoFetchRecords is true (TeeemTableView manages its own data)
+  entries?: TableRow[];
   columns?: TableColumn[] | null;
   totalCount?: number | null; // Total records in database (for pagination display)
 

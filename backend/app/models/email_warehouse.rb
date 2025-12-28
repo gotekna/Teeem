@@ -10,6 +10,22 @@ class EmailWarehouse < ApplicationRecord
   # ActiveStorage attachments
   has_many_attached :files
 
+  # File upload validation (security: prevents storage DoS and malware upload)
+  # Email attachments can include various document types
+  ALLOWED_EMAIL_ATTACHMENT_TYPES = %w[
+    application/pdf
+    image/jpeg image/png image/tiff image/gif image/heic
+    application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+    application/vnd.openxmlformats-officedocument.presentationml.presentation
+    application/vnd.ms-excel application/msword application/vnd.ms-powerpoint
+    text/plain text/csv text/html
+    application/zip application/x-zip-compressed
+  ].freeze
+
+  validates :files, content_type: ALLOWED_EMAIL_ATTACHMENT_TYPES,
+                    size: { less_than: 25.megabytes, message: "must be less than 25MB each" }
+
   # Associations
   belongs_to :job, optional: true
   belongs_to :synced_by_user, class_name: "User", optional: true

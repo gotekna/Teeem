@@ -110,18 +110,32 @@ class ClassifyEmailWithAiJob < ApplicationJob
     }
   end
 
-  def rate_limit_exceeded?
-    # Performance: Use cache-based counter instead of expensive database query
-    # Old approach: COUNT query on 680MB email_warehouse table (132ms avg)
-    # New approach: Atomic increment in Rails.cache (~1ms)
+  # Atomically check and claim a rate limit slot
+  # Returns true if limit exceeded, false if slot was successfully claimed
+  # Uses atomic increment to prevent race condition between concurrent jobs
+  def claim_rate_limit_slot!
     cache_key = "ai_classification_rate_limit:#{Time.current.beginning_of_hour.to_i}"
 
-    current_count = Rails.cache.read(cache_key).to_i
-    current_count >= RATE_LIMIT_THRESHOLD
+    # Atomic increment returns the NEW value after incrementing
+    # This ensures each concurrent job sees a unique, increasing value
+    new_count = Rails.cache.increment(cache_key, 1, expires_in: 2.hours) || 1
+
+    if new_count > RATE_LIMIT_THRESHOLD
+      # We exceeded the limit - our slot shouldn't count
+      # Decrement to release the slot we claimed
+      Rails.cache.decrement(cache_key)
+      true  # Rate limit exceeded
+    else
+      false  # Slot successfully claimed
+    end
   end
 
+  def rate_limit_exceeded?
+    claim_rate_limit_slot!
+  end
+
+  # No longer needed - slot is claimed atomically in rate_limit_exceeded?
   def increment_rate_limit_counter
-    cache_key = "ai_classification_rate_limit:#{Time.current.beginning_of_hour.to_i}"
-    Rails.cache.increment(cache_key, 1, expires_in: 2.hours)
+    # Intentionally empty - rate limiting now handled atomically in claim_rate_limit_slot!
   end
 end

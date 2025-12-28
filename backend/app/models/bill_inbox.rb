@@ -15,6 +15,15 @@ class BillInbox < ApplicationRecord
   has_one_attached :invoice_file
   has_many_attached :supporting_documents
 
+  # File upload validation (security: prevents storage DoS and malware upload)
+  validates :invoice_file, content_type: %w[application/pdf image/jpeg image/png image/tiff],
+                           size: { less_than: 50.megabytes, message: "must be less than 50MB" }
+  validates :supporting_documents, content_type: %w[
+    application/pdf image/jpeg image/png image/tiff
+    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+    application/vnd.ms-excel text/csv
+  ], size: { less_than: 50.megabytes, message: "must be less than 50MB each" }
+
   # Validations
   validates :source, presence: true
   validates :status, presence: true
