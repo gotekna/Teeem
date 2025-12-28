@@ -16,6 +16,10 @@ class SeedSmSettingTradesAndStages < ActiveRecord::Migration[8.0]
                 'LOCK-UP', 'FIX-OUT', 'COMPLETION', 'HANDOVER', 'DEFECTS']
       settings.update!(schedule_master_stages: stages)
     end
+
+    # Migrate invalid assigned_role values to valid Role model values
+    # 'site' doesn't exist in Role model - map to 'supervisor'
+    SmScheduleMaster.where(assigned_role: 'site').update_all(assigned_role: 'supervisor')
   end
 
   def down
