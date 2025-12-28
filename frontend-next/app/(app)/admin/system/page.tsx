@@ -137,9 +137,9 @@ const FULL_HEIGHT_TABS = ['components', 'schedule-master', 'email-accounts'];
 // Helper to get TabsContent className based on layout type
 const getTabContentClass = (tabId: string) => {
   if (FULL_HEIGHT_TABS.includes(tabId)) {
-    return "flex flex-col overflow-hidden -mx-4 mt-0 min-h-0 flex-1";
+    return "overflow-hidden -mx-4";
   }
-  return "flex-1 min-h-0 overflow-auto";
+  return "overflow-auto";
 };
 
 const COMPANY_TABS = [
@@ -761,8 +761,7 @@ function SystemAdminPageContent() {
 
       {/* Main Tab Navigation */}
       <Tabs value={currentTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
-        {!isCompactTab && (
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 justify-start shrink-0">
+        <TabsList className={`flex flex-wrap h-auto gap-1 bg-muted/50 p-1 justify-start shrink-0 ${isCompactTab ? 'hidden' : ''}`}>
           {MAIN_TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentTab === tab.id;
@@ -784,9 +783,8 @@ function SystemAdminPageContent() {
             );
           })}
         </TabsList>
-        )}
 
-        <div className={`${isCompactTab ? 'mt-0' : 'mt-4'} flex-1 min-h-0 [&>*]:h-full [&>*[data-state=inactive]]:hidden`}>
+        <div className={`${isCompactTab ? 'mt-0' : 'mt-4'} flex-1 min-h-0 relative [&>*]:absolute [&>*]:inset-0 [&>*[data-state=inactive]]:hidden`}>
           <TabsContent value="company" className={getTabContentClass('company')}>
             <CompanySettingsTab />
           </TabsContent>
@@ -797,7 +795,7 @@ function SystemAdminPageContent() {
           <TabsContent value="contact-types" className={getTabContentClass('contact-types')}>
             <ContactTypesTab />
           </TabsContent>
-          <TabsContent value="schedule-master" className={getTabContentClass('schedule-master')}>
+          <TabsContent value="schedule-master" className="absolute inset-0 overflow-hidden">
             <ScheduleMasterTab />
           </TabsContent>
           <TabsContent value="meeting-types" className={getTabContentClass('meeting-types')}>

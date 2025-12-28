@@ -415,6 +415,21 @@ generate_daily_progress_report:
   schedule: at 7pm every day
 
 # ============================================
+# SAAS CUSTOMER BILLING
+# ============================================
+# Monthly billing record generation for SaaS customers
+# Runs on the 3rd of each month at 6am Brisbane time
+# - Creates SaasBillingRecord for each active SaaS customer
+# - Calculates tiered fees based on customer turnover
+# - Creates ReferralCommission records for L1/L2 referrers
+# - Updates network fee caches for eligibility tracking
+# - Re-evaluates pending commissions that may now be eligible
+monthly_saas_billing:
+  class: MonthlySaasBillingJob
+  queue: default
+  schedule: every month on the 3rd at 6am
+
+# ============================================
 # SSOT COMPLIANCE
 # ============================================
 

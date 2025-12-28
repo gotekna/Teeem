@@ -60,6 +60,39 @@ class SaasBillingRecord < ApplicationRecord
     update!(status: "paid")
   end
 
+  # Create GL invoice for this billing record
+  # Uses Teeem PTY LTD as the billing company
+  def create_gl_invoice!
+    return gl_invoice if gl_invoice.present?
+
+    # Find Teeem corporate company for invoicing
+    teeem_company = CorporateCompany.find_by("name ILIKE ?", "%teeem%")
+    raise "Teeem corporate company not found" unless teeem_company
+
+    invoice = Gl::Invoice.create!(
+      corporate_company: teeem_company,
+      contact: contact,
+      invoice_type: "sales_invoice",
+      status: "draft",
+      invoice_date: billing_period_end,
+      due_date: billing_period_end + 14.days,
+      reference: "SAAS-#{billing_period_start.strftime('%Y%m')}",
+      description: "SaaS Subscription - #{billing_period_start.strftime('%B %Y')}",
+      created_in_teeem: true,
+      lines_attributes: [
+        {
+          description: "SaaS Subscription Fee (#{effective_rate}% of $#{turnover_reported.to_i.to_s(:delimited)})",
+          quantity: 1,
+          unit_price: fee_calculated,
+          account_code: "200" # Revenue account
+        }
+      ]
+    )
+
+    mark_invoiced!(invoice)
+    invoice
+  end
+
   # Create referral commissions for this billing record
   def create_commissions!
     ReferralCommissionService.calculate_for_billing_record(self)

@@ -1019,9 +1019,9 @@ export function ScheduleMasterTab() {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
-        <TabsList className="shrink-0">
+    <div className="h-full w-full flex flex-col">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col">
+        <TabsList className="shrink-0 mx-4">
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
             Schedule Templates
@@ -1048,7 +1048,9 @@ export function ScheduleMasterTab() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="schedule-templates" className="space-y-6 mt-0 pt-4 flex-1 overflow-auto px-4">
+        {/* Tab content container - flex-1 to fill remaining space, relative for absolute children */}
+        <div className="flex-1 min-h-0 relative mt-2">
+          <TabsContent value="schedule-templates" className="absolute inset-0 overflow-auto px-4 pt-4 space-y-6 data-[state=inactive]:hidden">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Schedule Master Templates</h2>
@@ -1203,11 +1205,11 @@ export function ScheduleMasterTab() {
           )}
         </TabsContent>
 
-        <TabsContent value="display-settings" className="mt-0 pt-4 flex-1 overflow-auto px-4">
+          <TabsContent value="display-settings" className="absolute inset-0 overflow-auto px-4 pt-4 data-[state=inactive]:hidden">
           <SMGanttTab />
         </TabsContent>
 
-        <TabsContent value="gantt-preview" className="mt-0 flex-1 min-h-0 overflow-hidden">
+          <TabsContent value="gantt-preview" className="absolute inset-0 overflow-hidden data-[state=inactive]:hidden">
           {loadingRows === ganttTemplateId && (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1226,8 +1228,8 @@ export function ScheduleMasterTab() {
           )}
         </TabsContent>
 
-        {/* Data View Tab - Full TeeemTableView */}
-        <TabsContent value="data-view" className="mt-0 flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Data View Tab - Full TeeemTableView */}
+          <TabsContent value="data-view" className="absolute inset-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
           <div className={`flex flex-col h-full ${dataViewFullscreen ? "fixed inset-0 z-50 bg-background p-4" : ""}`}>
             <TeeemTableView
               key={dataViewRefreshKey}
@@ -1345,9 +1347,9 @@ export function ScheduleMasterTab() {
           </div>
         </TabsContent>
 
-        {/* Column Reference Tab */}
-        <TabsContent value="column-reference" className="mt-0 pt-4 flex-1 overflow-auto">
-          <div className="space-y-8 max-w-5xl px-4">
+          {/* Column Reference Tab */}
+          <TabsContent value="column-reference" className="absolute inset-0 overflow-auto p-4 data-[state=inactive]:hidden">
+          <div className="space-y-8 max-w-5xl">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -1892,9 +1894,10 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
         {/* Recurring Tasks Tab */}
-        <TabsContent value="recurring-tasks" className="mt-0 pt-4 flex-1 overflow-auto px-4">
+          <TabsContent value="recurring-tasks" className="absolute inset-0 overflow-auto px-4 pt-4 data-[state=inactive]:hidden">
           <RecurringTasksSection />
         </TabsContent>
+        </div>
       </Tabs>
 
       {/* Schedule Template Dialog */}
