@@ -455,10 +455,11 @@ module Api
 
       # GET /api/v1/jobs/:id/budget_tracking
       # Returns budget vs invoiced summary for purchase orders
+      # Performance: includes :line_items to avoid N+1 when accessing first description
       def budget_tracking
         purchase_orders = @job.purchase_orders
                               .where.not(status: "cancelled")
-                              .includes(:supplier)
+                              .includes(:supplier, :line_items)
 
         budget_items = purchase_orders.map do |po|
           budgeted = po.total || 0

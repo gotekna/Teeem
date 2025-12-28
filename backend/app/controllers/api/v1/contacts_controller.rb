@@ -199,6 +199,17 @@ module Api
 
         # Add company and job counts for all contacts
         if include_companies || include_jobs
+          contact_ids = @contacts.map(&:id)
+
+          # Performance: Pre-fetch job counts with GROUP BY (avoids N+1)
+          job_counts_by_contact = if include_jobs
+            JobContact.where(contact_id: contact_ids)
+                      .group(:contact_id)
+                      .count
+          else
+            {}
+          end
+
           contacts_json.each do |contact_json|
             contact = @contacts.find { |c| c.id == contact_json["id"] }
             next unless contact
@@ -232,14 +243,37 @@ module Api
             end
 
             if include_jobs
-              # Count jobs
-              contact_json["jobs_count"] = contact.job_contacts.count
+              # Use pre-fetched count (avoids N+1)
+              contact_json["jobs_count"] = job_counts_by_contact[contact.id] || 0
             end
           end
         end
 
         # Add employee names and payment terms for supplier contacts
         if params[:type] == "suppliers"
+          supplier_ids = @contacts.map(&:id)
+
+          # Performance: Pre-fetch employee counts and names with GROUP BY (avoids N+1)
+          if params[:include_employees] != "false"
+            # Get employee counts by company
+            employee_counts = Contact.where(primary_company_id: supplier_ids)
+                                     .where(is_active: true)
+                                     .group(:primary_company_id)
+                                     .count
+
+            # Get top 10 employee names per company (using window function for efficiency)
+            # First get all active employees with their company, then group in Ruby
+            all_employees = Contact.where(primary_company_id: supplier_ids)
+                                   .where(is_active: true)
+                                   .order(:display_name)
+                                   .pluck(:primary_company_id, :display_name)
+            employee_names_by_company = all_employees.group_by(&:first)
+                                                     .transform_values { |v| v.first(10).map(&:last).compact }
+          else
+            employee_counts = {}
+            employee_names_by_company = {}
+          end
+
           contacts_json.each do |contact_json|
             contact = @contacts.find { |c| c.id == contact_json["id"] }
             next unless contact
@@ -249,11 +283,10 @@ module Api
             contact_json["bill_due_type"] = contact.bill_due_type
             contact_json["payment_terms"] = contact.payment_terms
 
-            # Get employees via primary_company relationship (SSoT: active scope uses is_active column)
+            # Use pre-fetched employee data (avoids N+1)
             if params[:include_employees] != "false"
-              employee_names = contact.employees.active.limit(10).pluck(:display_name).compact
-              contact_json["employee_names"] = employee_names
-              contact_json["employee_count"] = contact.employees.active.count
+              contact_json["employee_names"] = employee_names_by_company[contact.id] || []
+              contact_json["employee_count"] = employee_counts[contact.id] || 0
             end
           end
         end
