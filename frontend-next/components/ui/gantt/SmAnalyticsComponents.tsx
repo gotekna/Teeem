@@ -509,7 +509,7 @@ export function AiSuggestionsPanel({ constructionId }: AiSuggestionsPanelProps) 
                       </span>
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">
-                      Risk score: {(p.risk_score * 100).toFixed(0)}%
+                      Risk score: {((p.risk_score ?? 0) * 100).toFixed(0)}%
                       {p.estimated_delay_days > 0 &&
                         ` • Est. delay: ${p.estimated_delay_days} days`}
                     </div>

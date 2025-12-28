@@ -477,7 +477,7 @@ export default function AITab() {
                         <TableCell className="capitalize">{group.entity_type}</TableCell>
                         <TableCell className="text-center">{group.member_count}</TableCell>
                         <TableCell className="text-center">
-                          {(group.similarity_score * 100).toFixed(0)}%
+                          {((group.similarity_score ?? 0) * 100).toFixed(0)}%
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant="outline">{group.status}</Badge>
