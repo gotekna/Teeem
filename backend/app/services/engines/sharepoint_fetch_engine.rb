@@ -40,10 +40,10 @@ module Engines
         source: :sharepoint
       }
     rescue MicrosoftAppGraphClient::ApiError => e
-      raise DocumentGenerator::TemplateError, "Failed to fetch document from SharePoint: #{e.message}"
+      raise UnifiedDocumentGenerator::TemplateError, "Failed to fetch document from SharePoint: #{e.message}"
     rescue ActiveRecord::Encryption::Errors::Decryption => e
       Rails.logger.error("Microsoft credential decryption failed: #{e.message}")
-      raise DocumentGenerator::CredentialError, "Microsoft credentials expired. Please reconnect OneDrive."
+      raise UnifiedDocumentGenerator::CredentialError, "Microsoft credentials expired. Please reconnect OneDrive."
     end
 
     private

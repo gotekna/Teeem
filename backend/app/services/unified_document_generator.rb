@@ -24,6 +24,8 @@
 class UnifiedDocumentGenerator
   class GenerationError < StandardError; end
   class UnsupportedTypeError < StandardError; end
+  class CredentialError < StandardError; end
+  class TemplateError < StandardError; end
 
   attr_reader :template
 
@@ -107,6 +109,6 @@ class UnifiedDocumentGenerator
     )
   rescue ActiveRecord::Encryption::Errors::Decryption => e
     Rails.logger.error("Microsoft credential decryption failed during upload: #{e.message}")
-    raise DocumentGenerator::CredentialError, "Microsoft credentials expired. Please reconnect OneDrive."
+    raise CredentialError, "Microsoft credentials expired. Please reconnect OneDrive."
   end
 end

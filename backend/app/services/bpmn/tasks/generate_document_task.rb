@@ -14,10 +14,11 @@ module Bpmn
     # Subject: Job (required) - The job to generate document for
     #
     # Supports multiple template types via UnifiedDocumentGenerator:
-    #   - word: SharePoint Word templates with Sablon mail-merge
     #   - html: Local HTML/ERB templates with Grover PDF conversion
     #   - pdf_overlay: PDF form filling (future HIA support)
-    #   - sharepoint_fetch: Fetch existing files from SharePoint
+    #
+    # Note: Word templates were removed in December 2024.
+    # Use TeknaDocumentGenerator for new document generation.
     #
     class GenerateDocumentTask < BaseTask
       def execute
@@ -78,10 +79,10 @@ module Bpmn
           generated_at: result[:generated_at]&.iso8601 || Time.current.iso8601,
           uploaded_files: result[:uploaded_files]&.map { |f| f.slice(:id, :name, :web_url, :type) }
         }
-      rescue DocumentGenerator::CredentialError => e
+      rescue UnifiedDocumentGenerator::CredentialError => e
         log_error("Credential error: #{e.message}")
         raise
-      rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
+      rescue UnifiedDocumentGenerator::GenerationError, UnifiedDocumentGenerator::TemplateError => e
         log_error("Document generation failed: #{e.message}")
         raise
       rescue UnifiedDocumentGenerator::UnsupportedTypeError => e
