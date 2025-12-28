@@ -369,21 +369,14 @@ module Api
           table_ids: slug_to_id,
           tables_by_id: by_id,
           # Convenience: uppercase key format matching frontend constants
+          # These MUST match what useTableIds.ts expects
           TABLE_IDS: {
             GOLD_STANDARD: slug_to_id["gold-standard"],
             JOBS: slug_to_id["jobs"],
+            TASKS: slug_to_id["tasks"],
             PRICEBOOK: slug_to_id["pricebook"],
             CONTACTS: slug_to_id["contacts"],
-            COMPANIES: slug_to_id["companies"],
-            FEATURES_TRACKING: slug_to_id["features-tracking"],
-            # Corporate module
-            COMPANY_ACTIVITY: slug_to_id["company-activity"],
-            COMPANY_COMPLIANCE_ITEM: slug_to_id["company-compliance-item"],
-            COMPANY_DIRECTOR: slug_to_id["company-director"],
-            COMPANY_DOCUMENT: slug_to_id["company-document"],
-            COMPANY_SETTING: slug_to_id["company-setting"],
-            COMPANY_XERO_ACCOUNT: slug_to_id["company-xero-account"],
-            COMPANY_XERO_CONNECTION: slug_to_id["company-xero-connection"]
+            FEATURES_TRACKING: slug_to_id["features-tracking"]
           }.compact
         }
       end
