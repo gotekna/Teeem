@@ -707,7 +707,12 @@ module Api
           next unless db_column
           next if [:integer, :bigint].include?(db_column.type)
 
-          # Database column is string/text/jsonb - need to convert ID to string value
+          # Skip if Rails has a belongs_to association for this column
+          # Foundation dynamically creates belongs_to associations for lookup columns,
+          # which means Rails expects an object/ID, not a string value
+          next if model.reflect_on_association(col_name.to_sym)&.macro == :belongs_to
+
+          # Database column is string/text/jsonb with no association - need to convert ID to string value
           next unless col.lookup_foundation_id.present?
 
           lookup_foundation = Foundation.find_by(id: col.lookup_foundation_id)

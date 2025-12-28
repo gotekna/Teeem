@@ -2583,7 +2583,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.index ["user_id"], name: "index_email_snoozes_on_user_id"
   end
 
-  create_table "email_sync_statuses", id: :bigint, default: nil, force: :cascade do |t|
+  create_table "email_sync_statuses", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "status", default: "pending"
     t.datetime "last_sync_at"
@@ -7520,8 +7520,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
   end
 
   create_table "referral_commissions", force: :cascade do |t|
+    t.bigint "referrer_contact_id", null: false
+    t.bigint "customer_contact_id", null: false
+    t.bigint "saas_billing_record_id", null: false
+    t.string "commission_level", null: false
+    t.decimal "customer_fee", precision: 12, scale: 2, null: false
+    t.decimal "commission_rate", precision: 5, scale: 4, null: false
+    t.decimal "commission_amount", precision: 12, scale: 2, null: false
+    t.string "status", default: "pending"
+    t.string "ineligible_reason"
+    t.datetime "paid_at"
+    t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["commission_level"], name: "index_referral_commissions_on_commission_level"
+    t.index ["customer_contact_id"], name: "index_referral_commissions_on_customer_contact_id"
+    t.index ["referrer_contact_id", "status"], name: "index_commissions_on_referrer_and_status"
+    t.index ["referrer_contact_id"], name: "index_referral_commissions_on_referrer_contact_id"
+    t.index ["saas_billing_record_id"], name: "index_referral_commissions_on_saas_billing_record_id"
+    t.index ["status"], name: "index_referral_commissions_on_status"
   end
 
   create_table "revision_formats", force: :cascade do |t|
@@ -7576,8 +7593,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
   end
 
   create_table "saas_billing_records", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.date "billing_period_start", null: false
+    t.date "billing_period_end", null: false
+    t.decimal "turnover_reported", precision: 15, scale: 2
+    t.decimal "fee_calculated", precision: 12, scale: 2
+    t.decimal "effective_rate", precision: 5, scale: 4
+    t.string "status", default: "pending"
+    t.bigint "gl_invoice_id"
+    t.jsonb "tier_breakdown", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["billing_period_start", "billing_period_end"], name: "index_saas_billing_on_period"
+    t.index ["contact_id"], name: "index_saas_billing_records_on_contact_id"
+    t.index ["gl_invoice_id"], name: "index_saas_billing_records_on_gl_invoice_id"
+    t.index ["status"], name: "index_saas_billing_records_on_status"
   end
 
   create_table "scheduled_emails", force: :cascade do |t|
@@ -7885,8 +7915,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.decimal "sequence_order", precision: 10, scale: 2, null: false
     t.integer "duration_days", default: 1, null: false
     t.jsonb "predecessor_ids", default: []
-    t.string "trade"
-    t.string "stage"
+    t.integer "trade"
+    t.integer "stage"
     t.string "assigned_role"
     t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
@@ -7930,6 +7960,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.boolean "spawn_call_task", default: false
     t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
+    t.string "trade_text", limit: 255
+    t.string "stage_text", limit: 255
     t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"
@@ -7992,6 +8024,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.index ["spawn_type"], name: "index_sm_spawn_logs_on_spawn_type"
     t.index ["spawned_by_id"], name: "index_sm_spawn_logs_on_spawned_by_id"
     t.index ["spawned_task_id"], name: "index_sm_spawn_logs_on_spawned_task_id"
+  end
+
+  create_table "sm_stages", id: :serial, force: :cascade do |t|
+    t.string "name", limit: 255, null: false
+    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
+    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
+    t.integer "created_by"
+    t.integer "updated_by"
   end
 
   create_table "sm_task_attachments", force: :cascade do |t|
@@ -8111,6 +8151,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.date "required_by"
     t.tsvector "searchable"
     t.date "hold_date"
+    t.bigint "saas_customer_id"
+    t.boolean "is_ticket", default: false
+    t.string "ticket_priority"
+    t.string "ticket_category"
+    t.datetime "sla_response_due_at"
+    t.datetime "sla_resolution_due_at"
+    t.datetime "sla_first_response_at"
+    t.boolean "customer_visible", default: true
+    t.boolean "submitted_via_portal", default: false
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
@@ -8120,6 +8169,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.index ["hold_released_by_id"], name: "index_sm_tasks_on_hold_released_by_id"
     t.index ["hold_started_by_id"], name: "index_sm_tasks_on_hold_started_by_id"
     t.index ["is_hold_task"], name: "index_sm_tasks_on_is_hold_task", where: "(is_hold_task = true)"
+    t.index ["is_ticket"], name: "index_sm_tasks_on_is_ticket"
     t.index ["job_id", "status", "start_date"], name: "idx_tasks_job_status_start"
     t.index ["job_id", "status"], name: "idx_tasks_job_status"
     t.index ["job_id", "task_number"], name: "index_sm_tasks_on_job_id_and_task_number", unique: true
@@ -8128,14 +8178,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
     t.index ["recurring_task_definition_id"], name: "index_sm_tasks_on_recurring_task_definition_id"
     t.index ["required_by"], name: "index_sm_tasks_on_required_by"
+    t.index ["saas_customer_id"], name: "index_sm_tasks_on_saas_customer_id"
     t.index ["searchable"], name: "idx_sm_tasks_searchable_gin", using: :gin
     t.index ["sequence_order"], name: "index_sm_tasks_on_sequence_order"
+    t.index ["sla_resolution_due_at"], name: "index_sm_tasks_on_sla_resolution_due_at"
     t.index ["sm_schedule_master_id"], name: "index_sm_tasks_on_sm_schedule_master_id"
     t.index ["source_type"], name: "index_sm_tasks_on_source_type"
     t.index ["start_date"], name: "index_sm_tasks_on_start_date"
     t.index ["status"], name: "index_sm_tasks_on_status"
     t.index ["supplier_confirmed_by_id"], name: "index_sm_tasks_on_supplier_confirmed_by_id"
     t.index ["supplier_id"], name: "index_sm_tasks_on_supplier_id"
+    t.index ["ticket_priority"], name: "index_sm_tasks_on_ticket_priority"
     t.index ["trade"], name: "index_sm_tasks_on_trade"
     t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
   end
@@ -8165,6 +8218,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.index ["task_id", "entry_date", "approved_at"], name: "idx_sm_time_entries_task_date_approved"
     t.index ["task_id", "resource_id", "entry_date"], name: "idx_sm_time_entries_task_resource_date"
     t.index ["task_id"], name: "index_sm_time_entries_on_task_id"
+  end
+
+  create_table "sm_trades", id: :serial, force: :cascade do |t|
+    t.string "name", limit: 255, null: false
+    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
+    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
+    t.integer "created_by"
+    t.integer "updated_by"
   end
 
   create_table "sm_working_drawing_pages", force: :cascade do |t|
@@ -8723,20 +8784,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["role_id"], name: "index_user_roles_on_role_id"
-    t.index ["user_id", "role_id"], name: "index_user_roles_on_user_id_and_role_id", unique: true
     t.index ["user_id"], name: "index_user_roles_on_user_id"
-  end
-
-  create_table "user_sm_stages_c4f88aa2", force: :cascade do |t|
-    t.string "name"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "user_sm_trades_70cdd052", force: :cascade do |t|
-    t.string "name"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
   end
 
   create_table "users", force: :cascade do |t|
@@ -10053,8 +10101,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_125329) do
   add_foreign_key "recipes", "contacts", column: "default_supplier_id"
   add_foreign_key "recipes", "recipe_categories"
   add_foreign_key "reconciliation_reports", "corporate_groups", column: "company_group_id"
+  add_foreign_key "referral_commissions", "contacts", column: "customer_contact_id"
+  add_foreign_key "referral_commissions", "contacts", column: "referrer_contact_id"
+  add_foreign_key "referral_commissions", "saas_billing_records"
   add_foreign_key "role_permissions", "permissions"
   add_foreign_key "s3_compatible_credentials", "organizations"
+  add_foreign_key "saas_billing_records", "contacts"
+  add_foreign_key "saas_billing_records", "gl_invoices"
   add_foreign_key "scheduled_emails", "imap_credentials"
   add_foreign_key "scheduled_emails", "users", column: "created_by_id"
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
