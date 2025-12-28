@@ -47,6 +47,7 @@ module Api
                 is_unique: col.is_unique,
                 is_title: col.is_title,
                 lookup_foundation_id: col.lookup_foundation_id,
+                lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
                 lookup_foundation_name: col.lookup_foundation&.name,
                 is_multiple: col.is_multiple
               }
@@ -432,6 +433,7 @@ module Api
             validation_message: col.validation_message,
             position: col.position,
             lookup_foundation_id: col.lookup_foundation_id,
+            lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
             lookup_foundation_name: col.lookup_foundation&.name,
             lookup_display_column: col.lookup_display_column,
             is_multiple: col.is_multiple,

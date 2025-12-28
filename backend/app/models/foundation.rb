@@ -7,6 +7,8 @@ class Foundation < ApplicationRecord
   validates :database_table_name, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
   validate :name_not_reserved
+  validate :model_class_exists, if: -> { model_class.present? }
+  validate :database_table_exists, on: :update, if: -> { table_type == "system" }
 
   before_validation :generate_database_table_name, if: -> { database_table_name.blank? }
   before_validation :generate_slug, if: -> { slug.blank? || name_changed? }
@@ -19,13 +21,15 @@ class Foundation < ApplicationRecord
     foundation_columns = columns.includes(:lookup_foundation) # Eager load for performance
 
     # For system foundations with a model_class defined, use the existing Rails model
+    # SSoT: Fail loudly if model_class is invalid - never silently fall through
     if table_type == "system" && model_class.present?
       begin
         @dynamic_model = model_class.constantize
         return @dynamic_model
       rescue NameError => e
-        Rails.logger.error "Failed to find model class #{model_class} for system foundation #{id}: #{e.message}"
-        # Fall through to dynamic model creation
+        # CRITICAL: Don't silently fall through - raise the error so it's fixed
+        raise "Foundation #{id} (#{slug}) has invalid model_class '#{model_class}': #{e.message}. " \
+              "Fix the model_class value or create the missing model file."
       end
     end
 
@@ -89,6 +93,25 @@ class Foundation < ApplicationRecord
     if name.present? && RESERVED_NAMES.include?(name.downcase)
       errors.add(:name, "cannot be a reserved name (#{RESERVED_NAMES.join(', ')})")
     end
+  end
+
+  # SSoT: Validate model_class points to an existing Ruby class
+  # Prevents silent fallback to dynamic model creation
+  def model_class_exists
+    model_class.constantize
+  rescue NameError
+    errors.add(:model_class, "class '#{model_class}' does not exist - check for typos or create the model file")
+  end
+
+  # SSoT: Validate database_table_name points to an existing table
+  # Only runs on update for system tables (user tables are created dynamically)
+  def database_table_exists
+    return if database_table_name.blank?
+    unless ActiveRecord::Base.connection.table_exists?(database_table_name)
+      errors.add(:database_table_name, "table '#{database_table_name}' does not exist in the database")
+    end
+  rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
+    # Skip validation if database is not available (e.g., during migrations)
   end
 
   def generate_database_table_name

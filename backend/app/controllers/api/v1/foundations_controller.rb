@@ -178,6 +178,7 @@ module Api
               visible: col.visible,
               editable: col.editable,
               lookup_foundation_id: col.lookup_foundation_id,
+              lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
               lookup_display_column: col.lookup_display_column,
               lookup_multiple: col.lookup_multiple,
               formula: col.formula,
@@ -676,6 +677,7 @@ module Api
                 validation_message: col.validation_message,
                 position: col.position,
                 lookup_foundation_id: col.lookup_foundation_id,
+                lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
                 lookup_display_column: col.lookup_display_column,
                 is_multiple: col.is_multiple,
                 header_align: col.header_align,
