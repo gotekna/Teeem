@@ -61,35 +61,10 @@ module Api
           end
 
           # If job folder doesn't exist or has no valid ID, create it
+          # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
           unless job_folder && job_folder["id"].present?
-            Rails.logger.info "[JobPhotos] Job folder not found, creating structure..."
-            template = FolderTemplate.where(is_system_default: true, is_active: true).first
-            if template
-              job_folder = client.create_job_folder_structure(job, template)
-            else
-              # No template - create a simple job folder
-              job_code = job.id.to_s.rjust(3, "0")
-              job_folder_name = "#{job_code} - #{job.title || job.name}"
-
-              # Get or create root folder
-              root_id = credential.root_folder_id
-              unless root_id
-                # Try to find TEEEM Jobs folder
-                jobs_folder_name = CorporateCompanySetting.instance&.sharepoint_jobs_path || "TEEEM Jobs"
-                root_results = client.get("#{client.send(:drive_path)}/root/children")
-                jobs_folder = root_results["value"]&.find { |item| item["folder"] && item["name"] == jobs_folder_name }
-                root_id = jobs_folder&.dig("id")
-              end
-
-              if root_id
-                job_folder = client.create_folder(job_folder_name, parent_id: root_id)
-              else
-                return render json: {
-                  success: false,
-                  error: "Cannot create job folder: SharePoint jobs folder not found"
-                }, status: :unprocessable_entity
-              end
-            end
+            Rails.logger.info "[JobPhotos] Job folder not found, creating structure from EntityTab..."
+            job_folder = client.create_job_folder_structure(job)
           end
 
           # Navigate to the photo folder within the job folder

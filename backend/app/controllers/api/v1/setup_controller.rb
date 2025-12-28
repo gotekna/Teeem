@@ -81,20 +81,12 @@ module Api
       end
 
       # POST /api/v1/setup/sync_folder_templates
+      # DEPRECATED: FolderTemplate has been removed - EntityTab is now the SSoT for folder structure
       def sync_folder_templates
-        begin
-          sync_data_type("folder_templates")
-          render json: {
-            success: true,
-            message: "Folder templates successfully synced",
-            counts: {
-              templates: FolderTemplate.count,
-              items: FolderTemplateItem.count
-            }
-          }
-        rescue StandardError => e
-          handle_sync_error("folder templates", e)
-        end
+        render json: {
+          success: false,
+          message: "DEPRECATED: FolderTemplate has been removed. Folder structure is now defined in EntityTab hierarchy (Admin > System > Entity Tabs)."
+        }, status: :gone
       end
 
       private
@@ -116,8 +108,7 @@ module Api
           sync_documentation_categories_data
         when "supervisor_checklists"
           sync_supervisor_checklists_data
-        when "folder_templates"
-          sync_folder_templates_data
+        # NOTE: folder_templates removed - SSoT: EntityTab is now the source of truth
         end
       end
 
@@ -189,58 +180,7 @@ module Api
         end
       end
 
-      def sync_folder_templates_data
-        folder_templates_file = Rails.root.join("db", "import_data", "folder_templates.csv")
-        folder_template_items_file = Rails.root.join("db", "import_data", "folder_template_items.csv")
-
-        raise "Folder templates file not found" unless File.exist?(folder_templates_file)
-        raise "Folder template items file not found" unless File.exist?(folder_template_items_file)
-
-        # Delete existing data
-        FolderTemplateItem.delete_all
-        FolderTemplate.delete_all
-
-        # Import templates
-        template_map = {}
-
-        CSV.foreach(folder_templates_file, headers: true, header_converters: :symbol) do |row|
-          template = FolderTemplate.create!(
-            name: row[:name],
-            template_type: row[:template_type],
-            is_system_default: row[:is_system_default] == "true",
-            is_active: row[:is_active] == "true"
-          )
-          template_map[row[:id].to_i] = template.id
-        end
-
-        # Import items
-        item_map = {}
-        CSV.foreach(folder_template_items_file, headers: true, header_converters: :symbol) do |row|
-          template_id = template_map[row[:folder_template_id].to_i]
-          next unless template_id
-
-          item = FolderTemplateItem.create!(
-            folder_template_id: template_id,
-            name: row[:name],
-            level: row[:level].to_i,
-            order: row[:order].to_i,
-            parent_id: nil,  # Will be set in second pass
-            description: row[:description]
-          )
-          item_map[row[:id].to_i] = item.id
-        end
-
-        # Second pass to set parent_ids
-        CSV.foreach(folder_template_items_file, headers: true, header_converters: :symbol) do |row|
-          if row[:parent_id].present?
-            item_id = item_map[row[:id].to_i]
-            parent_id = item_map[row[:parent_id].to_i]
-            if item_id && parent_id
-              FolderTemplateItem.find(item_id).update!(parent_id: parent_id)
-            end
-          end
-        end
-      end
+      # NOTE: sync_folder_templates_data removed - SSoT: EntityTab is now the source of truth for folder structure
 
       def handle_sync_error(type, error)
         Rails.logger.error("Failed to sync #{type}: #{error.message}")

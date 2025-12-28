@@ -214,14 +214,8 @@ end
 puts "Created #{Design.count} designs"
 puts "Designs seed complete!"
 
-# Folder Templates Seed Data
-puts "\n" + "="*50
-puts "Seeding Folder Templates..."
-
-FolderTemplate.seed_defaults
-
-puts "Created #{FolderTemplate.count} folder templates"
-puts "Folder Templates seed complete!"
+# NOTE: FolderTemplate seeding removed - SSoT: EntityTab is now the source of truth for folder structure
+# Folder structure is defined in EntityTab hierarchy (Admin > System > Entity Tabs)
 
 # Gold Standard Items (Demo Price Book) Seed Data
 puts "\n" + "="*50

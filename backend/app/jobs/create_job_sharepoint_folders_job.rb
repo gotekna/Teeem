@@ -43,11 +43,9 @@ class CreateJobSharepointFoldersJob < ApplicationJob
         return
       end
 
-      # Get default folder template
-      template = FolderTemplate.where(is_system_default: true, is_active: true).first
-
+      # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
       # Create folder structure for this job
-      job_folder = @document_provider.create_job_folder_structure(job, template)
+      job_folder = @document_provider.create_job_folder_structure(job)
 
       Rails.logger.info "[DocumentProvider] Successfully created folders for job #{job_id}: #{job_folder[:path] || job_folder['webUrl']}"
       job.update_column(:sharepoint_folder_status, "completed")

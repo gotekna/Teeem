@@ -466,12 +466,12 @@ export function ScheduleMasterTab() {
     handleTabChange("tables");
   };
 
-  // SSoT: Load roles from Role model (Admin > System > Company > Security > Roles)
+  // SSoT: Load roles from Foundation Role (ID 413) - same as Admin > System > Company > Security > Roles
   const loadRoles = async () => {
     try {
-      const data = await api.get<{ success: boolean; roles: { id: number; name: string; display_name: string }[] }>("/api/v1/permissions/roles");
-      if (data?.roles) {
-        setAvailableRoles(data.roles);
+      const data = await api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/413/records?per_page=100");
+      if (data?.records) {
+        setAvailableRoles(data.records.map(r => ({ id: r.id, name: r.name, display_name: r.display_name || r.name })));
       }
     } catch (error) {
       console.error("Failed to load roles:", error);
@@ -1879,6 +1879,7 @@ export function ScheduleMasterTab() {
                   foundationIdNumeric={542}
                   tableName="SM Trades"
                   enableExport={false}
+                  disableSavedViews
                 />
               </div>
             </div>
@@ -1896,6 +1897,7 @@ export function ScheduleMasterTab() {
                   foundationIdNumeric={543}
                   tableName="SM Stages"
                   enableExport={false}
+                  disableSavedViews
                 />
               </div>
             </div>
@@ -1913,9 +1915,11 @@ export function ScheduleMasterTab() {
                   foundationIdNumeric={533}
                   tableName="Cost Centres"
                   enableExport={false}
+                  disableSavedViews
                 />
               </div>
             </div>
+
           </div>
         </TabsContent>
         </div>
@@ -2032,10 +2036,10 @@ export function ScheduleMasterTab() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Assigned Role</Label>
-                {/* SSoT: Roles from Role model (Admin > System > Company > Security > Roles) */}
+                {/* SSoT: Roles from Foundation Role (ID 413) - Admin > System > Company > Security > Roles */}
                 <ComboboxDropdown
-                  items={availableRoles.map(r => ({ id: r.name, label: r.display_name }))}
-                  selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => r.name === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
+                  items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
+                  selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => String(r.id) === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
                   onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
                   placeholder="Select role..."
                   emptyResults="No roles found"

@@ -730,17 +730,8 @@ module Api
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
-        # Get folder template (use default or specified)
-        template_id = params[:template_id]
-        template = if template_id
-          FolderTemplate.find(template_id)
-        else
-          FolderTemplate.where(is_system_default: true, is_active: true).first
-        end
-
-        unless template
-          return render json: { error: "No folder template found" }, status: :not_found
-        end
+        # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
+        # template_id parameter is deprecated and ignored
 
         begin
           client = MicrosoftGraphClient.new(credential)
@@ -762,8 +753,8 @@ module Api
                 next
               end
 
-              # Create folder structure for this job
-              job_folder = client.create_job_folder_structure(job, template)
+              # Create folder structure for this job (SSoT: uses EntityTab hierarchy)
+              job_folder = client.create_job_folder_structure(job)
               created_count += 1
 
               Rails.logger.info "Created folders for job ##{job.id}: #{job_folder['name']}"
@@ -807,17 +798,8 @@ module Api
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
-        # Get folder template (use default or specified)
-        template_id = params[:template_id]
-        template = if template_id
-          FolderTemplate.find(template_id)
-        else
-          FolderTemplate.where(is_system_default: true, is_active: true).first
-        end
-
-        unless template
-          return render json: { error: "No folder template found" }, status: :not_found
-        end
+        # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
+        # template_id parameter is deprecated and ignored
 
         begin
           client = MicrosoftGraphClient.new(credential)
@@ -833,8 +815,8 @@ module Api
             }
           end
 
-          # Create folder structure for this job
-          job_folder = client.create_job_folder_structure(job, template)
+          # Create folder structure for this job (SSoT: uses EntityTab hierarchy)
+          job_folder = client.create_job_folder_structure(job)
 
           # Mark credential as synced
           credential.mark_synced!

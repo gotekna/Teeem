@@ -34,18 +34,8 @@ class CreateJobFoldersJob < ApplicationJob
       return
     end
 
-    # Get folder template (use default or specified)
-    template = if template_id
-      FolderTemplate.find(template_id)
-    else
-      FolderTemplate.where(is_system_default: true, is_active: true).first
-    end
-
-    unless template
-      construction.update!(sharepoint_folder_status: "failed")
-      Rails.logger.error "CreateJobFoldersJob failed: No folder template found"
-      return
-    end
+    # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
+    # template_id parameter is deprecated and ignored
 
     begin
       client = MicrosoftGraphClient.new(credential)
@@ -60,8 +50,8 @@ class CreateJobFoldersJob < ApplicationJob
         return
       end
 
-      # Create folder structure for this job
-      job_folder = client.create_job_folder_structure(construction, template)
+      # Create folder structure for this job (SSoT: uses EntityTab hierarchy)
+      job_folder = client.create_job_folder_structure(construction)
 
       # Mark credential as synced
       credential.mark_synced!

@@ -126,28 +126,13 @@ module Api
           return render json: { error: "SharePoint not connected or token expired" }, status: :unauthorized
         end
 
-        # Get folder template (use default or specified)
-        template_id = params[:template_id]
-        template = if template_id
-          FolderTemplate.find(template_id)
-        else
-          FolderTemplate.where(is_system_default: true, is_active: true).first
-        end
-
-        unless template
-          return render json: { error: "No folder template found" }, status: :not_found
-        end
-
-        # Prepare job data for variable resolution
-        job_data = {
-          job_code: @job.id.to_s.rjust(3, "0"),
-          project_name: @job.title,
-          site_supervisor: @job.site_supervisor_name
-        }
+        # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
+        # template_id parameter is deprecated and ignored
 
         begin
           client = MicrosoftGraphClient.new(credential)
-          root_folder = client.create_folder_structure(template, job_data)
+          # Use create_job_folder_structure which now uses EntityTab hierarchy
+          root_folder = client.create_job_folder_structure(@job)
 
           render json: {
             message: "Folder structure created successfully",

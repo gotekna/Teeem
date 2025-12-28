@@ -335,7 +335,8 @@ class MicrosoftGraphClient
   end
 
   # Create folder structure for a specific construction/job
-  def create_job_folder_structure(construction, template)
+  # SSoT: Uses EntityTab hierarchy for folder names (no longer uses FolderTemplate)
+  def create_job_folder_structure(construction, _template = nil)
     # Ensure we have a root folder for all jobs
     unless @credential.root_folder_id
       create_jobs_root_folder
@@ -352,8 +353,8 @@ class MicrosoftGraphClient
     job_folder_name = "#{job_data[:job_code]} - #{job_data[:project_name]}"
     job_folder = create_folder(job_folder_name, parent_id: @credential.root_folder_id)
 
-    # Create subfolders based on template
-    create_subfolders_from_template(template, job_folder["id"], job_data)
+    # SSoT: Create subfolders from EntityTab hierarchy (replaces FolderTemplate)
+    create_subfolders_from_entity_tabs(job_folder["id"])
 
     job_folder
   end
@@ -953,38 +954,48 @@ class MicrosoftGraphClient
     Rails.logger.error "[MicrosoftGraph] Credential marked as dead: #{error_message}"
   end
 
-  def create_subfolders_from_template(template, parent_folder_id, job_data)
-    # Get root level items (items with no parent)
-    root_items = template.folder_template_items.where(parent_id: nil).order(:order)
-
-    # Track created folder IDs for children
+  # SSoT: Create subfolders from EntityTab hierarchy
+  # EntityTab is THE source of truth for folder structure (replaces FolderTemplate)
+  def create_subfolders_from_entity_tabs(parent_folder_id)
     folder_id_map = {}
 
-    # Process all items in order of level (breadth-first)
-    template.folder_template_items.order(:level, :order).each do |item|
-      # Determine parent folder ID
-      parent_id = if item.parent_id
-        folder_id_map[item.parent_id]
-      else
-        parent_folder_id
-      end
+    # Get all job-scope EntityTabs with SharePoint folders
+    root_tabs = EntityTab.for_jobs
+                         .where(has_sharepoint_folder: true)
+                         .enabled
+                         .root_tabs
+                         .ordered
+                         .includes(children: { children: :children })
 
-      # Skip if parent hasn't been created yet (shouldn't happen with level ordering)
-      next unless parent_id
-
-      # Resolve variables in folder name
-      folder_name = item.resolve_variables(job_data)
-
-      # Create folder
-      created_folder = create_folder(folder_name, parent_id: parent_id)
-
-      # Store mapping for children
-      folder_id_map[item.id] = created_folder["id"]
-
-      Rails.logger.info "Created folder: #{folder_name} (#{created_folder['id']})"
+    root_tabs.each do |tab|
+      create_entity_tab_folder_recursive(tab, parent_folder_id, folder_id_map)
     end
 
     folder_id_map
+  end
+
+  # Recursively create folders for an EntityTab and its children
+  def create_entity_tab_folder_recursive(tab, parent_folder_id, folder_id_map)
+    # Use display_name as folder name (SSoT)
+    folder_name = tab.display_name
+
+    # Create the folder
+    created_folder = create_folder(folder_name, parent_id: parent_folder_id)
+    folder_id_map[tab.id] = created_folder["id"]
+
+    Rails.logger.info "[EntityTab SSoT] Created folder: #{folder_name} (#{created_folder['id']})"
+
+    # Process children recursively
+    tab.children.where(has_sharepoint_folder: true).enabled.ordered.each do |child|
+      create_entity_tab_folder_recursive(child, created_folder["id"], folder_id_map)
+    end
+  end
+
+  # DEPRECATED: Legacy method for backward compatibility
+  # TODO: Remove after migration complete
+  def create_subfolders_from_template(template, parent_folder_id, _job_data)
+    Rails.logger.warn "[DEPRECATED] create_subfolders_from_template called - using EntityTab instead"
+    create_subfolders_from_entity_tabs(parent_folder_id)
   end
 
   def self.handle_token_response(response)
