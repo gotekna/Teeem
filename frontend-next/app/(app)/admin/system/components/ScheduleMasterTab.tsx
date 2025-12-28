@@ -292,6 +292,16 @@ export function ScheduleMasterTab() {
   // Job EntityTabs for photo storage dropdown
   const [jobEntityTabs, setJobEntityTabs] = React.useState<Array<{ id: number; display_name: string; tab_key: string }>>([]);
 
+  // Lookup Tables subtab state - SSoT for which table is displayed
+  const LOOKUP_TABLES = [
+    { id: "sm_trades", numericId: 531, name: "SM Trades", description: "Trade types for schedule tasks (e.g., CARPENTER, ELECTRICIAN)" },
+    { id: "sm_stages", numericId: 532, name: "SM Stages", description: "Stage types for schedule tasks (e.g., 01 Slab, 05 Enclosed)" },
+    { id: "cost_centres", numericId: 533, name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
+  ] as const;
+  type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
+  const [selectedLookupTable, setSelectedLookupTable] = React.useState<LookupTableId>("sm_trades");
+  const [lookupTableRefreshKey, setLookupTableRefreshKey] = React.useState(0);
+
   // Tag management state
   const [availableTags, setAvailableTags] = React.useState<string[]>([]);
   const [selectedTagFilter, setSelectedTagFilter] = React.useState<string>("");
@@ -1863,63 +1873,44 @@ export function ScheduleMasterTab() {
           <RecurringTasksSection />
         </TabsContent>
 
-        {/* Tables Tab - SM Trades and SM Stages lookup tables */}
-        <TabsContent value="tables" className="absolute inset-0 overflow-auto px-4 pt-4 data-[state=inactive]:hidden">
-          <div className="space-y-8">
-            {/* SM Trades Table */}
-            <div>
-              <h3 className="text-lg font-semibold mb-2">SM Trades</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Trade types available for schedule tasks (e.g., CARPENTER, ELECTRICIAN).
-              </p>
-              <div className="border rounded-lg overflow-hidden h-[400px]">
-                <TeeemTableView
-                  entries={[]}
-                  foundationId="sm_trades"
-                  tableName="SM Trades"
-                  enableExport={false}
-                  disableSavedViews
-                  autoFetchRecords
-                />
-              </div>
-            </div>
+        {/* Tables Tab - Gold Standard Table pattern for SM lookup tables */}
+        <TabsContent value="tables" className="absolute inset-0 flex flex-col data-[state=inactive]:hidden">
+          {/* Table selector - horizontal tabs */}
+          <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
+            {LOOKUP_TABLES.map((table) => (
+              <Button
+                key={table.id}
+                variant={selectedLookupTable === table.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedLookupTable(table.id)}
+                className="gap-2"
+              >
+                <TableIcon className="h-4 w-4" />
+                {table.name}
+              </Button>
+            ))}
+            <div className="flex-1" />
+            <p className="text-sm text-muted-foreground">
+              {LOOKUP_TABLES.find(t => t.id === selectedLookupTable)?.description}
+            </p>
+          </div>
 
-            {/* SM Stages Table */}
-            <div>
-              <h3 className="text-lg font-semibold mb-2">SM Stages</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Stage types available for schedule tasks (e.g., 01 Slab, 05 Enclosed).
-              </p>
-              <div className="border rounded-lg overflow-hidden h-[400px]">
+          {/* Full-height Gold Standard Table */}
+          <div className="flex-1 min-h-0">
+            {LOOKUP_TABLES.map((table) => (
+              selectedLookupTable === table.id && (
                 <TeeemTableView
+                  key={`${table.id}-${lookupTableRefreshKey}`}
                   entries={[]}
-                  foundationId="sm_stages"
-                  tableName="SM Stages"
-                  enableExport={false}
-                  disableSavedViews
+                  foundationId={table.id}
+                  foundationIdNumeric={table.numericId}
+                  tableName={table.name}
+                  enableExport={true}
                   autoFetchRecords
+                  onRefresh={() => setLookupTableRefreshKey(k => k + 1)}
                 />
-              </div>
-            </div>
-
-            {/* Cost Centres Table */}
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Cost Centres</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Cost centres for categorizing schedule tasks (e.g., Administration, Residential Projects).
-              </p>
-              <div className="border rounded-lg overflow-hidden h-[400px]">
-                <TeeemTableView
-                  entries={[]}
-                  foundationId="cost_centres"
-                  tableName="Cost Centres"
-                  enableExport={false}
-                  disableSavedViews
-                  autoFetchRecords
-                />
-              </div>
-            </div>
-
+              )
+            ))}
           </div>
         </TabsContent>
         </div>

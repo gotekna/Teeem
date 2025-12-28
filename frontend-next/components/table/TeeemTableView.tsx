@@ -1073,7 +1073,7 @@ export default function TeeemTableView({
     saveSearch: cacheSearch,
     saveScrollPosition: cacheScrollPosition,
     saveRowLimit: cacheRowLimit,
-  } = useTableSessionStorage(foundationIdNumeric);
+  } = useTableSessionStorage(effectiveFoundationId);
 
   // Track if we've restored from cache (only restore once)
   const hasRestoredFromCacheRef = useRef(false);
@@ -1153,15 +1153,15 @@ export default function TeeemTableView({
         if (apiError?.status === 404) {
           console.warn(`[TeeemTableView] Foundation ${effectiveFoundationId} not found - cleaning up stale cache`);
 
-          // Clean up localStorage views cache (only for numeric IDs)
-          if (foundationIdNumeric !== null) {
+          // Clean up localStorage views cache
+          if (effectiveFoundationId !== null) {
             try {
               const viewsCacheKey = 'teeem_views_cache';
               const viewsCache = localStorage.getItem(viewsCacheKey);
               if (viewsCache) {
                 const parsed = JSON.parse(viewsCache);
-                if (parsed[foundationIdNumeric]) {
-                  delete parsed[foundationIdNumeric];
+                if (parsed[effectiveFoundationId]) {
+                  delete parsed[effectiveFoundationId];
                   localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
                 }
               }
@@ -1171,7 +1171,7 @@ export default function TeeemTableView({
 
             // Clean up sessionStorage table state
             try {
-              const sessionKey = `teeem-table-state-v1-${foundationIdNumeric}`;
+              const sessionKey = `teeem-table-state-v1-${effectiveFoundationId}`;
               sessionStorage.removeItem(sessionKey);
             } catch {
               // Ignore cache cleanup errors
@@ -1536,7 +1536,7 @@ export default function TeeemTableView({
     loading: groupCountsLoading,
     hasFetched: groupCountsHasFetched,
   } = useGroupCounts(
-    foundationIdNumeric,
+    effectiveFoundationId,
     validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
     groupByColumns.length > 0 && !!validGroupByColumnForApi // enabled when grouping is active AND column is valid
@@ -1652,7 +1652,7 @@ export default function TeeemTableView({
 
   // Execute delete after confirmation (defined here after state declarations)
   const executeDelete = useCallback(async () => {
-    if (!foundationIdNumeric || !recordToDelete) return;
+    if (!effectiveFoundationId || !recordToDelete) return;
 
     setIsDeleting(true);
     try {
@@ -1674,7 +1674,7 @@ export default function TeeemTableView({
     } finally {
       setIsDeleting(false);
     }
-  }, [foundationIdNumeric, recordToDelete, onRefresh, toast]);
+  }, [effectiveFoundationId, recordToDelete, onRefresh, toast]);
 
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
@@ -1867,7 +1867,7 @@ export default function TeeemTableView({
         );
       }
     }
-  }, [foundationIdNumeric, enableSchemaEditor, preloadedViews, viewOnly, tableName, foundationId]);
+  }, [effectiveFoundationId, enableSchemaEditor, preloadedViews, viewOnly, tableName, foundationId]);
 
   // ============================================================================
   // HANDLERS
@@ -1926,7 +1926,7 @@ export default function TeeemTableView({
       console.log('[TeeemTableView] Skipping auto-save - no active view');
       return;
     }
-    if (!foundationIdNumeric) {
+    if (!effectiveFoundationId) {
       console.log('[TeeemTableView] Skipping auto-save - no foundation ID');
       return;
     }
@@ -1955,7 +1955,7 @@ export default function TeeemTableView({
     } catch (error) {
       console.error('[TeeemTableView] Failed to auto-save column widths:', error);
     }
-  }, [activeViewId, foundationIdNumeric]);
+  }, [activeViewId, effectiveFoundationId]);
 
   // Column resize handler with auto-save
   const handleColumnResize = useCallback((key: string, width: number) => {
@@ -2184,11 +2184,11 @@ export default function TeeemTableView({
       return;
     }
     // Otherwise, use built-in merge modal if enabled
-    if (enableMerge !== false && foundationIdNumeric) {
+    if (enableMerge !== false && effectiveFoundationId) {
       setMergeSelectedIds(ids);
       setShowMergeModal(true);
     }
-  }, [onBulkMerge, enableMerge, foundationIdNumeric]);
+  }, [onBulkMerge, enableMerge, effectiveFoundationId]);
 
   // Called when merge completes successfully - optimistically hides merged rows
   const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
@@ -2211,7 +2211,7 @@ export default function TeeemTableView({
   // IMPORTANT: Respects cascade filters from saved views - combines group filter with existing filters
   const loadGroupRecords = useCallback(async (groupKey: string) => {
     // Skip if no foundation or groupBy column
-    if (!foundationIdNumeric || !groupByColumn) return;
+    if (!effectiveFoundationId || !groupByColumn) return;
 
     // Skip if already loaded or loading
     if (lazyLoadedGroups.has(groupKey) || groupLoadingState.has(groupKey)) return;
@@ -2318,7 +2318,7 @@ export default function TeeemTableView({
         return next;
       });
     }
-  }, [foundationIdNumeric, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns, search, propSearchMode]);
+  }, [effectiveFoundationId, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns, search, propSearchMode]);
 
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroups((prev: Set<string>) => {
@@ -2538,7 +2538,7 @@ export default function TeeemTableView({
       }
 
       // Use bulk_update API if foundationIdNumeric is available (single API call)
-      if (foundationIdNumeric && rowsToUpdate.length > 0) {
+      if (effectiveFoundationId && rowsToUpdate.length > 0) {
         // Group by changes to minimize API calls
         // For now, update each row with all its changes in one call
         const apiStartTime = performance.now();
@@ -2576,7 +2576,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [editingRowIds, editingData, entries, foundationIdNumeric, onRowUpdate, onRefresh, toast, validationErrors]);
+  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, validationErrors]);
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {
@@ -2612,7 +2612,7 @@ export default function TeeemTableView({
         console.log('[Bulk Update] Converted multiple_lookups value:', bulkUpdateValue, '→', valueToSend);
       }
 
-      if (foundationIdNumeric) {
+      if (effectiveFoundationId) {
         // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
         // Skip if we need field mapping (handled above)
         const payload = {
@@ -2662,7 +2662,7 @@ export default function TeeemTableView({
           }
 
           // If entity_type validation errors, automatically open health report
-          if (hasEntityTypeErrors && foundationIdNumeric) {
+          if (hasEntityTypeErrors && effectiveFoundationId) {
             console.log('[Bulk Update] Detected entity_type errors, opening health report...');
             errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
             errorMessage += '\n\nOpening Health Report to show which records need fixing...';
@@ -2792,7 +2792,7 @@ export default function TeeemTableView({
   // searchParams is read inside the effect, not as a dependency
   useEffect(() => {
     const loadSavedViews = async () => {
-      if (!foundationIdNumeric) return;
+      if (!effectiveFoundationId) return;
       if (disableSavedViews) {
         // Clear any cached views when disabled (prevents stale views from other tables)
         setSavedViews([]);
@@ -2816,7 +2816,7 @@ export default function TeeemTableView({
       try {
         // Load views using atom (handles caching, mapping, sorting automatically)
         // Pass inheritViewsFrom to include global views from related foundations
-        const result = await loadViews(foundationIdNumeric, inheritViewsFrom);
+        const result = await loadViews(effectiveFoundationId, inheritViewsFrom);
 
         if (!result.success) {
           console.error('[loadSavedViews] Failed to load views:', result.error);
@@ -2858,7 +2858,7 @@ export default function TeeemTableView({
 
     loadSavedViews();
 
-  }, [foundationIdNumeric, preloadedViews, disableSavedViews, inheritViewsFrom]);
+  }, [effectiveFoundationId, preloadedViews, disableSavedViews, inheritViewsFrom]);
 
   // Expose loadViewState to parent via callback
   useEffect(() => {
@@ -2911,8 +2911,8 @@ export default function TeeemTableView({
 
       if (response?.success && response.view) {
         // Invalidate the views cache so next load gets fresh data
-        if (foundationIdNumeric) {
-          invalidateCache(foundationIdNumeric);
+        if (effectiveFoundationId) {
+          invalidateCache(effectiveFoundationId);
         }
         // Insert global views at the beginning, personal views at the end
         if (saveAsGlobal) {
@@ -5057,7 +5057,7 @@ export default function TeeemTableView({
             </div>
           )}
           <DataHealthWidget
-            foundationId={foundationIdNumeric}
+            foundationId={effectiveFoundationId}
             compact={!healthPanelOpen}
             forceShow={healthPanelOpen}
             onIssueClick={onDataHealthIssueClick}
@@ -5154,9 +5154,9 @@ export default function TeeemTableView({
             <EditModeToggle show={!viewOnly} />
             {leftActions}
             {/* Health Indicator Button - shows if table has health checks */}
-            {foundationIdNumeric && (
+            {effectiveFoundationId && (
               <HealthIndicatorButton
-                foundationId={foundationIdNumeric}
+                foundationId={effectiveFoundationId}
                 onClick={() => setHealthPanelOpen(!healthPanelOpen)}
               />
             )}
@@ -5227,7 +5227,7 @@ export default function TeeemTableView({
                 </Button>
               )}
               {/* Merge button - combine rows into one */}
-              {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
+              {(onBulkMerge || (enableMerge !== false && effectiveFoundationId)) && !viewOnly && selectedRows.size >= 2 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -5269,7 +5269,7 @@ export default function TeeemTableView({
 
           {/* Filters button - auto-enabled when foundationIdNumeric is set */}
           {/* Opens GlobalViewsManager for managing saved views, filters, sorting, columns */}
-          {foundationIdNumeric && (
+          {effectiveFoundationId && (
             <Button
               variant="outline"
               size="sm"
@@ -5391,7 +5391,7 @@ export default function TeeemTableView({
                 TABLE INFO
               </DropdownMenuLabel>
 
-              {foundationIdNumeric && (
+              {effectiveFoundationId && (
                 <>
                   <div className="px-2 py-1.5 flex items-center justify-between">
                     <span className="text-[11px]">
@@ -5645,7 +5645,7 @@ export default function TeeemTableView({
           )}
           {/* Merge button - combine rows into one */}
           {/* Shows when: onBulkMerge provided OR enableMerge with foundationIdNumeric */}
-          {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
+          {(onBulkMerge || (enableMerge !== false && effectiveFoundationId)) && !viewOnly && selectedRows.size >= 2 && (
             <Button
               variant="outline"
               size="sm"
@@ -5879,12 +5879,12 @@ export default function TeeemTableView({
       />
 
       {/* Shared Merge Modal - used by all tables when enableMerge is true */}
-      {foundationIdNumeric && enableMerge !== false && (
+      {effectiveFoundationId && enableMerge !== false && (
         <MergeModal
           open={showMergeModal}
           onOpenChange={setShowMergeModal}
           selectedIds={mergeSelectedIds}
-          foundationId={foundationIdNumeric}
+          foundationId={effectiveFoundationId}
           records={entries}
           displayColumn={mergeDisplayColumn}
           secondaryColumns={mergeSecondaryColumns}
@@ -5908,11 +5908,11 @@ export default function TeeemTableView({
 
       {/* View Manager Sheet - auto-enabled when foundationIdNumeric is set */}
       {/* Per GOLD_STANDARD_TABLE.md: Tables with foundationIdNumeric get Filters button + ViewManagerSheet */}
-      {foundationIdNumeric && (
+      {effectiveFoundationId && (
         <ViewManagerSheet
           open={showGlobalViewsManager}
           onOpenChange={setShowGlobalViewsManager}
-          foundationId={foundationIdNumeric}
+          foundationId={effectiveFoundationId}
           columns={COLUMNS
             .filter(col => col.key !== 'select' && col.key !== 'actions')
             .map((col, index) => ({
@@ -5940,13 +5940,13 @@ export default function TeeemTableView({
       {/* ============================================================================ */}
       {/* RECORD CRUD MODALS (Phase 8) - Auto-enabled when foundationIdNumeric is set */}
       {/* ============================================================================ */}
-      {foundationIdNumeric && (
+      {effectiveFoundationId && (
         <>
           {/* Add Record Dialog */}
           <CreateRecordDialog
             open={showAddRecordModal}
             onOpenChange={setShowAddRecordModal}
-            foundationId={foundationIdNumeric}
+            foundationId={effectiveFoundationId}
             tableName={tableName}
             columns={COLUMNS}
             onSuccess={() => {
@@ -5959,7 +5959,7 @@ export default function TeeemTableView({
           <EditRecordModal
             open={showEditRecordModal}
             onOpenChange={setShowEditRecordModal}
-            foundationId={foundationIdNumeric}
+            foundationId={effectiveFoundationId}
             tableName={tableName}
             columns={COLUMNS}
             record={selectedRecordForModal}
