@@ -51,6 +51,7 @@ import {
   Play,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { safePercent } from "@/lib/utils";
 
 // Types
 interface ProgressClaim {
@@ -557,13 +558,13 @@ export default function ProgressBillingTab() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Progress value={claim.total_claimed_pct} className="w-16 h-2" />
-                            <span className="text-sm font-medium">{(claim.total_claimed_pct ?? 0).toFixed(0)}%</span>
+                            <span className="text-sm font-medium">{safePercent(claim.total_claimed_pct, 0)}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatCurrency(claim.this_claim_amount)}
                           <div className="text-xs text-muted-foreground">
-                            +{(claim.this_claim_pct ?? 0).toFixed(1)}%
+                            +{safePercent(claim.this_claim_pct)}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -891,12 +892,12 @@ export default function ProgressBillingTab() {
               <div>
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span>Total Progress</span>
-                  <span className="font-medium">{(selectedClaim.total_claimed_pct ?? 0).toFixed(1)}%</span>
+                  <span className="font-medium">{safePercent(selectedClaim.total_claimed_pct)}</span>
                 </div>
                 <Progress value={selectedClaim.total_claimed_pct} className="h-3" />
                 <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                  <span>Previous: {(selectedClaim.previous_claimed_pct ?? 0).toFixed(1)}%</span>
-                  <span>This claim: +{(selectedClaim.this_claim_pct ?? 0).toFixed(1)}%</span>
+                  <span>Previous: {safePercent(selectedClaim.previous_claimed_pct)}</span>
+                  <span>This claim: +{safePercent(selectedClaim.this_claim_pct)}</span>
                 </div>
               </div>
 
@@ -930,7 +931,7 @@ export default function ProgressBillingTab() {
                   <p className="text-sm text-muted-foreground">Remaining to Claim</p>
                   <p className="font-medium">{formatCurrency(selectedClaim.remaining_to_claim)}</p>
                 </div>
-                <Badge variant="outline">{(selectedClaim.remaining_pct ?? 0).toFixed(1)}% left</Badge>
+                <Badge variant="outline">{safePercent(selectedClaim.remaining_pct)} left</Badge>
               </div>
             </div>
           )}
