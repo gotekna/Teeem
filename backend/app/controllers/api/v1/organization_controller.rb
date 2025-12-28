@@ -286,7 +286,20 @@ module Api
 
       # GET /api/v1/organization/data_stats
       # Returns organization-wide data warehouse statistics
+      # Performance: Cached for 10 minutes (expensive email_warehouse queries)
       def data_stats
+        # Skip cache if explicitly requested
+        skip_cache = params[:refresh] == "true"
+        cache_key = "organization:data_stats"
+
+        # Try to get from cache first (10 minute TTL - stats don't change often)
+        unless skip_cache
+          cached_result = Rails.cache.read(cache_key)
+          if cached_result
+            return render json: cached_result.merge(from_cache: true)
+          end
+        end
+
         # Get company settings for organization name
         company_setting = CorporateCompanySetting.first
 
@@ -456,7 +469,7 @@ module Api
           health_rate: total_companies > 0 ? (((total_companies - missing_abn - overdue_review).to_f / total_companies) * 100).round(1) : 100
         }
 
-        render json: {
+        result = {
           success: true,
           data: {
             organization: {
@@ -474,6 +487,11 @@ module Api
             last_updated: Time.current
           }
         }
+
+        # Cache for 10 minutes
+        Rails.cache.write(cache_key, result, expires_in: 10.minutes)
+
+        render json: result.merge(from_cache: false)
       end
     end
   end
