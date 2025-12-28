@@ -301,15 +301,12 @@ export function ScheduleMasterTab() {
   const [savingTag, setSavingTag] = React.useState(false);
 
   // Trade, Stage, Role dropdown management
-  const [availableTrades, setAvailableTrades] = React.useState<string[]>([]);
-  const [availableStages, setAvailableStages] = React.useState<string[]>([]);
+  // SSoT: Trades come from Foundation SM Trades (ID 542)
+  const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: Stages come from Foundation SM Stages (ID 543)
+  const [availableStages, setAvailableStages] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Roles come from Role model (Admin > System > Company > Security > Roles)
   const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
-  const [showAddTradeDialog, setShowAddTradeDialog] = React.useState(false);
-  const [showAddStageDialog, setShowAddStageDialog] = React.useState(false);
-  const [newTradeName, setNewTradeName] = React.useState("");
-  const [newStageName, setNewStageName] = React.useState("");
-  const [savingDropdownItem, setSavingDropdownItem] = React.useState(false);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -436,66 +433,33 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Load trades from SmSetting
+  // SSoT: Load trades from Foundation SM Trades (ID 542)
   const loadTrades = async () => {
     try {
-      const data = await api.get<{ success: boolean; trades: string[] }>("/api/v1/sm_settings/trades");
-      if (data?.trades) {
-        setAvailableTrades(data.trades);
+      const data = await api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/542/records?per_page=100");
+      if (data?.data) {
+        setAvailableTrades(data.data);
       }
     } catch (error) {
       console.error("Failed to load trades:", error);
     }
   };
 
-  // Add a new trade
-  const handleAddTrade = async () => {
-    if (!newTradeName.trim()) return;
-    setSavingDropdownItem(true);
-    try {
-      const data = await api.post<{ success: boolean; trades: string[] }>("/api/v1/sm_settings/trades", { trade: newTradeName.trim() });
-      if (data?.trades) {
-        setAvailableTrades(data.trades);
-        setNewTradeName("");
-        setShowAddTradeDialog(false);
-        toast({ title: "Trade added" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to add trade", variant: "destructive" });
-    } finally {
-      setSavingDropdownItem(false);
-    }
-  };
-
-  // Load stages from SmSetting
+  // SSoT: Load stages from Foundation SM Stages (ID 543)
   const loadStages = async () => {
     try {
-      const data = await api.get<{ success: boolean; stages: string[] }>("/api/v1/sm_settings/stages");
-      if (data?.stages) {
-        setAvailableStages(data.stages);
+      const data = await api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/543/records?per_page=100");
+      if (data?.data) {
+        setAvailableStages(data.data);
       }
     } catch (error) {
       console.error("Failed to load stages:", error);
     }
   };
 
-  // Add a new stage
-  const handleAddStage = async () => {
-    if (!newStageName.trim()) return;
-    setSavingDropdownItem(true);
-    try {
-      const data = await api.post<{ success: boolean; stages: string[] }>("/api/v1/sm_settings/stages", { stage: newStageName.trim() });
-      if (data?.stages) {
-        setAvailableStages(data.stages);
-        setNewStageName("");
-        setShowAddStageDialog(false);
-        toast({ title: "Stage added" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to add stage", variant: "destructive" });
-    } finally {
-      setSavingDropdownItem(false);
-    }
+  // Navigate to Tables tab to add new trades/stages
+  const handleNavigateToTables = () => {
+    handleTabChange("tables");
   };
 
   // SSoT: Load roles from Role model (Admin > System > Company > Security > Roles)
@@ -2008,17 +1972,22 @@ export function ScheduleMasterTab() {
               <div className="space-y-2">
                 <Label htmlFor="row-trade">Trade</Label>
                 <div className="flex gap-1">
+                  {/* SSoT: Trades from Foundation SM Trades (ID 542) */}
                   <Select
                     value={editRowForm.trade || "_none"}
                     onValueChange={(value) => setEditRowForm({ ...editRowForm, trade: value === "_none" ? "" : value })}
                   >
                     <SelectTrigger id="row-trade" className="flex-1">
-                      <SelectValue placeholder="Select trade..." />
+                      <SelectValue placeholder="Select trade...">
+                        {editRowForm.trade && editRowForm.trade !== "_none"
+                          ? availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editRowForm.trade
+                          : "Select trade..."}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_none">None</SelectItem>
                       {availableTrades.map((trade) => (
-                        <SelectItem key={trade} value={trade}>{trade}</SelectItem>
+                        <SelectItem key={trade.id} value={String(trade.id)}>{trade.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -2029,9 +1998,9 @@ export function ScheduleMasterTab() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setShowAddTradeDialog(true)}>
+                      <DropdownMenuItem onClick={handleNavigateToTables}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Add New Trade
+                        Manage Trades (Tables tab)
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -2040,17 +2009,22 @@ export function ScheduleMasterTab() {
               <div className="space-y-2">
                 <Label htmlFor="row-stage">Stage</Label>
                 <div className="flex gap-1">
+                  {/* SSoT: Stages from Foundation SM Stages (ID 543) */}
                   <Select
                     value={editRowForm.stage || "_none"}
                     onValueChange={(value) => setEditRowForm({ ...editRowForm, stage: value === "_none" ? "" : value })}
                   >
                     <SelectTrigger id="row-stage" className="flex-1">
-                      <SelectValue placeholder="Select stage..." />
+                      <SelectValue placeholder="Select stage...">
+                        {editRowForm.stage && editRowForm.stage !== "_none"
+                          ? availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editRowForm.stage
+                          : "Select stage..."}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_none">None</SelectItem>
                       {availableStages.map((stage) => (
-                        <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                        <SelectItem key={stage.id} value={String(stage.id)}>{stage.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -2061,9 +2035,9 @@ export function ScheduleMasterTab() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setShowAddStageDialog(true)}>
+                      <DropdownMenuItem onClick={handleNavigateToTables}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Add New Stage
+                        Manage Stages (Tables tab)
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -2548,70 +2522,7 @@ export function ScheduleMasterTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Trade Dialog */}
-      <Dialog open={showAddTradeDialog} onOpenChange={setShowAddTradeDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Add New Trade</DialogTitle>
-            <DialogDescription>
-              Add a new trade option to the dropdown list.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-trade">Trade Name</Label>
-              <Input
-                id="new-trade"
-                value={newTradeName}
-                onChange={(e) => setNewTradeName(e.target.value.toUpperCase())}
-                placeholder="e.g., PLUMBING"
-                onKeyDown={(e) => e.key === "Enter" && handleAddTrade()}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddTradeDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddTrade} disabled={savingDropdownItem || !newTradeName.trim()}>
-              {savingDropdownItem ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Trade"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Stage Dialog */}
-      <Dialog open={showAddStageDialog} onOpenChange={setShowAddStageDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Add New Stage</DialogTitle>
-            <DialogDescription>
-              Add a new stage option to the dropdown list.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-stage">Stage Name</Label>
-              <Input
-                id="new-stage"
-                value={newStageName}
-                onChange={(e) => setNewStageName(e.target.value.toUpperCase())}
-                placeholder="e.g., LOCK-UP"
-                onKeyDown={(e) => e.key === "Enter" && handleAddStage()}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddStageDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddStage} disabled={savingDropdownItem || !newStageName.trim()}>
-              {savingDropdownItem ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Stage"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
+      {/* NOTE: Trades/Stages are managed in Tables tab (SSoT: Foundation SM Trades ID 542, SM Stages ID 543) */}
       {/* NOTE: Roles are managed in Admin > System > Company > Security > Roles (SSoT) */}
     </div>
   );
