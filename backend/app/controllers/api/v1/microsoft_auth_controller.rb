@@ -112,8 +112,6 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     microsoft_token = user.microsoft_token || user.build_microsoft_token
     microsoft_token.mark_connected!(tokens.merge(email: microsoft_email))
 
-    # REMOVED: update_legacy_outlook_credential - using org-wide credentials (OrgEmailSyncJob)
-
     # Also create/update organization-level OneDrive credential for SharePoint access
     # This allows the org to have shared OneDrive/SharePoint access via any user's connection
     update_organization_onedrive_credential(user, tokens)
@@ -216,8 +214,6 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   # Disconnect current user's Microsoft account
   def disconnect
     microsoft_token = current_user.microsoft_token
-    # REMOVED: outlook_credential - using org-wide credentials (OrgEmailSyncJob)
-
     microsoft_token&.disconnect!
 
     render json: { success: true, message: "Microsoft account disconnected successfully" }

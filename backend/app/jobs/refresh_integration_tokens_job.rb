@@ -39,7 +39,6 @@ class RefreshIntegrationTokensJob < ApplicationJob
 
   def perform
     refresh_user_microsoft_tokens
-    # REMOVED: refresh_user_outlook_tokens - using org-wide credentials (OrgEmailSyncJob)
     refresh_onedrive_tokens
     refresh_xero_tokens
 
@@ -90,8 +89,6 @@ class RefreshIntegrationTokensJob < ApplicationJob
       Rails.logger.warn "[TokenRefresh] #{dead_count} Microsoft token(s) require user re-authentication"
     end
   end
-
-  # REMOVED: refresh_user_outlook_tokens - using org-wide credentials instead (OrgEmailSyncJob)
 
   def refresh_onedrive_tokens
     # Proactively refresh tokens expiring in the next HOUR

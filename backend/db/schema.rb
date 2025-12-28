@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_101712) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_102011) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1203,11 +1203,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_101712) do
     t.text "override_validation_message"
     t.integer "type_version_applied", default: 0
     t.datetime "last_compliance_check"
+    t.string "lookup_foundation_slug"
     t.index ["column_type_definition_id"], name: "index_columns_on_column_type_definition_id"
     t.index ["foundation_id", "column_name"], name: "index_columns_on_foundation_id_and_column_name", unique: true
     t.index ["foundation_id"], name: "index_columns_on_foundation_id"
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
     t.index ["lookup_foundation_id"], name: "index_columns_on_lookup_foundation_id"
+    t.index ["lookup_foundation_slug"], name: "index_columns_on_lookup_foundation_slug"
   end
 
   create_table "company_approval_rules", force: :cascade do |t|

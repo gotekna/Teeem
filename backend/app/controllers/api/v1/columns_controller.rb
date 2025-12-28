@@ -596,7 +596,7 @@ module Api
       end
 
       def column_params
-        params.require(:column).permit(
+        permitted = params.require(:column).permit(
           :name,
           :column_name,
           :column_type,
@@ -613,12 +613,20 @@ module Api
           :max_value,
           :validation_message,
           :lookup_foundation_id,
+          :lookup_foundation_slug,  # SSoT: Prefer slug over ID
           :lookup_display_column,
           :is_multiple,
           :header_align,
           :data_align,
           available_choices: []
         )
+
+        # SSoT: If slug is provided, use it as the input for resolution
+        if permitted[:lookup_foundation_slug].present?
+          permitted[:lookup_foundation_slug_input] = permitted.delete(:lookup_foundation_slug)
+        end
+
+        permitted
       end
 
       def column_json(column)
@@ -641,6 +649,7 @@ module Api
           validation_message: column.validation_message,
           position: column.position,
           lookup_foundation_id: column.lookup_foundation_id,
+          lookup_foundation_slug: column.lookup_foundation_slug,  # SSoT: Always return slug
           lookup_display_column: column.lookup_display_column,
           is_multiple: column.is_multiple,
           has_cross_table_refs: column.has_cross_table_refs,

@@ -128,14 +128,18 @@ class ScheduledEmail < ApplicationRecord
   end
 
   def send_via_outlook
-    # Find the user's outlook credential
+    # Find the user's Microsoft credential (SSoT: MicrosoftCredential)
     user = created_by
     raise "No user associated with scheduled email" unless user
 
-    token = UserMicrosoftToken.active_for_user(user)
-    raise "No active Outlook token for user" unless token
+    credential = MicrosoftCredential.for_user(user).connected.first
+    raise "No active Microsoft credential for user" unless credential
 
-    client = MicrosoftGraphClient.new(token.access_token)
+    # Ensure token is fresh
+    access_token = credential.valid_access_token
+    raise "Failed to get valid access token" unless access_token
+
+    client = MicrosoftGraphClient.new(access_token)
     client.send_email(
       to: to_list,
       cc: cc_list,

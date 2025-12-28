@@ -280,8 +280,6 @@ class Contact < ApplicationRecord
   before_save :generate_display_name
   before_save :sync_company_name_or_trust
   before_save :clear_roles_if_not_person
-  # Note: deleted column removed, soft_deleted? callback disabled
-  # after_save :cleanup_relationships_on_soft_delete, if: :soft_deleted?
 
   # SSoT: Sync primary_company_id → employee_of relationship
   # This ensures the relationship exists when primary_company is set directly
@@ -1321,18 +1319,6 @@ class Contact < ApplicationRecord
       end
     end.join(" ")
   end
-
-  # Note: deleted column removed in migration 20251210093313
-  # Soft-delete functionality disabled
-  # def soft_deleted?
-  #   saved_change_to_deleted? && deleted == true
-  # end
-
-  # def cleanup_relationships_on_soft_delete
-  #   outgoing_relationships.destroy_all
-  #   incoming_relationships.destroy_all
-  #   Rails.logger.info("Cleaned up relationships for soft-deleted contact #{id}")
-  # end
 
   # SSoT: Check if this contact should sync to CorporateCompany
   def should_sync_to_corporate?

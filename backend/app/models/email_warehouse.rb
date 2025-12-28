@@ -644,13 +644,6 @@ class EmailWarehouse < ApplicationRecord
     end
   end
 
-  # DEPRECATED: Old method signature for backward compatibility
-  # Per-user Outlook credentials removed - use sync_attachments! instead
-  def sync_attachments_from_outlook(_outlook_service)
-    Rails.logger.warn "[EmailWarehouse] sync_attachments_from_outlook is deprecated, using sync_attachments!"
-    sync_attachments!
-  end
-
   private
 
   def update_searchable_vector

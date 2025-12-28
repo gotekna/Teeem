@@ -9,6 +9,22 @@ class Column < ApplicationRecord
   # Serialize choices_order as JSON array
   serialize :choices_order, coder: JSON, type: Array
 
+  # ============================================
+  # SSoT: Foundation References Use Slugs
+  # ============================================
+  # Slug is the canonical reference (portable across environments)
+  # ID is auto-resolved and cached for database performance
+  #
+  # API accepts: lookup_foundation_slug OR lookup_foundation_id
+  # API returns: both slug and ID
+  # ============================================
+
+  # Virtual attribute for setting lookup foundation by slug
+  attr_writer :lookup_foundation_slug_input
+
+  before_validation :resolve_lookup_foundation_from_slug
+  before_save :sync_lookup_foundation_slug
+
   validates :name, presence: true
   validates :column_name, presence: true, uniqueness: { scope: :foundation_id }
   validates :column_type, presence: true, inclusion: {
@@ -283,6 +299,45 @@ class Column < ApplicationRecord
   end
 
   private
+
+  # ============================================
+  # SSoT: Lookup Foundation Slug Resolution
+  # ============================================
+
+  # Resolve lookup_foundation_slug to lookup_foundation_id
+  # Called before validation so ID is set before lookup_configuration_valid runs
+  def resolve_lookup_foundation_from_slug
+    # If slug input was provided, resolve it to ID
+    if @lookup_foundation_slug_input.present?
+      foundation = Foundation.find_by(slug: @lookup_foundation_slug_input)
+      if foundation
+        self.lookup_foundation_id = foundation.id
+        self.lookup_foundation_slug = foundation.slug
+      else
+        errors.add(:lookup_foundation_slug, "foundation with slug '#{@lookup_foundation_slug_input}' not found")
+      end
+    # If slug column is set but ID is not, resolve it
+    elsif lookup_foundation_slug.present? && lookup_foundation_id.blank?
+      foundation = Foundation.find_by(slug: lookup_foundation_slug)
+      if foundation
+        self.lookup_foundation_id = foundation.id
+      else
+        errors.add(:lookup_foundation_slug, "foundation with slug '#{lookup_foundation_slug}' not found")
+      end
+    end
+  end
+
+  # Sync slug from ID (for backward compatibility when only ID is provided)
+  # Also ensures slug stays in sync if ID is changed directly
+  def sync_lookup_foundation_slug
+    if lookup_foundation_id.present?
+      # Always sync slug from the current lookup_foundation association
+      self.lookup_foundation_slug = lookup_foundation&.slug
+    elsif lookup_foundation_slug.present? && lookup_foundation_id.blank?
+      # Clear slug if ID was cleared
+      self.lookup_foundation_slug = nil
+    end
+  end
 
   # SSoT: Ensure critical column properties are never NULL
   # This prevents future drift where new columns get NULL defaults

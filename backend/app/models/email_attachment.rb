@@ -22,17 +22,6 @@ class EmailAttachment < ApplicationRecord
     CorporateCompanyDocument.find_by(content_hash: content_hash)
   end
 
-  # Link this attachment to an existing company document (avoid storing twice)
-  # NOTE: Disabled - company_document_id column doesn't exist in database
-  # def link_to_document!(document)
-  #   update!(
-  #     company_document: document,
-  #     is_existing_doc: true,
-  #     sharepoint_file_id: document.sharepoint_file_id,
-  #     sharepoint_path: document.sharepoint_path
-  #   )
-  # end
-
   # Calculate content hash from binary data
   def self.compute_hash(content)
     Digest::SHA256.hexdigest(content)
