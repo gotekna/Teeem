@@ -288,7 +288,7 @@ export function AiProcessingTab() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{config.display_name}</span>
-                    {config.accuracy !== null && (
+                    {config.accuracy != null && (
                       <Badge
                         variant="secondary"
                         className={cn(
