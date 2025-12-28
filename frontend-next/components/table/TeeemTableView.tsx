@@ -2620,7 +2620,7 @@ export default function TeeemTableView({
           updates: { [bulkUpdateColumn]: valueToSend }
         };
         console.log('[Bulk Update] Using bulk_update API endpoint');
-        console.log('[Bulk Update] Foundation ID:', foundationIdNumeric);
+        console.log('[Bulk Update] Foundation ID:', effectiveFoundationId);
         console.log('[Bulk Update] Payload:', JSON.stringify(payload, null, 2));
 
         const response = await api.post<{
@@ -2646,7 +2646,7 @@ export default function TeeemTableView({
             )
           );
           console.log('[Bulk Update] hasEntityTypeErrors:', hasEntityTypeErrors);
-          console.log('[Bulk Update] foundationIdNumeric:', foundationIdNumeric);
+          console.log('[Bulk Update] effectiveFoundationId:', effectiveFoundationId);
 
           // Show error message to user
           let errorMessage = `Bulk update failed. ${response?.updated_count || 0} of ${response?.total_requested || ids.length} records updated.`;
@@ -2671,7 +2671,7 @@ export default function TeeemTableView({
             console.log('[Bulk Update] Alert shown, now opening window...');
 
             // Open health report in new tab so they can fix the data
-            const healthUrl = `/system-health?foundation=${foundationIdNumeric}`;
+            const healthUrl = `/system-health?foundation=${effectiveFoundationId}`;
             console.log('[Bulk Update] Opening health report:', healthUrl);
             window.open(healthUrl, '_blank');
             console.log('[Bulk Update] window.open called');
@@ -2685,7 +2685,7 @@ export default function TeeemTableView({
 
         console.log('[Bulk Update] Success! Updated', response?.updated_count, 'records');
       } else if (onRowUpdate) {
-        console.log('[Bulk Update] Using fallback individual updates (no foundationIdNumeric)');
+        console.log('[Bulk Update] Using fallback individual updates (no effectiveFoundationId)');
         // Fallback to individual updates
         for (const id of ids) {
           console.log(`[Bulk Update] Updating row ${id}...`);
@@ -2693,7 +2693,7 @@ export default function TeeemTableView({
         }
         console.log('[Bulk Update] Individual updates completed');
       } else {
-        console.error('[Bulk Update] No update mechanism available (no foundationIdNumeric and no onRowUpdate)');
+        console.error('[Bulk Update] No update mechanism available (no effectiveFoundationId and no onRowUpdate)');
       }
 
       console.log('[Bulk Update] Cleaning up...');
@@ -2715,7 +2715,7 @@ export default function TeeemTableView({
       setBulkUpdateSaving(false);
       console.log('[Bulk Update] Saving state reset');
     }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, foundationIdNumeric, onRowUpdate, onRefresh, COLUMNS]);
+  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS]);
 
   // Fetch lookup options when bulk update column changes to a lookup column
   useEffect(() => {
@@ -2869,13 +2869,13 @@ export default function TeeemTableView({
 
   // Save current state as new view
   const saveNewView = useCallback(async () => {
-    if (!newViewName.trim() || !foundationIdNumeric) return;
+    if (!newViewName.trim() || !effectiveFoundationId) return;
 
     setSavingView(true);
     try {
       const viewData = {
         name: newViewName.trim(),
-        foundation_id: foundationIdNumeric,
+        foundation_id: effectiveFoundationId,
         filters: {
           cascadeFilters,
           filterGroups,
@@ -2933,7 +2933,7 @@ export default function TeeemTableView({
      
   }, [
     newViewName,
-    foundationIdNumeric,
+    effectiveFoundationId,
     cascadeFilters,
     filterGroups,
     interGroupLogic,
