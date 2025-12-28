@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   MessageSquare,
   GraduationCap,
   Menu,
@@ -228,10 +227,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     }
   };
 
-  const handleBack = () => {
-    router.back();
-  };
-
   const handleLogout = async () => {
     await logout();
     router.push("/login");
@@ -274,15 +269,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
       <div className="flex flex-1 gap-x-2 self-stretch lg:gap-x-3">
         <div className="flex flex-1 items-center gap-x-1 lg:gap-x-2">
-          {/* Back Button */}
-          <button
-            onClick={handleBack}
-            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
-            title="Go back"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-
           {/* Quick Create Task */}
           <button
             onClick={() => setShowCreateTask(true)}

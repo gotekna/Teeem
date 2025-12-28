@@ -189,6 +189,18 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     usageCount: 56,
   },
   {
+    id: "back-button",
+    name: "BackButton",
+    displayName: "Back Button",
+    category: "navigation",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/back-button",
+    description: "Smart back navigation with fallback to parent route",
+    whenToUse: "All pages except top-level dashboards. Use fallbackHref for predictable navigation.",
+    usageCount: 0,
+  },
+  {
     id: "table",
     name: "Table",
     displayName: "Table Primitives",

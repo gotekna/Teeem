@@ -14,10 +14,12 @@ module Api
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
+      # Performance: includes sm_task_attachments to avoid N+1 (200 queries → 1)
       def index
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :predecessor_dependencies, :successor_dependencies
+          :predecessor_dependencies, :successor_dependencies,
+          sm_task_attachments: :attachable
         )
 
         # Apply filters
@@ -43,10 +45,12 @@ module Api
       end
 
       # GET /api/v1/jobs/:job_id/sm_tasks (nested under job)
+      # Performance: includes sm_task_attachments to avoid N+1
       def job_index
         @tasks = @job.sm_tasks.ordered.includes(
           :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :predecessor_dependencies, :successor_dependencies
+          :predecessor_dependencies, :successor_dependencies,
+          sm_task_attachments: :attachable
         )
 
         # Apply filters
@@ -935,9 +939,10 @@ module Api
           updated_at: task.updated_at,
           # Required by date (independent of schedule)
           required_by: task.required_by,
-          attachments_count: task.sm_task_attachments.count,
-          # Include full attachments for task detail view
-          attachments: task.sm_task_attachments.includes(:attachable).map { |a| attachment_to_json(a) }
+          # Use .size instead of .count to use preloaded data (avoids N+1)
+          attachments_count: task.sm_task_attachments.size,
+          # Include full attachments for task detail view (uses preloaded association)
+          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) }
         }
 
         if include_dependencies
