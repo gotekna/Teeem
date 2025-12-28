@@ -505,11 +505,12 @@ function GoldStandardDataTab() {
       }
 
       // Load views for this foundation
+      // SSoT: Use slug, not numeric ID (which differs per environment)
       try {
         const viewsData = await api.get<{
           success: boolean;
           views: SavedView[];
-        }>("/api/v1/foundation_views?foundation_id=1");
+        }>("/api/v1/foundation_views?foundation_id=gold_standard_table");
 
         if (viewsData?.views) {
           setPreloadedViews(viewsData.views);

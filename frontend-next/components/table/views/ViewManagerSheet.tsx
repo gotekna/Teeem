@@ -684,10 +684,8 @@ export function ViewManagerSheet({
     setLookupLoadingColumns(prev => new Set([...prev, cacheKey]));
 
     try {
-      // SSoT: Match by slug (not numeric ID which differs per environment)
-      const knownMapping = Object.values(KNOWN_LOOKUP_MAPPINGS).find(
-        m => column.lookup_foundation_slug && m.foundationSlug === column.lookup_foundation_slug
-      );
+      // SSoT: Match by column_name in known mappings first
+      const knownMapping = KNOWN_LOOKUP_MAPPINGS[column.column_name];
 
       let options: { id: number; display: string }[] = [];
 
@@ -746,7 +744,7 @@ export function ViewManagerSheet({
 
     if (!column) {
       if (knownMapping) {
-        const cacheKey = `${knownMapping.foundationId}`;
+        const cacheKey = `${knownMapping.foundationSlug}`;
         const options = lookupOptionsCache[cacheKey] || [];
         const isLoading = lookupLoadingColumns.has(cacheKey);
 
@@ -756,7 +754,7 @@ export function ViewManagerSheet({
             column_name: filter.column,
             name: filter.column,
             column_type: 'lookup',
-            lookup_foundation_id: knownMapping.foundationId,
+            lookup_foundation_id: 0, // Will use knownMapping.apiEndpoint instead
             lookup_display_column: knownMapping.displayColumn,
           });
         }
@@ -884,7 +882,9 @@ export function ViewManagerSheet({
       }
     }
 
-    const effectiveLookupFoundationId = column.lookup_foundation_id || knownMapping?.foundationId;
+    // SSoT: Use column's lookup_foundation_id (numeric) for API calls
+    // knownMapping uses slug for matching, but API still needs numeric ID from column
+    const effectiveLookupFoundationId = column.lookup_foundation_id;
     const effectiveDisplayColumn = column.lookup_display_column || knownMapping?.displayColumn || 'name';
 
     if (isLookupColumn) {

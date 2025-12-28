@@ -5435,7 +5435,8 @@ export default function TeeemTableView({
                     <UserPlus className="h-4 w-4 mr-2" />
                     Extract Contacts from Emails
                   </DropdownMenuItem>
-                  {(foundationId === "contacts" || effectiveFoundationId === 214) && (
+                  {/* SSoT: Use slug check only, not numeric ID (which differs per environment) */}
+                  {foundationId === "contacts" && (
                     <DropdownMenuItem onClick={handleFindMissingAbns} disabled={isFindingAbns}>
                       {isFindingAbns ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />

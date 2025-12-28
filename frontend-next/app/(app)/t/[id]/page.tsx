@@ -12,12 +12,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
 import { Plus, ArrowLeft } from "lucide-react";
 
-// Table ID to route mapping for legacy compatibility
-const TABLE_ROUTES: Record<number, { name: string; apiEndpoint: string; itemRoute: string }> = {
-  1: { name: "Components", apiEndpoint: "/api/v1/gold_standard_table", itemRoute: "/admin/system?tab=components" },
-  204: { name: "Jobs", apiEndpoint: "/api/v1/jobs", itemRoute: "/jobs" },
-  205: { name: "Pricebook", apiEndpoint: "/api/v1/pricebook", itemRoute: "/pricebook" },
-  214: { name: "Contacts", apiEndpoint: "/api/v1/contacts", itemRoute: "/contacts" },
+// LEGACY: Table ID to route mapping for backwards compatibility with old /t/[id] URLs
+// SSoT: New code should use slug-based routes (/jobs, /contacts, etc.) instead of /t/[id]
+// These numeric IDs are environment-specific - keep this mapping minimal and prefer slugs
+const TABLE_ROUTES: Record<number, { name: string; apiEndpoint: string; itemRoute: string; slug: string }> = {
+  1: { name: "Components", apiEndpoint: "/api/v1/gold_standard_table", itemRoute: "/admin/system?tab=components", slug: "gold_standard_table" },
+  204: { name: "Jobs", apiEndpoint: "/api/v1/jobs", itemRoute: "/jobs", slug: "jobs" },
+  205: { name: "Pricebook", apiEndpoint: "/api/v1/pricebook", itemRoute: "/pricebook", slug: "pricebook-items" },
+  214: { name: "Contacts", apiEndpoint: "/api/v1/contacts", itemRoute: "/contacts", slug: "contacts" },
 };
 
 // System-generated column types that users cannot edit
@@ -130,13 +132,13 @@ export default function TablePage() {
 
   const handleView = (row: TableRow) => {
     if (tableInfo?.itemRoute) {
-      // Use appropriate slug function based on table type
-      if (tableId === 204 && row.title) {
+      // SSoT: Use slug-based checks instead of numeric IDs (which differ per environment)
+      if (tableInfo.slug === "jobs" && row.title) {
         router.push(`${tableInfo.itemRoute}/${slugifyJobTitle(String(row.title))}`);
-      } else if (tableId === 214) {
+      } else if (tableInfo.slug === "contacts") {
         const slug = slugifyContactName(row.first_name as string, row.last_name as string, row.company_name as string);
         router.push(`${tableInfo.itemRoute}/${slug}`);
-      } else if (tableId === 205 && row.item_code) {
+      } else if (tableInfo.slug === "pricebook-items" && row.item_code) {
         router.push(`${tableInfo.itemRoute}/${slugifyPricebookCode(String(row.item_code))}`);
       } else {
         router.push(`${tableInfo.itemRoute}/${row.id}`);

@@ -125,7 +125,7 @@ function XeroPdfReportsCard({
   companyId,
   reportType,
   title,
-  foundationId
+  foundationSlug
 }: XeroPdfReportsCardProps) {
   const [reports, setReports] = React.useState<PdfReport[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -225,7 +225,7 @@ function XeroPdfReportsCard({
             {title}
           </CardTitle>
           <CardDescription>
-            PDF reports stored in SharePoint - Foundation ID: {foundationId}
+            PDF reports stored in SharePoint - Foundation: {foundationSlug}
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">

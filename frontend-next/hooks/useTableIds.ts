@@ -40,15 +40,18 @@ let cachedTableIds: TableIdMappings | null = null;
 let cachedTableSlugs: Record<number, string> | null = null;
 let fetchPromise: Promise<TableIdMappings> | null = null;
 
-// Default fallback values (these should match the database)
+// Default fallback values (these should match the production database)
+// SSoT WARNING: These numeric IDs are environment-specific (differ between local/staging/production).
+// The API fetch is the SSoT - these are only fallbacks when API is unavailable.
+// Prefer using slugs (jobs, contacts, pricebook-items) over numeric IDs in new code.
 // NOTE: COMPANIES removed - Foundation 353 doesn't exist. Use CorporateCompany Rails model.
 const DEFAULT_TABLE_IDS: TableIdMappings = {
-  GOLD_STANDARD: 1,
-  JOBS: 204,
-  TASKS: 218,
-  PRICEBOOK: 205,
-  CONTACTS: 214,
-  FEATURES_TRACKING: 375,
+  GOLD_STANDARD: 1,   // slug: gold_standard_table
+  JOBS: 204,          // slug: jobs
+  TASKS: 218,         // slug: tasks (SM Tasks)
+  PRICEBOOK: 205,     // slug: pricebook-items
+  CONTACTS: 214,      // slug: contacts
+  FEATURES_TRACKING: 375, // slug: features-tracking
 };
 
 /**
@@ -129,12 +132,13 @@ export function useTableIds(): {
       return cachedTableSlugs[tableId];
     }
     // Fallback to known mappings (Foundation-based tables only)
+    // SSoT WARNING: These numeric IDs are environment-specific - API fetch is preferred
     // NOTE: Companies (353) removed - uses CorporateCompany Rails model, not Foundation
     const fallbackSlugs: Record<number, string> = {
-      1: 'components',
+      1: 'gold_standard_table',
       204: 'jobs',
       218: 'tasks',
-      205: 'pricebook',
+      205: 'pricebook-items',
       214: 'contacts',
       375: 'features-tracking',
     };
@@ -160,11 +164,12 @@ export function getTableSlug(tableId: number): string {
     return cachedTableSlugs[tableId];
   }
   // Fallback to known mappings (Foundation-based tables only)
+  // SSoT WARNING: These numeric IDs are environment-specific - API fetch is preferred
   const fallbackSlugs: Record<number, string> = {
-    1: 'components',
+    1: 'gold_standard_table',
     204: 'jobs',
     218: 'tasks',
-    205: 'pricebook',
+    205: 'pricebook-items',
     214: 'contacts',
     375: 'features-tracking',
   };
