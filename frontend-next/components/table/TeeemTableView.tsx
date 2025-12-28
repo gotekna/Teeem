@@ -997,18 +997,15 @@ export default function TeeemTableView({
         ids: ids.map(id => Number(id))
       });
 
-      // Clear selection
-      setSelectedRows(new Set());
-
       // Show success toast
+      const deletedCount = response?.deleted_count ?? ids.length;
       toast({
         title: "Records deleted",
-        description: `Successfully deleted ${response.deleted_count} record${response.deleted_count === 1 ? '' : 's'}.`,
+        description: `Successfully deleted ${deletedCount} record${deletedCount === 1 ? '' : 's'}.`,
       });
 
       // Refresh data
       onRefresh?.();
-      fetchRecords();
     } catch (err) {
       console.error("Failed to bulk delete:", err);
       toast({
@@ -1017,7 +1014,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [foundationIdNumeric, onRefresh, toast, setSelectedRows, fetchRecords]);
+  }, [foundationIdNumeric, onRefresh, toast]);
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 
