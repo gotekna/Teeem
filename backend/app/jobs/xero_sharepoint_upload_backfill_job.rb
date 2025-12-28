@@ -54,7 +54,7 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
     return stats if total_count.zero?
 
     # Get SharePoint client
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     unless credential
       Rails.logger.error("[XeroSharepointUploadBackfill] No active OneDrive credential found")
       stats[:errors] += 1

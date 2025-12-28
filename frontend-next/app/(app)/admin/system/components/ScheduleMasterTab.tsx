@@ -120,6 +120,8 @@ interface SmScheduleMaster {
   predecessor_ids: Array<{ id: number; type?: string; lag?: number }>;
   trade?: string;
   stage?: string;
+  trade_name?: string;  // SSoT: Resolved from Foundation SM Trades by backend
+  stage_name?: string;  // SSoT: Resolved from Foundation SM Stages by backend
   assigned_role?: string | null;
   cost_centre?: string;
   po_required: boolean;
@@ -712,6 +714,7 @@ export function ScheduleMasterTab() {
         trade: fullRow.trade,
         stage: fullRow.stage,
         assigned_role: fullRow.assigned_role,
+        cost_centre: fullRow.cost_centre,  // Added: was missing from form init
         po_required: fullRow.po_required,
         critical_po: fullRow.critical_po,
         create_po_on_job_start: fullRow.create_po_on_job_start,
@@ -1998,10 +2001,10 @@ export function ScheduleMasterTab() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Trade</Label>
-                {/* SSoT: Trades from Foundation SM Trades (ID 542) */}
+                {/* SSoT: Trades from Foundation SM Trades - uses trade_name from API as fallback */}
                 <ComboboxDropdown
                   items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
-                  selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editRowForm.trade } : undefined}
+                  selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editingRow?.trade_name || editRowForm.trade } : undefined}
                   onSelect={(item) => setEditRowForm({ ...editRowForm, trade: item.id })}
                   placeholder="Select trade..."
                   emptyResults="No trades found"
@@ -2011,10 +2014,10 @@ export function ScheduleMasterTab() {
               </div>
               <div className="space-y-2">
                 <Label>Stage</Label>
-                {/* SSoT: Stages from Foundation SM Stages (ID 543) */}
+                {/* SSoT: Stages from Foundation SM Stages - uses stage_name from API as fallback */}
                 <ComboboxDropdown
                   items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
-                  selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editRowForm.stage } : undefined}
+                  selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editingRow?.stage_name || editRowForm.stage } : undefined}
                   onSelect={(item) => setEditRowForm({ ...editRowForm, stage: item.id })}
                   placeholder="Select stage..."
                   emptyResults="No stages found"

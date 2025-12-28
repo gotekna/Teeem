@@ -32,7 +32,7 @@ class PlanStagingCleanupJob < ApplicationJob
   private
 
   def cleanup_sharepoint_staging_folder
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     return unless credential
 
     client = MicrosoftGraphClient.new(credential)

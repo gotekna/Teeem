@@ -740,8 +740,8 @@ module Api
         end
 
         begin
-          # Get OneDrive credentials
-          credential = OrganizationSharePointCredential.first
+          # SSoT: Use MicrosoftCredential
+          credential = MicrosoftCredential.sharepoint_credential
           unless credential && credential.valid_credential?
             return render json: { error: "SharePoint not connected" }, status: :service_unavailable
           end

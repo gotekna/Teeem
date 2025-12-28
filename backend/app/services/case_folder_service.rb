@@ -74,13 +74,13 @@ class CaseFolderService
   private
 
   def onedrive_connected?
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     credential&.access_token.present?
   end
 
   def graph_client
     @graph_client ||= begin
-      credential = OrganizationSharePointCredential.active_credential
+      credential = MicrosoftCredential.sharepoint_credential
       raise "SharePoint not connected for organization" unless credential
 
       MicrosoftGraphClient.new(credential)

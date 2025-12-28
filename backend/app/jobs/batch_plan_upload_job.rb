@@ -32,7 +32,7 @@ class BatchPlanUploadJob < ApplicationJob
     Rails.logger.info "[BatchPlanUploadJob] Starting upload for job #{@job.id}"
 
     # Get SharePoint credential
-    @credential = OrganizationSharePointCredential.active_credential
+    @credential = MicrosoftCredential.sharepoint_credential
     unless @credential
       @operation.mark_failed!("No active SharePoint credential")
       return

@@ -2,7 +2,7 @@ class MicrosoftEmailService
   GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 
   def initialize(credential = nil)
-    @credential = credential || OrganizationSharePointCredential.active_credential
+    @credential = credential || MicrosoftCredential.sharepoint_credential
     raise "No active Microsoft credential found" unless @credential
   end
 

@@ -6,7 +6,7 @@ class PayNowSharepointUploadJob < ApplicationJob
     request = PayNowRequest.find_by(id: pay_now_request_id)
     return unless request
 
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     return unless credential
 
     client = MicrosoftGraphClient.new(credential)

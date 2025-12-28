@@ -93,7 +93,7 @@ class PlanReviewService
     construction = @estimate.construction
 
     # Check if OneDrive is connected
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise OneDriveNotConnectedError, "No active OneDrive connection" unless credential
 
     # Initialize Microsoft Graph client

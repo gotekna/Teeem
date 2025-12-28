@@ -38,7 +38,7 @@ class MicrosoftGraphClient
     end
 
     # Fall back to legacy model
-    OrganizationSharePointCredential.active_credential
+    MicrosoftCredential.sharepoint_credential
   end
 
   private

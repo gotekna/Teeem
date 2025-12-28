@@ -216,7 +216,8 @@ class CorporateCompany < ApplicationRecord
   def sharepoint_folder_url
     return nil unless corporate_group.present?
 
-    credential = OrganizationSharePointCredential.active_credential
+    # SSoT: Use MicrosoftCredential
+    credential = MicrosoftCredential.sharepoint_credential
     return nil unless credential&.metadata&.dig("site_web_url")
 
     base_url = credential.metadata["site_web_url"]

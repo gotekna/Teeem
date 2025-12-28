@@ -139,7 +139,7 @@ module Api
         operation.save!
 
         # Get SharePoint credential
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
         unless credential
           operation.mark_failed!("SharePoint not connected")
           return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity

@@ -70,7 +70,7 @@ class DocumentSplitService
   end
 
   def download_document
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise FileNotFoundError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)
@@ -132,7 +132,7 @@ class DocumentSplitService
   end
 
   def upload_to_sharepoint(content, filename)
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise FileNotFoundError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)
@@ -148,7 +148,7 @@ class DocumentSplitService
 
   def get_parent_folder_id
     # Get the folder ID from the original document's path
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     client = MicrosoftGraphClient.new(credential)
 
     # Get parent folder from original file

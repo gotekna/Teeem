@@ -18,7 +18,7 @@ class PlanAiAnalysisJob < ApplicationJob
     Rails.logger.info "[PlanAiAnalysisJob] Analyzing plan #{job_plan_id}: #{plan.display_name}"
 
     # Download the file from SharePoint
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     return unless credential
 
     client = MicrosoftGraphClient.new(credential)

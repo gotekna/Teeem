@@ -195,7 +195,7 @@ module PlanIdentification
       return nil unless revision&.sharepoint_file_id.present?
 
       # Download the file from SharePoint
-      credential = OrganizationSharePointCredential.active_credential
+      credential = MicrosoftCredential.sharepoint_credential
       return nil unless credential
 
       client = MicrosoftGraphClient.new(credential)

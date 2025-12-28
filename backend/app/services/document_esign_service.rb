@@ -148,7 +148,7 @@ class DocumentEsignService
 
   def upload_to_sharepoint(generated)
     # Get SharePoint credentials - use org credential (SSoT) or template's IDs (deprecated)
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise Error, "No active SharePoint credential configured" unless credential
 
     graph_client = MicrosoftGraphClient.new(credential)
@@ -180,7 +180,7 @@ class DocumentEsignService
 
   def create_esign_request(uploaded_file, document_filename)
     # Get SharePoint credential for site/drive IDs
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
 
     request = ESignatureRequest.new(
       title: options[:title] || "#{template_name} - #{job.name}",
@@ -217,7 +217,7 @@ class DocumentEsignService
   end
 
   def calculate_document_hash(file_id)
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     return nil unless credential
 
     graph_client = MicrosoftGraphClient.new(credential)

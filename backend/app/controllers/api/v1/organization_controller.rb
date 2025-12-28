@@ -121,9 +121,9 @@ module Api
           }
         end
 
-        # Check if SharePoint is configured
+        # SSoT: Use MicrosoftCredential for SharePoint status
         sharepoint_configured = begin
-          OrganizationSharePointCredential.active_credential.present?
+          MicrosoftCredential.sharepoint_credential.present?
         rescue StandardError
           false
         end

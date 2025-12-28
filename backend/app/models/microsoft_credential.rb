@@ -341,6 +341,13 @@ class MicrosoftCredential < ApplicationRecord
     app_credentials.active.order(:name)
   end
 
+  # SSoT: SharePoint credential lookup (replaces OrganizationSharePointCredential.active_credential)
+  # Tries delegated credentials first (user OAuth), then app credentials (client credentials)
+  def self.sharepoint_credential
+    delegated_credentials.org_level.active.connected.first ||
+      app_credentials.connected.first
+  end
+
   # SharePoint configuration helpers (SSoT - previously split across models)
   def self.teeem_sharepoint_config
     configured = active.with_sharepoint.first

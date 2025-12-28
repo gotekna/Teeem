@@ -23,7 +23,7 @@ class PlanSetService
   # Rename existing plans in SharePoint using AI
   # Returns: { success: true, renamed: [...], skipped: [...], errors: [...] }
   def rename_existing_plans!
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise ProcessingError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)
@@ -198,7 +198,7 @@ class PlanSetService
   end
 
   def get_or_create_plans_folder
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise ProcessingError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)
@@ -223,7 +223,7 @@ class PlanSetService
   end
 
   def upload_full_pdf(content, folder_id)
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     client = MicrosoftGraphClient.new(credential)
 
     # Upload as "All Plans.pdf"
@@ -238,7 +238,7 @@ class PlanSetService
   end
 
   def extract_and_upload_pages(doc, folder_id)
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     client = MicrosoftGraphClient.new(credential)
 
     pages = []

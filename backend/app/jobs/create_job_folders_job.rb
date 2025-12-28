@@ -26,7 +26,7 @@ class CreateJobFoldersJob < ApplicationJob
     construction.update!(sharepoint_folder_status: "processing")
 
     # Get organization SharePoint credential
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
 
     unless credential&.valid_credential?
       construction.update!(sharepoint_folder_status: "failed")

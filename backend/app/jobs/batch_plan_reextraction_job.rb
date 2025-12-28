@@ -87,7 +87,7 @@ class BatchPlanReextractionJob < ApplicationJob
 
     # Rename SharePoint file if different
     if old_filename != new_filename
-      credential = OrganizationSharePointCredential.active_credential
+      credential = MicrosoftCredential.sharepoint_credential
       return unless credential
 
       client = MicrosoftGraphClient.new(credential)
@@ -111,7 +111,7 @@ class BatchPlanReextractionJob < ApplicationJob
     old_filename = revision.file_name
 
     # Download the file from SharePoint
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     return unless credential
 
     client = MicrosoftGraphClient.new(credential)

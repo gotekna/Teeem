@@ -27,7 +27,7 @@ class PlanSetUploadJob < ApplicationJob
     Rails.logger.info "[PlanSetUploadJob] Starting upload #{plan_upload_id} for job #{@job.id}"
 
     # Get SharePoint credential
-    @credential = OrganizationSharePointCredential.active_credential
+    @credential = MicrosoftCredential.sharepoint_credential
     unless @credential
       @plan_upload.mark_failed!("No active SharePoint credential")
       return

@@ -804,7 +804,7 @@ class TeknaDocumentGenerator
     sharepoint_path = template_config[:sharepoint_path]
     raise GenerationError, "SharePoint path not configured for #{template_key}" unless sharepoint_path
 
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise GenerationError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)

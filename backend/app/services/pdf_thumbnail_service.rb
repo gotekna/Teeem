@@ -68,7 +68,7 @@ class PdfThumbnailService
 
   def download_pdf
     Rails.logger.info "[PdfThumbnail] Downloading PDF from SharePoint..."
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise ThumbnailError, "SharePoint not connected" unless credential&.valid_credential?
 
     # Use appropriate client based on credential type
@@ -153,7 +153,7 @@ class PdfThumbnailService
   def upload_thumbnail(thumbnail_content)
     Rails.logger.info "[PdfThumbnail] Uploading thumbnail to SharePoint..."
 
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise ThumbnailError, "SharePoint not connected" unless credential&.valid_credential?
 
     # Generate thumbnail filename: original_name_thumb.png

@@ -14,7 +14,7 @@ class PlanFolderProcessJob < ApplicationJob
 
     begin
       job = scan.job
-      credential = OrganizationSharePointCredential.active_credential
+      credential = MicrosoftCredential.sharepoint_credential
       raise "No active SharePoint credential" unless credential
 
       client = MicrosoftGraphClient.new(credential)

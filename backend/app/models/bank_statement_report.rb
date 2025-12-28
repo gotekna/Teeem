@@ -365,7 +365,8 @@ class BankStatementReport < ApplicationRecord
   # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/BANK/{filename}
   # SSoT: Uses CorporateCompanySetting.company_path for path resolution
   def upload_to_sharepoint(content, filename)
-    credential = OrganizationSharePointCredential.active_credential
+    # SSoT: Use MicrosoftCredential
+    credential = MicrosoftCredential.sharepoint_credential
     unless credential.present?
       Rails.logger.warn("[BankStatementReport] No SharePoint credentials found - skipping upload")
       return nil

@@ -54,7 +54,7 @@ class BatchFolderScanJob < ApplicationJob
     )
 
     # Get SharePoint credential
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     return unless credential
 
     client = MicrosoftGraphClient.new(credential)

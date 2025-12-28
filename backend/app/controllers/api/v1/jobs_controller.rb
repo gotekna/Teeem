@@ -683,7 +683,7 @@ module Api
       # GET /api/v1/jobs/:id/plan_set
       # Get the list of plans in the 04 Plans folder
       def plan_set
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
         unless credential
           return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
         end
@@ -785,7 +785,7 @@ module Api
         filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
 
         # Upload to SharePoint/OneDrive
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
         if credential
           client = MicrosoftGraphClient.new(credential)
 
@@ -824,7 +824,7 @@ module Api
         filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
 
         # Step 2: Upload to SharePoint
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
         unless credential
           return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
         end

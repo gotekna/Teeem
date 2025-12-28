@@ -192,7 +192,8 @@ class PlanUpload < ApplicationRecord
                       .where("created_at < ?", max_age.ago)
                       .where.not(staging_file_id: nil)
 
-    credential = OrganizationSharePointCredential.active_credential
+    # SSoT: Use MicrosoftCredential
+    credential = MicrosoftCredential.sharepoint_credential
     return { cleaned: 0, errors: [] } unless credential
 
     client = MicrosoftGraphClient.new(credential)

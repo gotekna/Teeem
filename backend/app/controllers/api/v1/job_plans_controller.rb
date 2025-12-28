@@ -205,7 +205,7 @@ module Api
         # Upload to SharePoint as staging file (accessible from worker dyno)
         # This avoids Heroku's ephemeral filesystem issue where web/worker dynos can't share files
         uploaded_file = params[:file]
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
         unless credential
           return render json: { success: false, error: 'SharePoint not connected' }, status: :unprocessable_entity
         end

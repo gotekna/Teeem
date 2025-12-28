@@ -4,7 +4,7 @@ class DocumentRelocateService
 
   def initialize(document)
     @document = document
-    @credential = OrganizationSharePointCredential.active_credential
+    @credential = MicrosoftCredential.sharepoint_credential
     @client = MicrosoftGraphClient.new(@credential) if @credential
   end
 

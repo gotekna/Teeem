@@ -148,7 +148,7 @@ module Api
       private
 
       def set_credential
-        @credential = OrganizationSharePointCredential.active_credential
+        @credential = MicrosoftCredential.sharepoint_credential
       end
 
       def verify_import_token

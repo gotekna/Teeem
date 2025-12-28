@@ -52,20 +52,20 @@ class RefreshIntegrationTokensJob < ApplicationJob
   private
 
   def refresh_onedrive_tokens
+    # SSoT: Use MicrosoftCredential for org-level SharePoint credentials
     # Proactively refresh tokens expiring in the next HOUR
     # Ultra thinking: 4x buffer vs 15-min job interval - tokens never get close to expiring
-    OrganizationSharePointCredential.active.each do |credential|
+    MicrosoftCredential.delegated_credentials.org_level.active.each do |credential|
       next unless credential.token_expires_at.present?
       next unless credential.token_expires_at <= 1.hour.from_now
 
-      Rails.logger.info "[TokenRefresh] Refreshing OneDrive token expiring at #{credential.token_expires_at}"
+      Rails.logger.info "[TokenRefresh] Refreshing SharePoint token expiring at #{credential.token_expires_at}"
 
       begin
-        client = MicrosoftGraphClient.new(credential)
-        client.refresh_token!
-        Rails.logger.info "[TokenRefresh] OneDrive token refreshed successfully, new expiry: #{credential.reload.token_expires_at}"
+        credential.refresh_delegated_token!
+        Rails.logger.info "[TokenRefresh] SharePoint token refreshed successfully, new expiry: #{credential.reload.token_expires_at}"
       rescue StandardError => e
-        Rails.logger.error "[TokenRefresh] Failed to refresh OneDrive token: #{e.message}"
+        Rails.logger.error "[TokenRefresh] Failed to refresh SharePoint token: #{e.message}"
       end
     end
   end

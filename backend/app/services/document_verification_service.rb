@@ -108,7 +108,7 @@ class DocumentVerificationService
     # Rename file in SharePoint if name changed
     if analysis[:suggested_name] != @document.file_name && @document.sharepoint_file_id.present?
       begin
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
         if credential
           client = MicrosoftGraphClient.new(credential)
           client.rename_file(@document.sharepoint_file_id, analysis[:suggested_name])
@@ -162,7 +162,7 @@ class DocumentVerificationService
   end
 
   def download_document
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise OneDriveError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)

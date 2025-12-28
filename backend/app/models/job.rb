@@ -533,7 +533,8 @@ class Job < ApplicationRecord
   # Queue SharePoint folder creation after job is created
   def queue_sharepoint_folder_creation
     # Only create folders if SharePoint is connected
-    credential = OrganizationSharePointCredential.active_credential
+    # SSoT: Use MicrosoftCredential
+    credential = MicrosoftCredential.sharepoint_credential
     return unless credential&.valid_credential?
 
     # Queue the folder creation job (runs in background)

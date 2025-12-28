@@ -33,7 +33,7 @@ class PlanCombinerService
     Rails.logger.info "[PlanCombinerService] Combining #{plans.count} plans"
 
     # Get SharePoint client
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise CombineError, "No SharePoint credential available" unless credential
 
     client = MicrosoftGraphClient.new(credential)

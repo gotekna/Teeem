@@ -264,8 +264,8 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     microsoft_token = current_user.microsoft_token
     user_email = microsoft_token&.email || current_user.email
 
-    # Get organization SharePoint credential
-    org_credential = OrganizationSharePointCredential.active_credential
+    # SSoT: Use MicrosoftCredential
+    org_credential = MicrosoftCredential.sharepoint_credential
     sharepoint_info = build_sharepoint_connection_info(org_credential)
 
     # Get personal OneDrive info (requires user's token)
@@ -423,19 +423,21 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def update_organization_onedrive_credential(user, tokens)
-    # Create or update organization-level OneDrive credential
-    # This provides shared SharePoint/OneDrive access for the whole org
+    # SSoT: Use MicrosoftCredential for organization-level SharePoint access
     Rails.logger.info "[Microsoft Auth] Updating organization OneDrive credential..."
 
-    # Deactivate any existing credentials
-    OrganizationSharePointCredential.where(is_active: true).update_all(is_active: false)
+    # Deactivate any existing org-level delegated credentials
+    MicrosoftCredential.delegated_credentials.org_level.active.update_all(is_active: false)
 
     # Create new credential
-    credential = OrganizationSharePointCredential.create!(
+    credential = MicrosoftCredential.create!(
+      credential_type: "delegated",
+      organization: Organization.first,
       access_token: tokens[:access_token],
       refresh_token: tokens[:refresh_token],
       token_expires_at: Time.current + tokens[:expires_in].to_i.seconds,
       connected_by: user,
+      status: "connected",
       is_active: true
     )
 

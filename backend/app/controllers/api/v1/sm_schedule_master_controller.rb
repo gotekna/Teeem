@@ -232,6 +232,8 @@ module Api
           predecessor_display_names: row.predecessor_display_names,
           trade: row.trade,
           stage: row.stage,
+          trade_name: trades_map[row.trade.to_i] || row.trade,
+          stage_name: stages_map[row.stage.to_i] || row.stage,
           header: row.header,
           cost_centre: row.cost_centre,
           assigned_role: row.assigned_role,
@@ -275,6 +277,34 @@ module Api
           created_at: row.created_at,
           updated_at: row.updated_at
         }
+      end
+
+      # SSoT: Load trades lookup map (ID => name) from Foundation SM Trades
+      # Memoized per request to avoid N+1 queries
+      def trades_map
+        @trades_map ||= begin
+          foundation = Foundation.find_by(name: "SM Trades")
+          return {} unless foundation
+
+          ActiveRecord::Base.connection
+            .execute("SELECT id, name FROM #{foundation.database_table_name}")
+            .to_a
+            .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
+        end
+      end
+
+      # SSoT: Load stages lookup map (ID => name) from Foundation SM Stages
+      # Memoized per request to avoid N+1 queries
+      def stages_map
+        @stages_map ||= begin
+          foundation = Foundation.find_by(name: "SM Stages")
+          return {} unless foundation
+
+          ActiveRecord::Base.connection
+            .execute("SELECT id, name FROM #{foundation.database_table_name}")
+            .to_a
+            .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
+        end
       end
     end
   end

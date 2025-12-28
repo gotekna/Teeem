@@ -58,7 +58,7 @@ class CorporateSharePointScannerService
   end
 
   def initialize(credential = nil, folder_path: nil)
-    @credential = credential || OrganizationSharePointCredential.active_credential
+    @credential = credential || MicrosoftCredential.sharepoint_credential
     @folder_path = folder_path || self.class.company_folder_path  # SSoT: CorporateCompanySetting
     @results = {
       companies_scanned: 0,

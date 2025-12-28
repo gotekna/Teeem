@@ -59,7 +59,7 @@ module Api
 
         # Try to upload to SharePoint first
         begin
-          credential = OrganizationSharePointCredential.active_credential
+          credential = MicrosoftCredential.sharepoint_credential
           if credential&.valid_credential?
             client = MicrosoftGraphClient.new(credential)
 

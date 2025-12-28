@@ -56,7 +56,7 @@ module DocumentProviders
       end
 
       # Fall back to legacy OrganizationSharePointCredential (no org filtering - global)
-      OrganizationSharePointCredential.active_credential
+      MicrosoftCredential.sharepoint_credential
     end
 
     def initialize(credential)

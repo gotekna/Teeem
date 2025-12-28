@@ -32,7 +32,7 @@ module Api
         # Wrap credential loading in rescue - tokens are encrypted and may fail to decrypt
         # if encrypted with different keys across environments
         credential = begin
-          cred = OrganizationSharePointCredential.active_credential
+          cred = MicrosoftCredential.sharepoint_credential
           # Try to access an encrypted field to verify decryption works
           cred&.access_token if cred
           cred
@@ -146,15 +146,19 @@ module Api
 
           Rails.logger.info "Token exchange successful"
 
-          # Deactivate any existing credentials
-          OrganizationSharePointCredential.where(is_active: true).update_all(is_active: false)
+          # SSoT: Use MicrosoftCredential for new OAuth credentials
+          # Deactivate any existing org-level delegated credentials
+          MicrosoftCredential.delegated_credentials.org_level.active.update_all(is_active: false)
 
           # Create new credential with refresh token
-          credential = OrganizationSharePointCredential.create!(
+          credential = MicrosoftCredential.create!(
+            credential_type: "delegated",
+            organization: Organization.first,
             access_token: token_data[:access_token],
             refresh_token: token_data[:refresh_token],
             token_expires_at: token_data[:expires_at],
             connected_by: current_user,
+            status: "connected",
             is_active: true
           )
 
@@ -236,7 +240,7 @@ module Api
       # DELETE /api/v1/organization_onedrive/disconnect
       # Disconnect OneDrive for organization
       def disconnect
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         if credential
           credential.deactivate!
@@ -250,7 +254,7 @@ module Api
       # Change the root folder for organization OneDrive
       # Accepts either folder_id (for browsed selection) or folder_name (for typed path)
       def change_root_folder
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -357,7 +361,7 @@ module Api
       # GET /api/v1/organization_onedrive/sharepoint_sites
       # List available SharePoint sites
       def sharepoint_sites
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -385,7 +389,7 @@ module Api
       # POST /api/v1/organization_onedrive/use_personal_drive
       # Switch to using personal OneDrive instead of SharePoint
       def use_personal_drive
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -432,7 +436,7 @@ module Api
       # POST /api/v1/organization_onedrive/use_sharepoint_site
       # Switch to using a SharePoint site instead of personal OneDrive
       def use_sharepoint_site
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -482,7 +486,7 @@ module Api
       # Returns folders and breadcrumb path for navigation
       # Performance: Cached for 2 minutes to reduce SharePoint API calls
       def browse_folders
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -634,7 +638,7 @@ module Api
       # Create a root folder in the current drive (e.g., "Teeem" folder)
       # Used to auto-create the Teeem folder if it doesn't exist
       def create_root_folder
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -685,7 +689,7 @@ module Api
       # Validate the root folder exists and hasn't been renamed or moved
       # Returns folder validation status and auto-updates metadata if folder was renamed
       def validate_folder
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -723,7 +727,7 @@ module Api
       # POST /api/v1/organization_onedrive/create_all_job_folders
       # Create folder structure for ALL jobs that don't have folders yet
       def create_all_job_folders
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
@@ -791,7 +795,7 @@ module Api
       def create_job_folders
         job = Job.find(params[:job_id])
 
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
@@ -907,7 +911,7 @@ module Api
       def upload
         job = Job.find(params[:job_id])
 
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -967,7 +971,7 @@ module Api
         job = Job.find(params[:job_id])
         folder_names = params[:folder_names]&.split(",")&.map(&:strip) || [ params[:folder_name] ]
 
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1056,7 +1060,7 @@ module Api
       # GET /api/v1/organization_onedrive/search
       # Search for files across the entire SharePoint/OneDrive drive
       def search
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1110,7 +1114,7 @@ module Api
       # GET /api/v1/organization_onedrive/download
       # Download file from OneDrive
       def download
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1174,7 +1178,7 @@ module Api
       # DELETE /api/v1/organization_onedrive/delete_file
       # Delete a file from SharePoint/OneDrive
       def delete_file
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { success: false, error: "SharePoint not connected" }, status: :unauthorized
@@ -1223,7 +1227,7 @@ module Api
       # Get a pre-authenticated download URL for a file (valid ~1 hour)
       # Used for lightbox full-size image viewing - URL works directly in <img> tags
       def download_url
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1313,7 +1317,7 @@ module Api
       # GET /api/v1/organization_onedrive/preview_private_folders
       # Preview the folder structure that would be created in 00 TEEEM PRIVATE
       def preview_private_folders
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1341,7 +1345,7 @@ module Api
       #   - folder_id: Target folder ID in OneDrive (or null for root)
       #   - new_folder_name: Optional - create a new folder with this name
       def copy_files
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1486,7 +1490,7 @@ module Api
       # POST /api/v1/organization_onedrive/create_private_folders
       # Create the folder structure in 00 TEEEM PRIVATE for all company groups
       def create_private_folders
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1511,7 +1515,7 @@ module Api
       # POST /api/v1/organization_onedrive/sync_corporate_documents
       # Sync corporate documents from OneDrive to company records
       def sync_corporate_documents
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         Rails.logger.info "[OneDrive Corporate Sync] Starting corporate document sync"
 
@@ -1746,7 +1750,7 @@ module Api
       def legacy_files
         job = Job.find(params[:job_id])
 
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1789,7 +1793,7 @@ module Api
           return render json: { error: "No files selected for import" }, status: :bad_request
         end
 
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1928,7 +1932,7 @@ module Api
         end
 
         # Action is 'approve' - perform the rename in OneDrive
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -1995,7 +1999,7 @@ module Api
           return render json: { error: "No document IDs provided" }, status: :bad_request
         end
 
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -2050,7 +2054,7 @@ module Api
           return render json: { error: "Admin access required" }, status: :forbidden
         end
 
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
@@ -2134,7 +2138,7 @@ module Api
       def get_onedrive_credential
         # First try organization-wide credential
         credential = begin
-          cred = OrganizationSharePointCredential.active_credential
+          cred = MicrosoftCredential.sharepoint_credential
           # Try to access an encrypted field to verify decryption works
           if cred
             cred.access_token

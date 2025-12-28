@@ -150,7 +150,8 @@ class BillInbox < ApplicationRecord
   def download_invoice_file
     return nil unless sharepoint_file_id.present?
 
-    credential = OrganizationSharePointCredential.active_credential
+    # SSoT: Use MicrosoftCredential
+    credential = MicrosoftCredential.sharepoint_credential
     return nil unless credential
 
     client = MicrosoftGraphClient.new(credential)

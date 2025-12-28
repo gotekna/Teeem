@@ -486,7 +486,7 @@ module Api
       # Fetch file content from SharePoint using OrganizationSharePointCredential
       # This bypasses Active Storage's SharePointService which has config issues
       def fetch_from_sharepoint(file_id)
-        credential = OrganizationSharePointCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
         return nil unless credential&.valid_credential?
 
         graph_client = MicrosoftGraphClient.new(credential)

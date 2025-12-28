@@ -29,7 +29,7 @@ class JobDocumentSyncJob < ApplicationJob
       end
     end
 
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     unless credential
       Rails.logger.warn("[JobDocumentSync] No active OneDrive credential found")
       return { success: false, error: "No OneDrive credential" }

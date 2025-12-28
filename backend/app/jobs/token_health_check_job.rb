@@ -9,28 +9,29 @@ class TokenHealthCheckJob < ApplicationJob
   private
 
   def check_onedrive_tokens
-    OrganizationSharePointCredential.active.find_each do |credential|
+    # SSoT: Use MicrosoftCredential for org-level SharePoint credentials
+    MicrosoftCredential.delegated_credentials.org_level.active.find_each do |credential|
       days_until_expiry = days_until_expiry(credential.token_expires_at)
 
       if days_until_expiry.nil?
-        Rails.logger.warn("[TokenHealth] OneDrive credential #{credential.id} (#{credential.name}) has no expiry date")
+        Rails.logger.warn("[TokenHealth] SharePoint credential #{credential.id} (#{credential.name}) has no expiry date")
       elsif days_until_expiry < 0
-        Rails.logger.error("[TokenHealth] OneDrive credential #{credential.id} (#{credential.name}) is EXPIRED - reconnection required")
+        Rails.logger.error("[TokenHealth] SharePoint credential #{credential.id} (#{credential.name}) is EXPIRED - reconnection required")
       elsif days_until_expiry < 7
-        Rails.logger.warn("[TokenHealth] OneDrive credential #{credential.id} (#{credential.name}) expires in #{days_until_expiry} days")
+        Rails.logger.warn("[TokenHealth] SharePoint credential #{credential.id} (#{credential.name}) expires in #{days_until_expiry} days")
       else
-        Rails.logger.info("[TokenHealth] OneDrive credential #{credential.id} (#{credential.name}) is healthy (expires in #{days_until_expiry} days)")
+        Rails.logger.info("[TokenHealth] SharePoint credential #{credential.id} (#{credential.name}) is healthy (expires in #{days_until_expiry} days)")
       end
 
       # Check if credential is valid
       unless credential.valid_credential?
-        Rails.logger.error("[TokenHealth] OneDrive credential #{credential.id} (#{credential.name}) is INVALID - reconnection required")
+        Rails.logger.error("[TokenHealth] SharePoint credential #{credential.id} (#{credential.name}) is INVALID - reconnection required")
       end
     end
 
-    # Alert if no active credentials
-    if OrganizationSharePointCredential.active.none?
-      Rails.logger.error("[TokenHealth] NO ACTIVE OneDrive credentials found - SharePoint uploads will fail")
+    # Alert if no active credentials (check both delegated and app credentials)
+    unless MicrosoftCredential.sharepoint_credential.present?
+      Rails.logger.error("[TokenHealth] NO ACTIVE SharePoint credentials found - uploads will fail")
     end
   end
 

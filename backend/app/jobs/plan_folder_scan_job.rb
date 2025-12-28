@@ -9,7 +9,7 @@ class PlanFolderScanJob < ApplicationJob
   SKIP_FILES = ["All Plans.pdf", "Thumbs.db", ".DS_Store"].freeze
 
   def perform(job_id: nil)
-    credential = OrganizationSharePointCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     unless credential
       Rails.logger.warn "[PlanFolderScanJob] No active SharePoint credential"
       return

@@ -130,7 +130,7 @@ module Api
         end
 
         begin
-          credential = OrganizationSharePointCredential.active_credential
+          credential = MicrosoftCredential.sharepoint_credential
           unless credential
             return render json: {
               success: false,
@@ -164,7 +164,7 @@ module Api
         end
 
         begin
-          credential = OrganizationSharePointCredential.active_credential
+          credential = MicrosoftCredential.sharepoint_credential
           unless credential
             return render json: {
               success: false,
@@ -228,7 +228,7 @@ module Api
         end
 
         begin
-          credential = OrganizationSharePointCredential.active_credential
+          credential = MicrosoftCredential.sharepoint_credential
           unless credential
             return render json: {
               success: false,
@@ -532,7 +532,7 @@ module Api
         create_new = params[:create_new] == "true" || params[:create_new] == true
 
         begin
-          credential = OrganizationSharePointCredential.active_credential
+          credential = MicrosoftCredential.sharepoint_credential
           raise "No active OneDrive credential" unless credential
 
           client = MicrosoftGraphClient.new(credential)

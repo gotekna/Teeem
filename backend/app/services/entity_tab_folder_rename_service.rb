@@ -36,7 +36,7 @@ class EntityTabFolderRenameService
     Rails.logger.info "[EntityTabFolderRename] Path change: '#{@old_path}' → '#{@new_path}'"
 
     # Get SharePoint credential
-    @credential = OrganizationSharePointCredential.active_credential
+    @credential = MicrosoftCredential.sharepoint_credential
     return error_result("No SharePoint credential configured") unless @credential
 
     @client = MicrosoftGraphClient.new(@credential)
