@@ -15,7 +15,6 @@ class User < ApplicationRecord
   has_many :vip_senders, dependent: :destroy
   has_many :email_warehouse, foreign_key: :synced_by_user_id, dependent: :nullify
   has_one :email_sync_status, dependent: :destroy
-  has_one :microsoft_token, class_name: "UserMicrosoftToken", dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :user_navigation_configs, dependent: :destroy
   has_many :task_followers, dependent: :destroy
@@ -29,6 +28,11 @@ class User < ApplicationRecord
   # Returns nil - callers should handle this gracefully
   def company
     nil
+  end
+
+  # SSoT: Get user's Microsoft credential (replaces has_one :microsoft_token)
+  def microsoft_token
+    MicrosoftCredential.for_user(self).delegated_credentials.connected.first
   end
 
   # Role constants

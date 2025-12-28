@@ -135,12 +135,9 @@ class Api::V1::UsersController < ApplicationController
                         "offline"
     end
 
-    # Count Microsoft integrations
-    # SSoT: Using org-wide credentials for email (per-user Outlook removed)
-    microsoft_token = UserMicrosoftToken.find_by(user_id: user.id)
-
+    # Count Microsoft integrations (SSoT: MicrosoftCredential)
     integrations = []
-    integrations << "microsoft" if microsoft_token.present?
+    integrations << "microsoft" if user.microsoft_token.present?
 
     # SSoT: Ensure role_ids is always an array (even if roles association is somehow nil)
     safe_roles = user.roles.to_a rescue []
