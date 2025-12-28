@@ -293,10 +293,11 @@ export function ScheduleMasterTab() {
   const [jobEntityTabs, setJobEntityTabs] = React.useState<Array<{ id: number; display_name: string; tab_key: string }>>([]);
 
   // Lookup Tables subtab state - SSoT for which table is displayed
+  // NOTE: Using foundationId (slug) only - not numericId - to avoid environment ID mismatches
   const LOOKUP_TABLES = [
-    { id: "sm_trades", numericId: 531, name: "SM Trades", description: "Trade types for schedule tasks (e.g., CARPENTER, ELECTRICIAN)" },
-    { id: "sm_stages", numericId: 532, name: "SM Stages", description: "Stage types for schedule tasks (e.g., 01 Slab, 05 Enclosed)" },
-    { id: "cost_centres", numericId: 533, name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
+    { id: "sm_trades", name: "SM Trades", description: "Trade types for schedule tasks (e.g., CARPENTER, ELECTRICIAN)" },
+    { id: "sm_stages", name: "SM Stages", description: "Stage types for schedule tasks (e.g., 01 Slab, 05 Enclosed)" },
+    { id: "cost_centres", name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
   ] as const;
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
   const [selectedLookupTable, setSelectedLookupTable] = React.useState<LookupTableId>("sm_trades");
@@ -1903,7 +1904,6 @@ export function ScheduleMasterTab() {
                   key={`${table.id}-${lookupTableRefreshKey}`}
                   entries={[]}
                   foundationId={table.id}
-                  foundationIdNumeric={table.numericId}
                   tableName={table.name}
                   enableExport={true}
                   autoFetchRecords
