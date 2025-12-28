@@ -90,12 +90,20 @@ export default function LeadsPage() {
   useSetLayoutMode("full-height");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") || "leads";
+  // URL is SSoT for tab state (back button support)
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "leads";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "leads"
+      ? "/leads"
+      : `/leads?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
 
   const [jobsByStage, setJobsByStage] = useState<Record<string, PipelineJob[]>>({});
   const [pipelineMeta, setPipelineMeta] = useState<PipelineResponse["meta"] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(initialTab);
   const [pendingProposalCount, setPendingProposalCount] = useState(0);
 
   const loadPipeline = useCallback(async () => {
@@ -196,7 +204,7 @@ export default function LeadsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="leads">
             <TrendingUp className="h-4 w-4 mr-2" />

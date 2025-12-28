@@ -681,17 +681,10 @@ export default function JobDetailPage() {
   const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
   const [linkingXero, setLinkingXero] = React.useState(false);
 
-  // Get tab from URL, user preference, or default to "overview"
+  // Get tab from URL - URL is SSoT for tab state (back button support)
+  // Uses 2-level URL structure: ?tab=parent&subtab=child for hierarchical tabs
   const tabFromUrl = searchParams.get("tab");
-  const effectiveDefaultTab = tabFromUrl || userDefaultTab || "overview";
-  const [activeTab, setActiveTab] = React.useState(effectiveDefaultTab);
-
-  // Update activeTab when user's default tab preference loads
-  React.useEffect(() => {
-    if (!tabFromUrl && userDefaultTab && activeTab === "overview") {
-      setActiveTab(userDefaultTab);
-    }
-  }, [userDefaultTab, tabFromUrl, activeTab]);
+  const subtabFromUrl = searchParams.get("subtab");
 
   // Helper: find first enabled child of a parent tab
   const findFirstChildTab = React.useCallback((tabKey: string): string | null => {
@@ -703,31 +696,100 @@ export default function JobDetailPage() {
     return null;
   }, [visibleJobTabs]);
 
-  // Auto-select first child when landing on a parent tab
-  React.useEffect(() => {
-    if (visibleJobTabs.length > 0) {
-      const firstChild = findFirstChildTab(activeTab);
-      if (firstChild) {
-        setActiveTab(firstChild);
-        const newUrl = `/jobs/${jobId}?tab=${firstChild}`;
-        router.replace(newUrl, { scroll: false });
+  // Helper: find parent of a child tab
+  const findParentOfTab = React.useCallback((tabKey: string): string | null => {
+    for (const tab of visibleJobTabs) {
+      if (tab.children?.some(child => child.tab_key === tabKey)) {
+        return tab.tab_key;
       }
     }
-  }, [visibleJobTabs, activeTab, findFirstChildTab, jobId, router]);
+    return null;
+  }, [visibleJobTabs]);
 
-  // Update URL when tab changes - keep numeric ID in URL
+  // Helper: check if a tab is a parent with children
+  const isParentTab = React.useCallback((tabKey: string): boolean => {
+    const tab = visibleJobTabs.find(t => t.tab_key === tabKey);
+    return !!(tab?.children?.length);
+  }, [visibleJobTabs]);
+
+  // Determine active tab (parent level) and active subtab (child level)
+  // URL format: ?tab=parent&subtab=child
+  const { activeParentTab, activeChildTab } = React.useMemo(() => {
+    // Default parent tab
+    const defaultParent = userDefaultTab || "overview";
+
+    if (!tabFromUrl) {
+      // No URL params - use defaults
+      return { activeParentTab: defaultParent, activeChildTab: null };
+    }
+
+    // Check if tabFromUrl is a parent or child tab
+    const parent = findParentOfTab(tabFromUrl);
+    if (parent) {
+      // tabFromUrl is a child tab - this is legacy URL format (migration)
+      // Convert to new format: use parent from URL's implicit parent
+      return { activeParentTab: parent, activeChildTab: tabFromUrl };
+    }
+
+    // tabFromUrl is a parent tab
+    return {
+      activeParentTab: tabFromUrl,
+      activeChildTab: subtabFromUrl || null
+    };
+  }, [tabFromUrl, subtabFromUrl, userDefaultTab, findParentOfTab]);
+
+  // The actual tab value for the Tabs component
+  // If there's an active child, use that; otherwise use the parent
+  const activeTab = activeChildTab || activeParentTab;
+
+  // Auto-select first child when landing on a parent tab without subtab
+  const [hasInitialized, setHasInitialized] = React.useState(false);
+  React.useEffect(() => {
+    if (visibleJobTabs.length > 0 && !hasInitialized) {
+      setHasInitialized(true);
+
+      // If on a parent tab without a subtab, auto-select first child
+      if (isParentTab(activeParentTab) && !activeChildTab) {
+        const firstChild = findFirstChildTab(activeParentTab);
+        if (firstChild) {
+          const params = new URLSearchParams();
+          params.set("tab", activeParentTab);
+          params.set("subtab", firstChild);
+          router.replace(`/jobs/${jobId}?${params.toString()}`, { scroll: false });
+        }
+      }
+    }
+  }, [visibleJobTabs, activeParentTab, activeChildTab, hasInitialized, isParentTab, findFirstChildTab, jobId, router]);
+
+  // Update URL when tab changes - URL is SSoT
   const handleTabChange = React.useCallback((newTab: string) => {
-    // If clicking a parent tab with children, select first child instead
-    const firstChild = findFirstChildTab(newTab);
-    const effectiveTab = firstChild || newTab;
+    const params = new URLSearchParams();
 
-    setActiveTab(effectiveTab);
-    // Only add ?tab= for non-default tabs (cleaner URLs)
-    const newUrl = effectiveTab === "overview"
-      ? `/jobs/${jobId}`
-      : `/jobs/${jobId}?tab=${effectiveTab}`;
-    router.replace(newUrl, { scroll: false });
-  }, [jobId, router, findFirstChildTab]);
+    // Check if clicked tab is a child of some parent
+    const parentOfClickedTab = findParentOfTab(newTab);
+
+    if (parentOfClickedTab) {
+      // Clicked a child tab - set both parent and subtab
+      params.set("tab", parentOfClickedTab);
+      params.set("subtab", newTab);
+    } else if (isParentTab(newTab)) {
+      // Clicked a parent tab with children - set parent and auto-select first child
+      const firstChild = findFirstChildTab(newTab);
+      params.set("tab", newTab);
+      if (firstChild) {
+        params.set("subtab", firstChild);
+      }
+    } else {
+      // Clicked a standalone tab (no children, not a child)
+      params.set("tab", newTab);
+    }
+
+    // Clean URL for default tab without subtab
+    const newUrl = params.toString()
+      ? `/jobs/${jobId}?${params.toString()}`
+      : `/jobs/${jobId}`;
+    router.push(newUrl, { scroll: false });
+  }, [jobId, router, findParentOfTab, isParentTab, findFirstChildTab]);
 
   const loadJob = React.useCallback(async () => {
     try {
@@ -928,7 +990,7 @@ export default function JobDetailPage() {
                         <span key={o.contact_id}>
                           {idx > 0 && " & "}
                           <Link
-                            href={`/contacts/${o.contact_id}?returnTo=/jobs/${jobId}?tab=${activeTab}`}
+                            href={`/contacts/${o.contact_id}?returnTo=${encodeURIComponent(`/jobs/${jobId}?tab=${activeParentTab}${activeChildTab ? `&subtab=${activeChildTab}` : ''}`)}`}
                             className="font-medium text-primary hover:underline"
                           >
                             {o.contact.display_name}

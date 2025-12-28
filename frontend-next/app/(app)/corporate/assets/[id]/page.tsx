@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -241,7 +241,19 @@ interface AssetExpense {
 export default function AssetDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const assetId = params.id as string;
+
+  // URL is SSoT for tab state (back button support)
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "details";
+
+  const handleTabChange = React.useCallback((tabId: string) => {
+    const url = tabId === "details"
+      ? `/corporate/assets/${assetId}`
+      : `/corporate/assets/${assetId}?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [assetId, router]);
 
   const [asset, setAsset] = React.useState<Asset | null>(null);
   const [serviceHistory, setServiceHistory] = React.useState<ServiceHistory[]>([]);
@@ -255,7 +267,6 @@ export default function AssetDetailPage() {
   const [saving, setSaving] = React.useState(false);
   const [calculating, setCalculating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [activeTab, setActiveTab] = React.useState("details");
   const [isEditing, setIsEditing] = React.useState(false);
   const [editedAsset, setEditedAsset] = React.useState<Partial<Asset>>({});
   const [showForecast, setShowForecast] = React.useState(false);
@@ -549,7 +560,7 @@ export default function AssetDetailPage() {
                 key={tab.id}
                 variant={activeTab === tab.id ? "default" : "outline"}
                 className="flex items-center gap-2"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
               >
                 <Icon className="h-4 w-4" />
                 {tab.name}
@@ -573,7 +584,7 @@ export default function AssetDetailPage() {
               {asset.thumbnail_url ? (
                 <div
                   className="relative w-full h-48 rounded-lg overflow-hidden bg-muted cursor-pointer group"
-                  onClick={() => setActiveTab("photos")}
+                  onClick={() => handleTabChange("photos")}
                 >
                   <img
                     src={asset.thumbnail_url}
@@ -590,7 +601,7 @@ export default function AssetDetailPage() {
               ) : (
                 <div
                   className="w-full h-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => setActiveTab("photos")}
+                  onClick={() => handleTabChange("photos")}
                 >
                   <Camera className="h-8 w-8 text-muted-foreground/50" />
                   <p className="text-sm text-muted-foreground">No photos yet</p>

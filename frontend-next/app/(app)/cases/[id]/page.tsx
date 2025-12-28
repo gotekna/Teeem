@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -225,12 +225,23 @@ interface CaseEmail {
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const caseId = params.id as string;
 
+  // URL is SSoT for tab state (back button support)
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "overview";
+
+  const handleTabChange = React.useCallback((tabId: string) => {
+    const url = tabId === "overview"
+      ? `/cases/${caseId}`
+      : `/cases/${caseId}?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [caseId, router]);
+
   const [loading, setLoading] = React.useState(true);
   const [caseData, setCaseData] = React.useState<CaseDetail | null>(null);
-  const [activeTab, setActiveTab] = React.useState("overview");
 
   // Tab-specific data
   const [actions, setActions] = React.useState<CaseAction[]>([]);
@@ -672,7 +683,7 @@ export default function CaseDetailPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={cn(
                   "flex items-center gap-2 border-b-2 py-2 px-1 text-sm font-medium transition-colors",
                   activeTab === tab.id
@@ -694,7 +705,7 @@ export default function CaseDetailPage() {
           <CaseOverviewTab
             caseData={caseData}
             onCreateSubCase={() => setShowCreateSubCase(true)}
-            onViewAllMatters={() => setActiveTab('subcases')}
+            onViewAllMatters={() => handleTabChange('subcases')}
           />
         )}
 
@@ -965,7 +976,7 @@ export default function CaseDetailPage() {
                         variant="outline"
                         size="sm"
                         className="mt-2 w-full"
-                        onClick={() => setActiveTab("entities")}
+                        onClick={() => handleTabChange("entities")}
                       >
                         <Plus className="h-4 w-4 mr-2" />
                         Add Contact

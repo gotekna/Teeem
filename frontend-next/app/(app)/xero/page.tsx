@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,6 +135,20 @@ function getCacheAgeColor(seconds: number | null): string {
 }
 
 export default function XeroPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // URL is SSoT for tab state (back button support)
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "invoices";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "invoices"
+      ? "/xero"
+      : `/xero?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
+
   const [status, setStatus] = useState<XeroStatus | null>(null);
   const [invoices, setInvoices] = useState<ExternalInvoice[]>([]);
   const [bills, setBills] = useState<ExternalInvoice[]>([]);
@@ -143,7 +158,6 @@ export default function XeroPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("invoices");
   const [invoiceType, setInvoiceType] = useState<"all" | "receivable" | "payable">("all");
 
   useEffect(() => {

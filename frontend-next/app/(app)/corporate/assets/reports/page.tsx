@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -164,8 +164,18 @@ interface InsuranceAsset {
 
 export default function AssetReportsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = React.useState("summary");
+  // URL is SSoT for tab state (back button support)
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "summary";
+
+  const handleTabChange = React.useCallback((tabId: string) => {
+    const url = tabId === "summary"
+      ? "/corporate/assets/reports"
+      : `/corporate/assets/reports?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
   const [loading, setLoading] = React.useState(true);
   const [companies, setCompanies] = React.useState<Company[]>([]);
   const [entityTypes, setEntityTypes] = React.useState<string[]>([]);
@@ -498,7 +508,7 @@ export default function AssetReportsPage() {
                 key={tab.id}
                 variant={activeTab === tab.id ? "default" : "outline"}
                 className="flex items-center gap-2"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
               >
                 <Icon className="h-4 w-4" />
                 {tab.name}

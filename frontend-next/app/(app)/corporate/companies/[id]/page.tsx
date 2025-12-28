@@ -92,8 +92,11 @@ export default function CompanyDetailPage() {
 
   const [loading, setLoading] = React.useState(true);
   const [company, setCompany] = React.useState<Company | null>(null);
-  const [activeTab, setActiveTab] = React.useState("overview");
-  const [overviewSubTab, setOverviewSubTab] = React.useState("info");
+  // URL is SSoT for tab state (back button support)
+  const tabFromUrl = searchParams.get("tab");
+  const subtabFromUrl = searchParams.get("subtab");
+  const activeTab = tabFromUrl || "overview";
+  const overviewSubTab = subtabFromUrl || "info";
 
   // Company edit sheet state
   const [isEditSheetOpen, setIsEditSheetOpen] = React.useState(false);
@@ -297,20 +300,27 @@ export default function CompanyDetailPage() {
     // SSoT: Xero tabs now rendered via XeroTabRenderer (Phase 5)
   }, [loadCompany, loadDocumentCounts, loadHealthScore]);
 
-  // Handle tab from URL
-  React.useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab) setActiveTab(tab);
-  }, [searchParams]);
-
+  // Tab change handlers - URL is SSoT
   const handleTabChange = (tabId: string) => {
     // Redirect Data tab to data warehouse page with company filter
     if (tabId === "data-main") {
       router.push(`/data-warehouse?company_id=${companyId}`);
       return;
     }
-    setActiveTab(tabId);
-    router.push(`/corporate/companies/${companyId}?tab=${tabId}`, { scroll: false });
+    // Reset subtab when switching main tabs
+    const url = tabId === "overview"
+      ? `/corporate/companies/${companyId}`
+      : `/corporate/companies/${companyId}?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  };
+
+  const handleSubTabChange = (subTabId: string) => {
+    const params = new URLSearchParams();
+    params.set("tab", "overview");
+    if (subTabId !== "info") {
+      params.set("subtab", subTabId);
+    }
+    router.push(`/corporate/companies/${companyId}?${params.toString()}`, { scroll: false });
   };
 
   if (loading) {
@@ -394,8 +404,7 @@ export default function CompanyDetailPage() {
             {healthScore && (
               <button
                 onClick={() => {
-                  setActiveTab("overview");
-                  setOverviewSubTab("health");
+                  router.push(`/corporate/companies/${companyId}?tab=overview&subtab=health`, { scroll: false });
                 }}
                 className={cn(
                   "flex items-center gap-1 px-3 py-1.5 rounded-md bg-muted",
@@ -505,7 +514,7 @@ export default function CompanyDetailPage() {
                   {computedOverviewTabs.map((subTab) => (
                     <button
                       key={subTab.id}
-                      onClick={() => setOverviewSubTab(subTab.id)}
+                      onClick={() => handleSubTabChange(subTab.id)}
                       className={cn(
                         "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
                         overviewSubTab === subTab.id
