@@ -506,6 +506,14 @@ module Api
         updated_count = 0
         errors = []
 
+        # Identify lookup columns with belongs_to associations (need to bypass setter)
+        lookup_columns_with_associations = []
+        filtered_updates.keys.each do |col_name|
+          if model.reflect_on_association(col_name.to_sym)&.macro == :belongs_to
+            lookup_columns_with_associations << col_name.to_s
+          end
+        end
+
         ActiveRecord::Base.transaction do
           record_ids.each do |id|
             record = model.find_by(id: id)
@@ -522,7 +530,22 @@ module Api
                 end
               end
 
-              if record.update(filtered_updates)
+              # For lookup columns with belongs_to, bypass the association setter
+              # and write directly to the attribute to avoid "Model expected" errors
+              lookup_columns_with_associations.each do |col_name|
+                if filtered_updates.key?(col_name)
+                  record.write_attribute(col_name, filtered_updates[col_name])
+                end
+              end
+
+              # Apply remaining updates through normal setters
+              regular_updates = filtered_updates.except(*lookup_columns_with_associations)
+
+              if regular_updates.any?
+                record.assign_attributes(regular_updates)
+              end
+
+              if record.save
                 updated_count += 1
               else
                 errors << { id: id, errors: record.errors.full_messages }
