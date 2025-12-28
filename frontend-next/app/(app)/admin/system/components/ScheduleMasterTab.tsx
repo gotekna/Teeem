@@ -332,7 +332,21 @@ export function ScheduleMasterTab() {
     { id: "cost_centres", name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
   ] as const;
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
-  const [selectedLookupTable, setSelectedLookupTable] = React.useState<LookupTableId>("sm_trades");
+
+  // URL is SSoT for table selection (enables shareable links)
+  const tableParam = searchParams.get("table");
+  const selectedLookupTable: LookupTableId = LOOKUP_TABLES.some(t => t.id === tableParam)
+    ? (tableParam as LookupTableId)
+    : "sm_trades";
+
+  // Update URL when table changes
+  const handleTableChange = React.useCallback((tableId: LookupTableId) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("table", tableId);
+    const url = `${pathname}?${params.toString()}`;
+    router.push(url, { scroll: false });
+  }, [searchParams, pathname, router]);
+
   const [lookupTableRefreshKey, setLookupTableRefreshKey] = React.useState(0);
 
   // Tag management state
@@ -1939,7 +1953,7 @@ export function ScheduleMasterTab() {
                 key={table.id}
                 variant={selectedLookupTable === table.id ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedLookupTable(table.id)}
+                onClick={() => handleTableChange(table.id)}
                 className="gap-2"
               >
                 <TableIcon className="h-4 w-4" />

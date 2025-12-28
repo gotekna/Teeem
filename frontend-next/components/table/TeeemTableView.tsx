@@ -946,6 +946,8 @@ export default function TeeemTableView({
   serverSearchLoading = false,
   searchMode: propSearchMode,
   onSearchModeChange,
+  initialSearch,
+  onSearchChange,
   onViewApiParamsChange,
   loadingMore = false,
   onLoadMore,
@@ -1403,11 +1405,27 @@ export default function TeeemTableView({
   // ============================================================================
 
   // Search state managed by atom (SSoT)
-  const [search, setSearch] = useAtom(searchQueryAtom);
+  const [search, setSearchAtom] = useAtom(searchQueryAtom);
   // searchAllColumns managed by atom (SSoT)
   const [searchAllColumns, setSearchAllColumns] = useAtom(searchAllColumnsAtom);
   // Search mode for client-side filtering
   const [currentSearchMode, setCurrentSearchMode] = useState<SearchMode>(propSearchMode || "contains");
+
+  // Wrap setSearch to also call onSearchChange callback (for URL sync)
+  const setSearch = useCallback((value: string | ((prev: string) => string)) => {
+    const newValue = typeof value === 'function' ? value(search) : value;
+    setSearchAtom(newValue);
+    onSearchChange?.(newValue);
+  }, [search, setSearchAtom, onSearchChange]);
+
+  // Initialize search from prop on mount (for URL-synced search)
+  const hasInitializedSearchRef = useRef(false);
+  useEffect(() => {
+    if (initialSearch && !hasInitializedSearchRef.current) {
+      hasInitializedSearchRef.current = true;
+      setSearchAtom(initialSearch);
+    }
+  }, [initialSearch, setSearchAtom]);
 
   // Re-trigger server search on mount if there's a persisted search term
   // This handles browser back navigation where atom state is preserved but data isn't

@@ -560,12 +560,30 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
         // If initialCategory is provided, ALWAYS try to find and select it
         // This handles both first load AND tab switching (when initialCategory changes)
         if (initialCategory) {
+          // SSoT: Support composite keys (parent__child) to disambiguate same-named categories
+          // e.g., "photo__site" means find "site" child under "photo" parent specifically
+          // Without composite key, "site" could match document Site OR photo Site
+          const isCompositeKey = initialCategory.includes("__");
+          let parentKey: string | null = null;
+          let childKey: string = initialCategory;
+
+          if (isCompositeKey) {
+            const [p, c] = initialCategory.split("__");
+            parentKey = p;
+            childKey = c;
+          }
+
           // SSoT: Match by tab_key directly (e.g., "supervisor-photo")
           // No name conversion needed - tab_key is the unique identifier
           for (const parent of categories) {
+            // If composite key provided, only search within the specified parent
+            if (parentKey && parent.tab_key !== parentKey) {
+              continue;
+            }
+
             if (parent.children) {
               const matchingChild = parent.children.find(
-                (child) => child.tab_key === initialCategory
+                (child) => child.tab_key === childKey
               );
               if (matchingChild) {
                 // Set flag BEFORE setting state to prevent useEffect from overwriting
@@ -575,8 +593,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                 return;
               }
             }
-            // Also check if the parent itself matches
-            if (parent.tab_key === initialCategory) {
+            // Also check if the parent itself matches (only if no composite key)
+            if (!parentKey && parent.tab_key === childKey) {
               setSelectedCategory(parent);
               return;
             }

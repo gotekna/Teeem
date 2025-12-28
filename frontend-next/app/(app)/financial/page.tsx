@@ -1551,9 +1551,23 @@ export default function FinancialPage() {
     router.push(url, { scroll: false });
   }, [router, companyId]);
 
+  // URL is SSoT for company selection (enables shareable links)
+  const handleCompanyChange = useCallback((newCompanyId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (newCompanyId && newCompanyId !== "all") {
+      params.set("company", newCompanyId);
+    } else {
+      params.delete("company");
+    }
+    const queryString = params.toString();
+    const url = queryString ? `/financial?${queryString}` : "/financial";
+    router.push(url, { scroll: false });
+  }, [router, searchParams]);
+
   // State
   const [loading, setLoading] = React.useState(true);
-  const [selectedCompany, setSelectedCompany] = React.useState<string>(companyId || "all");
+  // URL is SSoT for company selection - derive from URL param
+  const selectedCompany = companyId || "all";
   const [companies, setCompanies] = React.useState<Company[]>([]);
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -1874,7 +1888,7 @@ export default function FinancialPage() {
         </div>
         <div className="flex items-center gap-2">
           {companies.length > 0 && (
-            <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+            <Select value={selectedCompany} onValueChange={handleCompanyChange}>
               <SelectTrigger className="w-[200px]">
                 <Building2 className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="All Companies" />

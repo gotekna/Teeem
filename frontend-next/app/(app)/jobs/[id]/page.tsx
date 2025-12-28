@@ -1365,10 +1365,12 @@ export default function JobDetailPage() {
           const tabValue = tab.compositeKey || tab.tab_key;
 
           // Photo tabs use JobDocumentsTab with initialCategory
+          // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
+          // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
           if (tab.is_photo_category) {
             return (
               <TabsContent key={tabValue} value={tabValue} className="mt-4">
-                <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory={tab.tab_key} />
+                <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory={tabValue} />
               </TabsContent>
             );
           }

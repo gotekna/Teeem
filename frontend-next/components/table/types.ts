@@ -167,6 +167,10 @@ export interface TeeemTableViewProps {
   serverSearchLoading?: boolean;
   searchMode?: "contains" | "exact" | "starts_with" | "fuzzy" | "regex";
   onSearchModeChange?: (mode: "contains" | "exact" | "starts_with" | "fuzzy" | "regex") => void;
+  /** Initial search value (for URL-synced search) */
+  initialSearch?: string;
+  /** Callback when search changes (for URL sync) */
+  onSearchChange?: (term: string) => void;
   onViewApiParamsChange?: (params: Record<string, unknown> | null) => void;
   loadingMore?: boolean;
   onLoadMore?: () => void; // Infinite scroll callback when user reaches bottom
