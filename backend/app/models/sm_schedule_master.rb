@@ -216,7 +216,7 @@ class SmScheduleMaster < ApplicationRecord
         next
       end
 
-      pred_id = pred["id"] || pred[:id]
+      pred_id = (pred["id"] || pred[:id]).to_i
 
       # Check predecessor exists in same template(s)
       unless valid_task_numbers.include?(pred_id)
@@ -323,13 +323,16 @@ class SmScheduleMaster < ApplicationRecord
   def clean_invalid_predecessors
     return if predecessor_ids.blank?
 
-    # Get valid task numbers from templates this row belongs to
+    # Get valid task numbers - must match validator logic exactly (no .active filter)
     template_ids = sm_template_ids || []
-    return if template_ids.empty?
-
-    # Find all valid task numbers in the same template(s)
-    conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(" OR ")
-    valid_task_numbers = SmScheduleMaster.active.where(conditions).pluck(:task_number)
+    valid_task_numbers = if template_ids.any?
+      # Same template(s) - use JSONB containment check
+      conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(" OR ")
+      SmScheduleMaster.where(conditions).where.not(id: id).pluck(:task_number)
+    else
+      # No templates - fall back to global check (matches validator behavior)
+      SmScheduleMaster.where.not(id: id).pluck(:task_number)
+    end
 
     # Filter out invalid predecessors
     original_count = predecessor_ids.length
