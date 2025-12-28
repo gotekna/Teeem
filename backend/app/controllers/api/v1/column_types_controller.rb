@@ -4,7 +4,8 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types
   # Returns all column type definitions from the Gold Standard Reference table
   def index
-    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: "Gold Standard Reference")
+    # SSoT: Use slug, not hardcoded ID (IDs differ between environments)
+    gold_standard_foundation = Foundation.find_by(slug: "gold_standard_table")
 
     unless gold_standard_foundation
       render json: {
@@ -39,7 +40,8 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types/:column_type
   # Returns specific column type definition
   def show
-    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: "Gold Standard Reference")
+    # SSoT: Use slug, not hardcoded ID (IDs differ between environments)
+    gold_standard_foundation = Foundation.find_by(slug: "gold_standard_table")
 
     unless gold_standard_foundation
       render json: {
@@ -68,7 +70,8 @@ class Api::V1::ColumnTypesController < ApplicationController
   # PATCH /api/v1/column_types/:column_type
   # Updates metadata for a specific column type in the Gold Standard table
   def update
-    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: "Gold Standard Reference")
+    # SSoT: Use slug, not hardcoded ID (IDs differ between environments)
+    gold_standard_foundation = Foundation.find_by(slug: "gold_standard_table")
 
     unless gold_standard_foundation
       render json: {

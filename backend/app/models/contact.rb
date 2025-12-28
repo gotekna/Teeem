@@ -274,11 +274,9 @@ class Contact < ApplicationRecord
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
   before_validation :auto_fix_website_url, prepend: true  # Auto-fix website URLs without protocol (MUST run before column type validation)
   before_validation :normalize_entity_type      # Convert "Person" → "person", "Sole Trader" → "sole_trader"
-  before_validation :clear_roles_if_not_person  # Must run before validations
   before_validation :auto_fix_name_casing       # Auto-fix ALL CAPS and lowercase names
   before_save :generate_display_name
   before_save :sync_company_name_or_trust
-  before_save :clear_roles_if_not_person
 
   # SSoT: Sync primary_company_id → employee_of relationship
   # This ensures the relationship exists when primary_company is set directly
@@ -1226,13 +1224,6 @@ class Contact < ApplicationRecord
     # Initial sync: if company_name_or_trust is blank but display_name exists
     elsif company_name_or_trust.blank? && display_name.present?
       self.company_name_or_trust = display_name
-    end
-  end
-
-  # Auto-clear roles when entity_type changes from person to company/trust
-  def clear_roles_if_not_person
-    if entity_type_changed? && entity_type != "person"
-      self.roles = []
     end
   end
 

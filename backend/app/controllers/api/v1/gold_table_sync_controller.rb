@@ -4,7 +4,8 @@ class Api::V1::GoldTableSyncController < ApplicationController
   # GET /api/v1/gold_table_sync
   # Returns comparison of column type definitions from all sources
   def index
-    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: "Gold Standard Reference")
+    # SSoT: Use slug, not hardcoded ID (IDs differ between environments)
+    gold_standard_foundation = Foundation.find_by(slug: "gold_standard_table")
 
     unless gold_standard_foundation
       render json: {
