@@ -93,26 +93,31 @@ export function HierarchicalTabsList({
         {visibleTabs.map((tab) => {
           // SSoT: Use effective_icon_name for inherited icons
           const IconComponent = getIcon(tab.effective_icon_name || tab.icon_name || "file");
-          const isParentOfActiveChild = selectedParent?.tab_key === tab.tab_key && tab.tab_key !== activeTab;
           const hasChildren = tab.children && tab.children.length > 0;
           const displayMode = tab.display_mode || 'both';
           const showIcon = displayMode !== 'text_only';
           const showText = displayMode !== 'icon_only';
 
+          // ULTRA FIX: Manually determine if this parent should be highlighted
+          // This prevents collision when parent "Site" (key=site) vs child "site" under Photo
+          const isSelectedParent = selectedParent?.tab_key === tab.tab_key;
+          const isDirectlyActive = activeTab === tab.tab_key && !selectedParent;
+
           const tabContent = (
             <TabsPrimitive.Trigger
               key={tab.tab_key}
-              value={tab.tab_key}
+              // ULTRA FIX: Use prefixed value to prevent collision with child tab_keys
+              // e.g., parent "site" becomes "__p__site", won't match child "site"
+              value={`__p__${tab.tab_key}`}
               onClick={() => onTabChange?.(tab.tab_key)}
               className={cn(
                 "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                 "disabled:pointer-events-none disabled:opacity-50",
-                "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
                 "hover:bg-background/50",
                 showIcon && showText && "gap-2",
-                // Highlight parent when a child is active
-                isParentOfActiveChild && "bg-background/30"
+                // ULTRA FIX: Manually apply active styles (don't rely on data-[state=active])
+                (isSelectedParent || isDirectlyActive) && "bg-background text-foreground shadow-sm"
               )}
             >
               {showIcon && <IconComponent className="h-4 w-4" />}
