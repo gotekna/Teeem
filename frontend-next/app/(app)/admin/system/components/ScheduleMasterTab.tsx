@@ -142,6 +142,7 @@ interface SmScheduleMaster {
   stage_name?: string;  // SSoT: Resolved from Foundation SM Stages by backend
   assigned_role?: string | null;
   cost_centre?: string;
+  header?: string | null;  // Parent header row ID (self-reference lookup)
   po_required: boolean;
   critical_po?: boolean;
   create_po_on_job_start?: boolean;
@@ -352,6 +353,8 @@ export function ScheduleMasterTab() {
   const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
   // SSoT: Cost Centres come from Foundation Cost Centres (ID 533)
   const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: Header rows are rows with header=NULL (they ARE headers, no parent)
+  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; name: string }[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -392,6 +395,7 @@ export function ScheduleMasterTab() {
     loadStages();
     loadRoles();
     loadCostCentres();
+    loadHeaderRows();
   }, []);
 
   // Load job EntityTabs for photo storage dropdown
@@ -529,6 +533,23 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load cost centres:", error);
+    }
+  };
+
+  // SSoT: Load header rows (rows where header is NULL - they ARE headers)
+  const loadHeaderRows = async () => {
+    try {
+      // Query sm_schedule_master rows where header_backup = 'Header' (the ones that ARE header rows)
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
+        "/api/v1/foundations/sm_schedule_master/records?per_page=100&filters=" + encodeURIComponent(JSON.stringify({
+          header_backup: { operator: "equals", value: "Header" }
+        }))
+      );
+      if (data?.records) {
+        setAvailableHeaderRows(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load header rows:", error);
     }
   };
 
@@ -745,6 +766,7 @@ export function ScheduleMasterTab() {
         stage: extractLookupId(fullRow.stage),
         assigned_role: extractLookupId(fullRow.assigned_role),
         cost_centre: extractLookupId(fullRow.cost_centre),
+        header: extractLookupId(fullRow.header),  // Parent header row (self-reference lookup)
         po_required: fullRow.po_required,
         critical_po: fullRow.critical_po,
         create_po_on_job_start: fullRow.create_po_on_job_start,
@@ -2200,6 +2222,18 @@ export function ScheduleMasterTab() {
                     emptyResults="No cost centres found"
                     clearable
                     onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Parent Header</Label>
+                  <ComboboxDropdown
+                    items={availableHeaderRows.map(h => ({ id: String(h.id), label: h.name }))}
+                    selectedItem={editRowForm.header ? { id: editRowForm.header, label: availableHeaderRows.find(h => String(h.id) === editRowForm.header)?.name || editRowForm.header } : undefined}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, header: item.id })}
+                    placeholder="Select header..."
+                    emptyResults="No header rows found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, header: null })}
                   />
                 </div>
                 {/* Auto-save status indicator */}
