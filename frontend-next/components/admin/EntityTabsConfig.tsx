@@ -81,7 +81,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
-import { useUrlState, setToUrlArray, urlArrayToSet } from "@/hooks/useUrlState";
+import { useUrlState } from "@/hooks/useUrlState";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import type {
   EntityTab,
@@ -233,30 +233,31 @@ export function EntityTabsConfig({
   const [saving, setSaving] = React.useState(false);
 
   // SSoT: Navigation state synced to URL for back button support
+  // Uses tab_key (slug) instead of numeric IDs for readable, stable URLs
   const [urlState, setUrlState] = useUrlState({
     group: "overview",           // Active tab group
-    tabId: null as string | null, // Tab being edited
+    tab: null as string | null,  // Tab being edited (tab_key slug)
     action: null as string | null, // "edit" | "create" | null
-    expanded: [] as string[],    // Expanded tab IDs
-    docExpanded: [] as string[], // Expanded doc type sections
+    expanded: [] as string[],    // Expanded tab keys (slugs)
+    docExpanded: [] as string[], // Expanded doc type tab keys
     config: null as string | null, // Config panel name (e.g., "plan-categories")
   });
 
   // Derive values from URL state
   const activeGroup = urlState.group;
-  const expandedItems = React.useMemo(() => urlArrayToSet(urlState.expanded), [urlState.expanded]);
-  const expandedDocTypes = React.useMemo(() => urlArrayToSet(urlState.docExpanded), [urlState.docExpanded]);
+  // Use Set<string> for tab_keys instead of Set<number> for IDs
+  const expandedItems = React.useMemo(() => new Set(urlState.expanded), [urlState.expanded]);
+  const expandedDocTypes = React.useMemo(() => new Set(urlState.docExpanded), [urlState.docExpanded]);
   const isDialogOpen = urlState.action === "create" || urlState.action === "edit";
   const isCreateMode = urlState.action === "create";
 
-  // Look up editingTab from tabs array using URL tabId
+  // Look up editingTab from tabs array using URL tab (tab_key slug)
   const editingTab = React.useMemo(() => {
-    if (!urlState.tabId || urlState.action !== "edit") return null;
-    const tabId = parseInt(urlState.tabId);
-    // Search recursively through tabs and children
+    if (!urlState.tab || urlState.action !== "edit") return null;
+    // Search recursively through tabs and children by tab_key
     const findTab = (tabList: EntityTab[]): EntityTab | null => {
       for (const tab of tabList) {
-        if (tab.id === tabId) return tab;
+        if (tab.tab_key === urlState.tab) return tab;
         if (tab.children?.length) {
           const found = findTab(tab.children);
           if (found) return found;
@@ -265,7 +266,7 @@ export function EntityTabsConfig({
       return null;
     };
     return findTab(tabs);
-  }, [urlState.tabId, urlState.action, tabs]);
+  }, [urlState.tab, urlState.action, tabs]);
 
   // Look up configTab from tabs array using URL config param
   const configTab = React.useMemo(() => {
@@ -281,40 +282,42 @@ export function EntityTabsConfig({
     setUrlState({ group });
   }, [setUrlState]);
 
-  const setExpandedItems = React.useCallback((updater: Set<number> | ((prev: Set<number>) => Set<number>)) => {
+  // Use tab_key (slug) for expanded state - Set<string> instead of Set<number>
+  const setExpandedItems = React.useCallback((updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
     if (typeof updater === "function") {
       const newSet = updater(expandedItems);
-      setUrlState({ expanded: setToUrlArray(newSet) });
+      setUrlState({ expanded: Array.from(newSet) });
     } else {
-      setUrlState({ expanded: setToUrlArray(updater) });
+      setUrlState({ expanded: Array.from(updater) });
     }
   }, [setUrlState, expandedItems]);
 
-  const setExpandedDocTypes = React.useCallback((updater: Set<number> | ((prev: Set<number>) => Set<number>)) => {
+  const setExpandedDocTypes = React.useCallback((updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
     if (typeof updater === "function") {
       const newSet = updater(expandedDocTypes);
-      setUrlState({ docExpanded: setToUrlArray(newSet) });
+      setUrlState({ docExpanded: Array.from(newSet) });
     } else {
-      setUrlState({ docExpanded: setToUrlArray(updater) });
+      setUrlState({ docExpanded: Array.from(updater) });
     }
   }, [setUrlState, expandedDocTypes]);
 
+  // Use tab_key (slug) instead of numeric ID
   const setEditingTab = React.useCallback((tab: EntityTab | null) => {
     if (tab) {
-      setUrlState({ tabId: String(tab.id), action: "edit" });
+      setUrlState({ tab: tab.tab_key, action: "edit" });
     } else {
-      setUrlState({ tabId: null, action: null });
+      setUrlState({ tab: null, action: null });
     }
   }, [setUrlState]);
 
   const setDialogOpen = React.useCallback((open: boolean) => {
     if (!open) {
-      setUrlState({ action: null, tabId: null });
+      setUrlState({ action: null, tab: null });
     }
   }, [setUrlState]);
 
   const openCreateMode = React.useCallback(() => {
-    setUrlState({ action: "create", tabId: null });
+    setUrlState({ action: "create", tab: null });
   }, [setUrlState]);
 
   const setConfigTab = React.useCallback((tab: EntityTab | null, componentName?: string) => {
@@ -406,14 +409,14 @@ export function EntityTabsConfig({
 
   // Items start collapsed by default - user can expand as needed
 
-  // Toggle item expansion
-  const toggleExpanded = (itemId: number) => {
+  // Toggle item expansion - uses tab_key (slug) instead of numeric ID
+  const toggleExpanded = (tabKey: string) => {
     setExpandedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(itemId)) {
-        next.delete(itemId);
+      if (next.has(tabKey)) {
+        next.delete(tabKey);
       } else {
-        next.add(itemId);
+        next.add(tabKey);
       }
       return next;
     });
@@ -708,7 +711,7 @@ export function EntityTabsConfig({
       <React.Fragment key={tab.id}>
         {renderTabItem(tab, index, depth > 0, depth)}
         {/* Expanded document types - table view */}
-        {expandedDocTypes.has(tab.id) && tab.document_types && tab.document_types.length > 0 && (
+        {expandedDocTypes.has(tab.tab_key) && tab.document_types && tab.document_types.length > 0 && (
           <div className={cn(
             "mt-1 mb-2 rounded-lg border bg-muted/30",
             depth === 0 && "ml-16",
@@ -770,7 +773,7 @@ export function EntityTabsConfig({
           </div>
         )}
         {/* Expanded children */}
-        {expandedItems.has(tab.id) && tab.children && tab.children.length > 0 && (
+        {expandedItems.has(tab.tab_key) && tab.children && tab.children.length > 0 && (
           <SortableList
             items={tab.children}
             onReorder={(newChildren) => handleChildReorder(tab, newChildren)}
@@ -791,7 +794,7 @@ export function EntityTabsConfig({
     // SSoT: Use effective_icon_name for inherited icons from parent
     const IconComponent = getIcon(tab.effective_icon_name || tab.icon_name || "file");
     const hasChildren = tab.children && tab.children.length > 0;
-    const isExpanded = expandedItems.has(tab.id);
+    const isExpanded = expandedItems.has(tab.tab_key);
 
     return (
       <SortableItem
@@ -827,7 +830,7 @@ export function EntityTabsConfig({
               className="h-6 w-6 shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
-                toggleExpanded(tab.id);
+                toggleExpanded(tab.tab_key);
               }}
             >
               {isExpanded ? (
@@ -944,16 +947,16 @@ export function EntityTabsConfig({
                     e.stopPropagation();
                     setExpandedDocTypes((prev) => {
                       const next = new Set(prev);
-                      if (next.has(tab.id)) {
-                        next.delete(tab.id);
+                      if (next.has(tab.tab_key)) {
+                        next.delete(tab.tab_key);
                       } else {
-                        next.add(tab.id);
+                        next.add(tab.tab_key);
                       }
                       return next;
                     });
                   }}
                 >
-                  {expandedDocTypes.has(tab.id) ? (
+                  {expandedDocTypes.has(tab.tab_key) ? (
                     <ChevronDown className="h-3 w-3" />
                   ) : (
                     <ChevronRight className="h-3 w-3" />
