@@ -106,10 +106,13 @@ export const CascadeFilterItem = memo(function CascadeFilterItem({
       }
 
       if (options.length > 0) {
-        const lookupItems: ComboboxItem[] = options.map((opt) => ({
-          id: String(opt.id),
-          label: opt.display,
-        }));
+        // Use display value for filtering since data contains display values, not IDs
+        const lookupItems: ComboboxItem[] = options
+          .filter((opt) => opt.display != null && String(opt.display) !== '')
+          .map((opt) => ({
+            id: String(opt.display),
+            label: opt.display,
+          }));
         const selectedLookup = lookupItems.find((item) => item.id === String(filter.value || ''));
 
         return (

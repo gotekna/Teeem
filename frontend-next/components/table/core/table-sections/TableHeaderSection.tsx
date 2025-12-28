@@ -408,9 +408,9 @@ export function TableHeaderSection({
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px]">
                         <SelectItem value="all">All</SelectItem>
-                        {/* Filter out options with empty/falsy ids - Select.Item cannot have empty string value */}
-                        {options.filter(opt => opt.id != null && String(opt.id) !== '').map((opt) => (
-                          <SelectItem key={opt.id} value={String(opt.id)}>
+                        {/* Filter out options with empty display values - use display for filtering since data contains display values */}
+                        {options.filter(opt => opt.display != null && String(opt.display) !== '').map((opt) => (
+                          <SelectItem key={opt.id} value={String(opt.display)}>
                             {opt.display}
                           </SelectItem>
                         ))}

@@ -474,7 +474,11 @@ module Api
 
       # POST /api/v1/companies/reload
       def reload
-        file_path = ENV["CORPORATE_FILE_PATH"] || "/Users/robertharder/Library/CloudStorage/OneDrive-Tekna/Accounts - Internal/Corporate File/Corporate File.xlsx"
+        file_path = ENV["CORPORATE_FILE_PATH"]
+
+        unless file_path.present?
+          return render json: { success: false, error: "CORPORATE_FILE_PATH environment variable not configured" }, status: :unprocessable_entity
+        end
 
         unless File.exist?(file_path)
           return render json: { success: false, error: "Corporate File not found" }, status: :unprocessable_entity

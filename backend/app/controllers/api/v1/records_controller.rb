@@ -498,43 +498,10 @@ module Api
           return render json: { error: "No valid columns to update" }, status: :unprocessable_entity
         end
 
-        # Special handling for Contact model's roles column
-        # Convert lookup IDs to string values (same as single record update)
-        if @foundation.model_class == "Contact" && filtered_updates.key?("roles")
-          value = filtered_updates["roles"]
-          if value.is_a?(Array) && value.first.is_a?(Integer)
-            roles_col = @foundation.columns.find_by(column_name: "roles")
-            if roles_col&.lookup_foundation_id.present?
-              lookup_foundation = Foundation.find_by(id: roles_col.lookup_foundation_id)
-              if lookup_foundation
-                lookup_model = lookup_foundation.dynamic_model
-                display_col = roles_col.lookup_display_column || "display_name"
-                string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
-                  display.to_s.downcase.gsub(" ", "_")
-                end
-                filtered_updates["roles"] = string_values
-              end
-            end
-          end
-        end
-
-        # Special handling for SmScheduleMaster's assigned_role column
-        # It's a string column but has lookup metadata - convert lookup ID to role name
-        if @foundation.model_class == "SmScheduleMaster" && filtered_updates.key?("assigned_role")
-          value = filtered_updates["assigned_role"]
-          if value.is_a?(Integer)
-            role_col = @foundation.columns.find_by(column_name: "assigned_role")
-            if role_col&.lookup_foundation_id.present?
-              lookup_foundation = Foundation.find_by(id: role_col.lookup_foundation_id)
-              if lookup_foundation
-                lookup_model = lookup_foundation.dynamic_model
-                display_col = role_col.lookup_display_column || "name"
-                role_name = lookup_model.find_by(id: value)&.send(display_col)
-                filtered_updates["assigned_role"] = role_name&.downcase&.gsub(" ", "_")
-              end
-            end
-          end
-        end
+        # Auto-convert lookup IDs to string values for columns where:
+        # - Foundation metadata says "lookup" but database column is string/text/jsonb
+        # - This handles legacy patterns like Contact.roles, SmScheduleMaster.assigned_role
+        filtered_updates = convert_lookup_ids_to_strings(model, filtered_updates)
 
         updated_count = 0
         errors = []
@@ -708,29 +675,64 @@ module Api
           end
         end
 
-        # Special handling for Contact model's roles column
-        # It stores string values like ["customer", "supplier"] but receives lookup IDs
-        if @foundation.model_class == "Contact" && permitted.key?("roles")
-          value = permitted["roles"]
-          if value.is_a?(Array) && value.first.is_a?(Integer)
-            # Map lookup IDs to their string values from the lookup table
-            roles_col = columns.find { |c| c.column_name == "roles" }
-            if roles_col&.lookup_foundation_id.present?
-              lookup_foundation = Foundation.find_by(id: roles_col.lookup_foundation_id)
-              if lookup_foundation
-                lookup_model = lookup_foundation.dynamic_model
-                display_col = roles_col.lookup_display_column || "display_name"
-                # Fetch the display values and convert to lowercase snake_case
-                string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
-                  display.to_s.downcase.gsub(" ", "_")
-                end
-                permitted["roles"] = string_values
+        # Auto-convert lookup IDs to string values for columns where:
+        # - Foundation metadata says "lookup" but database column is string/text/jsonb
+        # - This handles legacy patterns like Contact.roles, SmScheduleMaster.assigned_role
+        model = @foundation.dynamic_model
+        permitted = convert_lookup_ids_to_strings(model, permitted.to_h).with_indifferent_access
+
+        permitted
+      end
+
+      # Convert lookup IDs to string values for columns where the database column
+      # is string/text/jsonb but Foundation metadata says "lookup"
+      # This auto-detects the mismatch and converts IDs to display values
+      def convert_lookup_ids_to_strings(model, updates)
+        return updates unless @foundation && model
+
+        result = updates.dup
+
+        # Get lookup columns for this foundation
+        lookup_columns = @foundation.columns.where(column_type: "lookup")
+
+        lookup_columns.each do |col|
+          col_name = col.column_name
+          next unless result.key?(col_name) || result.key?(col_name.to_sym)
+
+          value = result[col_name] || result[col_name.to_sym]
+          next if value.blank?
+
+          # Check if the database column is a string type (not integer/bigint)
+          db_column = model.columns_hash[col_name]
+          next unless db_column
+          next if [:integer, :bigint].include?(db_column.type)
+
+          # Database column is string/text/jsonb - need to convert ID to string value
+          next unless col.lookup_foundation_id.present?
+
+          lookup_foundation = Foundation.find_by(id: col.lookup_foundation_id)
+          next unless lookup_foundation
+
+          lookup_model = lookup_foundation.dynamic_model
+          display_col = col.lookup_display_column.presence || "name"
+
+          if value.is_a?(Array)
+            # Multiple values (like Contact.roles)
+            ids = value.select { |v| v.is_a?(Integer) || (v.is_a?(String) && v.match?(/^\d+$/)) }
+            if ids.any?
+              string_values = lookup_model.where(id: ids.map(&:to_i)).pluck(display_col).map do |display|
+                display.to_s.downcase.gsub(" ", "_")
               end
+              result[col_name] = string_values
             end
+          elsif value.is_a?(Integer) || (value.is_a?(String) && value.match?(/^\d+$/))
+            # Single value (like SmScheduleMaster.assigned_role)
+            display_value = lookup_model.find_by(id: value.to_i)&.send(display_col)
+            result[col_name] = display_value&.to_s&.downcase&.gsub(" ", "_")
           end
         end
 
-        permitted
+        result
       end
 
       # Apply default values for required fields that are blank

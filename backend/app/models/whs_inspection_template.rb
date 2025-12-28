@@ -1,6 +1,7 @@
 class WHSInspectionTemplate < ApplicationRecord
   # Associations
-  has_many :whs_inspections
+  # Prevent deletion if inspections exist using this template (data integrity)
+  has_many :whs_inspections, dependent: :restrict_with_error
 
   # Constants
   INSPECTION_TYPES = %w[daily weekly monthly ad_hoc].freeze

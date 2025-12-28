@@ -1,5 +1,6 @@
 class JobType < ApplicationRecord
-  has_many :jobs
+  # Prevent deletion if jobs exist of this type (data integrity)
+  has_many :jobs, dependent: :restrict_with_error
   has_many :job_type_statuses, dependent: :destroy
   has_many :statuses, through: :job_type_statuses, source: :job_status
   has_many :job_status_stages, dependent: :destroy

@@ -3,8 +3,9 @@ class BpmnToken < ApplicationRecord
   belongs_to :bpmn_process_instance
   belongs_to :current_node, class_name: "BpmnNode"
   belongs_to :parent_token, class_name: "BpmnToken", optional: true
-  has_many :child_tokens, class_name: "BpmnToken", foreign_key: :parent_token_id
-  has_many :bpmn_task_instances
+  # Cascade delete child tokens and task instances when parent token is deleted
+  has_many :child_tokens, class_name: "BpmnToken", foreign_key: :parent_token_id, dependent: :destroy
+  has_many :bpmn_task_instances, dependent: :destroy
 
   # Constants
   STATUSES = %w[active waiting completed merged].freeze

@@ -1,6 +1,7 @@
 class JobStage < ApplicationRecord
   belongs_to :job_status, optional: true
-  has_many :jobs
+  # Prevent deletion if jobs exist in this stage (data integrity)
+  has_many :jobs, dependent: :restrict_with_error
   has_many :job_status_stages, dependent: :destroy
   has_many :job_statuses, through: :job_status_stages
 

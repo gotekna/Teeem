@@ -12,6 +12,7 @@ class ImapCredential < ApplicationRecord
   validates :username, presence: true
   validates :encrypted_password, presence: true
   validates :email_address, uniqueness: { scope: :user_id, message: "is already connected" }
+  validates :sync_interval_minutes, numericality: { greater_than: 0, less_than_or_equal_to: 1440 }, allow_nil: true
 
   # Provider presets for common email providers
   PROVIDER_PRESETS = {

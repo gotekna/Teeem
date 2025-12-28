@@ -22,19 +22,15 @@ class Rack::Attack
     req.path == "/up" || req.path == "/version"
   end
 
-  # Disable rate limiting entirely for staging environment
-  is_staging = ENV["HEROKU_APP_NAME"]&.include?("rob-dev")
-  if is_staging
-    safelist("allow-all-staging") do |_req|
-      true
-    end
-  end
+  # Staging environment detection
+  # SECURITY NOTE: Staging still has rate limits (higher thresholds) rather than being fully disabled.
+  # This prevents abuse while allowing development/testing flexibility.
+  is_staging = ENV["HEROKU_APP_NAME"]&.include?("rob-dev") || ENV["HEROKU_APP_NAME"]&.include?("sam-dev")
 
   # Determine rate limit based on environment
-  # Staging (teeem-rob-dev) gets higher limits for development/testing
+  # Staging: 3000/5min (higher for development/testing)
   # Production: 1500/5min to handle SPA concurrent requests, retries, and email polling
-  is_staging = ENV["HEROKU_APP_NAME"]&.include?("rob-dev")
-  general_limit = is_staging ? 2000 : 1500
+  general_limit = is_staging ? 3000 : 1500
 
   # Throttle all requests by IP (prevent general abuse)
   throttle("req/ip", limit: general_limit, period: 5.minutes) do |req|

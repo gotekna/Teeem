@@ -1,6 +1,7 @@
 class WHSInductionTemplate < ApplicationRecord
   # Associations
-  has_many :whs_inductions
+  # Prevent deletion if inductions exist using this template (data integrity)
+  has_many :whs_inductions, dependent: :restrict_with_error
 
   # Constants
   INDUCTION_TYPES = %w[company_wide site_specific project_specific visitor].freeze

@@ -3,8 +3,9 @@ class BpmnNode < ApplicationRecord
   belongs_to :bpmn_process
   has_many :outgoing_edges, class_name: "BpmnEdge", foreign_key: :source_node_id, dependent: :destroy
   has_many :incoming_edges, class_name: "BpmnEdge", foreign_key: :target_node_id, dependent: :destroy
-  has_many :bpmn_tokens, foreign_key: :current_node_id
-  has_many :bpmn_task_instances
+  # Cascade delete tokens and task instances when node is deleted (workflow cleanup)
+  has_many :bpmn_tokens, foreign_key: :current_node_id, dependent: :destroy
+  has_many :bpmn_task_instances, dependent: :destroy
 
   # Constants
   NODE_TYPES = %w[
