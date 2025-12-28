@@ -148,7 +148,7 @@ export function isSystemOrHiddenColumn(columnName: string): boolean {
  */
 export function convertColumnsToTEEEMFormat(
   apiColumns: ApiColumn[],
-  foundationId: number,
+  foundationId: number | string | null,
   widthOverrides: WidthOverrides = {}
 ): TableColumn[] {
   // Start with select column for bulk actions
@@ -184,9 +184,12 @@ export function convertColumnsToTEEEMFormat(
     const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(col.column_name) ||
                            SYSTEM_GENERATED_TYPES.includes(col.column_type);
 
+    // Resolve foundation_id: prefer column's value, fall back to passed ID (only if numeric)
+    const resolvedFoundationId = col.foundation_id ?? (typeof foundationId === 'number' ? foundationId : undefined);
+
     columns.push({
       id: col.id,
-      foundation_id: col.foundation_id || foundationId,
+      foundation_id: resolvedFoundationId,
       key: col.column_name,
       label: col.name,
       column_type: col.column_type,

@@ -437,10 +437,10 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // SSoT: Load trades from Foundation SM Trades (ID 542)
+  // SSoT: Load trades from Foundation SM Trades (slug: sm_trades)
   const loadTrades = async () => {
     try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/542/records?per_page=100");
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=100");
       if (data?.records) {
         setAvailableTrades(data.records);
       }
@@ -449,10 +449,10 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // SSoT: Load stages from Foundation SM Stages (ID 543)
+  // SSoT: Load stages from Foundation SM Stages (slug: sm_stages)
   const loadStages = async () => {
     try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/543/records?per_page=100");
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages/records?per_page=100");
       if (data?.records) {
         setAvailableStages(data.records);
       }
@@ -466,10 +466,10 @@ export function ScheduleMasterTab() {
     handleTabChange("tables");
   };
 
-  // SSoT: Load roles from Foundation Role (ID 413) - same as Admin > System > Company > Security > Roles
+  // SSoT: Load roles from Foundation Role (slug: roles) - same as Admin > System > Company > Security > Roles
   const loadRoles = async () => {
     try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/413/records?per_page=100");
+      const data = await api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/roles/records?per_page=100");
       if (data?.records) {
         setAvailableRoles(data.records.map(r => ({ id: r.id, name: r.name, display_name: r.display_name || r.name })));
       }
@@ -478,10 +478,10 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // SSoT: Load cost centres from Foundation Cost Centres (ID 533)
+  // SSoT: Load cost centres from Foundation Cost Centres (slug: cost_centres)
   const loadCostCentres = async () => {
     try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/533/records?per_page=100");
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
       if (data?.records) {
         setAvailableCostCentres(data.records);
       }
@@ -1875,8 +1875,7 @@ export function ScheduleMasterTab() {
               <div className="border rounded-lg overflow-hidden h-[400px]">
                 <TeeemTableView
                   entries={[]}
-                  foundationId="user_sm_trades_70cdd052"
-                  foundationIdNumeric={542}
+                  foundationId="sm_trades"
                   tableName="SM Trades"
                   enableExport={false}
                   disableSavedViews
@@ -1893,8 +1892,7 @@ export function ScheduleMasterTab() {
               <div className="border rounded-lg overflow-hidden h-[400px]">
                 <TeeemTableView
                   entries={[]}
-                  foundationId="user_sm_stages_c4f88aa2"
-                  foundationIdNumeric={543}
+                  foundationId="sm_stages"
                   tableName="SM Stages"
                   enableExport={false}
                   disableSavedViews
@@ -1912,7 +1910,6 @@ export function ScheduleMasterTab() {
                 <TeeemTableView
                   entries={[]}
                   foundationId="cost_centres"
-                  foundationIdNumeric={533}
                   tableName="Cost Centres"
                   enableExport={false}
                   disableSavedViews

@@ -979,21 +979,28 @@ export default function TeeemTableView({
   // - Filters button visible
   const shouldAutoEnable = !!foundationIdNumeric;
 
+  // ============================================================================
+  // FOUNDATION ID RESOLUTION (must be early - used by bulk delete and other features)
+  // Use foundationIdNumeric if provided, otherwise fall back to foundationId (slug)
+  // The backend API accepts both numeric IDs and string slugs in the URL path
+  // ============================================================================
+  const effectiveFoundationId: number | string | null = foundationIdNumeric ?? (foundationId !== "default" ? foundationId : null);
+
   const effectiveEnableImport = enableImport || shouldAutoEnable;
   const effectiveEnableExport = enableExport || shouldAutoEnable;
   const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
 
-  // Auto-enabled bulk delete when foundationIdNumeric is available
+  // Auto-enabled bulk delete when effectiveFoundationId is available
   // Pages don't need to wire this up manually - it just works
   const defaultBulkDelete = useCallback(async (ids: (number | string)[]) => {
-    if (!foundationIdNumeric) return;
+    if (!effectiveFoundationId) return;
 
     // Confirmation dialog
     const confirmed = window.confirm(`Delete ${ids.length} record${ids.length === 1 ? '' : 's'}? This action cannot be undone.`);
     if (!confirmed) return;
 
     try {
-      const response = await api.post<{ success: boolean; deleted_count: number; errors: { id: number; errors: string[] }[] }>(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_delete`, {
+      const response = await api.post<{ success: boolean; deleted_count: number; errors: { id: number; errors: string[] }[] }>(`/api/v1/foundations/${effectiveFoundationId}/records/bulk_delete`, {
         ids: ids.map(id => Number(id))
       });
 
@@ -1014,7 +1021,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [foundationIdNumeric, onRefresh, toast]);
+  }, [effectiveFoundationId, onRefresh, toast]);
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 
@@ -1072,7 +1079,7 @@ export default function TeeemTableView({
 
   // ============================================================================
   // AUTO-FETCH COLUMNS FROM FOUNDATION API (SSoT ENFORCEMENT)
-  // When foundationIdNumeric is set, columns MUST come from Foundation API
+  // When effectiveFoundationId is set, columns MUST come from Foundation API
   // This makes it IMPOSSIBLE to be out of sync with Foundation schema
   // ============================================================================
   const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(null);
@@ -1091,11 +1098,11 @@ export default function TeeemTableView({
   // CRITICAL: Auto-fetch must be EXPLICITLY enabled via prop
   // Previously this used a heuristic based on entries.length which broke when entries was empty during loading
   // Now pages must explicitly set autoFetchRecords={true} if they want TeeemTableView to fetch its own records
-  const useAutoFetch = autoFetchRecords && !!foundationIdNumeric;
+  const useAutoFetch = autoFetchRecords && !!effectiveFoundationId;
 
-  // Auto-fetch columns when foundationIdNumeric is set
+  // Auto-fetch columns when effectiveFoundationId is set
   useEffect(() => {
-    if (!foundationIdNumeric) {
+    if (!effectiveFoundationId) {
       setFoundationColumns(null);
       return;
     }
@@ -1104,10 +1111,10 @@ export default function TeeemTableView({
       setColumnsLoading(true);
       try {
         const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(
-          `/api/v1/foundations/${foundationIdNumeric}`
+          `/api/v1/foundations/${effectiveFoundationId}`
         );
         const dbColumns = response?.foundation?.columns || [];
-        const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, foundationIdNumeric);
+        const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, effectiveFoundationId);
         setFoundationColumns(teeemColumns);
 
         // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
@@ -1123,7 +1130,7 @@ export default function TeeemTableView({
 
             const errorMessage =
               `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
-              `but Foundation #${foundationIdNumeric} has ${foundationKeys.length} columns.\n` +
+              `but Foundation ${effectiveFoundationId} has ${foundationKeys.length} columns.\n` +
               `In PROPS but not Foundation: ${inPropsNotFoundation.join(', ') || 'none'}\n` +
               `In FOUNDATION but not Props: ${inFoundationNotProps.join(', ') || 'none'}\n` +
               `FIX: Remove the columns prop - TeeemTableView auto-fetches from Foundation API (SSoT)`;
@@ -1138,34 +1145,36 @@ export default function TeeemTableView({
           }
         }
       } catch (error) {
-        console.error(`[TeeemTableView] Failed to fetch columns for Foundation #${foundationIdNumeric}:`, error);
+        console.error(`[TeeemTableView] Failed to fetch columns for Foundation ${effectiveFoundationId}:`, error);
 
         // If 404 (foundation deleted), clean up stale cache entries
         const apiError = error as { status?: number };
         if (apiError?.status === 404) {
-          console.warn(`[TeeemTableView] Foundation #${foundationIdNumeric} not found - cleaning up stale cache`);
+          console.warn(`[TeeemTableView] Foundation ${effectiveFoundationId} not found - cleaning up stale cache`);
 
-          // Clean up localStorage views cache
-          try {
-            const viewsCacheKey = 'teeem_views_cache';
-            const viewsCache = localStorage.getItem(viewsCacheKey);
-            if (viewsCache) {
-              const parsed = JSON.parse(viewsCache);
-              if (parsed[foundationIdNumeric]) {
-                delete parsed[foundationIdNumeric];
-                localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
+          // Clean up localStorage views cache (only for numeric IDs)
+          if (foundationIdNumeric !== null) {
+            try {
+              const viewsCacheKey = 'teeem_views_cache';
+              const viewsCache = localStorage.getItem(viewsCacheKey);
+              if (viewsCache) {
+                const parsed = JSON.parse(viewsCache);
+                if (parsed[foundationIdNumeric]) {
+                  delete parsed[foundationIdNumeric];
+                  localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
+                }
               }
+            } catch {
+              // Ignore cache cleanup errors
             }
-          } catch {
-            // Ignore cache cleanup errors
-          }
 
-          // Clean up sessionStorage table state
-          try {
-            const sessionKey = `teeem-table-state-v1-${foundationIdNumeric}`;
-            sessionStorage.removeItem(sessionKey);
-          } catch {
-            // Ignore cache cleanup errors
+            // Clean up sessionStorage table state
+            try {
+              const sessionKey = `teeem-table-state-v1-${foundationIdNumeric}`;
+              sessionStorage.removeItem(sessionKey);
+            } catch {
+              // Ignore cache cleanup errors
+            }
           }
         }
 
@@ -1177,7 +1186,7 @@ export default function TeeemTableView({
     };
 
     fetchColumns();
-  }, [foundationIdNumeric, columns]);
+  }, [effectiveFoundationId, columns]);
 
   // Auto-fetch records when foundationIdNumeric is set AND entries not provided
   useEffect(() => {
@@ -1187,13 +1196,13 @@ export default function TeeemTableView({
       setIsLoadingMore(true);
       try {
         const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
-          `/api/v1/foundations/${foundationIdNumeric}/records`,
+          `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params: { limit: 100 } }
         );
         setAutoFetchedRecords(response.records || []);
         setHasMore(response.has_more ?? true);
       } catch (error) {
-        console.error(`[TeeemTableView] Failed to fetch records for Foundation #${foundationIdNumeric}:`, error);
+        console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
       } finally {
         setIsLoadingMore(false);
       }
@@ -1215,7 +1224,7 @@ export default function TeeemTableView({
       setIsLoadingMore(true);
       try {
         const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
-          `/api/v1/foundations/${foundationIdNumeric}/records`,
+          `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params: { cursor, limit: 100 } }
         );
         setAutoFetchedRecords(prev => [...prev, ...(response.records || [])]);
@@ -1246,7 +1255,7 @@ export default function TeeemTableView({
         params.search_mode = mode;
       }
       const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
-        `/api/v1/foundations/${foundationIdNumeric}/records`,
+        `/api/v1/foundations/${effectiveFoundationId}/records`,
         { params }
       );
       setAutoFetchedRecords(response.records || []);
@@ -1646,7 +1655,7 @@ export default function TeeemTableView({
 
     setIsDeleting(true);
     try {
-      await api.delete(`/api/v1/foundations/${foundationIdNumeric}/records/${recordToDelete.id}`);
+      await api.delete(`/api/v1/foundations/${effectiveFoundationId}/records/${recordToDelete.id}`);
       toast({
         title: "Success",
         description: "Record deleted successfully",
@@ -2248,7 +2257,7 @@ export default function TeeemTableView({
         success: boolean;
         records: TableRowType[];
         total?: number;
-      }>(`/api/v1/foundations/${foundationIdNumeric}/records`, { params });
+      }>(`/api/v1/foundations/${effectiveFoundationId}/records`, { params });
 
       // Safety: verify response.records is an array to prevent .sort() errors
       if (response.success && Array.isArray(response.records)) {
@@ -2533,7 +2542,7 @@ export default function TeeemTableView({
         // For now, update each row with all its changes in one call
         const apiStartTime = performance.now();
         for (const { rowId, changes } of rowsToUpdate) {
-          await api.patch(`/api/v1/foundations/${foundationIdNumeric}/records/${rowId}`, {
+          await api.patch(`/api/v1/foundations/${effectiveFoundationId}/records/${rowId}`, {
             record: changes
           });
         }
@@ -2618,7 +2627,7 @@ export default function TeeemTableView({
           updated_count: number;
           total_requested: number;
           errors?: Array<{ id: number; errors: string[] }>;
-        }>(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, payload);
+        }>(`/api/v1/foundations/${effectiveFoundationId}/records/bulk_update`, payload);
         console.log('[Bulk Update] API response:', response);
 
         // Check if the update was actually successful
