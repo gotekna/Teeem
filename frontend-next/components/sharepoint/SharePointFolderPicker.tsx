@@ -1,8 +1,5 @@
 "use client";
 
-// RENAMED: OneDriveFolderPicker → SharePointFolderPicker
-// Backwards compatibility alias at components/onedrive/OneDriveFolderPicker.tsx
-
 import * as React from "react";
 import {
   Dialog,
@@ -45,8 +42,6 @@ interface SharePointFolderPickerProps {
   title?: string;
 }
 
-// Keep old interface name for backwards compatibility
-export type OneDriveFolderPickerProps = SharePointFolderPickerProps;
 
 export function SharePointFolderPicker({
   open,
@@ -230,6 +225,3 @@ export function SharePointFolderPicker({
     </Dialog>
   );
 }
-
-// Backwards compatibility alias
-export const OneDriveFolderPicker = SharePointFolderPicker;

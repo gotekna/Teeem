@@ -375,7 +375,8 @@ class MicrosoftGraphClient
     root_folder = create_folder(root_folder_name, drive_id: drive_id)
 
     # Update credential with folder information (for per-construction credentials)
-    if @credential.is_a?(OneDriveCredential)
+    # SSoT: SharePointCredential is the renamed OneDriveCredential
+    if @credential.is_a?(SharePointCredential)
       @credential.update!(
         drive_id: drive_id,
         root_folder_id: root_folder["id"],

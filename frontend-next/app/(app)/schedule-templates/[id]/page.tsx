@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
+import TaskDependencyEditor from "@/components/schedule-master/TaskDependencyEditor";
 
 // Types
 interface SmScheduleMasterTemplate {
@@ -264,6 +265,9 @@ export default function ScheduleTemplateDetailPage() {
   const [showAutoPODialog, setShowAutoPODialog] = React.useState(false);
   const [autoPORow, setAutoPORow] = React.useState<SmScheduleMaster | null>(null);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
+
+  // Dependency editor state
+  const [showDependencyEditor, setShowDependencyEditor] = React.useState(false);
 
   // Trade and Stage lookup options
   const [trades, setTrades] = React.useState<{ id: number; name: string }[]>([]);
@@ -533,6 +537,27 @@ export default function ScheduleTemplateDetailPage() {
       });
     } finally {
       setSavingAutoPO(false);
+    }
+  };
+
+  // Save dependencies from the TaskDependencyEditor
+  const handleSaveDependencies = async (taskId: number, predecessors: Array<{ id: number; type: string; lag: number }>) => {
+    try {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${taskId}`, {
+        row: {
+          predecessor_ids: predecessors,
+        },
+      });
+      toast({ title: "Success", description: "Dependencies updated successfully" });
+      setShowDependencyEditor(false);
+      loadData();
+    } catch (error) {
+      console.error("Failed to save dependencies:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save dependencies",
+        variant: "destructive",
+      });
     }
   };
 
@@ -830,6 +855,31 @@ export default function ScheduleTemplateDetailPage() {
                     Filter POs by category - e.g., show all Door-related POs
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Dependencies */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
+                Dependencies
+              </h4>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium">Predecessors</p>
+                  <p className="text-xs text-muted-foreground">
+                    {editingRow?.predecessor_display && editingRow.predecessor_display !== "None"
+                      ? editingRow.predecessor_display
+                      : "No predecessors defined"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDependencyEditor(true)}
+                >
+                  Edit Dependencies
+                </Button>
               </div>
             </div>
 
@@ -1481,6 +1531,16 @@ export default function ScheduleTemplateDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Task Dependency Editor Lightbox */}
+      {showDependencyEditor && editingRow && (
+        <TaskDependencyEditor
+          task={editingRow}
+          tasks={rows}
+          onSave={handleSaveDependencies}
+          onClose={() => setShowDependencyEditor(false)}
+        />
+      )}
     </div>
   );
 }
