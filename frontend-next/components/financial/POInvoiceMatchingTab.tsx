@@ -45,6 +45,7 @@ import {
   Eye,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { safePercent } from "@/lib/utils";
 
 // Types
 interface Bill {
@@ -560,7 +561,7 @@ export default function POInvoiceMatchingTab() {
                                 ? "text-amber-600 dark:text-amber-400"
                                 : "text-red-600 dark:text-red-400"
                             }`}>
-                              {(suggestion.variance?.percent ?? 0).toFixed(1)}% {suggestion.variance?.direction ?? ''}
+                              {safePercent(suggestion.variance?.percent)} {suggestion.variance?.direction ?? ''}
                             </p>
                           </div>
                           {suggestion.purchase_order.job_name && (

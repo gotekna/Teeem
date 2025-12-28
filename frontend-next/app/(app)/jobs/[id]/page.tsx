@@ -54,6 +54,7 @@ import {
 import { SortableList, SortableItem, DragHandle, reorderByPosition } from "@/components/ui/dnd";
 import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
+import { safePercent } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
 import { JobContractTab } from "@/components/jobs/JobContractTab";
@@ -956,7 +957,7 @@ export default function JobDetailPage() {
           <div className="flex items-center gap-1 px-3 py-1.5 bg-muted rounded-md">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             <span className="font-semibold">{formatCurrency(job.live_profit || 0)}</span>
-            <span className="text-muted-foreground text-sm">({Number(job.profit_percentage ?? 0).toFixed(1)}%)</span>
+            <span className="text-muted-foreground text-sm">({safePercent(job.profit_percentage)})</span>
           </div>
           <Button onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
             Open Schedule

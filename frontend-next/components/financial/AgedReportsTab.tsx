@@ -35,6 +35,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { safePercent } from "@/lib/utils";
 
 interface AgingBucket {
   label: string;
@@ -280,7 +281,7 @@ export default function AgedReportsTab() {
                     {formatCurrency(bucket.amount)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {bucket.count} invoices ({(bucket.percentage ?? 0).toFixed(1)}%)
+                    {bucket.count} invoices ({safePercent(bucket.percentage)})
                   </div>
                   {/* Progress bar */}
                   <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
