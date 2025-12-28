@@ -105,7 +105,7 @@ export async function uploadToSharePointDirect(
       job_id: jobId,
     });
 
-    let sessionResponse: UploadSessionResponse;
+    let sessionResponse: UploadSessionResponse | null;
     try {
       sessionResponse = await api.post<UploadSessionResponse>(
         "/api/v1/sharepoint/upload_session",
