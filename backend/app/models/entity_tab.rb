@@ -70,8 +70,9 @@ class EntityTab < ApplicationRecord
   validates :tab_group, inclusion: { in: TAB_GROUPS }, allow_blank: true
   validates :display_mode, inclusion: { in: DISPLAY_MODES }, allow_blank: true
 
-  # Uniqueness within scope + job (allows same tab_key for different scopes or per-job tabs)
-  validates :tab_key, uniqueness: { scope: [:scope, :job_id] }
+  # Uniqueness within scope + job + parent (allows same tab_key under different parents)
+  # SSoT: Child tabs under different parents can have the same display_name (e.g., "Site" under Documents vs "Site" under Photos)
+  validates :tab_key, uniqueness: { scope: [:scope, :job_id, :parent_id] }
 
   # SSoT: Icon uniqueness - root tabs must have unique icons within scope
   validate :icon_uniqueness_for_root_tabs

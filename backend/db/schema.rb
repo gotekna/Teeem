@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_070004) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_070005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2771,7 +2771,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070004) do
     t.index ["parent_id"], name: "index_entity_tabs_on_parent_id"
     t.index ["scope", "enabled"], name: "index_entity_tabs_on_scope_and_enabled"
     t.index ["scope", "tab_group"], name: "index_entity_tabs_on_scope_and_tab_group"
-    t.index ["scope", "tab_key", "job_id"], name: "idx_entity_tabs_unique_key", unique: true
+    t.index ["scope", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
     t.index ["scope"], name: "index_entity_tabs_on_scope"
   end
 
