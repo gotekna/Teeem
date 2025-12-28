@@ -24,13 +24,16 @@ module Api
           quote_requests = quote_requests.where(trade_category: params[:trade_category])
         end
 
+        # Performance: Load data once and compute stats in Ruby
+        loaded_requests = quote_requests.to_a
+
         data = {
-          quote_requests: quote_requests.map { |qr| quote_request_json(qr) },
+          quote_requests: loaded_requests.map { |qr| quote_request_json(qr) },
           summary: {
-            total_count: quote_requests.count,
-            pending_count: quote_requests.where(status: "pending_response").count,
-            closed_count: quote_requests.where(status: "closed").count,
-            total_budget: quote_requests.sum("(budget_min + budget_max) / 2")
+            total_count: loaded_requests.size,
+            pending_count: loaded_requests.count { |qr| qr.status == "pending_response" },
+            closed_count: loaded_requests.count { |qr| qr.status == "closed" },
+            total_budget: loaded_requests.sum { |qr| ((qr.budget_min || 0) + (qr.budget_max || 0)) / 2.0 }
           }
         }
 
@@ -39,19 +42,23 @@ module Api
 
       # GET /api/v1/quote_requests/:id
       # View a specific quote request with all responses
+      # Performance: Load responses once and compute stats in Ruby
       def show
+        # Pre-load responses to avoid N+1 queries
+        responses = @quote_request.quote_responses.includes(:contact).order(submitted_at: :desc).to_a
+        submitted_responses = responses.select { |r| r.status == "submitted" }
+        submitted_prices = submitted_responses.filter_map(&:price)
+
         data = quote_request_json(@quote_request).merge(
-          responses: @quote_request.quote_responses.order(submitted_at: :desc).map do |response|
-            quote_response_detail_json(response)
-          end,
+          responses: responses.map { |response| quote_response_detail_json(response) },
           response_stats: {
-            total_responses: @quote_request.quote_responses.count,
-            submitted_count: @quote_request.quote_responses.where(status: "submitted").count,
-            accepted_count: @quote_request.quote_responses.where(status: "accepted").count,
-            rejected_count: @quote_request.quote_responses.where(status: "rejected").count,
-            average_price: @quote_request.quote_responses.where(status: "submitted").average(:price)&.round(2),
-            lowest_price: @quote_request.quote_responses.where(status: "submitted").minimum(:price),
-            highest_price: @quote_request.quote_responses.where(status: "submitted").maximum(:price)
+            total_responses: responses.size,
+            submitted_count: submitted_responses.size,
+            accepted_count: responses.count { |r| r.status == "accepted" },
+            rejected_count: responses.count { |r| r.status == "rejected" },
+            average_price: submitted_prices.any? ? (submitted_prices.sum / submitted_prices.size).round(2) : nil,
+            lowest_price: submitted_prices.min,
+            highest_price: submitted_prices.max
           }
         )
 

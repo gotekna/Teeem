@@ -344,9 +344,13 @@ module Api
 
       # GET /api/v1/purchase_orders/:id/available_documents
       # Get all documents from the associated job that can be attached to this PO
+      # Performance: Pre-cache attached IDs to avoid N+1
       def available_documents
         documents = DocumentTask.where(construction_id: @purchase_order.job_id)
                                  .order(:category, :name)
+
+        # Performance: Cache attached IDs as a Set for O(1) lookup
+        attached_ids = @purchase_order.document_task_ids.to_set
 
         render json: {
           documents: documents.map do |doc|
@@ -359,7 +363,7 @@ module Api
               is_validated: doc.is_validated,
               document_url: doc.document_url,
               uploaded_at: doc.uploaded_at,
-              is_attached: @purchase_order.document_task_ids.include?(doc.id)
+              is_attached: attached_ids.include?(doc.id)
             }
           end
         }

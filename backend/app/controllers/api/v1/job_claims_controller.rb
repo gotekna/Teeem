@@ -132,12 +132,16 @@ module Api
         # Cap at 1000 items per request
         claims_data = claims_data.first(1000) if claims_data.is_a?(Array)
 
+        # Performance: Pre-cache all jobs to avoid N+1 find_by queries
+        job_ids = claims_data.filter_map { |c| c[:job_id] }.uniq
+        jobs_by_id = Job.where(id: job_ids).index_by(&:id)
+
         created_count = 0
         errors = []
         created_claims = []
 
         claims_data.each_with_index do |claim_data, index|
-          job = Job.find_by(id: claim_data[:job_id])
+          job = jobs_by_id[claim_data[:job_id].to_i]
           unless job
             errors << { index: index, error: "Job not found: #{claim_data[:job_id]}" }
             next
