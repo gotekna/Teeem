@@ -71,7 +71,20 @@ module Api
           }, status: :unauthorized
         end
 
-        @foundation_view = current_user.foundation_views.build(foundation_view_params)
+        # Get params and resolve foundation_id (supports both slug and numeric ID)
+        view_params = foundation_view_params
+        if view_params[:foundation_id].present?
+          resolved_id = resolve_foundation_id(view_params[:foundation_id])
+          unless resolved_id
+            return render json: {
+              success: false,
+              error: "Foundation not found for: #{view_params[:foundation_id]}"
+            }, status: :not_found
+          end
+          view_params = view_params.merge(foundation_id: resolved_id)
+        end
+
+        @foundation_view = current_user.foundation_views.build(view_params)
 
         if @foundation_view.save
           render json: {
@@ -177,14 +190,23 @@ module Api
 
         # Support both nested foundation_view params (from frontend) and direct params (backward compatibility)
         view_data = params[:foundation_view] || params
-        foundation_id = view_data[:foundation_id]
+        raw_foundation_id = view_data[:foundation_id]
         view_name = view_data[:name] || "Default View"
 
-        unless foundation_id
+        unless raw_foundation_id
           return render json: {
             success: false,
             error: "foundation_id is required"
           }, status: :unprocessable_entity
+        end
+
+        # Resolve slug to numeric ID (supports both "sm_trades" slug and numeric 531)
+        foundation_id = resolve_foundation_id(raw_foundation_id)
+        unless foundation_id
+          return render json: {
+            success: false,
+            error: "Foundation not found for: #{raw_foundation_id}"
+          }, status: :not_found
         end
 
         # Always create a NEW global view (allow multiple global views per foundation)
@@ -325,6 +347,21 @@ module Api
     end
 
     private
+
+      # Resolve foundation_id from either numeric ID or string slug
+      # Returns the numeric ID, or nil if not found
+      def resolve_foundation_id(id_or_slug)
+        return nil if id_or_slug.blank?
+
+        # If it's already a valid integer, return it
+        if id_or_slug.to_s == id_or_slug.to_i.to_s && id_or_slug.to_i > 0
+          return id_or_slug.to_i
+        end
+
+        # Otherwise, treat as slug and look up
+        foundation = Foundation.find_by(slug: id_or_slug)
+        foundation&.id
+      end
 
       # Auto-create the "Setup" view for foundations without saved views
       # This view serves as the default template with all columns visible

@@ -1085,6 +1085,8 @@ export default function TeeemTableView({
   // ============================================================================
   const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(null);
   const [columnsLoading, setColumnsLoading] = useState(false);
+  // Store resolved Foundation info (numeric ID and slug) for consistent display
+  const [resolvedFoundation, setResolvedFoundation] = useState<{ id: number; slug: string } | null>(null);
 
   // ============================================================================
   // AUTO-FETCH RECORDS WITH INFINITE SCROLL (GOLD STANDARD)
@@ -1105,15 +1107,20 @@ export default function TeeemTableView({
   useEffect(() => {
     if (!effectiveFoundationId) {
       setFoundationColumns(null);
+      setResolvedFoundation(null);
       return;
     }
 
     const fetchColumns = async () => {
       setColumnsLoading(true);
       try {
-        const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(
+        const response = await api.get<{ foundation: { id: number; slug: string; columns: ApiColumn[] } }>(
           `/api/v1/foundations/${effectiveFoundationId}`
         );
+        // Store resolved Foundation info for consistent Table ID display
+        if (response?.foundation?.id && response?.foundation?.slug) {
+          setResolvedFoundation({ id: response.foundation.id, slug: response.foundation.slug });
+        }
         const dbColumns = response?.foundation?.columns || [];
         const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, effectiveFoundationId);
         setFoundationColumns(teeemColumns);
@@ -5395,7 +5402,9 @@ export default function TeeemTableView({
                 <>
                   <div className="px-2 py-1.5 flex items-center justify-between">
                     <span className="text-[11px]">
-                      Table ID: <span className="font-mono font-medium">{effectiveFoundationId}</span>
+                      Table ID: <span className="font-mono font-medium">
+                        {resolvedFoundation ? `${resolvedFoundation.slug} (${resolvedFoundation.id})` : effectiveFoundationId}
+                      </span>
                     </span>
                     <Button
                       variant="secondary"
