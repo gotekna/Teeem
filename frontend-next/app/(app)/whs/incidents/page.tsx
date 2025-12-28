@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -29,10 +28,10 @@ import {
 import {
   AlertTriangle,
   Plus,
-  ArrowLeft,
   Clock,
   Search,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 
 // Foundation ID for WHS Incidents table
@@ -154,11 +153,7 @@ export default function WHSIncidentsPage() {
   // Add back button to leftActions
   const leftActionsWithBack = (
     <div className="flex items-center gap-2">
-      <Button variant="ghost" size="icon" asChild>
-        <Link href="/whs">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-      </Button>
+      <BackButton fallbackHref="/whs" />
       {leftActions}
     </div>
   );

@@ -21,6 +21,7 @@ import {
   List,
   Loader2,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -219,11 +220,14 @@ export default function ScheduleTemplatesPage() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-4 pb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Schedule Templates</h1>
-          <p className="text-sm text-muted-foreground">
-            {stats.total} templates • {stats.totalTasks} total rows • Default: {stats.defaultTemplate}
-          </p>
+        <div className="flex items-center gap-4">
+          <BackButton fallbackHref="/dashboard" />
+          <div>
+            <h1 className="text-2xl font-bold">Schedule Templates</h1>
+            <p className="text-sm text-muted-foreground">
+              {stats.total} templates • {stats.totalTasks} total rows • Default: {stats.defaultTemplate}
+            </p>
+          </div>
         </div>
         {leftActionsWithToggle}
       </div>

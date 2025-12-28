@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Plus } from "lucide-react";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { BackButton } from "@/components/ui/back-button";
 
 // Metadata types for filter dropdowns
 interface JobStatus {
@@ -166,12 +167,15 @@ export default function JobsPage() {
         enableSchemaEditor={tableConfig.enableSchemaEditor}
         onRefresh={refresh}
         leftActions={
-          <Button variant="default" size="sm" asChild>
-            <Link href="/jobs/new">
-              <Plus className="h-4 w-4 mr-2" />
-              New Job
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <BackButton fallbackHref="/dashboard" />
+            <Button variant="default" size="sm" asChild>
+              <Link href="/jobs/new">
+                <Plus className="h-4 w-4 mr-2" />
+                New Job
+              </Link>
+            </Button>
+          </div>
         }
       />
     </TablePage>

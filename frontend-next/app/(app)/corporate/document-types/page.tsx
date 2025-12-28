@@ -14,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Loader2, X, ArrowLeft } from "lucide-react";
+import { Plus, Loader2, X } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -298,9 +299,7 @@ export default function DocumentTypesPage() {
   // Left actions - Back button + Add button
   const leftActionsWithBack = (
     <div className="flex items-center gap-2">
-      <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-        <ArrowLeft className="h-5 w-5" />
-      </Button>
+      <BackButton fallbackHref="/corporate" />
       <Button onClick={() => setShowAddForm(true)}>
         <Plus className="h-4 w-4 mr-2" />
         Add Document Type

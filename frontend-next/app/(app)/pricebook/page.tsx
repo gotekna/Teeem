@@ -8,6 +8,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { Plus } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
 import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
@@ -64,12 +65,15 @@ export default function PriceBookPage() {
     );
   }
 
-  // Left actions - Add Item button
+  // Left actions - Back button + Add Item button
   const leftActions = (
-    <Button variant="default" size="sm" onClick={() => router.push('/pricebook/new')}>
-      <Plus className="h-4 w-4 mr-2" />
-      Add Item
-    </Button>
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
+      <Button variant="default" size="sm" onClick={() => router.push('/pricebook/new')}>
+        <Plus className="h-4 w-4 mr-2" />
+        Add Item
+      </Button>
+    </div>
   );
 
   return (

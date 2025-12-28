@@ -6,13 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
-import {
-  Plus,
-  Clock,
-  ListTodo,
-  Flag,
-  Layers,
-} from "lucide-react";
+import { Plus } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
 
@@ -53,12 +48,15 @@ export default function TaskTemplatesPage() {
     );
   }
 
-  // Left actions - Create Template button
+  // Left actions - Back button + Create Template button
   const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      Create Template
-    </Button>
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Create Template
+      </Button>
+    </div>
   );
 
   return (

@@ -7,9 +7,11 @@ module Api
       before_action :set_row, only: [ :show, :update, :destroy, :move ]
 
       # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
+      # Performance: includes po_supplier, spawn_scan_task, linked_po_task to avoid N+1
       def index
         # Sort by sequence_order - dependencies drive scheduling, calculated client-side
         @rows = @template.sm_schedule_master_rows.active
+                         .includes(:po_supplier, :spawn_scan_task, :linked_po_task)
                          .order(Arel.sql("COALESCE(sequence_order, 0) ASC"))
 
         render json: {
@@ -144,7 +146,7 @@ module Api
 
         render json: {
           success: true,
-          rows: @template.sm_schedule_master_rows.active.in_sequence.map { |r| row_json(r) }
+          rows: @template.sm_schedule_master_rows.active.includes(:po_supplier, :spawn_scan_task, :linked_po_task).in_sequence.map { |r| row_json(r) }
         }
       end
 

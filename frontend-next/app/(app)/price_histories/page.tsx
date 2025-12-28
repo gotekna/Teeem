@@ -8,6 +8,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { History, Download, Upload } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 
@@ -127,6 +128,7 @@ export default function PriceHistoriesPage() {
             onRefresh={refresh}
             onServerSearch={serverSearch}
             serverSearchLoading={isSearching}
+            leftActions={<BackButton fallbackHref="/dashboard" />}
         hideFooter={true}
       />
     </TablePage>

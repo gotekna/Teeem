@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +25,6 @@ import {
   ClipboardCheck,
   Plus,
   Search,
-  ArrowLeft,
   Loader2,
   Calendar,
   CheckCircle,
@@ -37,6 +35,7 @@ import {
   Eye,
   Edit,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 
 interface SWMS {
@@ -212,11 +211,7 @@ export default function WHSSWMSPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/whs">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+          <BackButton fallbackHref="/whs" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">SWMS Management</h1>
             <p className="text-sm text-muted-foreground mt-1">

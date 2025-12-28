@@ -19,6 +19,7 @@ import {
   Briefcase,
   Users,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 
 // Foundation slugs for the three document types
@@ -97,6 +98,7 @@ export default function DocumentsPage() {
   // Left actions with SharePoint + Upload buttons
   const documentsLeftActions = (
     <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
       {!sharePointConnected && (
         <Button
           variant="outline"

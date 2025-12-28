@@ -7,13 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
-import {
-  Plus,
-  FileQuestion,
-  Clock,
-  CheckCircle,
-  DollarSign,
-} from "lucide-react";
+import { Plus } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 
@@ -61,12 +56,15 @@ export default function QuoteRequestsPage() {
     );
   }
 
-  // Left actions - New Quote Request button
+  // Left actions - Back button + New Quote Request button
   const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      New Quote Request
-    </Button>
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        New Quote Request
+      </Button>
+    </div>
   );
 
   return (

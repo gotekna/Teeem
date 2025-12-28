@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { BackButton } from "@/components/ui/back-button";
 import type { TableRow } from "@/components/table/types";
 
 // Use database table name instead of hardcoded foundation ID
@@ -92,6 +93,7 @@ export default function PurchaseOrdersPage() {
         onRowClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
         hideFooter={true}
+        leftActions={<BackButton fallbackHref="/dashboard" />}
       />
     </TablePage>
   );

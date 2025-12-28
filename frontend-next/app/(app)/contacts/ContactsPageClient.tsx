@@ -12,6 +12,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import ContactsRelationalView from "./ContactsRelationalView";
 import ContactRelationshipsExplorer from "./ContactRelationshipsExplorer";
 import { Plus, AlertTriangle, Table2, Network, Search } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useViewMode } from "@/contexts/ViewModeContext";
@@ -649,9 +650,10 @@ export default function ContactsPageClient({
     );
   }
 
-  // Left actions - Add Contact button
+  // Left actions - Back button + Add Contact button
   const leftActions = (
-    <div className="flex gap-2">
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
       <Button asChild>
         <Link href="/contacts/new">
           <Plus className="h-4 w-4 mr-2" />

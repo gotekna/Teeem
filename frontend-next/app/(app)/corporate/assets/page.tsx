@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/ui/back-button";
 import { Plus, Loader2 } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useCorporateTable } from "@/hooks/use-corporate-table";
@@ -70,10 +71,13 @@ export default function AssetsPage() {
         enableSchemaEditor={true}
         onColumnUpdate={refreshColumns}
         leftActions={
-          <Button onClick={() => router.push("/corporate/assets/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Asset
-          </Button>
+          <div className="flex items-center gap-2">
+            <BackButton fallbackHref="/corporate" />
+            <Button onClick={() => router.push("/corporate/assets/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Asset
+            </Button>
+          </div>
         }
         hideFooter={true}
       />

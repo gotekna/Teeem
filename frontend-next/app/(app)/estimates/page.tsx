@@ -8,13 +8,8 @@ import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { TablePage } from "@/components/ui/page-wrappers";
-import {
-  Plus,
-  FileText,
-  Clock,
-  CheckCircle,
-  DollarSign,
-} from "lucide-react";
+import { Plus } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 
@@ -71,12 +66,15 @@ export default function EstimatesPage() {
     );
   }
 
-  // Left actions - Upload Estimate button
+  // Left actions - Back button + Upload Estimate button
   const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      Upload Estimate
-    </Button>
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Upload Estimate
+      </Button>
+    </div>
   );
 
   return (

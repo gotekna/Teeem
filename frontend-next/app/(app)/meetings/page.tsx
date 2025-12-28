@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { format, isToday, isTomorrow } from "date-fns";
 
@@ -101,11 +102,14 @@ export default function MeetingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Meetings</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Schedule and manage site meetings
-          </p>
+        <div className="flex items-center gap-4">
+          <BackButton fallbackHref="/dashboard" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight font-serif">Meetings</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Schedule and manage site meetings
+            </p>
+          </div>
         </div>
         <Button asChild>
           <Link href="/meetings/new">
