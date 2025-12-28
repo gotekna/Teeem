@@ -897,7 +897,7 @@ export function PerformanceTab() {
                       </Badge>
                     </div>
 
-                    {slo.observed_value !== undefined && (
+                    {slo.observed_value != null && (
                       <p className="text-lg font-bold mb-2">
                         {slo.sli_type === "error_rate" || slo.sli_type === "availability"
                           ? `${slo.observed_value.toFixed(2)}%`
@@ -927,7 +927,7 @@ export function PerformanceTab() {
                       </div>
                     </div>
 
-                    {slo.compliance_percent !== undefined && (
+                    {slo.compliance_percent != null && (
                       <p className="text-xs text-muted-foreground mt-2">
                         {slo.compliance_percent.toFixed(1)}% compliance
                       </p>

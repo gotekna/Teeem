@@ -3872,7 +3872,7 @@ export default function TeeemTableView({
   // Format total value based on column type
   const formatTotal = (key: string): string | null => {
     const total = columnTotals[key];
-    if (!total) return null;
+    if (!total || total.value == null) return null;
 
     switch (total.type) {
       case 'currency':
