@@ -371,15 +371,15 @@ export default function ProgressClaimsTab() {
                     <TableCell>
                       <div className="w-24">
                         <div className="flex items-center justify-between text-xs mb-1">
-                          <span>{claim.total_claimed_pct.toFixed(0)}%</span>
+                          <span>{(claim.total_claimed_pct ?? 0).toFixed(0)}%</span>
                         </div>
-                        <Progress value={claim.total_claimed_pct} className="h-2" />
+                        <Progress value={claim.total_claimed_pct ?? 0} className="h-2" />
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(claim.this_claim_amount)}
                       <div className="text-xs text-muted-foreground">
-                        +{claim.this_claim_pct.toFixed(1)}%
+                        +{(claim.this_claim_pct ?? 0).toFixed(1)}%
                       </div>
                     </TableCell>
                     <TableCell className="text-right">

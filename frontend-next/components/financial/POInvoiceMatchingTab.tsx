@@ -554,13 +554,13 @@ export default function POInvoiceMatchingTab() {
                           <div>
                             <p className="text-xs text-muted-foreground">Variance</p>
                             <p className={`font-medium ${
-                              suggestion.variance.percent < 5
+                              (suggestion.variance?.percent ?? 0) < 5
                                 ? "text-green-600 dark:text-green-400"
-                                : suggestion.variance.percent < 15
+                                : (suggestion.variance?.percent ?? 0) < 15
                                 ? "text-amber-600 dark:text-amber-400"
                                 : "text-red-600 dark:text-red-400"
                             }`}>
-                              {suggestion.variance.percent.toFixed(1)}% {suggestion.variance.direction}
+                              {(suggestion.variance?.percent ?? 0).toFixed(1)}% {suggestion.variance?.direction ?? ''}
                             </p>
                           </div>
                           {suggestion.purchase_order.job_name && (
