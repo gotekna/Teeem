@@ -35,7 +35,8 @@ class BulkEmailSyncJob < ApplicationJob
   CHECKPOINT_INTERVAL = 50  # Save progress every N emails
 
   def perform(credential_id, sync_years: 10, resume: false)
-    @credential = OrganizationMicrosoftAppCredential.find_by(id: credential_id)
+    # SSoT: Use MicrosoftCredential
+    @credential = MicrosoftCredential.find_by(id: credential_id)
 
     unless @credential&.status == "connected"
       Rails.logger.info "[BulkSync] Skipping - org #{credential_id} not connected"
@@ -158,7 +159,8 @@ class BulkEmailSyncJob < ApplicationJob
   def sync_attachments_to_sharepoint
     Rails.logger.info "[BulkSync] Phase 2: Uploading attachments to SharePoint..."
 
-    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    # SSoT: Use MicrosoftCredential for SharePoint config
+    sp_config = MicrosoftCredential.teeem_sharepoint_config
     unless sp_config
       raise "SharePoint not configured"
     end
@@ -303,7 +305,8 @@ class BulkEmailSyncJob < ApplicationJob
   def sync_emails_to_sharepoint
     Rails.logger.info "[BulkSync] Phase 3: Uploading emails to SharePoint..."
 
-    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    # SSoT: Use MicrosoftCredential for SharePoint config
+    sp_config = MicrosoftCredential.teeem_sharepoint_config
     unless sp_config
       Rails.logger.info "[BulkSync] SharePoint not configured, skipping email upload"
       return

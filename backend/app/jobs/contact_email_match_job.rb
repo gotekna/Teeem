@@ -23,7 +23,8 @@ class ContactEmailMatchJob < ApplicationJob
   queue_as :low
 
   def perform(credential_id, rematch: false)
-    @credential = OrganizationMicrosoftAppCredential.find_by(id: credential_id)
+    # SSoT: Use MicrosoftCredential
+    @credential = MicrosoftCredential.find_by(id: credential_id)
 
     unless @credential
       Rails.logger.info "[ContactMatch] Credential #{credential_id} not found"

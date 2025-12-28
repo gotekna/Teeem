@@ -40,9 +40,8 @@ class MicrosoftAppGraphClient
 
     raise NotConnectedError, "Organization not found: #{organization}" unless org
 
-    # Try new MicrosoftCredential first (SSoT)
+    # SSoT: Use MicrosoftCredential only
     credential = MicrosoftCredential.active_for_org(org)
-    credential ||= OrganizationMicrosoftAppCredential.active_for_org(org)
 
     raise NotConnectedError, "No SharePoint credential configured for #{org.name}. Configure in Admin > System > Connections." unless credential
 
@@ -63,7 +62,7 @@ class MicrosoftAppGraphClient
 
   private
 
-  # Find active credential - supports both old and new model (SSoT migration)
+  # Find active credential - SSoT: MicrosoftCredential only
   # DEPRECATED: Use MicrosoftAppGraphClient.for_org(organization) instead
   def find_active_credential
     # Log deprecation warning - this should not be called in new code
@@ -71,14 +70,8 @@ class MicrosoftAppGraphClient
                       "Use MicrosoftAppGraphClient.for_org(organization) instead. " \
                       "Caller: #{caller(1, 3).join(' <- ')}"
 
-    # Try new unified MicrosoftCredential first
-    if defined?(MicrosoftCredential) && ActiveRecord::Base.connection.table_exists?(:microsoft_credentials)
-      new_cred = MicrosoftCredential.active.app_credentials.connected.first
-      return new_cred if new_cred
-    end
-
-    # Fall back to legacy model
-    OrganizationMicrosoftAppCredential.active_credential
+    # SSoT: Use MicrosoftCredential only
+    MicrosoftCredential.active_credential
   end
 
   public

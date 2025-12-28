@@ -347,17 +347,15 @@ class OrgEmailSyncJob < ApplicationJob
     if organization_id.present?
       org = Organization.find_by(id: organization_id)
       if org
-        return MicrosoftCredential.active_for_org(org) ||
-               OrganizationMicrosoftAppCredential.active_for_org(org)
+        return MicrosoftCredential.active_for_org(org)
       else
         Rails.logger.warn "[OrgEmailSync] Organization not found: #{organization_id}"
       end
     end
 
-    # 2. Credential ID (direct lookup)
+    # 2. Credential ID (direct lookup - SSoT: MicrosoftCredential only)
     if credential_id.present?
-      cred = OrganizationMicrosoftAppCredential.find_by(id: credential_id) ||
-             MicrosoftCredential.find_by(id: credential_id)
+      cred = MicrosoftCredential.find_by(id: credential_id)
       return cred if cred
     end
 
@@ -365,19 +363,18 @@ class OrgEmailSyncJob < ApplicationJob
     if org_name.present?
       org = Organization.find_by_name_or_slug(org_name)
       if org
-        return MicrosoftCredential.active_for_org(org) ||
-               OrganizationMicrosoftAppCredential.active_for_org(org)
+        return MicrosoftCredential.active_for_org(org)
       else
-        # Legacy fallback: lookup by name field on credential
-        return OrganizationMicrosoftAppCredential.find_by_name(org_name)
+        # Lookup by name field on credential
+        return MicrosoftCredential.find_by_name(org_name)
       end
     end
 
-    # 4. Legacy fallback (deprecated - logs warning)
+    # 4. Fallback (deprecated - logs warning)
     Rails.logger.warn "[OrgEmailSync] DEPRECATED: No organization context provided. " \
                       "Use organization_id parameter for proper org isolation. " \
                       "Falling back to first active credential."
-    OrganizationMicrosoftAppCredential.active_credential
+    MicrosoftCredential.active_credential
   end
 
   def extract_text_from_html(html_content)

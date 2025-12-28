@@ -108,16 +108,13 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     user_info = get_microsoft_user_info(tokens[:access_token])
     microsoft_email = user_info&.dig("mail") || user_info&.dig("userPrincipalName")
 
-    # Create or update the user's Microsoft token
-    microsoft_token = user.microsoft_token || user.build_microsoft_token
-    microsoft_token.mark_connected!(tokens.merge(email: microsoft_email))
+    # SSoT: Create/update unified MicrosoftCredential for the user
+    update_unified_microsoft_credential(user, tokens, microsoft_email)
 
     # Also create/update organization-level OneDrive credential for SharePoint access
     # This allows the org to have shared OneDrive/SharePoint access via any user's connection
+    # TODO: Remove in Phase 2.3 - migrate to MicrosoftCredential.delegated_credentials.org_level
     update_organization_onedrive_credential(user, tokens)
-
-    # DUAL-WRITE: Also create/update unified MicrosoftCredential (SSoT migration)
-    update_unified_microsoft_credential(user, tokens, microsoft_email)
 
     Rails.logger.info "Microsoft connected successfully for user #{user.id} (#{microsoft_email})"
     render_popup_close_page(success: true, email: microsoft_email, frontend_url: frontend_url)
@@ -133,7 +130,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     microsoft_token = current_user.microsoft_token
 
     # SSoT: Using org-wide credentials for email sync (OrgEmailSyncJob)
-    # Per-user OAuth removed - only UserMicrosoftToken needed for personal OneDrive/SharePoint
+    # Per-user OAuth via MicrosoftCredential for personal OneDrive/SharePoint
 
     if microsoft_token.present?
       # Auto-refresh if token is expired or about to expire
@@ -390,10 +387,14 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     response.status.success? ? response.parse : nil
   end
 
-  # DUAL-WRITE: Create/update unified MicrosoftCredential for the user
-  # This is part of SSoT migration - eventually replaces UserMicrosoftToken
+  # SSoT: Create/update unified MicrosoftCredential for the user
+  # This is THE source of truth for user Microsoft credentials
   def update_unified_microsoft_credential(user, tokens, email)
-    Rails.logger.info "[Microsoft Auth] DUAL-WRITE: Updating unified MicrosoftCredential for user #{user.id}..."
+    Rails.logger.info "[Microsoft Auth] SSoT: Updating MicrosoftCredential for user #{user.id}..."
+
+    # Get default organization for user-level credentials
+    # TODO: Use user.organization when User model has organization association
+    default_org = Organization.first
 
     # Find or create user's MicrosoftCredential
     credential = MicrosoftCredential.find_or_initialize_by(
@@ -401,6 +402,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       owner_id: user.id,
       credential_type: "delegated"
     )
+
+    # Set organization if new record (required FK)
+    credential.organization ||= default_org
 
     credential.mark_connected!(
       access_token: tokens[:access_token],
@@ -411,12 +415,11 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       connected_by_id: user.id
     )
 
-    Rails.logger.info "[Microsoft Auth] DUAL-WRITE: MicrosoftCredential updated for user #{user.id}"
+    Rails.logger.info "[Microsoft Auth] SSoT: MicrosoftCredential #{credential.id} updated for user #{user.id}"
     credential
   rescue StandardError => e
-    # Don't fail the whole OAuth flow if dual-write fails
-    Rails.logger.error "[Microsoft Auth] DUAL-WRITE failed (non-fatal): #{e.message}"
-    nil
+    Rails.logger.error "[Microsoft Auth] SSoT MicrosoftCredential update failed: #{e.message}"
+    raise # Re-raise - this is now critical, not optional
   end
 
   def update_organization_onedrive_credential(user, tokens)

@@ -168,58 +168,33 @@ class RefreshIntegrationTokensJob < ApplicationJob
     healed_count = 0
     failed_count = 0
 
-    # Heal legacy OrganizationMicrosoftAppCredential records
-    OrganizationMicrosoftAppCredential.where(is_active: true)
+    # SSoT: Heal MicrosoftCredential (app type) records via MicrosoftTokenManager
+    MicrosoftCredential.app_credentials.active
       .where.not(status: "connected")
+      .where.not(refresh_token_dead: true) # Don't try to heal dead tokens
       .where.not(client_id: nil)
       .where.not(client_secret: nil)
       .where.not(tenant_id: nil)
       .find_each do |credential|
-        Rails.logger.info "[TokenRefresh] HEALING OrganizationMicrosoftAppCredential #{credential.name} (status: #{credential.status})"
+        Rails.logger.info "[TokenRefresh] HEALING MicrosoftCredential (app) #{credential.name || credential.id} (status: #{credential.status})"
 
         begin
-          if credential.test_connection!
-            Rails.logger.info "[TokenRefresh] HEALED OrganizationMicrosoftAppCredential #{credential.name} - now connected"
+          # Use MicrosoftTokenManager for consistent locking and error handling
+          result = MicrosoftTokenManager.refresh_credential(credential)
+
+          if result[:success]
+            Rails.logger.info "[TokenRefresh] HEALED MicrosoftCredential (app) #{credential.name || credential.id} - now connected"
             healed_count += 1
           else
-            Rails.logger.warn "[TokenRefresh] HEAL FAILED for #{credential.name}: #{credential.last_error}"
+            Rails.logger.warn "[TokenRefresh] HEAL FAILED for MicrosoftCredential #{credential.id}: #{result[:error]}"
             failed_count += 1
           end
         rescue StandardError => e
-          Rails.logger.error "[TokenRefresh] HEAL ERROR for #{credential.name}: #{e.message}"
+          MicrosoftTokenManager.record_api_failure(credential, e.message)
+          Rails.logger.error "[TokenRefresh] HEAL ERROR for MicrosoftCredential #{credential.id}: #{e.message}"
           failed_count += 1
         end
       end
-
-    # Heal unified MicrosoftCredential (app type) records via MicrosoftTokenManager
-    if ActiveRecord::Base.connection.table_exists?(:microsoft_credentials)
-      MicrosoftCredential.app_credentials.active
-        .where.not(status: "connected")
-        .where.not(refresh_token_dead: true) # Don't try to heal dead tokens
-        .where.not(client_id: nil)
-        .where.not(client_secret: nil)
-        .where.not(tenant_id: nil)
-        .find_each do |credential|
-          Rails.logger.info "[TokenRefresh] HEALING MicrosoftCredential (app) #{credential.name || credential.id} (status: #{credential.status})"
-
-          begin
-            # Use MicrosoftTokenManager for consistent locking and error handling
-            result = MicrosoftTokenManager.refresh_credential(credential)
-
-            if result[:success]
-              Rails.logger.info "[TokenRefresh] HEALED MicrosoftCredential (app) #{credential.name || credential.id} - now connected"
-              healed_count += 1
-            else
-              Rails.logger.warn "[TokenRefresh] HEAL FAILED for MicrosoftCredential #{credential.id}: #{result[:error]}"
-              failed_count += 1
-            end
-          rescue StandardError => e
-            MicrosoftTokenManager.record_api_failure(credential, e.message)
-            Rails.logger.error "[TokenRefresh] HEAL ERROR for MicrosoftCredential #{credential.id}: #{e.message}"
-            failed_count += 1
-          end
-        end
-    end
 
     if healed_count > 0 || failed_count > 0
       Rails.logger.info "[TokenRefresh] SELF-HEALING complete: #{healed_count} healed, #{failed_count} failed"

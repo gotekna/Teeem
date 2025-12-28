@@ -126,7 +126,8 @@ module Api
         end
 
         # MS365 org accounts (with user mailbox access)
-        OrganizationMicrosoftAppCredential.connected.each do |org_cred|
+        # SSoT: Use MicrosoftCredential for app credentials
+        MicrosoftCredential.app_credentials.connected.each do |org_cred|
           user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
           user_emails = user_mailbox_access[current_user.id.to_s] || []
 

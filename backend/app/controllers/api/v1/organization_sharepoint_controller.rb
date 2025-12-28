@@ -41,26 +41,25 @@ module Api
           nil
         end
 
-        # If no org credential, check if user has Microsoft token with OneDrive access
+        # If no org credential, check if user has Microsoft credential with OneDrive access
         unless credential
-          # Try to use user's Microsoft token as fallback
-          # UserMicrosoftToken doesn't have encryption, so this should be safe
+          # Try to use user's MicrosoftCredential as fallback (SSoT)
           begin
-            microsoft_token = current_user&.microsoft_token
-            if microsoft_token&.status == "connected" && microsoft_token&.access_token.present?
+            microsoft_credential = current_user&.microsoft_token
+            if microsoft_credential&.status == "connected" && microsoft_credential&.access_token.present?
               # User has a connected Microsoft account - use it as the OneDrive connection
               return render json: {
                 connected: true,
-                source: "user_microsoft_token",
+                source: "microsoft_credential",
                 drive_name: "Personal OneDrive",
-                connected_at: microsoft_token.created_at,
+                connected_at: microsoft_credential.created_at,
                 connected_by: current_user&.as_json(),
-                token_expires_at: microsoft_token.token_expires_at,
+                token_expires_at: microsoft_credential.token_expires_at,
                 message: "Using your Microsoft 365 connection for OneDrive access"
               }
             end
           rescue StandardError => e
-            Rails.logger.warn "[OneDrive Status] Error accessing Microsoft token: #{e.message}"
+            Rails.logger.warn "[OneDrive Status] Error accessing MicrosoftCredential: #{e.message}"
           end
 
           return render json: {

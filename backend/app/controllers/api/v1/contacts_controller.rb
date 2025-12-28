@@ -2639,7 +2639,8 @@ module Api
         # Get org credentials and their configured mailboxes
         org_mailboxes = []
 
-        OrganizationMicrosoftAppCredential.connected.each do |org_cred|
+        # SSoT: Use MicrosoftCredential for app credentials
+        MicrosoftCredential.app_credentials.connected.each do |org_cred|
           sync_config = org_cred.sync_config || {}
           mailbox_emails = sync_config["mailbox_emails"] || []
 

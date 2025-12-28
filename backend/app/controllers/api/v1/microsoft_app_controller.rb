@@ -27,7 +27,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
                      ENV["OUTLOOK_CLIENT_SECRET"].present? &&
                      ENV["OUTLOOK_TENANT_ID"].present?
 
-    credentials = OrganizationMicrosoftAppCredential.active_credentials
+    # SSoT: Use MicrosoftCredential only
+    credentials = MicrosoftCredential.active_credentials
 
     if credentials.empty?
       render json: {
@@ -40,7 +41,6 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }
     else
       # Return all configured organizations
-      # SSoT: Handle both legacy OrganizationMicrosoftAppCredential and new MicrosoftCredential
       organizations = credentials.map do |credential|
         {
           id: credential.id,
@@ -73,22 +73,16 @@ class Api::V1::MicrosoftAppController < ApplicationController
     available_org_names = %w[Tekna 100xBestLife Homes\ of\ Hope Love\ Your\ World]
     total_count = available_org_names.length
 
-    # Get all active credentials (both legacy and new SSoT)
-    legacy_creds = OrganizationMicrosoftAppCredential.active
-    new_creds = MicrosoftCredential.app_credentials.active
-
-    # Combine and dedupe by name (prefer new SSoT credentials)
-    all_creds = (new_creds.to_a + legacy_creds.to_a).uniq { |c| c.name }
+    # SSoT: Get all active MicrosoftCredential (app type)
+    all_creds = MicrosoftCredential.app_credentials.active.to_a
 
     connected_count = all_creds.count { |c| c.status == "connected" }
     error_count = all_creds.count { |c| c.status.in?(%w[error dead]) }
     warning_count = all_creds.count { |c| c.token_expired? && c.status == "connected" }
 
     # Check self-healing status (last token refresh from RefreshIntegrationTokensJob)
-    last_refresh = [
-      MicrosoftCredential.maximum(:last_refresh_attempt_at),
-      OrganizationMicrosoftAppCredential.maximum(:updated_at)
-    ].compact.max
+    # SSoT: Only check MicrosoftCredential
+    last_refresh = MicrosoftCredential.maximum(:last_refresh_attempt_at)
 
     self_healing_active = last_refresh.present? && last_refresh > 20.minutes.ago
 
@@ -154,9 +148,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }, status: :unprocessable_entity
     end
 
+    # SSoT: Use MicrosoftCredential only
     # Check if org with this name already exists (active OR inactive)
-    # Reuse existing record to prevent duplicates when reconnecting
-    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name)
+    existing = MicrosoftCredential.app_credentials.find_by(name: org_name)
     if existing
       # Reactivate and update existing credential
       existing.update!(
@@ -169,8 +163,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
       )
       credential = existing
     else
-      credential = OrganizationMicrosoftAppCredential.create!(
+      # Get default organization for new credentials
+      default_org = Organization.first
+      credential = MicrosoftCredential.create!(
         name: org_name,
+        credential_type: "app",
+        organization: default_org,
         client_id: client_id,
         client_secret: client_secret,
         tenant_id: tenant_id,
@@ -179,9 +177,6 @@ class Api::V1::MicrosoftAppController < ApplicationController
         is_active: true
       )
     end
-
-    # DUAL-WRITE: Also create/update unified MicrosoftCredential
-    dual_write_app_credential(credential)
 
     render json: {
       success: true,
@@ -218,9 +213,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }
     end
 
+    # SSoT: Use MicrosoftCredential only
     # Check if org with this name already exists (active OR inactive)
-    # Reuse existing record to prevent duplicates when reconnecting
-    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name)
+    existing = MicrosoftCredential.app_credentials.find_by(name: org_name)
     if existing
       # Reactivate and update existing credential
       existing.update!(
@@ -233,8 +228,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
       )
       credential = existing
     else
-      credential = OrganizationMicrosoftAppCredential.create!(
+      # Get default organization for new credentials
+      default_org = Organization.first
+      credential = MicrosoftCredential.create!(
         name: org_name,
+        credential_type: "app",
+        organization: default_org,
         client_id: client_id,
         client_secret: client_secret,
         tenant_id: tenant_id,
@@ -243,9 +242,6 @@ class Api::V1::MicrosoftAppController < ApplicationController
         is_active: true
       )
     end
-
-    # DUAL-WRITE: Also create/update unified MicrosoftCredential
-    dual_write_app_credential(credential)
 
     render json: {
       success: true,
@@ -300,9 +296,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
       if state.present?
         begin
           state_data = JSON.parse(Base64.urlsafe_decode64(state))
-          # Multi-org: find by credential_id from state
+          # Multi-org: find by credential_id from state (SSoT: MicrosoftCredential)
           if state_data["credential_id"]
-            credential = OrganizationMicrosoftAppCredential.find_by(id: state_data["credential_id"])
+            credential = MicrosoftCredential.find_by(id: state_data["credential_id"])
           end
           admin_user = User.find_by(id: state_data["admin_id"])
           admin_email = admin_user&.email
@@ -313,10 +309,10 @@ class Api::V1::MicrosoftAppController < ApplicationController
       end
 
       # Fallback to credential lookup with org context if state didn't work
-      # Note: In callback, we may not have org context in params, so use legacy fallback with warning
+      # Note: In callback, we may not have org context in params, so use fallback with warning
       if credential.nil?
         Rails.logger.warn "[MicrosoftAppController] Admin consent callback fallback - no credential_id in state"
-        credential = OrganizationMicrosoftAppCredential.active_credential
+        credential = MicrosoftCredential.active_credential
       end
 
       if credential
@@ -331,9 +327,6 @@ class Api::V1::MicrosoftAppController < ApplicationController
         if credential.test_connection!
           credential.mark_admin_consent!(admin_email || "unknown")
           Rails.logger.info "[MicrosoftApp] Admin consent granted for #{credential.name} (tenant: #{tenant})"
-
-          # DUAL-WRITE: Update unified MicrosoftCredential with admin consent
-          dual_write_app_credential_consent(credential, admin_email)
 
           redirect_to "#{frontend_url}/settings/integrations/microsoft?app_consent_success=true&org=#{CGI.escape(credential.name || '')}", allow_other_host: true
         else
@@ -446,7 +439,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       { id: u.id, name: u.name, email: u.email }
     end
 
-    organizations = OrganizationMicrosoftAppCredential.active.order(:name).map do |org|
+    # SSoT: Use MicrosoftCredential
+    organizations = MicrosoftCredential.app_credentials.active.order(:name).map do |org|
       # Get mailboxes from tenant
       all_mailboxes = if org.status == "connected"
         begin
@@ -490,7 +484,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can configure mailbox access" }, status: :forbidden
     end
 
-    credential = OrganizationMicrosoftAppCredential.find_by(id: params[:id])
+    # SSoT: Use MicrosoftCredential
+    credential = MicrosoftCredential.find_by(id: params[:id])
     unless credential
       return render json: { error: "Organization not found" }, status: :not_found
     end
@@ -760,7 +755,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "organization_id is required" }, status: :bad_request
     end
 
-    credential = OrganizationMicrosoftAppCredential.find_by(id: organization_id)
+    # SSoT: Use MicrosoftCredential
+    credential = MicrosoftCredential.find_by(id: organization_id)
     unless credential&.status == "connected"
       return render json: { error: "Organization not connected" }, status: :not_found
     end
@@ -791,7 +787,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can view SharePoint configuration" }, status: :forbidden
     end
 
-    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    # SSoT: Use MicrosoftCredential
+    sp_config = MicrosoftCredential.teeem_sharepoint_config
 
     if sp_config
       render json: {
@@ -845,8 +842,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
         end
       end.compact
 
-      # Get current config
-      current_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+      # Get current config (SSoT: MicrosoftCredential)
+      current_config = MicrosoftCredential.teeem_sharepoint_config
 
       render json: {
         success: true,
@@ -926,12 +923,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "organization_id is required" }, status: :bad_request
     end
 
-    credential = OrganizationMicrosoftAppCredential.find_by(id: organization_id)
+    # SSoT: Use MicrosoftCredential
+    credential = MicrosoftCredential.find_by(id: organization_id)
     unless credential&.status == "connected"
       return render json: { error: "Organization not connected" }, status: :not_found
     end
 
-    unless OrganizationMicrosoftAppCredential.sharepoint_configured?
+    unless MicrosoftCredential.sharepoint_configured?
       return render json: { error: "SharePoint not configured. Please configure TEEEM's SharePoint first." }, status: :unprocessable_entity
     end
 
@@ -976,20 +974,18 @@ class Api::V1::MicrosoftAppController < ApplicationController
     org = find_organization
 
     if org.present?
-      # SSoT: Org-scoped lookup
-      OrganizationMicrosoftAppCredential.active_for_org(org) ||
-        MicrosoftCredential.active_for_org(org)
+      # SSoT: Org-scoped lookup (MicrosoftCredential only)
+      MicrosoftCredential.active_for_org(org)
     elsif params[:id].present? || params[:credential_id].present?
       # Lookup by credential ID
       cred_id = params[:id].presence || params[:credential_id].presence
-      OrganizationMicrosoftAppCredential.find_by(id: cred_id) ||
-        MicrosoftCredential.find_by(id: cred_id)
+      MicrosoftCredential.find_by(id: cred_id)
     else
-      # Legacy fallback - logs deprecation warning
-      Rails.logger.warn "[MicrosoftAppController] DEPRECATED: Credential lookup without org context. " \
+      # Fallback - logs warning
+      Rails.logger.warn "[MicrosoftAppController] Credential lookup without org context. " \
                         "Pass organization_id parameter for proper isolation. " \
                         "Action: #{action_name}, Params: #{params.keys.join(', ')}"
-      OrganizationMicrosoftAppCredential.active_credential
+      MicrosoftCredential.active_credential
     end
   end
 

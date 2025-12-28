@@ -149,7 +149,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       parts = account_id.split("_")
       org_cred_id = parts[1].to_i
 
-      org_cred = OrganizationMicrosoftAppCredential.connected.find_by(id: org_cred_id)
+      # SSoT: Use MicrosoftCredential
+      org_cred = MicrosoftCredential.app_credentials.connected.find_by(id: org_cred_id)
       unless org_cred
         return render json: {
           success: false,
@@ -227,7 +228,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
     # Add connected Microsoft 365 organization accounts
     # These use Application permissions to access mailboxes
-    OrganizationMicrosoftAppCredential.connected.order(:name).each do |org_cred|
+    # SSoT: Use MicrosoftCredential for app credentials
+    MicrosoftCredential.app_credentials.connected.order(:name).each do |org_cred|
       # SSoT: Check sync_config.user_mailbox_access for configured access
       # Format: { "user_id" => ["email1@org.com", "email2@org.com"] }
       user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}

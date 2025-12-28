@@ -12,7 +12,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
   queue_as :low
 
   def perform(credential_id)
-    @credential = OrganizationMicrosoftAppCredential.find_by(id: credential_id)
+    @credential = MicrosoftCredential.find_by(id: credential_id)
 
     unless @credential&.status == "connected"
       Rails.logger.info "[SyncToSharePoint] Skipping - org #{credential_id} not connected"
@@ -201,7 +201,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
   def upload_attachment_to_sharepoint(client, filename, content, content_type, file_size, email_date)
     # Check SharePoint configuration (TEEEM's single SharePoint)
-    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    sp_config = MicrosoftCredential.teeem_sharepoint_config
     unless sp_config
       raise "SharePoint not configured. Please configure TEEEM's SharePoint site and drive."
     end
@@ -258,7 +258,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
     skipped = 0
 
     # Check SharePoint configuration
-    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    sp_config = MicrosoftCredential.teeem_sharepoint_config
     unless sp_config
       Rails.logger.info "[SyncEmailsToSharePoint] SharePoint not configured, skipping email upload"
       return { uploaded: 0, skipped: 0 }
@@ -319,7 +319,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
   end
 
   def upload_email_to_sharepoint(teeem_client, email, mime_content)
-    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    sp_config = MicrosoftCredential.teeem_sharepoint_config
 
     # Build folder path: Emails/eml/{org_name}/{year}/{month}
     year = email.received_at.year

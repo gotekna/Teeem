@@ -43,10 +43,11 @@ class CleanupEphemeralEmailsJob < ApplicationJob
           # Optionally delete from Microsoft 365 first
           # SSoT: Per-user Outlook credentials removed - uses org credentials
           if delete_from_outlook && email.outlook_id.present? && email.mailbox_owner_email.present?
-            credential = if email.microsoft_credential_id.present?
-                           OrganizationMicrosoftAppCredential.find_by(id: email.microsoft_credential_id)
+            # SSoT: Use MicrosoftCredential
+          credential = if email.microsoft_credential_id.present?
+                           MicrosoftCredential.find_by(id: email.microsoft_credential_id)
                          else
-                           OrganizationMicrosoftAppCredential.connected.first
+                           MicrosoftCredential.app_credentials.connected.first
                          end
             if credential&.valid_credential?
               client = MicrosoftAppGraphClient.new(credential)

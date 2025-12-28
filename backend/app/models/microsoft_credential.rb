@@ -211,6 +211,9 @@ class MicrosoftCredential < ApplicationRecord
     false
   end
 
+  # Alias for backward compatibility with UserMicrosoftToken
+  alias_method :refresh_access_token!, :refresh_delegated_token!
+
   # Dead token detection
   def dead_token_error?(error_message)
     return false if error_message.blank?
@@ -325,6 +328,17 @@ class MicrosoftCredential < ApplicationRecord
   # Find by name (for multi-org support)
   def self.find_by_name(name)
     active.find_by(name: name)
+  end
+
+  # Backward compatibility with OrganizationMicrosoftAppCredential
+  # WARNING: Prefer active_for_org(org) for proper org isolation
+  def self.active_credential
+    app_credentials.active.connected.first
+  end
+
+  # Get all active app credentials (for admin lists)
+  def self.active_credentials
+    app_credentials.active.order(:name)
   end
 
   # SharePoint configuration helpers (SSoT - previously split across models)

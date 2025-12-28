@@ -17,14 +17,15 @@ class BackfillAttachmentUploadsJob < ApplicationJob
   queue_as :low
 
   def perform(credential_id)
-    @credential = OrganizationMicrosoftAppCredential.find_by(id: credential_id)
+    # SSoT: Use MicrosoftCredential
+    @credential = MicrosoftCredential.find_by(id: credential_id)
 
     unless @credential&.status == "connected"
       Rails.logger.info "[BackfillAttachments] Skipping - org #{credential_id} not connected"
       return
     end
 
-    unless OrganizationMicrosoftAppCredential.sharepoint_configured?
+    unless MicrosoftCredential.sharepoint_configured?
       Rails.logger.error "[BackfillAttachments] SharePoint not configured. Please configure TEEEM's SharePoint first."
       return
     end
@@ -51,7 +52,7 @@ class BackfillAttachmentUploadsJob < ApplicationJob
     skipped = 0
     errors = 0
 
-    sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+    sp_config = MicrosoftCredential.teeem_sharepoint_config
     teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     legacy_attachments.find_each do |legacy|
