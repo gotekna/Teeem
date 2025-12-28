@@ -249,16 +249,36 @@ export function displayBoolean(value: unknown): React.ReactNode {
 }
 
 /**
+ * Convert snake_case or kebab-case to Title Case
+ * "accounts_department" -> "Accounts Department"
+ * "po-tasks-only" -> "Po Tasks Only"
+ */
+function toTitleCase(str: string): string {
+  return str
+    .replace(/[_-]/g, ' ')  // Replace underscores/hyphens with spaces
+    .replace(/\b\w/g, (char) => char.toUpperCase());  // Capitalize first letter of each word
+}
+
+/**
  * Display choice as badge
+ * Converts snake_case slugs to Title Case for display
  */
 export function displayChoice(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{String(value)}</Badge>;
+  let displayText = String(value);
+
+  // If value looks like a slug, convert to Title Case
+  if (displayText.includes('_') || (displayText.includes('-') && !displayText.includes(' '))) {
+    displayText = toTitleCase(displayText);
+  }
+
+  return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{displayText}</Badge>;
 }
 
 /**
  * Display lookup value
  * Handles both {id, display_value} objects and simple values
+ * Converts snake_case slugs to Title Case for display
  */
 export function displayLookup(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
@@ -277,6 +297,11 @@ export function displayLookup(value: unknown): React.ReactNode {
     }
   } else {
     displayText = String(value);
+  }
+
+  // If value looks like a slug (contains underscores/hyphens), convert to Title Case
+  if (displayText.includes('_') || (displayText.includes('-') && !displayText.includes(' '))) {
+    displayText = toTitleCase(displayText);
   }
 
   return <span className="text-[11px]">{displayText}</span>;
