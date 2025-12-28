@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -132,7 +132,16 @@ interface InstanceDetail extends WorkflowInstance {
 
 export default function BpmnProcessesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "processes";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "processes" ? "/workflows/processes" : `/workflows/processes?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
+
   const [processes, setProcesses] = useState<BpmnProcessSummary[]>([]);
   const [instances, setInstances] = useState<WorkflowInstance[]>([]);
   const [instancesTotal, setInstancesTotal] = useState(0);
@@ -140,7 +149,6 @@ export default function BpmnProcessesPage() {
   const [instancesLoading, setInstancesLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState("processes");
   const [expandedInstanceId, setExpandedInstanceId] = useState<number | null>(null);
   const [instanceDetail, setInstanceDetail] = useState<InstanceDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -458,7 +466,7 @@ export default function BpmnProcessesPage() {
         />
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="processes" className="gap-2">
             <Workflow className="h-4 w-4" />

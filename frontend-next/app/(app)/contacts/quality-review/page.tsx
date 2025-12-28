@@ -234,7 +234,12 @@ export default function ContactQualityReviewPage() {
     by_status: Record<string, number>;
     total_count: number;
   } | null>(null);
-  const [activeTab, setActiveTab] = React.useState(filterParam || "all");
+  const activeTab = filterParam || "all";
+
+  const handleTabChange = React.useCallback((tabId: string) => {
+    const url = tabId === "all" ? "/contacts/quality-review" : `/contacts/quality-review?filter=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
 
   const fetchReviews = React.useCallback(async () => {
     setLoading(true);
@@ -433,7 +438,7 @@ export default function ContactQualityReviewPage() {
       </div>
 
       {/* Tabs by Issue Type */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="all">
             All ({pendingCount})

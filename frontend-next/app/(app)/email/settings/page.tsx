@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BlacklistManager } from "@/components/emails/BlacklistManager";
@@ -10,8 +10,15 @@ import { Ban, Settings, Shield } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 
 export default function EmailSettingsPage() {
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("blacklist");
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "blacklist";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "blacklist" ? "/email/settings" : `/email/settings?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -31,7 +38,7 @@ export default function EmailSettingsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="blacklist" className="gap-2">
             <Ban className="h-4 w-4" />

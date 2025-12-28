@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -214,7 +215,15 @@ export default function GlPage() {
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccounts | null>(null);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("companies");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "companies";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "companies" ? "/financial/tas" : `/financial/tas?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
 
   // Full sync progress modal state
   const [showSyncProgress, setShowSyncProgress] = useState(false);
@@ -531,7 +540,7 @@ export default function GlPage() {
           {/* Sync System Button - shows all company sync statuses */}
           <Button
             variant="outline"
-            onClick={() => setActiveTab("companies")}
+            onClick={() => handleTabChange("companies")}
             className={activeTab === "companies" ? "bg-muted" : ""}
           >
             <Settings className="h-4 w-4 mr-2" />
@@ -638,7 +647,7 @@ export default function GlPage() {
       )}
 
       {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="companies" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />

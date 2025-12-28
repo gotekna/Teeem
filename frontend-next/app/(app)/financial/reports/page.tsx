@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,15 @@ const formatCurrency = (amount: number) => {
 
 export default function FinancialReportsPage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("balance_sheet");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "balance_sheet";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "balance_sheet" ? "/financial/reports" : `/financial/reports?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheet | null>(null);
   const [profitLoss, setProfitLoss] = useState<ProfitLoss | null>(null);
   const [jobProfitability, setJobProfitability] = useState<JobProfitability[]>([]);
@@ -197,7 +206,7 @@ export default function FinancialReportsPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-6">
           <TabsTrigger value="balance_sheet">Balance Sheet</TabsTrigger>
           <TabsTrigger value="profit_loss">Profit & Loss</TabsTrigger>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,15 @@ import { api } from "@/lib/api";
 // Foundation ID for Portal Users table
 
 export default function PortalPage() {
-  const [activeTab, setActiveTab] = useState("users");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "users";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "users" ? "/portal" : `/portal?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
 
   // Use foundation hook for TeeemTableView
   const { foundation, records, isLoading, error, refresh } = useFoundationBySlug("portal_users");
@@ -95,7 +104,7 @@ export default function PortalPage() {
   return (
     <TablePage>
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
         <div className="px-4 shrink-0">
           <TabsList>
             <TabsTrigger value="users">Portal Users</TabsTrigger>

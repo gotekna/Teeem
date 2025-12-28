@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -848,7 +849,24 @@ function AgedReportsTab({
   payablesContacts: AgedContact[];
   selectedCompany: string;
 }) {
-  const [activeTab, setActiveTab] = React.useState("receivables");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const subtabFromUrl = searchParams.get("subtab");
+  const activeTab = subtabFromUrl || "receivables";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    // Preserve existing params (like tab=aged and company)
+    const params = new URLSearchParams(searchParams.toString());
+    if (tabId === "receivables") {
+      params.delete("subtab");
+    } else {
+      params.set("subtab", tabId);
+    }
+    const queryString = params.toString();
+    const url = queryString ? `/financial?${queryString}` : "/financial";
+    router.push(url, { scroll: false });
+  }, [router, searchParams]);
+
   const [selectedPayables, setSelectedPayables] = React.useState<Set<number>>(new Set());
   const [processingPayment, setProcessingPayment] = React.useState(false);
   const [generatingAba, setGeneratingAba] = React.useState(false);
@@ -949,7 +967,7 @@ function AgedReportsTab({
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="receivables" className="gap-2">
             <Users className="h-4 w-4" />
@@ -1515,10 +1533,26 @@ export default function FinancialPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const companyId = searchParams.get("company");
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "dashboard";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    // Preserve company param if present
+    const params = new URLSearchParams();
+    if (companyId) {
+      params.set("company", companyId);
+    }
+    if (tabId !== "dashboard") {
+      params.set("tab", tabId);
+    }
+    // Clear subtab when changing main tabs
+    const queryString = params.toString();
+    const url = queryString ? `/financial?${queryString}` : "/financial";
+    router.push(url, { scroll: false });
+  }, [router, companyId]);
 
   // State
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState("dashboard");
   const [selectedCompany, setSelectedCompany] = React.useState<string>(companyId || "all");
   const [companies, setCompanies] = React.useState<Company[]>([]);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -1814,7 +1848,7 @@ export default function FinancialPage() {
   };
 
   const handleNavigate = (tab: string) => {
-    setActiveTab(tab);
+    handleTabChange(tab);
   };
 
   if (loading) {
@@ -1896,7 +1930,7 @@ export default function FinancialPage() {
       )}
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
           <TabsTrigger value="dashboard" className="gap-2">
             <BarChart3 className="h-4 w-4" />

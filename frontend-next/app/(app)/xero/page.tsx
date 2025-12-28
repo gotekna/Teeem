@@ -343,7 +343,7 @@ export default function XeroPage() {
 
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="invoices">Invoices</TabsTrigger>

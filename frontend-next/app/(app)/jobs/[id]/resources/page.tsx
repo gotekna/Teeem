@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, ElementType } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import {
   UserGroupIcon,
   CalendarDaysIcon,
@@ -390,11 +390,23 @@ const TABS: TabConfig[] = [
 
 export default function SmResourcesPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const constructionId = params.id as string;
 
+  // URL-synced tab state
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "schedule";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "schedule"
+      ? `/jobs/${constructionId}/resources`
+      : `/jobs/${constructionId}/resources?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [constructionId, router]);
+
   // State
-  const [activeTab, setActiveTab] = useState("schedule");
   const [resources, setResources] = useState<SmResource[]>([]);
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -570,7 +582,7 @@ export default function SmResourcesPage() {
           {TABS.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 rounded-t-lg border-b-2 px-4 py-2 transition-colors ${
                 activeTab === tab.id
                   ? "border-primary bg-background text-primary"

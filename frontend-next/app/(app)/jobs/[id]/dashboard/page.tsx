@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, ElementType } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChartBarIcon,
@@ -214,9 +214,20 @@ function Alert({ type, message, resourceName }: AlertProps) {
 
 export default function SmDashboardPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const constructionId = params.id as string;
 
-  const [activeTab, setActiveTab] = useState("overview");
+  // URL-synced tab state
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "overview";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "overview"
+      ? `/jobs/${constructionId}/dashboard`
+      : `/jobs/${constructionId}/dashboard?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [constructionId, router]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -436,7 +447,7 @@ export default function SmDashboardPage() {
           {TABS.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 rounded-t-lg border-b-2 px-4 py-2 transition-colors ${
                 activeTab === tab.id
                   ? "border-primary bg-background text-primary"

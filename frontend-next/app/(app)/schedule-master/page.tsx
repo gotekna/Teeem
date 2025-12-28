@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,6 +122,16 @@ const taskStatusColors: Record<string, string> = {
 };
 
 export default function ScheduleMasterPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "overview";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "overview" ? "/schedule-master" : `/schedule-master?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
+
   const [jobs, setJobs] = useState<Job[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -128,7 +139,6 @@ export default function ScheduleMasterPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     const loadData = async () => {
@@ -208,7 +218,7 @@ export default function ScheduleMasterPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>

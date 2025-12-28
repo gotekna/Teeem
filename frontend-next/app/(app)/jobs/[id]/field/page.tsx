@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, ElementType } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import {
   CameraIcon,
   MapPinIcon,
@@ -204,16 +204,27 @@ function TabButton({ active, icon: Icon, label, badge, onClick }: TabButtonProps
 
 export default function SmFieldPage() {
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const constructionId = params.id as string;
   const resourceId = searchParams.get("resource");
 
+  // URL-synced tab state
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl || "tasks";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const url = tabId === "tasks"
+      ? `/jobs/${constructionId}/field`
+      : `/jobs/${constructionId}/field?tab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [constructionId, router]);
+
   // State
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
-  const [activeTab, setActiveTab] = useState("tasks");
   const [construction, setConstruction] = useState<Construction | null>(null);
   const [tasks, setTasks] = useState<SmTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<SmTask | null>(null);
@@ -442,11 +453,11 @@ export default function SmFieldPage() {
 
                   {/* Quick actions */}
                   <div className="mt-4 grid grid-cols-2 gap-2 pt-4">
-                    <Button onClick={() => setActiveTab("photos")}>
+                    <Button onClick={() => handleTabChange("photos")}>
                       <CameraIcon className="mr-2 h-5 w-5" />
                       Add Photo
                     </Button>
-                    <Button variant="outline" onClick={() => setActiveTab("voice")}>
+                    <Button variant="outline" onClick={() => handleTabChange("voice")}>
                       <MicrophoneIcon className="mr-2 h-5 w-5" />
                       Voice Note
                     </Button>
@@ -510,27 +521,27 @@ export default function SmFieldPage() {
             active={activeTab === "tasks"}
             icon={ClipboardDocumentListIcon}
             label="Details"
-            onClick={() => setActiveTab("tasks")}
+            onClick={() => handleTabChange("tasks")}
           />
           <TabButton
             active={activeTab === "photos"}
             icon={CameraIcon}
             label="Photos"
             badge={taskPhotos.length}
-            onClick={() => setActiveTab("photos")}
+            onClick={() => handleTabChange("photos")}
           />
           <TabButton
             active={activeTab === "checkin"}
             icon={MapPinIcon}
             label="Check-in"
-            onClick={() => setActiveTab("checkin")}
+            onClick={() => handleTabChange("checkin")}
           />
           <TabButton
             active={activeTab === "voice"}
             icon={MicrophoneIcon}
             label="Voice"
             badge={taskVoiceNotes.length}
-            onClick={() => setActiveTab("voice")}
+            onClick={() => handleTabChange("voice")}
           />
         </div>
       )}
