@@ -304,8 +304,9 @@ module DocumentProviders
     end
 
     # Create job folder structure (TEEEM-specific)
-    def create_job_folder_structure(construction, template)
-      @client.create_job_folder_structure(construction, template)
+    # SSoT: Folder structure comes from EntityTab hierarchy (template parameter is ignored)
+    def create_job_folder_structure(construction, _template = nil)
+      @client.create_job_folder_structure(construction)
     end
 
     # Find job folder (TEEEM-specific)

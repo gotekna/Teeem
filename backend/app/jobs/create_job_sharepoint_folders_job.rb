@@ -29,10 +29,15 @@ class CreateJobSharepointFoldersJob < ApplicationJob
       setup_document_provider(organization)
 
       # Validate the root folder/bucket exists
+      # Note: "not_configured" is OK - create_job_folder_structure will create the root folder
       validation = @document_provider.validate_root_folder
       unless validation[:valid]
-        handle_validation_failure(job, validation)
-        return
+        if validation[:error_type] == "not_configured"
+          Rails.logger.info "[DocumentProvider] Root folder not configured - will be created automatically"
+        else
+          handle_validation_failure(job, validation)
+          return
+        end
       end
 
       # Check if job folder already exists
