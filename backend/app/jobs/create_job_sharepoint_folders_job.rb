@@ -16,7 +16,8 @@ class CreateJobSharepointFoldersJob < ApplicationJob
 
   def perform(job_id)
     job = Job.find(job_id)
-    organization = job.organization || Organization.first
+    # TEEEM is single-tenant, always use the primary organization
+    organization = Organization.first
 
     Rails.logger.info "[DocumentProvider] Creating folders for job #{job_id}: #{job.title}"
 
