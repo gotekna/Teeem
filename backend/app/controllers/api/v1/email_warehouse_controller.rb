@@ -14,7 +14,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
       ms365_mailbox_emails = []
-      OrganizationMicrosoftAppCredential.connected.each do |org_cred|
+      # SSoT: Use MicrosoftCredential
+      MicrosoftCredential.app_credentials.connected.each do |org_cred|
         user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
         if user_mailboxes.any?
           ms365_cred_ids << org_cred.id
@@ -143,7 +144,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Filter by Microsoft 365 credential (org-level app credentials)
     # Also validates user has access to this credential's mailboxes
     if params[:microsoft_credential_id].present?
-      org_cred = OrganizationMicrosoftAppCredential.find_by(id: params[:microsoft_credential_id])
+      # SSoT: Use MicrosoftCredential
+      org_cred = MicrosoftCredential.find_by(id: params[:microsoft_credential_id])
       if org_cred
         # Get the mailboxes this user is authorized to access
         user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
@@ -302,8 +304,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
   # GET /api/v1/email_warehouse/sync_status
   # Get sync status - org-wide sync runs automatically every 15 minutes
   def sync_status
-    # Get org credential for Tekna
-    org_cred = OrganizationMicrosoftAppCredential.find_by(name: "Tekna")
+    # SSoT: Use MicrosoftCredential
+    org_cred = MicrosoftCredential.app_credentials.find_by(name: "Tekna")
 
     render json: {
       status: "automatic",
@@ -377,9 +379,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
   def mark_as_spam
     delete_from_outlook = params[:delete_from_outlook] == "true"
 
-    # SSoT: Use org credentials for email operations (per-user Outlook removed)
+    # SSoT: Use MicrosoftCredential for email operations (per-user Outlook removed)
     if delete_from_outlook && @email.microsoft_credential_id.present? && @email.outlook_id.present?
-      org_cred = OrganizationMicrosoftAppCredential.find_by(id: @email.microsoft_credential_id)
+      org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
       if org_cred&.connected?
         graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
         graph_client.delete_user_email(@email.mailbox_owner_email, @email.outlook_id)
@@ -406,8 +408,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       return render json: { error: "Email has no Outlook ID" }, status: :unprocessable_entity
     end
 
-    # SSoT: Use org credentials for email operations
-    org_cred = OrganizationMicrosoftAppCredential.find_by(id: @email.microsoft_credential_id)
+    # SSoT: Use MicrosoftCredential for email operations
+    org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
     unless org_cred&.connected?
       return render json: { error: "Organization MS365 not connected" }, status: :unprocessable_entity
     end
@@ -442,9 +444,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
       return render json: { error: "folder_id or folder_name required" }, status: :unprocessable_entity
     end
 
-    # SSoT: Use org credentials for MS365 emails
+    # SSoT: Use MicrosoftCredential for MS365 emails
     if @email.microsoft_credential_id.present? && @email.outlook_id.present?
-      org_cred = OrganizationMicrosoftAppCredential.find_by(id: @email.microsoft_credential_id)
+      org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
       unless org_cred&.connected?
         return render json: { error: "MS365 organization not connected" }, status: :unprocessable_entity
       end
@@ -687,9 +689,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
     failed_count = 0
     errors = []
 
-    # Group by credential to minimize client creation
+    # SSoT: Group by credential to minimize client creation
     spam_emails.group_by(&:microsoft_credential_id).each do |cred_id, emails|
-      org_cred = OrganizationMicrosoftAppCredential.find_by(id: cred_id)
+      org_cred = MicrosoftCredential.find_by(id: cred_id)
       next unless org_cred&.connected?
 
       graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)

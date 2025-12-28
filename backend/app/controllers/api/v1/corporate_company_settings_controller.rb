@@ -110,10 +110,9 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Try to get the credential and test the connection
+        # SSoT: Use MicrosoftCredential only
         begin
-          credential = MicrosoftCredential.active.app_credentials.connected.first ||
-                       OrganizationMicrosoftAppCredential.active_credential
+          credential = MicrosoftCredential.active.app_credentials.connected.first
 
           unless credential
             return render json: {

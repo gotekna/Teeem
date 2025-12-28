@@ -36,7 +36,8 @@ module Api
       # GET /api/v1/organization/microsoft_org_stats
       # Returns statistics for each connected Microsoft 365 organization
       def microsoft_org_stats
-        all_credentials = OrganizationMicrosoftAppCredential.order(:name)
+        # SSoT: Use MicrosoftCredential
+        all_credentials = MicrosoftCredential.app_credentials.order(:name)
 
         # Define all possible orgs (including not-connected ones)
         all_org_names = [ "Tekna", "100xBestLife", "Homes of Hope", "Love Your World" ]
@@ -404,9 +405,9 @@ module Api
         end
 
         # SharePoint stats
-        # Note: OrganizationSharePointCredential has drive_name, root_folder_path but not site_url/site_path
+        # SSoT: Use MicrosoftCredential for delegated credentials
         # Note: company_documents uses last_modified_at (not synced_at) for OneDrive sync timestamps
-        onedrive_credential = OrganizationSharePointCredential.active_credential rescue nil
+        onedrive_credential = MicrosoftCredential.delegated_credentials.org_level.active.connected.first rescue nil
         sharepoint_stats = {
           connected: onedrive_credential.present?,
           site_url: onedrive_credential&.drive_name || "SharePoint",

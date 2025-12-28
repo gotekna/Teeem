@@ -14,7 +14,8 @@ class EmailWarehouse < ApplicationRecord
   belongs_to :job, optional: true
   belongs_to :synced_by_user, class_name: "User", optional: true
   belongs_to :ssot_owner, class_name: "User", optional: true  # User who owns the SSoT copy
-  belongs_to :microsoft_credential, class_name: "OrganizationMicrosoftAppCredential", optional: true
+  # SSoT: Use MicrosoftCredential
+  belongs_to :microsoft_credential, class_name: "MicrosoftCredential", optional: true
   belongs_to :primary_contact, class_name: "Contact", optional: true
   belongs_to :imap_credential, optional: true  # For IMAP-sourced emails
 
@@ -73,8 +74,9 @@ class EmailWarehouse < ApplicationRecord
 
   # Microsoft organization scopes
   scope :for_microsoft_credential, ->(credential_id) { where(microsoft_credential_id: credential_id) }
+  # SSoT: Use MicrosoftCredential table
   scope :for_microsoft_org, ->(org_name) {
-    joins(:microsoft_credential).where(organization_microsoft_app_credentials: { name: org_name })
+    joins(:microsoft_credential).where(microsoft_credentials: { name: org_name })
   }
 
   # Source type scopes (outlook vs imap)
@@ -600,11 +602,11 @@ class EmailWarehouse < ApplicationRecord
     return unless outlook_id.present? && has_attachments
     return if files.attached?  # Already synced
 
-    # Get the org credential that was used to sync this email
+    # SSoT: Use MicrosoftCredential
     credential = if microsoft_credential_id.present?
-                   OrganizationMicrosoftAppCredential.find_by(id: microsoft_credential_id)
+                   MicrosoftCredential.find_by(id: microsoft_credential_id)
                  else
-                   OrganizationMicrosoftAppCredential.connected.first
+                   MicrosoftCredential.app_credentials.connected.first
                  end
 
     unless credential&.valid_credential?
