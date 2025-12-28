@@ -481,6 +481,7 @@ module Api
       # GET /api/v1/organization_onedrive/browse_folders
       # Browse OneDrive folders - optionally within a specific folder
       # Returns folders and breadcrumb path for navigation
+      # Performance: Cached for 2 minutes to reduce SharePoint API calls
       def browse_folders
         credential = OrganizationSharePointCredential.active_credential
 
@@ -489,6 +490,16 @@ module Api
         end
 
         folder_id = params[:folder_id] # Optional - if not provided, browse root
+
+        # Skip cache if explicitly requested
+        skip_cache = params[:refresh] == "true"
+        cache_key = "sharepoint:browse_folders:#{folder_id || 'root'}"
+
+        # Try to get from cache first (2 minute TTL)
+        cached_result = Rails.cache.read(cache_key) unless skip_cache
+        if cached_result
+          return render json: cached_result.merge(from_cache: true)
+        end
 
         begin
           # Check if using app credentials (requires different API calls)
@@ -597,12 +608,17 @@ module Api
             end.sort_by { |f| f[:name].downcase }
           end
 
-          render json: {
+          result = {
             folders: formatted_folders,
             current_folder: current_folder,
             breadcrumbs: breadcrumbs,
             parent_folder_id: folder_id
           }
+
+          # Cache for 2 minutes
+          Rails.cache.write(cache_key, result, expires_in: 2.minutes)
+
+          render json: result.merge(from_cache: false)
 
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
@@ -843,6 +859,7 @@ module Api
 
       # GET /api/v1/organization_onedrive/job_folders
       # List folders and files for a specific job
+      # Performance: Cached for 5 minutes to reduce SharePoint API calls
       def list_job_items
         job = Job.find(params[:job_id])
 
@@ -850,6 +867,18 @@ module Api
 
         unless credential
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
+        end
+
+        # Skip cache if explicitly requested
+        skip_cache = params[:refresh] == "true"
+        folder_id = params[:folder_id]
+        cache_key = "sharepoint:job_items:#{job.id}:#{folder_id || 'root'}"
+
+        # Try to get from cache first (5 minute TTL)
+        cached_result = Rails.cache.read(cache_key) unless skip_cache
+
+        if cached_result
+          return render json: cached_result.merge(from_cache: true)
         end
 
         begin
@@ -866,16 +895,21 @@ module Api
           end
 
           # Get folder ID from params or use job folder
-          folder_id = params[:folder_id] || job_folder["id"]
+          target_folder_id = folder_id || job_folder["id"]
 
-          items = client.list_folder_items(folder_id)
+          items = client.list_folder_items(target_folder_id)
 
-          render json: {
+          result = {
             items: items["value"],
             count: items["value"]&.length || 0,
             job_folder_id: job_folder["id"],
             job_folder_web_url: job_folder["webUrl"]
           }
+
+          # Cache for 5 minutes
+          Rails.cache.write(cache_key, result, expires_in: 5.minutes)
+
+          render json: result.merge(from_cache: false)
 
         rescue MicrosoftGraphClient::AuthenticationError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
@@ -947,6 +981,7 @@ module Api
       # GET /api/v1/organization_onedrive/folder_contents
       # Get contents of a specific folder by name within a job's folder
       # Supports fetching from multiple folders (e.g., "Photo" and "Client Photo")
+      # Performance: Cached for 5 minutes to reduce SharePoint API calls
       def folder_contents
         job = Job.find(params[:job_id])
         folder_names = params[:folder_names]&.split(",")&.map(&:strip) || [ params[:folder_name] ]
@@ -955,6 +990,17 @@ module Api
 
         unless credential&.valid_credential?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
+        end
+
+        # Skip cache if explicitly requested
+        skip_cache = params[:refresh] == "true"
+        sorted_folders = folder_names.compact.sort.join(",")
+        cache_key = "sharepoint:folder_contents:#{job.id}:#{sorted_folders}"
+
+        # Try to get from cache first (5 minute TTL)
+        cached_result = Rails.cache.read(cache_key) unless skip_cache
+        if cached_result
+          return render json: cached_result.merge(from_cache: true)
         end
 
         begin
@@ -1001,7 +1047,7 @@ module Api
           files_only = all_files.reject { |item| item["folder"] }
           subfolders = all_files.select { |item| item["folder"] }
 
-          render json: {
+          result = {
             files: files_only,
             subfolders: subfolders,
             total_count: files_only.length,
@@ -1010,6 +1056,11 @@ module Api
             job_folder_id: job_folder["id"],
             job_folder_web_url: job_folder["webUrl"]
           }
+
+          # Cache for 5 minutes
+          Rails.cache.write(cache_key, result, expires_in: 5.minutes)
+
+          render json: result.merge(from_cache: false)
 
         rescue MicrosoftGraphClient::AuthenticationError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
