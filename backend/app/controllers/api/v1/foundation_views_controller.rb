@@ -265,9 +265,20 @@ module Api
           }, status: :unauthorized
         end
 
+        # Support both numeric ID and slug for view lookup
+        identifier = params[:id]
+
         # Try to find in user's personal views first, then in global views
-        @foundation_view = current_user.foundation_views.find_by(id: params[:id]) ||
-                          FoundationView.global_views.find_by(id: params[:id])
+        if identifier.to_s.match?(/\A\d+\z/)
+          # Numeric ID lookup
+          @foundation_view = current_user.foundation_views.find_by(id: identifier) ||
+                            FoundationView.global_views.find_by(id: identifier)
+        else
+          # Slug lookup - need foundation context for uniqueness
+          foundation_id = params[:foundation_id].present? ? resolve_foundation_id(params[:foundation_id]) : nil
+          scope = foundation_id ? FoundationView.where(foundation_id: foundation_id) : FoundationView.all
+          @foundation_view = scope.find_by(slug: identifier)
+        end
 
         unless @foundation_view
           render json: {

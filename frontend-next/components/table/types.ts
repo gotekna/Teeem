@@ -66,6 +66,7 @@ export interface FilterGroup {
 // Saved view configuration
 export interface SavedView {
   id: number | string;
+  slug?: string; // URL-friendly identifier (auto-generated from name)
   name: string;
   view_type?: "table" | "relational"; // Display mode: table grid or relational network graph
   filters?: CascadeFilter[];

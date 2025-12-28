@@ -575,7 +575,7 @@ export default function NewAssetPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.back()}
+            onClick={() => router.push("/corporate/assets")}
             disabled={saving}
           >
             Cancel

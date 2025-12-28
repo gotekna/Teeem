@@ -9,6 +9,7 @@ import type { TableColumn, TableRow } from "@/components/table/types";
 import { api } from "@/lib/api";
 import { slugifyJobTitle, slugifyContactName, slugifyPricebookCode } from "@/lib/url-utils";
 import { Spinner } from "@/components/ui/spinner";
+import { BackButton } from "@/components/ui/back-button";
 import { Plus, ArrowLeft } from "lucide-react";
 
 // Table ID to route mapping for legacy compatibility
@@ -177,10 +178,7 @@ export default function TablePage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <p className="text-destructive">{error}</p>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Go Back
-        </Button>
+        <BackButton fallbackHref="/" label="Go Back" variant="outline" />
       </div>
     );
   }

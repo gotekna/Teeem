@@ -2808,14 +2808,15 @@ export default function TeeemTableView({
       // Hide filter editor when loading a saved view
       setShowFilters(false);
 
-      // URL update with numeric ID (skip if loading from URL to avoid loops)
-      // Using numeric ID for: speed (O(1) lookup), stability (rename-safe), clarity (no slug conflicts)
+      // URL update with slug (preferred) or numeric ID (fallback)
+      // Using slug for: portability across environments, human-readable URLs
       if (view.id && !skipUrlUpdate) {
-        const currentUrlViewId = searchParams.get('view');
-        const newViewId = String(view.id);
-        if (currentUrlViewId !== newViewId) {
+        const currentUrlView = searchParams.get('view');
+        // Prefer slug if available, fall back to numeric ID for backwards compatibility
+        const newViewIdentifier = view.slug || String(view.id);
+        if (currentUrlView !== newViewIdentifier) {
           const currentParams = new URLSearchParams(searchParams.toString());
-          currentParams.set('view', newViewId);
+          currentParams.set('view', newViewIdentifier);
           const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
           router.replace(newUrl, { scroll: false });
         }
@@ -2870,14 +2871,30 @@ export default function TeeemTableView({
         // Auto-apply default view using consolidated utility
         // Read URL param here (not as effect dependency) to avoid re-triggering on URL changes
         const urlViewParam = searchParams.get('view');
-        // Parse as numeric ID (new format) - non-numeric values are ignored
-        const urlViewId = urlViewParam ? parseInt(urlViewParam, 10) : null;
-        const validViewId = urlViewId && !isNaN(urlViewId) ? urlViewId : null;
 
-        // Only use URL view ID if it exists in THIS foundation's views
+        // Support both slug (new) and numeric ID (legacy) in URL
+        // Try to find view by slug first, then by numeric ID for backwards compatibility
+        let urlMatchedView: (typeof filteredViews)[0] | undefined;
+        if (urlViewParam) {
+          // First try slug match (non-numeric strings)
+          if (!/^\d+$/.test(urlViewParam)) {
+            urlMatchedView = filteredViews.find(v => v.slug === urlViewParam);
+          }
+          // Fall back to numeric ID match (backwards compatibility)
+          if (!urlMatchedView) {
+            const numericId = parseInt(urlViewParam, 10);
+            if (!isNaN(numericId)) {
+              urlMatchedView = filteredViews.find(v => v.id === numericId);
+            }
+          }
+        }
+
+        // Only use URL view if it exists in THIS foundation's views
         // Otherwise URL params from other tables would override defaultViewId
-        const urlViewExistsForFoundation = validViewId && filteredViews.some(v => v.id === validViewId);
-        const effectiveViewId = urlViewExistsForFoundation ? validViewId : defaultViewId;
+        const urlViewExistsForFoundation = !!urlMatchedView;
+        // Convert to number for selectDefaultView (database IDs are always numeric)
+        const matchedViewNumericId = urlMatchedView ? (typeof urlMatchedView.id === 'number' ? urlMatchedView.id : parseInt(String(urlMatchedView.id), 10)) : null;
+        const effectiveViewId = urlViewExistsForFoundation ? matchedViewNumericId : defaultViewId;
 
         const defaultView = selectDefaultView(filteredViews, {
           urlViewId: effectiveViewId,

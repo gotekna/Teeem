@@ -29,8 +29,8 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
 
-// Foundation ID for document_types table
-const DOCUMENT_TYPES_FOUNDATION_ID = 454;
+// SSoT: Use slug for Foundation lookup - numeric IDs differ per environment
+const DOCUMENT_TYPES_FOUNDATION_SLUG = "document-types";
 
 // Fallback folder options (used if API fails)
 const FOLDER_OPTIONS = [
@@ -288,11 +288,12 @@ export function DocumentTypesTab() {
 
   const fetchColumns = async () => {
     try {
+      // SSoT: Use slug for Foundation API - backend resolves to numeric ID
       const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(
-        `/api/v1/foundations/${DOCUMENT_TYPES_FOUNDATION_ID}`
+        `/api/v1/foundations/${DOCUMENT_TYPES_FOUNDATION_SLUG}`
       );
       const dbColumns = response?.foundation?.columns || [];
-      const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, DOCUMENT_TYPES_FOUNDATION_ID);
+      const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, DOCUMENT_TYPES_FOUNDATION_SLUG);
 
       // Add computed display columns that don't exist in the database
       // tabs_display is computed from the tabs array field for display purposes
@@ -627,10 +628,9 @@ export function DocumentTypesTab() {
         </Card>
       )}
 
-      {/* Table - Foundation 454 */}
+      {/* Table - SSoT: Use slug, TeeemTableView resolves numeric ID */}
       <TeeemTableView
           foundationId="document-types"
-          foundationIdNumeric={DOCUMENT_TYPES_FOUNDATION_ID}
           tableName={`Document Types (${filteredDocTypes.length}${scopeFilter !== "all" ? ` - ${scopeFilter}` : ""})`}
           entries={filteredDocTypes}
           // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)

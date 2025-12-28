@@ -191,10 +191,7 @@ export default function SaasCustomerDetailPage() {
     return (
       <div className="text-center py-12">
         <div className="text-destructive">{error || "Customer not found"}</div>
-        <Button onClick={() => router.back()} variant="outline" className="mt-4">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Go Back
-        </Button>
+        <BackButton fallbackHref="/admin/saas-customers" label="Go Back" className="mt-4" />
       </div>
     );
   }

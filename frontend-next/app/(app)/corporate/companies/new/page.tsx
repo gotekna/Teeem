@@ -472,9 +472,7 @@ export default function NewCompanyPage() {
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pb-6">
-            <Button type="button" variant="outline" onClick={() => router.back()}>
-              Cancel
-            </Button>
+            <BackButton fallbackHref="/corporate/companies" label="Cancel" variant="outline" />
             <Button type="submit" disabled={saving}>
               {saving ? (
                 <>

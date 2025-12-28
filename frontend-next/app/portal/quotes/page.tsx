@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useUrlTabs from "@/hooks/useUrlTabs";
 import Link from "next/link";
 import axios from "axios";
 import {
@@ -47,7 +48,8 @@ type TabKey = keyof QuotesData;
 
 export default function PortalQuotes() {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabKey>("pending");
+  // SSoT: Tab synced to URL for back button support
+  const [activeTab, setActiveTab] = useUrlTabs("pending") as [TabKey, (tab: string) => void];
   const [quotes, setQuotes] = useState<QuotesData>({
     pending: [],
     submitted: [],

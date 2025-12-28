@@ -616,7 +616,7 @@ export default function ScheduleTemplateDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <p className="text-muted-foreground">Template not found</p>
-        <Button onClick={() => router.back()}>Go Back</Button>
+        <BackButton fallbackHref="/schedule-templates" label="Go Back" />
       </div>
     );
   }

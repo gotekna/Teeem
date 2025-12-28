@@ -81,6 +81,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+import { useUrlState, setToUrlArray, urlArrayToSet } from "@/hooks/useUrlState";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import type {
   EntityTab,
@@ -230,16 +231,99 @@ export function EntityTabsConfig({
   const { usedIcons, refetch: refetchUsedIcons } = useUsedIcons(scope);
 
   const [saving, setSaving] = React.useState(false);
-  const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set());
-  const [expandedDocTypes, setExpandedDocTypes] = React.useState<Set<number>>(new Set());
-  const [editingTab, setEditingTab] = React.useState<EntityTab | null>(null);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
+
+  // SSoT: Navigation state synced to URL for back button support
+  const [urlState, setUrlState] = useUrlState({
+    group: "overview",           // Active tab group
+    tabId: null as string | null, // Tab being edited
+    action: null as string | null, // "edit" | "create" | null
+    expanded: [] as string[],    // Expanded tab IDs
+    docExpanded: [] as string[], // Expanded doc type sections
+    config: null as string | null, // Config panel name (e.g., "plan-categories")
+  });
+
+  // Derive values from URL state
+  const activeGroup = urlState.group;
+  const expandedItems = React.useMemo(() => urlArrayToSet(urlState.expanded), [urlState.expanded]);
+  const expandedDocTypes = React.useMemo(() => urlArrayToSet(urlState.docExpanded), [urlState.docExpanded]);
+  const isDialogOpen = urlState.action === "create" || urlState.action === "edit";
+  const isCreateMode = urlState.action === "create";
+
+  // Look up editingTab from tabs array using URL tabId
+  const editingTab = React.useMemo(() => {
+    if (!urlState.tabId || urlState.action !== "edit") return null;
+    const tabId = parseInt(urlState.tabId);
+    // Search recursively through tabs and children
+    const findTab = (tabList: EntityTab[]): EntityTab | null => {
+      for (const tab of tabList) {
+        if (tab.id === tabId) return tab;
+        if (tab.children?.length) {
+          const found = findTab(tab.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    return findTab(tabs);
+  }, [urlState.tabId, urlState.action, tabs]);
+
+  // Look up configTab from tabs array using URL config param
+  const configTab = React.useMemo(() => {
+    if (!urlState.config) return null;
+    // Find the plans tab and add the component_name
+    const plansTab = tabs.find(t => t.tab_key === "plans");
+    if (!plansTab) return null;
+    return { ...plansTab, component_name: urlState.config } as EntityTab & { component_name: string };
+  }, [urlState.config, tabs]);
+
+  // Helper setters that update URL state
+  const setActiveGroup = React.useCallback((group: string) => {
+    setUrlState({ group });
+  }, [setUrlState]);
+
+  const setExpandedItems = React.useCallback((updater: Set<number> | ((prev: Set<number>) => Set<number>)) => {
+    if (typeof updater === "function") {
+      const newSet = updater(expandedItems);
+      setUrlState({ expanded: setToUrlArray(newSet) });
+    } else {
+      setUrlState({ expanded: setToUrlArray(updater) });
+    }
+  }, [setUrlState, expandedItems]);
+
+  const setExpandedDocTypes = React.useCallback((updater: Set<number> | ((prev: Set<number>) => Set<number>)) => {
+    if (typeof updater === "function") {
+      const newSet = updater(expandedDocTypes);
+      setUrlState({ docExpanded: setToUrlArray(newSet) });
+    } else {
+      setUrlState({ docExpanded: setToUrlArray(updater) });
+    }
+  }, [setUrlState, expandedDocTypes]);
+
+  const setEditingTab = React.useCallback((tab: EntityTab | null) => {
+    if (tab) {
+      setUrlState({ tabId: String(tab.id), action: "edit" });
+    } else {
+      setUrlState({ tabId: null, action: null });
+    }
+  }, [setUrlState]);
+
+  const setDialogOpen = React.useCallback((open: boolean) => {
+    if (!open) {
+      setUrlState({ action: null, tabId: null });
+    }
+  }, [setUrlState]);
+
+  const openCreateMode = React.useCallback(() => {
+    setUrlState({ action: "create", tabId: null });
+  }, [setUrlState]);
+
+  const setConfigTab = React.useCallback((tab: EntityTab | null, componentName?: string) => {
+    setUrlState({ config: componentName || null });
+  }, [setUrlState]);
+
   const [deleteConfirmTab, setDeleteConfirmTab] = React.useState<EntityTab | null>(null);
-  const [activeGroup, setActiveGroup] = React.useState<string>("overview");
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
   const [newEntityType, setNewEntityType] = React.useState("");
-  // Plan configuration sheet (SSoT: Plans config integrated here)
-  const [configTab, setConfigTab] = React.useState<EntityTab | null>(null);
 
   // All document types for linking (SSoT)
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; display_name?: string }>>([]);
@@ -408,8 +492,7 @@ export function EntityTabsConfig({
       display_mode: 'both',  // SSoT: Default display mode
       hidden_by_default: false,  // SSoT: Default visibility
     });
-    setEditingTab(null);
-    setIsCreateDialogOpen(true);
+    openCreateMode();
   };
 
   // Open edit dialog - always opens the edit dialog for tab settings
@@ -437,8 +520,8 @@ export function EntityTabsConfig({
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
     });
+    // setEditingTab updates URL with tabId and action=edit
     setEditingTab(tab);
-    setIsCreateDialogOpen(true);
   };
 
   // Get available parent tabs (root-level tabs that can be parents)
@@ -499,8 +582,7 @@ export function EntityTabsConfig({
         refetchUsedIcons();
       }
       toast.success(editingTab ? "Tab updated" : "Tab created");
-      setIsCreateDialogOpen(false);
-      setEditingTab(null);
+      setDialogOpen(false);
     } catch (err: any) {
       console.error("Failed to save tab:", err);
       toast.error(err?.message || "Failed to save tab");
@@ -922,7 +1004,7 @@ export function EntityTabsConfig({
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => setConfigTab({ ...tab, component_name: "PlanCategories" } as EntityTab)}
+                  onClick={() => setConfigTab(tab, "PlanCategories")}
                 >
                   Categories
                 </Button>
@@ -930,7 +1012,7 @@ export function EntityTabsConfig({
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => setConfigTab({ ...tab, component_name: "PlanTypes" } as EntityTab)}
+                  onClick={() => setConfigTab(tab, "PlanTypes")}
                 >
                   Types
                 </Button>
@@ -938,7 +1020,7 @@ export function EntityTabsConfig({
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => setConfigTab({ ...tab, component_name: "RevisionFormats" } as EntityTab)}
+                  onClick={() => setConfigTab(tab, "RevisionFormats")}
                 >
                   Revisions
                 </Button>
@@ -1239,8 +1321,8 @@ export function EntityTabsConfig({
         </Card>
       )}
 
-      {/* Create/Edit Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      {/* Create/Edit Dialog - controlled by URL state for back button support */}
+      <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[95vw] h-[90vh] overflow-hidden flex flex-col">
           {/* Visually hidden title for screen reader accessibility */}
           <DialogTitle className="sr-only">
@@ -1270,7 +1352,7 @@ export function EntityTabsConfig({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsCreateDialogOpen(false)}
+                onClick={() => setDialogOpen(false)}
                 disabled={saving}
               >
                 Cancel
@@ -1729,7 +1811,7 @@ export function EntityTabsConfig({
       )}
 
       {/* Plan Configuration Sheet (SSoT: Plans config integrated from separate tab) */}
-      <Sheet open={!!configTab} onOpenChange={() => setConfigTab(null)}>
+      <Sheet open={!!configTab} onOpenChange={() => setConfigTab(null, undefined)}>
         <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{configTab?.display_name} Configuration</SheetTitle>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useUrlTabs from "@/hooks/useUrlTabs";
 import Link from "next/link";
 import axios from "axios";
 import {
@@ -43,7 +44,8 @@ type TabKey = keyof JobsData;
 
 export default function PortalJobs() {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabKey>("upcoming");
+  // SSoT: Tab synced to URL for back button support
+  const [activeTab, setActiveTab] = useUrlTabs("upcoming") as [TabKey, (tab: string) => void];
   const [jobs, setJobs] = useState<JobsData>({
     upcoming: [],
     in_progress: [],

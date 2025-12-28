@@ -89,9 +89,6 @@ import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-conf
 import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
 import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
 
-// Foundation ID for document_types table
-const DOCUMENT_TYPES_FOUNDATION_ID = 454;
-
 interface ColumnType {
   columnName: string;
   sqlType: string;

@@ -3,6 +3,7 @@ class FoundationView < ApplicationRecord
   belongs_to :foundation, optional: true  # optional because foundation_id might reference dynamic foundations
 
   validates :name, presence: true
+  validates :slug, presence: true, uniqueness: { scope: :foundation_id, message: "must be unique within the foundation" }
   # user_id is required for personal views, but not for global views
   validates :user_id, presence: true, unless: :is_global?
 
@@ -15,6 +16,9 @@ class FoundationView < ApplicationRecord
   # Prevent deletion of "Setup" view
   before_destroy :prevent_setup_view_deletion
 
+  # Auto-generate slug from name before validation
+  before_validation :generate_slug, if: -> { slug.blank? || name_changed? }
+
   # Serialize JSON fields
   attribute :filters, :json, default: {}
   attribute :columns, :json, default: []
@@ -26,6 +30,18 @@ class FoundationView < ApplicationRecord
   scope :defaults, -> { where(is_default: true) }
   scope :global_views, -> { where(is_global: true, user_id: nil) }
   scope :personal_views, -> { where(is_global: false) }
+  scope :by_slug, ->(slug) { where(slug: slug) }
+
+  # Find view by slug or ID (for API compatibility)
+  def self.find_by_slug_or_id(identifier, foundation_id: nil)
+    scope = foundation_id ? where(foundation_id: foundation_id) : all
+    # Try slug first (string that's not purely numeric), then fall back to ID
+    if identifier.to_s.match?(/\A\d+\z/)
+      scope.find_by(id: identifier)
+    else
+      scope.find_by(slug: identifier)
+    end
+  end
 
   # Method to get visible columns from the columns JSON
   def visible_columns
@@ -45,6 +61,30 @@ class FoundationView < ApplicationRecord
   before_save :deduplicate_column_order
 
   private
+
+  # Generate a URL-friendly slug from the view name
+  def generate_slug
+    return if name.blank?
+
+    base_slug = name.parameterize
+
+    # Find existing slugs for this foundation to avoid duplicates
+    existing_slugs = FoundationView.where(foundation_id: foundation_id)
+                                   .where.not(id: id)
+                                   .pluck(:slug)
+
+    # If base slug is unique, use it
+    if !existing_slugs.include?(base_slug)
+      self.slug = base_slug
+    else
+      # Add numeric suffix to make it unique
+      counter = 2
+      while existing_slugs.include?("#{base_slug}-#{counter}")
+        counter += 1
+      end
+      self.slug = "#{base_slug}-#{counter}"
+    end
+  end
 
   def deduplicate_column_order
     return unless columns.is_a?(Hash) && columns["order"].is_a?(Array)

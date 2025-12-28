@@ -20,6 +20,7 @@ import {
   Zap,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -368,9 +369,7 @@ export default function ContactQualityReviewPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <BackButton fallbackHref="/contacts" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
               <Search className="h-6 w-6 text-indigo-500" />

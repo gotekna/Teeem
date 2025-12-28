@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useUrlTabs from "@/hooks/useUrlTabs";
 import Link from "next/link";
 import axios from "axios";
 import {
@@ -45,7 +46,8 @@ type TabKey = "all" | "pending" | "synced" | "paid" | "failed";
 
 export default function PortalInvoices() {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabKey>("all");
+  // SSoT: Tab synced to URL for back button support
+  const [activeTab, setActiveTab] = useUrlTabs("all") as [TabKey, (tab: string) => void];
   const [invoices, setInvoices] = useState<InvoicesData>({
     pending: [],
     synced: [],

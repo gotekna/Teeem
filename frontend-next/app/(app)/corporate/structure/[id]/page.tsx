@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowLeft, GitBranch, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 
 // Dynamic import for PersonStructureChart to avoid SSR issues with ReactFlow
 const PersonStructureChart = dynamic(
@@ -151,10 +152,7 @@ export default function CorporateStructurePage() {
     return (
       <div className="flex flex-col items-center justify-center h-[80vh] gap-4">
         <p className="text-muted-foreground">Contact not found</p>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Go Back
-        </Button>
+        <BackButton fallbackHref="/contacts" label="Go Back" variant="outline" />
       </div>
     );
   }
@@ -189,10 +187,7 @@ export default function CorporateStructurePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+          <BackButton fallbackHref="/contacts" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
               <GitBranch className="h-6 w-6 text-teal-600" />
