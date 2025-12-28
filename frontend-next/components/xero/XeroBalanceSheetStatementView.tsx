@@ -260,7 +260,7 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
           <div className="-mx-4">
             <TeeemTableView
               entries={tableRows}
-              foundationIdNumeric={489}
+              foundationId="balance_sheet_reports"
               tableName="Balance Sheet Report Statements"
               onRowClick={handleRowClick}
               viewOnly={true}

@@ -251,8 +251,7 @@ export default function FeaturesTrackingTable() {
       {/* TeeemTableView */}
       <TeeemTableView
         tableName="Feature Tracking"
-        foundationId="feature_tracking"
-        foundationIdNumeric={375}
+        foundationId="feature_trackers"
         entries={features}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         viewOnly={true}

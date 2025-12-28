@@ -374,10 +374,9 @@ export default function DocumentTypesPage() {
         </Card>
       )}
 
-      {/* Table - Foundation 454 */}
+      {/* Table - document_types Foundation */}
       <TeeemTableView
-        foundationId="document-types"
-        foundationIdNumeric={454}
+        foundationId="document_types"
         tableName="Document Types"
         entries={documentTypes}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)

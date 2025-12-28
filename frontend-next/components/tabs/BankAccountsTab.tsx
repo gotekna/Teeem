@@ -179,7 +179,6 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         foundationId="bank_accounts"
-        foundationIdNumeric={350}
         tableName="Bank Accounts"
         enableExport={true}
         enableImport={false}

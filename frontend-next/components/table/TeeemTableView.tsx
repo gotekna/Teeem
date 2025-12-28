@@ -5270,11 +5270,17 @@ export default function TeeemTableView({
                 </Button>
               )}
               {/* Delete button - bulk delete selected rows (auto-enabled with foundationIdNumeric) */}
+              {/* SSoT: Only delete VISIBLE selected rows (filtered intersection) */}
               {effectiveBulkDelete && !viewOnly && (
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => effectiveBulkDelete(Array.from(selectedRows))}
+                  onClick={() => {
+                    // Filter to only visible selected rows (intersection of selected + filtered)
+                    const visibleIds = new Set(filteredAndSortedEntries.map(e => e.id));
+                    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
+                    effectiveBulkDelete(visibleSelectedIds);
+                  }}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
                   Delete
@@ -5690,11 +5696,16 @@ export default function TeeemTableView({
             </Button>
           )}
           {/* Delete button (auto-enabled with foundationIdNumeric) */}
+          {/* SSoT: Only delete VISIBLE selected rows (filtered intersection) */}
           {effectiveBulkDelete && !viewOnly && (
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => effectiveBulkDelete?.(Array.from(selectedRows))}
+              onClick={() => {
+                const visibleIds = new Set(filteredAndSortedEntries.map(e => e.id));
+                const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
+                effectiveBulkDelete?.(visibleSelectedIds);
+              }}
             >
               <Trash2 className="h-4 w-4 mr-1" />
               Delete

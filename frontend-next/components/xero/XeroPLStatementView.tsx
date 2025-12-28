@@ -262,7 +262,7 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
           <div className="-mx-4">
             <TeeemTableView
               entries={tableRows}
-              foundationIdNumeric={488}
+              foundationId="profit_loss_reports"
               tableName="P&L Report Statements"
               onRowClick={handleRowClick}
               viewOnly={true}

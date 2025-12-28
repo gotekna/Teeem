@@ -137,7 +137,6 @@ export function XeroInvoicesCard({
       <TeeemTableView
         entries={invoices}
         foundationId="external_invoices"
-        foundationIdNumeric={523}
         tableName="Sales Invoices"
         onRefresh={handleRefresh}
         enableExport={true}

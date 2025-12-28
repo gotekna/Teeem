@@ -311,8 +311,8 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={tasks as unknown as TableRow[]}
-        foundationIdNumeric={218}
-        inheritViewsFrom={426}
+        foundationId="sm-tasks"
+        inheritViewsFrom="sm_schedule_master"
         tableName="Schedule Tasks"
         onRefresh={loadTasks}
         onRowClick={handleRowClick}

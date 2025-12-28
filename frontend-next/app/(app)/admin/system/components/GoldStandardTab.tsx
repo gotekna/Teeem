@@ -844,8 +844,7 @@ function GoldStandardDataTab() {
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         totalCount={entries.length}
-        foundationId="components"
-        foundationIdNumeric={1}
+        foundationId="gold_standard_table"
         tableName="Gold Standard Table"
         // SSoT: onView, onEdit, onDelete (Add/Edit/View/Delete buttons) are now auto-enabled
         // by TeeemTableView when foundationIdNumeric is set. No need to pass custom handlers.

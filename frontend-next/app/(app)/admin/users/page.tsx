@@ -168,8 +168,7 @@ export default function UsersPage() {
     <TablePage>
       <TeeemTableView
         category="users"
-        foundationId="users"
-        foundationIdNumeric={212}
+        foundationId="user-management"
         tableName="Users"
         entries={users}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)

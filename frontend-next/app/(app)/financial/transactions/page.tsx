@@ -316,8 +316,7 @@ export default function FinancialTransactionsPage() {
           {/* Transactions Table */}
           <TeeemTableView
             category="financial"
-            foundationId="financial-transactions"
-            foundationIdNumeric={199}
+            foundationId="financial_transactions"
             tableName="Financial Transactions"
             entries={transactions}
             // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)

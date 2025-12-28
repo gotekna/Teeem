@@ -141,7 +141,6 @@ export function XeroBillsCard({
       <TeeemTableView
         entries={bills}
         foundationId="external_invoices"
-        foundationIdNumeric={523}
         tableName="Bills"
         onRefresh={handleRefresh}
         onRowClick={onRowClick}

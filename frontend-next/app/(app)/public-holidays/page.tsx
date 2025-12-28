@@ -199,7 +199,7 @@ export default function PublicHolidaysPage() {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={holidays}
-        foundationIdNumeric={405}
+        foundationId="public_holidays"
         tableName="Public Holidays"
         onRefresh={loadHolidays}
         leftActions={filterControls}

@@ -335,7 +335,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
               <TabsContent key={bankName} value={bankName} className="mt-0">
                 <TeeemTableView
                   entries={getTableRows(reportsByBank[bankName] || [])}
-                  foundationIdNumeric={487}
+                  foundationId="bank_statement_reports"
                   tableName="Statements"
                   onRowClick={handleRowClick}
                   viewOnly={true}

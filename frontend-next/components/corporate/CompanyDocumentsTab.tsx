@@ -473,8 +473,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   return (
     <>
       <TeeemTableView
-        foundationId={`company-documents-${category || "all"}`}
-        foundationIdNumeric={357}
+        foundationId="company_documents"
         tableName={`${category ? category.toUpperCase() : "All"} Documents (${documents.length})`}
         entries={documents}
         onDelete={handleDelete}
