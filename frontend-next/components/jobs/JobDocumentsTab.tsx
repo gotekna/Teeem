@@ -573,6 +573,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
             childKey = c;
           }
 
+          console.log("[JobDocumentsTab] Category lookup:", {
+            initialCategory,
+            isCompositeKey,
+            parentKey,
+            childKey,
+          });
+
           // SSoT: Match by tab_key directly (e.g., "supervisor-photo")
           // No name conversion needed - tab_key is the unique identifier
           for (const parent of categories) {
@@ -586,6 +593,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                 (child) => child.tab_key === childKey
               );
               if (matchingChild) {
+                console.log("[JobDocumentsTab] Found matching child:", {
+                  parent: parent.tab_key,
+                  child: matchingChild.tab_key,
+                  is_photo_category: matchingChild.is_photo_category,
+                });
                 // Set flag BEFORE setting state to prevent useEffect from overwriting
                 initialCategoryAppliedRef.current = true;
                 setSelectedCategory(parent);
@@ -595,6 +607,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
             }
             // Also check if the parent itself matches (only if no composite key)
             if (!parentKey && parent.tab_key === childKey) {
+              console.log("[JobDocumentsTab] Found matching parent:", {
+                parent: parent.tab_key,
+                is_photo_category: parent.is_photo_category,
+              });
               setSelectedCategory(parent);
               return;
             }
