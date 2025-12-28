@@ -746,6 +746,59 @@ Rails.application.routes.draw do
       post "sms/webhook", to: "sms_messages#webhook"
       post "sms/status", to: "sms_messages#status_webhook"
 
+      # ============================================
+      # SaaS Customer Management
+      # ============================================
+
+      # SaaS Customers (extends Contact model)
+      resources :saas_customers, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          get :profitability
+          get :billing_history
+          post :calculate_fee
+        end
+        collection do
+          get :dashboard
+          get :pricing_calculator
+        end
+      end
+
+      # Support Tickets (extends SmTask model with is_ticket=true)
+      resources :support_tickets, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :respond  # Record first response for SLA
+        end
+        collection do
+          get :dashboard
+          get "for_customer/:customer_id", action: :for_customer
+        end
+      end
+
+      # SaaS Billing
+      resources :saas_billing, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :create_invoice
+        end
+        collection do
+          post :generate_monthly
+          get :summary
+        end
+      end
+
+      # Referrers & Commissions
+      resources :referrers, only: [:index, :show, :update] do
+        member do
+          get :network
+          get :commissions
+          post :complete_training
+          post :recalculate
+        end
+        collection do
+          get :dashboard
+          post :process_pending
+        end
+      end
+
       # Global Xero links endpoints (not nested under contacts)
       get "xero_links/pending_review", to: "contact_xero_links#pending_review"
 

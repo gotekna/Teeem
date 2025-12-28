@@ -31,6 +31,9 @@ class SitePresenceSession < ApplicationRecord
   belongs_to :checkout_photo, class_name: "SmTaskPhoto", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
 
+  # SaaS customer association (for cost-to-serve tracking)
+  belongs_to :saas_customer, class_name: "Contact", optional: true
+
   has_one :labour_cost_entry, dependent: :destroy
 
   # Validations

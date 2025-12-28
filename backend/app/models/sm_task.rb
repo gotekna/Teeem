@@ -101,6 +101,9 @@ class SmTask < ApplicationRecord
   has_many :task_followers, dependent: :destroy
   has_many :followers, through: :task_followers, source: :user
 
+  # SaaS Customer association (for tickets and customer-linked tasks)
+  belongs_to :saas_customer, class_name: "Contact", optional: true
+
   # Follow/unfollow helper methods
   def follow_by(user)
     task_followers.find_or_create_by(user: user)
@@ -147,6 +150,26 @@ class SmTask < ApplicationRecord
   scope :recurring, -> { where(source_type: 'recurring') }
   scope :manual, -> { where(source_type: 'manual') }
   scope :from_job_template, -> { where(source_type: 'job') }
+
+  # ============================================
+  # Support Ticket Scopes
+  # ============================================
+  scope :tickets, -> { where(is_ticket: true) }
+  scope :non_tickets, -> { where(is_ticket: [false, nil]) }
+  scope :for_saas_customer, ->(customer_id) { where(saas_customer_id: customer_id) }
+  scope :customer_visible, -> { where(customer_visible: true) }
+  scope :submitted_via_portal, -> { where(submitted_via_portal: true) }
+  scope :sla_breached, -> { tickets.where("sla_resolution_due_at < ? AND status != ?", Time.current, "completed") }
+  scope :sla_at_risk, -> {
+    tickets.where(
+      "sla_resolution_due_at BETWEEN ? AND ? AND status != ?",
+      Time.current,
+      4.hours.from_now,
+      "completed"
+    )
+  }
+  scope :by_ticket_priority, ->(priority) { tickets.where(ticket_priority: priority) }
+  scope :by_ticket_category, ->(category) { tickets.where(ticket_category: category) }
 
   # Callbacks
   before_validation :set_task_number, on: :create
@@ -216,6 +239,94 @@ class SmTask < ApplicationRecord
       completed_at: Time.current,
       passed: passed
     )
+  end
+
+  # ============================================
+  # Support Ticket Methods
+  # ============================================
+
+  # SLA defaults by priority (in hours)
+  SLA_RESPONSE_HOURS = {
+    "urgent" => 1,
+    "high" => 4,
+    "medium" => 8,
+    "low" => 24
+  }.freeze
+
+  SLA_RESOLUTION_HOURS = {
+    "urgent" => 4,
+    "high" => 24,
+    "medium" => 72,
+    "low" => 168  # 7 days
+  }.freeze
+
+  TICKET_PRIORITIES = %w[urgent high medium low].freeze
+  TICKET_CATEGORIES = %w[bug feature_request question onboarding billing other].freeze
+
+  # Set SLA deadlines based on priority
+  def set_sla_deadlines!
+    return unless is_ticket && ticket_priority.present?
+
+    base_time = created_at || Time.current
+    self.sla_response_due_at = base_time + SLA_RESPONSE_HOURS[ticket_priority].hours
+    self.sla_resolution_due_at = base_time + SLA_RESOLUTION_HOURS[ticket_priority].hours
+    save!
+  end
+
+  # Record first response time
+  def record_first_response!
+    return if sla_first_response_at.present?
+    update!(sla_first_response_at: Time.current)
+  end
+
+  # Check if response SLA is breached
+  def sla_response_breached?
+    return false unless is_ticket && sla_response_due_at.present?
+    sla_first_response_at.nil? && Time.current > sla_response_due_at
+  end
+
+  # Check if resolution SLA is breached
+  def sla_resolution_breached?
+    return false unless is_ticket && sla_resolution_due_at.present?
+    !status_completed? && Time.current > sla_resolution_due_at
+  end
+
+  # Check if any SLA is breached
+  def sla_breached?
+    sla_response_breached? || sla_resolution_breached?
+  end
+
+  # Time until resolution SLA breach (or negative if already breached)
+  def time_until_sla_breach
+    return nil unless sla_resolution_due_at.present?
+    sla_resolution_due_at - Time.current
+  end
+
+  # SLA status for display
+  def sla_status
+    return "n/a" unless is_ticket
+    return "completed" if status_completed?
+    return "breached" if sla_breached?
+    return "at_risk" if time_until_sla_breach && time_until_sla_breach < 4.hours
+    "on_track"
+  end
+
+  # Ticket summary for API
+  def ticket_summary
+    return nil unless is_ticket
+
+    {
+      priority: ticket_priority,
+      category: ticket_category,
+      sla_status: sla_status,
+      sla_response_due: sla_response_due_at,
+      sla_resolution_due: sla_resolution_due_at,
+      first_response_at: sla_first_response_at,
+      response_breached: sla_response_breached?,
+      resolution_breached: sla_resolution_breached?,
+      customer_visible: customer_visible,
+      submitted_via_portal: submitted_via_portal
+    }
   end
 
   # Hold task helpers

@@ -32,6 +32,9 @@ class LabourCostEntry < ApplicationRecord
   # Note: invoice_id is a soft reference without FK constraint
   belongs_to :invoice, optional: true, class_name: "Invoice"
 
+  # SaaS customer association (for cost-to-serve tracking)
+  belongs_to :saas_customer, class_name: "Contact", optional: true
+
   # Validations
   validates :entry_date, presence: true
   validates :entry_source, inclusion: { in: ENTRY_SOURCES }
@@ -95,7 +98,10 @@ class LabourCostEntry < ApplicationRecord
       total_cost: cost_data[:total_cost],
 
       entry_source: "photo",
-      billable: true
+      billable: true,
+
+      # SaaS customer tracking (flows from SitePresenceSession)
+      saas_customer_id: session.saas_customer_id
     )
   end
 
