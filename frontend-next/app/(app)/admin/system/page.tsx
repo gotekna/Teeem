@@ -219,9 +219,9 @@ function CompanyInfoTab() {
 
   const loadSettings = async () => {
     try {
-      const response = await api.get<CompanySettings>("/api/v1/company_settings");
-      setSettings(response);
-      setOriginalSettings(response);
+      const response = await api.get<{ success: boolean; data: CompanySettings }>("/api/v1/company_settings");
+      setSettings(response.data);
+      setOriginalSettings(response.data);
     } catch (error) {
       console.debug("Company settings unavailable:", error);
       setMessage({ type: "error", text: "Failed to load settings" });

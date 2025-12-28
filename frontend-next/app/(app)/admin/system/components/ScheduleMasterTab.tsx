@@ -436,9 +436,9 @@ export function ScheduleMasterTab() {
   // SSoT: Load trades from Foundation SM Trades (ID 542)
   const loadTrades = async () => {
     try {
-      const data = await api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/542/records?per_page=100");
-      if (data?.data) {
-        setAvailableTrades(data.data);
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/542/records?per_page=100");
+      if (data?.records) {
+        setAvailableTrades(data.records);
       }
     } catch (error) {
       console.error("Failed to load trades:", error);
@@ -448,9 +448,9 @@ export function ScheduleMasterTab() {
   // SSoT: Load stages from Foundation SM Stages (ID 543)
   const loadStages = async () => {
     try {
-      const data = await api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/543/records?per_page=100");
-      if (data?.data) {
-        setAvailableStages(data.data);
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/543/records?per_page=100");
+      if (data?.records) {
+        setAvailableStages(data.records);
       }
     } catch (error) {
       console.error("Failed to load stages:", error);
@@ -1970,97 +1970,44 @@ export function ScheduleMasterTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="row-trade">Trade</Label>
-                <div className="flex gap-1">
-                  {/* SSoT: Trades from Foundation SM Trades (ID 542) */}
-                  <Select
-                    value={editRowForm.trade || "_none"}
-                    onValueChange={(value) => setEditRowForm({ ...editRowForm, trade: value === "_none" ? "" : value })}
-                  >
-                    <SelectTrigger id="row-trade" className="flex-1">
-                      <SelectValue placeholder="Select trade...">
-                        {editRowForm.trade && editRowForm.trade !== "_none"
-                          ? availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editRowForm.trade
-                          : "Select trade..."}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">None</SelectItem>
-                      {availableTrades.map((trade) => (
-                        <SelectItem key={trade.id} value={String(trade.id)}>{trade.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleNavigateToTables}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Manage Trades (Tables tab)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                <Label>Trade</Label>
+                {/* SSoT: Trades from Foundation SM Trades (ID 542) */}
+                <ComboboxDropdown
+                  items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
+                  selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editRowForm.trade } : undefined}
+                  onSelect={(item) => setEditRowForm({ ...editRowForm, trade: item.id })}
+                  placeholder="Select trade..."
+                  emptyResults="No trades found"
+                  clearable
+                  onClear={() => setEditRowForm({ ...editRowForm, trade: "" })}
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="row-stage">Stage</Label>
-                <div className="flex gap-1">
-                  {/* SSoT: Stages from Foundation SM Stages (ID 543) */}
-                  <Select
-                    value={editRowForm.stage || "_none"}
-                    onValueChange={(value) => setEditRowForm({ ...editRowForm, stage: value === "_none" ? "" : value })}
-                  >
-                    <SelectTrigger id="row-stage" className="flex-1">
-                      <SelectValue placeholder="Select stage...">
-                        {editRowForm.stage && editRowForm.stage !== "_none"
-                          ? availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editRowForm.stage
-                          : "Select stage..."}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">None</SelectItem>
-                      {availableStages.map((stage) => (
-                        <SelectItem key={stage.id} value={String(stage.id)}>{stage.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleNavigateToTables}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Manage Stages (Tables tab)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                <Label>Stage</Label>
+                {/* SSoT: Stages from Foundation SM Stages (ID 543) */}
+                <ComboboxDropdown
+                  items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
+                  selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editRowForm.stage } : undefined}
+                  onSelect={(item) => setEditRowForm({ ...editRowForm, stage: item.id })}
+                  placeholder="Select stage..."
+                  emptyResults="No stages found"
+                  clearable
+                  onClear={() => setEditRowForm({ ...editRowForm, stage: "" })}
+                />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="row-assigned-role">Assigned Role</Label>
+              <Label>Assigned Role</Label>
               {/* SSoT: Roles from Role model (Admin > System > Company > Security > Roles) */}
-              <Select
-                value={editRowForm.assigned_role || "_none"}
-                onValueChange={(value) => setEditRowForm({ ...editRowForm, assigned_role: value === "_none" ? null : value })}
-              >
-                <SelectTrigger id="row-assigned-role">
-                  <SelectValue placeholder="Select a role..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">None</SelectItem>
-                  {availableRoles.map((role) => (
-                    <SelectItem key={role.id} value={role.name}>{role.display_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboboxDropdown
+                items={availableRoles.map(r => ({ id: r.name, label: r.display_name }))}
+                selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => r.name === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
+                onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
+                placeholder="Select role..."
+                emptyResults="No roles found"
+                clearable
+                onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
+              />
             </div>
 
             {/* PO Settings */}

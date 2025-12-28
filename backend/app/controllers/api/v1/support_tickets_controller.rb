@@ -79,7 +79,8 @@ module Api
 
         # Auto-set saas_customer_id if the current user is a SaaS customer
         # and no explicit saas_customer_id was provided
-        if @ticket.saas_customer_id.blank? && current_user.contact&.is_saas_customer?
+        # Note: Only PortalUser (customer portal) has contact association, not User (internal staff)
+        if @ticket.saas_customer_id.blank? && current_user.respond_to?(:contact) && current_user.contact&.is_saas_customer?
           @ticket.saas_customer_id = current_user.contact.id
           @ticket.customer_visible = true
         end
@@ -177,7 +178,13 @@ module Api
       # GET /api/v1/support_tickets/my_tickets
       # Returns tickets for the current user's SaaS customer contact
       def my_tickets
-        # Find contact linked to current user
+        # Internal staff (User model) don't have associated contacts
+        # This endpoint is for SaaS customers via PortalUser - return empty for regular users
+        unless current_user.respond_to?(:contact)
+          render json: { success: true, data: [] }
+          return
+        end
+
         contact = current_user.contact
 
         if contact.nil? || !contact.is_saas_customer?
