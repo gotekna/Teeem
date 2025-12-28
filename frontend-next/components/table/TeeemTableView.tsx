@@ -2612,11 +2612,28 @@ export default function TeeemTableView({
       const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
       console.log('[Bulk Update] Selected column config:', selectedCol);
 
+      // Convert values based on column type
+      let valueToSend: string | number | number[] | boolean = bulkUpdateValue;
+
       // For multiple_lookups, convert comma-separated string to array of integers
-      let valueToSend: string | number[] = bulkUpdateValue;
       if (selectedCol?.column_type === 'multiple_lookups' && bulkUpdateValue) {
         valueToSend = bulkUpdateValue.split(',').filter(Boolean).map(id => parseInt(id, 10));
         console.log('[Bulk Update] Converted multiple_lookups value:', bulkUpdateValue, '→', valueToSend);
+      }
+      // For single lookup columns, convert string ID to integer
+      else if ((selectedCol?.column_type === 'lookup' || selectedCol?.lookup_foundation_id) && bulkUpdateValue) {
+        valueToSend = parseInt(bulkUpdateValue, 10);
+        console.log('[Bulk Update] Converted lookup value:', bulkUpdateValue, '→', valueToSend);
+      }
+      // For integer/number columns, convert to number
+      else if ((selectedCol?.column_type === 'integer' || selectedCol?.column_type === 'number') && bulkUpdateValue) {
+        valueToSend = selectedCol?.column_type === 'integer' ? parseInt(bulkUpdateValue, 10) : parseFloat(bulkUpdateValue);
+        console.log('[Bulk Update] Converted number value:', bulkUpdateValue, '→', valueToSend);
+      }
+      // For boolean columns, convert to actual boolean
+      else if (selectedCol?.column_type === 'boolean' && bulkUpdateValue) {
+        valueToSend = bulkUpdateValue === 'true';
+        console.log('[Bulk Update] Converted boolean value:', bulkUpdateValue, '→', valueToSend);
       }
 
       if (effectiveFoundationId) {
