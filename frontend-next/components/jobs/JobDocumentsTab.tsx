@@ -383,15 +383,41 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
       formData.append("folder_path", folderPath);
       formData.append("filename", newFilename); // Backend will use this filename
 
+      // ULTRA FIX: Extended timeout for photo uploads (2 minutes)
+      // Large photos (5-10MB) can take 30+ seconds on slower connections
       const response = await api.postFormData<{ success: boolean; message?: string; web_url?: string }>(
         `/api/v1/jobs/${jobId}/photos/upload`,
-        formData
+        formData,
+        { timeout: 120000 }  // 2 minutes for photo uploads
       );
 
       if (response?.success) {
         setMessage({ type: "success", text: `Photo "${newFilename}" uploaded successfully!` });
-        // Refresh to show the new photo
-        await checkJobFolderStatus();
+
+        // ULTRA FIX: Optimistic UI update - show photo immediately
+        // Create a local blob URL for instant display while we refresh from server
+        const blobUrl = URL.createObjectURL(file);
+        const optimisticItem: LegacyItem = {
+          id: `optimistic_${Date.now()}`,
+          name: newFilename,
+          type: "file",
+          folder_path: folderPath,
+          modified: new Date().toISOString(),
+          size: file.size,
+          // Use blob URL for immediate display (works in gallery thumbnails)
+          download_url: blobUrl,
+          thumbnail_url: blobUrl,
+        };
+
+        // Add to allFiles immediately - categoryPhotoItems will auto-update via useMemo
+        setAllFiles((prev) => [...prev, optimisticItem]);
+
+        // Refresh in background to get real SharePoint data
+        // The real item will have the proper ID and URLs
+        checkJobFolderStatus().then(() => {
+          // Clean up the blob URL after refresh brings in real data
+          URL.revokeObjectURL(blobUrl);
+        });
       } else {
         setError(response?.message || "Failed to upload photo");
       }

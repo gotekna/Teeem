@@ -574,23 +574,35 @@ class MicrosoftGraphClient
   end
 
   # File Operations
+  LARGE_FILE_THRESHOLD = 4.megabytes
+  CHUNK_SIZE = 5.megabytes  # Recommended chunk size for resumable uploads
 
-  # Upload small file (< 4MB)
+  # Upload file - automatically uses chunked upload for large files (> 4MB)
   # SSoT: Microsoft Graph API requires PUT for file uploads to path
   def upload_file(file, parent_folder_id, filename = nil)
     filename ||= File.basename(file.path)
     # Sanitize filename for SharePoint
     safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
 
-    put(
-      "#{drive_path}/items/#{parent_folder_id}:/#{safe_filename}:/content",
-      File.read(file),
-      { "Content-Type" => "application/octet-stream" }
-    )
+    # Get file size - works with both File and ActionDispatch::Http::UploadedFile
+    file_size = file.respond_to?(:size) ? file.size : File.size(file.path)
+
+    # ULTRA FIX: Use chunked upload for large files (> 4MB)
+    # This prevents memory issues and timeouts for large photos
+    if file_size > LARGE_FILE_THRESHOLD
+      Rails.logger.info "[MicrosoftGraphClient] Large file detected (#{file_size / 1.megabyte}MB), using chunked upload"
+      upload_large_file_chunked(file, parent_folder_id, safe_filename, file_size)
+    else
+      put(
+        "#{drive_path}/items/#{parent_folder_id}:/#{safe_filename}:/content",
+        File.read(file),
+        { "Content-Type" => "application/octet-stream" }
+      )
+    end
   end
 
   # Create upload session for large files (>= 4MB)
-  def create_upload_session(parent_folder_id, filename, file_size)
+  def create_upload_session(parent_folder_id, filename, file_size = nil)
     post(
       "#{drive_path}/items/#{parent_folder_id}:/#{filename}:/createUploadSession",
       {
@@ -600,6 +612,64 @@ class MicrosoftGraphClient
         }
       }
     )
+  end
+
+  # Upload large file using resumable upload session (chunked)
+  # Reference: https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession
+  def upload_large_file_chunked(file, parent_folder_id, filename, file_size)
+    # Step 1: Create upload session
+    session = create_upload_session(parent_folder_id, filename, file_size)
+    upload_url = session["uploadUrl"]
+
+    raise APIError, "Failed to create upload session" unless upload_url
+
+    Rails.logger.info "[MicrosoftGraphClient] Upload session created, uploading #{file_size} bytes in chunks"
+
+    # Ensure file is at beginning
+    file_obj = file.respond_to?(:tempfile) ? file.tempfile : file
+    file_obj.rewind if file_obj.respond_to?(:rewind)
+
+    # Step 2: Upload file in chunks
+    offset = 0
+    result = nil
+
+    while offset < file_size
+      chunk_end = [offset + CHUNK_SIZE, file_size].min - 1
+      chunk_size = chunk_end - offset + 1
+
+      # Read chunk from file
+      chunk = file_obj.read(chunk_size)
+
+      # Upload chunk with Content-Range header
+      # Format: "bytes start-end/total"
+      content_range = "bytes #{offset}-#{chunk_end}/#{file_size}"
+
+      Rails.logger.debug "[MicrosoftGraphClient] Uploading chunk: #{content_range}"
+
+      response = HTTParty.put(
+        upload_url,
+        body: chunk,
+        headers: {
+          "Content-Length" => chunk_size.to_s,
+          "Content-Range" => content_range
+        },
+        timeout: 120  # 2 minute timeout per chunk
+      )
+
+      unless response.success? || response.code == 202
+        raise APIError, "Chunk upload failed: #{response.code} - #{response.body}"
+      end
+
+      # The final chunk returns the completed item
+      if response.code == 200 || response.code == 201
+        result = JSON.parse(response.body) rescue {}
+        Rails.logger.info "[MicrosoftGraphClient] Chunked upload complete: #{result['name']}"
+      end
+
+      offset += chunk_size
+    end
+
+    result
   end
 
   # Download file

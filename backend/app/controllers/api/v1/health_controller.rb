@@ -205,9 +205,9 @@ module Api
         }
       end
 
-      # DEPRECATED: Use GET /api/v1/foundations/205/health instead
+      # DEPRECATED: Use GET /api/v1/foundations/pricebook-items/health instead
       def pricebook
-        Rails.logger.warn "[DEPRECATED] GET /api/v1/health/pricebook - use /api/v1/foundations/205/health instead"
+        Rails.logger.warn "[DEPRECATED] GET /api/v1/health/pricebook - use /api/v1/foundations/pricebook-items/health instead"
         # Get pricebook items without default supplier
         items_without_default_supplier_query = PricebookItem.active
           .where(default_supplier_id: nil)

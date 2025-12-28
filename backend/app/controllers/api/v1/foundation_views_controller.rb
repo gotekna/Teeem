@@ -6,9 +6,9 @@ module Api
       before_action :set_foundation_view, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/foundation_views
-      # GET /api/v1/foundation_views?foundation_id=123
-      # GET /api/v1/foundation_views?foundation_id=218&include_views_from=426 (inherit global views from related foundations)
-      # GET /api/v1/table_views?table_id=123 (backward compatible)
+      # GET /api/v1/foundation_views?foundation_id=jobs (by slug - preferred)
+      # GET /api/v1/foundation_views?foundation_id=sm_tasks&include_views_from=schedule_master (inherit global views)
+      # GET /api/v1/table_views?table_id=123 (backward compatible - numeric IDs still work)
       def index
         # Support both foundation_id and table_id (backward compatibility)
         raw_filter_id = params[:foundation_id] || params[:table_id]
@@ -18,7 +18,7 @@ module Api
         resolved_filter_id = raw_filter_id.present? ? resolve_foundation_id(raw_filter_id) : nil
 
         # Support inheriting global views from related foundations
-        # Example: SM Tasks (218) can inherit global views from Schedule Master (426)
+        # Example: SM Tasks (sm_tasks) can inherit global views from Schedule Master (schedule_master)
         include_from_ids = params[:include_views_from].to_s.split(",").map { |id| resolve_foundation_id(id) }.compact
 
         # Get global views (shared by all users)

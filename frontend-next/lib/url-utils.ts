@@ -11,21 +11,28 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Table ID mappings - fetched from API with fallback defaults
+ * Table ID mappings - fetched from API, NO FALLBACKS
  *
  * IMPORTANT: These values come from the database via /api/v1/foundations/table_ids
  * Do NOT hardcode table IDs - they are auto-incrementing and may differ between environments
  *
- * Use getTableIds() for dynamic access, or TABLE_IDS for static references
- * (TABLE_IDS uses cached values that are populated on app load)
+ * SSoT: Throws if table IDs aren't loaded - no silent fallbacks
  */
+function requireTableIds() {
+  const ids = getTableIds();
+  if (!ids) {
+    throw new Error('Table IDs not loaded - call initTableIds() first or ensure API is available');
+  }
+  return ids;
+}
+
 export const TABLE_IDS = {
-  get GOLD_STANDARD() { return getTableIds().GOLD_STANDARD; },
-  get JOBS() { return getTableIds().JOBS; },
-  get TASKS() { return getTableIds().TASKS; },
-  get PRICEBOOK() { return getTableIds().PRICEBOOK; },
-  get CONTACTS() { return getTableIds().CONTACTS; },
-  get FEATURES_TRACKING() { return getTableIds().FEATURES_TRACKING; },
+  get GOLD_STANDARD() { return requireTableIds().GOLD_STANDARD; },
+  get JOBS() { return requireTableIds().JOBS; },
+  get TASKS() { return requireTableIds().TASKS; },
+  get PRICEBOOK() { return requireTableIds().PRICEBOOK; },
+  get CONTACTS() { return requireTableIds().CONTACTS; },
+  get FEATURES_TRACKING() { return requireTableIds().FEATURES_TRACKING; },
   // COMPANIES removed - Foundation 353 doesn't exist. Use /corporate routes directly.
 } as const;
 
@@ -38,18 +45,6 @@ export const TABLE_SLUGS: Record<number, string> = new Proxy({} as Record<number
     return undefined;
   },
 });
-
-// Legacy route mappings (for backwards compatibility)
-// NOTE: 353 is a route hint for corporate, but Foundation 353 doesn't exist.
-// Corporate uses Rails models (CorporateCompany) directly.
-export const TABLE_ROUTES: Record<number, string> = {
-  1: "admin/system",
-  204: "jobs",
-  205: "pricebook",
-  214: "contacts",
-  // 353: "corporate", // Removed - Foundation 353 doesn't exist
-  375: "dashboard",
-};
 
 /**
  * Creates a URL-friendly slug from text

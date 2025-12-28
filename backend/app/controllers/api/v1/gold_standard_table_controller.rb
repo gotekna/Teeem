@@ -154,8 +154,9 @@ class Api::V1::GoldStandardTableController < ApplicationController
   # NOTE: This should be protected in production - see Item 14
   def sync_with_columns
     begin
-      # Fetch all columns for the Gold Standard table (table_id = 9)
-      columns = Column.where(table_id: 9).order(:position)
+      # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
+      gold_standard = Foundation.find_by(slug: 'gold_standard_table')
+      columns = Column.where(foundation_id: gold_standard&.id).order(:position)
 
       render json: {
         success: true,

@@ -11,7 +11,7 @@
 #
 # NEW RECOMMENDED APPROACH:
 #   Use HealthChecks::Registry directly:
-#     HealthChecks::Registry.run_all(foundation_id: 205)
+#     HealthChecks::Registry.run_all(foundation_id: foundation.id)
 #     HealthChecks::Registry.system_health
 #
 class TableHealthCheck < ApplicationRecord

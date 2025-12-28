@@ -2,14 +2,14 @@
 
 module HealthChecks
   # Registry of all health check services
-  # Maps foundation IDs and table names to their check services
+  # Maps foundation slugs and table names to their check services
   #
   # Usage:
-  #   # Get checks for a foundation
-  #   HealthChecks::Registry.for_foundation(205)  # => HealthChecks::PricebookCheck
+  #   # Get checks for a foundation (resolves to slug internally)
+  #   HealthChecks::Registry.for_foundation(pricebook_foundation.id)  # => HealthChecks::PricebookCheck
   #
   #   # Run all checks for a foundation
-  #   HealthChecks::Registry.run_all(foundation_id: 205)
+  #   HealthChecks::Registry.run_all(foundation_id: pricebook.id)
   #
   #   # Get system-wide health summary
   #   HealthChecks::Registry.system_health

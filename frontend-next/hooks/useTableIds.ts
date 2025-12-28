@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { api, getApiBaseUrl } from '@/lib/api';
+import { api } from '@/lib/api';
 
 /**
  * Table ID mappings from the API
  * NOTE: Only includes Foundation-based tables. Corporate entities (Companies, Assets)
  * use Rails models directly and are NOT included here.
+ *
+ * SSoT: These IDs come ONLY from the API. No fallbacks - if API fails, we fail loudly.
  */
 export interface TableIdMappings {
   GOLD_STANDARD: number;
@@ -39,146 +41,126 @@ interface TableIdsResponse {
 let cachedTableIds: TableIdMappings | null = null;
 let cachedTableSlugs: Record<number, string> | null = null;
 let fetchPromise: Promise<TableIdMappings> | null = null;
-
-// Default fallback values (these should match the production database)
-// SSoT WARNING: These numeric IDs are environment-specific (differ between local/staging/production).
-// The API fetch is the SSoT - these are only fallbacks when API is unavailable.
-// Prefer using slugs (jobs, contacts, pricebook-items) over numeric IDs in new code.
-// NOTE: COMPANIES removed - Foundation 353 doesn't exist. Use CorporateCompany Rails model.
-const DEFAULT_TABLE_IDS: TableIdMappings = {
-  GOLD_STANDARD: 1,   // slug: gold_standard_table
-  JOBS: 204,          // slug: jobs
-  TASKS: 218,         // slug: tasks (SM Tasks)
-  PRICEBOOK: 205,     // slug: pricebook-items
-  CONTACTS: 214,      // slug: contacts
-  FEATURES_TRACKING: 375, // slug: features-tracking
-};
+let fetchError: Error | null = null;
 
 /**
  * Fetch table IDs from the API
- * Returns the table IDs (either from cache or freshly fetched)
+ * SSoT: No fallbacks - throws if API fails
  */
 async function fetchTableIds(): Promise<TableIdMappings> {
   if (cachedTableIds) return cachedTableIds;
+  if (fetchError) throw fetchError;
 
   try {
     const data = await api.get<TableIdsResponse>('/api/v1/foundations/table_ids');
 
-    if (data.success && data.TABLE_IDS) {
-      cachedTableIds = {
-        GOLD_STANDARD: data.TABLE_IDS.GOLD_STANDARD ?? DEFAULT_TABLE_IDS.GOLD_STANDARD,
-        JOBS: data.TABLE_IDS.JOBS ?? DEFAULT_TABLE_IDS.JOBS,
-        TASKS: data.TABLE_IDS.TASKS ?? DEFAULT_TABLE_IDS.TASKS,
-        PRICEBOOK: data.TABLE_IDS.PRICEBOOK ?? DEFAULT_TABLE_IDS.PRICEBOOK,
-        CONTACTS: data.TABLE_IDS.CONTACTS ?? DEFAULT_TABLE_IDS.CONTACTS,
-        FEATURES_TRACKING: data.TABLE_IDS.FEATURES_TRACKING ?? DEFAULT_TABLE_IDS.FEATURES_TRACKING,
-      };
-
-      // Build slug mappings
-      cachedTableSlugs = {};
-      for (const [id, info] of Object.entries(data.tables_by_id)) {
-        cachedTableSlugs[parseInt(id)] = info.slug;
-      }
-
-      return cachedTableIds;
+    if (!data.success || !data.TABLE_IDS) {
+      throw new Error('API returned invalid response for table_ids');
     }
-  } catch (error) {
-    console.error('Failed to fetch table IDs, using defaults:', error);
-    cachedTableIds = DEFAULT_TABLE_IDS;
-  }
 
-  return cachedTableIds || DEFAULT_TABLE_IDS;
+    // Validate all required fields are present
+    const required = ['GOLD_STANDARD', 'JOBS', 'TASKS', 'PRICEBOOK', 'CONTACTS', 'FEATURES_TRACKING'] as const;
+    for (const key of required) {
+      if (data.TABLE_IDS[key] === undefined) {
+        throw new Error(`Missing required table ID: ${key}`);
+      }
+    }
+
+    cachedTableIds = {
+      GOLD_STANDARD: data.TABLE_IDS.GOLD_STANDARD!,
+      JOBS: data.TABLE_IDS.JOBS!,
+      TASKS: data.TABLE_IDS.TASKS!,
+      PRICEBOOK: data.TABLE_IDS.PRICEBOOK!,
+      CONTACTS: data.TABLE_IDS.CONTACTS!,
+      FEATURES_TRACKING: data.TABLE_IDS.FEATURES_TRACKING!,
+    };
+
+    // Build slug mappings from API response
+    cachedTableSlugs = {};
+    for (const [id, info] of Object.entries(data.tables_by_id)) {
+      cachedTableSlugs[parseInt(id)] = info.slug;
+    }
+
+    return cachedTableIds;
+  } catch (error) {
+    fetchError = error instanceof Error ? error : new Error('Failed to fetch table IDs');
+    console.error('CRITICAL: Failed to fetch table IDs from API:', fetchError);
+    throw fetchError;
+  }
 }
 
 /**
  * Hook to get table ID mappings
  * Fetches from API on first use, then uses cached values
- *
- * Uses React-recommended pattern to avoid setState in useEffect (PATTERN-005):
- * - Initialize with cached value if available (synchronous, no loading state)
- * - Only show loading and trigger effect if cache is empty
+ * SSoT: No fallbacks - shows error state if API fails
  */
 export function useTableIds(): {
-  tableIds: TableIdMappings;
+  tableIds: TableIdMappings | null;
   isLoading: boolean;
-  getSlug: (tableId: number) => string;
+  error: Error | null;
+  getSlug: (tableId: number) => string | null;
 } {
-  // Initialize with cached value immediately if available (avoids useEffect setState)
-  const [tableIds, setTableIds] = useState<TableIdMappings>(() => cachedTableIds || DEFAULT_TABLE_IDS);
-  const [isLoading, setIsLoading] = useState(() => !cachedTableIds);
+  const [tableIds, setTableIds] = useState<TableIdMappings | null>(cachedTableIds);
+  const [isLoading, setIsLoading] = useState(!cachedTableIds && !fetchError);
+  const [error, setError] = useState<Error | null>(fetchError);
   const fetchedRef = useRef(false);
 
   useEffect(() => {
-    // If already cached, no need to fetch
-    if (cachedTableIds || fetchedRef.current) {
+    if (cachedTableIds || fetchError || fetchedRef.current) {
       return;
     }
 
     fetchedRef.current = true;
 
-    // Use a shared promise to avoid multiple fetches
     if (!fetchPromise) {
       fetchPromise = fetchTableIds();
     }
 
-    fetchPromise.then((ids) => {
-      setTableIds(ids);
-      setIsLoading(false);
-    });
+    fetchPromise
+      .then((ids) => {
+        setTableIds(ids);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        setError(err);
+        setIsLoading(false);
+      });
   }, []);
 
-  const getSlug = (tableId: number): string => {
+  const getSlug = (tableId: number): string | null => {
     if (cachedTableSlugs && cachedTableSlugs[tableId]) {
       return cachedTableSlugs[tableId];
     }
-    // Fallback to known mappings (Foundation-based tables only)
-    // SSoT WARNING: These numeric IDs are environment-specific - API fetch is preferred
-    // NOTE: Companies (353) removed - uses CorporateCompany Rails model, not Foundation
-    const fallbackSlugs: Record<number, string> = {
-      1: 'gold_standard_table',
-      204: 'jobs',
-      218: 'tasks',
-      205: 'pricebook-items',
-      214: 'contacts',
-      375: 'features-tracking',
-    };
-    return fallbackSlugs[tableId] || `table-${tableId}`;
+    // SSoT: No fallbacks - return null if not loaded
+    return null;
   };
 
-  return { tableIds, isLoading, getSlug };
+  return { tableIds, isLoading, error, getSlug };
 }
 
 /**
- * Get table IDs synchronously (uses cached values or defaults)
- * Useful for non-component code like url-utils.ts
+ * Get table IDs synchronously (uses cached values only)
+ * SSoT: Returns null if not loaded - no fallbacks
  */
-export function getTableIds(): TableIdMappings {
-  return cachedTableIds || DEFAULT_TABLE_IDS;
+export function getTableIds(): TableIdMappings | null {
+  return cachedTableIds;
 }
 
 /**
  * Get slug for a table ID synchronously
+ * SSoT: Returns null if not loaded - no fallbacks
  */
-export function getTableSlug(tableId: number): string {
+export function getTableSlug(tableId: number): string | null {
   if (cachedTableSlugs && cachedTableSlugs[tableId]) {
     return cachedTableSlugs[tableId];
   }
-  // Fallback to known mappings (Foundation-based tables only)
-  // SSoT WARNING: These numeric IDs are environment-specific - API fetch is preferred
-  const fallbackSlugs: Record<number, string> = {
-    1: 'gold_standard_table',
-    204: 'jobs',
-    218: 'tasks',
-    205: 'pricebook-items',
-    214: 'contacts',
-    375: 'features-tracking',
-  };
-  return fallbackSlugs[tableId] || `table-${tableId}`;
+  return null;
 }
 
 /**
  * Initialize table IDs (call early in app lifecycle)
  * Returns a promise that resolves when IDs are loaded
+ * Throws if API fails - no silent fallbacks
  */
 export async function initTableIds(): Promise<void> {
   if (!fetchPromise) {
