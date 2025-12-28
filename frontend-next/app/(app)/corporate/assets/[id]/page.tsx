@@ -25,8 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { BackButton } from "@/components/ui/back-button";
 import {
-  ArrowLeft,
   Package,
   Building2,
   Shield,

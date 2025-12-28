@@ -46,8 +46,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { BackButton } from "@/components/ui/back-button";
 import {
-  ArrowLeft,
   DollarSign,
   Building2,
   Tag,
@@ -607,10 +607,7 @@ export default function PriceBookItemDetailPage() {
           <h3 className="mt-2 text-sm font-semibold">Error loading item</h3>
           <p className="mt-1 text-sm text-muted-foreground">{error}</p>
           <div className="mt-6">
-            <Button onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
+            <BackButton fallbackHref="/pricebook" label="Back" />
           </div>
         </div>
       </div>
@@ -634,13 +631,9 @@ export default function PriceBookItemDetailPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </button>
+          <div className="mb-4">
+            <BackButton fallbackHref="/pricebook" label="Back" variant="ghost" />
+          </div>
 
           <div className="flex items-start justify-between">
             <div>

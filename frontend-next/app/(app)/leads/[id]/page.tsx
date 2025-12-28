@@ -18,8 +18,8 @@ import {
   LEAD_SOURCE_LABELS,
 } from "@/types/leads";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 import {
-  ArrowLeft,
   Edit,
   FileText,
   Mail,
@@ -131,9 +131,7 @@ export default function LeadDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <p className="text-muted-foreground">Lead not found</p>
-        <Button variant="outline" className="mt-4" asChild>
-          <Link href="/leads">Back to Leads</Link>
-        </Button>
+        <BackButton fallbackHref="/leads" label="Back to Leads" variant="outline" className="mt-4" />
       </div>
     );
   }
@@ -143,11 +141,7 @@ export default function LeadDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/leads">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+          <BackButton fallbackHref="/leads" />
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold tracking-tight font-serif">

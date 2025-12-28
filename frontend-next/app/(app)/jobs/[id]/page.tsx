@@ -17,8 +17,8 @@ import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
 // SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BackButton } from "@/components/ui/back-button";
 import {
-  ArrowLeft,
   Phone,
   Mail,
   Building2,
@@ -863,10 +863,7 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+        <BackButton fallbackHref="/jobs" label="Back" />
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">Job not found</p>
@@ -883,9 +880,7 @@ export default function JobDetailPage() {
         {/* Header row - no pt-X, layout mode provides top padding */}
         <div className="px-3 pb-2 flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="mt-1">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <BackButton fallbackHref="/jobs" className="mt-1" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">{job.name}</h1>
             <div className="flex items-center gap-2 mt-1 overflow-hidden">

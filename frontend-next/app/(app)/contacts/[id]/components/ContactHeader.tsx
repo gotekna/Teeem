@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { BackButton } from "@/components/ui/back-button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  ArrowLeft,
   Globe,
   Trash2,
   ShieldCheck,
@@ -54,7 +54,6 @@ export interface ContactHeaderProps {
     xero_supplier?: boolean;
     xero_contact_types?: string[];
   };
-  onBack: () => void;
   onDelete: () => void;
   onEnrichFromWeb: () => void;
   enrichingFromWeb: boolean;
@@ -62,7 +61,6 @@ export interface ContactHeaderProps {
 
 export function ContactHeader({
   contact,
-  onBack,
   onDelete,
   onEnrichFromWeb,
   enrichingFromWeb,
@@ -134,10 +132,7 @@ export function ContactHeader({
   return (
     <div className="flex items-start justify-between">
       <div className="flex items-start gap-4">
-        <Button variant="ghost" onClick={onBack}>
-          <ArrowLeft className="h-5 w-5 mr-2" />
-          Contacts
-        </Button>
+        <BackButton fallbackHref="/contacts" label="Contacts" />
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight font-serif">

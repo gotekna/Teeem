@@ -5,6 +5,8 @@ module Api
       before_action :set_foundation, only: [ :show, :update, :destroy, :health, :schema, :groups ]
 
       # GET /api/v1/foundations
+      # Performance: Use include_counts=true to include record counts (adds 141 COUNT queries)
+      # Default: skip counts for fast loading
       def index
         foundations = Foundation.includes(:columns).all
 
@@ -14,10 +16,13 @@ module Api
                                 .includes(:foundation)
                                 .group_by(&:lookup_foundation_id)
 
+        # Only include record counts if explicitly requested (saves ~141 COUNT queries)
+        include_counts = params[:include_counts] == "true"
+
         # Map foundations to JSON, skipping any that fail to serialize
         foundations_json = foundations.map do |f|
           begin
-            foundation_json(f, include_record_count: true, referencing_map: referencing_map)
+            foundation_json(f, include_record_count: include_counts, referencing_map: referencing_map)
           rescue => e
             Rails.logger.error "Failed to serialize foundation #{f.id} (#{f.name}): #{e.message}"
             Rails.logger.error e.backtrace.join("\n")

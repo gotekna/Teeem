@@ -32,8 +32,8 @@ import {
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { SupplierPicker, type Supplier as SupplierPickerType } from "@/components/ui/supplier-picker";
 import { PricebookCodePicker, type PricebookItem as PricebookPickerType } from "@/components/ui/pricebook-code-picker";
+import { BackButton } from "@/components/ui/back-button";
 import {
-  ArrowLeft,
   DollarSign,
   Building2,
   Calendar,

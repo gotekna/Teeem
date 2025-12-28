@@ -15,8 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { BackButton } from "@/components/ui/back-button";
 import {
-  ArrowLeft,
   Mail,
   Phone,
   Globe,
@@ -201,16 +201,7 @@ export default function ContactDetailPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const id = params.id as string;
-  const returnTo = searchParams.get("returnTo");
-
-  // Handle back navigation - use returnTo if provided, otherwise use browser history
-  const handleBack = () => {
-    if (returnTo) {
-      router.push(returnTo);
-    } else {
-      router.back();
-    }
-  };
+  // Note: returnTo is now handled internally by BackButton component
 
   // SSoT: Entity types from API
   const { metadata: entityTypeMetadata } = useEntityTypes();
@@ -1795,10 +1786,7 @@ export default function ContactDetailPage() {
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <AlertTriangle className="h-12 w-12 text-red-500" />
         <p className="text-red-600">{error || "Contact not found"}</p>
-        <Button variant="outline" onClick={handleBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Go Back
-        </Button>
+        <BackButton fallbackHref="/contacts" label="Go Back" variant="outline" />
       </div>
     );
   }
@@ -1808,7 +1796,6 @@ export default function ContactDetailPage() {
       {/* Header */}
       <ContactHeader
         contact={contact}
-        onBack={handleBack}
         onDelete={handleDelete}
         onEnrichFromWeb={handleEnrichFromWeb}
         enrichingFromWeb={enrichingFromWeb}

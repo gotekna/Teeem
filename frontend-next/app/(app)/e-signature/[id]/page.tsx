@@ -17,8 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { BackButton } from "@/components/ui/back-button";
 import {
-  ArrowLeft,
   Send,
   XCircle,
   CheckCircle2,
