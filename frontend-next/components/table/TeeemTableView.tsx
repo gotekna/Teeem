@@ -987,16 +987,37 @@ export default function TeeemTableView({
   // Pages don't need to wire this up manually - it just works
   const defaultBulkDelete = useCallback(async (ids: (number | string)[]) => {
     if (!foundationIdNumeric) return;
+
+    // Confirmation dialog
+    const confirmed = window.confirm(`Delete ${ids.length} record${ids.length === 1 ? '' : 's'}? This action cannot be undone.`);
+    if (!confirmed) return;
+
     try {
-      await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_delete`, {
+      const response = await api.post<{ success: boolean; deleted_count: number; errors: { id: number; errors: string[] }[] }>(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_delete`, {
         ids: ids.map(id => Number(id))
       });
+
+      // Clear selection
+      setSelectedRows(new Set());
+
+      // Show success toast
+      toast({
+        title: "Records deleted",
+        description: `Successfully deleted ${response.deleted_count} record${response.deleted_count === 1 ? '' : 's'}.`,
+      });
+
+      // Refresh data
       onRefresh?.();
+      fetchRecords();
     } catch (err) {
       console.error("Failed to bulk delete:", err);
-      throw err;
+      toast({
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "Failed to delete records. Please try again.",
+        variant: "destructive",
+      });
     }
-  }, [foundationIdNumeric, onRefresh]);
+  }, [foundationIdNumeric, onRefresh, toast, setSelectedRows, fetchRecords]);
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 

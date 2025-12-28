@@ -1142,19 +1142,14 @@ Rails.application.routes.draw do
         post "sharepoint/test", on: :collection, action: :test_sharepoint
       end
 
-      # Folder Templates for OneDrive sync
-      resources :folder_templates do
-        member do
-          post :duplicate
-        end
-      end
+      # NOTE: folder_templates routes removed - SSoT: EntityTab is now the source of truth for folder structure
 
       # Setup data management
       post "setup/pull_from_local", to: "setup#pull_from_local"
       post "setup/sync_users", to: "setup#sync_users"
       post "setup/sync_documentation_categories", to: "setup#sync_documentation_categories"
       post "setup/sync_supervisor_checklists", to: "setup#sync_supervisor_checklists"
-      post "setup/sync_folder_templates", to: "setup#sync_folder_templates"
+      # NOTE: sync_folder_templates kept for backward compatibility (returns deprecation message)
 
       # Documentation Categories (Global)
       resources :documentation_categories do

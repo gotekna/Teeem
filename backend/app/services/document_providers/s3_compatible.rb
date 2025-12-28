@@ -370,27 +370,47 @@ module DocumentProviders
     # ====================
 
     # Create job folder structure (TEEEM-specific)
+    # SSoT: Uses EntityTab hierarchy for folder names (no longer uses FolderTemplate)
     # @param job [Job] The job to create folders for
-    # @param template [FolderTemplate] Optional folder template
+    # @param _template [deprecated] No longer used, kept for API compatibility
     # @return [Hash] The created job folder
-    def create_job_folder_structure(job, template = nil)
+    def create_job_folder_structure(job, _template = nil)
       job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_filename(job.title)}"
       job_folder_path = "/Jobs/#{job_folder_name}"
 
       # Create main job folder
       job_folder = create_folder(job_folder_path)
 
-      # Create subfolders from template if provided
-      if template&.folder_structure.present?
-        create_template_folders(job_folder_path, template.folder_structure)
-      else
-        # Create default subfolders
-        default_subfolders.each do |subfolder|
-          create_folder("#{job_folder_path}/#{subfolder}")
-        end
-      end
+      # SSoT: Create subfolders from EntityTab hierarchy
+      create_subfolders_from_entity_tabs(job_folder_path)
 
       job_folder
+    end
+
+    # SSoT: Create subfolders from EntityTab hierarchy
+    def create_subfolders_from_entity_tabs(parent_path)
+      root_tabs = EntityTab.for_jobs
+                           .where(has_sharepoint_folder: true)
+                           .enabled
+                           .root_tabs
+                           .ordered
+                           .includes(children: { children: :children })
+
+      root_tabs.each do |tab|
+        create_entity_tab_folder_recursive(tab, parent_path)
+      end
+    end
+
+    # Recursively create folders for an EntityTab and its children
+    def create_entity_tab_folder_recursive(tab, parent_path)
+      folder_path = "#{parent_path}/#{tab.display_name}"
+      create_folder(folder_path)
+
+      Rails.logger.info "[EntityTab SSoT] Created S3 folder: #{folder_path}"
+
+      tab.children.where(has_sharepoint_folder: true).enabled.ordered.each do |child|
+        create_entity_tab_folder_recursive(child, folder_path)
+      end
     end
 
     # Find job folder (TEEEM-specific)
@@ -490,23 +510,8 @@ module DocumentProviders
 
     private
 
-    # Default subfolders for job folders
-    def default_subfolders
-      ["Documents", "Photos", "Plans", "Correspondence"]
-    end
-
-    # Create folders from a template structure
-    def create_template_folders(parent_path, folder_structure)
-      folder_structure.each do |folder|
-        folder_path = "#{parent_path}/#{folder['name']}"
-        create_folder(folder_path)
-
-        # Recursively create subfolders
-        if folder['children'].present?
-          create_template_folders(folder_path, folder['children'])
-        end
-      end
-    end
+    # NOTE: default_subfolders and create_template_folders removed
+    # SSoT: EntityTab is now the source of truth for folder structure
 
     # Sanitize filename for S3 (remove special characters)
     def sanitize_filename(filename)

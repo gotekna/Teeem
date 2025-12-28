@@ -343,41 +343,7 @@ namespace :setup do
     end
     puts "  ✓ Exported #{ScheduleTemplateRow.count} rows to #{rows_file}"
 
-    # Export Folder Templates
-    puts "\nExporting folder templates..."
-    folder_templates_file = import_dir.join("folder_templates.csv")
-    CSV.open(folder_templates_file, "w") do |csv|
-      csv << [ "id", "name", "template_type", "is_system_default", "is_active" ]
-      FolderTemplate.all.each do |template|
-        csv << [
-          template.id,
-          template.name,
-          template.template_type,
-          template.is_system_default,
-          template.is_active
-        ]
-      end
-    end
-    puts "  ✓ Exported #{FolderTemplate.count} folder templates to #{folder_templates_file}"
-
-    # Export Folder Template Items
-    puts "\nExporting folder template items..."
-    folder_items_file = import_dir.join("folder_template_items.csv")
-    CSV.open(folder_items_file, "w") do |csv|
-      csv << [ "id", "folder_template_id", "name", "level", "order", "parent_id", "description" ]
-      FolderTemplateItem.order(:order).each do |item|
-        csv << [
-          item.id,
-          item.folder_template_id,
-          item.name,
-          item.level,
-          item.order,
-          item.parent_id,
-          item.description
-        ]
-      end
-    end
-    puts "  ✓ Exported #{FolderTemplateItem.count} folder template items to #{folder_items_file}"
+    # NOTE: FolderTemplate export removed - SSoT: EntityTab is now the source of truth for folder structure
 
     # Summary
     puts "\n" + "="*60
@@ -389,8 +355,6 @@ namespace :setup do
     puts "Supervisor Checklist Templates: #{SupervisorChecklistTemplate.count}"
     puts "Schedule Templates: #{ScheduleTemplate.count}"
     puts "Schedule Template Rows: #{ScheduleTemplateRow.count}"
-    puts "Folder Templates: #{FolderTemplate.count}"
-    puts "Folder Template Items: #{FolderTemplateItem.count}"
     puts "\nTo deploy to staging/production:"
     puts "1. Commit and push the CSV files to git"
     puts "2. On the target environment, run: rails setup:deploy_setup_data"
