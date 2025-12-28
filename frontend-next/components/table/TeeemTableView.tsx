@@ -684,11 +684,28 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
   const [scrollbarWidth, setScrollbarWidth] = useState(0);
 
   // Detect scrollbar width when body content changes
+  // Use ResizeObserver for more reliable detection
   useEffect(() => {
+    const detectScrollbarWidth = () => {
+      if (parentRef.current) {
+        // Only compensate if there's actual scrollbar space (not overlay scrollbars)
+        const hasVerticalScroll = parentRef.current.scrollHeight > parentRef.current.clientHeight;
+        const width = hasVerticalScroll
+          ? parentRef.current.offsetWidth - parentRef.current.clientWidth
+          : 0;
+        setScrollbarWidth(width);
+      }
+    };
+
+    detectScrollbarWidth();
+
+    // Re-detect on resize
+    const observer = new ResizeObserver(detectScrollbarWidth);
     if (parentRef.current) {
-      const width = parentRef.current.offsetWidth - parentRef.current.clientWidth;
-      setScrollbarWidth(width);
+      observer.observe(parentRef.current);
     }
+
+    return () => observer.disconnect();
   }, [rows.length]);
 
   // Sync horizontal scroll between body and header
@@ -715,9 +732,9 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Fixed header - scrolls horizontally in sync with body, with scrollbar width compensation */}
-      <div ref={headerRef} className="overflow-x-hidden shrink-0" style={{ paddingRight: scrollbarWidth }}>
-        <Table className="w-full" style={{ tableLayout: 'fixed', minWidth: totalWidth }}>
+      {/* Fixed header - scrolls horizontally in sync with body */}
+      <div ref={headerRef} className="overflow-x-hidden shrink-0">
+        <Table style={{ tableLayout: 'fixed', width: totalWidth, minWidth: totalWidth }}>
           <colgroup>
             {visibleColumnsInOrder.map((column) => (
               <col
