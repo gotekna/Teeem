@@ -2,7 +2,7 @@
 
 module HealthChecks
   # Health checks for Corporate Companies
-  # Foundation ID: 353
+  # Foundation: corporate_companies (slug-based lookup - SSoT)
   #
   # This is the unified SSoT for company health, merging:
   # - Data quality checks (ABN, ACN formatting)
@@ -33,14 +33,15 @@ module HealthChecks
   #   - Upcoming compliance items
   #
   class CompaniesCheck < BaseCheck
-    FOUNDATION_ID = 353
+    FOUNDATION_SLUG = "corporate_companies"
 
     def self.check_type
       "companies"
     end
 
+    # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
     def self.foundation_id
-      FOUNDATION_ID
+      @foundation_id ||= Foundation.find_by(slug: FOUNDATION_SLUG)&.id
     end
 
     # ============================================

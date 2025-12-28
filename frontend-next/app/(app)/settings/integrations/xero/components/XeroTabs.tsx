@@ -44,6 +44,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { useUrlState } from "@/hooks/useUrlState";
 
 // Types
 type FilterStatus = "all" | "synced" | "not-synced" | "errors";
@@ -928,8 +929,22 @@ function ContactsGroupedTable({
   setFilterStatus: React.Dispatch<React.SetStateAction<FilterStatus>>;
 }) {
   const router = useRouter();
-  const [normalOpen, setNormalOpen] = React.useState(true);
-  const [flaggedOpen, setFlaggedOpen] = React.useState(true);
+
+  // URL state for accordion expanded state (back button works, bookmarkable)
+  const [urlState, setUrlState] = useUrlState({
+    accordions: ["normal", "flagged"] as string[], // Both open by default
+  });
+  const normalOpen = urlState.accordions.includes("normal");
+  const flaggedOpen = urlState.accordions.includes("flagged");
+
+  const toggleAccordion = (section: "normal" | "flagged") => {
+    const current = urlState.accordions;
+    if (current.includes(section)) {
+      setUrlState({ accordions: current.filter(s => s !== section) });
+    } else {
+      setUrlState({ accordions: [...current, section] });
+    }
+  };
 
   // Split contacts into normal and flagged (price_only or person with company)
   const normalContacts = contacts
@@ -1001,7 +1016,7 @@ function ContactsGroupedTable({
                 type="single"
                 collapsible
                 value={normalOpen ? "normal" : ""}
-                onValueChange={(v) => setNormalOpen(v === "normal")}
+                onValueChange={() => toggleAccordion("normal")}
               >
                 <AccordionItem value="normal" className="border-none">
                   <AccordionTrigger
@@ -1041,7 +1056,7 @@ function ContactsGroupedTable({
                 type="single"
                 collapsible
                 value={flaggedOpen ? "flagged" : ""}
-                onValueChange={(v) => setFlaggedOpen(v === "flagged")}
+                onValueChange={() => toggleAccordion("flagged")}
               >
                 <AccordionItem value="flagged" className="border-none">
                   <AccordionTrigger

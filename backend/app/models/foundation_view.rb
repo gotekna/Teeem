@@ -13,6 +13,10 @@ class FoundationView < ApplicationRecord
   # Protect the "Setup" view from being renamed
   validate :prevent_setup_view_rename, on: :update
 
+  # CRITICAL: foundation_id is IMMUTABLE after creation
+  # This prevents views from being "orphaned" when foundation_id is accidentally cleared
+  validate :prevent_foundation_id_change, on: :update
+
   # Prevent deletion of "Setup" view
   before_destroy :prevent_setup_view_deletion
 
@@ -146,6 +150,14 @@ class FoundationView < ApplicationRecord
     if name == "Setup"
       errors.add(:base, "The 'Setup' view cannot be deleted as it's required as the template for new views")
       throw(:abort)
+    end
+  end
+
+  # CRITICAL: Prevent foundation_id from being changed after creation
+  # This protects against the bug where views become invisible (foundation_id = 0)
+  def prevent_foundation_id_change
+    if foundation_id_changed? && foundation_id_was.present?
+      errors.add(:foundation_id, "cannot be changed after the view is created. foundation_id is immutable.")
     end
   end
 end

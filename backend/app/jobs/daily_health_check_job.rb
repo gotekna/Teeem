@@ -43,8 +43,10 @@ class DailyHealthCheckJob < ApplicationJob
       Rails.logger.info "[DailyHealthCheck] Cached system-wide health (score: #{system_health[:overall_health]})"
 
       # Cache individual foundation health checks
+      # SSoT: Use slugs, not hardcoded numeric IDs (which differ per environment)
+      foundation_slugs = %w[jobs pricebook-items contacts corporate_companies company_documents]
       foundations_cached = 0
-      Foundation.where(id: [ 204, 205, 214, 353, 357 ]).find_each do |foundation|
+      Foundation.where(slug: foundation_slugs).find_each do |foundation|
         begin
           result = HealthChecks::Registry.run_all(
             foundation_id: foundation.id,

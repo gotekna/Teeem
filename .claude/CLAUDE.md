@@ -807,6 +807,35 @@ TEEEM_DOCS/GOLD_STANDARD_TABLE.md (SSoT - THE SPEC)
 
 ---
 
+## 🔴 CRITICAL: Foundation View Slugs (SSoT)
+
+**Views now have slugs for portable URLs across environments.**
+
+### URL Pattern
+- **NEW:** `?view=po-tasks-only` (slug - portable)
+- **LEGACY:** `?view=380` (numeric ID - still supported for backwards compatibility)
+
+### Creating/Updating Views
+- Slugs auto-generate from view name: "PO Tasks Only" → `po-tasks-only`
+- Slugs are unique per foundation (same slug allowed on different foundations)
+- `foundation_id` is IMMUTABLE after creation - never change it
+
+### API Lookups
+```ruby
+# Find by slug (preferred)
+FoundationView.find_by(slug: 'stage', foundation_id: foundation.id)
+
+# Find by either (backwards compatible)
+FoundationView.find_by_slug_or_id(identifier, foundation_id: foundation.id)
+```
+
+### NEVER
+- ❌ Hardcode numeric view IDs in code
+- ❌ Update `foundation_id` on existing views
+- ❌ Use `?view=123` in shared links (use slug instead)
+
+---
+
 ## 🔴 CRITICAL: No Column Limiting Policy
 
 **ALL API endpoints MUST return ALL columns. NEVER limit columns in responses.**

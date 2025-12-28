@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 
 // Default empty BPMN diagram
 const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -855,6 +856,10 @@ export default function BpmnJsDesigner({
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-2 p-2 border-b bg-background">
+        <BackButton fallbackHref="/workflows" />
+
+        <div className="w-px h-6 bg-border mx-1" />
+
         <div className="flex items-center gap-1">
           <Input
             value={editableName}

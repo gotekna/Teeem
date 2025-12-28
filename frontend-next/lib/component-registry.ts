@@ -28,7 +28,8 @@ export type ComponentCategory =
   | "integration"
   | "finance"
   | "dnd"
-  | "templates";
+  | "templates"
+  | "hooks";
 
 export type ComponentTier = 1 | 2 | 3 | 4 | 5;
 
@@ -224,6 +225,31 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     whenToUse: "Show loading state for any async operation",
     deprecates: ["loader"],
     usageCount: 51,
+  },
+  // URL State Hooks
+  {
+    id: "use-url-tabs",
+    name: "useUrlTabs",
+    displayName: "URL Tabs Hook",
+    category: "hooks",
+    tier: 1,
+    status: "standard",
+    importPath: "@/hooks/useUrlTabs",
+    description: "Simple hook for syncing tab state to URL params. Browser back/forward works.",
+    whenToUse: "ANY tab state that should survive page refresh and support browser navigation.",
+    usageCount: 12,
+  },
+  {
+    id: "use-url-state",
+    name: "useUrlState",
+    displayName: "URL State Hook",
+    category: "hooks",
+    tier: 1,
+    status: "standard",
+    importPath: "@/hooks/useUrlState",
+    description: "Complex hook for syncing multiple state values to URL params. Supports strings, arrays, nullable values.",
+    whenToUse: "Multiple navigation state values (expanded items, edit mode, active IDs) that should persist in URL.",
+    usageCount: 1,
   },
 ];
 
@@ -947,6 +973,31 @@ export const DEPRECATED_COMPONENTS: DeprecatedComponent[] = [
     replacedBy: "item-badge",
     reason: "ItemBadge supports position, label, icon, and custom content",
     migrationGuide: "Replace PositionBadge with ItemBadge. Position prop works the same, add label/icon for more flexibility.",
+  },
+  // Navigation State Patterns (Anti-patterns)
+  {
+    id: "usestate-tabs",
+    name: "useState for tabs",
+    importPath: "react",
+    replacedBy: "use-url-tabs",
+    reason: "useState breaks browser back button navigation. URL state preserves navigation history.",
+    migrationGuide: "Replace `const [tab, setTab] = useState('default')` with `const [tab, setTab] = useUrlTabs('default')`",
+  },
+  {
+    id: "usestate-navigation",
+    name: "useState for navigation state",
+    importPath: "react",
+    replacedBy: "use-url-state",
+    reason: "useState breaks browser back button. Navigation state (dialogs, edit mode, expanded items) should be in URL.",
+    migrationGuide: "Replace multiple useState calls with useUrlState({ param1: 'default', param2: null, param3: [] })",
+  },
+  {
+    id: "router-back",
+    name: "router.back()",
+    importPath: "next/navigation",
+    replacedBy: "back-button",
+    reason: "router.back() fails when user arrives from external link. BackButton has smart fallback.",
+    migrationGuide: "Replace `onClick={() => router.back()}` with `<BackButton fallbackHref='/parent-route' />`",
   },
 ];
 

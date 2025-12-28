@@ -2,7 +2,7 @@
 
 module HealthChecks
   # Health checks for Pricebook items
-  # Foundation ID: 205
+  # Foundation: pricebook-items (slug-based lookup - SSoT)
   #
   # Checks:
   #   - Items without default supplier (warning)
@@ -12,14 +12,15 @@ module HealthChecks
   #   - Suppliers with incomplete category coverage (info)
   #
   class PricebookCheck < BaseCheck
-    FOUNDATION_ID = 205
+    FOUNDATION_SLUG = "pricebook-items"
 
     def self.check_type
       "pricebook"
     end
 
+    # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
     def self.foundation_id
-      FOUNDATION_ID
+      @foundation_id ||= Foundation.find_by(slug: FOUNDATION_SLUG)&.id
     end
 
     # Items that don't have a default supplier assigned

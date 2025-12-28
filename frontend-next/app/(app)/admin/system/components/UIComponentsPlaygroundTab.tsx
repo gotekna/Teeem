@@ -1149,6 +1149,7 @@ const CATEGORY_LABELS: Record<ComponentCategory, string> = {
   finance: "Finance",
   dnd: "Drag & Drop",
   templates: "Templates",
+  hooks: "Hooks",
 };
 
 const TIER_LABELS: Record<ComponentTier, string> = {

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useUrlState } from "@/hooks/useUrlState";
 
 // Entity types
 const ENTITY_TYPES = [
@@ -173,7 +174,13 @@ export function FoldersTabsConfigTab() {
   const [hasChanges, setHasChanges] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
-  const [expandedFolders, setExpandedFolders] = React.useState<Set<number>>(new Set());
+
+  // URL state for expanded folders (back button works, bookmarkable)
+  const [urlState, setUrlState] = useUrlState({
+    expanded: [] as string[], // Folder IDs as strings
+  });
+  const expandedFolders = React.useMemo(() => new Set(urlState.expanded.map(Number)), [urlState.expanded]);
+
   const [editingFolderNameId, setEditingFolderNameId] = React.useState<number | null>(null);
   const [editingFolderNameValue, setEditingFolderNameValue] = React.useState("");
 
@@ -189,17 +196,15 @@ export function FoldersTabsConfigTab() {
     [folders]
   );
 
-  // Toggle folder expansion
+  // Toggle folder expansion (persisted to URL)
   const toggleExpanded = (folderId: number) => {
-    setExpandedFolders(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(folderId)) {
-        newSet.delete(folderId);
-      } else {
-        newSet.add(folderId);
-      }
-      return newSet;
-    });
+    const idStr = String(folderId);
+    const currentExpanded = urlState.expanded;
+    if (currentExpanded.includes(idStr)) {
+      setUrlState({ expanded: currentExpanded.filter(id => id !== idStr) });
+    } else {
+      setUrlState({ expanded: [...currentExpanded, idStr] });
+    }
   };
 
   // Fetch folders from API on mount
@@ -271,7 +276,10 @@ export function FoldersTabsConfigTab() {
         setHasChanges(false); // Just saved
         // Auto-expand parent if adding a sub-tab
         if (effectiveParentId) {
-          setExpandedFolders(prev => new Set([...prev, effectiveParentId]));
+          const idStr = String(effectiveParentId);
+          if (!urlState.expanded.includes(idStr)) {
+            setUrlState({ expanded: [...urlState.expanded, idStr] });
+          }
         }
       }
     } catch (error) {
@@ -298,7 +306,11 @@ export function FoldersTabsConfigTab() {
 
       if (data?.success && data.data) {
         setFolders([...folders, data.data]);
-        setExpandedFolders(prev => new Set([...prev, parentId]));
+        // Auto-expand parent folder
+        const idStr = String(parentId);
+        if (!urlState.expanded.includes(idStr)) {
+          setUrlState({ expanded: [...urlState.expanded, idStr] });
+        }
       }
     } catch (error) {
       console.error("Failed to add sub-tab:", error);

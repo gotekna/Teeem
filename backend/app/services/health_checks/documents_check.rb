@@ -2,7 +2,7 @@
 
 module HealthChecks
   # Health checks for Company Documents
-  # Foundation ID: 357
+  # Foundation: company_documents (slug-based lookup - SSoT)
   #
   # Checks:
   #   - Documents needing AI verification (info)
@@ -10,14 +10,15 @@ module HealthChecks
   #   - Missing compliance documents by folder (ATO, BANK, ASIC, FINANCIALS)
   #
   class DocumentsCheck < BaseCheck
-    FOUNDATION_ID = 357
+    FOUNDATION_SLUG = "company_documents"
 
     def self.check_type
       "company_documents"
     end
 
+    # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
     def self.foundation_id
-      FOUNDATION_ID
+      @foundation_id ||= Foundation.find_by(slug: FOUNDATION_SLUG)&.id
     end
 
     # Documents pending AI verification

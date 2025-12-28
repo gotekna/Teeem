@@ -1133,6 +1133,7 @@ export default function JobDetailPage() {
             <HierarchicalTabsList
               tabs={visibleJobTabs}
               activeTab={effectiveActiveTab}
+              activeParentTab={activeParentTab}
               onTabChange={handleTabChange}
             />
           </Tabs>

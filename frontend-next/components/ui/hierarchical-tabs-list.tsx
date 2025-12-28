@@ -15,6 +15,8 @@ import type { EntityTab } from "@/lib/types/entity-tabs";
 interface HierarchicalTabsListProps {
   tabs: EntityTab[];
   activeTab: string;
+  /** Explicit parent tab key - use when URL specifies parent (avoids tab_key collision issues) */
+  activeParentTab?: string;
   onTabChange?: (tabKey: string) => void;
   className?: string;
 }
@@ -42,6 +44,7 @@ interface HierarchicalTabsListProps {
 export function HierarchicalTabsList({
   tabs,
   activeTab,
+  activeParentTab,
   onTabChange,
   className,
 }: HierarchicalTabsListProps) {
@@ -56,17 +59,24 @@ export function HierarchicalTabsList({
   }, [tabs, activeTab]);
 
   // Determine which parent tab is "selected" for showing children
-  // Either it's the active parent tab, or the parent of the active child
+  // Priority: 1) explicit activeParentTab prop, 2) parent of active child, 3) active parent tab itself
   const selectedParent = React.useMemo(() => {
-    // First check if active tab is a parent with children
-    const activeParent = tabs.find(
+    // If explicit parent tab is provided (from URL), use it directly
+    // This avoids tab_key collision issues (e.g., parent "Site" vs child "site" under "Photo")
+    if (activeParentTab) {
+      return tabs.find((tab) => tab.tab_key === activeParentTab) || null;
+    }
+
+    // First, check if active tab is a child of some parent
+    const parentOfChild = findParentOfActiveTab();
+    if (parentOfChild) return parentOfChild;
+
+    // Otherwise, check if active tab is itself a parent with children
+    const activeAsParent = tabs.find(
       (tab) => tab.tab_key === activeTab && tab.children && tab.children.length > 0
     );
-    if (activeParent) return activeParent;
-
-    // Otherwise, find the parent of the active child tab
-    return findParentOfActiveTab();
-  }, [tabs, activeTab, findParentOfActiveTab]);
+    return activeAsParent || null;
+  }, [tabs, activeTab, activeParentTab, findParentOfActiveTab]);
 
   // Get visible tabs (enabled)
   const visibleTabs = tabs.filter((tab) => tab.enabled);

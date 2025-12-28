@@ -11,6 +11,8 @@
 # System tables (table_type='system') are skipped entirely.
 class GoldStandardComplianceService
   SYSTEM_COLUMNS = %w[id created_at updated_at].freeze
+  # SSoT: Use slug to identify Gold Standard Table (numeric ID differs per environment)
+  GOLD_STANDARD_SLUG = "gold_standard_table"
 
   def initialize(foundation)
     @foundation = foundation
@@ -66,7 +68,7 @@ class GoldStandardComplianceService
   def self.recalculate_all!
     results = []
 
-    Foundation.where(table_type: [ "user", "import", nil ]).where.not(id: 1).find_each do |foundation|
+    Foundation.where(table_type: [ "user", "import", nil ]).where.not(slug: GOLD_STANDARD_SLUG).find_each do |foundation|
       service = new(foundation)
       result = service.update_compliance!
 
@@ -86,7 +88,7 @@ class GoldStandardComplianceService
 
   # Class method to get system-wide compliance summary
   def self.system_summary
-    foundations = Foundation.where(table_type: [ "user", "import", nil ]).where.not(id: 1)
+    foundations = Foundation.where(table_type: [ "user", "import", nil ]).where.not(slug: GOLD_STANDARD_SLUG)
 
     total_foundations = foundations.count
     scored_foundations = foundations.where.not(compliance_score: nil)
@@ -105,7 +107,8 @@ class GoldStandardComplianceService
 
   def skip_check?
     # Skip system tables and Gold Standard table itself
-    @foundation.table_type == "system" || @foundation.id == 1
+    # SSoT: Use slug check, not numeric ID (which differs per environment)
+    @foundation.table_type == "system" || @foundation.slug == GOLD_STANDARD_SLUG
   end
 
   def compliance_issue_reason(column)

@@ -105,8 +105,10 @@ module Api
       end
 
       # PATCH/PUT /api/v1/foundation_views/:id
+      # NOTE: foundation_id is explicitly excluded from updates - it's IMMUTABLE after creation
+      # This prevents the bug where views become invisible (foundation_id accidentally cleared to 0)
       def update
-        if @foundation_view.update(foundation_view_params)
+        if @foundation_view.update(foundation_view_update_params)
           render json: {
             success: true,
             view: @foundation_view,
@@ -303,6 +305,37 @@ module Api
           group_by_columns: []
         ).tap do |permitted|
           # Manually permit complex nested structures that Rails strong params can't handle
+          if params[:foundation_view][:filters].present?
+            permitted[:filters] = params[:foundation_view][:filters].to_unsafe_h
+          end
+          if params[:foundation_view][:columns].present?
+            permitted[:columns] = params[:foundation_view][:columns].to_unsafe_h
+          end
+          if params[:foundation_view][:sort_order].present?
+            permitted[:sort_order] = params[:foundation_view][:sort_order].map(&:to_unsafe_h)
+          end
+          if params[:foundation_view][:group_by_columns].present?
+            permitted[:group_by_columns] = params[:foundation_view][:group_by_columns].to_a
+          end
+        end
+      end
+
+      # Params for UPDATE only - explicitly excludes foundation_id which is IMMUTABLE
+      # CRITICAL: foundation_id cannot be changed after creation to prevent orphaned views
+      def foundation_view_update_params
+        params.require(:foundation_view).permit(
+          # NOTE: foundation_id intentionally excluded - it's immutable after creation
+          :name,
+          :view_type,
+          :view_display_type,
+          :is_default,
+          :display_order,
+          :group_by_column,
+          filters: {},
+          columns: {},
+          sort_order: [ :column, :dir ],
+          group_by_columns: []
+        ).tap do |permitted|
           if params[:foundation_view][:filters].present?
             permitted[:filters] = params[:foundation_view][:filters].to_unsafe_h
           end

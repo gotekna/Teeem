@@ -123,14 +123,15 @@ interface ViewManagerSheetProps {
   activeViewId?: number | string | null; // Currently active view on the table
 }
 
-// Known lookup column mappings (column_name -> foundation_id and custom endpoint)
-const KNOWN_LOOKUP_MAPPINGS: Record<string, { foundationId: number; displayColumn: string; apiEndpoint?: string; responseKey?: string }> = {
-  job_type_id: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
-  job_type: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
-  job_status_id: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_status', responseKey: 'job_statuses' },
-  job_status: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_status', responseKey: 'job_statuses' },
-  design_id: { foundationId: 368, displayColumn: 'name' },
-  contact_id: { foundationId: 214, displayColumn: 'display_name' },
+// Known lookup column mappings (column_name -> foundation_slug and custom endpoint)
+// SSoT: Use slugs, not numeric IDs (which differ per environment)
+const KNOWN_LOOKUP_MAPPINGS: Record<string, { foundationSlug: string; displayColumn: string; apiEndpoint?: string; responseKey?: string }> = {
+  job_type_id: { foundationSlug: 'job_types', displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
+  job_type: { foundationSlug: 'job_types', displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
+  job_status_id: { foundationSlug: 'job_status', displayColumn: 'name', apiEndpoint: '/api/v1/job_status', responseKey: 'job_statuses' },
+  job_status: { foundationSlug: 'job_status', displayColumn: 'name', apiEndpoint: '/api/v1/job_status', responseKey: 'job_statuses' },
+  design_id: { foundationSlug: 'designs', displayColumn: 'name' },
+  contact_id: { foundationSlug: 'contacts', displayColumn: 'display_name' },
 };
 
 export function ViewManagerSheet({
@@ -683,8 +684,9 @@ export function ViewManagerSheet({
     setLookupLoadingColumns(prev => new Set([...prev, cacheKey]));
 
     try {
+      // SSoT: Match by slug (not numeric ID which differs per environment)
       const knownMapping = Object.values(KNOWN_LOOKUP_MAPPINGS).find(
-        m => m.foundationId === column.lookup_foundation_id
+        m => column.lookup_foundation_slug && m.foundationSlug === column.lookup_foundation_slug
       );
 
       let options: { id: number; display: string }[] = [];

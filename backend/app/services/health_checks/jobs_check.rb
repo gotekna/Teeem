@@ -2,7 +2,7 @@
 
 module HealthChecks
   # Health checks for Jobs
-  # Foundation ID: 204
+  # Foundation: jobs (slug-based lookup - SSoT)
   #
   # Checks:
   #   - Jobs without start date (warning)
@@ -10,14 +10,15 @@ module HealthChecks
   #   - Jobs without assigned PM (info)
   #
   class JobsCheck < BaseCheck
-    FOUNDATION_ID = 204
+    FOUNDATION_SLUG = "jobs"
 
     def self.check_type
       "jobs"
     end
 
+    # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
     def self.foundation_id
-      FOUNDATION_ID
+      @foundation_id ||= Foundation.find_by(slug: FOUNDATION_SLUG)&.id
     end
 
     # Jobs missing start date

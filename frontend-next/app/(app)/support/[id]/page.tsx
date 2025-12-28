@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
-  ArrowLeft,
   Clock,
   CheckCircle,
   MessageSquare,
@@ -18,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { BackButton } from "@/components/ui/back-button";
 
 interface Comment {
   id: number;
@@ -42,7 +41,6 @@ interface Ticket {
 
 export default function SupportTicketDetail() {
   const params = useParams();
-  const router = useRouter();
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
@@ -134,9 +132,7 @@ export default function SupportTicketDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Ticket not found</p>
-        <Link href="/support">
-          <Button variant="link">Back to Support</Button>
-        </Link>
+        <BackButton fallbackHref="/support" label="Back to Support" />
       </div>
     );
   }
@@ -146,10 +142,9 @@ export default function SupportTicketDetail() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <Link href="/support" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-2">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to Support
-          </Link>
+          <div className="mb-2">
+            <BackButton fallbackHref="/support" label="Back to Support" />
+          </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="text-sm font-mono text-muted-foreground">#{ticket.task_number}</span>

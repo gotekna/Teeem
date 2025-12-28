@@ -24,6 +24,7 @@ export interface TableColumn {
   choices?: string[];
   // Lookup column configuration (matches backend API)
   lookup_foundation_id?: number;
+  lookup_foundation_slug?: string; // SSoT: Use slug for portable lookups across environments
   lookup_display_column?: string;
   editable?: boolean; // Whether the column can be edited (default: true)
   system?: boolean; // System column like id, created_at, updated_at (default: false)

@@ -90,7 +90,7 @@ export function XeroReportsPanel({ companyId }: XeroReportsPanelProps) {
           companyId={companyId}
           reportType="profit_loss"
           title="Profit & Loss PDF Reports"
-          foundationId={488}
+          foundationSlug="profit_loss_reports"
         />
       )}
       {activeReportTab === "balance_sheet" && (
@@ -98,7 +98,7 @@ export function XeroReportsPanel({ companyId }: XeroReportsPanelProps) {
           companyId={companyId}
           reportType="balance_sheet"
           title="Balance Sheet PDF Reports"
-          foundationId={489}
+          foundationSlug="balance_sheet_reports"
         />
       )}
     </div>
@@ -109,7 +109,7 @@ interface XeroPdfReportsCardProps {
   companyId: string;
   reportType: "profit_loss" | "balance_sheet";
   title: string;
-  foundationId: number;
+  foundationSlug: string; // SSoT: Use slug, not numeric ID (differs per environment)
 }
 
 /**
