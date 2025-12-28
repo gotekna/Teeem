@@ -143,6 +143,8 @@ interface SmScheduleMaster {
   assigned_role?: string | null;
   cost_centre?: string;
   header?: string | null;  // Parent header row ID (self-reference lookup)
+  is_active?: boolean;
+  tags?: string[];
   po_required: boolean;
   critical_po?: boolean;
   create_po_on_job_start?: boolean;
@@ -775,6 +777,7 @@ export function ScheduleMasterTab() {
         name: fullRow.name,
         description: fullRow.description,
         duration_days: fullRow.duration_days,
+        sequence_order: fullRow.sequence_order,
         // Extract IDs from lookup columns (backend may return objects like {id: 123, display: "..."})
         trade: extractLookupId(fullRow.trade),
         stage: extractLookupId(fullRow.stage),
@@ -791,6 +794,7 @@ export function ScheduleMasterTab() {
         order_time_days: fullRow.order_time_days,
         call_time_days: fullRow.call_time_days,
         linked_task_ids: fullRow.linked_task_ids,
+        is_active: fullRow.is_active,
       });
       setShowEditSheet(true);
     }
@@ -2049,8 +2053,8 @@ export function ScheduleMasterTab() {
             </SheetDescription>
           </SheetHeader>
           <div className="py-3 space-y-3">
-            {/* Row 1: Name + Duration - full width */}
-            <div className="grid grid-cols-[1fr_80px] gap-3">
+            {/* Row 1: Name + Duration + Sequence - full width */}
+            <div className="grid grid-cols-[1fr_80px_80px] gap-3">
               <div className="space-y-1">
                 <Label htmlFor="row-name" className="text-xs">Name</Label>
                 <Input
@@ -2070,6 +2074,28 @@ export function ScheduleMasterTab() {
                   className="h-8"
                 />
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="row-sequence" className="text-xs">Seq</Label>
+                <Input
+                  id="row-sequence"
+                  type="number"
+                  step="0.1"
+                  value={editRowForm.sequence_order || 0}
+                  onChange={(e) => setEditRowForm({ ...editRowForm, sequence_order: parseFloat(e.target.value) || 0 })}
+                  className="h-8"
+                />
+              </div>
+            </div>
+            {/* Description - full width */}
+            <div className="space-y-1">
+              <Label htmlFor="row-description" className="text-xs">Description</Label>
+              <Input
+                id="row-description"
+                value={editRowForm.description || ""}
+                onChange={(e) => setEditRowForm({ ...editRowForm, description: e.target.value })}
+                className="h-8"
+                placeholder="Optional description..."
+              />
             </div>
             {/* Two-column layout for dropdowns and settings */}
             <div className="grid grid-cols-2 gap-6">
@@ -2272,6 +2298,20 @@ export function ScheduleMasterTab() {
                   )}
                   {autoSaveStatus === 'idle' && (
                     <span className="text-muted-foreground">Auto-save enabled</span>
+                  )}
+                </div>
+                {/* Active Status */}
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  <Switch
+                    id="row-is-active"
+                    checked={editRowForm.is_active !== false}
+                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, is_active: checked })}
+                  />
+                  <Label htmlFor="row-is-active" className="text-xs">
+                    Active
+                  </Label>
+                  {editRowForm.is_active === false && (
+                    <Badge variant="destructive" className="text-[10px]">Inactive</Badge>
                   )}
                 </div>
               </div>

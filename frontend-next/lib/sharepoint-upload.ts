@@ -98,18 +98,33 @@ export async function uploadToSharePointDirect(
       message: "Preparing upload...",
     });
 
-    const sessionResponse = await api.post<UploadSessionResponse>(
-      "/api/v1/sharepoint/upload_session",
-      {
-        filename: filename || file.name,
-        file_size: file.size,
-        folder_id: folderId,
-        folder_path: folderPath,
-        job_id: jobId,
-      }
-    );
+    console.log("[DirectUpload] Requesting upload session:", {
+      filename: filename || file.name,
+      file_size: file.size,
+      folder_path: folderPath,
+      job_id: jobId,
+    });
+
+    let sessionResponse: UploadSessionResponse;
+    try {
+      sessionResponse = await api.post<UploadSessionResponse>(
+        "/api/v1/sharepoint/upload_session",
+        {
+          filename: filename || file.name,
+          file_size: file.size,
+          folder_id: folderId,
+          folder_path: folderPath,
+          job_id: jobId,
+        }
+      );
+      console.log("[DirectUpload] Session response:", sessionResponse);
+    } catch (apiError) {
+      console.error("[DirectUpload] API error:", apiError);
+      throw apiError;
+    }
 
     if (!sessionResponse?.success || !sessionResponse.upload_url) {
+      console.error("[DirectUpload] Invalid session response:", sessionResponse);
       return {
         success: false,
         error: sessionResponse?.error || "Failed to get upload URL",
