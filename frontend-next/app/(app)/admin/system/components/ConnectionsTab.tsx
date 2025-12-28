@@ -1085,17 +1085,41 @@ function DocumentStorageProvider() {
 
   const preset = selectedProvider !== "sharepoint" ? PROVIDER_PRESETS[selectedProvider] : null;
 
+  // Check if the selection has changed from org config
+  const hasChanges = orgConfig && (
+    (selectedProvider === "sharepoint" && orgConfig.document_provider !== "sharepoint") ||
+    (selectedProvider !== "sharepoint" && orgConfig.document_provider === "sharepoint") ||
+    (selectedProvider !== "sharepoint" && selectedCredentialId !== orgConfig.document_provider_credential_id)
+  );
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-32">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
-            <Cloud className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
+              <Cloud className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Document Storage</CardTitle>
+              <CardDescription>Choose where to store job and company documents</CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-base">Document Storage</CardTitle>
-            <CardDescription>Choose where to store job and company documents</CardDescription>
-          </div>
+          {/* Current Active Provider Badge */}
+          <Badge variant={orgConfig?.document_provider === "s3_compatible" ? "outline" : "default"}>
+            <Check className="h-3 w-3 mr-1" />
+            Active: {orgConfig?.document_provider === "s3_compatible" ? "S3 Storage" : "SharePoint"}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1116,6 +1140,59 @@ function DocumentStorageProvider() {
             </SelectContent>
           </Select>
         </div>
+
+        {/* S3 Credential Selection - Only show when S3 is selected and credentials exist */}
+        {selectedProvider !== "sharepoint" && s3Credentials.length > 0 && (
+          <div className="space-y-2">
+            <Label>Select Credential</Label>
+            <Select
+              value={selectedCredentialId?.toString() || ""}
+              onValueChange={(val) => setSelectedCredentialId(parseInt(val))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a saved credential..." />
+              </SelectTrigger>
+              <SelectContent>
+                {s3Credentials.map((cred) => (
+                  <SelectItem key={cred.id} value={cred.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      {cred.status === "connected" ? (
+                        <Check className="h-3 w-3 text-green-600" />
+                      ) : (
+                        <X className="h-3 w-3 text-red-600" />
+                      )}
+                      {cred.name} ({cred.bucket})
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Save Provider Selection Button */}
+        {hasChanges && (
+          <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-yellow-800 dark:text-yellow-200">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Unsaved changes - New documents will use the selected provider</span>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleSaveProviderSelection}
+                disabled={savingProvider || (selectedProvider !== "sharepoint" && !selectedCredentialId)}
+              >
+                {savingProvider ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Check className="h-4 w-4 mr-1" />
+                )}
+                Save Selection
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Existing S3 credentials */}
         {s3Credentials.length > 0 && selectedProvider !== "sharepoint" && (
