@@ -70,9 +70,6 @@ class DocumentTemplate < ApplicationRecord
   scope :by_category, ->(category) { where(category: category) }
   scope :by_type, ->(type) { where(template_type: type) }
 
-  # DEPRECATED: Use html_templates or pdf_overlay_templates instead
-  scope :word_templates, -> { where(template_type: "word") }
-
   # Active template types (use these)
   scope :html_templates, -> { where(template_type: "html") }
   scope :pdf_overlay_templates, -> { where(template_type: "pdf_overlay") }
@@ -90,24 +87,12 @@ class DocumentTemplate < ApplicationRecord
   end
 
   # Template type helpers
-  #
-  # DEPRECATED: Word templates were removed Dec 2024. See class header for details.
-  # This method exists for backwards compatibility during migration.
-  def word_template?
-    template_type == "word"
-  end
-
   def html_template?
     template_type == "html"
   end
 
   def pdf_overlay_template?
     template_type == "pdf_overlay"
-  end
-
-  # DEPRECATED: SharePoint fetch was removed Dec 2024. See class header for details.
-  def sharepoint_fetch_template?
-    template_type == "sharepoint_fetch"
   end
 
   # Check if this template uses a deprecated type (word or sharepoint_fetch)
@@ -128,26 +113,6 @@ class DocumentTemplate < ApplicationRecord
 
   def hia_document?
     legal_source == "hia"
-  end
-
-  # DEPRECATED: Word/SharePoint templates were removed Dec 2024.
-  # This method will return nil and log a warning.
-  # Migrate templates to html or pdf_overlay type instead.
-  #
-  # Download template file from SharePoint
-  # Returns binary content of the DOCX file
-  def download_template_content
-    Rails.logger.warn "[DocumentTemplate] DEPRECATED: Attempted to download Word template '#{name}' (ID: #{id}). " \
-                      "Word templates were removed Dec 2024. Migrate to html or pdf_overlay type."
-    return nil unless sharepoint_linked?
-
-    # NOTE: This will likely fail with 404 as SharePoint files were removed
-    client = MicrosoftAppGraphClient.new
-    client.get_drive_item_content(
-      site_id: sharepoint_site_id,
-      drive_id: sharepoint_drive_id,
-      item_id: sharepoint_item_id
-    )
   end
 
   # Get available merge fields for this template's category

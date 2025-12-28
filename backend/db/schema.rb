@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_070007) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_101712) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6556,18 +6556,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070007) do
     t.index ["token_expires_at"], name: "index_organization_one_drive_credentials_on_token_expires_at"
   end
 
-  create_table "organization_outlook_credentials", force: :cascade do |t|
-    t.text "access_token"
-    t.text "refresh_token"
-    t.datetime "expires_at"
-    t.string "email"
-    t.string "tenant_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "name"
-    t.index ["name"], name: "index_org_outlook_creds_on_name"
-  end
-
   create_table "organizations", force: :cascade do |t|
     t.string "name", null: false
     t.string "slug", null: false
@@ -8713,18 +8701,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070007) do
     t.index ["user_id", "navigation_item_id"], name: "idx_user_nav_config_unique", unique: true
   end
 
-  create_table "user_outlook_credentials", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.string "email"
-    t.text "access_token"
-    t.text "refresh_token"
-    t.datetime "expires_at", precision: nil
-    t.string "tenant_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["user_id"], name: "index_user_outlook_credentials_on_user_id", unique: true
-  end
-
   create_table "user_permissions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "permission_id", null: false
@@ -10182,7 +10158,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070007) do
   add_foreign_key "user_microsoft_tokens", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
-  add_foreign_key "user_outlook_credentials", "users", name: "user_outlook_credentials_user_id_fkey"
   add_foreign_key "user_permissions", "permissions"
   add_foreign_key "user_permissions", "users"
   add_foreign_key "user_roles", "roles"

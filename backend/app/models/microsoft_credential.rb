@@ -322,28 +322,6 @@ class MicrosoftCredential < ApplicationRecord
     update!(is_active: false)
   end
 
-  # Class methods for backward compatibility with old credential models
-  # ⚠️ DEPRECATED: These methods return the FIRST credential without org context.
-  # Use active_for_org(organization) instead to ensure proper org isolation.
-
-  # Organization-level app credential (legacy: OrganizationMicrosoftAppCredential)
-  # DEPRECATED: Use MicrosoftCredential.active_for_org(organization) instead
-  def self.active_app_credential
-    Rails.logger.warn "[MicrosoftCredential] DEPRECATED: active_app_credential called without org context. " \
-                      "Use MicrosoftCredential.active_for_org(organization) instead. " \
-                      "Caller: #{caller(1, 3).join(' <- ')}"
-    app_credentials.org_level.connected.first
-  end
-
-  # Organization-level delegated credential (legacy: OrganizationSharePointCredential)
-  # DEPRECATED: Use MicrosoftCredential.delegated_for_org(organization) instead
-  def self.active_delegated_credential
-    Rails.logger.warn "[MicrosoftCredential] DEPRECATED: active_delegated_credential called without org context. " \
-                      "Use MicrosoftCredential.delegated_for_org(organization) instead. " \
-                      "Caller: #{caller(1, 3).join(' <- ')}"
-    delegated_credentials.org_level.connected.first
-  end
-
   # Find by name (for multi-org support)
   def self.find_by_name(name)
     active.find_by(name: name)

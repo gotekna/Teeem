@@ -139,9 +139,4 @@ class SystemSetting < ApplicationRecord
     [full_path.sub(/^\//, ''), nil]
   end
 
-  # DEPRECATED: Kept for backwards compatibility
-  def self.extract_template_suffix(full_path)
-    _, template = extract_path_parts(full_path)
-    template
-  end
 end

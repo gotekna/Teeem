@@ -11,32 +11,36 @@ module Api
       # GET /api/v1/table_views?table_id=123 (backward compatible)
       def index
         # Support both foundation_id and table_id (backward compatibility)
-        filter_id = params[:foundation_id] || params[:table_id]
+        raw_filter_id = params[:foundation_id] || params[:table_id]
+
+        # Resolve foundation_id from slug or numeric ID (SSoT: resolve_foundation_id helper)
+        # This fixes views not loading when using slug like "sm_trades" instead of numeric ID 542
+        resolved_filter_id = raw_filter_id.present? ? resolve_foundation_id(raw_filter_id) : nil
 
         # Support inheriting global views from related foundations
         # Example: SM Tasks (218) can inherit global views from Schedule Master (426)
-        include_from_ids = params[:include_views_from].to_s.split(",").map(&:to_i).reject(&:zero?)
+        include_from_ids = params[:include_views_from].to_s.split(",").map { |id| resolve_foundation_id(id) }.compact
 
         # Get global views (shared by all users)
         global_views = FoundationView.global_views
-        if filter_id.present?
+        if resolved_filter_id.present?
           # Include views from both the primary foundation AND related foundations
-          all_foundation_ids = [ filter_id.to_i ] + include_from_ids
+          all_foundation_ids = [ resolved_filter_id ] + include_from_ids
           global_views = global_views.where(foundation_id: all_foundation_ids)
         end
 
         # Get user-specific views if authenticated
         user_views = if current_user
           views = current_user.foundation_views.personal_views
-          views = views.where(foundation_id: filter_id) if filter_id.present?
+          views = views.where(foundation_id: resolved_filter_id) if resolved_filter_id.present?
 
           # Auto-create "Setup" view if no views exist for this user/foundation combination
-          if filter_id.present? && views.empty? && global_views.empty?
-            foundation = Foundation.find_by(id: filter_id)
+          if resolved_filter_id.present? && views.empty? && global_views.empty?
+            foundation = Foundation.find_by(id: resolved_filter_id)
             if foundation
               create_default_setup_view(foundation, current_user)
               # Reload views to include the newly created Setup view
-              views = current_user.foundation_views.personal_views.where(foundation_id: filter_id)
+              views = current_user.foundation_views.personal_views.where(foundation_id: resolved_filter_id)
             end
           end
           views

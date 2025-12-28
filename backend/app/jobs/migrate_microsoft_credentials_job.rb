@@ -15,19 +15,19 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
     @stats = {
       app_credentials: { migrated: 0, skipped: 0, errors: 0 },
       org_onedrive: { migrated: 0, skipped: 0, errors: 0 },
-      org_outlook: { migrated: 0, skipped: 0, errors: 0 },
       user_microsoft_tokens: { migrated: 0, skipped: 0, errors: 0 },
-      user_outlook: { migrated: 0, skipped: 0, errors: 0 },
       per_job_onedrive: { migrated: 0, skipped: 0, errors: 0 }
     }
+    # NOTE: OrganizationOutlookCredential and UserOutlookCredential models
+    # were deleted in Dec 2024 cleanup. Their tables can be dropped.
 
     Rails.logger.info "[MigrateMicrosoftCredentials] Starting migration (dry_run: #{@dry_run})..."
 
     migrate_organization_microsoft_app_credentials
     migrate_organization_onedrive_credentials
-    migrate_organization_outlook_credentials
+    # NOTE: migrate_organization_outlook_credentials removed - model deleted
     migrate_user_microsoft_tokens
-    migrate_user_outlook_credentials
+    # NOTE: migrate_user_outlook_credentials removed - model deleted
     migrate_per_job_onedrive_credentials
 
     log_summary
@@ -115,37 +115,8 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
     Rails.logger.error "[MigrateMicrosoftCredentials] Error migrating org OneDrive credentials: #{e.message}"
   end
 
-  # 3. OrganizationOutlookCredential → type: 'delegated', owner: nil
-  def migrate_organization_outlook_credentials
-    Rails.logger.info "[MigrateMicrosoftCredentials] Migrating OrganizationOutlookCredential..."
-
-    OrganizationOutlookCredential.find_each do |old|
-      lookup_name = old.name.present? ? "#{old.name}_outlook" : "org_outlook_#{old.id}"
-
-      if MicrosoftCredential.exists?(name: lookup_name, credential_type: "delegated")
-        @stats[:org_outlook][:skipped] += 1
-        next
-      end
-
-      attrs = {
-        credential_type: "delegated",
-        name: lookup_name,
-        owner_type: nil,
-        owner_id: nil,
-        access_token: old.access_token,
-        refresh_token: old.refresh_token,
-        token_expires_at: old.expires_at, # Note: different field name
-        tenant_id: old.tenant_id,
-        email: old.email,
-        status: old.access_token.present? ? "connected" : "disconnected",
-        is_active: true
-      }
-
-      create_or_log(attrs, :org_outlook, "OrganizationOutlookCredential##{old.id}")
-    end
-  rescue => e
-    Rails.logger.error "[MigrateMicrosoftCredentials] Error migrating org Outlook credentials: #{e.message}"
-  end
+  # 3. OrganizationOutlookCredential - REMOVED (model deleted Dec 2024)
+  # Data should have been migrated before model deletion.
 
   # 4. UserMicrosoftToken → type: 'delegated', owner: User
   def migrate_user_microsoft_tokens
@@ -184,39 +155,8 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
     Rails.logger.error "[MigrateMicrosoftCredentials] Error migrating user Microsoft tokens: #{e.message}"
   end
 
-  # 5. UserOutlookCredential → type: 'delegated', owner: User
-  # Note: May overlap with UserMicrosoftToken - skip if user already has credential
-  def migrate_user_outlook_credentials
-    Rails.logger.info "[MigrateMicrosoftCredentials] Migrating UserOutlookCredential..."
-
-    UserOutlookCredential.find_each do |old|
-      # Skip if user already has a MicrosoftCredential (from UserMicrosoftToken migration)
-      if MicrosoftCredential.exists?(owner_type: "User", owner_id: old.user_id, credential_type: "delegated")
-        @stats[:user_outlook][:skipped] += 1
-        Rails.logger.info "[MigrateMicrosoftCredentials] Skipping UserOutlookCredential##{old.id} - user #{old.user_id} already has credential"
-        next
-      end
-
-      attrs = {
-        credential_type: "delegated",
-        name: nil,
-        owner_type: "User",
-        owner_id: old.user_id,
-        access_token: old.access_token,
-        refresh_token: old.refresh_token,
-        token_expires_at: old.expires_at, # Note: different field name
-        tenant_id: old.tenant_id,
-        email: old.email,
-        status: old.access_token.present? ? "connected" : "disconnected",
-        connected_by_id: old.user_id,
-        is_active: true
-      }
-
-      create_or_log(attrs, :user_outlook, "UserOutlookCredential##{old.id} (user: #{old.user_id})")
-    end
-  rescue => e
-    Rails.logger.error "[MigrateMicrosoftCredentials] Error migrating user Outlook credentials: #{e.message}"
-  end
+  # 5. UserOutlookCredential - REMOVED (model deleted Dec 2024)
+  # Data should have been migrated before model deletion.
 
   # 6. OneDriveCredential → type: 'delegated', owner: Job
   def migrate_per_job_onedrive_credentials
