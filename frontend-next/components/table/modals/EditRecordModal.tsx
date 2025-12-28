@@ -139,8 +139,8 @@ export interface EditRecordModalProps {
   /** Callback when modal open state changes */
   onOpenChange: (open: boolean) => void;
 
-  /** Foundation ID for API calls */
-  foundationId: number;
+  /** Foundation ID for API calls (numeric ID or slug string) */
+  foundationId: number | string;
 
   /** Table name for display */
   tableName: string;

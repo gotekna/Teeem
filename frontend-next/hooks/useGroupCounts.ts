@@ -67,13 +67,13 @@ export interface UseGroupCountsReturn {
  * - Fast (SQL aggregation, not JS iteration)
  * - Memory efficient (only counts, not full records)
  *
- * @param foundationId - The foundation ID (numeric)
+ * @param foundationId - The foundation ID (numeric or slug string)
  * @param groupByColumn - Column name to group by
  * @param filters - Optional cascade filters to apply
  * @param enabled - Whether to enable fetching (default: true when groupByColumn is set)
  */
 export function useGroupCounts(
-  foundationId: number | null | undefined,
+  foundationId: number | string | null | undefined,
   groupByColumn: string | null | undefined,
   filters?: CascadeFilter[],
   enabled: boolean = true

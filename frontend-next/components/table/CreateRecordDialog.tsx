@@ -46,7 +46,7 @@ import type { TableColumn } from "./types";
 interface CreateRecordDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  foundationId: number;
+  foundationId: number | string;
   tableName: string;
   columns: TableColumn[];
   onSuccess?: () => void;

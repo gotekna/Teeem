@@ -53,7 +53,7 @@ import { invalidateColumnsCacheAtom } from "@/lib/column-state-atoms";
 interface ColumnEditorModalProps {
   isOpen: boolean;
   column: TableColumn | null;
-  foundationId: number | null;
+  foundationId: number | string | null;
   allColumns: TableColumn[];
   onClose: () => void;
   onUpdate: () => void;

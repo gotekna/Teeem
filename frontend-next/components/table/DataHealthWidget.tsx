@@ -60,7 +60,7 @@ interface HealthData {
  * Props for the DataHealthWidget component
  */
 interface DataHealthWidgetProps {
-  foundationId: number;
+  foundationId: number | string;
   compact?: boolean;
   forceShow?: boolean; // Always show even if no issues (for explicit open via button)
   onIssueClick?: (item: HealthCheckItem, check: HealthCheck) => void;
@@ -461,7 +461,7 @@ export default DataHealthWidget;
  * Red: <75%, Orange: 75-99%, Green: 100%
  */
 interface HealthIndicatorButtonProps {
-  foundationId: number;
+  foundationId: number | string;
   onClick?: () => void;
 }
 

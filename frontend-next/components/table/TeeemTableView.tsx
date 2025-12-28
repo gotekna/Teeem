@@ -4017,7 +4017,7 @@ export default function TeeemTableView({
   // ============================================================================
 
   const schemaHandlers = useSchemaHandlers({
-    foundationIdNumeric,
+    foundationIdNumeric: effectiveFoundationId,
     COLUMNS,
     toast,
     onRefresh,
@@ -5049,7 +5049,7 @@ export default function TeeemTableView({
       )}
 
       {/* Data Health Widget - shown when button clicked or showDataHealth prop is true */}
-      {(healthPanelOpen || showDataHealth) && foundationIdNumeric && (
+      {(healthPanelOpen || showDataHealth) && effectiveFoundationId && (
         <div className={cn("px-4", debugGrid && "border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-950/20 relative")}>
           {debugGrid && (
             <div className="absolute top-0 left-0 bg-cyan-600 text-white px-2 py-1 text-xs font-bold z-50">
@@ -5356,7 +5356,7 @@ export default function TeeemTableView({
                     <UserPlus className="h-4 w-4 mr-2" />
                     Extract Contacts from Emails
                   </DropdownMenuItem>
-                  {(foundationId === "contacts" || foundationIdNumeric === 214) && (
+                  {(foundationId === "contacts" || effectiveFoundationId === 214) && (
                     <DropdownMenuItem onClick={handleFindMissingAbns} disabled={isFindingAbns}>
                       {isFindingAbns ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -5395,7 +5395,7 @@ export default function TeeemTableView({
                 <>
                   <div className="px-2 py-1.5 flex items-center justify-between">
                     <span className="text-[11px]">
-                      Table ID: <span className="font-mono font-medium">{foundationIdNumeric}</span>
+                      Table ID: <span className="font-mono font-medium">{effectiveFoundationId}</span>
                     </span>
                     <Button
                       variant="secondary"
@@ -5407,7 +5407,7 @@ export default function TeeemTableView({
                     </Button>
                   </div>
                   <DropdownMenuItem
-                    onClick={() => window.open(`/admin/system?tab=gold-standard&foundation=${foundationIdNumeric}`, '_blank')}
+                    onClick={() => window.open(`/admin/system?tab=gold-standard&foundation=${effectiveFoundationId}`, '_blank')}
                     className="flex items-center gap-2"
                   >
                     <Settings className="h-4 w-4" />
@@ -5830,7 +5830,7 @@ export default function TeeemTableView({
       <ColumnEditorModal
         isOpen={showEditColumnModal}
         column={editingColumnKey ? COLUMNS.find((c) => c.key === editingColumnKey) || null : null}
-        foundationId={foundationIdNumeric || null}
+        foundationId={effectiveFoundationId || null}
         allColumns={COLUMNS.filter((c) => c.key !== "select" && c.key !== "actions")}
         onClose={() => {
           setShowEditColumnModal(false);

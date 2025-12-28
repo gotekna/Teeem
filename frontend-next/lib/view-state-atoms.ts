@@ -421,7 +421,7 @@ export const saveViewAtom = atom(
  */
 export const invalidateViewsCacheAtom = atom(
   null,
-  (get, set, foundationId: number) => {
+  (get, set, foundationId: number | string) => {
     set(viewsCacheAtom, (prev) => {
       const next = { ...prev };
       delete next[foundationId];
@@ -437,7 +437,7 @@ export const invalidateViewsCacheAtom = atom(
  */
 export const loadFoundationViewsAtom = atom(
   null,
-  async (get, set, foundationId: number, includeViewsFrom?: number | number[]) => {
+  async (get, set, foundationId: number | string, includeViewsFrom?: number | string | (number | string)[]) => {
     set(viewsLoadingAtom, true);
 
     // Build cache key that includes related foundations

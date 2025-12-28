@@ -110,7 +110,7 @@ interface Column {
 interface ViewManagerSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  foundationId: number;
+  foundationId: number | string;
   columns: Column[];
   onViewsChange?: () => void;
   onApplyView?: (view: SavedView) => void;

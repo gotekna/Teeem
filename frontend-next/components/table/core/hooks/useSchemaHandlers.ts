@@ -14,8 +14,8 @@ import { invalidateColumnsCacheAtom } from '@/lib/column-state-atoms';
 import type { TableColumn } from '../../types';
 
 export interface UseSchemaHandlersProps {
-  /** Table foundation ID for API calls */
-  foundationIdNumeric?: number | null;
+  /** Table foundation ID for API calls (numeric ID or slug string) */
+  foundationIdNumeric?: number | string | null;
 
   /** All table columns */
   COLUMNS: TableColumn[];

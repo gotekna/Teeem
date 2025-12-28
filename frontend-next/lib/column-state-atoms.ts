@@ -47,9 +47,9 @@ export const COLUMNS_CACHE_TTL = 60000; // 1 minute
 
 /**
  * Columns cache with TTL
- * Key format: foundationId
+ * Key format: foundationId (numeric or slug string)
  */
-export const columnsCacheAtom = atom<Record<number, ColumnsCacheEntry>>({});
+export const columnsCacheAtom = atom<Record<number | string, ColumnsCacheEntry>>({});
 
 // ============================================================================
 // CACHE OPERATIONS
@@ -61,7 +61,7 @@ export const columnsCacheAtom = atom<Record<number, ColumnsCacheEntry>>({});
  */
 export const invalidateColumnsCacheAtom = atom(
   null,
-  (get, set, foundationId: number) => {
+  (get, set, foundationId: number | string) => {
     set(columnsCacheAtom, (prev) => {
       const next = { ...prev };
       delete next[foundationId];
@@ -76,7 +76,7 @@ export const invalidateColumnsCacheAtom = atom(
  */
 export const loadFoundationColumnsAtom = atom(
   null,
-  async (get, set, foundationId: number) => {
+  async (get, set, foundationId: number | string) => {
     try {
       // Check cache first
       const cache = get(columnsCacheAtom);
@@ -161,7 +161,7 @@ export const cleanupColumnsCacheAtom = atom(
  * @example
  * const { columns, loading, error } = useFoundationColumns(123);
  */
-export function useFoundationColumns(foundationId: number | null) {
+export function useFoundationColumns(foundationId: number | string | null) {
   const [columns, setColumns] = useState<Column[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
