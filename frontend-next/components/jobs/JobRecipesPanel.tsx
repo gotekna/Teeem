@@ -443,10 +443,10 @@ export function JobRecipesPanel({ jobId, onPOGenerated }: JobRecipesPanelProps) 
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-right font-mono">
-                                      {item.calculated_quantity.toFixed(2)}
+                                      {(item.calculated_quantity ?? 0).toFixed(2)}
                                     </TableCell>
                                     <TableCell className="text-right font-mono">
-                                      ${item.unit_price.toFixed(2)}
+                                      ${(item.unit_price ?? 0).toFixed(2)}
                                     </TableCell>
                                     <TableCell className="text-right font-mono">
                                       {formatCurrency(item.line_total)}

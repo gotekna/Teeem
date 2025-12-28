@@ -366,7 +366,7 @@ export function PerformanceTab() {
                 {overview.total_requests.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {overview.requests_per_minute.toFixed(1)} req/min
+                {(overview.requests_per_minute ?? 0).toFixed(1)} req/min
               </p>
             </CardContent>
           </Card>
@@ -411,7 +411,7 @@ export function PerformanceTab() {
                 "text-2xl font-bold",
                 overview.error_rate === 0 ? "text-green-600" : overview.error_rate < 1 ? "text-yellow-600" : "text-red-600"
               )}>
-                {overview.error_rate.toFixed(2)}%
+                {(overview.error_rate ?? 0).toFixed(2)}%
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {overview.error_count} errors
@@ -515,7 +515,7 @@ export function PerformanceTab() {
                   budgets.compliance_percent < 70 && "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                 )}
               >
-                {budgets.compliance_percent.toFixed(0)}% Compliant
+                {(budgets.compliance_percent ?? 0).toFixed(0)}% Compliant
               </Badge>
             </div>
             <CardDescription>
@@ -651,7 +651,7 @@ export function PerformanceTab() {
                     <p className="text-xs text-muted-foreground mb-2">{config.label}</p>
                     <div className="text-xl font-bold">
                       {vital.metric_name === "CLS"
-                        ? vital.p75_value.toFixed(3)
+                        ? (vital.p75_value ?? 0).toFixed(3)
                         : `${Math.round(vital.p75_value)}${config.unit}`}
                     </div>
                     <p className="text-xs text-muted-foreground">P75 ({vital.count} samples)</p>
@@ -672,8 +672,8 @@ export function PerformanceTab() {
                       />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>{vital.good_percent.toFixed(0)}% good</span>
-                      <span>{vital.poor_percent.toFixed(0)}% poor</span>
+                      <span>{(vital.good_percent ?? 0).toFixed(0)}% good</span>
+                      <span>{(vital.poor_percent ?? 0).toFixed(0)}% poor</span>
                     </div>
                   </div>
                 );

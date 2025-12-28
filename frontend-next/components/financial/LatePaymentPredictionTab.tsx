@@ -587,7 +587,7 @@ export default function LatePaymentPredictionTab() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {contact.average_days_to_pay.toFixed(0)}
+                        {(contact.average_days_to_pay ?? 0).toFixed(0)}
                       </TableCell>
                       <TableCell className="text-right font-mono">
                         <span className={
@@ -733,7 +733,7 @@ export default function LatePaymentPredictionTab() {
                     </div>
                     <div className="text-center p-3 bg-muted/30 rounded">
                       <div className="text-xl font-bold">
-                        {selectedInvoice.contact_history.average_days_late.toFixed(0)}
+                        {(selectedInvoice.contact_history.average_days_late ?? 0).toFixed(0)}
                       </div>
                       <div className="text-xs text-muted-foreground">Avg Days Late</div>
                     </div>

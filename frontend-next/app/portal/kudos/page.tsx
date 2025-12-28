@@ -194,7 +194,7 @@ export default function PortalKudos() {
         </div>
         <div className="flex items-baseline justify-center gap-2 mb-6">
           <span className="text-5xl font-bold text-white">
-            {kudosData.kudos_score.toFixed(0)}
+            {(kudosData.kudos_score ?? 0).toFixed(0)}
           </span>
           <span className="text-xl text-white/80">/ 1000</span>
         </div>

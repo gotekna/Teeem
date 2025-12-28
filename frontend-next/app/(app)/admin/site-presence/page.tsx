@@ -172,7 +172,7 @@ export default function SitePresenceDashboardPage() {
     },
     {
       title: "Today's Hours",
-      value: stats.todayHours.toFixed(1),
+      value: (stats.todayHours ?? 0).toFixed(1),
       icon: Clock,
       description: "Total hours logged today",
       color: "text-blue-600 dark:text-blue-400",
@@ -523,7 +523,7 @@ export default function SitePresenceDashboardPage() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Total Hours</span>
-                <span className="font-mono font-bold text-lg">{stats.weeklyHours.toFixed(1)}h</span>
+                <span className="font-mono font-bold text-lg">{(stats.weeklyHours ?? 0).toFixed(1)}h</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Active Workers</span>

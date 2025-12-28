@@ -280,7 +280,7 @@ export default function AgedReportsTab() {
                     {formatCurrency(bucket.amount)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {bucket.count} invoices ({bucket.percentage.toFixed(1)}%)
+                    {bucket.count} invoices ({(bucket.percentage ?? 0).toFixed(1)}%)
                   </div>
                   {/* Progress bar */}
                   <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">

@@ -270,7 +270,7 @@ export default function PortalDashboard() {
                   </dt>
                   <dd className="flex items-baseline">
                     <div className="text-3xl font-semibold text-white">
-                      {kudosScore.kudos_score.toFixed(0)}
+                      {(kudosScore.kudos_score ?? 0).toFixed(0)}
                     </div>
                     <div className="ml-2 flex items-baseline text-sm font-semibold text-purple-100">
                       {kudosScore.tier}

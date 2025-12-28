@@ -425,7 +425,7 @@ function AgingBar({ aging, colorClass }: { aging: AgedBucket[]; colorClass: stri
             key={bucket.label}
             className={cn(palette[i], "transition-all")}
             style={{ width: `${bucket.percent}%` }}
-            title={`${bucket.label}: ${formatCurrency(bucket.amount)} (${bucket.percent.toFixed(1)}%)`}
+            title={`${bucket.label}: ${formatCurrency(bucket.amount)} (${(bucket.percent ?? 0).toFixed(1)}%)`}
           />
         ))}
       </div>
@@ -620,7 +620,7 @@ function DashboardTab({
           icon={DollarSign}
           iconBg="bg-emerald-100 dark:bg-emerald-900/30"
           iconColor="text-emerald-600"
-          subValue={`${summary.profit_margin.toFixed(1)}%`}
+          subValue={`${(summary.profit_margin ?? 0).toFixed(1)}%`}
           subLabel="Margin"
         />
         <StatCard
@@ -716,7 +716,7 @@ function DashboardTab({
                   <TableCell className="text-right font-mono text-green-600">{formatCurrency(job.profit)}</TableCell>
                   <TableCell className="text-right">
                     <Badge variant={job.margin >= 25 ? "default" : job.margin >= 15 ? "secondary" : "destructive"}>
-                      {job.margin.toFixed(1)}%
+                      {(job.margin ?? 0).toFixed(1)}%
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -979,12 +979,12 @@ function AgedReportsTab({
                   icon={AlertTriangle}
                   iconBg="bg-red-100 dark:bg-red-900/30"
                   iconColor="text-red-600"
-                  subValue={`${receivables.overdue_percent.toFixed(1)}%`}
+                  subValue={`${(receivables.overdue_percent ?? 0).toFixed(1)}%`}
                   subLabel="Of total"
                 />
                 <StatCard
                   title="Average Days"
-                  value={`${receivables.average_days.toFixed(0)} days`}
+                  value={`${(receivables.average_days ?? 0).toFixed(0)} days`}
                   icon={Clock}
                   iconBg="bg-yellow-100 dark:bg-yellow-900/30"
                   iconColor="text-yellow-600"
@@ -1100,12 +1100,12 @@ function AgedReportsTab({
                   icon={AlertTriangle}
                   iconBg="bg-red-100 dark:bg-red-900/30"
                   iconColor="text-red-600"
-                  subValue={`${payables.overdue_percent.toFixed(1)}%`}
+                  subValue={`${(payables.overdue_percent ?? 0).toFixed(1)}%`}
                   subLabel="Of total"
                 />
                 <StatCard
                   title="Average Days"
-                  value={`${payables.average_days.toFixed(0)} days`}
+                  value={`${(payables.average_days ?? 0).toFixed(0)} days`}
                   icon={Clock}
                   iconBg="bg-yellow-100 dark:bg-yellow-900/30"
                   iconColor="text-yellow-600"
