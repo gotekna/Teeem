@@ -34,6 +34,7 @@ module Api
       #   - photo_url: URL of check-in photo (Cloudinary)
       #   - image_data: Base64 encoded photo (will upload to Cloudinary)
       #   - notes: Worker notes
+      #   - saas_customer_id: SaaS customer being supported (for cost-to-serve tracking)
       #
       def checkin
         # Check for existing active session
@@ -69,7 +70,8 @@ module Api
           longitude: params[:longitude].to_f,
           photo: photo,
           task: params[:task_id].present? ? SmTask.find(params[:task_id]) : nil,
-          device_info: request.user_agent
+          device_info: request.user_agent,
+          saas_customer_id: params[:saas_customer_id]
         )
 
         # Add worker notes if provided

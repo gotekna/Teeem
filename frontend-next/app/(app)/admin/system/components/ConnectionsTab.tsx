@@ -23,6 +23,10 @@ import {
   Edit3,
   TestTube,
   ChevronDown,
+  ArrowRightLeft,
+  Play,
+  Square,
+  RotateCcw,
 } from "lucide-react";
 import {
   Select,
@@ -49,6 +53,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
+import { Progress } from "@/components/ui/progress";
 
 // SharePoint Connection Component
 function SharePointConnection() {
@@ -1330,6 +1335,327 @@ function DocumentStorageProvider() {
   );
 }
 
+// Document Migration Types
+interface MigrationStatus {
+  total_documents: number;
+  migration_in_progress: boolean;
+  status_counts: {
+    pending: number;
+    in_progress: number;
+    completed: number;
+    failed: number;
+    not_migrated: number;
+  };
+  provider_breakdown: Record<string, number>;
+  progress_percent: number;
+  recent_failures: Array<{
+    id: number;
+    file_name: string;
+    error: string;
+  }>;
+}
+
+interface MigrationEstimate {
+  document_count: number;
+  total_size_bytes: number;
+  total_size_formatted: string;
+  estimated_minutes: number;
+  estimated_time_formatted: string;
+}
+
+// Document Migration Component
+function DocumentMigration() {
+  const { toast } = useToast();
+  const [status, setStatus] = React.useState<MigrationStatus | null>(null);
+  const [estimate, setEstimate] = React.useState<MigrationEstimate | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [starting, setStarting] = React.useState(false);
+  const [cancelling, setCancelling] = React.useState(false);
+  const [retrying, setRetrying] = React.useState(false);
+  const [deleteSource, setDeleteSource] = React.useState(false);
+
+  // Auto-refresh interval for ongoing migrations
+  const refreshIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    loadStatus();
+    loadEstimate();
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Set up auto-refresh when migration is in progress
+  React.useEffect(() => {
+    if (status?.migration_in_progress) {
+      refreshIntervalRef.current = setInterval(loadStatus, 5000); // Refresh every 5 seconds
+    } else if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, [status?.migration_in_progress]);
+
+  const loadStatus = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: MigrationStatus }>("/api/v1/organization/document_migration_status");
+      if (response.data) {
+        setStatus(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load migration status:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEstimate = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: MigrationEstimate }>("/api/v1/organization/estimate_migration?from_provider=sharepoint");
+      if (response.data) {
+        setEstimate(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load migration estimate:", error);
+    }
+  };
+
+  const handleStartMigration = async () => {
+    if (!confirm("This will migrate all SharePoint documents to S3. Are you sure?")) return;
+
+    setStarting(true);
+    try {
+      const response = await api.post<{ success: boolean; data: { message: string; total_documents: number } }>("/api/v1/organization/start_document_migration", {
+        from_provider: "sharepoint",
+        to_provider: "s3_compatible",
+        delete_source: deleteSource,
+      });
+      if (response?.success) {
+        toast({ title: "Migration Started", description: `${response.data?.total_documents || 0} documents queued for migration` });
+        loadStatus();
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast({ title: "Error", description: err?.response?.data?.error || "Failed to start migration", variant: "destructive" });
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleCancelMigration = async () => {
+    if (!confirm("Cancel pending migrations?")) return;
+
+    setCancelling(true);
+    try {
+      await api.post("/api/v1/organization/cancel_document_migration");
+      toast({ title: "Migration Cancelled", description: "Pending migrations have been cancelled" });
+      loadStatus();
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to cancel migration", variant: "destructive" });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleRetryFailed = async () => {
+    setRetrying(true);
+    try {
+      const response = await api.post<{ success: boolean; data: { retried_count: number } }>("/api/v1/organization/retry_failed_migrations", {
+        delete_source: deleteSource,
+      });
+      if (response?.success) {
+        toast({ title: "Retry Started", description: `Retrying ${response.data?.retried_count || 0} failed migrations` });
+        loadStatus();
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to retry migrations", variant: "destructive" });
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-32">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const totalProcessed = (status?.status_counts.completed || 0) + (status?.status_counts.failed || 0);
+  const totalQueued = (status?.status_counts.pending || 0) + (status?.status_counts.in_progress || 0);
+  const hasPendingWork = totalQueued > 0;
+  const hasFailures = (status?.status_counts.failed || 0) > 0;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900">
+              <ArrowRightLeft className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Document Migration</CardTitle>
+              <CardDescription>Move documents between storage providers</CardDescription>
+            </div>
+          </div>
+          {status?.migration_in_progress && (
+            <Badge variant="outline" className="animate-pulse">
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              Migrating...
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Provider Breakdown */}
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="p-3 rounded-lg border bg-muted/30">
+            <p className="text-muted-foreground text-xs">SharePoint Documents</p>
+            <p className="text-2xl font-semibold">{status?.provider_breakdown?.sharepoint || 0}</p>
+          </div>
+          <div className="p-3 rounded-lg border bg-muted/30">
+            <p className="text-muted-foreground text-xs">S3 Documents</p>
+            <p className="text-2xl font-semibold">{status?.provider_breakdown?.s3_compatible || 0}</p>
+          </div>
+        </div>
+
+        {/* Migration Progress */}
+        {hasPendingWork && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Migration Progress</span>
+              <span>{status?.progress_percent || 0}%</span>
+            </div>
+            <Progress value={status?.progress_percent || 0} className="h-2" />
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              <span>Pending: {status?.status_counts.pending || 0}</span>
+              <span>In Progress: {status?.status_counts.in_progress || 0}</span>
+              <span className="text-green-600">Completed: {status?.status_counts.completed || 0}</span>
+              {hasFailures && <span className="text-red-600">Failed: {status?.status_counts.failed || 0}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Migration Status Summary */}
+        {!hasPendingWork && (status?.status_counts.completed || 0) > 0 && (
+          <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+            <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
+              <Check className="h-4 w-4" />
+              <span>{status?.status_counts.completed} documents successfully migrated</span>
+            </div>
+          </div>
+        )}
+
+        {/* Recent Failures */}
+        {hasFailures && status?.recent_failures && status.recent_failures.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-red-600">Recent Failures</p>
+            <div className="max-h-32 overflow-y-auto space-y-1">
+              {status.recent_failures.map((failure) => (
+                <div key={failure.id} className="text-xs p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
+                  <span className="font-medium">{failure.file_name}:</span> {failure.error}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Migration Estimate */}
+        {!hasPendingWork && estimate && estimate.document_count > 0 && (
+          <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+            <p className="text-sm font-medium">Migration Estimate</p>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Documents:</span>
+                <p className="font-medium">{estimate.document_count}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Total Size:</span>
+                <p className="font-medium">{estimate.total_size_formatted}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Est. Time:</span>
+                <p className="font-medium">{estimate.estimated_time_formatted}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Source Option */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="delete_source"
+            checked={deleteSource}
+            onCheckedChange={(checked) => setDeleteSource(checked as boolean)}
+          />
+          <Label htmlFor="delete_source" className="text-sm cursor-pointer">
+            Delete from source after migration
+          </Label>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 pt-2">
+          {!hasPendingWork ? (
+            <>
+              <Button
+                onClick={handleStartMigration}
+                disabled={starting || !estimate || estimate.document_count === 0}
+              >
+                {starting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Start Migration
+              </Button>
+              {hasFailures && (
+                <Button variant="outline" onClick={handleRetryFailed} disabled={retrying}>
+                  {retrying ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                  )}
+                  Retry Failed
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button variant="destructive" onClick={handleCancelMigration} disabled={cancelling}>
+              {cancelling ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Square className="h-4 w-4 mr-2" />
+              )}
+              Cancel Migration
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => { loadStatus(); loadEstimate(); }}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Info Text */}
+        <p className="text-xs text-muted-foreground">
+          Migration copies documents from SharePoint to S3. Existing documents in SharePoint remain accessible until deleted.
+          New documents will be stored based on the active provider setting above.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 // Main Connections Tab
 export function ConnectionsTab() {
   const [activeTab, setActiveTab] = React.useState("provider");
@@ -1350,6 +1676,17 @@ export function ConnectionsTab() {
           Storage Provider
         </button>
         <button
+          onClick={() => setActiveTab("migration")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeTab === "migration"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Migration
+        </button>
+        <button
           onClick={() => setActiveTab("costs")}
           className={cn(
             "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
@@ -1364,6 +1701,7 @@ export function ConnectionsTab() {
 
       {/* Tab Content */}
       {activeTab === "provider" && <DocumentStorageProvider />}
+      {activeTab === "migration" && <DocumentMigration />}
       {activeTab === "costs" && <StorageCostTab />}
     </div>
   );

@@ -56,8 +56,12 @@ class JobDocument < ApplicationRecord
   # Storage providers (SSoT: Organization.document_provider)
   STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
 
+  # Migration statuses for tracking provider-to-provider migration
+  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+
   validates :sharepoint_item_id, presence: true, uniqueness: true
   validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true
+  validates :migration_status, inclusion: { in: MIGRATION_STATUSES }, allow_nil: true
 
   # Provider-agnostic storage reference
   # This is the new SSoT for document storage references
@@ -82,6 +86,14 @@ class JobDocument < ApplicationRecord
   scope :migrated_from_corporate, -> { where.not(legacy_corporate_document_id: nil) }
   scope :sharepoint_sourced, -> { where(source: "sharepoint").or(where(source: "onedrive")).or(where(source: nil)) }
   scope :manually_uploaded, -> { where(source: "manual") }
+
+  # Migration scopes
+  scope :migration_pending, -> { where(migration_status: 'pending') }
+  scope :migration_in_progress, -> { where(migration_status: 'in_progress') }
+  scope :migration_completed, -> { where(migration_status: 'completed') }
+  scope :migration_failed, -> { where(migration_status: 'failed') }
+  scope :needs_migration, -> { where(migration_status: [nil, 'failed']) }
+  scope :on_provider, ->(provider) { where(storage_provider: provider) }
 
   # Callbacks
   before_save :set_file_extension
@@ -160,6 +172,23 @@ class JobDocument < ApplicationRecord
   # Returns true if stored in S3-compatible storage
   def s3_stored?
     storage_provider == 's3_compatible'
+  end
+
+  # Migration helpers
+  def migration_in_progress?
+    migration_status == 'in_progress'
+  end
+
+  def migration_completed?
+    migration_status == 'completed'
+  end
+
+  def migration_failed?
+    migration_status == 'failed'
+  end
+
+  def can_migrate?
+    !migration_in_progress? && storage_reference.present?
   end
 
   # Returns the provider-agnostic storage reference

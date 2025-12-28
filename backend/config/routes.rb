@@ -2009,6 +2009,13 @@ Rails.application.routes.draw do
       get "organization/document_provider", to: "organization#document_provider"
       put "organization/document_provider", to: "organization#update_document_provider"
 
+      # Document migration between providers
+      get "organization/document_migration_status", to: "organization#document_migration_status"
+      get "organization/estimate_migration", to: "organization#estimate_migration"
+      post "organization/start_document_migration", to: "organization#start_document_migration"
+      post "organization/cancel_document_migration", to: "organization#cancel_document_migration"
+      post "organization/retry_failed_migrations", to: "organization#retry_failed_migrations"
+
       # Organization settings (job folder name format, etc.)
       get "organization_settings", to: "organization#settings"
       patch "organization_settings", to: "organization#update_settings"

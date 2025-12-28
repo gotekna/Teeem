@@ -203,6 +203,87 @@ module Api
         end
       end
 
+      # GET /api/v1/organization/document_migration_status
+      # Returns current document migration status
+      def document_migration_status
+        status = DocumentMigrationService.migration_status
+
+        render json: {
+          success: true,
+          data: status
+        }
+      end
+
+      # POST /api/v1/organization/start_document_migration
+      # Starts migration of documents from one provider to another
+      def start_document_migration
+        from_provider = params[:from_provider]
+        to_provider = params[:to_provider]
+        delete_source = params[:delete_source] == true || params[:delete_source] == "true"
+
+        unless from_provider.present? && to_provider.present?
+          return render json: {
+            success: false,
+            error: "Both from_provider and to_provider are required"
+          }, status: :unprocessable_entity
+        end
+
+        result = DocumentMigrationService.start_migration(
+          from: from_provider,
+          to: to_provider,
+          delete_source: delete_source
+        )
+
+        if result[:success]
+          render json: {
+            success: true,
+            data: result
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/organization/cancel_document_migration
+      # Cancels any pending document migrations
+      def cancel_document_migration
+        result = DocumentMigrationService.cancel_migration
+
+        render json: {
+          success: true,
+          data: result
+        }
+      end
+
+      # POST /api/v1/organization/retry_failed_migrations
+      # Retries any failed document migrations
+      def retry_failed_migrations
+        delete_source = params[:delete_source] == true || params[:delete_source] == "true"
+
+        result = DocumentMigrationService.retry_failed(delete_source: delete_source)
+
+        render json: {
+          success: true,
+          data: result
+        }
+      end
+
+      # GET /api/v1/organization/estimate_migration
+      # Estimates time and resources for migration
+      def estimate_migration
+        from_provider = params[:from_provider] || 'sharepoint'
+
+        result = DocumentMigrationService.estimate_migration(from: from_provider)
+
+        render json: {
+          success: true,
+          data: result
+        }
+      end
+
       # GET /api/v1/organization/data_stats
       # Returns organization-wide data warehouse statistics
       def data_stats

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_061048) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_070001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5791,6 +5791,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061048) do
     t.string "storage_provider", default: "sharepoint"
     t.string "storage_item_id"
     t.string "storage_path"
+    t.string "migration_status"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.text "migration_error"
+    t.string "source_provider"
+    t.string "source_item_id"
     t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
     t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
     t.index ["company_id"], name: "index_job_documents_on_company_id"
@@ -5804,6 +5810,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061048) do
     t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
     t.index ["job_id"], name: "index_job_documents_on_job_id"
     t.index ["legacy_corporate_document_id"], name: "index_job_documents_on_legacy_corporate_document_id"
+    t.index ["migration_status"], name: "index_job_documents_on_migration_status"
     t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
     t.index ["rename_status"], name: "index_job_documents_on_rename_status"
     t.index ["sharepoint_drive_id"], name: "index_job_documents_on_sharepoint_drive_id"
