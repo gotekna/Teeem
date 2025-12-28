@@ -30,7 +30,7 @@ interface BudgetTotals {
   budgeted: number;
   invoiced: number;
   variance: number;
-  variance_percentage: number;
+  variance_percentage: number | null;
 }
 
 interface BudgetData {
@@ -160,7 +160,7 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
                 {totals.variance >= 0 ? "+" : ""}
                 {formatCurrency(totals.variance)}
               </p>
-              {totals.budgeted > 0 && (
+              {totals.budgeted > 0 && totals.variance_percentage != null && (
                 <p className={`text-sm ${getVarianceColor(totals.variance)}`}>
                   ({totals.variance_percentage >= 0 ? "+" : ""}
                   {totals.variance_percentage.toFixed(2)}%)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_061043) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_061048) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1522,6 +1522,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061043) do
     t.integer "team_size"
     t.decimal "daily_rate_per_person", precision: 10, scale: 2, default: "800.0"
     t.tsvector "searchable"
+    t.boolean "is_saas_customer", default: false
+    t.decimal "annual_turnover", precision: 15, scale: 2
+    t.string "saas_status", default: "active"
+    t.date "saas_started_at"
+    t.date "saas_churned_at"
+    t.bigint "support_contact_id"
+    t.bigint "upline_contact_id"
+    t.string "referrer_status", default: "pending"
+    t.datetime "referrer_training_completed_at"
+    t.datetime "referrer_training_expires_at"
+    t.datetime "l1_eligible_at"
+    t.datetime "l2_eligible_at"
+    t.decimal "total_network_fees", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_commissions_earned", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_commissions_paid", precision: 12, scale: 2, default: "0.0"
     t.index "lower((email)::text)", name: "idx_contacts_lower_email"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1529,11 +1544,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061043) do
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
+    t.index ["is_saas_customer"], name: "index_contacts_on_is_saas_customer"
     t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
+    t.index ["referrer_status"], name: "index_contacts_on_referrer_status"
+    t.index ["saas_status"], name: "index_contacts_on_saas_status"
     t.index ["searchable"], name: "idx_contacts_searchable_gin", using: :gin
+    t.index ["support_contact_id"], name: "index_contacts_on_support_contact_id"
+    t.index ["upline_contact_id"], name: "index_contacts_on_upline_contact_id"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
   end
@@ -7496,6 +7516,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061043) do
     t.index ["status"], name: "index_reconciliation_reports_on_status"
   end
 
+  create_table "referral_commissions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "revision_formats", force: :cascade do |t|
     t.string "name", null: false
     t.text "sequence"
@@ -7545,6 +7570,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061043) do
     t.index ["organization_id"], name: "index_s3_compatible_credentials_on_organization_id"
     t.index ["provider_type"], name: "index_s3_compatible_credentials_on_provider_type"
     t.index ["status"], name: "index_s3_compatible_credentials_on_status"
+  end
+
+  create_table "saas_billing_records", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "scheduled_emails", force: :cascade do |t|
@@ -8672,6 +8702,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061043) do
     t.index ["role_id"], name: "index_user_roles_on_role_id"
     t.index ["user_id", "role_id"], name: "index_user_roles_on_user_id_and_role_id", unique: true
     t.index ["user_id"], name: "index_user_roles_on_user_id"
+  end
+
+  create_table "user_sm_stages_c4f88aa2", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "user_sm_trades_70cdd052", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "users", force: :cascade do |t|

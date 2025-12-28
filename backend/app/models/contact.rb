@@ -99,6 +99,31 @@ class Contact < ApplicationRecord
   # SSoT - if this contact is a company/trust, link to the Company record
   has_one :company_record, class_name: "CorporateCompany", foreign_key: "contact_id", dependent: :nullify
 
+  # ============================================
+  # SaaS Customer & Referral Associations
+  # ============================================
+  # Support network: who referred this customer
+  belongs_to :support_contact, class_name: "Contact", optional: true  # L1 referrer (20%)
+  belongs_to :upline_contact, class_name: "Contact", optional: true   # L2 referrer (10%)
+
+  # Inverse: customers I support
+  has_many :l1_referrals, class_name: "Contact", foreign_key: :support_contact_id
+  has_many :l2_referrals, class_name: "Contact", foreign_key: :upline_contact_id
+
+  # Billing records for this SaaS customer
+  has_many :saas_billing_records, dependent: :destroy
+
+  # Commissions I've earned as a referrer
+  has_many :referral_commissions, foreign_key: :referrer_contact_id, dependent: :destroy
+  has_many :commissions_as_customer, class_name: "ReferralCommission", foreign_key: :customer_contact_id, dependent: :destroy
+
+  # Support tickets for this SaaS customer
+  has_many :support_tickets, -> { where(is_ticket: true) }, class_name: "SmTask", foreign_key: :saas_customer_id
+
+  # Time entries linked to this SaaS customer
+  has_many :saas_labour_cost_entries, class_name: "LabourCostEntry", foreign_key: :saas_customer_id
+  has_many :saas_site_presence_sessions, class_name: "SitePresenceSession", foreign_key: :saas_customer_id
+
   # Encrypted TFN for directors
   # NOTE: tfn column was removed in migration 20251210093313
   # TFN is now stored in CorporateCompany.tfn instead
@@ -291,6 +316,21 @@ class Contact < ApplicationRecord
 
   # Active status scope (SSoT: is_active column)
   scope :active, -> { where(is_active: true) }
+
+  # ============================================
+  # SaaS Customer Scopes
+  # ============================================
+  scope :saas_customers, -> { where(is_saas_customer: true) }
+  scope :active_saas, -> { saas_customers.where(saas_status: "active") }
+  scope :trial_saas, -> { saas_customers.where(saas_status: "trial") }
+  scope :churned_saas, -> { saas_customers.where(saas_status: "churned") }
+
+  # Referrer scopes
+  scope :referrers, -> { where.not(referrer_status: "pending") }
+  scope :eligible_referrers, -> { where(referrer_status: %w[eligible_l1 eligible_l2]) }
+  scope :l1_eligible_referrers, -> { where(referrer_status: %w[eligible_l1 eligible_l2]) }
+  scope :l2_eligible_referrers, -> { where(referrer_status: "eligible_l2") }
+  scope :trained_referrers, -> { where.not(referrer_training_completed_at: nil) }
 
   # Instance methods
   # computed_display_name: Generates a display-friendly name based on entity type
@@ -877,6 +917,146 @@ class Contact < ApplicationRecord
     else
       "#{contact_id} - #{sanitized_name}"
     end
+  end
+
+  # ============================================
+  # SaaS Customer Methods
+  # ============================================
+
+  # Calculate annual SaaS fee based on tiered pricing
+  # @return [Hash] { cost:, effective_rate:, tiers: [] }
+  def calculate_saas_fee(turnover = annual_turnover)
+    SaasPricingService.calculate(turnover || 0)
+  end
+
+  # Convenience method for annual fee amount
+  def annual_saas_fee
+    calculate_saas_fee[:cost]
+  end
+
+  # Convenience method for monthly fee amount
+  def monthly_saas_fee
+    annual_saas_fee / 12.0
+  end
+
+  # Calculate cost-to-serve for a date range
+  # Uses LabourCostEntry linked to this customer via saas_customer_id
+  def cost_to_serve(start_date = nil, end_date = nil)
+    entries = saas_labour_cost_entries
+    entries = entries.where("work_date >= ?", start_date) if start_date
+    entries = entries.where("work_date <= ?", end_date) if end_date
+    entries.sum(:fully_loaded_cost)
+  end
+
+  # Calculate customer profitability for a date range
+  def customer_profitability(start_date = nil, end_date = nil)
+    billing = saas_billing_records
+    billing = billing.where("billing_period_start >= ?", start_date) if start_date
+    billing = billing.where("billing_period_end <= ?", end_date) if end_date
+
+    revenue = billing.sum(:fee_calculated)
+    cost = cost_to_serve(start_date, end_date)
+    profit = revenue - cost
+    margin = revenue > 0 ? (profit / revenue * 100) : 0
+
+    {
+      revenue: revenue,
+      cost: cost,
+      profit: profit,
+      margin: margin.round(2)
+    }
+  end
+
+  # Support ticket statistics
+  def ticket_stats
+    {
+      total: support_tickets.count,
+      open: support_tickets.where(status: %w[not_started started]).count,
+      sla_breached: support_tickets.where("sla_resolution_due_at < ? AND status != ?", Time.current, "completed").count
+    }
+  end
+
+  # ============================================
+  # Referrer Methods
+  # ============================================
+
+  # Check if referrer is eligible for L1 commissions (20%)
+  # Requirements: training completed + not expired + $10k network fees threshold
+  def referrer_eligible_for_l1?
+    referrer_training_completed_at.present? &&
+      referrer_training_expires_at.present? &&
+      referrer_training_expires_at > Time.current &&
+      total_network_fees >= 10_000
+  end
+
+  # Check if referrer is eligible for L2 commissions (10%)
+  # Requirements: L1 eligible + $50k network fees threshold
+  def referrer_eligible_for_l2?
+    referrer_eligible_for_l1? && total_network_fees >= 50_000
+  end
+
+  # Calculate total network fees (own fees + L1 referrals + L2 referrals)
+  def calculate_network_fees
+    own_fees = is_saas_customer? ? (annual_saas_fee || 0) : 0
+    l1_fees = l1_referrals.saas_customers.sum { |c| c.annual_saas_fee || 0 }
+    l2_fees = l2_referrals.saas_customers.sum { |c| c.annual_saas_fee || 0 }
+    own_fees + l1_fees + l2_fees
+  end
+
+  # Update cached network fees and check eligibility
+  def update_network_fee_cache!
+    new_total = calculate_network_fees
+    update_columns(total_network_fees: new_total)
+    check_and_update_eligibility!
+    new_total
+  end
+
+  # Check and update referrer eligibility status
+  def check_and_update_eligibility!
+    new_status = if referrer_training_completed_at.blank?
+                   "pending"
+                 elsif referrer_training_expires_at.present? && referrer_training_expires_at < Time.current
+                   "pending"  # Training expired
+                 elsif total_network_fees >= 50_000
+                   "eligible_l2"
+                 elsif total_network_fees >= 10_000
+                   "eligible_l1"
+                 else
+                   "training"  # Trained but threshold not met
+                 end
+
+    # Update eligibility timestamps if newly eligible
+    updates = { referrer_status: new_status }
+    if new_status == "eligible_l1" && l1_eligible_at.nil?
+      updates[:l1_eligible_at] = Time.current
+    end
+    if new_status == "eligible_l2" && l2_eligible_at.nil?
+      updates[:l2_eligible_at] = Time.current
+    end
+
+    update_columns(updates) if updates.any?
+    new_status
+  end
+
+  # Commission statistics
+  def commission_stats
+    {
+      total_earned: referral_commissions.sum(:commission_amount),
+      pending: referral_commissions.where(status: "pending").sum(:commission_amount),
+      eligible: referral_commissions.where(status: "eligible").sum(:commission_amount),
+      paid: referral_commissions.where(status: "paid").sum(:commission_amount),
+      network_size: l1_referrals.saas_customers.count + l2_referrals.saas_customers.count
+    }
+  end
+
+  # Referral network tree (for visualization)
+  def referral_network
+    {
+      l1_referrals: l1_referrals.saas_customers.map { |c| { id: c.id, name: c.display_name, annual_fee: c.annual_saas_fee } },
+      l2_referrals: l2_referrals.saas_customers.map { |c| { id: c.id, name: c.display_name, annual_fee: c.annual_saas_fee } },
+      total_network_fees: total_network_fees,
+      eligibility: referrer_status
+    }
   end
 
   private
