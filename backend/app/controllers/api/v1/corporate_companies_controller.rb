@@ -402,7 +402,7 @@ module Api
                 consideration_paid: inv.consideration_paid
               }
             end,
-            total_investments: investments.count
+            total_investments: investments.size  # Use .size to avoid extra COUNT query
           }
         }
       end
@@ -798,10 +798,13 @@ module Api
       # GET /api/v1/companies/xero_setup_overview
       # Returns Xero setup progress for all companies (admin overview)
       # Uses only local database queries - no Xero API calls for performance
+      # Performance: Pre-fetches all counts with GROUP BY to avoid N+1 queries
       def xero_setup_overview
         companies = CorporateCompany
-          .includes(:corporate_company_xero_connection, :bank_accounts)
+          .includes(:corporate_company_xero_connection)
           .order(:name)
+
+        company_ids = companies.map(&:id)
 
         # Pre-fetch contact link counts by tenant_id for efficiency
         tenant_ids = companies
@@ -813,6 +816,14 @@ module Api
           .group(:external_tenant_id)
           .count
 
+        # Pre-fetch bank account counts by company_id (avoids N+1)
+        # Performance: 1 query instead of N queries for N companies
+        bank_accounts_by_company = BankAccount
+          .where(corporate_company_id: company_ids)
+          .where.not(xero_account_id: nil)
+          .group(:corporate_company_id)
+          .count
+
         render json: {
           success: true,
           companies: companies.map do |company|
@@ -820,8 +831,8 @@ module Api
             connected = connection&.connected? || false
             tenant_id = connection&.xero_tenant_id
 
-            # Count bank accounts linked to Xero
-            bank_accounts_linked = company.bank_accounts.where.not(xero_account_id: nil).count
+            # Use pre-fetched count (avoids N+1)
+            bank_accounts_linked = bank_accounts_by_company[company.id] || 0
 
             # Count contacts synced (from pre-fetched data)
             contacts_synced = tenant_id ? (contacts_by_tenant[tenant_id] || 0) : 0
@@ -850,9 +861,9 @@ module Api
             }
           end,
           summary: {
-            total: companies.count,
+            total: companies.size,
             connected: companies.count { |c| c.corporate_company_xero_connection&.connected? },
-            with_bank_accounts: companies.count { |c| c.bank_accounts.where.not(xero_account_id: nil).exists? },
+            with_bank_accounts: bank_accounts_by_company.keys.size,
             with_contacts: contacts_by_tenant.values.count { |v| v > 0 }
           }
         }
@@ -862,7 +873,10 @@ module Api
       # Returns all companies' ASIC login credentials for table view
       # Only shows entity_type = Company (excludes Person, Trust, Superfund)
       def asic_logins
-        @companies = CorporateCompany.where(entity_type: [ "Company", "company" ]).order(:name)
+        # Performance: includes :corporate_group to avoid N+1 when accessing company_group_name
+        @companies = CorporateCompany.where(entity_type: [ "Company", "company" ])
+                                     .includes(:corporate_group)
+                                     .order(:name)
 
         # Filter by company group
         if params[:company_group_id].present?

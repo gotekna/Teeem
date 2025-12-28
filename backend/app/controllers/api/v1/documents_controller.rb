@@ -24,16 +24,18 @@ module Api
         # Filter by folder if provided
         documents = documents.by_folder(params[:folder]) if params[:folder].present?
 
-        # Get unique folders
-        folders = CorporateCompanyDocument.where.not(folder: [ nil, "" ])
-                                 .group(:folder)
-                                 .pluck(:folder)
-                                 .map.with_index do |folder_name, index|
+        # Get unique folders with counts in a single query (avoids N+1)
+        # Performance: 1 query instead of N queries for N folders
+        folder_counts = CorporateCompanyDocument.where.not(folder: [ nil, "" ])
+                                                .group(:folder)
+                                                .count
+
+        folders = folder_counts.keys.sort.map.with_index do |folder_name, index|
           {
             id: (index + 1).to_s,
             name: folder_name.titleize,
             path: "/#{folder_name.downcase}",
-            documents_count: CorporateCompanyDocument.by_folder(folder_name).count
+            documents_count: folder_counts[folder_name]
           }
         end
 
