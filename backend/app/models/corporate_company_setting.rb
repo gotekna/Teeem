@@ -1,4 +1,7 @@
 class CorporateCompanySetting < ApplicationRecord
+  # Encrypt sensitive credentials (SSoT pattern from MicrosoftCredential)
+  encrypts :twilio_auth_token
+
   # Validations
   validates :company_name, presence: true
 

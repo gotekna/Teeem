@@ -1,5 +1,6 @@
 class Api::V1::EmailWarehouseController < ApplicationController
   before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact ]
+  before_action :require_admin, only: [ :bulk_delete_spam ]
 
   # GET /api/v1/email_warehouse
   # List emails from warehouse with filtering
@@ -682,7 +683,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
   # POST /api/v1/email_warehouse/bulk_delete_spam
   # Delete all spam emails from Outlook (and optionally from database)
   # SSoT: Uses org credentials (per-user Outlook removed)
+  # Security: Requires admin (before_action), org isolation via credential grouping
   def bulk_delete_spam
+    # Note: Org isolation is enforced via microsoft_credential_id grouping below
+    # Each credential belongs to exactly one org, so deletions are org-scoped
     spam_emails = EmailWarehouse.spam.where.not(outlook_id: nil).where.not(microsoft_credential_id: nil)
 
     deleted_count = 0

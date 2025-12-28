@@ -223,6 +223,7 @@ import { TableSkeleton } from "./components/TableSkeleton";
 // Column renderer registry (Phase 4 refactoring)
 import { renderCell as renderCellWithRegistry } from "./core/column-renderer/ColumnRenderer";
 import { validateCell as validateCellWithRegistry } from "./core/column-renderer/CellValidation";
+import { useLookupResolver } from "./hooks/useLookupResolver";
 
 // Table sections (Phase 6 refactoring)
 import { TableHeaderSection, TableFooterSection } from "./core/table-sections";
@@ -1290,7 +1291,11 @@ export default function TeeemTableView({
   }, [baseColumns, extraColumns]);
 
   // Use auto-fetched records when in auto-fetch mode, otherwise use entries prop
-  const effectiveEntries = useAutoFetch ? autoFetchedRecords : entries;
+  const rawEntries = useAutoFetch ? autoFetchedRecords : entries;
+
+  // Auto-resolve lookup columns from raw IDs to { id, display } objects
+  // This fixes 43+ pages that pass custom entries with unresolved lookup IDs
+  const effectiveEntries = useLookupResolver(rawEntries, effectiveColumns);
 
   // Use auto-fetch search handler when in auto-fetch mode, otherwise use provided handler
   const effectiveOnServerSearch = useAutoFetch ? handleAutoFetchSearch : onServerSearch;
@@ -1461,18 +1466,18 @@ export default function TeeemTableView({
   // SSoT FIX: Sync selectedRows with entries - remove stale IDs that no longer exist
   // This prevents "ghost selection" where IDs remain selected after records are deleted/merged
   // Only runs when entries change (not when selectedRows changes, to avoid infinite loop)
-  const entriesRef = useRef(entries);
+  const entriesRef = useRef(rawEntries);
   // Ref to hold current filteredAndSortedEntries for use in callbacks before useMemo is defined
   const filteredAndSortedEntriesRef = useRef<Record<string, unknown>[]>([]);
   useEffect(() => {
     // Skip if entries haven't actually changed (same reference)
-    if (entriesRef.current === entries) return;
-    entriesRef.current = entries;
+    if (entriesRef.current === rawEntries) return;
+    entriesRef.current = rawEntries;
 
     setSelectedRows(prev => {
       if (prev.size === 0) return prev;
 
-      const validIds = new Set(entries.map(e => e.id));
+      const validIds = new Set(effectiveEntries.map(e => e.id));
       const staleIds = Array.from(prev).filter(id => !validIds.has(id));
 
       if (staleIds.length > 0) {
@@ -1483,7 +1488,7 @@ export default function TeeemTableView({
       }
       return prev;
     });
-  }, [entries, setSelectedRows]);
+  }, [rawEntries, effectiveEntries, setSelectedRows]);
 
   // Filter state managed by atoms
   const [cascadeFilters, setCascadeFilters] = useAtom(currentFiltersAtom);

@@ -1,6 +1,9 @@
 module Api
   module V1
     class CorporateCompanySettingsController < ApplicationController
+      # Security: Require admin for all mutating actions
+      before_action :require_admin, only: %i[update update_sharepoint test_twilio test_sharepoint]
+
       # GET /api/v1/company_settings
       def show
         @company_setting = CorporateCompanySetting.instance
