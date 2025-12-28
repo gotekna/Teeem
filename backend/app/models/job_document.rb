@@ -53,7 +53,15 @@ class JobDocument < ApplicationRecord
   # AI verification statuses
   AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
 
+  # Storage providers (SSoT: Organization.document_provider)
+  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
+
   validates :sharepoint_item_id, presence: true, uniqueness: true
+  validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true
+
+  # Provider-agnostic storage reference
+  # This is the new SSoT for document storage references
+  # Backwards-compatible with sharepoint_item_id for existing documents
   validates :file_name, presence: true
   validates :sync_status, inclusion: { in: SYNC_STATUSES }
   validates :ai_verification_status, inclusion: { in: AI_VERIFICATION_STATUSES }, allow_blank: true
@@ -146,6 +154,31 @@ class JobDocument < ApplicationRecord
   # Check if this is SharePoint sourced
   def sharepoint_sourced?
     !migrated? && sharepoint_item_id.present?
+  end
+
+  # Provider-agnostic storage helpers
+  # Returns true if stored in S3-compatible storage
+  def s3_stored?
+    storage_provider == 's3_compatible'
+  end
+
+  # Returns the provider-agnostic storage reference
+  # Falls back to sharepoint_item_id for backwards compatibility
+  def storage_reference
+    storage_item_id.presence || sharepoint_item_id
+  end
+
+  # Sets both provider-agnostic and SharePoint-specific fields
+  # for backwards compatibility during migration
+  def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
+    self.storage_item_id = item_id
+    self.storage_provider = provider
+    self.storage_path = path
+
+    # Maintain backwards compatibility with SharePoint fields
+    if provider == 'sharepoint'
+      self.sharepoint_item_id = item_id
+    end
   end
 
   private

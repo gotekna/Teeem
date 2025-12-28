@@ -918,13 +918,33 @@ function S3StorageConnection() {
   );
 }
 
+// Organization document provider config type
+interface OrgDocumentProvider {
+  document_provider: string;
+  document_provider_credential_id: number | null;
+  available_providers: string[];
+  s3_credentials: Array<{
+    id: number;
+    name: string;
+    provider_type: string;
+    bucket: string;
+    status: string;
+    connected: boolean;
+  }>;
+  sharepoint_configured: boolean;
+  can_switch: boolean;
+}
+
 // Document Storage Provider Selection (SSoT)
 function DocumentStorageProvider() {
   const { toast } = useToast();
   const [selectedProvider, setSelectedProvider] = React.useState<string>("sharepoint");
-  const [loading, setLoading] = React.useState(false);
+  const [selectedCredentialId, setSelectedCredentialId] = React.useState<number | null>(null);
+  const [loading, setLoading] = React.useState(true);
   const [showConfig, setShowConfig] = React.useState(false);
+  const [orgConfig, setOrgConfig] = React.useState<OrgDocumentProvider | null>(null);
   const [s3Credentials, setS3Credentials] = React.useState<S3Credential[]>([]);
+  const [savingProvider, setSavingProvider] = React.useState(false);
 
   // S3 form state
   const [s3Form, setS3Form] = React.useState({
@@ -940,8 +960,24 @@ function DocumentStorageProvider() {
   const [testResult, setTestResult] = React.useState<{ success: boolean; message: string } | null>(null);
 
   React.useEffect(() => {
+    loadOrgConfig();
     loadS3Credentials();
   }, []);
+
+  const loadOrgConfig = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: OrgDocumentProvider }>("/api/v1/organization/document_provider");
+      if (response.data) {
+        setOrgConfig(response.data);
+        setSelectedProvider(response.data.document_provider || "sharepoint");
+        setSelectedCredentialId(response.data.document_provider_credential_id);
+      }
+    } catch (error) {
+      console.error("Failed to load organization document provider:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadS3Credentials = async () => {
     try {
@@ -949,6 +985,30 @@ function DocumentStorageProvider() {
       setS3Credentials(data.data || []);
     } catch (error) {
       console.error("Failed to load S3 credentials:", error);
+    }
+  };
+
+  const handleSaveProviderSelection = async () => {
+    setSavingProvider(true);
+    try {
+      const response = await api.put<{ success: boolean; message?: string; error?: string }>(
+        "/api/v1/organization/document_provider",
+        {
+          document_provider: selectedProvider === "sharepoint" ? "sharepoint" : "s3_compatible",
+          document_provider_credential_id: selectedProvider !== "sharepoint" ? selectedCredentialId : null,
+        }
+      );
+      if (response.success) {
+        toast({ title: "Success", description: response.message || "Document provider updated" });
+        loadOrgConfig();
+      } else {
+        toast({ title: "Error", description: response.error || "Failed to update provider", variant: "destructive" });
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast({ title: "Error", description: err?.response?.data?.error || "Failed to update provider", variant: "destructive" });
+    } finally {
+      setSavingProvider(false);
     }
   };
 

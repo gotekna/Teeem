@@ -366,6 +366,69 @@ module DocumentProviders
     end
 
     # ====================
+    # TEEEM-SPECIFIC METHODS (for compatibility with SharePoint provider)
+    # ====================
+
+    # Create job folder structure (TEEEM-specific)
+    # @param job [Job] The job to create folders for
+    # @param template [FolderTemplate] Optional folder template
+    # @return [Hash] The created job folder
+    def create_job_folder_structure(job, template = nil)
+      job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_filename(job.title)}"
+      job_folder_path = "/Jobs/#{job_folder_name}"
+
+      # Create main job folder
+      job_folder = create_folder(job_folder_path)
+
+      # Create subfolders from template if provided
+      if template&.folder_structure.present?
+        create_template_folders(job_folder_path, template.folder_structure)
+      else
+        # Create default subfolders
+        default_subfolders.each do |subfolder|
+          create_folder("#{job_folder_path}/#{subfolder}")
+        end
+      end
+
+      job_folder
+    end
+
+    # Find job folder (TEEEM-specific)
+    # @param job [Job] The job to find folder for
+    # @return [Hash, nil] The folder info or nil if not found
+    def find_job_folder(job)
+      job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_filename(job.title)}"
+      job_folder_path = "/Jobs/#{job_folder_name}"
+
+      return nil unless folder_exists?(job_folder_path)
+
+      get_folder(job_folder_path)
+    rescue NotFoundError
+      nil
+    end
+
+    # Validate root folder exists
+    # @return [Hash] Validation result with :valid, :error, :error_type
+    def validate_root_folder
+      # For S3, just check if we can access the bucket
+      @client.head_bucket(bucket: @bucket)
+
+      # Check if root path exists (or is empty, which is fine for S3)
+      if @root_path.present?
+        # Create root path if it doesn't exist (S3 is lazy about folders)
+        create_folder("/") unless folder_exists?("/")
+      end
+
+      { valid: true }
+    rescue Aws::S3::Errors::NotFound
+      { valid: false, error: "Bucket not found: #{@bucket}", error_type: "not_found" }
+    rescue Aws::S3::Errors::Forbidden
+      { valid: false, error: "Access denied to bucket: #{@bucket}", error_type: "permission_denied" }
+    rescue Aws::S3::Errors::ServiceError => e
+      { valid: false, error: e.message, error_type: "error" }
+    end
+
+    # ====================
     # S3-SPECIFIC METHODS
     # ====================
 
@@ -426,6 +489,29 @@ module DocumentProviders
     end
 
     private
+
+    # Default subfolders for job folders
+    def default_subfolders
+      ["Documents", "Photos", "Plans", "Correspondence"]
+    end
+
+    # Create folders from a template structure
+    def create_template_folders(parent_path, folder_structure)
+      folder_structure.each do |folder|
+        folder_path = "#{parent_path}/#{folder['name']}"
+        create_folder(folder_path)
+
+        # Recursively create subfolders
+        if folder['children'].present?
+          create_template_folders(folder_path, folder['children'])
+        end
+      end
+    end
+
+    # Sanitize filename for S3 (remove special characters)
+    def sanitize_filename(filename)
+      filename.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+    end
 
     # Build the full S3 key including root path
     def build_key(path)

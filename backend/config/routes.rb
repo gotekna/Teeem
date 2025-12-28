@@ -1952,6 +1952,10 @@ Rails.application.routes.draw do
       get "organization/data_stats", to: "organization#data_stats"
       get "organization/microsoft_org_stats", to: "organization#microsoft_org_stats"
 
+      # Document storage provider selection
+      get "organization/document_provider", to: "organization#document_provider"
+      put "organization/document_provider", to: "organization#update_document_provider"
+
       # Organization settings (job folder name format, etc.)
       get "organization_settings", to: "organization#settings"
       patch "organization_settings", to: "organization#update_settings"

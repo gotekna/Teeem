@@ -90,6 +90,119 @@ module Api
         }
       end
 
+      # GET /api/v1/organization/document_provider
+      # Returns the organization's current document storage provider configuration
+      def document_provider
+        organization = Organization.first
+
+        if organization.nil?
+          return render json: {
+            success: true,
+            data: {
+              document_provider: "sharepoint",
+              available_providers: Organization::DOCUMENT_PROVIDERS,
+              s3_credentials: [],
+              can_switch: false,
+              message: "No organization found. Using default SharePoint."
+            }
+          }
+        end
+
+        # Get available S3 credentials for dropdown
+        s3_credentials = S3CompatibleCredential.active.order(:name).map do |cred|
+          {
+            id: cred.id,
+            name: cred.name,
+            provider_type: cred.provider_type,
+            bucket: cred.bucket,
+            status: cred.status,
+            connected: cred.status == "connected"
+          }
+        end
+
+        # Check if SharePoint is configured
+        sharepoint_configured = begin
+          OrganizationSharePointCredential.active_credential.present?
+        rescue StandardError
+          false
+        end
+
+        render json: {
+          success: true,
+          data: {
+            document_provider: organization.document_provider,
+            document_provider_credential_id: organization.document_provider_credential_id,
+            available_providers: Organization::DOCUMENT_PROVIDERS,
+            s3_credentials: s3_credentials,
+            sharepoint_configured: sharepoint_configured,
+            can_switch: s3_credentials.any?(&:connected) || sharepoint_configured
+          }
+        }
+      end
+
+      # PUT /api/v1/organization/document_provider
+      # Updates the organization's document storage provider
+      def update_document_provider
+        organization = Organization.first
+
+        if organization.nil?
+          return render json: {
+            success: false,
+            error: "No organization found"
+          }, status: :not_found
+        end
+
+        provider = params[:document_provider]
+        credential_id = params[:document_provider_credential_id]
+
+        unless Organization::DOCUMENT_PROVIDERS.include?(provider)
+          return render json: {
+            success: false,
+            error: "Invalid provider. Must be one of: #{Organization::DOCUMENT_PROVIDERS.join(', ')}"
+          }, status: :unprocessable_entity
+        end
+
+        # Validate credential if switching to S3
+        if provider == "s3_compatible"
+          if credential_id.blank?
+            return render json: {
+              success: false,
+              error: "Please select an S3 credential to use"
+            }, status: :unprocessable_entity
+          end
+
+          credential = S3CompatibleCredential.find_by(id: credential_id)
+          unless credential&.status == "connected"
+            return render json: {
+              success: false,
+              error: "Selected S3 credential is not connected. Please test the connection first."
+            }, status: :unprocessable_entity
+          end
+        end
+
+        old_provider = organization.document_provider
+        organization.document_provider = provider
+        organization.document_provider_credential_id = provider == "s3_compatible" ? credential_id : nil
+
+        if organization.save
+          Rails.logger.info "[DocumentProvider] Organization switched from #{old_provider} to #{provider}"
+
+          render json: {
+            success: true,
+            message: "Document provider updated to #{provider}",
+            data: {
+              document_provider: organization.document_provider,
+              document_provider_credential_id: organization.document_provider_credential_id
+            }
+          }
+        else
+          render json: {
+            success: false,
+            errors: organization.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
       # GET /api/v1/organization/data_stats
       # Returns organization-wide data warehouse statistics
       def data_stats

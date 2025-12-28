@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_061041) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_061043) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5768,6 +5768,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061041) do
     t.bigint "contact_id"
     t.bigint "company_id"
     t.bigint "legacy_corporate_document_id"
+    t.string "storage_provider", default: "sharepoint"
+    t.string "storage_item_id"
+    t.string "storage_path"
     t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
     t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
     t.index ["company_id"], name: "index_job_documents_on_company_id"
@@ -5785,6 +5788,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061041) do
     t.index ["rename_status"], name: "index_job_documents_on_rename_status"
     t.index ["sharepoint_drive_id"], name: "index_job_documents_on_sharepoint_drive_id"
     t.index ["sharepoint_item_id"], name: "index_job_documents_on_sharepoint_item_id", unique: true
+    t.index ["storage_provider", "storage_item_id"], name: "index_job_documents_on_storage_provider_and_storage_item_id"
+    t.index ["storage_provider"], name: "index_job_documents_on_storage_provider"
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
     t.index ["version_id"], name: "index_job_documents_on_version_id"
   end
@@ -6539,6 +6544,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_061041) do
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "document_provider", default: "sharepoint", null: false
+    t.bigint "document_provider_credential_id"
+    t.index ["document_provider"], name: "index_organizations_on_document_provider"
+    t.index ["document_provider_credential_id"], name: "index_organizations_on_document_provider_credential_id"
     t.index ["name"], name: "index_organizations_on_name", unique: true
     t.index ["slug"], name: "index_organizations_on_slug", unique: true
   end

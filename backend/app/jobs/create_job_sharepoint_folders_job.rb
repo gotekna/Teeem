@@ -1,5 +1,14 @@
-# RENAMED: CreateJobOnedriveFoldersJob → CreateJobSharepointFoldersJob
+# frozen_string_literal: true
+
+# CreateJobSharepointFoldersJob - Creates document storage folders for a job
+#
+# Uses the organization's configured document provider (SharePoint or S3-compatible).
+# This job is provider-agnostic and works with any DocumentProviders implementation.
+#
+# Legacy name kept for backwards compatibility with enqueued jobs.
 class CreateJobSharepointFoldersJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   # Retry up to 3 times with exponential backoff
@@ -7,49 +16,29 @@ class CreateJobSharepointFoldersJob < ApplicationJob
 
   def perform(job_id)
     job = Job.find(job_id)
+    organization = job.organization || Organization.first
 
-    Rails.logger.info "[SharePoint] Creating folders for job #{job_id}: #{job.title}"
+    Rails.logger.info "[DocumentProvider] Creating folders for job #{job_id}: #{job.title}"
 
     # Update status to processing
     job.update_column(:sharepoint_folder_status, "processing")
 
-    credential = OrganizationSharePointCredential.active_credential
-
-    unless credential&.valid_credential?
-      Rails.logger.warn "[SharePoint] No valid credential found, skipping folder creation for job #{job_id}"
-      job.update_column(:sharepoint_folder_status, "failed")
-      return
-    end
-
     begin
-      client = MicrosoftGraphClient.new(credential)
+      # Setup the document provider for this organization
+      setup_document_provider(organization)
 
-      # Validate root folder exists before attempting to create job folders
-      folder_validation = client.validate_root_folder
-      unless folder_validation[:valid]
-        error_msg = "[SharePoint] Root folder validation failed for job #{job_id}: #{folder_validation[:error]}"
-        Rails.logger.error error_msg
-
-        # If folder not found, this is a critical configuration issue
-        if folder_validation[:error_type] == "not_found"
-          job.update_column(:sharepoint_folder_status, "folder_not_found")
-          Rails.logger.error "[SharePoint] Root folder has been deleted or moved. Please reconfigure the root folder in Settings."
-          return # Don't retry - this needs admin intervention
-        elsif folder_validation[:error_type] == "not_configured"
-          job.update_column(:sharepoint_folder_status, "not_configured")
-          Rails.logger.warn "[SharePoint] No root folder configured. Please configure in Settings."
-          return # Don't retry - needs configuration
-        else
-          job.update_column(:sharepoint_folder_status, "failed")
-          raise StandardError, folder_validation[:error] # Retry for transient errors
-        end
+      # Validate the root folder/bucket exists
+      validation = @document_provider.validate_root_folder
+      unless validation[:valid]
+        handle_validation_failure(job, validation)
+        return
       end
 
       # Check if job folder already exists
-      existing_folder = client.find_job_folder(job)
+      existing_folder = @document_provider.find_job_folder(job)
 
       if existing_folder
-        Rails.logger.info "[SharePoint] Folder already exists for job #{job_id}"
+        Rails.logger.info "[DocumentProvider] Folder already exists for job #{job_id}"
         job.update_column(:sharepoint_folder_status, "completed")
         return
       end
@@ -57,35 +46,53 @@ class CreateJobSharepointFoldersJob < ApplicationJob
       # Get default folder template
       template = FolderTemplate.where(is_system_default: true, is_active: true).first
 
-      # Create folder structure for this job (with or without template)
-      if template
-        job_folder = client.create_job_folder_structure(job, template)
-      else
-        Rails.logger.warn "[SharePoint] No default folder template found, creating basic folder"
-        # Create basic job folder without subfolders
-        job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{job.title}"
-        job_folder = client.create_folder(job_folder_name, parent_id: credential.root_folder_id)
-      end
+      # Create folder structure for this job
+      job_folder = @document_provider.create_job_folder_structure(job, template)
 
-      Rails.logger.info "[SharePoint] Successfully created folders for job #{job_id}: #{job_folder['webUrl']}"
+      Rails.logger.info "[DocumentProvider] Successfully created folders for job #{job_id}: #{job_folder[:path] || job_folder['webUrl']}"
       job.update_column(:sharepoint_folder_status, "completed")
 
-      # Mark credential as synced
-      credential.mark_synced!
+      # Mark credential as synced (if applicable)
+      @document_provider.credential.mark_synced! if @document_provider.credential.respond_to?(:mark_synced!)
 
-    rescue MicrosoftGraphClient::AuthenticationError => e
-      Rails.logger.error "[SharePoint] Authentication failed for job #{job_id}: #{e.message}"
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.warn "[DocumentProvider] No provider configured for job #{job_id}: #{e.message}"
+      job.update_column(:sharepoint_folder_status, "not_configured")
+      # Don't retry - needs configuration
+    rescue DocumentProviders::AuthenticationError => e
+      Rails.logger.error "[DocumentProvider] Authentication failed for job #{job_id}: #{e.message}"
       job.update_column(:sharepoint_folder_status, "failed")
       raise # Re-raise to trigger retry
-    rescue MicrosoftGraphClient::APIError => e
-      Rails.logger.error "[SharePoint] API error for job #{job_id}: #{e.message}"
-      job.update_column(:sharepoint_folder_status, "failed")
-      raise # Re-raise to trigger retry
-    rescue StandardError => e
-      Rails.logger.error "[SharePoint] Failed to create folders for job #{job_id}: #{e.message}"
+    rescue DocumentProviders::ProviderError, StandardError => e
+      Rails.logger.error "[DocumentProvider] Failed to create folders for job #{job_id}: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
       job.update_column(:sharepoint_folder_status, "failed")
       raise # Re-raise to trigger retry
+    end
+  end
+
+  private
+
+  def handle_validation_failure(job, validation)
+    error_msg = "[DocumentProvider] Root folder validation failed for job #{job.id}: #{validation[:error]}"
+    Rails.logger.error error_msg
+
+    case validation[:error_type]
+    when "not_found"
+      job.update_column(:sharepoint_folder_status, "folder_not_found")
+      Rails.logger.error "[DocumentProvider] Storage location has been deleted or moved. Please reconfigure in Settings."
+      # Don't retry - needs admin intervention
+    when "not_configured"
+      job.update_column(:sharepoint_folder_status, "not_configured")
+      Rails.logger.warn "[DocumentProvider] No storage location configured. Please configure in Settings."
+      # Don't retry - needs configuration
+    when "permission_denied"
+      job.update_column(:sharepoint_folder_status, "failed")
+      Rails.logger.error "[DocumentProvider] Permission denied. Please check credentials."
+      # Don't retry - needs admin intervention
+    else
+      job.update_column(:sharepoint_folder_status, "failed")
+      raise StandardError, validation[:error] # Retry for transient errors
     end
   end
 end
