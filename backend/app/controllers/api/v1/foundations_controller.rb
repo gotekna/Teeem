@@ -339,22 +339,15 @@ module Api
       # Used by frontend to avoid hardcoding table IDs
       def table_ids
         # Key tables that the frontend needs to know about
-        # Map frontend key -> database slug
+        # Map frontend key -> database slug (MUST match actual Foundation.slug in database!)
         key_mapping = {
-          "gold-standard" => "gold-standard-reference",
+          "gold-standard" => "gold_standard_table",
           "jobs" => "jobs",
-          "pricebook" => "pricebook",
+          "tasks" => "sm-tasks",
+          "pricebook" => "pricebook-items",
           "contacts" => "contacts",
-          "companies" => "company",
-          "features-tracking" => "feature-tracker",
-          # Corporate module tables
-          "company-activity" => "company-activity",
-          "company-compliance-item" => "company-compliance-item",
-          "company-director" => "company-director",
-          "company-document" => "company-document",
-          "company-setting" => "company-setting",
-          "company-xero-account" => "company-xero-account",
-          "company-xero-connection" => "company-xero-connection"
+          "features-tracking" => "feature_trackers"
+          # NOTE: Companies uses CorporateCompany Rails model, not Foundation
         }
 
         db_slugs = key_mapping.values

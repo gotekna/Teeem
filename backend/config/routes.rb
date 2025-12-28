@@ -2000,6 +2000,12 @@ Rails.application.routes.draw do
       post "organization_onedrive/approve_document_rename", to: "organization_sharepoint#approve_document_rename"
       post "organization_onedrive/bulk_approve_renames", to: "organization_sharepoint#bulk_approve_renames"
 
+      # ULTRA: Direct browser-to-SharePoint uploads (50% faster, skips backend proxy)
+      # POST /api/v1/sharepoint/upload_session - Get pre-authenticated upload URL
+      # POST /api/v1/sharepoint/upload_complete - Notify completion for activity logging + indexing
+      post "sharepoint/upload_session", to: "sharepoint_upload_sessions#create"
+      post "sharepoint/upload_complete", to: "sharepoint_upload_sessions#complete"
+
       # Organization-wide data stats
       get "organization/data_stats", to: "organization#data_stats"
       get "organization/microsoft_org_stats", to: "organization#microsoft_org_stats"

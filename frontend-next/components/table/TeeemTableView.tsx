@@ -2056,7 +2056,7 @@ export default function TeeemTableView({
   }, []);
 
   // Create filter with value (for inline column filters - doesn't open panel)
-  const createFilterWithValue = useCallback((columnKey: string, value: string, operator: '=' | 'contains' = 'contains') => {
+  const createFilterWithValue = useCallback((columnKey: string, value: string, operator: '=' | 'contains' | 'is_empty' | 'is_not_empty' = 'contains') => {
     setCascadeFilters((prev) => [
       ...prev,
       {

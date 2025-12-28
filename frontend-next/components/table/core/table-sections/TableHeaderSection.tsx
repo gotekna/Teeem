@@ -16,6 +16,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -106,7 +107,7 @@ export interface TableHeaderSectionProps {
   removeFilter?: (id: string | number) => void;
 
   /** Create a filter with a value (for inline column filters) */
-  createFilterWithValue?: (columnKey: string, value: string, operator?: '=' | 'contains') => void;
+  createFilterWithValue?: (columnKey: string, value: string, operator?: '=' | 'contains' | 'is_empty' | 'is_not_empty') => void;
 
   /** All columns (for creating new filters) */
   columns?: TableColumn[];
@@ -201,14 +202,26 @@ export function TableHeaderSection({
     }
   }, [cascadeFilters, updateFilter, removeFilter, createFilterWithValue]);
 
+  // Special filter values for is_empty/is_not_empty operators
+  const FILTER_EMPTY = '__empty__';
+  const FILTER_NOT_EMPTY = '__not_empty__';
+
   // Handle dropdown filter change (boolean, lookup, choice)
-  const handleDropdownFilterChange = useCallback((columnKey: string, value: string, operator: '=' | 'contains' = '=') => {
+  const handleDropdownFilterChange = useCallback((columnKey: string, value: string, operator: '=' | 'contains' | 'is_empty' | 'is_not_empty' = '=') => {
     const existingFilter = cascadeFilters.find(f => f.column === columnKey);
 
     if (value === '' || value === 'all') {
       // Remove filter if "All" is selected
       if (existingFilter && removeFilter) {
         removeFilter(existingFilter.id);
+      }
+    } else if (value === FILTER_EMPTY || value === FILTER_NOT_EMPTY) {
+      // Handle special empty/not-empty filters
+      const specialOperator = value === FILTER_EMPTY ? 'is_empty' : 'is_not_empty';
+      if (existingFilter && updateFilter) {
+        updateFilter(existingFilter.id, { value: '', operator: specialOperator });
+      } else if (createFilterWithValue) {
+        createFilterWithValue(columnKey, '', specialOperator);
       }
     } else if (existingFilter && updateFilter) {
       // Update existing filter with new value and operator
@@ -241,6 +254,9 @@ export function TableHeaderSection({
     }
     // Fall back to cascade filter value
     const filter = cascadeFilters.find(f => f.column === columnKey);
+    // Handle special operators (is_empty, is_not_empty)
+    if (filter?.operator === 'is_empty') return FILTER_EMPTY;
+    if (filter?.operator === 'is_not_empty') return FILTER_NOT_EMPTY;
     return filter?.value?.toString() || '';
   }, [localFilterValues, cascadeFilters]);
 
@@ -382,6 +398,9 @@ export function TableHeaderSection({
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="true">Yes</SelectItem>
                       <SelectItem value="false">No</SelectItem>
+                      <SelectSeparator />
+                      <SelectItem value={FILTER_EMPTY} className="text-muted-foreground italic">Empty</SelectItem>
+                      <SelectItem value={FILTER_NOT_EMPTY} className="text-muted-foreground italic">Not Empty</SelectItem>
                     </SelectContent>
                   </Select>
                 );
@@ -408,6 +427,9 @@ export function TableHeaderSection({
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px]">
                         <SelectItem value="all">All</SelectItem>
+                        <SelectItem value={FILTER_EMPTY} className="text-muted-foreground italic">Empty</SelectItem>
+                        <SelectItem value={FILTER_NOT_EMPTY} className="text-muted-foreground italic">Not Empty</SelectItem>
+                        <SelectSeparator />
                         {/* Filter out options with empty display values - use display for filtering since data contains display values */}
                         {options.filter(opt => opt.display != null && String(opt.display) !== '').map((opt) => (
                           <SelectItem key={opt.id} value={String(opt.display)}>
@@ -432,6 +454,9 @@ export function TableHeaderSection({
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="all">All</SelectItem>
+                      <SelectItem value={FILTER_EMPTY} className="text-muted-foreground italic">Empty</SelectItem>
+                      <SelectItem value={FILTER_NOT_EMPTY} className="text-muted-foreground italic">Not Empty</SelectItem>
+                      <SelectSeparator />
                       {/* Filter out empty strings - Select.Item cannot have empty string value */}
                       {colMeta.choices.filter(c => c && c !== '').map((choice) => (
                         <SelectItem key={choice} value={choice}>
