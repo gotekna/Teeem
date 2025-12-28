@@ -664,6 +664,7 @@ module Api
       end
 
       # GET /api/v1/pricebook/price_health_check
+      # Performance: Filters in Ruby to use preloaded data (avoids N+1 from .where on associations)
       def price_health_check
         issues = []
         today = CorporateCompanySetting.today
@@ -673,12 +674,12 @@ module Api
           .where.not(default_supplier_id: nil)
 
         items_with_defaults.each do |item|
+          # Performance: Filter preloaded price_histories in Ruby instead of SQL (avoids N+1)
           # Find the active price for the default supplier
           active_price = item.price_histories
-            .where(supplier_id: item.default_supplier_id)
-            .where("date_effective <= ? OR date_effective IS NULL", today)
-            .order(date_effective: :desc, created_at: :desc)
-            .first
+            .select { |ph| ph.supplier_id == item.default_supplier_id }
+            .select { |ph| ph.date_effective.nil? || ph.date_effective <= today }
+            .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
 
           if active_price && active_price.new_price != item.current_price
             issues << {

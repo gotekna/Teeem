@@ -294,17 +294,21 @@ module Api
             id: quote_request.created_by.id,
             name: quote_request.created_by.name
           },
-          invited_suppliers: quote_request.contacts.map do |contact|
-            {
-              id: contact.id,
-              name: contact.display_name,
-              company_name: contact.company_name,
-              has_responded: quote_request.quote_responses.exists?(contact: contact)
-            }
+          # Performance: Use preloaded quote_responses instead of N+1 .exists? queries
+          invited_suppliers: begin
+            responded_contact_ids = quote_request.quote_responses.map(&:contact_id).to_set
+            quote_request.contacts.map do |contact|
+              {
+                id: contact.id,
+                name: contact.display_name,
+                company_name: contact.company_name,
+                has_responded: responded_contact_ids.include?(contact.id)
+              }
+            end
           end,
           selected_quote_id: quote_request.selected_quote_response_id,
           can_edit: !quote_request.closed?,
-          can_delete: quote_request.quote_responses.empty?
+          can_delete: quote_request.quote_responses.empty?  # .empty? uses preloaded data
         }
       end
 

@@ -92,6 +92,7 @@ module Api
 
       # GET /api/v1/sm_resources/availability
       # Check resource availability for a date range
+      # Performance: Batch loads allocated/logged hours to avoid N+1 queries
       def availability
         start_date = Date.parse(params[:start_date])
         end_date = Date.parse(params[:end_date])
@@ -99,9 +100,23 @@ module Api
         resources = SmResource.active
         resources = resources.where(resource_type: params[:type]) if params[:type].present?
 
+        resource_ids = resources.pluck(:id)
+
+        # Performance: Pre-fetch allocated hours with GROUP BY (avoids N+1)
+        allocated_by_resource = SmResourceAllocation
+          .where(sm_resource_id: resource_ids, allocation_date: start_date..end_date)
+          .group(:sm_resource_id)
+          .sum(:allocated_hours)
+
+        # Performance: Pre-fetch logged hours with GROUP BY (avoids N+1)
+        logged_by_resource = TimeEntry
+          .where(sm_resource_id: resource_ids, entry_date: start_date..end_date)
+          .group(:sm_resource_id)
+          .sum(:total_hours)
+
         availability_data = resources.map do |resource|
-          allocated = resource.allocated_hours_for_range(start_date, end_date)
-          logged = resource.logged_hours_for_range(start_date, end_date)
+          allocated = allocated_by_resource[resource.id] || 0
+          logged = logged_by_resource[resource.id] || 0
           days = (end_date - start_date).to_i + 1
           capacity = (resource.availability_hours_per_day || 8) * days
 
