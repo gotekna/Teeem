@@ -45,7 +45,7 @@ class DocumentEsignService
     validate!
 
     # Step 1: Generate the main document
-    # SSoT: Use TeknaDocumentGenerator (template_key) or deprecated DocumentGenerator (template)
+    # SSoT: Uses TeknaDocumentGenerator (template_key required)
     generated = generate_document
 
     # Step 1b: Generate additional documents if specified
