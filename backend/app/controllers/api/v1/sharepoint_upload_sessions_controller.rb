@@ -15,7 +15,7 @@ module Api
     # 2. Browser uploads directly to SharePoint (uploadUrl contains embedded token)
     # 3. Browser calls POST /upload_complete → logs activity + indexes in warehouse
     class SharepointUploadSessionsController < ApplicationController
-      before_action :authenticate_user!
+      # Authentication is handled by ApplicationController's authorize_request before_action
 
       # POST /api/v1/sharepoint/upload_session
       # Returns a pre-authenticated URL for direct browser upload to SharePoint
