@@ -40,6 +40,9 @@ class ClassifyEmailWithAiJob < ApplicationJob
       )
     )
 
+    # Track rate limit counter for next check
+    increment_rate_limit_counter
+
     Rails.logger.info "[EmailClassification] AI classified email #{email.id} as #{result[:email_type]} (confidence: #{result[:confidence]})"
   rescue StandardError => e
     Rails.logger.error "[EmailClassification] AI classification failed for email #{email_warehouse_id}: #{e.message}"
@@ -108,12 +111,17 @@ class ClassifyEmailWithAiJob < ApplicationJob
   end
 
   def rate_limit_exceeded?
-    # Count AI classifications in the last hour
-    recent_count = EmailWarehouse
-      .where("email_classification->>'method' = ?", "ai")
-      .where("(email_classification->>'classified_at')::timestamp > ?", RATE_LIMIT_PERIOD.ago)
-      .count
+    # Performance: Use cache-based counter instead of expensive database query
+    # Old approach: COUNT query on 680MB email_warehouse table (132ms avg)
+    # New approach: Atomic increment in Rails.cache (~1ms)
+    cache_key = "ai_classification_rate_limit:#{Time.current.beginning_of_hour.to_i}"
 
-    recent_count >= RATE_LIMIT_THRESHOLD
+    current_count = Rails.cache.read(cache_key).to_i
+    current_count >= RATE_LIMIT_THRESHOLD
+  end
+
+  def increment_rate_limit_counter
+    cache_key = "ai_classification_rate_limit:#{Time.current.beginning_of_hour.to_i}"
+    Rails.cache.increment(cache_key, 1, expires_in: 2.hours)
   end
 end
