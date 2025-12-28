@@ -110,6 +110,24 @@ function CopyableCode({ children }: { children: string }) {
   );
 }
 
+/**
+ * Extract ID from lookup values that might be objects or primitives.
+ * Backend may return lookup columns as {id: 123, display: "..."} or just the value.
+ */
+function extractLookupId(value: unknown): string | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  // If it's an object with an id property, extract the id
+  if (typeof value === 'object' && value !== null) {
+    const obj = value as Record<string, unknown>;
+    if (obj.id !== undefined) return String(obj.id);
+    // Try other common patterns
+    if (obj.value !== undefined) return String(obj.value);
+    return undefined;
+  }
+  // If it's already a primitive, convert to string
+  return String(value);
+}
+
 interface SmScheduleMaster {
   id: number;
   task_number: number;
@@ -711,10 +729,11 @@ export function ScheduleMasterTab() {
         name: fullRow.name,
         description: fullRow.description,
         duration_days: fullRow.duration_days,
-        trade: fullRow.trade,
-        stage: fullRow.stage,
-        assigned_role: fullRow.assigned_role,
-        cost_centre: fullRow.cost_centre,  // Added: was missing from form init
+        // Extract IDs from lookup columns (backend may return objects like {id: 123, display: "..."})
+        trade: extractLookupId(fullRow.trade),
+        stage: extractLookupId(fullRow.stage),
+        assigned_role: extractLookupId(fullRow.assigned_role),
+        cost_centre: extractLookupId(fullRow.cost_centre),
         po_required: fullRow.po_required,
         critical_po: fullRow.critical_po,
         create_po_on_job_start: fullRow.create_po_on_job_start,
