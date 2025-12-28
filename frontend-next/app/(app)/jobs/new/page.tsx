@@ -16,7 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown, ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { ArrowLeft, Loader2, Building2, User, Users, DollarSign, Wrench, ClipboardList, Calculator, Mail, FileText, AlertTriangle, Clock, Wallet, MessageSquare, Paperclip, CheckSquare } from "lucide-react";
+import { Loader2, Building2, User, Users, DollarSign, Wrench, ClipboardList, Calculator, Mail, FileText, AlertTriangle, Clock, Wallet, MessageSquare, Paperclip, CheckSquare } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -771,11 +772,7 @@ export default function NewJobPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={proposal ? "/leads/emails" : "/jobs"}>
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+        <BackButton fallbackHref={proposal ? "/leads/emails" : "/jobs"} />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
             {proposal ? (

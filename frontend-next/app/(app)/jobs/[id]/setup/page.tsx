@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import {
   Cog6ToothIcon,
   PauseIcon,
@@ -665,6 +666,8 @@ function WorkingDaysTab() {
 // ============================================
 
 export default function SmSetupPage() {
+  const [activeTab, setActiveTab] = useUrlTabs("hold-reasons");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/30">
       {/* Fixed Header with Tabs */}
@@ -680,7 +683,7 @@ export default function SmSetupPage() {
           </div>
 
           {/* Tabs */}
-          <Tabs defaultValue="hold-reasons" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="hold-reasons" className="gap-2">
                 <PauseIcon className="h-4 w-4" />

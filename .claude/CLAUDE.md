@@ -222,7 +222,7 @@ Before creating ANY UI component:
 2. If THE ONE exists, use it. NEVER create duplicates.
 3. Visual reference: `/admin/system?tab=components` → UI Components tab
 
-### Quick Reference (38 Standard Components)
+### Quick Reference (39 Standard Components)
 
 **Tier 1: Core Primitives**
 | Need | THE ONE | Import Path |
@@ -235,6 +235,7 @@ Before creating ANY UI component:
 | Simple Dropdown | `Select` | `@/components/ui/select` |
 | Modal Dialog | `Dialog` | `@/components/ui/dialog` |
 | Tab Navigation | `Tabs` | `@/components/ui/tabs` |
+| Back Navigation | `BackButton` | `@/components/ui/back-button` |
 | Table Primitives | `Table` | `@/components/ui/table` |
 | Loading Spinner | `Spinner` | `@/components/ui/spinner` |
 
@@ -295,6 +296,44 @@ Before creating ANY UI component:
 | `collapsible.tsx` | `Accordion` |
 | `data-table.tsx` | `TeeemTableView` |
 | `PositionBadge` | `ItemBadge` |
+| `router.back()` | `BackButton` |
+| `ArrowLeft` + onClick | `BackButton` |
+
+### BackButton Usage (REQUIRED for all non-dashboard pages)
+
+**Import:** `import { BackButton } from "@/components/ui/back-button";`
+
+**Usage patterns:**
+
+```tsx
+// Detail pages - top-left of header
+<BackButton fallbackHref="/jobs" />
+
+// List pages - in TeeemTableView leftActions
+<TeeemTableView
+  leftActions={
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/corporate" />
+      <Button>Add New</Button>
+    </div>
+  }
+  ...
+/>
+
+// With label
+<BackButton fallbackHref="/contacts" label="Back" />
+```
+
+**How it works (priority order):**
+1. `?returnTo=` query param (for deep linking)
+2. Browser history (if same-origin referrer)
+3. `fallbackHref` prop (explicit parent)
+4. Computed parent from URL
+
+**NEVER use these patterns:**
+- ❌ `router.back()` - breaks on external links
+- ❌ `<Button onClick={() => router.push("/x")}>` - inconsistent
+- ❌ Custom `handleBack` functions - redundant
 
 ### Adding New Standard Components
 Tell Claude: **"Add [ComponentName] as a standard component"**

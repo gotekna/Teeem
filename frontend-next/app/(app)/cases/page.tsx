@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,7 @@ interface CaseTypes {
 export default function CasesPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useUrlTabs("cases");
   const [loading, setLoading] = React.useState(true);
   const [cases, setCases] = React.useState<CaseItem[]>([]);
   const [types, setTypes] = React.useState<CaseTypes | null>(null);
@@ -245,7 +247,7 @@ export default function CasesPage() {
       </div>
 
       {/* Tabs for Cases and Proposals */}
-      <Tabs defaultValue="cases" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="cases" className="flex items-center gap-2">
             <Briefcase className="h-4 w-4" />

@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import {
-  ArrowLeft,
   Building2,
   FileText,
   CreditCard,
@@ -21,7 +20,9 @@ import {
   Copy,
   Check,
   Mail,
+  ArrowLeft,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import {
   Dialog,
   DialogContent,
@@ -237,10 +238,7 @@ export default function InvoiceDetailPage() {
   if (!invoice) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+        <BackButton fallbackHref="/finance" />
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileWarning className="h-12 w-12 text-muted-foreground mb-4" />
@@ -330,9 +328,7 @@ export default function InvoiceDetailPage() {
           {/* Left - Pay From / Pay To */}
           <div className="flex items-center gap-2">
             {/* Back Button */}
-            <Button variant="ghost" size="sm" className="h-[42px] px-2" onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+            <BackButton fallbackHref="/finance" className="h-[42px] px-2" />
             {/* Company Box - Pay From */}
             <div className="px-3 py-1 bg-blue-600 text-white rounded min-w-[200px]">
               <div className="text-[10px] uppercase tracking-wide opacity-80">

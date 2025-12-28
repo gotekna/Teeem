@@ -21,12 +21,12 @@ import {
   PenLine,
   Send,
   ChevronRight,
-  ChevronLeft,
   Upload,
   Check,
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { ESignaturePdfEditor } from "@/components/e-signature/e-signature-pdf-editor";
 import { SignerPanel } from "@/components/ui/pdf-editor/signer-panel";
 import { ReviewAndSend } from "@/components/e-signature/review-and-send";
@@ -358,19 +358,16 @@ export default function ESignaturePreparePage() {
 
       {/* Footer navigation */}
       <div className="border-t px-6 py-4 shrink-0 flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={() => {
-            if (currentStepIndex > 0) {
-              goToStep(STEPS[currentStepIndex - 1].id);
-            } else {
-              router.back();
-            }
-          }}
-        >
-          <ChevronLeft className="h-4 w-4 mr-2" />
-          {currentStepIndex > 0 ? "Back" : "Cancel"}
-        </Button>
+        {currentStepIndex > 0 ? (
+          <Button
+            variant="outline"
+            onClick={() => goToStep(STEPS[currentStepIndex - 1].id)}
+          >
+            Back
+          </Button>
+        ) : (
+          <BackButton fallbackHref="/e-signature" variant="outline" label="Cancel" />
+        )}
 
         {error && (
           <div className="flex items-center gap-2 text-destructive text-sm">

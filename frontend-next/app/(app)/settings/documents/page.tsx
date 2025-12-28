@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Save, Loader2, CheckCircle2, FolderOpen } from "lucide-react";
+import { Save, Loader2, CheckCircle2, FolderOpen } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 
 interface DocumentPaths {
@@ -74,9 +75,7 @@ export default function DocumentSettingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/settings")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackButton fallbackHref="/settings" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Document Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -207,6 +208,8 @@ function StatsCardDemo() {
 }
 
 export default function DesignSystemPage() {
+  const [activeTab, setActiveTab] = useUrlTabs("kanban");
+
   return (
     <div className="space-y-8 pb-12">
       {/* Header */}
@@ -218,7 +221,7 @@ export default function DesignSystemPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="kanban" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="kanban">Kanban & Pipeline</TabsTrigger>
           <TabsTrigger value="cards">Cards & Stats</TabsTrigger>

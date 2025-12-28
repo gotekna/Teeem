@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,13 +15,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   Save,
   Calculator,
   Package,
   DollarSign,
   History
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RecipeItemsEditor, type RecipeItem } from "@/components/recipes/RecipeItemsEditor";
 
@@ -52,6 +53,7 @@ export default function RecipeDetailPage() {
   const params = useParams();
   const router = useRouter();
   const recipeId = params.id as string;
+  const [activeTab, setActiveTab] = useUrlTabs("details");
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -152,10 +154,7 @@ export default function RecipeDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <p className="text-muted-foreground">Recipe not found</p>
-        <Button variant="outline" onClick={() => router.push("/recipes")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Recipes
-        </Button>
+        <BackButton fallbackHref="/recipes" />
       </div>
     );
   }
@@ -178,10 +177,7 @@ export default function RecipeDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.push("/recipes")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+          <BackButton fallbackHref="/recipes" />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-semibold">{recipe.name}</h1>
@@ -206,7 +202,7 @@ export default function RecipeDetailPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
-        <Tabs defaultValue="details" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="items">

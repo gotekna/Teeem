@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ function formatDuration(minutes: number): string {
 }
 
 export default function TrainingPage() {
+  const [activeTab, setActiveTab] = useUrlTabs("all");
   const [modules, setModules] = React.useState<TrainingModule[]>([]);
   const [stats, setStats] = React.useState<TrainingStats | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -150,7 +152,7 @@ export default function TrainingPage() {
       </Card>
 
       {/* Modules */}
-      <Tabs defaultValue="all">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="all">All Modules</TabsTrigger>
           <TabsTrigger value="required">Required</TabsTrigger>

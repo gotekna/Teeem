@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BlacklistManager } from "@/components/emails/BlacklistManager";
-import { ChevronLeft, Ban, Settings, Shield } from "lucide-react";
+import { Ban, Settings, Shield } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function EmailSettingsPage() {
   const router = useRouter();
@@ -16,15 +17,7 @@ export default function EmailSettingsPage() {
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/email")}
-          className="gap-1"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Back to Email
-        </Button>
+        <BackButton fallbackHref="/email" />
         <div className="border-l h-6" />
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">

@@ -3,9 +3,9 @@
 import React from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileSpreadsheet, CheckCircle2, XCircle } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { FileSpreadsheet, CheckCircle2, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface XeroStatus {
@@ -37,11 +37,7 @@ export default function IntegrationsPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/settings">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/settings" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Integrations</h1>
           <p className="text-sm text-muted-foreground">

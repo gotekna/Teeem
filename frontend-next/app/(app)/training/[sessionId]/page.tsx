@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ShareIcon, XMarkIcon, CheckIcon, ClipboardIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/ui/back-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -126,7 +127,7 @@ export default function TrainingSessionPage() {
           <p className="mb-4 text-muted-foreground">
             Please provide a valid training session ID
           </p>
-          <Button onClick={() => router.back()}>Back</Button>
+          <BackButton fallbackHref="/training" />
         </div>
       </div>
     );
@@ -140,7 +141,7 @@ export default function TrainingSessionPage() {
           <p className="mb-4 text-muted-foreground">
             Thank you for participating in the training session
           </p>
-          <Button onClick={() => router.back()}>Back</Button>
+          <BackButton fallbackHref="/training" />
         </div>
       </div>
     );

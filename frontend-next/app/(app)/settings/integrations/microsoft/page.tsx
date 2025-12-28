@@ -13,7 +13,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  ArrowLeft,
   Mail,
   FolderOpen,
   CheckCircle2,
@@ -30,6 +29,7 @@ import {
   Activity,
   Heart,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -222,9 +222,7 @@ export default function MicrosoftIntegrationPage() {
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/settings")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <BackButton fallbackHref="/settings/integrations" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Microsoft 365 Integration</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -248,9 +246,7 @@ export default function MicrosoftIntegrationPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/settings")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackButton fallbackHref="/settings/integrations" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Microsoft 365 Integration</h1>
           <p className="text-sm text-muted-foreground mt-1">

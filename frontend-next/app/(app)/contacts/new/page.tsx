@@ -21,7 +21,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, Loader2, User, Building2, Plus, ChevronsUpDown, Check, X } from "lucide-react";
+import { Loader2, User, Building2, Plus, ChevronsUpDown, Check, X } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -372,11 +373,7 @@ export default function NewContactPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/contacts">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/contacts" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Add Contact</h1>
           <p className="text-sm text-muted-foreground mt-1">

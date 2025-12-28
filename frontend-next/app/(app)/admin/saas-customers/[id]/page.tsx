@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import {
-  ArrowLeft,
   DollarSign,
   TrendingUp,
   Clock,
@@ -11,7 +11,9 @@ import {
   Users,
   RefreshCw,
   AlertTriangle,
+  ArrowLeft,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +86,7 @@ export default function SaasCustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
   const customerId = params.id as string;
+  const [activeTab, setActiveTab] = useUrlTabs("billing");
 
   const [customer, setCustomer] = useState<SaasCustomer | null>(null);
   const [profitability, setProfitability] = useState<ProfitabilityData | null>(null);
@@ -201,9 +204,7 @@ export default function SaasCustomerDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/admin" />
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{customer.display_name || customer.name}</h1>
@@ -337,7 +338,7 @@ export default function SaasCustomerDetailPage() {
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue="billing">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="billing">Billing History</TabsTrigger>
           <TabsTrigger value="tickets">

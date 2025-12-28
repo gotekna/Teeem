@@ -14,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Briefcase } from "lucide-react";
+import { Loader2, Briefcase } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 
 interface CaseTypes {
@@ -90,9 +91,7 @@ export default function NewCasePage() {
     <div className="flex flex-col gap-6 max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/cases")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <BackButton fallbackHref="/cases" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">New Case</h1>
           <p className="text-sm text-muted-foreground mt-1">

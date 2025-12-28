@@ -15,7 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, Save, Search } from "lucide-react";
+import { Loader2, Save, Search } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 
 interface CompanyGroup {
@@ -166,9 +167,7 @@ export default function NewCompanyPage() {
     <div className="flex flex-col h-full max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <BackButton fallbackHref="/corporate" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Add New Company</h1>
           <p className="text-sm text-muted-foreground mt-1">

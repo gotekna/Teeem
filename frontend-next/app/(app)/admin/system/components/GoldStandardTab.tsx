@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import {
   DndContext,
   closestCenter,
@@ -2312,8 +2313,10 @@ function SetupTableDemo() {
 }
 
 export function GoldStandardTab() {
+  const [activeTab, setActiveTab] = useUrlTabs("table", "gold-tab");
+
   return (
-    <Tabs defaultValue="table" className="h-full flex flex-col">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
       <TabsList className="flex-wrap h-auto gap-1">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Database className="h-4 w-4" />

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -129,6 +130,7 @@ const MOCK_BRANCHES: GitBranchInfo[] = [
 ];
 
 export function DeveloperToolsTab() {
+  const [activeTab, setActiveTab] = useUrlTabs("tables", "dev-tab");
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = React.useState(true);
@@ -318,7 +320,7 @@ export function DeveloperToolsTab() {
         </div>
       </div>
 
-      <Tabs defaultValue="tables" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full justify-start">
           <TabsTrigger value="tables" className="flex items-center gap-2">
             <Database className="h-4 w-4" />

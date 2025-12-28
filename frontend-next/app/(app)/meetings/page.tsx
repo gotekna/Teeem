@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,7 @@ function getMeetingDateLabel(dateStr: string): string {
 
 export default function MeetingsPage() {
   useSetLayoutMode("full-height");
+  const [activeTab, setActiveTab] = useUrlTabs("upcoming");
   const [meetings, setMeetings] = React.useState<Meeting[]>([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -119,7 +121,7 @@ export default function MeetingsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="upcoming">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
           <TabsTrigger value="past">Past</TabsTrigger>

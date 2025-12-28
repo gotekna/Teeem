@@ -15,7 +15,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { BillsInvoiceViewer, BillDetail } from "@/components/invoice/BillsInvoiceViewer";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
@@ -130,12 +131,7 @@ export default function BillDetailPage() {
   if (!bill) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/finance/bills">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Bills
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/finance/bills" />
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
@@ -153,12 +149,7 @@ export default function BillDetailPage() {
     <div className="flex flex-col h-full">
       {/* Header with back button */}
       <div className="flex items-center justify-between shrink-0 pb-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/finance/bills">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Bills
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/finance/bills" />
       </div>
 
       {/* SSoT Component - BillsInvoiceViewer handles all display */}

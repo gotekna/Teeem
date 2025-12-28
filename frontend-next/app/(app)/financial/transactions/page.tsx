@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { PlusIcon, BanknotesIcon, CreditCardIcon } from "@heroicons/react/24/outline";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import TransactionForm from "@/components/financial/TransactionForm";
@@ -47,6 +48,7 @@ interface Summary {
 }
 
 export default function FinancialTransactionsPage() {
+  const [activeTab, setActiveTab] = useUrlTabs("xero");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
@@ -220,7 +222,7 @@ export default function FinancialTransactionsPage() {
 
   return (
     <TablePage>
-      <Tabs defaultValue="xero" className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
         <div className="px-4 shrink-0">
           <TabsList className="mb-4">
             <TabsTrigger value="xero">Xero Bank Transactions</TabsTrigger>

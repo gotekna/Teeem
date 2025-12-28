@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowLeft,
   Plus,
   Trash2,
   Edit,
@@ -40,6 +39,7 @@ import {
   Forward,
   AlertTriangle,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -364,10 +364,7 @@ export default function EmailRulesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.push("/email")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Email
-          </Button>
+          <BackButton fallbackHref="/email" />
           <div>
             <h1 className="text-2xl font-semibold">Email Rules</h1>
             <p className="text-sm text-muted-foreground">

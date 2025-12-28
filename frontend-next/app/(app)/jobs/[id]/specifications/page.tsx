@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
-  ArrowLeft,
   Save,
   FileText,
   ChevronDown,
@@ -13,6 +12,7 @@ import {
   Download,
   RefreshCw,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -181,7 +181,6 @@ function SpecificationSection({
 // Main Page Component
 export default function SpecificationBuilderPage() {
   const params = useParams();
-  const router = useRouter();
   const { toast } = useToast();
   const jobId = params.id as string;
 
@@ -381,9 +380,7 @@ export default function SpecificationBuilderPage() {
       <div className="flex-shrink-0 border-b bg-background p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.back()}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
+            <BackButton fallbackHref="/jobs" />
             <div>
               <h1 className="text-xl font-semibold flex items-center gap-2">
                 <FileText className="h-5 w-5" />

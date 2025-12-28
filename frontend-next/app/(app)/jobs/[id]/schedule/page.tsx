@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
 import type { GanttTask } from "@/lib/gantt/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  ArrowLeft,
   Calendar,
   ListChecks,
   Upload,
@@ -31,6 +30,7 @@ import {
   Clock,
   Pause,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { parseISO } from "date-fns";
 
@@ -101,7 +101,6 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
 
 export default function ScheduleMasterPage() {
   const params = useParams();
-  const router = useRouter();
   const jobId = params.id as string;
 
   const { toast } = useToast();
@@ -290,9 +289,7 @@ export default function ScheduleMasterPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push(`/jobs/${jobId}`)}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <BackButton fallbackHref="/jobs" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Schedule Master</h1>
             <p className="text-sm text-muted-foreground mt-1">

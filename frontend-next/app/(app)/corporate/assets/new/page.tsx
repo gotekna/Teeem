@@ -21,7 +21,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { ArrowLeft, Loader2, Save, Car, Wrench, Building2, Box, Hash } from "lucide-react";
+import { Loader2, Save, Car, Wrench, Building2, Box, Hash } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 
 interface Company {
@@ -212,9 +213,7 @@ export default function NewAssetPage() {
     <div className="flex flex-col gap-6 max-w-3xl">
       {/* Header */}
       <div className="flex items-center gap-4 border-b pb-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <BackButton fallbackHref="/corporate/assets" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Add Asset</h1>
           <p className="text-sm text-muted-foreground mt-1">

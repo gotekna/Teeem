@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -179,6 +180,19 @@ function getHealthBg(score: number): string {
 }
 
 export default function SystemHealthPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  // URL-based tab state - SSoT for navigation
+  const activeTab = searchParams.get("tab") || "health";
+
+  const handleTabChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", value);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
   const [healthData, setHealthData] = React.useState<UnifiedHealthApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -440,8 +454,8 @@ export default function SystemHealthPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="health" className="space-y-6">
+      {/* Tabs - URL controlled for proper back button support */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList>
           <TabsTrigger value="health" className="gap-2">
             <Heart className="h-4 w-4" />

@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/select";
 import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import {
-  ArrowLeft,
   Edit,
   Loader2,
   Plus,
@@ -50,6 +49,7 @@ import {
   SkipForward,
   AlertTriangle,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 
 // Types
@@ -591,9 +591,7 @@ export default function ScheduleTemplateDetailPage() {
       {/* Header */}
       <div className="px-4 pb-4 flex items-center justify-between border-b mb-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/schedule-templates")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/schedule-templates" />
           <div>
             <h1 className="text-2xl font-bold">{template.name}</h1>
             <p className="text-sm text-muted-foreground">

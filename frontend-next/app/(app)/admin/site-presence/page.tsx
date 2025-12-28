@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import Link from "next/link";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,6 +73,7 @@ interface Anomaly {
 
 export default function SitePresenceDashboardPage() {
   useSetLayoutMode("full-height");
+  const [activeTab, setActiveTab] = useUrlTabs("active");
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -254,7 +256,7 @@ export default function SitePresenceDashboardPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="active" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="active" className="gap-2">
             <Play className="h-4 w-4" />

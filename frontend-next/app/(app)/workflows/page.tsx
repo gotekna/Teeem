@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useUrlTabs } from '@/hooks/useUrlTabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +66,7 @@ interface BpmnProcess {
 }
 
 export default function WorkflowsDashboardPage() {
+  const [activeTab, setActiveTab] = useUrlTabs("tasks");
   const [stats, setStats] = useState<WorkflowStats>({
     active_instances: 0,
     pending_tasks: 0,
@@ -193,7 +195,7 @@ export default function WorkflowsDashboardPage() {
       </div>
 
       {/* Main Content */}
-      <Tabs defaultValue="tasks" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="tasks" className="gap-2">
             <ListTodo className="h-4 w-4" />

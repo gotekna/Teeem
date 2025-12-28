@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  ArrowLeft,
   CreditCard,
   CheckCircle2,
   XCircle,
@@ -28,6 +27,7 @@ import {
   Star,
   Clock,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
@@ -298,9 +298,7 @@ export default function XeroIntegrationPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackButton fallbackHref="/settings/integrations" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Xero Integration</h1>
           <p className="text-sm text-muted-foreground mt-1">

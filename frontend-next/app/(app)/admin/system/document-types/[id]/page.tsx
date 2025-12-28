@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, ChevronLeft, Type, Copy } from "lucide-react";
+import { Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, ChevronLeft, Type, Copy } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -1014,16 +1015,7 @@ export default function DocumentTypeDetailPage() {
       {/* Header - Fixed at top */}
       <div className="flex items-start justify-between p-2 shrink-0">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => {
-            // If opened in new tab (no history), navigate to list; otherwise go back
-            if (window.history.length <= 1) {
-              router.push("/admin/system?tab=document-types");
-            } else {
-              router.back();
-            }
-          }}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/admin/system?tab=document-types" />
           {/* Previous/Next navigation - filtered by scope (hidden for new) */}
           {!isNew && (
             <div className="flex items-center gap-1">

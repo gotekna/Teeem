@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +80,7 @@ const COLOR_PRESETS = [
 ];
 
 export function SMGanttTab() {
+  const [activeTab, setActiveTab] = useUrlTabs("display", "gantt-tab");
   const { toast } = useToast();
   const [config, setConfig] = React.useState<GanttConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = React.useState(true);
@@ -191,7 +193,7 @@ export function SMGanttTab() {
         </Card>
       )}
 
-      <Tabs defaultValue="display" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="display" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />

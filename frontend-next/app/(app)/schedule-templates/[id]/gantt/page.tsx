@@ -8,16 +8,15 @@
  */
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { GanttCanvasView } from "@/components/gantt-canvas";
 import { GanttTask } from "@/lib/gantt/types";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function ScheduleTemplateGanttPage() {
   const params = useParams();
-  const router = useRouter();
   const { toast } = useToast();
   const templateId = parseInt(params.id as string, 10);
 
@@ -47,13 +46,7 @@ export default function ScheduleTemplateGanttPage() {
       {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between border-b">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push(`/schedule-templates/${templateId}`)}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/schedule-templates" />
           <div>
             <h1 className="text-xl font-bold">Canvas Gantt Chart</h1>
             <p className="text-sm text-muted-foreground">
