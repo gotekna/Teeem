@@ -179,7 +179,7 @@ export function ViewManagerSheet({
     return effectiveColumns.filter(col =>
       col.column_type &&
       NUMERIC_TYPES.includes(col.column_type) &&
-      !SKIP_COLUMNS.includes(col.column_name || col.key || '')
+      !SKIP_COLUMNS.includes(col.column_name)
     );
   }, [effectiveColumns]);
 

@@ -137,6 +137,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -991,10 +1001,18 @@ export default function TeeemTableView({
     setShowViewRecordModal(true);
   }, []);
 
+  // Default delete handler - shows confirmation dialog
+  // Note: executeDelete is defined later after state declarations
+  const defaultOnDelete = useCallback((row: TableRowType) => {
+    setRecordToDelete(row);
+    setShowDeleteConfirmModal(true);
+  }, []);
+
   // Use provided callbacks or fall back to auto-enabled defaults
   const effectiveOnAddRow = onAddRow || (shouldAutoEnable ? defaultOnAddRow : undefined);
   const effectiveOnEdit = onEdit || (shouldAutoEnable ? defaultOnEdit : undefined);
   const effectiveOnView = onView || (shouldAutoEnable ? defaultOnView : undefined);
+  const effectiveOnDelete = onDelete || (shouldAutoEnable ? defaultOnDelete : undefined);
 
   // Auto-enable search options menu when foundationIdNumeric is set
   // This shows the three-dot menu next to search (search modes, search all columns)
@@ -1582,7 +1600,36 @@ export default function TeeemTableView({
   const [showAddRecordModal, setShowAddRecordModal] = useState(false);
   const [showEditRecordModal, setShowEditRecordModal] = useState(false);
   const [showViewRecordModal, setShowViewRecordModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [selectedRecordForModal, setSelectedRecordForModal] = useState<TableRowType | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<TableRowType | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Execute delete after confirmation (defined here after state declarations)
+  const executeDelete = useCallback(async () => {
+    if (!foundationIdNumeric || !recordToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await api.delete(`/api/v1/foundations/${foundationIdNumeric}/records/${recordToDelete.id}`);
+      toast({
+        title: "Success",
+        description: "Record deleted successfully",
+      });
+      setShowDeleteConfirmModal(false);
+      setRecordToDelete(null);
+      onRefresh?.();
+    } catch (err) {
+      console.error("Failed to delete record:", err);
+      toast({
+        title: "Error",
+        description: "Failed to delete record. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [foundationIdNumeric, recordToDelete, onRefresh, toast]);
 
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
@@ -4034,7 +4081,7 @@ export default function TeeemTableView({
               onView={effectiveOnView}
               onEdit={effectiveOnEdit}
               onRowUpdate={onRowUpdate}
-              onDelete={onDelete}
+              onDelete={effectiveOnDelete}
               onStartEditing={startEditing}
               selectedRowsCount={selectedRows.size}
             />
@@ -5894,6 +5941,38 @@ export default function TeeemTableView({
               setShowEditRecordModal(true);
             }}
           />
+
+          {/* Delete Confirmation Dialog */}
+          <AlertDialog open={showDeleteConfirmModal} onOpenChange={setShowDeleteConfirmModal}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Record</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete this record? This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={executeDelete}
+                  disabled={isDeleting}
+                  className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </>
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>

@@ -590,98 +590,114 @@ interface S3Credential {
   created_at: string;
 }
 
-// S3 Storage Connection Component
+// Provider presets with defaults
+const PROVIDER_PRESETS: Record<string, { name: string; description: string; endpoint: string; regionHint: string; helpUrl: string }> = {
+  backblaze_b2: {
+    name: "Backblaze B2",
+    description: "Low-cost cloud storage (~$0.006/GB)",
+    endpoint: "https://s3.us-west-004.backblazeb2.com",
+    regionHint: "us-west-004",
+    helpUrl: "https://www.backblaze.com/docs/cloud-storage-s3-compatible-api",
+  },
+  aws_s3: {
+    name: "Amazon S3",
+    description: "AWS cloud storage",
+    endpoint: "",
+    regionHint: "ap-southeast-2",
+    helpUrl: "https://docs.aws.amazon.com/s3/",
+  },
+  wasabi: {
+    name: "Wasabi",
+    description: "Hot cloud storage, no egress fees",
+    endpoint: "https://s3.ap-southeast-2.wasabisys.com",
+    regionHint: "ap-southeast-2",
+    helpUrl: "https://docs.wasabi.com/docs/s3-api",
+  },
+  minio: {
+    name: "MinIO (Self-Hosted)",
+    description: "Free, self-hosted S3 storage",
+    endpoint: "https://your-server:9000",
+    regionHint: "us-east-1",
+    helpUrl: "https://min.io/docs/minio/linux/index.html",
+  },
+  synology: {
+    name: "Synology NAS",
+    description: "S3 Server on your NAS",
+    endpoint: "https://your-nas-ip:5001",
+    regionHint: "us-east-1",
+    helpUrl: "https://kb.synology.com/en-global/DSM/help/S3Server/S3Server_desc",
+  },
+};
+
+// S3 Storage Connection Component - Simplified
 function S3StorageConnection() {
   const { toast } = useToast();
   const [credentials, setCredentials] = React.useState<S3Credential[]>([]);
-  const [providers, setProviders] = React.useState<S3Provider[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [showAddDialog, setShowAddDialog] = React.useState(false);
-  const [editingCredential, setEditingCredential] = React.useState<S3Credential | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
-  const [testResult, setTestResult] = React.useState<{
-    success: boolean;
-    message: string;
-  } | null>(null);
+  const [selectedProvider, setSelectedProvider] = React.useState<string>("");
+  const [showForm, setShowForm] = React.useState(false);
+  const [testResult, setTestResult] = React.useState<{ success: boolean; message: string } | null>(null);
 
   const [formData, setFormData] = React.useState({
     name: "",
-    provider_type: "backblaze_b2",
     endpoint: "",
     region: "",
     bucket: "",
     access_key_id: "",
     secret_access_key: "",
-    root_path: "",
   });
 
   React.useEffect(() => {
-    loadData();
+    loadCredentials();
   }, []);
 
-  const loadData = async () => {
+  const loadCredentials = async () => {
     try {
-      const [credsData, providersData] = await Promise.all([
-        api.get<{ success: boolean; data: S3Credential[] }>("/api/v1/s3_credentials"),
-        api.get<{ success: boolean; data: S3Provider[] }>("/api/v1/s3_credentials/providers"),
-      ]);
-      setCredentials(credsData.data || []);
-      setProviders(providersData.data || []);
+      const data = await api.get<{ success: boolean; data: S3Credential[] }>("/api/v1/s3_credentials");
+      setCredentials(data.data || []);
     } catch (error) {
-      console.error("Failed to load S3 data:", error);
+      console.error("Failed to load S3 credentials:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      provider_type: "backblaze_b2",
-      endpoint: "",
-      region: "",
-      bucket: "",
-      access_key_id: "",
-      secret_access_key: "",
-      root_path: "",
-    });
-    setTestResult(null);
-    setEditingCredential(null);
-  };
-
-  const handleProviderChange = (providerId: string) => {
-    const provider = providers.find((p) => p.id === providerId);
-    setFormData({
-      ...formData,
-      provider_type: providerId,
-      endpoint: provider?.endpoint_template || "",
-    });
+  const handleProviderSelect = (providerId: string) => {
+    setSelectedProvider(providerId);
+    const preset = PROVIDER_PRESETS[providerId];
+    if (preset) {
+      setFormData({
+        name: `${preset.name} Storage`,
+        endpoint: preset.endpoint,
+        region: preset.regionHint,
+        bucket: "",
+        access_key_id: "",
+        secret_access_key: "",
+      });
+      setShowForm(true);
+      setTestResult(null);
+    }
   };
 
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
     try {
-      const result = await api.post<{
-        success: boolean;
-        message?: string;
-        error?: string;
-      }>("/api/v1/s3_credentials/test", {
-        s3_credential: formData,
-      });
+      const result = await api.post<{ success: boolean; message?: string; error?: string }>(
+        "/api/v1/s3_credentials/test",
+        { s3_credential: { ...formData, provider_type: selectedProvider } }
+      );
       if (result) {
         setTestResult({
           success: result.success,
-          message: result.success ? result.message || "Connection successful" : result.error || "Connection failed",
+          message: result.success ? "Connection successful!" : result.error || "Connection failed",
         });
       }
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } } };
-      setTestResult({
-        success: false,
-        message: err?.response?.data?.error || "Connection test failed",
-      });
+      setTestResult({ success: false, message: err?.response?.data?.error || "Connection failed" });
     } finally {
       setTesting(false);
     }
@@ -690,423 +706,489 @@ function S3StorageConnection() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (editingCredential) {
-        await api.patch(`/api/v1/s3_credentials/${editingCredential.id}`, {
-          s3_credential: formData,
-        });
-        toast({ title: "Success", description: "S3 credential updated" });
-      } else {
-        await api.post("/api/v1/s3_credentials", {
-          s3_credential: formData,
-        });
-        toast({ title: "Success", description: "S3 storage connected successfully" });
-      }
-      setShowAddDialog(false);
-      resetForm();
-      loadData();
+      await api.post("/api/v1/s3_credentials", {
+        s3_credential: { ...formData, provider_type: selectedProvider },
+      });
+      toast({ title: "Success", description: "Storage connected successfully" });
+      setShowForm(false);
+      setSelectedProvider("");
+      loadCredentials();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } } };
-      toast({
-        title: "Error",
-        description: err?.response?.data?.error || "Failed to save credential",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err?.response?.data?.error || "Failed to save", variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEdit = (credential: S3Credential) => {
-    setEditingCredential(credential);
-    setFormData({
-      name: credential.name,
-      provider_type: credential.provider_type,
-      endpoint: credential.endpoint || "",
-      region: credential.region,
-      bucket: credential.bucket,
-      access_key_id: "",
-      secret_access_key: "",
-      root_path: credential.root_path || "",
-    });
-    setTestResult(null);
-    setShowAddDialog(true);
-  };
-
-  const handleDelete = async (credential: S3Credential) => {
-    if (!confirm(`Delete "${credential.name}"? This cannot be undone.`)) return;
+  const handleDelete = async (cred: S3Credential) => {
+    if (!confirm(`Delete "${cred.name}"?`)) return;
     try {
-      await api.delete(`/api/v1/s3_credentials/${credential.id}`);
-      toast({ title: "Success", description: "S3 credential deleted" });
-      loadData();
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to delete credential", variant: "destructive" });
+      await api.delete(`/api/v1/s3_credentials/${cred.id}`);
+      toast({ title: "Deleted", description: "Storage removed" });
+      loadCredentials();
+    } catch {
+      toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
     }
   };
 
-  const handleTestExisting = async (credential: S3Credential) => {
-    try {
-      const result = await api.post<{
-        success: boolean;
-        message?: string;
-        error?: string;
-      }>(`/api/v1/s3_credentials/${credential.id}/test_connection`);
-      if (result) {
-        toast({
-          title: result.success ? "Success" : "Error",
-          description: result.success ? "Connection successful" : result.error || "Connection failed",
-          variant: result.success ? "default" : "destructive",
-        });
-        loadData();
-      }
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast({
-        title: "Error",
-        description: err?.response?.data?.error || "Connection test failed",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const selectedProvider = providers.find((p) => p.id === formData.provider_type);
-  const hasConnected = credentials.some((c) => c.status === "connected");
+  const preset = selectedProvider ? PROVIDER_PRESETS[selectedProvider] : null;
 
   if (loading) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CardContent className="flex items-center justify-center h-24">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900">
-                <HardDrive className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <CardTitle className="text-base">S3-Compatible Storage</CardTitle>
-                <CardDescription>
-                  Alternative document storage (Backblaze B2, AWS S3, MinIO, etc.)
-                </CardDescription>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={hasConnected ? "default" : "secondary"}>
-                {hasConnected ? (
-                  <>
-                    <Check className="h-3 w-3 mr-1" />
-                    {credentials.filter((c) => c.status === "connected").length} Connected
-                  </>
-                ) : (
-                  <>
-                    <X className="h-3 w-3 mr-1" />
-                    Not Connected
-                  </>
-                )}
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  resetForm();
-                  setShowAddDialog(true);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add
-              </Button>
-            </div>
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900">
+            <HardDrive className="h-5 w-5 text-orange-600 dark:text-orange-400" />
           </div>
-        </CardHeader>
-        <CardContent>
-          {credentials.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">
-              <HardDrive className="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <p>No S3 storage configured</p>
-              <p className="text-sm">Add a storage provider to use as alternative to SharePoint</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {credentials.map((cred) => (
-                <div
-                  key={cred.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge
-                      variant={cred.status === "connected" ? "default" : "secondary"}
-                      className={cn(
-                        cred.status === "error" && "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                      )}
-                    >
-                      {cred.status === "connected" ? (
-                        <Check className="h-3 w-3 mr-1" />
-                      ) : cred.status === "error" ? (
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                      ) : (
-                        <X className="h-3 w-3 mr-1" />
-                      )}
-                      {cred.status}
-                    </Badge>
-                    <div>
-                      <p className="font-medium">{cred.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {cred.provider_display_name} • {cred.bucket} • {cred.region}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleTestExisting(cred)}
-                      title="Test Connection"
-                    >
-                      <TestTube className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(cred)}
-                      title="Edit"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(cred)}
-                      title="Delete"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+          <div>
+            <CardTitle className="text-base">S3-Compatible Storage</CardTitle>
+            <CardDescription>Alternative to SharePoint for document storage</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Existing credentials */}
+        {credentials.length > 0 && (
+          <div className="space-y-2">
+            {credentials.map((cred) => (
+              <div key={cred.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <Badge variant={cred.status === "connected" ? "default" : "secondary"}>
+                    {cred.status === "connected" ? <Check className="h-3 w-3 mr-1" /> : <X className="h-3 w-3 mr-1" />}
+                    {cred.status}
+                  </Badge>
+                  <div>
+                    <p className="font-medium text-sm">{cred.name}</p>
+                    <p className="text-xs text-muted-foreground">{cred.bucket} • {cred.region}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
-            <p className="font-medium mb-1">Supported Providers:</p>
-            <p>
-              Backblaze B2 (~$0.006/GB) • AWS S3 • Wasabi • MinIO (self-hosted, free) • Synology NAS
-            </p>
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="text-red-600">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        )}
 
-      {/* Add/Edit S3 Credential Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {editingCredential ? "Edit S3 Storage" : "Add S3 Storage"}
-            </DialogTitle>
-            <DialogDescription>
-              Connect an S3-compatible storage provider for document storage.
-            </DialogDescription>
-          </DialogHeader>
+        {/* Provider Selection Dropdown */}
+        {!showForm && (
+          <div className="space-y-2">
+            <Label>Add Storage Provider</Label>
+            <Select value={selectedProvider} onValueChange={handleProviderSelect}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a provider..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="backblaze_b2">Backblaze B2 (~$0.006/GB)</SelectItem>
+                <SelectItem value="aws_s3">Amazon S3</SelectItem>
+                <SelectItem value="wasabi">Wasabi (no egress fees)</SelectItem>
+                <SelectItem value="minio">MinIO (self-hosted, free)</SelectItem>
+                <SelectItem value="synology">Synology NAS</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-          <div className="space-y-4 py-4">
-            {/* Provider Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="provider_type">Provider</Label>
-              <Select
-                value={formData.provider_type}
-                onValueChange={handleProviderChange}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {providers.map((provider) => (
-                    <SelectItem key={provider.id} value={provider.id}>
-                      <div className="flex flex-col">
-                        <span>{provider.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {provider.description}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {/* Configuration Form - shows after provider selected */}
+        {showForm && preset && (
+          <div className="space-y-4 p-4 rounded-lg border bg-muted/20">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">{preset.name} Configuration</h4>
+              <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); setSelectedProvider(""); }}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Display Name</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Job Documents Storage"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-
-            {/* Endpoint (not for AWS) */}
-            {formData.provider_type !== "aws_s3" && (
-              <div className="space-y-2">
-                <Label htmlFor="endpoint">Endpoint URL</Label>
+            <div className="grid gap-3">
+              <div>
+                <Label htmlFor="name" className="text-xs">Display Name</Label>
                 <Input
-                  id="endpoint"
-                  placeholder={selectedProvider?.endpoint_template || "https://..."}
-                  value={formData.endpoint}
-                  onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {selectedProvider?.region_hint}
-                </p>
-              </div>
-            )}
-
-            {/* Region */}
-            <div className="space-y-2">
-              <Label htmlFor="region">Region</Label>
-              <Input
-                id="region"
-                placeholder={selectedProvider?.region_hint || "e.g., us-east-1"}
-                value={formData.region}
-                onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-              />
-            </div>
-
-            {/* Bucket */}
-            <div className="space-y-2">
-              <Label htmlFor="bucket">Bucket Name</Label>
-              <Input
-                id="bucket"
-                placeholder="my-teeem-documents"
-                value={formData.bucket}
-                onChange={(e) => setFormData({ ...formData, bucket: e.target.value })}
-              />
-            </div>
-
-            {/* Credentials */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="access_key_id">Access Key ID</Label>
-                <Input
-                  id="access_key_id"
-                  placeholder={editingCredential ? "(unchanged)" : "Your access key"}
-                  value={formData.access_key_id}
-                  onChange={(e) => setFormData({ ...formData, access_key_id: e.target.value })}
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="My Storage"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="secret_access_key">Secret Access Key</Label>
-                <Input
-                  id="secret_access_key"
-                  type="password"
-                  placeholder={editingCredential ? "(unchanged)" : "Your secret key"}
-                  value={formData.secret_access_key}
-                  onChange={(e) => setFormData({ ...formData, secret_access_key: e.target.value })}
-                />
+
+              {selectedProvider !== "aws_s3" && (
+                <div>
+                  <Label htmlFor="endpoint" className="text-xs">Endpoint URL</Label>
+                  <Input
+                    id="endpoint"
+                    value={formData.endpoint}
+                    onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
+                    placeholder={preset.endpoint}
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="region" className="text-xs">Region</Label>
+                  <Input
+                    id="region"
+                    value={formData.region}
+                    onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                    placeholder={preset.regionHint}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bucket" className="text-xs">Bucket Name</Label>
+                  <Input
+                    id="bucket"
+                    value={formData.bucket}
+                    onChange={(e) => setFormData({ ...formData, bucket: e.target.value })}
+                    placeholder="my-bucket"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="access_key_id" className="text-xs">Access Key ID</Label>
+                  <Input
+                    id="access_key_id"
+                    value={formData.access_key_id}
+                    onChange={(e) => setFormData({ ...formData, access_key_id: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="secret_access_key" className="text-xs">Secret Access Key</Label>
+                  <Input
+                    id="secret_access_key"
+                    type="password"
+                    value={formData.secret_access_key}
+                    onChange={(e) => setFormData({ ...formData, secret_access_key: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
-
-            {/* Root Path (Advanced) */}
-            <Accordion type="single" collapsible>
-              <AccordionItem value="advanced">
-                <AccordionTrigger className="text-sm">Advanced Settings</AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-2 pt-2">
-                    <Label htmlFor="root_path">Root Path (Optional)</Label>
-                    <Input
-                      id="root_path"
-                      placeholder="e.g., teeem/documents"
-                      value={formData.root_path}
-                      onChange={(e) => setFormData({ ...formData, root_path: e.target.value })}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      All files will be stored under this prefix in the bucket
-                    </p>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
 
             {/* Test Result */}
             {testResult && (
-              <div
-                className={cn(
-                  "p-3 rounded-md text-sm",
-                  testResult.success
-                    ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                    : "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                )}
-              >
-                {testResult.success ? (
-                  <Check className="h-4 w-4 inline mr-2" />
-                ) : (
-                  <X className="h-4 w-4 inline mr-2" />
-                )}
+              <div className={cn(
+                "p-2 rounded text-sm",
+                testResult.success ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              )}>
+                {testResult.success ? <Check className="h-4 w-4 inline mr-1" /> : <X className="h-4 w-4 inline mr-1" />}
                 {testResult.message}
               </div>
             )}
 
             {/* Help Link */}
-            {selectedProvider?.help_url && (
-              <div className="text-sm text-muted-foreground">
-                <a
-                  href={selectedProvider.help_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  {selectedProvider.name} Documentation{" "}
-                  <ExternalLink className="h-3 w-3 inline" />
-                </a>
+            <a href={preset.helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+              {preset.name} Setup Guide <ExternalLink className="h-3 w-3 inline" />
+            </a>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTest}
+                disabled={testing || !formData.bucket || !formData.access_key_id}
+              >
+                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <TestTube className="h-4 w-4 mr-1" />}
+                Test
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || !formData.name || !formData.bucket || !formData.access_key_id}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Document Storage Provider Selection (SSoT)
+function DocumentStorageProvider() {
+  const { toast } = useToast();
+  const [selectedProvider, setSelectedProvider] = React.useState<string>("sharepoint");
+  const [loading, setLoading] = React.useState(false);
+  const [showConfig, setShowConfig] = React.useState(false);
+  const [s3Credentials, setS3Credentials] = React.useState<S3Credential[]>([]);
+
+  // S3 form state
+  const [s3Form, setS3Form] = React.useState({
+    name: "",
+    endpoint: "",
+    region: "",
+    bucket: "",
+    access_key_id: "",
+    secret_access_key: "",
+  });
+  const [saving, setSaving] = React.useState(false);
+  const [testing, setTesting] = React.useState(false);
+  const [testResult, setTestResult] = React.useState<{ success: boolean; message: string } | null>(null);
+
+  React.useEffect(() => {
+    loadS3Credentials();
+  }, []);
+
+  const loadS3Credentials = async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: S3Credential[] }>("/api/v1/s3_credentials");
+      setS3Credentials(data.data || []);
+    } catch (error) {
+      console.error("Failed to load S3 credentials:", error);
+    }
+  };
+
+  const handleProviderChange = (provider: string) => {
+    setSelectedProvider(provider);
+    setShowConfig(true);
+    setTestResult(null);
+
+    // Pre-fill S3 form based on provider
+    if (provider !== "sharepoint") {
+      const preset = PROVIDER_PRESETS[provider];
+      if (preset) {
+        setS3Form({
+          name: `${preset.name} Storage`,
+          endpoint: preset.endpoint,
+          region: preset.regionHint,
+          bucket: "",
+          access_key_id: "",
+          secret_access_key: "",
+        });
+      }
+    }
+  };
+
+  const handleS3Test = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await api.post<{ success: boolean; message?: string; error?: string }>(
+        "/api/v1/s3_credentials/test",
+        { s3_credential: { ...s3Form, provider_type: selectedProvider } }
+      );
+      if (result) {
+        setTestResult({
+          success: result.success,
+          message: result.success ? "Connection successful!" : result.error || "Connection failed",
+        });
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      setTestResult({ success: false, message: err?.response?.data?.error || "Connection failed" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleS3Save = async () => {
+    setSaving(true);
+    try {
+      await api.post("/api/v1/s3_credentials", {
+        s3_credential: { ...s3Form, provider_type: selectedProvider },
+      });
+      toast({ title: "Success", description: "Storage connected successfully" });
+      setShowConfig(false);
+      loadS3Credentials();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast({ title: "Error", description: err?.response?.data?.error || "Failed to save", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (cred: S3Credential) => {
+    if (!confirm(`Delete "${cred.name}"?`)) return;
+    try {
+      await api.delete(`/api/v1/s3_credentials/${cred.id}`);
+      toast({ title: "Deleted", description: "Storage removed" });
+      loadS3Credentials();
+    } catch {
+      toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
+    }
+  };
+
+  const preset = selectedProvider !== "sharepoint" ? PROVIDER_PRESETS[selectedProvider] : null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
+            <Cloud className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Document Storage</CardTitle>
+            <CardDescription>Choose where to store job and company documents</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Provider Selection */}
+        <div className="space-y-2">
+          <Label>Storage Provider</Label>
+          <Select value={selectedProvider} onValueChange={handleProviderChange}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sharepoint">SharePoint (Microsoft 365)</SelectItem>
+              <SelectItem value="backblaze_b2">Backblaze B2 (~$0.006/GB)</SelectItem>
+              <SelectItem value="aws_s3">Amazon S3</SelectItem>
+              <SelectItem value="wasabi">Wasabi (no egress fees)</SelectItem>
+              <SelectItem value="minio">MinIO (self-hosted, free)</SelectItem>
+              <SelectItem value="synology">Synology NAS</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Existing S3 credentials */}
+        {s3Credentials.length > 0 && selectedProvider !== "sharepoint" && (
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Saved Credentials</Label>
+            {s3Credentials.map((cred) => (
+              <div key={cred.id} className="flex items-center justify-between p-2 rounded border bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Badge variant={cred.status === "connected" ? "default" : "secondary"} className="text-xs">
+                    {cred.status}
+                  </Badge>
+                  <span className="text-sm">{cred.name}</span>
+                  <span className="text-xs text-muted-foreground">{cred.bucket}</span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="h-6 w-6 p-0 text-red-600">
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* SharePoint Config */}
+        {showConfig && selectedProvider === "sharepoint" && (
+          <div className="p-4 rounded-lg border bg-muted/20 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              SharePoint uses Microsoft 365 OAuth. Click below to connect.
+            </p>
+            <SharePointConnection />
+          </div>
+        )}
+
+        {/* S3 Config */}
+        {showConfig && selectedProvider !== "sharepoint" && preset && (
+          <div className="p-4 rounded-lg border bg-muted/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-sm">{preset.name} Configuration</h4>
+              <Button variant="ghost" size="sm" onClick={() => setShowConfig(false)} className="h-6 w-6 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="grid gap-3">
+              <div>
+                <Label className="text-xs">Display Name</Label>
+                <Input
+                  value={s3Form.name}
+                  onChange={(e) => setS3Form({ ...s3Form, name: e.target.value })}
+                  placeholder="My Storage"
+                  className="h-8"
+                />
+              </div>
+
+              {selectedProvider !== "aws_s3" && (
+                <div>
+                  <Label className="text-xs">Endpoint URL</Label>
+                  <Input
+                    value={s3Form.endpoint}
+                    onChange={(e) => setS3Form({ ...s3Form, endpoint: e.target.value })}
+                    placeholder={preset.endpoint}
+                    className="h-8"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Region</Label>
+                  <Input
+                    value={s3Form.region}
+                    onChange={(e) => setS3Form({ ...s3Form, region: e.target.value })}
+                    placeholder={preset.regionHint}
+                    className="h-8"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Bucket</Label>
+                  <Input
+                    value={s3Form.bucket}
+                    onChange={(e) => setS3Form({ ...s3Form, bucket: e.target.value })}
+                    placeholder="my-bucket"
+                    className="h-8"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Access Key ID</Label>
+                  <Input
+                    value={s3Form.access_key_id}
+                    onChange={(e) => setS3Form({ ...s3Form, access_key_id: e.target.value })}
+                    className="h-8"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Secret Access Key</Label>
+                  <Input
+                    type="password"
+                    value={s3Form.secret_access_key}
+                    onChange={(e) => setS3Form({ ...s3Form, secret_access_key: e.target.value })}
+                    className="h-8"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {testResult && (
+              <div className={cn(
+                "p-2 rounded text-xs",
+                testResult.success ? "bg-green-50 text-green-700 dark:bg-green-900/30" : "bg-red-50 text-red-700 dark:bg-red-900/30"
+              )}>
+                {testResult.success ? <Check className="h-3 w-3 inline mr-1" /> : <X className="h-3 w-3 inline mr-1" />}
+                {testResult.message}
               </div>
             )}
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleTest}
-              disabled={testing || !formData.bucket || !formData.region || (!editingCredential && (!formData.access_key_id || !formData.secret_access_key))}
-            >
-              {testing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Testing...
-                </>
-              ) : (
-                <>
-                  <TestTube className="h-4 w-4 mr-2" />
-                  Test
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving || !formData.name || !formData.bucket || !formData.region || (!editingCredential && (!formData.access_key_id || !formData.secret_access_key))}
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+            <div className="flex items-center justify-between pt-2">
+              <a href={preset.helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                Setup Guide <ExternalLink className="h-3 w-3 inline" />
+              </a>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleS3Test} disabled={testing || !s3Form.bucket}>
+                  {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Test"}
+                </Button>
+                <Button size="sm" onClick={handleS3Save} disabled={saving || !s3Form.name || !s3Form.bucket}>
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1114,10 +1196,7 @@ function S3StorageConnection() {
 export function ConnectionsTab() {
   return (
     <div className="space-y-6">
-      <SharePointConnection />
-      <S3StorageConnection />
-      <OutlookConnection />
-      <TwilioConfiguration />
+      <DocumentStorageProvider />
     </div>
   );
 }
