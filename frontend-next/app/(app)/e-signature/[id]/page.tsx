@@ -147,12 +147,7 @@ export default function ESignatureDetailPage() {
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
         <AlertCircle className="h-8 w-8 mb-2" />
         <p>Failed to load e-signature request</p>
-        <Link href="/e-signature" className="mt-4">
-          <Button variant="outline">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to List
-          </Button>
-        </Link>
+        <BackButton fallbackHref="/e-signature" label="Back to List" variant="outline" className="mt-4" />
       </div>
     );
   }
@@ -163,11 +158,7 @@ export default function ESignatureDetailPage() {
       <div className="px-6 py-4 border-b shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/e-signature">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
+            <BackButton fallbackHref="/e-signature" />
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold">{request.title}</h1>

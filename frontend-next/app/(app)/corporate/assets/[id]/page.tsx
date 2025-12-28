@@ -491,7 +491,7 @@ export default function AssetDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <p className="text-destructive">{error || "Asset not found"}</p>
-        <Button onClick={() => router.back()}>Go Back</Button>
+        <BackButton fallbackHref="/corporate/assets" label="Go Back" />
       </div>
     );
   }
@@ -501,9 +501,7 @@ export default function AssetDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between border-b pb-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/corporate/assets" />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight font-serif">

@@ -607,9 +607,7 @@ export default function CaseDetailPage() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Case not found</p>
-        <Button variant="outline" className="mt-4" onClick={() => router.push("/cases")}>
-          Back to Cases
-        </Button>
+        <BackButton fallbackHref="/cases" label="Back to Cases" variant="outline" className="mt-4" />
       </div>
     );
   }
@@ -619,9 +617,7 @@ export default function CaseDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/cases")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/cases" />
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="font-mono text-sm text-muted-foreground">

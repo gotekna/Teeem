@@ -809,10 +809,7 @@ export default function PurchaseOrderDetailPage() {
   if (!purchaseOrder) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+        <BackButton fallbackHref="/purchase_orders" label="Back" />
         <div className="flex items-center justify-center h-96">
           <p className="text-muted-foreground">Purchase order not found</p>
         </div>
@@ -824,14 +821,7 @@ export default function PurchaseOrderDetailPage() {
     <div className="space-y-6 pb-12">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.back()}
-          className="mt-1"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackButton fallbackHref="/purchase_orders" className="mt-1" />
 
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">

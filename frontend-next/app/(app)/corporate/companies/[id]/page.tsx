@@ -325,10 +325,7 @@ export default function CompanyDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <p className="text-muted-foreground">Company not found</p>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Go Back
-        </Button>
+        <BackButton fallbackHref="/corporate" label="Go Back" variant="outline" />
       </div>
     );
   }
@@ -365,9 +362,7 @@ export default function CompanyDetailPage() {
         {/* Header row - no card, inline back button like job detail */}
         <div className="px-3 pb-2 flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")} className="mt-1">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+            <BackButton fallbackHref="/corporate" className="mt-1" />
             <div>
               <h1 className="text-2xl font-bold tracking-tight font-serif">
                 {company.name}
