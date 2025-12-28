@@ -769,6 +769,44 @@ TEEEM_DOCS/GOLD_STANDARD_TABLE.md (SSoT - THE SPEC)
 
 ---
 
+## 🔴 CRITICAL: Foundation ID Lookup - Use Slugs, Not Numeric IDs
+
+**ALWAYS use Foundation slugs, NEVER hardcode numeric IDs.**
+
+**Why:** Foundation numeric IDs differ between environments (local, staging, production). The same table might be ID 542 locally but ID 531 in production. Hardcoding numeric IDs causes tables to load wrong data or fail silently.
+
+```tsx
+// ✅ CORRECT - slug is consistent across all environments
+<TeeemTableView
+  foundationId="sm_trades"
+  ...
+/>
+
+// ❌ WRONG - numeric ID differs per environment
+<TeeemTableView
+  foundationId="sm_trades"
+  foundationIdNumeric={531}  // This ID is wrong in other environments!
+  ...
+/>
+```
+
+**How it works:**
+- Frontend passes slug to API: `/api/v1/foundations/sm_trades/records`
+- Backend resolves slug → correct numeric ID for that environment
+- `set_foundation` in `foundations_controller.rb` handles both formats
+
+**NEVER:**
+- Hardcode Foundation numeric IDs in frontend code
+- Create config objects with environment-specific IDs
+- Copy numeric IDs from local database to use in code
+
+**ALWAYS:**
+- Use `foundationId` prop with the slug string
+- Let TeeemTableView handle the lookup
+- Trust the backend to resolve slugs correctly
+
+---
+
 ## 🔴 CRITICAL: No Column Limiting Policy
 
 **ALL API endpoints MUST return ALL columns. NEVER limit columns in responses.**

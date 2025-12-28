@@ -219,21 +219,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
 
   // Check if the current category is a photo category
-  // SSoT: Uses explicit is_photo_category flag from EntityTab (no guessing)
-  const isPhotoCategory = (category: DocumentCategory | null, parentCategory?: DocumentCategory | null): boolean => {
-    if (!category) return false;
-
-    // Check this category's explicit flag
-    if (category.is_photo_category) {
-      return true;
-    }
-
-    // Check parent's explicit flag (subtabs inherit from parent)
-    if (parentCategory?.is_photo_category) {
-      return true;
-    }
-
-    return false;
+  // SSoT: "Photo Gallery View" checkbox on each tab controls this
+  const isPhotoCategory = (category: DocumentCategory | null): boolean => {
+    return category?.is_photo_category === true;
   };
 
   // Check if a file is an image
