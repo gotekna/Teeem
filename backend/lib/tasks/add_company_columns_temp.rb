@@ -1,6 +1,12 @@
-# Add all missing columns to Companies foundation (ID: 353)
+# Add all missing columns to Companies foundation
 
-foundation_id = 353
+# SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
+companies_foundation = Foundation.find_by(slug: "corporate_companies")
+unless companies_foundation
+  puts "⚠️ Foundation 'corporate_companies' not found - skipping"
+  return
+end
+foundation_id = companies_foundation.id
 
 # Column definitions with appropriate types
 columns_to_add = [

@@ -1,7 +1,12 @@
 class AddDocumentComplianceHealthChecks < ActiveRecord::Migration[8.0]
   def up
-    # Company Documents Foundation ID
-    company_documents_foundation_id = 357
+    # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
+    company_documents_foundation = Foundation.find_by(slug: "company_documents")
+    unless company_documents_foundation
+      puts "⚠️ Foundation 'company_documents' not found - skipping health check migration"
+      return
+    end
+    company_documents_foundation_id = company_documents_foundation.id
 
     # ============================================================================
     # Tab-Based Document Compliance Health Checks

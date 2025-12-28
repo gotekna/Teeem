@@ -750,20 +750,24 @@ export default function JobDetailPage() {
       return { activeParentTab: defaultParent, activeChildTab: null };
     }
 
-    // Check if tabFromUrl is a parent or child tab
+    // ULTRA FIX: Check if tabFromUrl is a PARENT tab FIRST
+    // This prevents false positives when a parent's tab_key matches another parent's child
+    // (e.g., "photo" parent vs "photo" child under "site" parent)
+    const isParent = visibleJobTabs.some(t => t.tab_key === tabFromUrl);
+    if (isParent) {
+      // tabFromUrl IS a parent tab - use it directly
+      return { activeParentTab: tabFromUrl, activeChildTab: subtabFromUrl || null };
+    }
+
+    // tabFromUrl is NOT a parent - check if it's a child (legacy URL support)
     const parent = findParentOfTab(tabFromUrl);
     if (parent) {
-      // tabFromUrl is a child tab - this is legacy URL format (migration)
-      // Convert to new format: use parent from URL's implicit parent
       return { activeParentTab: parent, activeChildTab: tabFromUrl };
     }
 
-    // tabFromUrl is a parent tab
-    return {
-      activeParentTab: tabFromUrl,
-      activeChildTab: subtabFromUrl || null
-    };
-  }, [tabFromUrl, subtabFromUrl, userDefaultTab, findParentOfTab]);
+    // Fallback to default
+    return { activeParentTab: defaultParent, activeChildTab: null };
+  }, [tabFromUrl, subtabFromUrl, userDefaultTab, findParentOfTab, visibleJobTabs]);
 
   // The actual tab value for the Tabs component
   // If there's an active child, use that; otherwise use the parent

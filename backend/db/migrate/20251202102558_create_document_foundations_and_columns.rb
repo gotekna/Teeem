@@ -45,10 +45,11 @@ class CreateDocumentFoundationsAndColumns < ActiveRecord::Migration[8.0]
     puts "Created #{document_type_columns.count} columns for Document Types"
 
     # ============================================================================
-    # Part 2: Add missing columns to Company Documents Foundation (ID 357)
+    # Part 2: Add missing columns to Company Documents Foundation
+    # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
     # ============================================================================
 
-    company_documents_foundation = Foundation.find_by(id: 357)
+    company_documents_foundation = Foundation.find_by(slug: "company_documents")
 
     if company_documents_foundation
       # Update foundation attributes
@@ -60,7 +61,11 @@ class CreateDocumentFoundationsAndColumns < ActiveRecord::Migration[8.0]
       )
 
       # Get existing columns
-      existing_columns = Column.where(foundation_id: 357).pluck(:column_name)
+      existing_columns = Column.where(foundation_id: company_documents_foundation.id).pluck(:column_name)
+
+      # SSoT: Look up corporate_companies foundation ID dynamically
+      corporate_companies_foundation = Foundation.find_by(slug: "corporate_companies")
+      corporate_companies_id = corporate_companies_foundation&.id
 
       # Define all columns for Company Documents
       company_document_columns = [
@@ -71,7 +76,7 @@ class CreateDocumentFoundationsAndColumns < ActiveRecord::Migration[8.0]
         { column_name: "source", name: "Source", column_type: "choice", position: 5 },
         { column_name: "document_date", name: "Document Date", column_type: "date", position: 6 },
         { column_name: "financial_years", name: "Financial Years", column_type: "structured_data", position: 7 },
-        { column_name: "company_id", name: "Company", column_type: "lookup", lookup_foundation_id: 353, lookup_display_column: "name", position: 8 },
+        { column_name: "company_id", name: "Company", column_type: "lookup", lookup_foundation_id: corporate_companies_id, lookup_display_column: "name", position: 8 },
         { column_name: "file_size", name: "File Size", column_type: "whole_number", position: 9 },
         { column_name: "file_url", name: "File URL", column_type: "url", position: 10 },
         { column_name: "ai_verification_status", name: "AI Verification", column_type: "choice", position: 11 },
@@ -82,14 +87,14 @@ class CreateDocumentFoundationsAndColumns < ActiveRecord::Migration[8.0]
       added_count = 0
       company_document_columns.each do |col_attrs|
         unless existing_columns.include?(col_attrs[:column_name])
-          Column.create!(col_attrs.merge(foundation_id: 357))
+          Column.create!(col_attrs.merge(foundation_id: company_documents_foundation.id))
           added_count += 1
         end
       end
 
-      puts "Added #{added_count} new columns to Company Documents (357)"
+      puts "Added #{added_count} new columns to Company Documents (slug: company_documents, id: #{company_documents_foundation.id})"
     else
-      puts "Warning: Company Documents foundation (ID 357) not found"
+      puts "Warning: Company Documents foundation (slug: company_documents) not found - skipping"
     end
   end
 
@@ -103,9 +108,13 @@ class CreateDocumentFoundationsAndColumns < ActiveRecord::Migration[8.0]
     end
 
     # Remove added columns from Company Documents (keep original 'title' column)
-    added_columns = %w[display_title document_type folder source document_date financial_years
-                       company_id file_size file_url ai_verification_status user_validated_at onedrive_file_id]
-    Column.where(foundation_id: 357, column_name: added_columns).destroy_all
-    puts "Removed added columns from Company Documents (357)"
+    # SSoT: Use slug lookup, not hardcoded numeric ID
+    company_docs = Foundation.find_by(slug: "company_documents")
+    if company_docs
+      added_columns = %w[display_title document_type folder source document_date financial_years
+                         company_id file_size file_url ai_verification_status user_validated_at onedrive_file_id]
+      Column.where(foundation_id: company_docs.id, column_name: added_columns).destroy_all
+      puts "Removed added columns from Company Documents (slug: company_documents)"
+    end
   end
 end

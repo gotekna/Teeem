@@ -1,10 +1,11 @@
 class UpdateDocumentTypesColumnSettings < ActiveRecord::Migration[8.0]
   def up
-    # Foundation 454 = document_types table
-    foundation = Foundation.find(454)
+    # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
+    foundation = Foundation.find_by(slug: "document_types")
+    return puts "⚠️ Foundation 'document_types' not found - skipping migration" unless foundation
 
     puts "\n" + "=" * 80
-    puts "UPDATING DOCUMENT TYPES COLUMN SETTINGS (Foundation 454)"
+    puts "UPDATING DOCUMENT TYPES COLUMN SETTINGS (slug: document_types, id: #{foundation.id})"
     puts "=" * 80
 
     # 1. Change "abbreviation" column display_name from "CODE" to "Job Title"
@@ -29,8 +30,9 @@ class UpdateDocumentTypesColumnSettings < ActiveRecord::Migration[8.0]
   end
 
   def down
-    # Revert changes
-    foundation = Foundation.find(454)
+    # Revert changes - SSoT: Use slug lookup
+    foundation = Foundation.find_by(slug: "document_types")
+    return puts "⚠️ Foundation 'document_types' not found - skipping rollback" unless foundation
 
     abbrev_col = foundation.columns.find_by(name: "abbreviation")
     abbrev_col&.update!(display_name: "CODE")
