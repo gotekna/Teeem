@@ -2,8 +2,8 @@ namespace :teeem do
   namespace :gold_standard do
     desc "Add system columns (id, created_at, updated_at) to Gold Standard table"
     task add_system_columns: :environment do
-      # Find the Gold Standard Reference foundation (ID: 1)
-      foundation = Foundation.find_by(id: 1)
+      # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
+      foundation = Foundation.find_by(slug: 'gold_standard_table')
 
       unless foundation
         puts "Error: Gold Standard Reference foundation not found!"

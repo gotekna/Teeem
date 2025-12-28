@@ -15,12 +15,12 @@ module HealthChecks
   #   HealthChecks::Registry.system_health
   #
   class Registry
-    # Map foundation IDs to check services
-    FOUNDATION_CHECKS = {
-      204 => JobsCheck,
-      205 => PricebookCheck,
-      353 => CompaniesCheck,
-      357 => DocumentsCheck
+    # SSoT: Map foundation SLUGS to check services (not numeric IDs which differ per environment)
+    FOUNDATION_SLUG_CHECKS = {
+      'jobs' => JobsCheck,
+      'pricebook-items' => PricebookCheck,
+      'corporate_companies' => CompaniesCheck,
+      'company_documents' => DocumentsCheck
     }.freeze
 
     # Map table names to check services
@@ -54,9 +54,15 @@ module HealthChecks
     }.freeze
 
     class << self
-      # Get check service for a foundation ID
-      def for_foundation(foundation_id)
-        FOUNDATION_CHECKS[foundation_id.to_i]
+      # Get check service for a foundation (by ID or Foundation object)
+      # SSoT: Resolves to slug internally, not hardcoded numeric IDs
+      def for_foundation(foundation_or_id)
+        slug = if foundation_or_id.is_a?(Foundation)
+                 foundation_or_id.slug
+               else
+                 Foundation.find_by(id: foundation_or_id)&.slug
+               end
+        FOUNDATION_SLUG_CHECKS[slug]
       end
 
       # Get check service for a table name
