@@ -33,6 +33,10 @@ class MicrosoftCredential < ApplicationRecord
   CREDENTIAL_TYPES = %w[app delegated].freeze
   STATUSES = %w[pending connected error dead disconnected].freeze
 
+  # Known Microsoft 365 tenant organization names (SSoT)
+  # These are the organizations that can have app credentials configured
+  KNOWN_ORG_NAMES = ["Tekna", "100xBestLife", "Homes of Hope", "Love Your World"].freeze
+
   # UNIFIED refresh buffer - 20 minutes (SSoT - same everywhere)
   # Microsoft access tokens typically expire after 60 minutes
   # Buffer MUST be larger than job interval (15 min) to prevent timing gaps

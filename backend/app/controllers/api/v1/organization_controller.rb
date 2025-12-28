@@ -39,8 +39,8 @@ module Api
         # SSoT: Use MicrosoftCredential
         all_credentials = MicrosoftCredential.app_credentials.order(:name)
 
-        # Define all possible orgs (including not-connected ones)
-        all_org_names = [ "Tekna", "100xBestLife", "Homes of Hope", "Love Your World" ]
+        # SSoT: Use MicrosoftCredential::KNOWN_ORG_NAMES for all possible orgs
+        all_org_names = MicrosoftCredential::KNOWN_ORG_NAMES
 
         org_stats = all_org_names.map do |org_name|
           credential = all_credentials.find { |c| c.name == org_name }
