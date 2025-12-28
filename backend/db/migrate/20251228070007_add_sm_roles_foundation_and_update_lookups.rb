@@ -1,6 +1,6 @@
 # SSoT: Configure lookup columns for SM Schedule Master
-# - Cost Centre → Foundation 533 (Cost Centres)
-# - Assigned Role → Foundation 413 (Role) - same as Admin > System > Company > Security > Roles
+# - Cost Centre → Foundation "Cost Centres" (looked up by name)
+# - Assigned Role → Foundation "Role" (looked up by name)
 class AddSmRolesFoundationAndUpdateLookups < ActiveRecord::Migration[8.0]
   def up
     # 1. Update Cost Centre column to be a lookup
@@ -31,13 +31,19 @@ class AddSmRolesFoundationAndUpdateLookups < ActiveRecord::Migration[8.0]
     cost_centre_col = sm_schedule_master.columns.find_by(name: "Cost Centre")
     return unless cost_centre_col
 
-    # Cost Centres foundation is ID 533
+    # Look up Cost Centres foundation by name (ID varies between environments)
+    cost_centres_foundation = Foundation.find_by(name: "Cost Centres")
+    unless cost_centres_foundation
+      puts "WARNING: Cost Centres foundation not found - skipping"
+      return
+    end
+
     cost_centre_col.update!(
       column_type: "lookup",
-      lookup_foundation_id: 533,
+      lookup_foundation_id: cost_centres_foundation.id,
       lookup_display_column: "name"
     )
-    puts "Updated Cost Centre column to lookup → Foundation 533 (Cost Centres)"
+    puts "Updated Cost Centre column to lookup → Foundation #{cost_centres_foundation.id} (Cost Centres)"
   end
 
   def update_assigned_role_column
@@ -47,13 +53,19 @@ class AddSmRolesFoundationAndUpdateLookups < ActiveRecord::Migration[8.0]
     assigned_role_col = sm_schedule_master.columns.find_by(name: "Assigned Role")
     return unless assigned_role_col
 
-    # Role foundation is ID 413 - same as Admin > System > Company > Security > Roles
+    # Look up Role foundation by name (ID varies between environments)
+    role_foundation = Foundation.find_by(name: "Role")
+    unless role_foundation
+      puts "WARNING: Role foundation not found - skipping"
+      return
+    end
+
     assigned_role_col.update!(
       column_type: "lookup",
-      lookup_foundation_id: 413,
+      lookup_foundation_id: role_foundation.id,
       lookup_display_column: "display_name"
     )
-    puts "Updated Assigned Role column to lookup → Foundation 413 (Role)"
+    puts "Updated Assigned Role column to lookup → Foundation #{role_foundation.id} (Role)"
 
     # Migrate existing text values to Role IDs
     migrate_assigned_role_data

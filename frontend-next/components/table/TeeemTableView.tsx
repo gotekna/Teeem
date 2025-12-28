@@ -973,18 +973,19 @@ export default function TeeemTableView({
   // AUTO-ENABLE FEATURES WHEN foundationIdNumeric IS SET
   // Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md
   // ============================================================================
-  // When a table has foundationIdNumeric, it should automatically get:
-  // - Import/Export in menu
-  // - Schema Editor (Create/Edit/Delete columns)
-  // - Filters button visible
-  const shouldAutoEnable = !!foundationIdNumeric;
-
   // ============================================================================
-  // FOUNDATION ID RESOLUTION (must be early - used by bulk delete and other features)
+  // FOUNDATION ID RESOLUTION (must be early - used by auto-enable and other features)
   // Use foundationIdNumeric if provided, otherwise fall back to foundationId (slug)
   // The backend API accepts both numeric IDs and string slugs in the URL path
   // ============================================================================
   const effectiveFoundationId: number | string | null = foundationIdNumeric ?? (foundationId !== "default" ? foundationId : null);
+
+  // When a table has effectiveFoundationId (numeric OR slug), it should automatically get:
+  // - Import/Export in menu
+  // - Schema Editor (Create/Edit/Delete columns)
+  // - Filters button visible
+  // - Auto-fetch records
+  const shouldAutoEnable = !!effectiveFoundationId;
 
   const effectiveEnableImport = enableImport || shouldAutoEnable;
   const effectiveEnableExport = enableExport || shouldAutoEnable;
@@ -1209,7 +1210,7 @@ export default function TeeemTableView({
     };
 
     fetchInitialRecords();
-  }, [useAutoFetch, foundationIdNumeric]);
+  }, [useAutoFetch, effectiveFoundationId]);
 
   // Auto-load more records in background after initial render
   useEffect(() => {
@@ -1237,7 +1238,7 @@ export default function TeeemTableView({
     }, 2000); // Wait 2 seconds before auto-loading more
 
     return () => clearTimeout(timer);
-  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, foundationIdNumeric]);
+  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId]);
 
   // Server-side search for auto-fetch mode
   // Supports all search modes: contains (default), exact, starts_with, fuzzy, regex
@@ -1265,11 +1266,11 @@ export default function TeeemTableView({
     } finally {
       setIsSearching(false);
     }
-  }, [useAutoFetch, foundationIdNumeric]);
+  }, [useAutoFetch, effectiveFoundationId]);
 
   // Use Foundation columns when available (SSoT), otherwise fall back to props
   // Merge with extraColumns if provided (for dynamic/computed columns like company presence)
-  const baseColumns = foundationIdNumeric && foundationColumns ? foundationColumns : columns;
+  const baseColumns = effectiveFoundationId && foundationColumns ? foundationColumns : columns;
   const effectiveColumns = useMemo(() => {
     if (!baseColumns) return extraColumns || null;
     if (!extraColumns || extraColumns.length === 0) return baseColumns;
