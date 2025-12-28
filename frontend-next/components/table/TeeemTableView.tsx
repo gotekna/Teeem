@@ -732,8 +732,8 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Fixed header - scrolls horizontally in sync with body */}
-      <div ref={headerRef} className="overflow-x-hidden shrink-0">
+      {/* Fixed header - scrolls horizontally in sync with body, no scrollbar */}
+      <div ref={headerRef} className="overflow-hidden shrink-0">
         <Table style={{ tableLayout: 'fixed', width: totalWidth, minWidth: totalWidth }}>
           <colgroup>
             {visibleColumnsInOrder.map((column) => (
