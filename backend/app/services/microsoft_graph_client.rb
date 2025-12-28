@@ -273,6 +273,8 @@ class MicrosoftGraphClient
   # SSoT: Default folder name comes from CorporateCompanySetting
   def create_jobs_root_folder(folder_name = nil)
     folder_name ||= CorporateCompanySetting.instance.sharepoint_jobs_path.presence || "TEEEM Jobs"
+    # SSoT: Sanitize folder name - remove leading/trailing slashes (SharePoint doesn't allow "/" in names)
+    folder_name = folder_name.to_s.gsub(%r{^/+|/+$}, "").presence || "TEEEM Jobs"
     # Get the drive if we don't have it
     unless @credential.drive_id
       drive = get_default_drive
