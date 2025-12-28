@@ -70,8 +70,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       `}</style>
 
       {/* Main Content - below header, beside sidebar */}
-      <main className={`sidebar-content-area pt-12 ${containerClassName} transition-all duration-300 ease-in-out`}>
-        <div className={contentClassName}>
+      <main className={`sidebar-content-area pt-12 h-screen overflow-hidden ${containerClassName} transition-all duration-300 ease-in-out`}>
+        <div className={`h-full overflow-auto ${contentClassName}`}>
           {children}
         </div>
       </main>

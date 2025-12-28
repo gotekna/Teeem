@@ -210,24 +210,24 @@ export function ScheduleMasterTab() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Get subtab from URL, default to schedule-templates
+  // URL is SSoT for tab state (back button support)
   const subtabParam = searchParams.get("subtab");
-  const initialTab: SubTab = VALID_SUBTABS.includes(subtabParam as SubTab)
+  const activeTab: SubTab = VALID_SUBTABS.includes(subtabParam as SubTab)
     ? (subtabParam as SubTab)
     : "schedule-templates";
 
-  const [activeTab, setActiveTab] = React.useState<SubTab>(initialTab);
-
-  // Sync tab changes to URL
-  const handleTabChange = (value: string) => {
+  // Update URL when tab changes
+  const handleTabChange = React.useCallback((value: string) => {
     const newTab = value as SubTab;
-    setActiveTab(newTab);
-
-    // Update URL with new subtab
     const params = new URLSearchParams(searchParams.toString());
-    params.set("subtab", newTab);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  };
+    if (newTab === "schedule-templates") {
+      params.delete("subtab");
+    } else {
+      params.set("subtab", newTab);
+    }
+    const url = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.push(url, { scroll: false });
+  }, [searchParams, pathname, router]);
 
   // Schedule Templates state
   const [templates, setTemplates] = React.useState<SmScheduleMasterTemplate[]>([]);

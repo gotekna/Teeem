@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -174,7 +174,21 @@ const FIELD_REFERENCE: FieldGroup[] = [
 export default function DocumentTemplatesPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const editTemplateId = searchParams.get("edit");
+
+  // URL-synced tab state
+  const tabParam = searchParams.get("tab");
+  const validTabs = ["templates", "fields", "preview"] as const;
+  type TabType = typeof validTabs[number];
+  const activeTab: TabType = validTabs.includes(tabParam as TabType) ? (tabParam as TabType) : "templates";
+
+  const handleTabChange = useCallback((tab: TabType) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +197,6 @@ export default function DocumentTemplatesPage() {
   const [expandedGroups, setExpandedGroups] = useState<string[]>(["✨ Smart Tags (Letters)", "📄 Contract Tags"]);
   const [previewJobId, setPreviewJobId] = useState<string>("");
   const [previewing, setPreviewing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"templates" | "fields" | "preview">("templates");
 
   useEffect(() => {
     fetchTemplates();
@@ -195,10 +208,10 @@ export default function DocumentTemplatesPage() {
       const template = templates.find(t => t.id.toString() === editTemplateId);
       if (template) {
         setSelectedTemplate(template);
-        setActiveTab("templates");
+        handleTabChange("templates");
       }
     }
-  }, [editTemplateId, templates]);
+  }, [editTemplateId, templates, handleTabChange]);
 
   const fetchTemplates = async () => {
     try {
@@ -278,7 +291,7 @@ export default function DocumentTemplatesPage() {
       {/* Tab Navigation */}
       <div className="mb-6 flex gap-2 border-b">
         <button
-          onClick={() => setActiveTab("templates")}
+          onClick={() => handleTabChange("templates")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "templates"
               ? "border-blue-600 text-blue-600"
@@ -289,7 +302,7 @@ export default function DocumentTemplatesPage() {
           Templates ({templates.length})
         </button>
         <button
-          onClick={() => setActiveTab("fields")}
+          onClick={() => handleTabChange("fields")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "fields"
               ? "border-blue-600 text-blue-600"
@@ -300,7 +313,7 @@ export default function DocumentTemplatesPage() {
           Field Reference
         </button>
         <button
-          onClick={() => setActiveTab("preview")}
+          onClick={() => handleTabChange("preview")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "preview"
               ? "border-blue-600 text-blue-600"
@@ -356,7 +369,7 @@ export default function DocumentTemplatesPage() {
                           size="sm"
                           onClick={() => {
                             setSelectedTemplate(template);
-                            setActiveTab("preview");
+                            handleTabChange("preview");
                           }}
                         >
                           <Eye className="h-4 w-4" />

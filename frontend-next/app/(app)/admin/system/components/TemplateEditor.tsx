@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,11 +46,26 @@ interface LayoutData {
 }
 
 export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // URL-synced subtab state
+  const subtabParam = searchParams.get("subtab");
+  const validSubtabs = ["content", "layout", "preview"] as const;
+  type SubtabType = typeof validSubtabs[number];
+  const activeTab: SubtabType = validSubtabs.includes(subtabParam as SubtabType) ? (subtabParam as SubtabType) : "content";
+
+  const handleTabChange = React.useCallback((tab: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("subtab", tab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
+
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [template, setTemplate] = React.useState<TemplateData | null>(null);
   const [layouts, setLayouts] = React.useState<LayoutData[]>([]);
-  const [activeTab, setActiveTab] = React.useState<string>("content");
   const [templateContent, setTemplateContent] = React.useState<string>("");
   const [layoutContent, setLayoutContent] = React.useState<string>("");
   const [selectedLayout, setSelectedLayout] = React.useState<string>("");
@@ -257,7 +273,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="content" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />

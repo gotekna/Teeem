@@ -742,24 +742,20 @@ export default function JobDetailPage() {
   // If there's an active child, use that; otherwise use the parent
   const activeTab = activeChildTab || activeParentTab;
 
-  // Auto-select first child when landing on a parent tab without subtab
-  const [hasInitialized, setHasInitialized] = React.useState(false);
-  React.useEffect(() => {
-    if (visibleJobTabs.length > 0 && !hasInitialized) {
-      setHasInitialized(true);
+  // Derive the effective tab to display (handles default without URL redirect)
+  const effectiveActiveTab = React.useMemo(() => {
+    // If we have an explicit child tab, use it
+    if (activeChildTab) return activeChildTab;
 
-      // If on a parent tab without a subtab, auto-select first child
-      if (isParentTab(activeParentTab) && !activeChildTab) {
-        const firstChild = findFirstChildTab(activeParentTab);
-        if (firstChild) {
-          const params = new URLSearchParams();
-          params.set("tab", activeParentTab);
-          params.set("subtab", firstChild);
-          router.replace(`/jobs/${jobId}?${params.toString()}`, { scroll: false });
-        }
-      }
+    // If parent tab has children, use first child (no URL redirect needed)
+    if (visibleJobTabs.length > 0) {
+      const firstChild = findFirstChildTab(activeParentTab);
+      if (firstChild) return firstChild;
     }
-  }, [visibleJobTabs, activeParentTab, activeChildTab, hasInitialized, isParentTab, findFirstChildTab, jobId, router]);
+
+    // Otherwise use the parent tab itself
+    return activeParentTab;
+  }, [activeChildTab, activeParentTab, visibleJobTabs, findFirstChildTab]);
 
   // Update URL when tab changes - URL is SSoT
   const handleTabChange = React.useCallback((newTab: string) => {
@@ -939,155 +935,156 @@ export default function JobDetailPage() {
     <div className="h-full flex flex-col overflow-auto">
       {/* Sticky header and tabs */}
       <div className="sticky top-0 z-40 bg-background">
-        {/* Header row - no pt-X, layout mode provides top padding */}
-        <div className="px-3 pb-2 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <BackButton fallbackHref="/jobs" className="mt-1" />
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">{job.name}</h1>
-            <div className="flex items-center gap-2 mt-1 overflow-hidden">
-              {/* Job Type - Status - Job Stage */}
-              <span className="text-sm text-muted-foreground shrink-0">{job.job_type?.name || "No Type"}</span>
-              <span className="text-sm text-muted-foreground shrink-0">-</span>
-              <span className="text-sm text-muted-foreground shrink-0">{job.job_status?.name || "No Status"}</span>
-              <span className="text-sm text-muted-foreground shrink-0">-</span>
-              <span className="text-sm text-muted-foreground shrink-0">{job.job_stage?.name || job.stage || "No Stage"}</span>
-              {/* Dates */}
-              <span className="text-sm text-muted-foreground shrink-0">·</span>
-              <span className="text-sm shrink-0">
-                <span className="text-muted-foreground">Start:</span>{" "}
-                <span className="font-medium">
-                  {job.start_date
-                    ? new Date(job.start_date).toLocaleDateString("en-AU", {
-                        day: "numeric",
-                        month: "short",
-                      })
-                    : "-"}
-                </span>
-              </span>
-              <span className="text-sm text-muted-foreground shrink-0">·</span>
-              <span className="text-sm shrink-0">
-                <span className="text-muted-foreground">PC:</span>{" "}
-                <span className="font-medium">
-                  {job.practical_completion_date
-                    ? new Date(job.practical_completion_date).toLocaleDateString("en-AU", {
-                        day: "numeric",
-                        month: "short",
-                      })
-                    : "-"}
-                </span>
-              </span>
-              {/* Owners (clients) - truncated to prevent layout shift */}
-              {(() => {
-                const owners = job.contacts?.filter(c => c.role === "client") || [];
-                if (owners.length === 0) return null;
-                return (
-                  <>
-                    <span className="text-sm text-muted-foreground shrink-0">·</span>
-                    <span className="text-sm truncate max-w-[300px]">
-                      <span className="text-muted-foreground">Owner:</span>{" "}
-                      {owners.map((o, idx) => (
-                        <span key={o.contact_id}>
-                          {idx > 0 && " & "}
-                          <Link
-                            href={`/contacts/${o.contact_id}?returnTo=${encodeURIComponent(`/jobs/${jobId}?tab=${activeParentTab}${activeChildTab ? `&subtab=${activeChildTab}` : ''}`)}`}
-                            className="font-medium text-primary hover:underline"
-                          >
-                            {o.contact.display_name}
-                          </Link>
-                        </span>
+        {/* Header section - no pt-X, layout mode provides top padding */}
+        <div className="px-3 pb-2">
+          {/* Row 1: Title + Buttons */}
+          <div className="flex items-center justify-between gap-4">
+            {/* Left: Back + Title - name wins, takes priority */}
+            <div className="flex items-center gap-4 shrink-0">
+              <BackButton fallbackHref="/jobs" className="shrink-0" />
+              <h1 className="text-2xl font-bold tracking-tight font-serif">{job.name}</h1>
+            </div>
+            {/* Right: Buttons - can shrink/overflow when name is long */}
+            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+              {/* Contract Value */}
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-muted rounded text-sm">
+                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="font-semibold">{formatCurrency(job.contract_price || job.contract_value || 0)}</span>
+              </div>
+              {/* Profit */}
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-muted rounded text-sm">
+                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="font-semibold">{formatCurrency(job.live_profit || 0)}</span>
+                <span className="text-muted-foreground text-xs">({safePercent(job.profit_percentage)})</span>
+              </div>
+              <Button size="sm" className="h-auto py-0.5 px-2 text-sm" onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
+                Open Schedule
+              </Button>
+              {/* Tab Preferences Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" title="Tab preferences">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72 p-2">
+                  {/* Header row */}
+                  <div className="flex items-center gap-1 px-2 pb-2 text-xs font-medium text-muted-foreground">
+                    <span className="w-7 text-center">#</span>
+                    <span className="flex-1">Tab</span>
+                    <span className="w-8 text-center">Show</span>
+                    <span className="w-8 text-center">1st</span>
+                  </div>
+                  <DropdownMenuSeparator />
+                  {/* Sortable tab rows */}
+                  <RadioGroup
+                    value={userDefaultTab || "overview"}
+                    onValueChange={(value) => setDefaultTab(value)}
+                    className="gap-0"
+                  >
+                    <SortableList
+                      items={orderedJobTabs}
+                      onReorder={handleTabReorder}
+                      className="py-1"
+                    >
+                      {orderedJobTabs.map((tab, index) => (
+                        <SortableItem
+                          key={tab.id}
+                          id={tab.id}
+                          position={index + 1}
+                          editableBadge
+                          maxPosition={orderedJobTabs.length}
+                          onPositionChange={(newPos) => {
+                            const reordered = reorderByPosition(orderedJobTabs, tab.id, newPos);
+                            handleTabReorder(reordered);
+                          }}
+                          showHandle={true}
+                          actions={
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                checked={!isTabHidden(tab.tab_key)}
+                                onCheckedChange={() => toggleTab(tab.tab_key)}
+                              />
+                              <RadioGroupItem
+                                value={tab.tab_key}
+                                disabled={isTabHidden(tab.tab_key)}
+                              />
+                            </div>
+                          }
+                        >
+                          <span className="text-sm truncate">{tab.display_name}</span>
+                        </SortableItem>
                       ))}
-                    </span>
-                  </>
-                );
-              })()}
+                    </SortableList>
+                  </RadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {/* Contract Value */}
-          <div className="flex items-center gap-1 px-3 py-1.5 bg-muted rounded-md">
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-            <span className="font-semibold">{formatCurrency(job.contract_price || job.contract_value || 0)}</span>
+          {/* Row 2: Metadata - full width */}
+          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+            <span>{job.job_type?.name || "No Type"}</span>
+            <span>-</span>
+            <span>{job.job_status?.name || "No Status"}</span>
+            <span>-</span>
+            <span>{job.job_stage?.name || job.stage || "No Stage"}</span>
+            <span>·</span>
+            <span>
+              Start:{" "}
+              <span className="font-medium text-foreground">
+                {job.start_date
+                  ? new Date(job.start_date).toLocaleDateString("en-AU", {
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "-"}
+              </span>
+            </span>
+            <span>·</span>
+            <span>
+              PC:{" "}
+              <span className="font-medium text-foreground">
+                {job.practical_completion_date
+                  ? new Date(job.practical_completion_date).toLocaleDateString("en-AU", {
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "-"}
+              </span>
+            </span>
+            {/* Owners (clients) */}
+            {(() => {
+              const owners = job.contacts?.filter(c => c.role === "client") || [];
+              if (owners.length === 0) return null;
+              return (
+                <>
+                  <span>·</span>
+                  <span>
+                    Owner:{" "}
+                    {owners.map((o, idx) => (
+                      <span key={o.contact_id}>
+                        {idx > 0 && " & "}
+                        <Link
+                          href={`/contacts/${o.contact_id}?returnTo=${encodeURIComponent(`/jobs/${jobId}?tab=${activeParentTab}${activeChildTab ? `&subtab=${activeChildTab}` : ''}`)}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {o.contact.display_name}
+                        </Link>
+                      </span>
+                    ))}
+                  </span>
+                </>
+              );
+            })()}
           </div>
-          {/* Profit */}
-          <div className="flex items-center gap-1 px-3 py-1.5 bg-muted rounded-md">
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            <span className="font-semibold">{formatCurrency(job.live_profit || 0)}</span>
-            <span className="text-muted-foreground text-sm">({safePercent(job.profit_percentage)})</span>
-          </div>
-          <Button onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
-            Open Schedule
-          </Button>
-
-          {/* Tab Preferences Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" title="Tab preferences">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72 p-2">
-              {/* Header row */}
-              <div className="flex items-center gap-1 px-2 pb-2 text-xs font-medium text-muted-foreground">
-                <span className="w-7 text-center">#</span>
-                <span className="flex-1">Tab</span>
-                <span className="w-8 text-center">Show</span>
-                <span className="w-8 text-center">1st</span>
-              </div>
-              <DropdownMenuSeparator />
-              {/* Sortable tab rows */}
-              <RadioGroup
-                value={userDefaultTab || "overview"}
-                onValueChange={(value) => setDefaultTab(value)}
-                className="gap-0"
-              >
-                <SortableList
-                  items={orderedJobTabs}
-                  onReorder={handleTabReorder}
-                  className="py-1"
-                >
-                  {orderedJobTabs.map((tab, index) => (
-                    <SortableItem
-                      key={tab.id}
-                      id={tab.id}
-                      position={index + 1}
-                      editableBadge
-                      maxPosition={orderedJobTabs.length}
-                      onPositionChange={(newPos) => {
-                        const reordered = reorderByPosition(orderedJobTabs, tab.id, newPos);
-                        handleTabReorder(reordered);
-                      }}
-                      showHandle={true}
-                      actions={
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={!isTabHidden(tab.tab_key)}
-                            onCheckedChange={() => toggleTab(tab.tab_key)}
-                          />
-                          <RadioGroupItem
-                            value={tab.tab_key}
-                            disabled={isTabHidden(tab.tab_key)}
-                          />
-                        </div>
-                      }
-                    >
-                      <span className="text-sm truncate">{tab.display_name}</span>
-                    </SortableItem>
-                  ))}
-                </SortableList>
-              </RadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
-      </div>
 
         {/* Tabs trigger */}
         <div className="px-3 pb-2">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <Tabs value={effectiveActiveTab} onValueChange={handleTabChange}>
             <HierarchicalTabsList
               tabs={visibleJobTabs}
-              activeTab={activeTab}
+              activeTab={effectiveActiveTab}
               onTabChange={handleTabChange}
             />
           </Tabs>
@@ -1095,7 +1092,7 @@ export default function JobDetailPage() {
       </div>
 
       {/* Tab content - scrollable */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0 px-3 pb-6">
+      <Tabs value={effectiveActiveTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0 px-3 pb-6">
         <TabsContent value="overview" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Job Details */}
@@ -1578,7 +1575,7 @@ export default function JobDetailPage() {
       </Tabs>
 
       {/* Plans tab - only mount when active, key forces fresh mount each time */}
-      {activeTab === "plans" && (
+      {effectiveActiveTab === "plans" && (
         <JobPlansTab
           key={`plans-${job.id}`}
           jobId={job.id}

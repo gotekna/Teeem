@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -76,7 +77,22 @@ const DOC_INNER_TABS = [
 export function DocumentTemplatesTab() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const subtabFromUrl = searchParams.get("subtab");
+  const activeTab = subtabFromUrl || "ssot";
   const innerTab = searchParams.get("inner") || "documents";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const currentTab = searchParams.get("tab") || "doc-templates";
+    const url = tabId === "ssot"
+      ? `/admin/system?tab=${currentTab}${innerTab !== "documents" ? `&inner=${innerTab}` : ""}`
+      : `/admin/system?tab=${currentTab}&subtab=${tabId}${innerTab !== "documents" ? `&inner=${innerTab}` : ""}`;
+    router.push(url, { scroll: false });
+  }, [router, searchParams, innerTab]);
+
+  const handleInnerTabChange = (value: string) => {
+    const currentTab = searchParams.get("tab") || "doc-templates";
+    router.push(`/admin/system?tab=${currentTab}${subtabFromUrl ? `&subtab=${subtabFromUrl}` : ""}&inner=${value}`, { scroll: false });
+  };
 
   const [ssotTemplates, setSsotTemplates] = React.useState<SsotTemplate[]>([]);
   const [legacyTemplates, setLegacyTemplates] = React.useState<LegacyTemplate[]>([]);
@@ -84,14 +100,9 @@ export function DocumentTemplatesTab() {
   const [selectedTemplate, setSelectedTemplate] = React.useState<SsotTemplate | null>(null);
   const [previewHtml, setPreviewHtml] = React.useState<string>("");
   const [previewLoading, setPreviewLoading] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<string>("ssot");
   const [editingTemplate, setEditingTemplate] = React.useState<string | null>(null);
 
   const apiUrl = getApiBaseUrl();
-
-  const handleInnerTabChange = (value: string) => {
-    router.push(`/admin/system?tab=company&subtab=doc-templates&inner=${value}`);
-  };
 
   React.useEffect(() => {
     loadAllTemplates();
@@ -293,7 +304,7 @@ export function DocumentTemplatesTab() {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="ssot">SSoT Templates ({ssotTemplates.length})</TabsTrigger>
           <TabsTrigger value="preview">Preview</TabsTrigger>

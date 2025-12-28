@@ -120,9 +120,9 @@ export interface SortableItemProps {
 }
 
 const variantClasses = {
-  card: "p-2 rounded border bg-background",
-  row: "px-3 py-2 border-b bg-background",
-  simple: "p-1.5",
+  card: "py-1 px-2 rounded border bg-background",
+  row: "px-3 py-1.5 border-b bg-background",
+  simple: "py-0.5 px-1.5",
 };
 
 const variantActiveClasses = {

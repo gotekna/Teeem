@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -498,8 +498,18 @@ export default function CorporateDashboardPage() {
   const [groupByEntityType, setGroupByEntityType] = React.useState(false);
   const [expandedContacts, setExpandedContacts] = React.useState<Set<number>>(new Set());
 
-  // Tab state
-  const [activeTab, setActiveTab] = React.useState(searchParams.get("tab") || "groups");
+  // URL-synced tab state
+  const pathname = usePathname();
+  const tabParam = searchParams.get("tab");
+  const validTabs = ["groups", "companies", "people", "memberships", "shareholders", "beneficiaries", "structure"] as const;
+  type TabType = typeof validTabs[number];
+  const activeTab: TabType = validTabs.includes(tabParam as TabType) ? (tabParam as TabType) : "groups";
+
+  const handleTabChange = React.useCallback((tab: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   // NOTE: Structure tab state moved to CorporateStructureTab component
 
@@ -1312,7 +1322,7 @@ export default function CorporateDashboardPage() {
       </Card>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-7 max-w-5xl">
           <TabsTrigger value="groups" className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
@@ -1386,7 +1396,7 @@ export default function CorporateDashboardPage() {
                               className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors"
                               onClick={() => {
                                 setSelectedGroupId(group.id);
-                                setActiveTab("structure");
+                                handleTabChange("structure");
                               }}
                             >
                               <FolderOpen className="h-5 w-5 text-indigo-600" />

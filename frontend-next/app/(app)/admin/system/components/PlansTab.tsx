@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,7 +172,18 @@ interface RevisionFormat {
 }
 
 export function PlansTab() {
-  const [activeTab, setActiveTab] = React.useState("categories");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const subtabFromUrl = searchParams.get("subtab");
+  const activeTab = subtabFromUrl || "categories";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const currentTab = searchParams.get("tab") || "plans";
+    const url = tabId === "categories"
+      ? `/admin/system?tab=${currentTab}`
+      : `/admin/system?tab=${currentTab}&subtab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router, searchParams]);
 
   return (
     <div className="space-y-6">
@@ -181,7 +194,7 @@ export function PlansTab() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="categories">
             <Folder className="h-4 w-4 mr-2" />

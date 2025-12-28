@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1658,14 +1660,25 @@ function DocumentMigration() {
 
 // Main Connections Tab
 export function ConnectionsTab() {
-  const [activeTab, setActiveTab] = React.useState("provider");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const subtabFromUrl = searchParams.get("subtab");
+  const activeTab = subtabFromUrl || "provider";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const currentTab = searchParams.get("tab") || "connections";
+    const url = tabId === "provider"
+      ? `/admin/system?tab=${currentTab}`
+      : `/admin/system?tab=${currentTab}&subtab=${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router, searchParams]);
 
   return (
     <div className="space-y-4">
       {/* Sub-tabs */}
       <div className="flex gap-1 border-b">
         <button
-          onClick={() => setActiveTab("provider")}
+          onClick={() => handleTabChange("provider")}
           className={cn(
             "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
             activeTab === "provider"
@@ -1676,7 +1689,7 @@ export function ConnectionsTab() {
           Storage Provider
         </button>
         <button
-          onClick={() => setActiveTab("migration")}
+          onClick={() => handleTabChange("migration")}
           className={cn(
             "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
             activeTab === "migration"
@@ -1687,7 +1700,7 @@ export function ConnectionsTab() {
           Migration
         </button>
         <button
-          onClick={() => setActiveTab("costs")}
+          onClick={() => handleTabChange("costs")}
           className={cn(
             "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
             activeTab === "costs"

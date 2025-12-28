@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -233,6 +234,16 @@ export function DataWarehouseTab() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const companyId = searchParams.get("company_id");
+  const subtabFromUrl = searchParams.get("subtab");
+  const activeTab = subtabFromUrl || "overview";
+
+  const handleTabChange = useCallback((tabId: string) => {
+    const currentTab = searchParams.get("tab") || "data-warehouse";
+    const url = tabId === "overview"
+      ? `/admin/system?tab=${currentTab}${companyId ? `&company_id=${companyId}` : ""}`
+      : `/admin/system?tab=${currentTab}&subtab=${tabId}${companyId ? `&company_id=${companyId}` : ""}`;
+    router.push(url, { scroll: false });
+  }, [router, searchParams, companyId]);
 
   const [loading, setLoading] = React.useState(true);
   const [stats, setStats] = React.useState<OrgDataStats | null>(null);
@@ -240,7 +251,6 @@ export function DataWarehouseTab() {
   const [warehouseMetadata, setWarehouseMetadata] = React.useState<WarehouseMetadata | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [refreshingViews, setRefreshingViews] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState("overview");
   const [selectedView, setSelectedView] = React.useState<string | null>(null);
   const [viewData, setViewData] = React.useState<ViewData | null>(null);
   const [loadingViewData, setLoadingViewData] = React.useState(false);
@@ -408,7 +418,7 @@ export function DataWarehouseTab() {
   const handleViewClick = (viewName: string) => {
     setViewOffset(0);
     loadViewData(viewName, 0);
-    setActiveTab("data");
+    handleTabChange("data");
   };
 
   const handleNextPage = () => {
@@ -541,7 +551,7 @@ export function DataWarehouseTab() {
       </div>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex flex-wrap gap-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           {/* Microsoft 365 Organization Tabs */}
