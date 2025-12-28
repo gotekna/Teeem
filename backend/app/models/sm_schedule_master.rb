@@ -129,7 +129,7 @@ class SmScheduleMaster < ApplicationRecord
 
   # Check if row belongs to a specific template
   def in_template?(template_id)
-    (sm_template_ids || []).include?(template_id)
+    (sm_template_ids || []).include?(template_id.to_i)
   end
 
   # Add row to a template
@@ -247,22 +247,27 @@ class SmScheduleMaster < ApplicationRecord
     return if predecessor_ids.blank?
 
     # Get all rows in same template(s) to build the dependency graph
+    # Must match validator/cleaner logic - handle empty templates with global fallback
     template_ids = sm_template_ids || []
-    return if template_ids.empty?
-
-    # sm_template_ids is JSONB array, use @> to check containment
-    conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(' OR ')
-    all_rows = SmScheduleMaster.where(conditions)
+    all_rows = if template_ids.any?
+      # sm_template_ids is JSONB array, use @> to check containment
+      conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(' OR ')
+      SmScheduleMaster.where(conditions)
+    else
+      # Global fallback - matches validator behavior
+      SmScheduleMaster.all
+    end
 
     # Build dependency graph: task_number -> [predecessor_task_numbers]
+    # CRITICAL: Convert IDs to integers to ensure consistent lookups
     predecessor_map = {}
     all_rows.each do |row|
       next if row.predecessor_ids.blank?
-      predecessor_map[row.task_number] = row.predecessor_ids.map { |p| p["id"] || p[:id] }.compact
+      predecessor_map[row.task_number] = row.predecessor_ids.map { |p| (p["id"] || p[:id]).to_i }.compact
     end
 
     # Update with our proposed changes (what we're trying to save)
-    predecessor_map[task_number] = predecessor_ids.map { |p| p["id"] || p[:id] }.compact
+    predecessor_map[task_number] = predecessor_ids.map { |p| (p["id"] || p[:id]).to_i }.compact
 
     # DFS cycle detection
     if has_cycle_in_graph?(task_number, predecessor_map, Set.new, Set.new)
@@ -288,11 +293,11 @@ class SmScheduleMaster < ApplicationRecord
   def format_predecessor(pred_data)
     return nil unless pred_data.is_a?(Hash)
 
-    task_id = pred_data["id"] || pred_data[:id]
+    task_id = (pred_data["id"] || pred_data[:id]).to_i
     dep_type = pred_data["type"] || pred_data[:type] || "FS"
     lag = (pred_data["lag"] || pred_data[:lag] || 0).to_i
 
-    return nil unless task_id
+    return nil if task_id.zero?
 
     result = "#{task_id}#{dep_type}"
     result += lag >= 0 ? "+#{lag}" : lag.to_s if lag != 0
@@ -302,11 +307,11 @@ class SmScheduleMaster < ApplicationRecord
   def format_predecessor_with_name(pred_data)
     return nil unless pred_data.is_a?(Hash)
 
-    task_id = pred_data["id"] || pred_data[:id]
+    task_id = (pred_data["id"] || pred_data[:id]).to_i
     dep_type = pred_data["type"] || pred_data[:type] || "FS"
     lag = (pred_data["lag"] || pred_data[:lag] || 0).to_i
 
-    return nil unless task_id
+    return nil if task_id.zero?
 
     # Task numbers are globally unique now, so we can find by task_number directly
     predecessor_row = SmScheduleMaster.find_by(task_number: task_id)
@@ -353,7 +358,12 @@ class SmScheduleMaster < ApplicationRecord
     return unless is_active == false # Only run when being deactivated
 
     # Find all rows that reference this task as a predecessor
-    SmScheduleMaster.active.where("predecessor_ids @> ?", [{ "id" => task_number }].to_json).find_each do |row|
+    # Query both integer and string formats for consistency (predecessor IDs may be stored as either)
+    SmScheduleMaster.active.where(
+      "predecessor_ids @> ? OR predecessor_ids @> ?",
+      [{ "id" => task_number }].to_json,
+      [{ "id" => task_number.to_s }].to_json
+    ).find_each do |row|
       original_preds = row.predecessor_ids.dup
       row.predecessor_ids = row.predecessor_ids.reject do |pred|
         (pred["id"] || pred[:id]).to_i == task_number

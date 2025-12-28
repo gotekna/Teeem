@@ -568,11 +568,12 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     end
 
     begin
-      cred = MicrosoftCredential.active.app_credentials.connected.first
+      # SSoT: Use MicrosoftCredential.sharepoint_credential
+      cred = MicrosoftCredential.sharepoint_credential
       unless cred
         return render json: {
           success: false,
-          error: "SharePoint not configured"
+          error: "SharePoint not configured. Please connect in Admin > System > Connections."
         }, status: :service_unavailable
       end
 

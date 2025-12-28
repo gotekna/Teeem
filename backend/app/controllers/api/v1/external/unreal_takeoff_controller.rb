@@ -166,7 +166,6 @@ module Api
 
           # Get available pricebook colours for the picker
           pricebook_colours = PricebookItem.where.not(colour: [nil, ""])
-            .select(:id, :item_code, :item_name, :colour, :colour_code, :colour_brand, :current_price, :category)
             .limit(500)
             .map do |item|
               {

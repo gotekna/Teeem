@@ -163,7 +163,7 @@ class SmScheduleMasterTemplateCopyService
       next unless successor_task
 
       row.predecessor_ids.each do |pred_data|
-        pred_task_number = pred_data["id"] || pred_data[:id]
+        pred_task_number = (pred_data["id"] || pred_data[:id]).to_i
         predecessor_task = @task_number_map[pred_task_number]
         next unless predecessor_task
 

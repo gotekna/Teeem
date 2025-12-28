@@ -110,9 +110,9 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # SSoT: Use MicrosoftCredential only
+        # SSoT: Use MicrosoftCredential.sharepoint_credential
         begin
-          credential = MicrosoftCredential.active.app_credentials.connected.first
+          credential = MicrosoftCredential.sharepoint_credential
 
           unless credential
             return render json: {

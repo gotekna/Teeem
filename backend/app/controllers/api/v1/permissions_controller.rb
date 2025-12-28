@@ -75,7 +75,7 @@ module Api
       # Returns users assigned to a specific role via user_roles join table
       def role_users
         role = Role.find(params[:id])
-        users = role.users.order(:name).select(:id, :name, :email)
+        users = role.users.order(:name)
 
         render json: {
           success: true,
