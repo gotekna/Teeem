@@ -111,9 +111,8 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # SSoT: Create/update unified MicrosoftCredential for the user
     update_unified_microsoft_credential(user, tokens, microsoft_email)
 
-    # Also create/update organization-level OneDrive credential for SharePoint access
-    # This allows the org to have shared OneDrive/SharePoint access via any user's connection
-    # TODO: Remove in Phase 2.3 - migrate to MicrosoftCredential.delegated_credentials.org_level
+    # SSoT: Create org-level SharePoint credential for shared access
+    # Uses MicrosoftCredential.delegated_credentials.org_level
     update_organization_onedrive_credential(user, tokens)
 
     Rails.logger.info "Microsoft connected successfully for user #{user.id} (#{microsoft_email})"

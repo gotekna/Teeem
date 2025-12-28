@@ -1163,7 +1163,7 @@ export function ViewManagerSheet({
           ) : (
             <div className="flex-1 flex overflow-hidden">
               {/* Left Panel - Views List */}
-              <div className="w-72 border-r flex flex-col">
+              <div className="w-80 border-r flex flex-col">
                 <div className="p-3 border-b">
                   <Button onClick={handleCreateNew} className="w-full" size="sm">
                     <Plus className="h-4 w-4 mr-2" />

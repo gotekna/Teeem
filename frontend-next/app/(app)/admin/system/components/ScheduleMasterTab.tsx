@@ -1971,37 +1971,42 @@ export function ScheduleMasterTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Row Edit Sheet */}
+      {/* Row Edit Sheet - Compact 2-column layout to avoid scrolling */}
       <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <SheetContent className="w-[500px] sm:max-w-[500px]">
-          <SheetHeader>
+        <SheetContent className="w-[800px] sm:max-w-[800px]">
+          <SheetHeader className="pb-2">
             <SheetTitle>Edit Row</SheetTitle>
             <SheetDescription>
               {editingRow?.name} (Task #{editingRow?.task_number})
             </SheetDescription>
           </SheetHeader>
-          <div className="py-6 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="row-name">Name</Label>
-              <Input
-                id="row-name"
-                value={editRowForm.name || ""}
-                onChange={(e) => setEditRowForm({ ...editRowForm, name: e.target.value })}
-              />
+          <div className="py-3 space-y-3">
+            {/* Row 1: Name + Duration */}
+            <div className="grid grid-cols-[1fr_100px] gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="row-name" className="text-xs">Name</Label>
+                <Input
+                  id="row-name"
+                  value={editRowForm.name || ""}
+                  onChange={(e) => setEditRowForm({ ...editRowForm, name: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="row-duration" className="text-xs">Days</Label>
+                <Input
+                  id="row-duration"
+                  type="number"
+                  value={editRowForm.duration_days || 0}
+                  onChange={(e) => setEditRowForm({ ...editRowForm, duration_days: parseInt(e.target.value) || 0 })}
+                  className="h-8"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="row-duration">Duration (days)</Label>
-              <Input
-                id="row-duration"
-                type="number"
-                value={editRowForm.duration_days || 0}
-                onChange={(e) => setEditRowForm({ ...editRowForm, duration_days: parseInt(e.target.value) || 0 })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Trade</Label>
-                {/* SSoT: Trades from Foundation SM Trades - uses trade_name from API as fallback */}
+            {/* Row 2: Trade + Stage */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Trade</Label>
                 <ComboboxDropdown
                   items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
                   selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editingRow?.trade_name || editRowForm.trade } : undefined}
@@ -2012,9 +2017,8 @@ export function ScheduleMasterTab() {
                   onClear={() => setEditRowForm({ ...editRowForm, trade: "" })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Stage</Label>
-                {/* SSoT: Stages from Foundation SM Stages - uses stage_name from API as fallback */}
+              <div className="space-y-1">
+                <Label className="text-xs">Stage</Label>
                 <ComboboxDropdown
                   items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
                   selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editingRow?.stage_name || editRowForm.stage } : undefined}
@@ -2026,10 +2030,10 @@ export function ScheduleMasterTab() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Assigned Role</Label>
-                {/* SSoT: Roles from Foundation Role (ID 413) - Admin > System > Company > Security > Roles */}
+            {/* Row 3: Assigned Role + Cost Centre */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Assigned Role</Label>
                 <ComboboxDropdown
                   items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
                   selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => String(r.id) === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
@@ -2040,14 +2044,13 @@ export function ScheduleMasterTab() {
                   onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Cost Centre</Label>
-                {/* SSoT: Cost Centres from Foundation Cost Centres (ID 533) */}
+              <div className="space-y-1">
+                <Label className="text-xs">Cost Centre</Label>
                 <ComboboxDropdown
                   items={availableCostCentres.map(c => ({ id: String(c.id), label: c.name }))}
                   selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: availableCostCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre } : undefined}
                   onSelect={(item) => setEditRowForm({ ...editRowForm, cost_centre: item.id })}
-                  placeholder="Select cost centre..."
+                  placeholder="Cost centre..."
                   emptyResults="No cost centres found"
                   clearable
                   onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
@@ -2055,63 +2058,46 @@ export function ScheduleMasterTab() {
               </div>
             </div>
 
-            {/* PO Settings */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium mb-3">PO Settings</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="row-po-required">PO Required</Label>
-                  <Switch
-                    id="row-po-required"
-                    checked={editRowForm.po_required || false}
-                    onCheckedChange={(checked) => {
-                      // Clear spawn tasks when PO is not required
-                      if (!checked && !editRowForm.create_po_on_job_start) {
-                        setEditRowForm({
-                          ...editRowForm,
-                          po_required: checked,
-                          spawn_order_task: false,
-                          spawn_call_task: false,
-                          order_time_days: undefined,
-                          call_time_days: undefined,
-                        });
-                      } else {
-                        setEditRowForm({ ...editRowForm, po_required: checked });
-                      }
-                    }}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="row-critical-po">Critical PO</Label>
-                  <Switch
-                    id="row-critical-po"
-                    checked={editRowForm.critical_po || false}
-                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, critical_po: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label htmlFor="row-create-po">Create PO on Job Start</Label>
-                    {editingRow?.po_supplier_name && (
-                      <p className="text-xs text-muted-foreground">
-                        Supplier: {editingRow.po_supplier_name}
-                        {editingRow.po_line_items && editingRow.po_line_items.length > 0 && (
-                          <> · {editingRow.po_line_items.length} items</>
-                        )}
-                      </p>
-                    )}
+            {/* PO Settings + Completion - side by side, both left-aligned */}
+            <div className="flex gap-8 border-t pt-3">
+              {/* PO Settings */}
+              <div>
+                <h4 className="font-medium text-sm mb-2">PO Settings</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="row-po-required"
+                      checked={editRowForm.po_required || false}
+                      onCheckedChange={(checked) => {
+                        if (!checked && !editRowForm.create_po_on_job_start) {
+                          setEditRowForm({
+                            ...editRowForm,
+                            po_required: checked,
+                            spawn_order_task: false,
+                            spawn_call_task: false,
+                            order_time_days: undefined,
+                            call_time_days: undefined,
+                          });
+                        } else {
+                          setEditRowForm({ ...editRowForm, po_required: checked });
+                        }
+                      }}
+                    />
+                    <Label htmlFor="row-po-required" className="text-xs">PO Required</Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    {editRowForm.create_po_on_job_start && (
-                      <Button variant="outline" size="sm" onClick={handleOpenAutoPODialog}>
-                        Configure
-                      </Button>
-                    )}
+                    <Switch
+                      id="row-critical-po"
+                      checked={editRowForm.critical_po || false}
+                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, critical_po: checked })}
+                    />
+                    <Label htmlFor="row-critical-po" className="text-xs">Critical PO</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <Switch
                       id="row-create-po"
                       checked={editRowForm.create_po_on_job_start || false}
                       onCheckedChange={(checked) => {
-                        // Clear spawn tasks when neither PO option is enabled
                         if (!checked && !editRowForm.po_required) {
                           setEditRowForm({
                             ...editRowForm,
@@ -2129,115 +2115,97 @@ export function ScheduleMasterTab() {
                         }
                       }}
                     />
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="row-create-po" className="text-xs">Auto-PO on Start</Label>
+                      {editRowForm.create_po_on_job_start && (
+                        <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={handleOpenAutoPODialog}>
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="row-spawn-order"
+                      checked={editRowForm.spawn_order_task || false}
+                      disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
+                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_order_task: checked })}
+                    />
+                    <Label htmlFor="row-spawn-order" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                      Spawn Order Task
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="row-spawn-call"
+                      checked={editRowForm.spawn_call_task || false}
+                      disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
+                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_call_task: checked })}
+                    />
+                    <Label htmlFor="row-spawn-call" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                      Spawn Call Task
+                    </Label>
                   </div>
                 </div>
+              </div>
 
-                {/* Spawn Order/Call Tasks - only enabled when PO is configured */}
-                <div className="border-t pt-3 mt-3">
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Spawn reminder tasks when PO is created
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="row-spawn-order" className={!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}>
-                          Spawn Order Task
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Creates "Order [Task]" {editRowForm.order_time_days || 7} days before
-                        </p>
-                      </div>
-                      <Switch
-                        id="row-spawn-order"
-                        checked={editRowForm.spawn_order_task || false}
-                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_order_task: checked })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="row-spawn-call" className={!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}>
-                          Spawn Call Task
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Creates "Call [Task]" {editRowForm.call_time_days || 3} days before
-                        </p>
-                      </div>
-                      <Switch
-                        id="row-spawn-call"
-                        checked={editRowForm.spawn_call_task || false}
-                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_call_task: checked })}
-                      />
+              {/* Right: Completion Requirements */}
+              <div>
+                <h4 className="font-medium text-sm mb-2">Completion</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="row-require-photo"
+                      checked={editRowForm.require_photo || false}
+                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
+                    />
+                    <Label htmlFor="row-require-photo" className="text-xs">Require Photo</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="row-pass-fail"
+                      checked={editRowForm.pass_fail_enabled || false}
+                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
+                    />
+                    <div>
+                      <Label htmlFor="row-pass-fail" className="text-xs">Pass/Fail</Label>
+                      <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
                     </div>
                   </div>
                 </div>
-
-                {/* Linked Tasks - non-PO tasks that follow this PO task's visibility */}
-                {editRowForm.po_required && (
-                  <div className="border-t pt-3 mt-3">
-                    <div className="space-y-2">
-                      <Label>Linked Tasks</Label>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Non-PO tasks that only appear on jobs when this PO task is included
-                      </p>
-                      <MultipleSelector
-                        value={(editRowForm.linked_task_ids || []).map(id => {
-                          const linkedRow = dataViewRows.find(r => r.id === id);
-                          return { value: String(id), label: linkedRow?.name || `Task ${id}` };
-                        })}
-                        onChange={(options) => {
-                          setEditRowForm({
-                            ...editRowForm,
-                            linked_task_ids: options.map(o => parseInt(o.value))
-                          });
-                        }}
-                        defaultOptions={dataViewRows
-                          .filter(r => !r.po_required && r.id !== editingRow?.id)
-                          .map(r => ({
-                            value: String(r.id),
-                            label: r.name
-                          }))}
-                        placeholder="Select tasks to link..."
-                        emptyIndicator={
-                          <p className="text-center text-sm text-muted-foreground">
-                            No non-PO tasks available
-                          </p>
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Completion Requirements */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium mb-3">Completion Requirements</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="row-require-photo">Require Photo</Label>
-                  <Switch
-                    id="row-require-photo"
-                    checked={editRowForm.require_photo || false}
-                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="row-pass-fail">Pass/Fail Inspection</Label>
-                    <p className="text-xs text-muted-foreground">
-                      If failed, spawns "Re-inspect" task
+            {/* Linked Tasks - only shown when PO Required is on */}
+            {editRowForm.po_required && (
+              <div className="border-t pt-3">
+                <Label className="text-xs">Linked Tasks (appear when this PO task is included)</Label>
+                <MultipleSelector
+                  value={(editRowForm.linked_task_ids || []).map(id => {
+                    const linkedRow = dataViewRows.find(r => r.id === id);
+                    return { value: String(id), label: linkedRow?.name || `Task ${id}` };
+                  })}
+                  onChange={(options) => {
+                    setEditRowForm({
+                      ...editRowForm,
+                      linked_task_ids: options.map(o => parseInt(o.value))
+                    });
+                  }}
+                  defaultOptions={dataViewRows
+                    .filter(r => !r.po_required && r.id !== editingRow?.id)
+                    .map(r => ({
+                      value: String(r.id),
+                      label: r.name
+                    }))}
+                  placeholder="Select tasks to link..."
+                  emptyIndicator={
+                    <p className="text-center text-xs text-muted-foreground">
+                      No non-PO tasks available
                     </p>
-                  </div>
-                  <Switch
-                    id="row-pass-fail"
-                    checked={editRowForm.pass_fail_enabled || false}
-                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
-                  />
-                </div>
+                  }
+                />
               </div>
-            </div>
+            )}
           </div>
           <SheetFooter className="flex items-center justify-between sm:justify-between">
             {/* Auto-save status indicator */}
