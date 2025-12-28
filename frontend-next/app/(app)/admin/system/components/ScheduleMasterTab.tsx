@@ -121,6 +121,7 @@ interface SmScheduleMaster {
   trade?: string;
   stage?: string;
   assigned_role?: string | null;
+  cost_centre?: string;
   po_required: boolean;
   critical_po?: boolean;
   create_po_on_job_start?: boolean;
@@ -300,13 +301,15 @@ export function ScheduleMasterTab() {
   const [editTagName, setEditTagName] = React.useState("");
   const [savingTag, setSavingTag] = React.useState(false);
 
-  // Trade, Stage, Role dropdown management
+  // Trade, Stage, Role, Cost Centre dropdown management
   // SSoT: Trades come from Foundation SM Trades (ID 542)
   const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Stages come from Foundation SM Stages (ID 543)
   const [availableStages, setAvailableStages] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Roles come from Role model (Admin > System > Company > Security > Roles)
   const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
+  // SSoT: Cost Centres come from Foundation Cost Centres (ID 533)
+  const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -346,6 +349,7 @@ export function ScheduleMasterTab() {
     loadTrades();
     loadStages();
     loadRoles();
+    loadCostCentres();
   }, []);
 
   // Load job EntityTabs for photo storage dropdown
@@ -471,6 +475,18 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load roles:", error);
+    }
+  };
+
+  // SSoT: Load cost centres from Foundation Cost Centres (ID 533)
+  const loadCostCentres = async () => {
+    try {
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/533/records?per_page=100");
+      if (data?.records) {
+        setAvailableCostCentres(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load cost centres:", error);
     }
   };
 
@@ -1883,6 +1899,23 @@ export function ScheduleMasterTab() {
                 />
               </div>
             </div>
+
+            {/* Cost Centres Table */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Cost Centres</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Cost centres for categorizing schedule tasks (e.g., Administration, Residential Projects).
+              </p>
+              <div className="border rounded-lg overflow-hidden h-[400px]">
+                <TeeemTableView
+                  entries={[]}
+                  foundationId="cost_centres"
+                  foundationIdNumeric={533}
+                  tableName="Cost Centres"
+                  enableExport={false}
+                />
+              </div>
+            </div>
           </div>
         </TabsContent>
         </div>
@@ -1996,18 +2029,33 @@ export function ScheduleMasterTab() {
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Assigned Role</Label>
-              {/* SSoT: Roles from Role model (Admin > System > Company > Security > Roles) */}
-              <ComboboxDropdown
-                items={availableRoles.map(r => ({ id: r.name, label: r.display_name }))}
-                selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => r.name === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
-                onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
-                placeholder="Select role..."
-                emptyResults="No roles found"
-                clearable
-                onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Assigned Role</Label>
+                {/* SSoT: Roles from Role model (Admin > System > Company > Security > Roles) */}
+                <ComboboxDropdown
+                  items={availableRoles.map(r => ({ id: r.name, label: r.display_name }))}
+                  selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => r.name === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
+                  onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
+                  placeholder="Select role..."
+                  emptyResults="No roles found"
+                  clearable
+                  onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Cost Centre</Label>
+                {/* SSoT: Cost Centres from Foundation Cost Centres (ID 533) */}
+                <ComboboxDropdown
+                  items={availableCostCentres.map(c => ({ id: String(c.id), label: c.name }))}
+                  selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: availableCostCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre } : undefined}
+                  onSelect={(item) => setEditRowForm({ ...editRowForm, cost_centre: item.id })}
+                  placeholder="Select cost centre..."
+                  emptyResults="No cost centres found"
+                  clearable
+                  onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
+                />
+              </div>
             </div>
 
             {/* PO Settings */}
