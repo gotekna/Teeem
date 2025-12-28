@@ -80,6 +80,7 @@ function PhotoSkeleton({ size = "md" }: { size?: "sm" | "md" | "lg" | "xl" }) {
 }
 
 // Individual photo thumbnail
+// Handles expired Microsoft Graph thumbnail URLs by falling back to proxy URL
 function PhotoThumbnail({
   photo,
   index,
@@ -93,6 +94,8 @@ function PhotoThumbnail({
 }) {
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState(false);
+  // Track if we've tried the fallback URL (prevents infinite retry loop)
+  const [useFallback, setUseFallback] = React.useState(false);
 
   const sizeClasses = {
     sm: "h-24 w-24",
@@ -101,7 +104,23 @@ function PhotoThumbnail({
     xl: "h-60 w-60",
   };
 
-  const thumbnailSrc = photo.thumbnailUrl || photo.url;
+  // Try thumbnailUrl first, fall back to url (proxy) if thumbnail fails
+  // Microsoft Graph thumbnail URLs expire after a few hours, so fallback is common
+  const thumbnailSrc = useFallback
+    ? photo.url  // Fallback to proxy URL (always works but slower)
+    : (photo.thumbnailUrl || photo.url);
+
+  // Handle thumbnail load error - try fallback before showing error state
+  const handleError = () => {
+    if (!useFallback && photo.thumbnailUrl && photo.url && photo.thumbnailUrl !== photo.url) {
+      // Thumbnail failed (likely expired), try the proxy URL
+      setUseFallback(true);
+      setLoaded(false);
+    } else {
+      // Both URLs failed or no fallback available
+      setError(true);
+    }
+  };
 
   return (
     <button
@@ -139,7 +158,7 @@ function PhotoThumbnail({
           alt={photo.name}
           loading="lazy"
           onLoad={() => setLoaded(true)}
-          onError={() => setError(true)}
+          onError={handleError}
           className={cn(
             "absolute inset-0 h-full w-full object-cover",
             "transition-opacity duration-300",

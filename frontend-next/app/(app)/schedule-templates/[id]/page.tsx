@@ -262,6 +262,10 @@ export default function ScheduleTemplateDetailPage() {
   const [showAutoPODialog, setShowAutoPODialog] = React.useState(false);
   const [autoPORow, setAutoPORow] = React.useState<SmScheduleMaster | null>(null);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
+
+  // Trade and Stage lookup options
+  const [trades, setTrades] = React.useState<{ id: number; name: string }[]>([]);
+  const [stages, setStages] = React.useState<{ id: number; name: string }[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = React.useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = React.useState<string>("");
   const [savingAutoPO, setSavingAutoPO] = React.useState(false);
@@ -271,18 +275,22 @@ export default function ScheduleTemplateDetailPage() {
     try {
       setLoading(true);
 
-      // Load template, rows, plan types, and entity tabs in parallel
-      const [templateData, rowsData, planTypesData, entityTabsData] = await Promise.all([
+      // Load template, rows, plan types, entity tabs, trades, and stages in parallel
+      const [templateData, rowsData, planTypesData, entityTabsData, tradesData, stagesData] = await Promise.all([
         api.get<{ success: boolean; sm_schedule_master_template: SmScheduleMasterTemplate }>(`/api/v1/sm_schedule_master_templates/${templateId}`),
         api.get<{ success: boolean; rows: SmScheduleMaster[] }>(`/api/v1/sm_schedule_master_templates/${templateId}/rows`),
         api.get<{ success: boolean; data: PlanType[] }>("/api/v1/plan_types"),
         api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs/for_scope/job"),
+        api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades"),
+        api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages"),
       ]);
 
       setTemplate(templateData.sm_schedule_master_template);
       setRows(rowsData.rows || []);
       setPlanTypes(planTypesData.data || []);
       setEntityTabs(entityTabsData.data?.tabs || []);
+      setTrades(tradesData.data || []);
+      setStages(stagesData.data || []);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast({
@@ -773,19 +781,41 @@ export default function ScheduleTemplateDetailPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Trade</Label>
-                  <Input
+                  <Select
                     value={editForm.trade || ""}
-                    onChange={(e) => setEditForm({ ...editForm, trade: e.target.value })}
-                    placeholder="e.g., Carpentry, Plumbing"
-                  />
+                    onValueChange={(value) => setEditForm({ ...editForm, trade: value === "__none__" ? null : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select trade..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {trades.map((trade) => (
+                        <SelectItem key={trade.id} value={trade.name}>
+                          {trade.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Stage</Label>
-                  <Input
+                  <Select
                     value={editForm.stage || ""}
-                    onChange={(e) => setEditForm({ ...editForm, stage: e.target.value })}
-                    placeholder="e.g., Frame, Lock-up"
-                  />
+                    onValueChange={(value) => setEditForm({ ...editForm, stage: value === "__none__" ? null : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select stage..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {stages.map((stage) => (
+                        <SelectItem key={stage.id} value={stage.name}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="col-span-2 space-y-2">
                   <Label>Cost Centre</Label>
