@@ -35,6 +35,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { safePercent } from "@/lib/utils";
 
 interface ProgressClaim {
   id: number;
@@ -371,7 +372,7 @@ export default function ProgressClaimsTab() {
                     <TableCell>
                       <div className="w-24">
                         <div className="flex items-center justify-between text-xs mb-1">
-                          <span>{(claim.total_claimed_pct ?? 0).toFixed(0)}%</span>
+                          <span>{safePercent(claim.total_claimed_pct, 0)}</span>
                         </div>
                         <Progress value={claim.total_claimed_pct ?? 0} className="h-2" />
                       </div>
@@ -379,7 +380,7 @@ export default function ProgressClaimsTab() {
                     <TableCell className="text-right font-medium">
                       {formatCurrency(claim.this_claim_amount)}
                       <div className="text-xs text-muted-foreground">
-                        +{(claim.this_claim_pct ?? 0).toFixed(1)}%
+                        +{safePercent(claim.this_claim_pct)}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">

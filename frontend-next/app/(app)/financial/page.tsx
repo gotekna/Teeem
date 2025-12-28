@@ -66,7 +66,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, safePercent } from "@/lib/utils";
 
 // ============================================================================
 // Types
@@ -425,7 +425,7 @@ function AgingBar({ aging, colorClass }: { aging: AgedBucket[]; colorClass: stri
             key={bucket.label}
             className={cn(palette[i], "transition-all")}
             style={{ width: `${bucket.percent}%` }}
-            title={`${bucket.label}: ${formatCurrency(bucket.amount)} (${(bucket.percent ?? 0).toFixed(1)}%)`}
+            title={`${bucket.label}: ${formatCurrency(bucket.amount)} (${safePercent(bucket.percent)})`}
           />
         ))}
       </div>
@@ -620,7 +620,7 @@ function DashboardTab({
           icon={DollarSign}
           iconBg="bg-emerald-100 dark:bg-emerald-900/30"
           iconColor="text-emerald-600"
-          subValue={`${(summary.profit_margin ?? 0).toFixed(1)}%`}
+          subValue={safePercent(summary.profit_margin)}
           subLabel="Margin"
         />
         <StatCard
@@ -716,7 +716,7 @@ function DashboardTab({
                   <TableCell className="text-right font-mono text-green-600">{formatCurrency(job.profit)}</TableCell>
                   <TableCell className="text-right">
                     <Badge variant={job.margin >= 25 ? "default" : job.margin >= 15 ? "secondary" : "destructive"}>
-                      {(job.margin ?? 0).toFixed(1)}%
+                      {safePercent(job.margin)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -979,7 +979,7 @@ function AgedReportsTab({
                   icon={AlertTriangle}
                   iconBg="bg-red-100 dark:bg-red-900/30"
                   iconColor="text-red-600"
-                  subValue={`${(receivables.overdue_percent ?? 0).toFixed(1)}%`}
+                  subValue={safePercent(receivables.overdue_percent)}
                   subLabel="Of total"
                 />
                 <StatCard
@@ -1100,7 +1100,7 @@ function AgedReportsTab({
                   icon={AlertTriangle}
                   iconBg="bg-red-100 dark:bg-red-900/30"
                   iconColor="text-red-600"
-                  subValue={`${(payables.overdue_percent ?? 0).toFixed(1)}%`}
+                  subValue={safePercent(payables.overdue_percent)}
                   subLabel="Of total"
                 />
                 <StatCard

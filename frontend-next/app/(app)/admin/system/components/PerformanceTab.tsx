@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, safePercent } from "@/lib/utils";
 
 // Types matching the Performance Observatory API
 interface PerformanceOverview {
@@ -411,7 +411,7 @@ export function PerformanceTab() {
                 "text-2xl font-bold",
                 overview.error_rate === 0 ? "text-green-600" : overview.error_rate < 1 ? "text-yellow-600" : "text-red-600"
               )}>
-                {(overview.error_rate ?? 0).toFixed(2)}%
+                {safePercent(overview.error_rate, 2)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {overview.error_count} errors
@@ -515,7 +515,7 @@ export function PerformanceTab() {
                   budgets.compliance_percent < 70 && "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                 )}
               >
-                {(budgets.compliance_percent ?? 0).toFixed(0)}% Compliant
+                {safePercent(budgets.compliance_percent, 0)} Compliant
               </Badge>
             </div>
             <CardDescription>
@@ -672,8 +672,8 @@ export function PerformanceTab() {
                       />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>{(vital.good_percent ?? 0).toFixed(0)}% good</span>
-                      <span>{(vital.poor_percent ?? 0).toFixed(0)}% poor</span>
+                      <span>{safePercent(vital.good_percent, 0)} good</span>
+                      <span>{safePercent(vital.poor_percent, 0)} poor</span>
                     </div>
                   </div>
                 );
