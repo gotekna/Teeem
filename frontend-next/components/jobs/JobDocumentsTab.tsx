@@ -304,8 +304,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
   // Get category photos by filtering allFiles by folder_path (more efficient than separate API call)
   const categoryPhotoItems: PhotoItem[] = useMemo(() => {
     const activeCategory = selectedSubCategory || selectedCategory;
-    const parentCategory = selectedSubCategory ? selectedCategory : null;
-    if (!activeCategory?.folder_path || !isPhotoCategory(activeCategory, parentCategory)) {
+    if (!activeCategory?.folder_path || !isPhotoCategory(activeCategory)) {
       return [];
     }
 
@@ -945,8 +944,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
   useEffect(() => {
     const activeCategory = selectedSubCategory || selectedCategory;
-    const parentCategory = selectedSubCategory ? selectedCategory : null;
-    const needsPhotos = isPhotoCategory(activeCategory, parentCategory);
+    const needsPhotos = isPhotoCategory(activeCategory);
 
     if (orgStatus.connected && (viewMode === "allfiles" || needsPhotos)) {
       // Prevent duplicate requests if one is already in flight
@@ -972,21 +970,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
   // Document Tasks View
   const renderTasksView = () => {
-    // DEBUG: Log state for photo upload debugging
     const activeCategory = selectedSubCategory || selectedCategory;
-    const parentCategory = selectedSubCategory ? selectedCategory : null;
-    const photoCheck = isPhotoCategory(activeCategory, parentCategory);
+    const photoCheck = isPhotoCategory(activeCategory);
     console.log('[JobDocumentsTab] DEBUG:', {
       viewMode,
-      documentCategoriesCount: documentCategories.length,
-      selectedCategory: selectedCategory?.name,
-      selectedSubCategory: selectedSubCategory?.name,
       activeCategory: activeCategory?.name,
       isPhotoCategory: photoCheck,
-      activeCategoryIsPhotoFlag: activeCategory?.is_photo_category,
-      parentIsPhotoFlag: parentCategory?.is_photo_category,
+      is_photo_category_flag: activeCategory?.is_photo_category,
       orgStatusConnected: orgStatus.connected,
-      initialCategory,
     });
 
     if (documentCategories.length === 0) {
@@ -1080,7 +1071,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
                     )}
                   </CardTitle>
                   {/* Add Photo button - show for photo categories (SSoT: uses is_photo_category flag) */}
-                  {isPhotoCategory(activeCategory, selectedCategory) && orgStatus.connected && (
+                  {isPhotoCategory(activeCategory) && orgStatus.connected && (
                     <div className="relative">
                       <Button
                         size="sm"
@@ -1130,7 +1121,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
               </CardHeader>
               <CardContent className="p-0">
                 {/* Show Photo Gallery for photo categories (SSoT: uses is_photo_category flag) */}
-                {isPhotoCategory(activeCategory, selectedCategory) ? (
+                {isPhotoCategory(activeCategory) ? (
                   <div className="p-4">
                     {loadingAllFiles ? (
                       <PhotoGallery photos={[]} loading={true} />
