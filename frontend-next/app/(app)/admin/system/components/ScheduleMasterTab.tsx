@@ -1879,6 +1879,7 @@ export function ScheduleMasterTab() {
                   tableName="SM Trades"
                   enableExport={false}
                   disableSavedViews
+                  autoFetchRecords
                 />
               </div>
             </div>
@@ -1896,6 +1897,7 @@ export function ScheduleMasterTab() {
                   tableName="SM Stages"
                   enableExport={false}
                   disableSavedViews
+                  autoFetchRecords
                 />
               </div>
             </div>
@@ -1913,6 +1915,7 @@ export function ScheduleMasterTab() {
                   tableName="Cost Centres"
                   enableExport={false}
                   disableSavedViews
+                  autoFetchRecords
                 />
               </div>
             </div>
