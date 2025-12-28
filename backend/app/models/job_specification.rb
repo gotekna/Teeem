@@ -37,7 +37,7 @@ class JobSpecification < ApplicationRecord
       price: price,
       colour: colour,
       colour_code: colour_code,
-      pricebook_item: pricebook_item&.as_json(only: [:id, :item_code, :item_name, :current_price, :colour, :colour_code, :image_url])
+      pricebook_item: pricebook_item&.as_json
     )
   end
 end

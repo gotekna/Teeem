@@ -37,7 +37,7 @@ class JobColourSelection < ApplicationRecord
       display_code: display_code,
       display_brand: display_brand,
       price: price,
-      pricebook_item: pricebook_item&.as_json(only: [:id, :item_code, :item_name, :current_price, :colour, :colour_code, :colour_brand, :image_url])
+      pricebook_item: pricebook_item&.as_json
     )
   end
 end

@@ -149,9 +149,9 @@ export default function TaskDependencyEditor({ task, tasks, onSave, onClose }) {
                             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                           >
                             <option value="">Select task...</option>
-                            {availableTasks.map((t, idx) => (
-                              <option key={t.id} value={idx + 1}>
-                                {idx + 1}. {t.name}
+                            {availableTasks.map((t) => (
+                              <option key={t.id} value={t.task_number || t.sequence_order || t.id}>
+                                {t.task_number || t.sequence_order || t.id}. {t.name}
                               </option>
                             ))}
                           </select>
@@ -210,15 +210,25 @@ export default function TaskDependencyEditor({ task, tasks, onSave, onClose }) {
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Preview
                 </h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
                   {predecessors
                     .filter(p => p.id !== '')
-                    .map(p => {
-                      const lagStr = p.lag !== 0 ? (p.lag > 0 ? `+${p.lag}` : p.lag) : ''
-                      return `${p.id}${p.type}${lagStr}`
-                    })
-                    .join(', ') || 'No valid predecessors'}
-                </p>
+                    .map((p, idx) => {
+                      const predTask = tasks.find(t => (t.task_number || t.sequence_order || t.id) === p.id)
+                      const lagStr = p.lag !== 0 ? (p.lag > 0 ? ` +${p.lag}d` : ` ${p.lag}d`) : ''
+                      return (
+                        <div key={idx}>
+                          <span className="font-medium">{p.id}</span>
+                          <span className="text-gray-400 mx-1">→</span>
+                          <span>{predTask?.name || `Task ${p.id}`}</span>
+                          <span className="text-indigo-600 dark:text-indigo-400 ml-2">({p.type}{lagStr})</span>
+                        </div>
+                      )
+                    })}
+                  {predecessors.filter(p => p.id !== '').length === 0 && (
+                    <span>No valid predecessors</span>
+                  )}
+                </div>
               </div>
             )}
           </div>
