@@ -156,14 +156,18 @@ export function HierarchicalTabsList({
       </TabsPrimitive.List>
 
       {/* Row 2: Children of selected parent */}
-      {childrenToShow.length > 0 && (
+      {/* SSoT: Child tabs use composite keys (parent__child) to prevent tab_key collisions */}
+      {childrenToShow.length > 0 && selectedParent && (
         <TabsPrimitive.List
           className="flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1 ml-4"
         >
           {childrenToShow.map((child) => {
             // SSoT: Use effective_icon_name for inherited icons
             const ChildIcon = getIcon(child.effective_icon_name || child.icon_name || "file");
-            const isChildActive = activeTab === child.tab_key;
+            // SSoT: Use composite key (parent__child) to prevent collision
+            // e.g., parent "Photo" with child "site" → "photo__site"
+            const compositeKey = `${selectedParent.tab_key}__${child.tab_key}`;
+            const isChildActive = activeTab === compositeKey || activeTab === child.tab_key;
             // SSoT: Child tabs can only be 'both' or 'text_only' (not 'icon_only')
             const displayMode = child.display_mode || 'both';
             const showIcon = displayMode !== 'text_only';
@@ -171,7 +175,8 @@ export function HierarchicalTabsList({
             return (
               <TabsPrimitive.Trigger
                 key={child.tab_key}
-                value={child.tab_key}
+                // SSoT: Use composite key to match TabsContent value
+                value={compositeKey}
                 onClick={() => onTabChange?.(child.tab_key)}
                 data-state={isChildActive ? "active" : "inactive"}
                 className={cn(

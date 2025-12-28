@@ -238,6 +238,17 @@ export function ScheduleMasterTab() {
     ? (subtabParam as SubTab)
     : "schedule-templates";
 
+  // URL view param (Foundation view filter)
+  const viewSlug = searchParams.get("view") || undefined;
+
+  // Clear view filter from URL
+  const handleViewClear = React.useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("view");
+    const url = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.push(url, { scroll: false });
+  }, [searchParams, pathname, router]);
+
   // Update URL when tab changes
   const handleTabChange = React.useCallback((value: string) => {
     const newTab = value as SubTab;
@@ -1222,6 +1233,8 @@ export function ScheduleMasterTab() {
               className="h-full"
               isFullscreen={ganttFullscreen}
               onFullscreenChange={setGanttFullscreen}
+              viewSlug={viewSlug}
+              onViewClear={handleViewClear}
             />
           )}
         </TabsContent>

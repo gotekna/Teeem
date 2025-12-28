@@ -774,14 +774,17 @@ export default function JobDetailPage() {
   const activeTab = activeChildTab || activeParentTab;
 
   // Derive the effective tab to display (handles default without URL redirect)
+  // SSoT: Uses composite keys (parent__child) for children to prevent tab_key collisions
+  // e.g., URL ?tab=photo&subtab=site → effectiveActiveTab = "photo__site"
   const effectiveActiveTab = React.useMemo(() => {
-    // If we have an explicit child tab, use it
-    if (activeChildTab) return activeChildTab;
+    // If we have an explicit child tab, use composite key to prevent collision
+    // e.g., parent "Site" (tab_key=site) vs child "Site" under Photo (also tab_key=site)
+    if (activeChildTab) return `${activeParentTab}__${activeChildTab}`;
 
-    // If parent tab has children, use first child (no URL redirect needed)
+    // If parent tab has children, use first child with composite key
     if (visibleJobTabs.length > 0) {
       const firstChild = findFirstChildTab(activeParentTab);
-      if (firstChild) return firstChild;
+      if (firstChild) return `${activeParentTab}__${firstChild}`;
     }
 
     // Otherwise use the parent tab itself
@@ -790,18 +793,24 @@ export default function JobDetailPage() {
 
   // SSoT: Collect all tabs that should be dynamically rendered
   // Includes parent tabs + all children, excluding special tabs (overview, whs, plans)
+  // Children get a compositeKey (parent__child) to prevent tab_key collisions
   const allDynamicTabs = React.useMemo(() => {
-    const tabs: EntityTab[] = [];
+    const tabs: (EntityTab & { compositeKey?: string })[] = [];
     for (const tab of visibleJobTabs) {
       // Add parent tab if it has a registered component and isn't special
       if (!SPECIAL_TABS.includes(tab.tab_key) && JOB_TAB_COMPONENTS[tab.tab_key]) {
         tabs.push(tab);
       }
-      // Add all children (photo tabs are rendered via is_photo_category)
+      // Add all children with composite keys (parent__child)
+      // This prevents collision when multiple parents have children with same tab_key
+      // e.g., parent "Site" has child "site" AND parent "Photo" has child "site"
       if (tab.children) {
         for (const child of tab.children) {
           if (!SPECIAL_TABS.includes(child.tab_key)) {
-            tabs.push(child);
+            tabs.push({
+              ...child,
+              compositeKey: `${tab.tab_key}__${child.tab_key}`,
+            });
           }
         }
       }
@@ -1350,11 +1359,15 @@ export default function JobDetailPage() {
         </TabsContent>
 
         {/* SSoT: Dynamic tab rendering from EntityTabs + JOB_TAB_COMPONENTS registry */}
+        {/* Child tabs use compositeKey (parent__child) to prevent tab_key collisions */}
         {allDynamicTabs.map((tab) => {
+          // SSoT: Use compositeKey for children to prevent collision with same-named parent tabs
+          const tabValue = tab.compositeKey || tab.tab_key;
+
           // Photo tabs use JobDocumentsTab with initialCategory
           if (tab.is_photo_category) {
             return (
-              <TabsContent key={tab.tab_key} value={tab.tab_key} className="mt-4">
+              <TabsContent key={tabValue} value={tabValue} className="mt-4">
                 <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory={tab.tab_key} />
               </TabsContent>
             );
@@ -1365,7 +1378,7 @@ export default function JobDetailPage() {
           if (!Component) {
             // Tab exists in EntityTabs but no component registered - show placeholder
             return (
-              <TabsContent key={tab.tab_key} value={tab.tab_key} className="mt-4">
+              <TabsContent key={tabValue} value={tabValue} className="mt-4">
                 <Card>
                   <CardHeader>
                     <CardTitle>{tab.display_name}</CardTitle>
@@ -1382,7 +1395,7 @@ export default function JobDetailPage() {
           const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
 
           return (
-            <TabsContent key={tab.tab_key} value={tab.tab_key} className={className}>
+            <TabsContent key={tabValue} value={tabValue} className={className}>
               <Component
                 jobId={job.id}
                 job={job}

@@ -28,6 +28,7 @@ import { formatDateForAPI } from "@/lib/timezone-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   ZoomIn,
   ZoomOut,
@@ -127,6 +128,10 @@ interface GanttCanvasViewProps {
   onTaskClick?: (task: GanttTask) => void;
   onTaskDoubleClick?: (task: GanttTask) => void;
   onTaskDrag?: (task: GanttTask, newStartDate: Date) => void;
+  /** Active Foundation view slug (displayed as badge in toolbar) */
+  viewSlug?: string;
+  /** Callback to clear the view filter */
+  onViewClear?: () => void;
 }
 
 interface ApiResponse {
@@ -254,6 +259,8 @@ export function GanttCanvasView({
   onTaskClick,
   onTaskDoubleClick,
   onTaskDrag,
+  viewSlug,
+  onViewClear,
 }: GanttCanvasViewProps) {
   // Refs
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -2371,6 +2378,26 @@ export function GanttCanvasView({
                 ))}
               </SelectContent>
             </Select>
+          )}
+
+          {/* View Badge - shows active Foundation view */}
+          {viewSlug && (
+            <Badge
+              variant="secondary"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium"
+            >
+              <Eye className="h-3 w-3" />
+              View: {viewSlug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+              {onViewClear && (
+                <button
+                  onClick={onViewClear}
+                  className="ml-1 hover:bg-muted rounded-full p-0.5"
+                  title="Clear view filter"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </Badge>
           )}
 
           <span className="text-sm text-muted-foreground">
