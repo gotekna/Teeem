@@ -312,6 +312,26 @@ module Api
             .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
         end
       end
+
+      # SSoT: Load roles lookup map (ID => display_name) from Role model
+      # Memoized per request to avoid N+1 queries
+      def roles_map
+        @roles_map ||= Role.all.each_with_object({}) { |r, h| h[r.id] = r.display_name || r.name }
+      end
+
+      # SSoT: Load cost centres lookup map (ID => name) from Foundation
+      # Memoized per request to avoid N+1 queries
+      def cost_centres_map
+        @cost_centres_map ||= begin
+          foundation = Foundation.find_by(slug: "cost_centres") || Foundation.find_by(name: "Cost Centres")
+          return {} unless foundation
+
+          ActiveRecord::Base.connection
+            .execute("SELECT id, name FROM #{foundation.database_table_name}")
+            .to_a
+            .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
+        end
+      end
     end
   end
 end
