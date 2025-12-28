@@ -357,36 +357,12 @@ class Api::V1::DocumentTemplatesController < ApplicationController
 
   # GET /api/v1/document_templates/:id/preview
   # Preview the document with sample data
+  # DEPRECATED: Word templates removed Dec 2024. Use TeknaDocumentGenerator instead.
   def preview
-    job = Job.find_by(id: params[:job_id])
-    contact = Contact.find_by(id: params[:contact_id])
-
-    unless @document_template.sharepoint_linked?
-      render json: {
-        success: false,
-        errors: [ "Template not linked to SharePoint file" ]
-      }, status: :unprocessable_entity
-      return
-    end
-
-    generator = DocumentGenerator.new(@document_template)
-    result = generator.generate(job: job, contact: contact)
-
-    # Return the generated document as download
-    send_data result[:docx_content],
-              filename: result[:filename],
-              type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-              disposition: "attachment"
-  rescue DocumentGenerator::CredentialError => e
     render json: {
       success: false,
-      errors: [ e.message ]
-    }, status: :service_unavailable
-  rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
-    render json: {
-      success: false,
-      errors: [ e.message ]
-    }, status: :unprocessable_entity
+      errors: [ "Word template preview is no longer supported. Use TeknaDocumentGenerator templates instead." ]
+    }, status: :gone
   end
 
   # POST /api/v1/document_templates/:id/link_sharepoint
@@ -504,17 +480,12 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         sharepoint_id: result[:document_sharepoint_id]
       }
     }
-  rescue DocumentGenerator::CredentialError => e
-    render json: {
-      success: false,
-      errors: [ e.message ]
-    }, status: :service_unavailable
   rescue DocumentEsignService::Error => e
     render json: {
       success: false,
       errors: [ e.message ]
     }, status: :unprocessable_entity
-  rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
+  rescue StandardError => e
     render json: {
       success: false,
       errors: [ "Document generation failed: #{e.message}" ]

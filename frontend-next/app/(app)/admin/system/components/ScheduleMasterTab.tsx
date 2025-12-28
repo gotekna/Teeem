@@ -1973,7 +1973,7 @@ export function ScheduleMasterTab() {
 
       {/* Row Edit Sheet - Compact 2-column layout to avoid scrolling */}
       <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <SheetContent className="w-[800px] sm:max-w-[800px]">
+        <SheetContent side="right-xl">
           <SheetHeader className="pb-2">
             <SheetTitle>Edit Row</SheetTitle>
             <SheetDescription>
@@ -1981,8 +1981,8 @@ export function ScheduleMasterTab() {
             </SheetDescription>
           </SheetHeader>
           <div className="py-3 space-y-3">
-            {/* Row 1: Name + Duration */}
-            <div className="grid grid-cols-[1fr_100px] gap-3">
+            {/* Row 1: Name + Duration - full width */}
+            <div className="grid grid-cols-[1fr_80px] gap-3">
               <div className="space-y-1">
                 <Label htmlFor="row-name" className="text-xs">Name</Label>
                 <Input
@@ -2003,175 +2003,196 @@ export function ScheduleMasterTab() {
                 />
               </div>
             </div>
-            {/* Row 2: Trade + Stage */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Trade</Label>
-                <ComboboxDropdown
-                  items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
-                  selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editingRow?.trade_name || editRowForm.trade } : undefined}
-                  onSelect={(item) => setEditRowForm({ ...editRowForm, trade: item.id })}
-                  placeholder="Select trade..."
-                  emptyResults="No trades found"
-                  clearable
-                  onClear={() => setEditRowForm({ ...editRowForm, trade: "" })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Stage</Label>
-                <ComboboxDropdown
-                  items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
-                  selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editingRow?.stage_name || editRowForm.stage } : undefined}
-                  onSelect={(item) => setEditRowForm({ ...editRowForm, stage: item.id })}
-                  placeholder="Select stage..."
-                  emptyResults="No stages found"
-                  clearable
-                  onClear={() => setEditRowForm({ ...editRowForm, stage: "" })}
-                />
-              </div>
-            </div>
-            {/* Row 3: Assigned Role + Cost Centre */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Assigned Role</Label>
-                <ComboboxDropdown
-                  items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
-                  selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => String(r.id) === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
-                  onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
-                  placeholder="Select role..."
-                  emptyResults="No roles found"
-                  clearable
-                  onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Cost Centre</Label>
-                <ComboboxDropdown
-                  items={availableCostCentres.map(c => ({ id: String(c.id), label: c.name }))}
-                  selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: availableCostCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre } : undefined}
-                  onSelect={(item) => setEditRowForm({ ...editRowForm, cost_centre: item.id })}
-                  placeholder="Cost centre..."
-                  emptyResults="No cost centres found"
-                  clearable
-                  onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
-                />
-              </div>
-            </div>
-
-            {/* PO Settings + Completion - side by side, both left-aligned */}
-            <div className="flex gap-8 border-t pt-3">
-              {/* PO Settings */}
-              <div>
-                <h4 className="font-medium text-sm mb-2">PO Settings</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="row-po-required"
-                      checked={editRowForm.po_required || false}
-                      onCheckedChange={(checked) => {
-                        if (!checked && !editRowForm.create_po_on_job_start) {
-                          setEditRowForm({
-                            ...editRowForm,
-                            po_required: checked,
-                            spawn_order_task: false,
-                            spawn_call_task: false,
-                            order_time_days: undefined,
-                            call_time_days: undefined,
-                          });
-                        } else {
-                          setEditRowForm({ ...editRowForm, po_required: checked });
-                        }
-                      }}
-                    />
-                    <Label htmlFor="row-po-required" className="text-xs">PO Required</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="row-critical-po"
-                      checked={editRowForm.critical_po || false}
-                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, critical_po: checked })}
-                    />
-                    <Label htmlFor="row-critical-po" className="text-xs">Critical PO</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="row-create-po"
-                      checked={editRowForm.create_po_on_job_start || false}
-                      onCheckedChange={(checked) => {
-                        if (!checked && !editRowForm.po_required) {
-                          setEditRowForm({
-                            ...editRowForm,
-                            create_po_on_job_start: checked,
-                            spawn_order_task: false,
-                            spawn_call_task: false,
-                            order_time_days: undefined,
-                            call_time_days: undefined,
-                          });
-                        } else {
-                          setEditRowForm({ ...editRowForm, create_po_on_job_start: checked });
-                        }
-                        if (checked && !editingRow?.po_supplier_id) {
-                          handleOpenAutoPODialog();
-                        }
-                      }}
-                    />
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="row-create-po" className="text-xs">Auto-PO on Start</Label>
-                      {editRowForm.create_po_on_job_start && (
-                        <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={handleOpenAutoPODialog}>
-                          Edit
-                        </Button>
-                      )}
+            {/* Two-column layout for dropdowns and settings */}
+            <div className="grid grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Trade</Label>
+                  <ComboboxDropdown
+                    items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
+                    selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editingRow?.trade_name || editRowForm.trade } : undefined}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, trade: item.id })}
+                    placeholder="Select trade..."
+                    emptyResults="No trades found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, trade: "" })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Assigned Role</Label>
+                  <ComboboxDropdown
+                    items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
+                    selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => String(r.id) === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
+                    placeholder="Select role..."
+                    emptyResults="No roles found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
+                  />
+                </div>
+                <div className="pt-2 border-t">
+                  <h4 className="font-medium text-sm mb-2">PO Settings</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-po-required"
+                        checked={editRowForm.po_required || false}
+                        onCheckedChange={(checked) => {
+                          if (!checked && !editRowForm.create_po_on_job_start) {
+                            setEditRowForm({
+                              ...editRowForm,
+                              po_required: checked,
+                              spawn_order_task: false,
+                              spawn_call_task: false,
+                              order_time_days: undefined,
+                              call_time_days: undefined,
+                            });
+                          } else {
+                            setEditRowForm({ ...editRowForm, po_required: checked });
+                          }
+                        }}
+                      />
+                      <Label htmlFor="row-po-required" className="text-xs">PO Required</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-critical-po"
+                        checked={editRowForm.critical_po || false}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, critical_po: checked })}
+                      />
+                      <Label htmlFor="row-critical-po" className="text-xs">Critical PO</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-create-po"
+                        checked={editRowForm.create_po_on_job_start || false}
+                        onCheckedChange={(checked) => {
+                          if (!checked && !editRowForm.po_required) {
+                            setEditRowForm({
+                              ...editRowForm,
+                              create_po_on_job_start: checked,
+                              spawn_order_task: false,
+                              spawn_call_task: false,
+                              order_time_days: undefined,
+                              call_time_days: undefined,
+                            });
+                          } else {
+                            setEditRowForm({ ...editRowForm, create_po_on_job_start: checked });
+                          }
+                          if (checked && !editingRow?.po_supplier_id) {
+                            handleOpenAutoPODialog();
+                          }
+                        }}
+                      />
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="row-create-po" className="text-xs">Auto-PO on Start</Label>
+                        {editRowForm.create_po_on_job_start && (
+                          <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={handleOpenAutoPODialog}>
+                            Edit
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-spawn-order"
+                        checked={editRowForm.spawn_order_task || false}
+                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_order_task: checked })}
+                      />
+                      <Label htmlFor="row-spawn-order" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                        Spawn Order Task
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-spawn-call"
+                        checked={editRowForm.spawn_call_task || false}
+                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_call_task: checked })}
+                      />
+                      <Label htmlFor="row-spawn-call" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                        Spawn Call Task
+                      </Label>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="row-spawn-order"
-                      checked={editRowForm.spawn_order_task || false}
-                      disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
-                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_order_task: checked })}
-                    />
-                    <Label htmlFor="row-spawn-order" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
-                      Spawn Order Task
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="row-spawn-call"
-                      checked={editRowForm.spawn_call_task || false}
-                      disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
-                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_call_task: checked })}
-                    />
-                    <Label htmlFor="row-spawn-call" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
-                      Spawn Call Task
-                    </Label>
+                </div>
+                <div className="pt-2 border-t">
+                  <h4 className="font-medium text-sm mb-2">Completion</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-require-photo"
+                        checked={editRowForm.require_photo || false}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
+                      />
+                      <Label htmlFor="row-require-photo" className="text-xs">Require Photo</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-pass-fail"
+                        checked={editRowForm.pass_fail_enabled || false}
+                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
+                      />
+                      <div>
+                        <Label htmlFor="row-pass-fail" className="text-xs">Pass/Fail</Label>
+                        <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Right: Completion Requirements */}
-              <div>
-                <h4 className="font-medium text-sm mb-2">Completion</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="row-require-photo"
-                      checked={editRowForm.require_photo || false}
-                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
-                    />
-                    <Label htmlFor="row-require-photo" className="text-xs">Require Photo</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="row-pass-fail"
-                      checked={editRowForm.pass_fail_enabled || false}
-                      onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
-                    />
-                    <div>
-                      <Label htmlFor="row-pass-fail" className="text-xs">Pass/Fail</Label>
-                      <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
-                    </div>
-                  </div>
+              {/* Right Column */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Stage</Label>
+                  <ComboboxDropdown
+                    items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
+                    selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editingRow?.stage_name || editRowForm.stage } : undefined}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, stage: item.id })}
+                    placeholder="Select stage..."
+                    emptyResults="No stages found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, stage: "" })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Cost Centre</Label>
+                  <ComboboxDropdown
+                    items={availableCostCentres.map(c => ({ id: String(c.id), label: c.name }))}
+                    selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: availableCostCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre } : undefined}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, cost_centre: item.id })}
+                    placeholder="Cost centre..."
+                    emptyResults="No cost centres found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
+                  />
+                </div>
+                {/* Auto-save status indicator */}
+                <div className="flex items-center text-sm pt-2">
+                  {autoSaveStatus === 'saving' && (
+                    <span className="flex items-center text-muted-foreground">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </span>
+                  )}
+                  {autoSaveStatus === 'saved' && (
+                    <span className="flex items-center text-green-600 dark:text-green-500">
+                      <Check className="h-4 w-4 mr-2" />
+                      Saved
+                    </span>
+                  )}
+                  {autoSaveStatus === 'error' && (
+                    <span className="flex items-center text-red-600 dark:text-red-500">
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      Save failed
+                    </span>
+                  )}
+                  {autoSaveStatus === 'idle' && (
+                    <span className="text-muted-foreground">Auto-save enabled</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -2207,31 +2228,7 @@ export function ScheduleMasterTab() {
               </div>
             )}
           </div>
-          <SheetFooter className="flex items-center justify-between sm:justify-between">
-            {/* Auto-save status indicator */}
-            <div className="flex items-center text-sm">
-              {autoSaveStatus === 'saving' && (
-                <span className="flex items-center text-muted-foreground">
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </span>
-              )}
-              {autoSaveStatus === 'saved' && (
-                <span className="flex items-center text-green-600 dark:text-green-500">
-                  <Check className="h-4 w-4 mr-2" />
-                  Saved
-                </span>
-              )}
-              {autoSaveStatus === 'error' && (
-                <span className="flex items-center text-red-600 dark:text-red-500">
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Save failed
-                </span>
-              )}
-              {autoSaveStatus === 'idle' && (
-                <span className="text-muted-foreground">Auto-save enabled</span>
-              )}
-            </div>
+          <SheetFooter className="flex items-center justify-end">
             <Button variant="outline" onClick={() => setShowEditSheet(false)}>
               Close
             </Button>

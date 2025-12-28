@@ -3,8 +3,8 @@
 # UnifiedDocumentGenerator routes document generation to the appropriate engine
 # based on the template's template_type field.
 #
-# This provides a single entry point for all document generation, whether the
-# template is a Word file from SharePoint, an HTML/ERB template, or a PDF overlay.
+# This provides a single entry point for all document generation using
+# HTML/ERB templates or PDF overlay.
 #
 # Usage:
 #   generator = UnifiedDocumentGenerator.new(template)
@@ -15,8 +15,11 @@
 #     pdf_content: <binary>,
 #     filename: "document.pdf",
 #     generated_at: Time,
-#     template_type: "word" | "html" | etc
+#     template_type: "html" | "pdf_overlay"
 #   }
+#
+# Note: Word templates were removed in December 2024.
+# Use TeknaDocumentGenerator for new document generation.
 #
 class UnifiedDocumentGenerator
   class GenerationError < StandardError; end
@@ -31,14 +34,12 @@ class UnifiedDocumentGenerator
   # Generate document using the appropriate engine
   def generate(job: nil, contact: nil, invoice: nil, claim_stage: nil, extra_data: {})
     result = case template.template_type
-    when "word"
-      generate_word(job: job, contact: contact, invoice: invoice, claim_stage: claim_stage, extra_data: extra_data)
+    when "word", "sharepoint_fetch"
+      raise UnsupportedTypeError, "Word templates are no longer supported. Use TeknaDocumentGenerator instead."
     when "html"
       generate_html(job: job, contact: contact, extra_data: extra_data)
     when "pdf_overlay"
       generate_pdf_overlay(job: job, contact: contact, extra_data: extra_data)
-    when "sharepoint_fetch"
-      fetch_from_sharepoint(job: job)
     else
       raise UnsupportedTypeError, "Unknown template_type: #{template.template_type}"
     end
@@ -49,14 +50,8 @@ class UnifiedDocumentGenerator
   # Generate and upload to destination folder
   def generate_and_upload(job: nil, contact: nil, extra_data: {}, destination_folder:)
     case template.template_type
-    when "word"
-      # Word templates have built-in upload support
-      Engines::WordDocumentEngine.new(template).generate_and_upload(
-        job: job,
-        contact: contact,
-        extra_data: extra_data,
-        destination_folder: destination_folder
-      )
+    when "word", "sharepoint_fetch"
+      raise UnsupportedTypeError, "Word templates are no longer supported. Use TeknaDocumentGenerator instead."
     when "html"
       # Generate HTML template then upload manually
       result = generate_html(job: job, contact: contact, extra_data: extra_data)
@@ -69,16 +64,6 @@ class UnifiedDocumentGenerator
   end
 
   private
-
-  def generate_word(job:, contact:, invoice:, claim_stage:, extra_data:)
-    Engines::WordDocumentEngine.new(template).generate(
-      job: job,
-      contact: contact,
-      invoice: invoice,
-      claim_stage: claim_stage,
-      extra_data: extra_data
-    )
-  end
 
   def generate_html(job:, contact:, extra_data:)
     Engines::HtmlDocumentEngine.new(template).generate(

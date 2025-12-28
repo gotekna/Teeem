@@ -76,7 +76,9 @@ class SmScheduleMaster < ApplicationRecord
 
   # Callbacks
   before_validation :set_task_number, on: :create
+  before_validation :clean_invalid_predecessors
   before_save :clear_spawn_tasks_if_not_po
+  after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
 
   # Helper methods
   def predecessor_task_ids
@@ -314,5 +316,53 @@ class SmScheduleMaster < ApplicationRecord
     dep_string += lag >= 0 ? "+#{lag}" : lag.to_s if lag != 0
 
     "#{task_name} (#{dep_string})"
+  end
+
+  # Auto-clean invalid predecessor references before validation
+  # This prevents validation errors from orphaned predecessor IDs
+  def clean_invalid_predecessors
+    return if predecessor_ids.blank?
+
+    # Get valid task numbers from templates this row belongs to
+    template_ids = sm_template_ids || []
+    return if template_ids.empty?
+
+    # Find all valid task numbers in the same template(s)
+    conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(" OR ")
+    valid_task_numbers = SmScheduleMaster.active.where(conditions).pluck(:task_number)
+
+    # Filter out invalid predecessors
+    original_count = predecessor_ids.length
+    self.predecessor_ids = predecessor_ids.select do |pred|
+      pred_id = (pred["id"] || pred[:id]).to_i
+      valid_task_numbers.include?(pred_id)
+    end
+
+    # Log if we cleaned any
+    cleaned_count = original_count - predecessor_ids.length
+    if cleaned_count > 0
+      Rails.logger.info("[SmScheduleMaster] Cleaned #{cleaned_count} invalid predecessor(s) from row #{id || 'new'} (#{name})")
+    end
+  end
+
+  # When a task is soft-deleted, remove references to it from other tasks' predecessors
+  def clean_orphaned_predecessor_references
+    return unless is_active == false # Only run when being deactivated
+
+    # Find all rows that reference this task as a predecessor
+    SmScheduleMaster.active.where("predecessor_ids @> ?", [{ "id" => task_number }].to_json).find_each do |row|
+      original_preds = row.predecessor_ids.dup
+      row.predecessor_ids = row.predecessor_ids.reject do |pred|
+        (pred["id"] || pred[:id]).to_i == task_number
+      end
+
+      if row.predecessor_ids != original_preds
+        # Backup the original predecessors before clearing
+        row.predecessor_ids_backup = original_preds if row.predecessor_ids_backup.blank?
+        row.dependency_broken = true
+        row.save!(validate: false) # Skip validation to avoid circular issues
+        Rails.logger.info("[SmScheduleMaster] Removed predecessor #{task_number} from row #{row.id} (#{row.name}) - marked as dependency_broken")
+      end
+    end
   end
 end

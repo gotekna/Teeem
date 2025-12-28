@@ -92,19 +92,14 @@ class DocumentEsignService
   private
 
   def validate!
-    raise Error, "Template or template_key is required" unless template || template_key
+    raise Error, "template_key is required (Word templates no longer supported)" unless template_key
     raise Error, "Job is required" unless job
     raise Error, "At least one signer is required" if signers.empty?
 
     # Validate template_key exists in TeknaDocumentGenerator
-    if template_key && !TeknaDocumentGenerator::TEMPLATES.key?(template_key)
+    unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
       available = TeknaDocumentGenerator::TEMPLATES.keys.join(", ")
       raise Error, "Unknown template_key: #{template_key}. Available: #{available}"
-    end
-
-    # DEPRECATED: Only validate SharePoint for old-style templates
-    if template && !template_key
-      raise Error, "Template is not linked to SharePoint" unless template.sharepoint_linked?
     end
 
     signers.each do |signer|
@@ -116,25 +111,20 @@ class DocumentEsignService
     end
   end
 
-  # Generate document using SSoT (TeknaDocumentGenerator) or deprecated path
+  # Generate document using SSoT (TeknaDocumentGenerator)
   def generate_document
-    if template_key
-      # SSoT: Use TeknaDocumentGenerator
-      Rails.logger.info "[DocumentEsignService] Generating document from TeknaDocumentGenerator: #{template_key}"
-      generator = TeknaDocumentGenerator.new(template_key)
-      result = generator.generate(job: job, extra_data: options[:extra_data] || {})
+    raise Error, "template_key is required. Word templates are no longer supported." unless template_key
 
-      {
-        pdf_content: result[:pdf_content],
-        filename: result[:filename],
-        title: result[:title]
-      }
-    else
-      # DEPRECATED: Use old DocumentGenerator (Word templates)
-      Rails.logger.warn "[DocumentEsignService] DEPRECATED: Using DocumentGenerator for template #{template.name}. Migrate to template_key."
-      generator = DocumentGenerator.new(template)
-      generator.generate(job: job, extra_data: options[:extra_data] || {})
-    end
+    # SSoT: Use TeknaDocumentGenerator
+    Rails.logger.info "[DocumentEsignService] Generating document from TeknaDocumentGenerator: #{template_key}"
+    generator = TeknaDocumentGenerator.new(template_key)
+    result = generator.generate(job: job, extra_data: options[:extra_data] || {})
+
+    {
+      pdf_content: result[:pdf_content],
+      filename: result[:filename],
+      title: result[:title]
+    }
   end
 
   # Get template name for display
