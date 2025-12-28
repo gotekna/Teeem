@@ -311,7 +311,7 @@ module Api
         return {} unless foundation
 
         ActiveRecord::Base.connection
-          .execute("SELECT id, name FROM #{foundation.table_name}")
+          .execute("SELECT id, name FROM #{foundation.database_table_name}")
           .to_a
           .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
       end
@@ -322,7 +322,7 @@ module Api
         return {} unless foundation
 
         ActiveRecord::Base.connection
-          .execute("SELECT id, name FROM #{foundation.table_name}")
+          .execute("SELECT id, name FROM #{foundation.database_table_name}")
           .to_a
           .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
       end

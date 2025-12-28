@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_070005) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_28_070007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2699,6 +2699,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_070005) do
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
+    t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
     t.index ["labels"], name: "index_email_warehouse_on_labels", using: :gin
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
     t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"

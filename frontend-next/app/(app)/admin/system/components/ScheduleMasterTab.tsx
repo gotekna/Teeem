@@ -158,6 +158,7 @@ const VALID_SUBTABS = [
   "gantt-preview",
   "data-view",
   "column-reference",
+  "tables",
 ] as const;
 
 type SubTab = typeof VALID_SUBTABS[number];
@@ -302,13 +303,12 @@ export function ScheduleMasterTab() {
   // Trade, Stage, Role dropdown management
   const [availableTrades, setAvailableTrades] = React.useState<string[]>([]);
   const [availableStages, setAvailableStages] = React.useState<string[]>([]);
-  const [availableRoles, setAvailableRoles] = React.useState<string[]>([]);
+  // SSoT: Roles come from Role model (Admin > System > Company > Security > Roles)
+  const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
   const [showAddTradeDialog, setShowAddTradeDialog] = React.useState(false);
   const [showAddStageDialog, setShowAddStageDialog] = React.useState(false);
-  const [showAddRoleDialog, setShowAddRoleDialog] = React.useState(false);
   const [newTradeName, setNewTradeName] = React.useState("");
   const [newStageName, setNewStageName] = React.useState("");
-  const [newRoleName, setNewRoleName] = React.useState("");
   const [savingDropdownItem, setSavingDropdownItem] = React.useState(false);
 
   // Load column status from localStorage on mount
@@ -498,34 +498,15 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Load roles from SmSetting
+  // SSoT: Load roles from Role model (Admin > System > Company > Security > Roles)
   const loadRoles = async () => {
     try {
-      const data = await api.get<{ success: boolean; roles: string[] }>("/api/v1/sm_settings/roles");
+      const data = await api.get<{ success: boolean; roles: { id: number; name: string; display_name: string }[] }>("/api/v1/permissions/roles");
       if (data?.roles) {
         setAvailableRoles(data.roles);
       }
     } catch (error) {
       console.error("Failed to load roles:", error);
-    }
-  };
-
-  // Add a new role
-  const handleAddRole = async () => {
-    if (!newRoleName.trim()) return;
-    setSavingDropdownItem(true);
-    try {
-      const data = await api.post<{ success: boolean; roles: string[] }>("/api/v1/sm_settings/roles", { role: newRoleName.trim() });
-      if (data?.roles) {
-        setAvailableRoles(data.roles);
-        setNewRoleName("");
-        setShowAddRoleDialog(false);
-        toast({ title: "Role added" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to add role", variant: "destructive" });
-    } finally {
-      setSavingDropdownItem(false);
     }
   };
 
@@ -1045,6 +1026,10 @@ export function ScheduleMasterTab() {
           <TabsTrigger value="recurring-tasks">
             <ClipboardList className="h-4 w-4 mr-2" />
             Recurring Tasks
+          </TabsTrigger>
+          <TabsTrigger value="tables">
+            <TableIcon className="h-4 w-4 mr-2" />
+            Tables
           </TabsTrigger>
         </TabsList>
 
@@ -1897,6 +1882,45 @@ export function ScheduleMasterTab() {
           <TabsContent value="recurring-tasks" className="absolute inset-0 overflow-auto px-4 pt-4 data-[state=inactive]:hidden">
           <RecurringTasksSection />
         </TabsContent>
+
+        {/* Tables Tab - SM Trades and SM Stages lookup tables */}
+        <TabsContent value="tables" className="absolute inset-0 overflow-auto px-4 pt-4 data-[state=inactive]:hidden">
+          <div className="space-y-8">
+            {/* SM Trades Table */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2">SM Trades</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Trade types available for schedule tasks (e.g., CARPENTER, ELECTRICIAN).
+              </p>
+              <div className="border rounded-lg overflow-hidden h-[400px]">
+                <TeeemTableView
+                  entries={[]}
+                  foundationId="user_sm_trades_70cdd052"
+                  foundationIdNumeric={542}
+                  tableName="SM Trades"
+                  enableExport={false}
+                />
+              </div>
+            </div>
+
+            {/* SM Stages Table */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2">SM Stages</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Stage types available for schedule tasks (e.g., 01 Slab, 05 Enclosed).
+              </p>
+              <div className="border rounded-lg overflow-hidden h-[400px]">
+                <TeeemTableView
+                  entries={[]}
+                  foundationId="user_sm_stages_c4f88aa2"
+                  foundationIdNumeric={543}
+                  tableName="SM Stages"
+                  enableExport={false}
+                />
+              </div>
+            </div>
+          </div>
+        </TabsContent>
         </div>
       </Tabs>
 
@@ -2048,43 +2072,21 @@ export function ScheduleMasterTab() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="row-assigned-role">Assigned Role</Label>
-              <div className="flex gap-1">
-                <Select
-                  value={editRowForm.assigned_role || "_none"}
-                  onValueChange={(value) => setEditRowForm({ ...editRowForm, assigned_role: value === "_none" ? null : value })}
-                >
-                  <SelectTrigger id="row-assigned-role" className="flex-1">
-                    <SelectValue placeholder="Select a role..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_none">None</SelectItem>
-                    <SelectItem value="accounts">Accounts</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="builder">Builder</SelectItem>
-                    <SelectItem value="estimator">Estimator</SelectItem>
-                    <SelectItem value="pre_construction">Pre Construction</SelectItem>
-                    <SelectItem value="sales">Sales</SelectItem>
-                    <SelectItem value="site">Site</SelectItem>
-                    <SelectItem value="supervisor">Supervisor</SelectItem>
-                    {availableRoles.filter(r => !["accounts", "admin", "builder", "estimator", "pre_construction", "sales", "site", "supervisor"].includes(r)).map((role) => (
-                      <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ')}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setShowAddRoleDialog(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add New Role
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              {/* SSoT: Roles from Role model (Admin > System > Company > Security > Roles) */}
+              <Select
+                value={editRowForm.assigned_role || "_none"}
+                onValueChange={(value) => setEditRowForm({ ...editRowForm, assigned_role: value === "_none" ? null : value })}
+              >
+                <SelectTrigger id="row-assigned-role">
+                  <SelectValue placeholder="Select a role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">None</SelectItem>
+                  {availableRoles.map((role) => (
+                    <SelectItem key={role.id} value={role.name}>{role.display_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* PO Settings */}
@@ -2610,37 +2612,7 @@ export function ScheduleMasterTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Role Dialog */}
-      <Dialog open={showAddRoleDialog} onOpenChange={setShowAddRoleDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Add New Role</DialogTitle>
-            <DialogDescription>
-              Add a new role option to the dropdown list.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-role">Role Name</Label>
-              <Input
-                id="new-role"
-                value={newRoleName}
-                onChange={(e) => setNewRoleName(e.target.value.toLowerCase())}
-                placeholder="e.g., project_manager"
-                onKeyDown={(e) => e.key === "Enter" && handleAddRole()}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddRoleDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddRole} disabled={savingDropdownItem || !newRoleName.trim()}>
-              {savingDropdownItem ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Role"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* NOTE: Roles are managed in Admin > System > Company > Security > Roles (SSoT) */}
     </div>
   );
 }
