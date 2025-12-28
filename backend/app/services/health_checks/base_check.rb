@@ -84,7 +84,8 @@ module HealthChecks
       elsif items.respond_to?(:count)
                 begin
                   items.count(:all)
-                rescue
+                rescue StandardError => e
+                  Rails.logger.debug "[HealthCheck] count(:all) failed, falling back to to_a.size: #{e.message}"
                   items.to_a.size
                 end
       else

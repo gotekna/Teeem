@@ -264,16 +264,24 @@ module Api
         }
 
         if include_rows
-          # Load trade/stage lookup maps to resolve IDs to names
+          # Load all lookup maps to resolve IDs to names
           trades_map = load_trades_map
           stages_map = load_stages_map
-          json[:rows] = template.ordered_rows.map { |r| row_json(r, trades_map, stages_map) }
+          roles_map = load_roles_map
+          cost_centres_map = load_cost_centres_map
+          json[:rows] = template.ordered_rows.map { |r| row_json(r, trades_map, stages_map, roles_map, cost_centres_map) }
         end
 
         json
       end
 
-      def row_json(row, trades_map = {}, stages_map = {})
+      def row_json(row, trades_map = {}, stages_map = {}, roles_map = {}, cost_centres_map = {})
+        # Return lookup columns as { id: X, display: "Name" } format for TeeemTableView
+        trade_value = row.trade.present? ? { id: row.trade.to_i, display: trades_map[row.trade.to_i] || row.trade } : nil
+        stage_value = row.stage.present? ? { id: row.stage.to_i, display: stages_map[row.stage.to_i] || row.stage } : nil
+        role_value = row.assigned_role.present? ? { id: row.assigned_role.to_i, display: roles_map[row.assigned_role.to_i] || row.assigned_role } : nil
+        cost_centre_value = row.cost_centre.present? ? { id: row.cost_centre.to_i, display: cost_centres_map[row.cost_centre.to_i] || row.cost_centre } : nil
+
         {
           id: row.id,
           task_number: row.task_number,
@@ -283,11 +291,12 @@ module Api
           duration_days: row.duration_days,
           predecessor_ids: row.predecessor_ids,
           predecessor_display: row.predecessor_display,
-          trade: row.trade,
-          stage: row.stage,
+          trade: trade_value,
+          stage: stage_value,
           trade_name: trades_map[row.trade.to_i] || row.trade,
           stage_name: stages_map[row.stage.to_i] || row.stage,
-          assigned_role: row.assigned_role,
+          assigned_role: role_value,
+          cost_centre: cost_centre_value,
           require_photo: row.require_photo,
           require_certificate: row.require_certificate,
           confirm: row.confirm,
@@ -319,6 +328,22 @@ module Api
       # Load stages lookup map (ID => name) using Foundation
       def load_stages_map
         foundation = Foundation.find_by(name: "SM Stages")
+        return {} unless foundation
+
+        ActiveRecord::Base.connection
+          .execute("SELECT id, name FROM #{foundation.database_table_name}")
+          .to_a
+          .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
+      end
+
+      # Load roles lookup map (ID => display_name) using Role model
+      def load_roles_map
+        Role.all.each_with_object({}) { |r, h| h[r.id] = r.display_name || r.name }
+      end
+
+      # Load cost centres lookup map (ID => name) using Foundation
+      def load_cost_centres_map
+        foundation = Foundation.find_by(slug: "cost_centres") || Foundation.find_by(name: "Cost Centres")
         return {} unless foundation
 
         ActiveRecord::Base.connection

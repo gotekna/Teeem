@@ -131,7 +131,8 @@ class QuoteReminderJob < ApplicationJob
     return false unless last_reminder
 
     Time.parse(last_reminder) > 24.hours.ago
-  rescue
+  rescue StandardError => e
+    Rails.logger.warn "[QuoteReminderJob] Failed to parse last_reminder_sent_at: #{e.message}"
     false
   end
 

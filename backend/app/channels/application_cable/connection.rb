@@ -42,7 +42,8 @@ module ApplicationCable
         # If using simple session token:
         session = UserSession.find_by(token: token)
         session&.user_id
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[ApplicationCable] Token lookup failed: #{e.message}"
         nil
       end
     end

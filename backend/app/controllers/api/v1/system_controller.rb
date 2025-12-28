@@ -222,20 +222,23 @@ module Api
         else
           `ps -o rss= -p #{Process.pid}`.to_i / 1024
         end
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[SystemController] get_process_memory failed: #{e.message}"
         0
       end
 
       def get_rss_memory
         # Resident Set Size memory
         GC.stat[:heap_allocated_pages] * 16 / 1024 # Convert to MB
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[SystemController] get_rss_memory failed: #{e.message}"
         0
       end
 
       def count_tmp_files
         Dir.glob(Rails.root.join("tmp", "**", "*")).select { |f| File.file?(f) }.count
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[SystemController] count_tmp_files failed: #{e.message}"
         0
       end
 
@@ -243,7 +246,8 @@ module Api
         log_files = Dir.glob(Rails.root.join("log", "*.log"))
         total_size = log_files.sum { |f| File.size(f) rescue 0 }
         (total_size / 1024.0 / 1024.0).round(2) # Convert to MB
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[SystemController] get_log_size failed: #{e.message}"
         0
       end
 
@@ -261,14 +265,16 @@ module Api
       def get_pending_jobs_count
         # If using SolidQueue
         SolidQueue::Job.pending.count
-      rescue
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] get_pending_jobs_count unavailable: #{e.message}"
         0
       end
 
       def get_failed_jobs_count
         # If using SolidQueue
         SolidQueue::Job.failed.count
-      rescue
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] get_failed_jobs_count unavailable: #{e.message}"
         0
       end
 
@@ -306,7 +312,8 @@ module Api
         else
           nil
         end
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[SystemController] calculate_next_run failed for '#{schedule}': #{e.message}"
         nil
       end
 
@@ -351,7 +358,8 @@ module Api
         queue_config = Rails.application.config_for(:queue) rescue {}
         workers = queue_config[:workers] || []
         workers.sum { |w| w[:threads] || 0 }
-      rescue
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] worker_thread_count unavailable: #{e.message}"
         3 # Default
       end
 
@@ -359,7 +367,8 @@ module Api
         queue_config = Rails.application.config_for(:queue) rescue {}
         workers = queue_config[:workers] || []
         workers.sum { |w| w[:processes] || 1 }
-      rescue
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] worker_process_count unavailable: #{e.message}"
         1
       end
     end

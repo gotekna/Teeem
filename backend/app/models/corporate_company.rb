@@ -338,7 +338,7 @@ class CorporateCompany < ApplicationRecord
     where(slug: nil).find_each do |company|
       company.send(:generate_slug)
       company.save!
-      puts "  Generated slug for #{company.name}: #{company.slug}"
+      Rails.logger.info "[CorporateCompany] Generated slug for #{company.name}: #{company.slug}"
     end
   end
 

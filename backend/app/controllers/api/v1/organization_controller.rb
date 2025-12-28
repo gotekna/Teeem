@@ -2,6 +2,8 @@ module Api
   module V1
     class OrganizationController < ApplicationController
       # Note: authorize_request is already called by ApplicationController
+      # Security: Stats endpoints expose org-wide data, require admin
+      before_action :require_admin, only: %i[microsoft_org_stats data_stats]
 
       # GET /api/v1/organization_settings
       # Returns organization settings including job folder name format
@@ -289,8 +291,8 @@ module Api
       # Returns organization-wide data warehouse statistics
       # Performance: Cached for 10 minutes (expensive email_warehouse queries)
       def data_stats
-        # Skip cache if explicitly requested
-        skip_cache = params[:refresh] == "true"
+        # Skip cache only for admins (prevents DoS via forced cache refresh)
+        skip_cache = params[:refresh] == "true" && current_user&.admin?
         cache_key = "organization:data_stats"
 
         # Try to get from cache first (10 minute TTL - stats don't change often)
@@ -334,12 +336,14 @@ module Api
           linked_to_job = EmailWarehouse.where.not(job_id: nil).count
           size_by_job = EmailWarehouse.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
-          # AI Classification breakdown
-          spam_count = EmailWarehouse.where("email_classification->>'email_type' = ?", "spam").count
-          marketing_count = EmailWarehouse.where("email_classification->>'email_type' = ?", "marketing").count
-          transactional_count = EmailWarehouse.where("email_classification->>'email_type' = ?", "transactional").count
-          business_count = EmailWarehouse.where("email_classification->>'email_type' = ?", "business").count
-          unclassified_count = EmailWarehouse.where("email_classification IS NULL OR email_classification = '{}'").count
+          # AI Classification breakdown - single GROUP BY query instead of 5 individual COUNTs
+          classification_counts = EmailWarehouse.group("email_classification->>'email_type'").count
+          spam_count = classification_counts["spam"] || 0
+          marketing_count = classification_counts["marketing"] || 0
+          transactional_count = classification_counts["transactional"] || 0
+          business_count = classification_counts["business"] || 0
+          # nil key represents unclassified (NULL or empty classification)
+          unclassified_count = classification_counts[nil] || 0
           classified_count = total_count - unclassified_count
 
           # SSoT migration progress

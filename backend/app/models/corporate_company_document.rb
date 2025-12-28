@@ -327,7 +327,7 @@ class CorporateCompanyDocument < ApplicationRecord
         count += 1
       end
     end
-    puts "Updated #{count} documents with display names"
+    Rails.logger.info "[CorporateCompanyDocument] Updated #{count} documents with display names"
     count
   end
 end

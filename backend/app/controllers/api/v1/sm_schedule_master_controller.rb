@@ -220,6 +220,12 @@ module Api
       end
 
       def row_json(row)
+        # Return lookup columns as { id: X, display: "Name" } format for TeeemTableView
+        trade_value = row.trade.present? ? { id: row.trade.to_i, display: trades_map[row.trade.to_i] || row.trade } : nil
+        stage_value = row.stage.present? ? { id: row.stage.to_i, display: stages_map[row.stage.to_i] || row.stage } : nil
+        role_value = row.assigned_role.present? ? { id: row.assigned_role.to_i, display: roles_map[row.assigned_role.to_i] || row.assigned_role } : nil
+        cost_centre_value = row.cost_centre.present? ? { id: row.cost_centre.to_i, display: cost_centres_map[row.cost_centre.to_i] || row.cost_centre } : nil
+
         {
           id: row.id,
           task_number: row.task_number,
@@ -230,13 +236,13 @@ module Api
           predecessor_ids: row.predecessor_ids,
           predecessor_display: row.predecessor_display,
           predecessor_display_names: row.predecessor_display_names,
-          trade: row.trade,
-          stage: row.stage,
+          trade: trade_value,
+          stage: stage_value,
           trade_name: trades_map[row.trade.to_i] || row.trade,
           stage_name: stages_map[row.stage.to_i] || row.stage,
           header: row.header,
-          cost_centre: row.cost_centre,
-          assigned_role: row.assigned_role,
+          cost_centre: cost_centre_value,
+          assigned_role: role_value,
           checklist_id: row.checklist_id,
           require_photo: row.require_photo,
           confirm: row.confirm,
