@@ -44,6 +44,9 @@ class EntityTab < ApplicationRecord
   # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
   before_validation :sync_tab_key_from_display_name
 
+  # SSoT: When display_name changes, sync SharePoint folder and job_documents
+  after_update :enqueue_folder_rename_if_needed
+
   # Set document types by IDs (SSoT: replaces existing assignments)
   def document_type_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
@@ -486,6 +489,22 @@ class EntityTab < ApplicationRecord
       .gsub(/\s+/, '-')          # Spaces to hyphens
       .gsub(/-+/, '-')           # Collapse multiple hyphens
       .gsub(/^-|-$/, '')         # Remove leading/trailing hyphens
+  end
+
+  # SSoT: When display_name changes, enqueue job to sync SharePoint folders and job_documents
+  # This ensures physical folders and database records match the tab configuration
+  def enqueue_folder_rename_if_needed
+    return unless scope == 'job' && has_sharepoint_folder
+    return unless saved_change_to_display_name?
+
+    old_name, new_name = saved_change_to_display_name
+    return if old_name.blank? || new_name.blank? || old_name == new_name
+
+    EntityTabFolderRenameJob.perform_later(
+      entity_tab_id: id,
+      old_display_name: old_name,
+      new_display_name: new_name
+    )
   end
 
   # SSoT: Root tabs must have unique icons within the same scope

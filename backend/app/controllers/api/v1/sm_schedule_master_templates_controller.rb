@@ -264,13 +264,16 @@ module Api
         }
 
         if include_rows
-          json[:rows] = template.ordered_rows.map { |r| row_json(r) }
+          # Load trade/stage lookup maps to resolve IDs to names
+          trades_map = load_trades_map
+          stages_map = load_stages_map
+          json[:rows] = template.ordered_rows.map { |r| row_json(r, trades_map, stages_map) }
         end
 
         json
       end
 
-      def row_json(row)
+      def row_json(row, trades_map = {}, stages_map = {})
         {
           id: row.id,
           task_number: row.task_number,
@@ -282,6 +285,8 @@ module Api
           predecessor_display: row.predecessor_display,
           trade: row.trade,
           stage: row.stage,
+          trade_name: trades_map[row.trade.to_i] || row.trade,
+          stage_name: stages_map[row.stage.to_i] || row.stage,
           assigned_role: row.assigned_role,
           require_photo: row.require_photo,
           require_certificate: row.require_certificate,
@@ -298,6 +303,28 @@ module Api
           parent_row_id: row.parent_row_id,
           is_active: row.is_active
         }
+      end
+
+      # Load trades lookup map (ID => name) using Foundation
+      def load_trades_map
+        foundation = Foundation.find_by(name: "SM Trades")
+        return {} unless foundation
+
+        ActiveRecord::Base.connection
+          .execute("SELECT id, name FROM #{foundation.table_name}")
+          .to_a
+          .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
+      end
+
+      # Load stages lookup map (ID => name) using Foundation
+      def load_stages_map
+        foundation = Foundation.find_by(name: "SM Stages")
+        return {} unless foundation
+
+        ActiveRecord::Base.connection
+          .execute("SELECT id, name FROM #{foundation.table_name}")
+          .to_a
+          .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
       end
     end
   end

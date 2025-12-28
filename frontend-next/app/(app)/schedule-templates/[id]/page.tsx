@@ -73,6 +73,8 @@ interface SmScheduleMaster {
   predecessor_display: string;
   trade: string | null;
   stage: string | null;
+  trade_name: string | null;
+  stage_name: string | null;
   cost_centre: string | null;
   assigned_role: string | null;
   supplier_id: number | null;
@@ -699,10 +701,10 @@ export default function ScheduleTemplateDetailPage() {
                       </TableCell>
                       <TableCell className="font-medium">{row.name}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {row.trade || "-"}
+                        {row.trade_name || "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {row.stage || "-"}
+                        {row.stage_name || "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {row.cost_centre || "-"}
