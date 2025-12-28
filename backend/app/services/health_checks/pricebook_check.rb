@@ -132,7 +132,7 @@ module HealthChecks
         # Get latest price from default supplier
         latest_price = item.price_histories
                           .where(supplier_id: item.default_supplier_id)
-                          .order(effective_date: :desc, created_at: :desc)
+                          .order(date_effective: :desc, created_at: :desc)
                           .first
 
         next unless latest_price
