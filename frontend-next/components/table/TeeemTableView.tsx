@@ -5118,15 +5118,29 @@ export default function TeeemTableView({
               </span>
             )}
           </div>
-          {/* Totals in header (only when showTotals enabled and has numeric columns) */}
+          {/* Totals in header - collapsible popover to avoid pushing table off screen */}
           {showTotals && Object.keys(columnTotals).length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {Object.entries(columnTotals).map(([key, data]) => (
-                <span key={key} className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
-                  {data.label}: <span className="font-mono">{formatTotal(key)}</span>
-                </span>
-              ))}
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+                  <span>Totals</span>
+                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                    {Object.keys(columnTotals).length}
+                  </Badge>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-auto max-w-[400px] p-3">
+                <div className="grid gap-1.5">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Column Totals</p>
+                  {Object.entries(columnTotals).map(([key, data]) => (
+                    <div key={key} className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-muted-foreground">{data.label}:</span>
+                      <span className="font-mono font-medium">{formatTotal(key)}</span>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
         </div>
       )}
