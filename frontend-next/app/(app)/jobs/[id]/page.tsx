@@ -73,6 +73,33 @@ import { JobScheduleTab } from "@/components/jobs/JobScheduleTab";
 import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
 import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
 import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
+import type { EntityTab } from "@/lib/types/entity-tabs";
+
+// SSoT: Job Tab Component Registry
+// Maps tab_key → component. When tabs are renamed in admin, they auto-work.
+// Special tabs (overview, whs, plans) have inline JSX and are excluded.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
+  "contract": JobContractTab,
+  "specifications": SpecificationBuilder,
+  "colours": ColourSelectionBuilder,
+  "claims": JobClaimStagesTab,
+  "profit": JobProfitTab,
+  "budget": JobBudgetTab,
+  "people": JobPeopleTab,
+  "purchase-orders": JobPurchaseOrdersTab,
+  "estimates": JobEstimatorTab,
+  "boq": JobBOQTab,
+  "activity": JobActivityTab,
+  "schedule": JobScheduleTab,
+  "site-presence": JobSitePresenceTab,
+  "rain-log": RainLogTab,
+  "documents": JobDocumentsTab,
+  "coms": JobCommunicationsTab,
+};
+
+// Tabs that need special rendering (complex inline JSX or special behavior)
+const SPECIAL_TABS = ["overview", "whs", "plans"];
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -757,6 +784,27 @@ export default function JobDetailPage() {
     return activeParentTab;
   }, [activeChildTab, activeParentTab, visibleJobTabs, findFirstChildTab]);
 
+  // SSoT: Collect all tabs that should be dynamically rendered
+  // Includes parent tabs + all children, excluding special tabs (overview, whs, plans)
+  const allDynamicTabs = React.useMemo(() => {
+    const tabs: EntityTab[] = [];
+    for (const tab of visibleJobTabs) {
+      // Add parent tab if it has a registered component and isn't special
+      if (!SPECIAL_TABS.includes(tab.tab_key) && JOB_TAB_COMPONENTS[tab.tab_key]) {
+        tabs.push(tab);
+      }
+      // Add all children (photo tabs are rendered via is_photo_category)
+      if (tab.children) {
+        for (const child of tab.children) {
+          if (!SPECIAL_TABS.includes(child.tab_key)) {
+            tabs.push(child);
+          }
+        }
+      }
+    }
+    return tabs;
+  }, [visibleJobTabs]);
+
   // Update URL when tab changes - URL is SSoT
   const handleTabChange = React.useCallback((newTab: string) => {
     const params = new URLSearchParams();
@@ -1296,58 +1344,52 @@ export default function JobDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="contract" className="mt-4">
-          <JobContractTab job={job} onUpdate={loadJob} />
-        </TabsContent>
+        {/* SSoT: Dynamic tab rendering from EntityTabs + JOB_TAB_COMPONENTS registry */}
+        {allDynamicTabs.map((tab) => {
+          // Photo tabs use JobDocumentsTab with initialCategory
+          if (tab.is_photo_category) {
+            return (
+              <TabsContent key={tab.tab_key} value={tab.tab_key} className="mt-4">
+                <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory={tab.tab_key} />
+              </TabsContent>
+            );
+          }
 
-        <TabsContent value="specifications" className="mt-4">
-          <SpecificationBuilder jobId={job.id} jobTypeId={job.job_type_id} />
-        </TabsContent>
+          // Look up component from registry
+          const Component = JOB_TAB_COMPONENTS[tab.tab_key];
+          if (!Component) {
+            // Tab exists in EntityTabs but no component registered - show placeholder
+            return (
+              <TabsContent key={tab.tab_key} value={tab.tab_key} className="mt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{tab.display_name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">{tab.display_name} coming soon.</p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            );
+          }
 
-        <TabsContent value="colours" className="mt-4">
-          <ColourSelectionBuilder jobId={job.id} jobTypeId={job.job_type_id} />
-        </TabsContent>
+          // Special handling for schedule tab (needs different height)
+          const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
 
-        <TabsContent value="claims" className="mt-4">
-          <JobClaimStagesTab jobId={job.id} contractValue={job.contract_value} />
-        </TabsContent>
+          return (
+            <TabsContent key={tab.tab_key} value={tab.tab_key} className={className}>
+              <Component
+                jobId={job.id}
+                job={job}
+                jobTitle={job.name}
+                onUpdate={loadJob}
+                contractValue={job.contract_value}
+              />
+            </TabsContent>
+          );
+        })}
 
-        <TabsContent value="people" className="mt-4">
-          <JobPeopleTab jobId={job.id} onUpdate={loadJob} />
-        </TabsContent>
-
-        <TabsContent value="purchase-orders" className="mt-4">
-          <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.name} />
-        </TabsContent>
-
-        <TabsContent value="estimates" className="mt-4">
-          <JobEstimatorTab jobId={job.id} job={job} />
-        </TabsContent>
-
-        <TabsContent value="boq" className="mt-4">
-          <JobBOQTab jobId={job.id} />
-        </TabsContent>
-
-        <TabsContent value="profit" className="mt-4">
-          <JobProfitTab jobId={job.id} />
-        </TabsContent>
-
-        <TabsContent value="activity" className="mt-4">
-          <JobActivityTab jobId={job.id} />
-        </TabsContent>
-
-        <TabsContent value="budget" className="mt-4">
-          <JobBudgetTab jobId={job.id} />
-        </TabsContent>
-
-        <TabsContent value="schedule" className="mt-4 h-[calc(100vh-300px)]">
-          <JobScheduleTab jobId={jobId} />
-        </TabsContent>
-
-        <TabsContent value="site-presence" className="mt-4">
-          <JobSitePresenceTab jobId={job.id} onUpdate={loadJob} />
-        </TabsContent>
-
+        {/* WHS tab - special inline JSX (complex state dependencies) */}
         <TabsContent value="whs" className="mt-4">
           <div className="space-y-6">
             {/* WHS Stats */}
@@ -1499,79 +1541,8 @@ export default function JobDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="rain-log" className="mt-4">
-          <RainLogTab jobId={job.id} />
-        </TabsContent>
-
-        {/* Plans tab renders fullscreen overlay - handled separately below */}
+        {/* Plans tab - hidden placeholder for Tabs component, actual content rendered outside */}
         <TabsContent value="plans" className="hidden" />
-
-        <TabsContent value="documents" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} />
-        </TabsContent>
-
-        {/* Photo child tabs - all render JobDocumentsTab with initial category */}
-        <TabsContent value="site-photo" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="site-photo" />
-        </TabsContent>
-        <TabsContent value="client-photo" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="client-photo" />
-        </TabsContent>
-        <TabsContent value="slab-photo" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="slab-photo" />
-        </TabsContent>
-        <TabsContent value="frame-photo" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="frame-photo" />
-        </TabsContent>
-        <TabsContent value="pc-photo" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="pc-photo" />
-        </TabsContent>
-        <TabsContent value="enclosed-photo" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="enclosed-photo" />
-        </TabsContent>
-        <TabsContent value="fixing-photo" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="fixing-photo" />
-        </TabsContent>
-        <TabsContent value="supervisor-photo" className="mt-4">
-          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="supervisor-photo" />
-        </TabsContent>
-
-        <TabsContent value="coms" className="mt-4">
-          <JobCommunicationsTab jobId={job.id} jobTitle={job.name} />
-        </TabsContent>
-
-        <TabsContent value="team" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Management</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Team settings will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="settings" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Job Settings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Job settings coming soon.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="help" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Help & Documentation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Help documentation will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Plans tab - only mount when active, key forces fresh mount each time */}
