@@ -78,7 +78,7 @@ class ImapCredential < ApplicationRecord
     { success: true, message_count: message_count }
   rescue Net::IMAP::NoResponseError => e
     { success: false, error: "Authentication failed: #{e.message}" }
-  rescue => e
+  rescue StandardError => e
     { success: false, error: e.message }
   end
 
@@ -96,7 +96,7 @@ class ImapCredential < ApplicationRecord
     { success: true }
   rescue Net::SMTPAuthenticationError => e
     { success: false, error: "Authentication failed: #{e.message}" }
-  rescue => e
+  rescue StandardError => e
     { success: false, error: e.message }
   end
 

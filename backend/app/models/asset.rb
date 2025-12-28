@@ -239,7 +239,7 @@ class Asset < ApplicationRecord
           photo.variant(resize_to_limit: [400, 400]),
           host: default_url_host
         )
-      rescue => e
+      rescue StandardError => e
         Rails.logger.warn "Thumbnail generation skipped for #{photo.filename}: #{e.message}"
         base_url # Fall back to original if variant fails
       end
@@ -253,7 +253,7 @@ class Asset < ApplicationRecord
         byte_size: photo.byte_size,
         created_at: photo.created_at
       }
-    rescue => e
+    rescue StandardError => e
       Rails.logger.error "Failed to generate photo URL: #{e.message}"
       nil
     end.compact
@@ -311,7 +311,7 @@ class Asset < ApplicationRecord
       effective_life_years: default_effective_life,
       is_division_43: property?
     )
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "Failed to create default depreciation profile: #{e.message}"
   end
 
@@ -336,7 +336,7 @@ class Asset < ApplicationRecord
       change_details: { asset_id: id, asset_type: asset_type, purchase_price: purchase_price },
       user: user
     )
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "Failed to create asset activity: #{e.message}"
   end
 
@@ -362,7 +362,7 @@ class Asset < ApplicationRecord
         user: user
       )
     end
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "Failed to create asset update activity: #{e.message}"
   end
 end

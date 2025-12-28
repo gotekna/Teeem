@@ -20,7 +20,7 @@ class EmailWarehouse < ApplicationRecord
     application/vnd.openxmlformats-officedocument.presentationml.presentation
     application/vnd.ms-excel application/msword application/vnd.ms-powerpoint
     text/plain text/csv text/html
-    application/zip application/x-zip-compressed
+    application/zip
   ].freeze
 
   validates :files, content_type: ALLOWED_EMAIL_ATTACHMENT_TYPES,
