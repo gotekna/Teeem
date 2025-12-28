@@ -71,7 +71,12 @@ module Api
 
       # GET /api/v1/referrers/:id/network
       # Returns the referrer's network tree (who they referred, and who those referred)
+      # Performance: Pre-load data to avoid duplicate queries
       def network
+        # Cache loaded data to avoid duplicate queries and enable .size
+        l1_customers = @referrer.l1_referrals.saas_customers.includes(:support_contact).to_a
+        l2_customers = @referrer.l2_referrals.saas_customers.includes(:support_contact).to_a
+
         render json: {
           success: true,
           data: {
@@ -79,7 +84,7 @@ module Api
               id: @referrer.id,
               name: @referrer.display_name
             },
-            l1_referrals: @referrer.l1_referrals.saas_customers.map do |c|
+            l1_referrals: l1_customers.map do |c|
               {
                 id: c.id,
                 name: c.display_name,
@@ -89,7 +94,7 @@ module Api
                 monthly_fee: c.calculate_saas_fee[:cost]&./(12.0)&.round(2)
               }
             end,
-            l2_referrals: @referrer.l2_referrals.saas_customers.map do |c|
+            l2_referrals: l2_customers.map do |c|
               {
                 id: c.id,
                 name: c.display_name,
@@ -100,8 +105,8 @@ module Api
               }
             end,
             network_stats: {
-              total_l1: @referrer.l1_referrals.saas_customers.count,
-              total_l2: @referrer.l2_referrals.saas_customers.count,
+              total_l1: l1_customers.size,
+              total_l2: l2_customers.size,
               total_network_fees: @referrer.total_network_fees,
               l1_threshold: ReferralCommissionService::L1_THRESHOLD,
               l2_threshold: ReferralCommissionService::L2_THRESHOLD

@@ -1850,12 +1850,14 @@ module Api
               end
             end
 
+            # Performance: Pre-build lookup sets to avoid N+1 find_by queries
+            target_job_ids = target_contact.job_contacts.pluck(:job_id).to_set
+            target_case_ids = target_contact.case_contacts.pluck(:case_record_id).to_set
+
             # Transfer job associations
             source.job_contacts.each do |job_contact|
-              # Check if target already has this job association
-              existing = target_contact.job_contacts.find_by(job_id: job_contact.job_id)
-
-              if existing
+              # Check if target already has this job association (using cached set)
+              if target_job_ids.include?(job_contact.job_id)
                 job_contact.destroy
               else
                 job_contact.update(contact_id: target_id)
@@ -1864,10 +1866,8 @@ module Api
 
             # Transfer case associations
             source.case_contacts.each do |case_contact|
-              # Check if target already has this case association
-              existing = target_contact.case_contacts.find_by(case_record_id: case_contact.case_record_id)
-
-              if existing
+              # Check if target already has this case association (using cached set)
+              if target_case_ids.include?(case_contact.case_record_id)
                 case_contact.destroy
               else
                 case_contact.update(contact_id: target_id)

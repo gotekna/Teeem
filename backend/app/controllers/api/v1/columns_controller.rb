@@ -308,17 +308,20 @@ module Api
           end
         end
 
+        # Performance: Cache text columns query outside the loop (avoids N+1)
+        text_columns = target_foundation.columns
+          .where(column_type: [ "single_line_text", "email", "phone", "url" ])
+          .limit(3)
+          .to_a
+
         # Build result with display value and additional context
         results = records.map do |record|
-          # Get all text columns for context
+          # Get all text columns for context (using cached columns)
           context_fields = {}
-          target_foundation.columns
-            .where(column_type: [ "single_line_text", "email", "phone", "url" ])
-            .limit(3)
-            .each do |col|
-              value = record.send(col.column_name)
-              context_fields[col.name] = value if value.present?
-            end
+          text_columns.each do |col|
+            value = record.send(col.column_name)
+            context_fields[col.name] = value if value.present?
+          end
 
           {
             id: record.id,

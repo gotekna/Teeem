@@ -29,6 +29,9 @@ module Api
         sort_order = params[:sort_order] == "asc" ? :asc : :desc
         requests = requests.order(created_at: sort_order)
 
+        # Performance: Get total count BEFORE pagination (respects filters)
+        total_count = requests.count
+
         # Paginate
         page = params[:page]&.to_i || 1
         per_page = params[:per_page]&.to_i || 25
@@ -41,7 +44,7 @@ module Api
             pagination: {
               current_page: page,
               per_page: per_page,
-              total: PayNowRequest.count
+              total: total_count  # Uses filtered count, not global count
             }
           }
         }
