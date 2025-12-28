@@ -991,10 +991,11 @@ class Contact < ApplicationRecord
   end
 
   # Calculate total network fees (own fees + L1 referrals + L2 referrals)
+  # Performance: Uses SQL SUM instead of loading all records into memory
   def calculate_network_fees
     own_fees = is_saas_customer? ? (annual_saas_fee || 0) : 0
-    l1_fees = l1_referrals.saas_customers.sum { |c| c.annual_saas_fee || 0 }
-    l2_fees = l2_referrals.saas_customers.sum { |c| c.annual_saas_fee || 0 }
+    l1_fees = l1_referrals.saas_customers.sum(:annual_saas_fee) || 0
+    l2_fees = l2_referrals.saas_customers.sum(:annual_saas_fee) || 0
     own_fees + l1_fees + l2_fees
   end
 

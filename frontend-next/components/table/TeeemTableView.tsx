@@ -223,7 +223,6 @@ import { TableSkeleton } from "./components/TableSkeleton";
 // Column renderer registry (Phase 4 refactoring)
 import { renderCell as renderCellWithRegistry } from "./core/column-renderer/ColumnRenderer";
 import { validateCell as validateCellWithRegistry } from "./core/column-renderer/CellValidation";
-import { useLookupResolver } from "./hooks/useLookupResolver";
 
 // Table sections (Phase 6 refactoring)
 import { TableHeaderSection, TableFooterSection } from "./core/table-sections";
@@ -1291,11 +1290,7 @@ export default function TeeemTableView({
   }, [baseColumns, extraColumns]);
 
   // Use auto-fetched records when in auto-fetch mode, otherwise use entries prop
-  const rawEntries = useAutoFetch ? autoFetchedRecords : entries;
-
-  // Auto-resolve lookup columns from raw IDs to { id, display } objects
-  // This fixes 43+ pages that pass custom entries with unresolved lookup IDs
-  const effectiveEntries = useLookupResolver(rawEntries, effectiveColumns);
+  const effectiveEntries = useAutoFetch ? autoFetchedRecords : entries;
 
   // Use auto-fetch search handler when in auto-fetch mode, otherwise use provided handler
   const effectiveOnServerSearch = useAutoFetch ? handleAutoFetchSearch : onServerSearch;

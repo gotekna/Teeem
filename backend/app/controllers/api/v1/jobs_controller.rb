@@ -17,15 +17,18 @@ module Api
                   .where(job_status_id: enquiry_status&.id)
                   .order(created_at: :desc)
 
-        # Group jobs by stage
+        # Group jobs by stage - single pass O(N) instead of O(N*M)
+        # Performance: Uses Ruby group_by once instead of nested filtering
+        jobs_grouped = jobs.group_by(&:job_stage_id)
+
         jobs_by_stage = {}
         enquiry_stages.each do |stage|
-          stage_jobs = jobs.select { |j| j.job_stage_id == stage.id }
+          stage_jobs = jobs_grouped[stage.id] || []
           jobs_by_stage[stage.name.downcase.gsub(" ", "_")] = stage_jobs.map { |job| pipeline_job_to_json(job) }
         end
 
         # Add jobs without a stage to "needs_pricing" (first stage)
-        no_stage_jobs = jobs.select { |j| j.job_stage_id.nil? }
+        no_stage_jobs = jobs_grouped[nil] || []
         jobs_by_stage["needs_pricing"] ||= []
         jobs_by_stage["needs_pricing"] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage["needs_pricing"]
 
@@ -45,7 +48,8 @@ module Api
 
         # Calculate stats
         # SSoT: contract_price is THE ONE
-        total_pipeline_value = jobs.sum { |j| j.contract_price || 0 }
+        # Performance: Use SQL SUM instead of Ruby block
+        total_pipeline_value = jobs.sum(:contract_price) || 0
         won_value = won_jobs.sum(:contract_price) || 0
 
         render json: {
