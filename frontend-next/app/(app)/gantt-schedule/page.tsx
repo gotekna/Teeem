@@ -8,6 +8,7 @@
  */
 
 import * as React from "react";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
@@ -31,11 +32,18 @@ interface SmScheduleMasterTemplate {
 }
 
 export default function GanttSchedulePage() {
+  // SSoT: URL state for template selection (enables shareable links)
+  const [urlState, setUrlState] = useUrlState({
+    template: null as string | null,  // null = auto-select default
+  });
   const [templates, setTemplates] = React.useState<SmScheduleMasterTemplate[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [defaultTemplateId, setDefaultTemplateId] = React.useState<number | null>(null);
 
-  // Load templates and auto-select "Schedule Master LIVE"
+  // Derive selected template from URL or default
+  const selectedTemplateId = urlState.template ? parseInt(urlState.template) : defaultTemplateId;
+
+  // Load templates and determine default
   React.useEffect(() => {
     const loadTemplates = async () => {
       try {
@@ -45,17 +53,17 @@ export default function GanttSchedulePage() {
         const loadedTemplates = data?.sm_schedule_master_templates || [];
         setTemplates(loadedTemplates);
 
-        // Auto-select "Schedule Master LIVE" template
+        // Determine default template (Schedule Master LIVE)
         if (loadedTemplates.length > 0) {
           const scheduleMasterLive = loadedTemplates.find(t =>
             t.name.toLowerCase().includes("schedule master live") ||
             (t.row_count === 165 && t.name.toLowerCase().includes("schedule"))
           );
           if (scheduleMasterLive) {
-            setSelectedTemplateId(scheduleMasterLive.id);
+            setDefaultTemplateId(scheduleMasterLive.id);
           } else {
             // Fallback to first template
-            setSelectedTemplateId(loadedTemplates[0].id);
+            setDefaultTemplateId(loadedTemplates[0].id);
           }
         }
       } catch (error) {
@@ -91,7 +99,11 @@ export default function GanttSchedulePage() {
         <div className="flex items-center gap-3">
           <Select
             value={selectedTemplateId ? String(selectedTemplateId) : ""}
-            onValueChange={(value) => setSelectedTemplateId(parseInt(value))}
+            onValueChange={(value) => {
+              // Clear URL param if selecting default, otherwise set it
+              const newId = parseInt(value);
+              setUrlState({ template: newId === defaultTemplateId ? null : value });
+            }}
           >
             <SelectTrigger className="w-[300px]">
               <SelectValue placeholder="Select a template" />

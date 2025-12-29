@@ -2842,11 +2842,12 @@ export default function TeeemTableView({
       // URL update with slug (preferred) or numeric ID (fallback)
       // Using slug for: portability across environments, human-readable URLs
       if (view.id && !skipUrlUpdate) {
-        const currentUrlView = searchParams.get('view');
+        // SSoT: Read current URL params from window.location to avoid stale closure
+        const currentParams = new URLSearchParams(window.location.search);
+        const currentUrlView = currentParams.get('view');
         // Prefer slug if available, fall back to numeric ID for backwards compatibility
         const newViewIdentifier = view.slug || String(view.id);
         if (currentUrlView !== newViewIdentifier) {
-          const currentParams = new URLSearchParams(searchParams.toString());
           currentParams.set('view', newViewIdentifier);
           const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
           router.replace(newUrl, { scroll: false });
@@ -2858,7 +2859,7 @@ export default function TeeemTableView({
         onViewApiParamsChange(null);
       }
     },
-    [applyView, onViewApiParamsChange, searchParams, router]
+    [applyView, onViewApiParamsChange, router]
   );
 
   // Load saved views (simplified using atoms)

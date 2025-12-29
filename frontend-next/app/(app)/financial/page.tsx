@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useUrlState } from "@/hooks/useUrlState";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -850,23 +849,15 @@ function AgedReportsTab({
   payablesContacts: AgedContact[];
   selectedCompany: string;
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const subtabFromUrl = searchParams.get("subtab");
-  const activeTab = subtabFromUrl || "receivables";
+  // SSoT: URL subtab state managed by useUrlState hook
+  const [urlState, setUrlState] = useUrlState({
+    subtab: null as string | null,  // null = "receivables"
+  });
+  const activeTab = urlState.subtab || "receivables";
 
   const handleTabChange = useCallback((tabId: string) => {
-    // Preserve existing params (like tab=aged and company)
-    const params = new URLSearchParams(searchParams.toString());
-    if (tabId === "receivables") {
-      params.delete("subtab");
-    } else {
-      params.set("subtab", tabId);
-    }
-    const queryString = params.toString();
-    const url = queryString ? `/financial?${queryString}` : "/financial";
-    router.push(url, { scroll: false });
-  }, [router, searchParams]);
+    setUrlState({ subtab: tabId === "receivables" ? null : tabId });
+  }, [setUrlState]);
 
   const [selectedPayables, setSelectedPayables] = React.useState<Set<number>>(new Set());
   const [processingPayment, setProcessingPayment] = React.useState(false);
@@ -1531,44 +1522,26 @@ function ReportsTab() {
 // ============================================================================
 
 export default function FinancialPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const companyId = searchParams.get("company");
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "dashboard";
+  // SSoT: URL state managed by useUrlState hook
+  const [urlState, setUrlState] = useUrlState({
+    company: null as string | null,  // null = "all"
+    tab: null as string | null,      // null = "dashboard"
+  });
+  const activeTab = urlState.tab || "dashboard";
+  const selectedCompany = urlState.company || "all";
 
   const handleTabChange = useCallback((tabId: string) => {
-    // Preserve company param if present
-    const params = new URLSearchParams();
-    if (companyId) {
-      params.set("company", companyId);
-    }
-    if (tabId !== "dashboard") {
-      params.set("tab", tabId);
-    }
-    // Clear subtab when changing main tabs
-    const queryString = params.toString();
-    const url = queryString ? `/financial?${queryString}` : "/financial";
-    router.push(url, { scroll: false });
-  }, [router, companyId]);
+    // Clear subtab when changing main tabs by setting tab only
+    setUrlState({ tab: tabId === "dashboard" ? null : tabId });
+  }, [setUrlState]);
 
   // URL is SSoT for company selection (enables shareable links)
   const handleCompanyChange = useCallback((newCompanyId: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (newCompanyId && newCompanyId !== "all") {
-      params.set("company", newCompanyId);
-    } else {
-      params.delete("company");
-    }
-    const queryString = params.toString();
-    const url = queryString ? `/financial?${queryString}` : "/financial";
-    router.push(url, { scroll: false });
-  }, [router, searchParams]);
+    setUrlState({ company: newCompanyId === "all" ? null : newCompanyId });
+  }, [setUrlState]);
 
   // State
   const [loading, setLoading] = React.useState(true);
-  // URL is SSoT for company selection - derive from URL param
-  const selectedCompany = companyId || "all";
   const [companies, setCompanies] = React.useState<Company[]>([]);
   const [refreshing, setRefreshing] = React.useState(false);
 

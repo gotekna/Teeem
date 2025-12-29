@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import axios from "axios";
 import {
   BanknotesIcon,
@@ -68,7 +69,9 @@ interface Tab {
 
 export default function PortalPayNow() {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<keyof Requests>("pending");
+  // SSoT: URL tab state managed by useUrlTabs hook
+  const [activeTabRaw, setActiveTab] = useUrlTabs("pending");
+  const activeTab = activeTabRaw as keyof Requests;
   const [requests, setRequests] = useState<Requests>({
     pending: [],
     approved: [],

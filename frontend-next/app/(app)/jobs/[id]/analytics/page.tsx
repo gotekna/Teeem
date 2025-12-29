@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, ElementType } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import {
   ChartBarIcon,
   CpuChipIcon,
@@ -68,10 +69,9 @@ interface TabConfig {
 
 export default function SmAnalyticsPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const constructionId = params.id as string;
-  const activeTab = searchParams.get("tab") || "overview";
+  // SSoT: URL tab state managed by useUrlTabs hook
+  const [activeTab, setTab] = useUrlTabs("overview");
 
   const [construction, setConstruction] = useState<Construction | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -94,12 +94,6 @@ export default function SmAnalyticsPage() {
     };
     fetchData();
   }, [constructionId]);
-
-  const setTab = (tab: string) => {
-    const newParams = new URLSearchParams(searchParams.toString());
-    newParams.set("tab", tab);
-    router.push(`?${newParams.toString()}`);
-  };
 
   const tabs: TabConfig[] = [
     { id: "overview", label: "Overview", icon: ChartBarIcon },

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -90,10 +90,13 @@ interface PdfSyncHealth {
 }
 
 export default function XeroIntegrationPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const currentTab = searchParams.get("tab") || "connection";
-  const showConnectionsParam = searchParams.get("connections");
+  // SSoT: URL state managed by useUrlState hook
+  const [urlState, setUrlState] = useUrlState({
+    tab: null as string | null,         // null = "connection"
+    connections: null as string | null, // null = not showing popup
+  });
+  const currentTab = urlState.tab || "connection";
+  const showConnectionsParam = urlState.connections;
   const [status, setStatus] = React.useState<XeroStatus | null>(null);
   const [tenants, setTenants] = React.useState<XeroTenant[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -311,7 +314,7 @@ export default function XeroIntegrationPage() {
       <Tabs
         value={currentTab}
         onValueChange={(value) => {
-          router.push(`/settings/integrations/xero?tab=${value}`);
+          setUrlState({ tab: value === "connection" ? null : value });
         }}
         className="space-y-6"
       >
@@ -763,7 +766,7 @@ export default function XeroIntegrationPage() {
           <Button
             variant="outline"
             className="w-full"
-            onClick={() => router.push("/settings/integrations/xero?tab=connection")}
+            onClick={() => setUrlState({ tab: null })}
           >
             <FileText className="h-4 w-4 mr-2" />
             View Full Document Sync Details
@@ -806,9 +809,7 @@ export default function XeroIntegrationPage() {
             console.error("Failed to refresh connections:", error);
           }
           // Remove the connections parameter from URL
-          const params = new URLSearchParams(searchParams.toString());
-          params.delete("connections");
-          router.push(`/settings/integrations/xero?${params.toString()}`);
+          setUrlState({ connections: null });
         }}
       />
     </div>
