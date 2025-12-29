@@ -1,5 +1,8 @@
 "use client";
 
+// Leaflet CSS - imported here rather than globally for better code-splitting
+import "leaflet/dist/leaflet.css";
+
 import { useEffect, useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
