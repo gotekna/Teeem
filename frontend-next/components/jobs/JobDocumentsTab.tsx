@@ -478,13 +478,16 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (e.target) e.target.value = "";
   };
 
-  // Handle photo library selection
-  const handlePhotoLibrarySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handlePhotoUpload(file);
+  // Handle photo library selection (supports multiple files)
+  const handlePhotoLibrarySelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Upload all selected files
+    for (let i = 0; i < files.length; i++) {
+      await handlePhotoUpload(files[i]);
     }
-    // Reset the input so the same file can be selected again
+    // Reset the input so the same files can be selected again
     if (e.target) e.target.value = "";
   };
 
@@ -2191,11 +2194,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         className="hidden"
         onChange={handleCameraCapture}
       />
-      {/* Photo library input - standard file picker for images */}
+      {/* Photo library input - standard file picker for images (supports multi-select) */}
       <input
         ref={photoLibraryInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={handlePhotoLibrarySelect}
       />

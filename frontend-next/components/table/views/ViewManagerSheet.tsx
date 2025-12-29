@@ -102,6 +102,7 @@ interface Column {
   column_type: string;
   position?: number;
   lookup_foundation_id?: number;
+  lookup_foundation_slug?: string;  // SSoT: Use slug for API calls (portable across environments)
   lookup_display_column?: string;
   available_choices?: { id: number; value: string }[] | string[];
   searchable?: boolean;
@@ -675,9 +676,11 @@ export function ViewManagerSheet({
 
   // Fetch lookup options for a column
   const fetchLookupOptions = async (column: Column) => {
-    if (!column.lookup_foundation_id) return;
+    // SSoT: Use slug for API calls (portable across environments), fallback to ID for legacy data
+    const targetFoundation = column.lookup_foundation_slug || column.lookup_foundation_id;
+    if (!targetFoundation) return;
 
-    const cacheKey = `${column.lookup_foundation_id}`;
+    const cacheKey = `${targetFoundation}`;
     if (lookupOptionsCache[cacheKey]) return;
     if (lookupLoadingColumns.has(cacheKey)) return;
 
@@ -704,7 +707,7 @@ export function ViewManagerSheet({
         }
       } else {
         const response = await api.get<{ entries?: { id: number; [key: string]: unknown }[] }>(
-          `/api/v1/foundations/${column.lookup_foundation_id}/entries`
+          `/api/v1/foundations/${targetFoundation}/entries`
         );
 
         if (response?.entries) {

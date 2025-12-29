@@ -1717,8 +1717,8 @@ export default function TeeemTableView({
         setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
       }
     }
-     
-  }, [selectedRows.size]);
+
+  }, [groupedEntries, collapsedGroups, selectedRows, filteredAndSortedEntries]);
 
   // Merge handler - opens the shared merge modal
   const handleMergeClick = useCallback((ids: (number | string)[]) => {
@@ -1894,10 +1894,11 @@ export default function TeeemTableView({
 
   // Fetch lookup options for a column (uses module-level cache)
   const fetchLookupOptions = useCallback(async (column: TableColumn) => {
-    const targetTableId = column.lookup_foundation_id;
-    const cacheKey = `${column.key}_${targetTableId}`;
+    // SSoT: Use slug for API calls (portable across environments), fallback to ID for legacy data
+    const targetFoundation = column.lookup_foundation_slug || column.lookup_foundation_id;
+    const cacheKey = `${column.key}_${targetFoundation}`;
 
-    if (!targetTableId) return;
+    if (!targetFoundation) return;
 
     // Check module-level cache first (survives component remounts)
     if (lookupCache[cacheKey]) {
@@ -1920,7 +1921,7 @@ export default function TeeemTableView({
 
     // Create and store the fetch promise
     lookupFetchPromises[cacheKey] = (async () => {
-      const response = await api.get(`/api/v1/foundations/${targetTableId}/records`);
+      const response = await api.get(`/api/v1/foundations/${targetFoundation}/records`);
 
       // Handle various response structures
       let records: Record<string, unknown>[] = [];
@@ -5104,6 +5105,7 @@ export default function TeeemTableView({
               column_type: col.column_type || 'single_line_text',
               position: index,
               lookup_foundation_id: col.lookup_foundation_id,
+              lookup_foundation_slug: col.lookup_foundation_slug,  // SSoT: Pass slug for portable lookups
               lookup_display_column: col.lookup_display_column,
               available_choices: col.choices,
             }))}
