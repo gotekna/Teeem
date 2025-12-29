@@ -8,14 +8,16 @@ import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { type PhotoItem } from "@/components/ui/photo-gallery";
-import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { Badge } from "@/components/ui/badge";
-import { Camera, RefreshCw, User } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Camera, RefreshCw, User, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY_TYPES = "job-photos-selected-job-types";
 const STORAGE_KEY_STATUSES = "job-photos-selected-statuses";
+const STORAGE_KEY_SUPERVISORS = "job-photos-selected-supervisors";
 
 interface Photo {
   id: number;
@@ -64,16 +66,22 @@ interface StatusesResponse {
   data: JobStatus[];
 }
 
+interface SupervisorsResponse {
+  success: boolean;
+  data: string[];
+}
+
 export default function JobPhotosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allJobTypes, setAllJobTypes] = useState<JobType[]>([]);
   const [selectedJobTypeIds, setSelectedJobTypeIds] = useState<number[]>([]);
-  const [typesInitialized, setTypesInitialized] = useState(false);
   const [allStatuses, setAllStatuses] = useState<JobStatus[]>([]);
   const [selectedStatusIds, setSelectedStatusIds] = useState<number[]>([]);
-  const [statusesInitialized, setStatusesInitialized] = useState(false);
+  const [allSupervisors, setAllSupervisors] = useState<string[]>([]);
+  const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
+  const [filtersInitialized, setFiltersInitialized] = useState(false);
   const [data, setData] = useState<SupervisorGroup>({});
   const [totalJobs, setTotalJobs] = useState(0);
 
@@ -85,8 +93,8 @@ export default function JobPhotosPage() {
   // Calculate photos per job - more jobs = fewer photos per job
   const photosPerJob = totalJobs <= 3 ? 10 : totalJobs <= 6 ? 7 : totalJobs <= 10 ? 5 : 3;
 
-  // Load saved selections from localStorage
-  const loadSaved = (key: string): number[] | null => {
+  // Load/save from localStorage
+  const loadSaved = <T,>(key: string): T | null => {
     if (typeof window === "undefined") return null;
     try {
       const saved = localStorage.getItem(key);
@@ -96,88 +104,97 @@ export default function JobPhotosPage() {
     }
   };
 
-  // Save selections to localStorage
-  const saveSelection = (key: string, ids: number[]) => {
+  const saveSelection = (key: string, value: unknown) => {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(key, JSON.stringify(ids));
+      localStorage.setItem(key, JSON.stringify(value));
     } catch {
-      // Ignore storage errors
+      // Ignore
     }
   };
 
-  // Load available job types and statuses
+  // Load all filters
   useEffect(() => {
     const loadFilters = async () => {
       try {
-        // Load job types
-        const typesResponse = await api.get<JobTypesResponse>("/api/v1/jobs_photos/job_types");
-        if (typesResponse?.success) {
-          setAllJobTypes(typesResponse.data);
-          const savedTypes = loadSaved(STORAGE_KEY_TYPES);
-          if (savedTypes && savedTypes.length > 0) {
-            const validIds = typesResponse.data.map(t => t.id);
-            const validSaved = savedTypes.filter(id => validIds.includes(id));
-            setSelectedJobTypeIds(validSaved.length > 0 ? validSaved : validIds);
+        const [typesRes, statusesRes, supervisorsRes] = await Promise.all([
+          api.get<JobTypesResponse>("/api/v1/jobs_photos/job_types"),
+          api.get<StatusesResponse>("/api/v1/jobs_photos/statuses"),
+          api.get<SupervisorsResponse>("/api/v1/jobs_photos/supervisors"),
+        ]);
+
+        // Job Types
+        if (typesRes?.success) {
+          setAllJobTypes(typesRes.data);
+          const saved = loadSaved<number[]>(STORAGE_KEY_TYPES);
+          const validIds = typesRes.data.map(t => t.id);
+          if (saved?.length) {
+            setSelectedJobTypeIds(saved.filter(id => validIds.includes(id)));
           } else {
-            setSelectedJobTypeIds(typesResponse.data.map(t => t.id));
+            setSelectedJobTypeIds(validIds);
           }
-          setTypesInitialized(true);
         }
 
-        // Load statuses
-        const statusesResponse = await api.get<StatusesResponse>("/api/v1/jobs_photos/statuses");
-        if (statusesResponse?.success) {
-          setAllStatuses(statusesResponse.data);
-          const savedStatuses = loadSaved(STORAGE_KEY_STATUSES);
-          if (savedStatuses && savedStatuses.length > 0) {
-            const validIds = statusesResponse.data.map(s => s.id);
-            const validSaved = savedStatuses.filter(id => validIds.includes(id));
-            setSelectedStatusIds(validSaved.length > 0 ? validSaved : validIds);
+        // Statuses
+        if (statusesRes?.success) {
+          setAllStatuses(statusesRes.data);
+          const saved = loadSaved<number[]>(STORAGE_KEY_STATUSES);
+          const validIds = statusesRes.data.map(s => s.id);
+          if (saved?.length) {
+            setSelectedStatusIds(saved.filter(id => validIds.includes(id)));
           } else {
-            setSelectedStatusIds(statusesResponse.data.map(s => s.id));
+            setSelectedStatusIds(validIds);
           }
-          setStatusesInitialized(true);
         }
+
+        // Supervisors
+        if (supervisorsRes?.success) {
+          setAllSupervisors(supervisorsRes.data);
+          const saved = loadSaved<string[]>(STORAGE_KEY_SUPERVISORS);
+          if (saved?.length) {
+            setSelectedSupervisors(saved.filter(s => supervisorsRes.data.includes(s)));
+          } else {
+            setSelectedSupervisors(supervisorsRes.data);
+          }
+        }
+
+        setFiltersInitialized(true);
       } catch (err) {
         console.error("Failed to load filters:", err);
+        setFiltersInitialized(true);
       }
     };
     loadFilters();
   }, []);
 
-  // Convert job types to MultipleSelector options
-  const jobTypeOptions: Option[] = allJobTypes.map(t => ({
-    value: String(t.id),
-    label: t.name,
-  }));
-
-  // Get selected options for MultipleSelector
-  const selectedOptions: Option[] = selectedJobTypeIds
-    .map(id => jobTypeOptions.find(o => o.value === String(id)))
-    .filter((o): o is Option => o !== undefined);
-
-  // Handle job type selection change from MultipleSelector
-  const handleJobTypeChange = (options: Option[]) => {
-    const newIds = options.map(o => Number(o.value));
-    setSelectedJobTypeIds(newIds);
-    saveSelection(STORAGE_KEY_TYPES, newIds);
+  // Toggle functions
+  const toggleJobType = (id: number) => {
+    setSelectedJobTypeIds(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      saveSelection(STORAGE_KEY_TYPES, next);
+      return next;
+    });
   };
 
-  // Toggle status selection
-  const toggleStatus = (statusId: number) => {
+  const toggleStatus = (id: number) => {
     setSelectedStatusIds(prev => {
-      const newSelection = prev.includes(statusId)
-        ? prev.filter(id => id !== statusId)
-        : [...prev, statusId];
-      saveSelection(STORAGE_KEY_STATUSES, newSelection);
-      return newSelection;
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      saveSelection(STORAGE_KEY_STATUSES, next);
+      return next;
+    });
+  };
+
+  const toggleSupervisor = (name: string) => {
+    setSelectedSupervisors(prev => {
+      const next = prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name];
+      saveSelection(STORAGE_KEY_SUPERVISORS, next);
+      return next;
     });
   };
 
   // Load photos data
   const loadPhotos = useCallback(async () => {
-    if (!typesInitialized || !statusesInitialized || selectedJobTypeIds.length === 0 || selectedStatusIds.length === 0) {
+    if (!filtersInitialized || selectedJobTypeIds.length === 0 || selectedStatusIds.length === 0) {
       setData({});
       setTotalJobs(0);
       setLoading(false);
@@ -192,8 +209,15 @@ export default function JobPhotosPage() {
       const url = `/api/v1/jobs_photos?${typeParams}&${statusParams}&limit=${photosPerJob}`;
       const response = await api.get<JobsPhotosResponse>(url);
       if (response?.success) {
-        setData(response.data.supervisors);
-        setTotalJobs(response.data.total_jobs);
+        // Filter by selected supervisors
+        const filtered: SupervisorGroup = {};
+        for (const [supervisor, jobs] of Object.entries(response.data.supervisors)) {
+          if (selectedSupervisors.includes(supervisor)) {
+            filtered[supervisor] = jobs;
+          }
+        }
+        setData(filtered);
+        setTotalJobs(Object.values(filtered).flat().length);
       } else {
         setError("Failed to load photos");
       }
@@ -203,18 +227,16 @@ export default function JobPhotosPage() {
     } finally {
       setLoading(false);
     }
-  }, [typesInitialized, statusesInitialized, selectedJobTypeIds, selectedStatusIds, photosPerJob]);
+  }, [filtersInitialized, selectedJobTypeIds, selectedStatusIds, selectedSupervisors, photosPerJob]);
 
   useEffect(() => {
     loadPhotos();
   }, [loadPhotos]);
 
-  // Handle photo click - navigate to job's photos tab
   const handlePhotoClick = (jobId: number) => {
     router.push(`/jobs/${jobId}?tab=photos`);
   };
 
-  // Handle photo expand in lightbox
   const handlePhotoExpand = (photos: Photo[], index: number) => {
     setLightboxPhotos(photos.map(p => ({
       id: String(p.id),
@@ -227,7 +249,6 @@ export default function JobPhotosPage() {
     setLightboxOpen(true);
   };
 
-  // Format date for display
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Unknown";
     const date = new Date(dateStr);
@@ -251,42 +272,77 @@ export default function JobPhotosPage() {
             Refresh
           </Button>
         </div>
-        {/* Filters */}
-        <div className="px-4 pb-3 space-y-3">
-          {/* Job Type Multi-Select Dropdown */}
-          {allJobTypes.length > 0 && (
-            <MultipleSelector
-              value={selectedOptions}
-              options={jobTypeOptions}
-              onChange={handleJobTypeChange}
-              placeholder="Select house types..."
-              hidePlaceholderWhenSelected
-              className="max-w-md"
-            />
-          )}
+
+        {/* Filters Row */}
+        <div className="px-4 pb-3 flex flex-wrap items-center gap-3">
+          {/* Job Type Dropdown */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8">
+                House Types ({selectedJobTypeIds.length})
+                <ChevronDown className="ml-1 h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2" align="start">
+              <div className="space-y-1">
+                {allJobTypes.map(type => (
+                  <label key={type.id} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
+                    <Checkbox
+                      checked={selectedJobTypeIds.includes(type.id)}
+                      onCheckedChange={() => toggleJobType(type.id)}
+                    />
+                    <span className="text-sm">{type.name}</span>
+                  </label>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Supervisor Dropdown */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8">
+                Supervisors ({selectedSupervisors.length})
+                <ChevronDown className="ml-1 h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2 max-h-64 overflow-y-auto" align="start">
+              <div className="space-y-1">
+                {allSupervisors.map(name => (
+                  <label key={name} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
+                    <Checkbox
+                      checked={selectedSupervisors.includes(name)}
+                      onCheckedChange={() => toggleSupervisor(name)}
+                    />
+                    <span className="text-sm truncate">{name}</span>
+                  </label>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
+
           {/* Status Toggle Buttons */}
-          {allStatuses.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {allStatuses.map((status) => {
-                const isSelected = selectedStatusIds.includes(status.id);
-                return (
-                  <Badge
-                    key={status.id}
-                    variant={isSelected ? "default" : "outline"}
-                    className={cn(
-                      "cursor-pointer transition-colors px-3 py-1",
-                      isSelected
-                        ? "bg-blue-600 hover:bg-blue-700 text-white"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                    )}
-                    onClick={() => toggleStatus(status.id)}
-                  >
-                    {status.name}
-                  </Badge>
-                );
-              })}
-            </div>
-          )}
+          {allStatuses.map(status => {
+            const isSelected = selectedStatusIds.includes(status.id);
+            return (
+              <Badge
+                key={status.id}
+                variant={isSelected ? "default" : "outline"}
+                className={cn(
+                  "cursor-pointer transition-colors px-3 py-1",
+                  isSelected
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                )}
+                onClick={() => toggleStatus(status.id)}
+              >
+                {status.name}
+              </Badge>
+            );
+          })}
         </div>
       </div>
 
@@ -303,15 +359,15 @@ export default function JobPhotosPage() {
               Try Again
             </Button>
           </div>
-        ) : selectedJobTypeIds.length === 0 ? (
+        ) : selectedJobTypeIds.length === 0 || selectedStatusIds.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Camera className="h-12 w-12 mb-4 opacity-50" />
-            <p>Select at least one job type to view photos</p>
+            <p>Select filters to view photos</p>
           </div>
         ) : supervisorNames.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Camera className="h-12 w-12 mb-4 opacity-50" />
-            <p>No photos found for selected job types</p>
+            <p>No photos found for selected filters</p>
           </div>
         ) : (
           <div className="space-y-6">

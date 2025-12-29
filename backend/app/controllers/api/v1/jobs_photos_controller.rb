@@ -104,6 +104,18 @@ module Api
                             .map { |s| { id: s.id, name: s.name } }
         render json: { success: true, data: statuses }
       end
+
+      # GET /api/v1/jobs_photos/supervisors
+      # Returns list of supervisors who have active jobs with photos
+      def supervisors
+        names = Job.joins(:job_status)
+                   .where.not(site_supervisor_name: [nil, ""])
+                   .where(job_status: JobStatus.where.not("LOWER(name) LIKE ?", "%lost%"))
+                   .distinct
+                   .pluck(:site_supervisor_name)
+                   .sort
+        render json: { success: true, data: names }
+      end
     end
   end
 end

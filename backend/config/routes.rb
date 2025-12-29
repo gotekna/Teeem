@@ -266,6 +266,7 @@ Rails.application.routes.draw do
       get "jobs_photos", to: "jobs_photos#index"
       get "jobs_photos/job_types", to: "jobs_photos#job_types"
       get "jobs_photos/statuses", to: "jobs_photos#statuses"
+      get "jobs_photos/supervisors", to: "jobs_photos#supervisors"
 
       # Jobs management
       resources :jobs do
