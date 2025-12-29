@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :copy, :import_rows ]
 
       # GET /api/v1/sm_schedule_master_templates
       def index
@@ -106,6 +106,94 @@ module Api
           success: true,
           sm_schedule_master_template: template_json(@template)
         }
+      end
+
+      # POST /api/v1/sm_schedule_master_templates/:id/copy
+      # Copy entire template to create a new independent template
+      #
+      # Params:
+      #   name: Name for the new template (required)
+      #   description: Description for the new template (optional)
+      #
+      def copy
+        service = SmScheduleMasterCopyService.new(user: current_user)
+        result = service.copy_template(
+          @template,
+          new_name: params[:name],
+          description: params[:description]
+        )
+
+        if result[:success]
+          render json: {
+            success: true,
+            template: template_json(result[:template]),
+            version: {
+              id: result[:version].id,
+              version_number: result[:version].version_number,
+              status: result[:version].status
+            },
+            rows_copied: result[:rows_copied],
+            message: result[:message]
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/sm_schedule_master_templates/:id/import_rows
+      # Import rows from another template into this template's draft
+      #
+      # Params:
+      #   source_template_id: ID of template to import from (required)
+      #   row_ids: Array of row IDs to import (optional - imports all if not specified)
+      #
+      def import_rows
+        draft = @template.draft_version
+        unless draft.present?
+          return render json: {
+            success: false,
+            error: "Template has no draft version. Create a draft first."
+          }, status: :unprocessable_entity
+        end
+
+        source_template = SmScheduleMasterTemplate.find(params[:source_template_id])
+        source_version = source_template.published_version
+
+        unless source_version.present?
+          return render json: {
+            success: false,
+            error: "Source template has no published version"
+          }, status: :unprocessable_entity
+        end
+
+        service = SmScheduleMasterCopyService.new(user: current_user)
+        result = service.import_rows(
+          source_version: source_version,
+          target_version: draft,
+          row_ids: params[:row_ids]
+        )
+
+        if result[:success]
+          render json: {
+            success: true,
+            rows_imported: result[:rows_imported],
+            skipped_rows: result[:skipped_rows],
+            message: result[:message]
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          error: "Source template not found"
+        }, status: :not_found
       end
 
       # POST /api/v1/sm_schedule_master_templates/:id/copy_to_job

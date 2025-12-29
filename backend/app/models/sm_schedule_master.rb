@@ -21,9 +21,9 @@ class SmScheduleMaster < ApplicationRecord
   DEPENDENCY_TYPES = %w[FS SS FF SF].freeze
 
   # Associations
-  # Note: sm_template_id is deprecated, use sm_template_ids (JSONB array) instead
-  # Keeping belongs_to for backwards compatibility during migration
-  belongs_to :sm_template, class_name: "SmScheduleMasterTemplate", optional: true
+  # Note: sm_template_id column has been removed
+  # sm_template_ids (JSONB array) was the legacy multi-template support
+  # New architecture: rows belong to a version via sm_schedule_master_version_id
 
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 
@@ -42,6 +42,10 @@ class SmScheduleMaster < ApplicationRecord
 
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
+
+  # Version ownership (new architecture)
+  # Rows belong to a specific version when using versioned templates
+  belongs_to :sm_schedule_master_version, optional: true
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }

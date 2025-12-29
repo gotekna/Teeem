@@ -53,6 +53,7 @@ class Job < ApplicationRecord
   # SM Gantt associations (Schedule Master v2)
   has_many :sm_tasks, dependent: :destroy
   has_many :sm_rollover_logs, dependent: :destroy
+  belongs_to :sm_template_version, class_name: 'SmScheduleMasterVersion', optional: true
 
   # Site Presence & Cost Intelligence
   has_many :site_presence_sessions, dependent: :destroy
@@ -137,6 +138,7 @@ class Job < ApplicationRecord
   after_create :queue_onedrive_folder_creation
   after_create :log_job_created
   after_create :create_claim_stages_from_template
+  after_create :apply_schedule_template_from_job_type
   after_commit :sync_xero_tracking_option, on: :create
   before_update :track_status_and_stage_changes
   after_update :log_status_and_stage_changes
@@ -333,6 +335,26 @@ class Job < ApplicationRecord
   # Check if job was imported from Xero (has tracking option linked)
   def imported_from_xero?
     xero_tracking_option_id.present?
+  end
+
+  # ============================================
+  # Schedule Template Methods
+  # ============================================
+
+  # Get the template used for this job's schedule
+  def schedule_template
+    sm_template_version&.sm_schedule_master_template
+  end
+
+  # Check if a newer template version is available
+  def schedule_upgrade_available?
+    return false unless schedule_template.present?
+    schedule_template.has_newer_version_than?(self)
+  end
+
+  # Get the default template for this job's type
+  def default_schedule_template
+    job_type&.sm_schedule_master_template
   end
 
   # ============================================
@@ -608,6 +630,39 @@ class Job < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error "Failed to create claim stages from template for job ##{id}: #{e.message}"
+  end
+
+  # Auto-apply schedule template from job type when job is created
+  # Uses the versioned template architecture - applies the published version
+  def apply_schedule_template_from_job_type
+    return unless job_type.present?
+    return unless job_type.has_schedule_template?
+
+    template = job_type.sm_schedule_master_template
+    version = template.published_version
+    return unless version.present?
+
+    # Use the copy service to apply the template
+    result = SmScheduleMasterTemplateCopyService.new(template, self, {
+      start_date: start_date || Date.current,
+      user: nil, # System-initiated, no user context
+      clear_existing: false,
+      create_purchase_orders: false # Don't auto-create POs on job creation
+    }).execute
+
+    if result[:success]
+      # Record which version was applied
+      update_columns(
+        sm_template_version_id: version.id,
+        template_applied_at: Time.current
+      )
+      Rails.logger.info "[Job##{id}] Applied schedule template '#{template.name}' v#{version.version_number} (#{result[:tasks_created]} tasks)"
+    else
+      Rails.logger.error "[Job##{id}] Failed to apply schedule template: #{result[:errors].join(', ')}"
+    end
+  rescue StandardError => e
+    Rails.logger.error "[Job##{id}] Failed to apply schedule template: #{e.message}"
+    Rails.logger.error e.backtrace.first(5).join("\n")
   end
 
   # Performance: Check if name or title changed (for address search update)

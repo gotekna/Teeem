@@ -183,6 +183,9 @@ Rails.application.routes.draw do
         collection do
           post :reorder
         end
+        member do
+          patch :set_schedule_template
+        end
         resources :statuses, controller: "job_type_statuses", only: [ :index, :create ] do
           collection do
             post :reorder
@@ -624,6 +627,10 @@ Rails.application.routes.draw do
 
       # Column Types - Single Source of Truth from Gold Standard Reference Table
       resources :column_types, only: [ :index, :show, :update ]
+
+      # Column Type Definitions - SSoT for column type formatting, validation, and display
+      # Frontend fetches on app load to render all column types consistently
+      resources :column_type_definitions, only: [ :index, :show, :create, :update, :destroy ]
 
       # Gold Table Sync Check - Compare column types across all sources
       get "gold_table_sync", to: "gold_table_sync#index"
@@ -1364,6 +1371,9 @@ Rails.application.routes.draw do
             get :gantt_data
             post :copy_from_template
             post :import
+            # Template upgrade endpoints (versioned architecture)
+            get :upgrade_preview   # Preview changes before upgrading to new template version
+            post :upgrade          # Execute upgrade to new template version
           end
         end
       end
@@ -1437,9 +1447,21 @@ Rails.application.routes.draw do
           post :duplicate
           post :sync_to_job
           get :compare_to_job
+          post :copy          # Copy entire template (versioned)
+          post :import_rows   # Import rows from another template
         end
         collection do
           get :default
+        end
+        # Version management (new versioned architecture)
+        resources :versions, controller: "sm_schedule_master_versions", only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            post :publish
+          end
+          collection do
+            get :compare
+            get :history
+          end
         end
         resources :rows, controller: "sm_schedule_master", only: [ :index, :show, :create, :update, :destroy ] do
           member do

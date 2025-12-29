@@ -2,7 +2,7 @@ module Api
   module V1
     class JobTypesController < ApplicationController
       skip_before_action :authorize_request, only: [ :index ]
-      before_action :set_job_type, only: [ :show, :update, :destroy ]
+      before_action :set_job_type, only: [ :show, :update, :destroy, :set_schedule_template ]
 
       # GET /api/v1/job_types
       def index
@@ -75,6 +75,43 @@ module Api
         }
       end
 
+      # PATCH /api/v1/job_types/:id/set_schedule_template
+      # Set or clear the schedule template for this job type
+      #
+      # Params:
+      #   template_id: ID of SmScheduleMasterTemplate (or null to clear)
+      #
+      def set_schedule_template
+        template_id = params[:template_id]
+
+        if template_id.present?
+          template = SmScheduleMasterTemplate.find_by(id: template_id)
+          unless template
+            return render json: {
+              success: false,
+              error: "Template not found"
+            }, status: :not_found
+          end
+
+          unless template.published_version.present?
+            return render json: {
+              success: false,
+              error: "Template has no published version"
+            }, status: :unprocessable_entity
+          end
+        end
+
+        @job_type.update!(sm_schedule_master_template_id: template_id)
+
+        render json: {
+          success: true,
+          job_type: job_type_json(@job_type),
+          message: template_id.present? ?
+            "Schedule template set to '#{@job_type.sm_schedule_master_template.name}'" :
+            "Schedule template cleared"
+        }
+      end
+
       private
 
       def set_job_type
@@ -82,7 +119,7 @@ module Api
       end
 
       def job_type_params
-        params.require(:job_type).permit(:name, :position, :is_active, :color, :description)
+        params.require(:job_type).permit(:name, :position, :is_active, :color, :description, :sm_schedule_master_template_id)
       end
 
       def job_type_json(job_type)
@@ -94,6 +131,9 @@ module Api
           is_active: job_type.is_active,
           description: job_type.description,
           jobs_count: job_type.jobs.count,
+          # Schedule template info
+          sm_schedule_master_template_id: job_type.sm_schedule_master_template_id,
+          schedule_template: job_type.schedule_template_summary,
           created_at: job_type.created_at,
           updated_at: job_type.updated_at
         }

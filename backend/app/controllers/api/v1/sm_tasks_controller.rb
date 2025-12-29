@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTasksController < ApplicationController
-      before_action :set_job, only: [ :job_index, :gantt_data, :copy_from_template, :import ]
+      before_action :set_job, only: [ :job_index, :gantt_data, :copy_from_template, :import, :upgrade_preview, :upgrade ]
       before_action :set_job_optional, only: [ :create ]
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
@@ -211,6 +211,58 @@ module Api
         ensure
           temp_file.close
           temp_file.unlink
+        end
+      end
+
+      # GET /api/v1/jobs/:job_id/sm_tasks/upgrade_preview
+      # Preview what would change if upgrading to the latest template version
+      def upgrade_preview
+        service = SmScheduleMasterUpgradeService.new(@job, user: current_user)
+        result = service.preview_upgrade
+
+        if result[:success]
+          render json: {
+            success: true,
+            job_id: @job.id,
+            job_name: @job.name,
+            current_version: result[:current_version],
+            target_version: result[:target_version],
+            template_name: result[:template_name],
+            summary: result[:summary],
+            details: {
+              to_add: result[:details][:to_add].map { |r| { name: r[:name], task_number: r[:task_number] } },
+              to_remove: result[:details][:to_remove].map { |r| { name: r[:name], protected: r[:protected], reason: r[:protection_reason] } },
+              to_update: result[:details][:to_update].map { |r| { name: r[:name], changes: r[:changes], protected: r[:protected], reason: r[:protection_reason] } },
+              protected: result[:details][:protected],
+              custom: result[:details][:custom]
+            }
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/jobs/:job_id/sm_tasks/upgrade
+      # Execute upgrade to the latest template version
+      def upgrade
+        service = SmScheduleMasterUpgradeService.new(@job, user: current_user)
+        result = service.execute_upgrade
+
+        if result[:success]
+          render json: {
+            success: true,
+            job_id: @job.id,
+            message: "Upgraded to version #{result[:version_upgraded]}",
+            results: result[:results]
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
         end
       end
 
