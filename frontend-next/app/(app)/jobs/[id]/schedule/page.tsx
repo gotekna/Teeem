@@ -132,8 +132,8 @@ export default function ScheduleMasterPage() {
   // Fetch suppliers when modal opens
   React.useEffect(() => {
     if (addTaskModalOpen && suppliers.length === 0) {
-      api.get<{ suppliers: Array<{ id: number; name: string }> }>("/api/v1/suppliers")
-        .then((res) => setSuppliers(res.suppliers || []))
+      api.get<{ contacts: Array<{ id: number; name: string }> }>("/api/v1/contacts?type=suppliers")
+        .then((res) => setSuppliers(res.contacts || []))
         .catch((err) => console.error("Failed to load suppliers:", err));
     }
   }, [addTaskModalOpen, suppliers.length]);
@@ -197,10 +197,13 @@ export default function ScheduleMasterPage() {
         },
       });
 
-      const newTask = taskResponse.sm_task;
+      const newTask = taskResponse?.sm_task;
+      if (!newTask) {
+        throw new Error("Failed to create task");
+      }
 
       // Step 2: Create PO if requested
-      if (createPO && selectedSupplierId && newTask) {
+      if (createPO && selectedSupplierId) {
         await api.post("/api/v1/purchase_orders", {
           purchase_order: {
             job_id: jobId,
@@ -214,7 +217,7 @@ export default function ScheduleMasterPage() {
       }
 
       // Step 3: Create dependency if requested
-      if (linkToTaskId && newTask) {
+      if (linkToTaskId) {
         await api.post(`/api/v1/sm_tasks/${newTask.id}/dependencies`, {
           predecessor_id: linkToTaskId,
         });

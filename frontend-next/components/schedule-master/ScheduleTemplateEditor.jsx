@@ -483,8 +483,8 @@ export default function ScheduleTemplateEditor() {
 
   const loadSuppliers = async () => {
     try {
-      const response = await api.get('/api/v1/suppliers')
-      setSuppliers(response.suppliers || [])
+      const response = await api.get('/api/v1/contacts?type=suppliers')
+      setSuppliers(response.contacts || [])
     } catch (err) {
       console.error('Failed to load suppliers:', err)
     }

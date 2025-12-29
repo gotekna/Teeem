@@ -43,7 +43,7 @@ module Api
           photos = JobDocument.where(job_id: job.id)
                               .where(file_type: "image")
                               .where.not(thumbnail_url: [nil, ""])
-                              .order(modified_at: :desc)
+                              .order(last_modified_at: :desc)
                               .limit(photos_limit)
 
           # Skip jobs with no photos
@@ -59,8 +59,8 @@ module Api
                 id: photo.id,
                 name: photo.file_name,
                 thumbnail_url: photo.thumbnail_url,
-                modified_at: photo.modified_at&.iso8601,
-                days_old: photo.modified_at ? ((Time.current - photo.modified_at) / 1.day).to_i : nil
+                modified_at: photo.last_modified_at&.iso8601,
+                days_old: photo.last_modified_at ? ((Time.current - photo.last_modified_at) / 1.day).to_i : nil
               }
             end
           }
