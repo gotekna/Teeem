@@ -740,8 +740,13 @@ export default function TeeemTableView({
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
   // CRITICAL: Include filters in API call - backend needs to know about base filters
   useEffect(() => {
-    console.log('[TeeemTableView] autoFetch effect:', { useAutoFetch, effectiveFoundationId, baseFiltersLength: baseFilters.length, baseFilters });
     if (!useAutoFetch) return;
+
+    // ULTRA Solution: Wait for base filters to be set if initialFilters is provided
+    // This prevents the race condition where we fetch without filters, then re-fetch with filters
+    if (initialFilters && initialFilters.length > 0 && baseFilters.length === 0) {
+      return;
+    }
 
     const fetchInitialRecords = async () => {
       setIsLoadingMore(true);
