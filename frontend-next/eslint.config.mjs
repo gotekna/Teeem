@@ -103,6 +103,23 @@ const eslintConfig = defineConfig([
     }
   },
   // ==========================================================================
+  // API_URL SSoT ENFORCEMENT
+  // Prevent direct access to NEXT_PUBLIC_API_URL - use getApiBaseUrl() from @/lib/api
+  // SSoT: lib/api.ts is THE ONE place that reads the env variable
+  // ==========================================================================
+  {
+    rules: {
+      "no-restricted-syntax": ["warn",
+        {
+          selector: "MemberExpression[object.object.name='process'][object.property.name='env'][property.name='NEXT_PUBLIC_API_URL']",
+          message: "SSoT: Use getApiBaseUrl() from @/lib/api instead of direct env access. See lib/api.ts"
+        }
+      ]
+    },
+    // Only lib/api.ts is allowed to read the env variable directly
+    ignores: ["lib/api.ts"]
+  },
+  // ==========================================================================
   // COMPONENT SSoT ENFORCEMENT
   // Warn when importing deprecated components - use THE ONE instead
   // See: frontend-next/lib/component-registry.ts for the full list

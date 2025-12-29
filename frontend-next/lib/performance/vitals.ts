@@ -17,10 +17,10 @@
  */
 
 import { onCLS, onLCP, onINP, onTTFB, type Metric } from "web-vitals";
+import { getApiBaseUrl } from "@/lib/api";
 
-// Configuration
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com').trim();
-const METRICS_ENDPOINT = `${API_URL}/api/v1/metrics`;
+// Configuration - SSoT: API_URL comes from lib/api.ts
+const METRICS_ENDPOINT = `${getApiBaseUrl()}/api/v1/metrics`;
 const BATCH_SIZE = 5; // Send after collecting this many metrics
 const FLUSH_INTERVAL_MS = 30000; // Flush every 30 seconds regardless
 

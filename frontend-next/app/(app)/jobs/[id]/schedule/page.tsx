@@ -404,6 +404,7 @@ export default function ScheduleMasterPage() {
               showToolbar={true}
               onTaskDrag={handleTaskDrag}
               className="h-full"
+              jobId={Number(jobId)}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
