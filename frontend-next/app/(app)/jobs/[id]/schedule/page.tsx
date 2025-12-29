@@ -4,6 +4,7 @@ import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
 import type { GanttTask } from "@/lib/gantt/types";
+import TaskDependencyEditor from "@/components/schedule-master/TaskDependencyEditor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Calendar, Loader2, Upload } from "lucide-react";
+import { Calendar, Loader2, Upload, Zap } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { parseISO } from "date-fns";
@@ -127,7 +128,8 @@ export default function ScheduleMasterPage() {
   const [poPrice, setPoPrice] = React.useState("");
 
   // Dependency linking
-  const [linkToTaskId, setLinkToTaskId] = React.useState<number | null>(null);
+  const [openDepsAfterCreate, setOpenDepsAfterCreate] = React.useState(false);
+  const [depEditorTask, setDepEditorTask] = React.useState<SmTask | null>(null);
 
   // Fetch suppliers when modal opens
   React.useEffect(() => {
@@ -216,13 +218,6 @@ export default function ScheduleMasterPage() {
         });
       }
 
-      // Step 3: Create dependency if requested
-      if (linkToTaskId) {
-        await api.post(`/api/v1/sm_tasks/${newTask.id}/dependencies`, {
-          predecessor_id: linkToTaskId,
-        });
-      }
-
       toast({ title: "Success", description: createPO ? "Task and PO created successfully" : "Task added successfully" });
       setAddTaskModalOpen(false);
       setNewTaskName("");
@@ -230,8 +225,15 @@ export default function ScheduleMasterPage() {
       setCreatePO(false);
       setSelectedSupplierId(null);
       setPoPrice("");
-      setLinkToTaskId(null);
-      refetchTasks();
+
+      // Refetch tasks first so the new task is in the list
+      await refetchTasks();
+
+      // Step 3: Open dependency editor if requested
+      if (openDepsAfterCreate) {
+        setDepEditorTask(newTask);
+        setOpenDepsAfterCreate(false);
+      }
     } catch (error) {
       console.error("Failed to add task:", error);
       toast({ title: "Error", description: "Failed to add task", variant: "destructive" });
@@ -339,6 +341,23 @@ export default function ScheduleMasterPage() {
       console.error("Failed to update task:", error);
       // Refetch to revert on error
       refetchTasks();
+    }
+  };
+
+  // Handle saving dependencies from TaskDependencyEditor
+  const handleSaveDependencies = async (taskId: number, predecessors: Array<{ id: number; type: string; lag: number }>) => {
+    try {
+      await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+        sm_task: {
+          predecessor_ids: predecessors,
+        },
+      });
+      toast({ title: "Success", description: "Dependencies saved" });
+      setDepEditorTask(null);
+      refetchTasks();
+    } catch (error) {
+      console.error("Failed to save dependencies:", error);
+      toast({ title: "Error", description: "Failed to save dependencies", variant: "destructive" });
     }
   };
 
@@ -534,25 +553,18 @@ export default function ScheduleMasterPage() {
               </>
             )}
 
-            {/* Link to Task (Dependency) */}
-            <div className="space-y-2">
-              <Label htmlFor="link-task">Link After Task (Optional)</Label>
-              <Select
-                value={linkToTaskId?.toString() || "none"}
-                onValueChange={(v) => setLinkToTaskId(v === "none" ? null : parseInt(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select predecessor task..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {tasks.filter(t => t.id).map((t) => (
-                    <SelectItem key={t.id} value={t.id.toString()}>
-                      {t.task_number}. {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Add Dependencies Toggle */}
+            <div className="flex items-center justify-between pt-2 border-t">
+              <Label htmlFor="add-deps" className="flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                Add Dependencies
+                <span className="text-xs text-muted-foreground font-normal">(opens editor after creation)</span>
+              </Label>
+              <Switch
+                id="add-deps"
+                checked={openDepsAfterCreate}
+                onCheckedChange={setOpenDepsAfterCreate}
+              />
             </div>
           </div>
           <DialogFooter>
@@ -572,6 +584,16 @@ export default function ScheduleMasterPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dependency Editor Modal (SSoT - reuses existing component) */}
+      {depEditorTask && (
+        <TaskDependencyEditor
+          task={depEditorTask}
+          tasks={tasks}
+          onSave={handleSaveDependencies}
+          onClose={() => setDepEditorTask(null)}
+        />
+      )}
     </div>
   );
 }
