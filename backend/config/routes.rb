@@ -262,6 +262,10 @@ Rails.application.routes.draw do
         end
       end
 
+      # Jobs Photos (overview page with latest photos per job)
+      get "jobs_photos", to: "jobs_photos#index"
+      get "jobs_photos/statuses", to: "jobs_photos#statuses"
+
       # Jobs management
       resources :jobs do
         collection do

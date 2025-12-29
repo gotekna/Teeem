@@ -237,11 +237,16 @@ async function uploadSmallFile(
   onProgress?: (progress: UploadProgress) => void
 ): Promise<SharePointUploadResult> {
   try {
+    // Upload session URLs (resumable upload) REQUIRE Content-Range header
+    // even for single-chunk uploads. Format: "bytes start-end/total"
+    const contentRange = `bytes 0-${file.size - 1}/${file.size}`;
+
     const response = await fetch(uploadUrl, {
       method: "PUT",
       body: file,
       headers: {
         "Content-Length": file.size.toString(),
+        "Content-Range": contentRange,
       },
     });
 
