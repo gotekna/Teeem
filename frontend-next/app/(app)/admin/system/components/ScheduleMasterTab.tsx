@@ -63,8 +63,7 @@ import {
   X,
   MoreVertical,
   Tag,
-  Expand,
-  Minimize2,
+  // SSoT: Expand/Minimize2 removed - fullscreen now handled by TeeemTableView
   GitBranch,
   Upload,
   History,
@@ -325,7 +324,7 @@ export function ScheduleMasterTab() {
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
-  const [dataViewFullscreen, setDataViewFullscreen] = React.useState(false);
+  // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
   // Version Management state
   const [versions, setVersions] = React.useState<SmScheduleMasterVersion[]>([]);
@@ -1195,19 +1194,7 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Exit Data View fullscreen on Escape key
-  React.useEffect(() => {
-    if (!dataViewFullscreen) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setDataViewFullscreen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [dataViewFullscreen]);
+  // SSoT: Data View fullscreen escape handler removed - now handled by TeeemTableView
 
   // Gantt Preview functions
   const loadGanttRows = async (templateId: number) => {
@@ -1454,7 +1441,8 @@ export function ScheduleMasterTab() {
 
           {/* Data View Tab - Full TeeemTableView */}
           <TabsContent value="data-view" className="absolute inset-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
-          <div className={`flex flex-col h-full ${dataViewFullscreen ? "fixed inset-0 z-50 bg-background p-4" : ""}`}>
+          {/* SSoT: Fullscreen now handled by TeeemTableView via enableFullscreen prop */}
+          <div className="flex flex-col h-full">
             {/* Draft mode banner */}
             {dataViewTemplateId && (() => {
               const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
@@ -1528,18 +1516,10 @@ export function ScheduleMasterTab() {
               onRowUpdate={handleDataViewRowUpdate}
               onRowDoubleClick={handleDataViewRowDoubleClick}
               initialShowTotals={true}
+              enableFullscreen={true}
               leftActions={
                 <div className="flex items-center gap-2">
-                  {/* Fullscreen toggle */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDataViewFullscreen(!dataViewFullscreen)}
-                    title={dataViewFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen"}
-                    className="h-9 w-9"
-                  >
-                    {dataViewFullscreen ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
-                  </Button>
+                  {/* SSoT: Fullscreen button removed - now in TeeemTableView via enableFullscreen prop */}
 
                   {/* Template selector */}
                   <Select

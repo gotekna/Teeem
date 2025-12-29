@@ -94,6 +94,8 @@ import {
   UserPlus,
   ArrowLeftRight,
   Pin,
+  Expand,
+  Minimize2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -460,6 +462,7 @@ export default function TeeemTableView({
   initialShowTotals = true,
   hideFooter = false,
   alwaysVisibleColumns = [],
+  enableFullscreen = false,
   stats,
   category,
   showHeader = true,
@@ -1323,6 +1326,23 @@ export default function TeeemTableView({
 
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
+
+  // Fullscreen state (SSoT for table fullscreen - used via enableFullscreen prop)
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Exit fullscreen on Escape key
+  useEffect(() => {
+    if (!isFullscreen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsFullscreen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isFullscreen]);
 
   // Drag-to-select state is now managed by useTableDragSelect hook
 
@@ -4297,7 +4317,9 @@ export default function TeeemTableView({
   return (
     <div className={cn(
       "flex flex-col h-full gap-2",
-      debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative"
+      debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative",
+      // Fullscreen mode - SSoT for table fullscreen (enableFullscreen prop)
+      isFullscreen && "fixed inset-0 z-50 bg-background p-4"
     )}>
       {/* DEBUG: Main Container Label */}
       {debugGrid && (
@@ -4560,6 +4582,19 @@ export default function TeeemTableView({
                   {safeFilters.length}
                 </Badge>
               )}
+            </Button>
+          )}
+
+          {/* Fullscreen toggle - SSoT for table fullscreen */}
+          {enableFullscreen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              title={isFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen"}
+              className="h-9 w-9"
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
             </Button>
           )}
 

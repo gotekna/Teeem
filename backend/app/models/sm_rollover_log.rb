@@ -6,7 +6,7 @@
 #
 class SmRolloverLog < ApplicationRecord
   belongs_to :task, class_name: "SmTask"
-  belongs_to :job
+  belongs_to :job, foreign_key: :construction_id
 
   validates :rollover_batch_id, presence: true
   validates :rollover_timestamp, presence: true

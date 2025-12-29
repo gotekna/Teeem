@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -189,6 +189,8 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   // Track which matches user has confirmed (for 65-95% matches)
   const [confirmedMatches, setConfirmedMatches] = useState<Set<number>>(new Set());
+  // Track which orphans to delete (default: all selected for deletion)
+  const [orphansToDelete, setOrphansToDelete] = useState<Set<number>>(new Set());
 
   // SSoT: Data fetching moved to TeeemTableView with autoFetchRecords
   // Trigger refresh by incrementing refreshKey after sync operations
@@ -231,6 +233,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
     setCompareResult(null);
     setAnalyzeResult(null);
     setConfirmedMatches(new Set());
+    setOrphansToDelete(new Set());
     setSyncStep("analyze");
     setShowSyncDialog(true);
 
@@ -295,6 +298,11 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
           response.analysis.needs_confirmation.map(m => m.task_id)
         );
         setConfirmedMatches(allConfirmed);
+        // Pre-select all orphans for deletion (user can deselect to keep)
+        const allOrphans = new Set(
+          response.analysis.unlinked_tasks.map(t => t.task_id)
+        );
+        setOrphansToDelete(allOrphans);
       }
     } catch (err) {
       console.error("Failed to analyze:", err);
@@ -312,6 +320,8 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   const handleApplyLinksAndCompare = async () => {
     if (!jobTemplate?.id || !analyzeResult) return;
 
+    setAnalyzing(true);
+
     // Build links to apply: auto_links + confirmed matches
     const linksToApply = [
       ...analyzeResult.analysis.auto_link.map(m => ({
@@ -328,7 +338,6 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
 
     // Apply links if any
     if (linksToApply.length > 0) {
-      setAnalyzing(true);
       try {
         await api.post(
           `/api/v1/sm_schedule_master_templates/${jobTemplate.id}/apply_links`,
@@ -345,10 +354,32 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
           description: "Some links may not have been applied",
           variant: "destructive",
         });
-      } finally {
-        setAnalyzing(false);
       }
     }
+
+    // Delete selected orphans
+    const orphanIds = Array.from(orphansToDelete);
+    if (orphanIds.length > 0) {
+      try {
+        await api.post(
+          `/api/v1/sm_schedule_master_templates/${jobTemplate.id}/delete_orphans`,
+          { job_id: parseInt(String(jobId)), task_ids: orphanIds }
+        );
+        toast({
+          title: "Orphans Deleted",
+          description: `Deleted ${orphanIds.length} orphan tasks`,
+        });
+      } catch (err) {
+        console.error("Failed to delete orphans:", err);
+        toast({
+          title: "Failed to Delete Orphans",
+          description: "Some orphan tasks may not have been deleted",
+          variant: "destructive",
+        });
+      }
+    }
+
+    setAnalyzing(false);
 
     // Proceed to compare step
     setSyncStep("compare");
@@ -672,6 +703,80 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
                     </div>
                   )}
 
+                  {/* Orphans section - tasks in job with no match in template */}
+                  {analyzeResult.analysis.unlinked_tasks.length > 0 && (
+                    <div className="mt-4 border-t pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-medium flex items-center gap-2 text-red-600 dark:text-red-400">
+                          <Trash2 className="h-4 w-4" />
+                          Orphan Tasks ({analyzeResult.analysis.unlinked_tasks.length})
+                        </h4>
+                        <span className="text-xs text-muted-foreground">
+                          Tasks in job with no matching template row
+                        </span>
+                      </div>
+                      <div className="max-h-[200px] overflow-auto border rounded-lg">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background z-10">
+                            <UITableRow>
+                              <TableHead className="w-[40px]">
+                                <Checkbox
+                                  checked={orphansToDelete.size === analyzeResult.analysis.unlinked_tasks.length}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setOrphansToDelete(new Set(analyzeResult.analysis.unlinked_tasks.map(t => t.task_id)));
+                                    } else {
+                                      setOrphansToDelete(new Set());
+                                    }
+                                  }}
+                                />
+                              </TableHead>
+                              <TableHead className="w-[60px]">#</TableHead>
+                              <TableHead>Task Name</TableHead>
+                              <TableHead className="w-[80px]">Action</TableHead>
+                            </UITableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {analyzeResult.analysis.unlinked_tasks.map((task) => (
+                              <UITableRow
+                                key={`orphan-${task.task_id}`}
+                                className={orphansToDelete.has(task.task_id) ? "bg-red-50/50 dark:bg-red-950/30" : ""}
+                              >
+                                <TableCell>
+                                  <Checkbox
+                                    checked={orphansToDelete.has(task.task_id)}
+                                    onCheckedChange={(checked) => {
+                                      setOrphansToDelete(prev => {
+                                        const next = new Set(prev);
+                                        if (checked) {
+                                          next.add(task.task_id);
+                                        } else {
+                                          next.delete(task.task_id);
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-mono text-muted-foreground text-sm">
+                                  {task.task_number}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="font-medium text-sm">{task.name}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <span className={`text-xs ${orphansToDelete.has(task.task_id) ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
+                                    {orphansToDelete.has(task.task_id) ? "Delete" : "Keep"}
+                                  </span>
+                                </TableCell>
+                              </UITableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+
                   <DialogFooter className="shrink-0 pt-2">
                     <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
                       Cancel
@@ -691,7 +796,9 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
                       ) : (
                         <>
                           <Link2 className="h-4 w-4 mr-2" />
-                          Apply {analyzeResult.summary.auto_link_count + confirmedMatches.size} Links & Continue
+                          Apply {analyzeResult.summary.auto_link_count + confirmedMatches.size} Links
+                          {orphansToDelete.size > 0 && `, Delete ${orphansToDelete.size}`}
+                          {' '}& Continue
                         </>
                       )}
                     </Button>

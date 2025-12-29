@@ -255,9 +255,10 @@ export function LocationMap({
       return;
     }
 
+    // SSoT: Uses DEBOUNCE_SEARCH_MS from timeout-constants.ts
     searchTimeoutRef.current = setTimeout(() => {
       searchForAddress(searchAddress);
-    }, 300);
+    }, DEBOUNCE_SEARCH_MS);
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -288,7 +289,8 @@ export function LocationMap({
       }
     };
 
-    const timeoutId = setTimeout(searchSuburbs, 300);
+    // SSoT: Uses DEBOUNCE_SEARCH_MS from timeout-constants.ts
+    const timeoutId = setTimeout(searchSuburbs, DEBOUNCE_SEARCH_MS);
     return () => clearTimeout(timeoutId);
   }, [suburbSearchQuery]);
 

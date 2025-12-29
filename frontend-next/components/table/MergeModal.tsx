@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { GitMerge, Loader, User, Building2 } from "lucide-react";
+import { GitMerge, User, Building2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogContent,
@@ -272,7 +273,7 @@ export function MergeModal({
           <Button onClick={handleMergeConfirm} disabled={!primaryId || merging}>
             {merging ? (
               <>
-                <Loader className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Merging...
               </>
             ) : (

@@ -1449,6 +1449,7 @@ Rails.application.routes.draw do
           get :compare_to_job
           get :analyze_matches   # Intelligent matching analysis (pre-sync)
           post :apply_links      # Apply confirmed links to tasks
+          post :delete_orphans   # Delete orphan tasks (unlinked job tasks)
           post :copy             # Copy entire template (versioned)
           post :import_rows      # Import rows from another template
         end

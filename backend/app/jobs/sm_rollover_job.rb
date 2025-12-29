@@ -5,8 +5,10 @@
 # This job runs daily at the configured rollover time and:
 # 1. Finds all past-due tasks that are not started
 # 2. Rolls them forward to today's date
-# 3. Cascades date changes to successor tasks
-# 4. Creates audit log entries
+# 3. BREAKS dependencies to locked predecessors (supplier_confirm, confirm, started, completed, hold)
+# 4. Clears supplier_confirm and sets confirm_status on affected tasks
+# 5. Cascades date changes to successor tasks
+# 6. Creates audit log entries and user notifications
 #
 # See Trinity Bible Rules 9.23 (SM Gantt - Rollover)
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.3
@@ -45,22 +47,25 @@ class SmRolloverJob < ApplicationJob
 
     rolled_over = 0
     cascaded = 0
+    dependencies_broken = 0
 
     tasks.find_each do |task|
       result = rollover_task(task, today)
       if result[:success]
         rolled_over += 1
         cascaded += result[:cascaded_count]
+        dependencies_broken += result[:dependencies_broken]
       end
     end
 
-    Rails.logger.info "[SmRolloverJob] Completed. Rolled over: #{rolled_over}, Cascaded: #{cascaded}"
+    Rails.logger.info "[SmRolloverJob] Completed. Rolled over: #{rolled_over}, Cascaded: #{cascaded}, Dependencies broken: #{dependencies_broken}"
 
     {
       success: true,
       batch_id: @batch_id,
       rolled_over: rolled_over,
-      cascaded: cascaded
+      cascaded: cascaded,
+      dependencies_broken: dependencies_broken
     }
   rescue StandardError => e
     Rails.logger.error "[SmRolloverJob] Error: #{e.message}"
@@ -94,14 +99,18 @@ class SmRolloverJob < ApplicationJob
     new_start = today
     new_end = @calendar.add_working_days(today, task.duration_days - 1)
 
-    # Update the task
+    # CRITICAL: Break dependencies to locked predecessors BEFORE rolling
+    # This clears supplier_confirm and sets confirm_status on the task
+    broken_deps = break_locked_predecessor_dependencies(task)
+
+    # Update the task dates
     task.update!(
       start_date: new_start,
       end_date: new_end,
       updated_at: @timestamp
     )
 
-    # Create rollover log
+    # Create rollover log with broken dependency info
     SmRolloverLog.create!(
       task: task,
       job: task.job,
@@ -110,18 +119,21 @@ class SmRolloverJob < ApplicationJob
       old_start_date: original_start,
       old_end_date: original_end,
       new_start_date: new_start,
-      new_end_date: new_end
+      new_end_date: new_end,
+      deleted_dependencies: broken_deps,
+      supplier_confirms_cleared: broken_deps.any? ? 1 : 0,
+      confirm_status_change: broken_deps.any? ? "moved_after_confirm" : nil
     )
 
     # Cascade to successors
     cascaded_count = cascade_to_successors(task, days_past_due)
 
-    Rails.logger.debug "[SmRolloverJob] Rolled task #{task.id} '#{task.name}' forward #{days_past_due} days"
+    Rails.logger.debug "[SmRolloverJob] Rolled task #{task.id} '#{task.name}' forward #{days_past_due} days, broke #{broken_deps.count} dependencies"
 
-    { success: true, cascaded_count: cascaded_count }
+    { success: true, cascaded_count: cascaded_count, dependencies_broken: broken_deps.count }
   rescue StandardError => e
     Rails.logger.error "[SmRolloverJob] Failed to roll task #{task.id}: #{e.message}"
-    { success: false, error: e.message, cascaded_count: 0 }
+    { success: false, error: e.message, cascaded_count: 0, dependencies_broken: 0 }
   end
 
   def cascade_to_successors(task, days_shifted)
@@ -177,5 +189,70 @@ class SmRolloverJob < ApplicationJob
       start_date: new_start,
       end_date: @calendar.add_working_days(new_start, successor.duration_days - 1)
     }
+  end
+
+  # Break dependencies to locked predecessors (Trinity Bible Rules 9.23)
+  # When a task is past-due and must roll forward, but has a locked predecessor,
+  # the dependency is broken to allow the task to move freely.
+  def break_locked_predecessor_dependencies(task)
+    broken = []
+
+    task.active_predecessor_dependencies.includes(:predecessor_task).find_each do |dep|
+      predecessor = dep.predecessor_task
+      next unless predecessor.present?
+
+      # If predecessor is locked, break the dependency
+      next unless predecessor.locked?
+
+      lock_type = predecessor.lock_type
+
+      # Soft delete the dependency using the model's method
+      dep.soft_delete!(reason: "rollover")
+
+      # Clear supplier_confirm and set confirm_status on the rolled task
+      # Only update if the task had supplier_confirm set
+      if task.supplier_confirm?
+        task.update!(
+          supplier_confirm: false,
+          confirm_status: "moved_after_confirm"
+        )
+      end
+
+      # Create activity notification for the user
+      create_dependency_break_activity(predecessor, task, dep, lock_type)
+
+      Rails.logger.info "[SmRolloverJob] Broke dependency #{predecessor.id}->#{task.id}: predecessor '#{predecessor.name}' is #{lock_type}"
+
+      broken << {
+        predecessor_task_id: predecessor.id,
+        predecessor_task_name: predecessor.name,
+        predecessor_lock_type: lock_type,
+        dependency_type: dep.dependency_type,
+        broken_at: @timestamp.iso8601
+      }
+    end
+
+    broken
+  end
+
+  # Create an activity notification when a dependency is broken by rollover
+  def create_dependency_break_activity(predecessor, successor, dep, lock_type)
+    return unless successor.job.present?
+
+    SmActivity.track(
+      "dependency_removed",
+      construction: successor.job,
+      task: successor,
+      trackable: dep,
+      metadata: {
+        task_name: successor.name,
+        predecessor_name: predecessor.name,
+        predecessor_task_number: predecessor.task_number,
+        lock_type: lock_type,
+        dependency_type: dep.dependency_type,
+        reason: "rollover",
+        message: "Dependency from '#{predecessor.name}' was automatically broken by rollover (predecessor is #{lock_type})"
+      }
+    )
   end
 end

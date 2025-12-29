@@ -187,6 +187,7 @@ export interface TeeemTableViewProps {
   initialShowTotals?: boolean; // Initial value for showing totals row (default: true)
   hideFooter?: boolean; // Hide the footer row (record count shown in page header instead)
   alwaysVisibleColumns?: string[]; // Columns that are always visible regardless of view settings
+  enableFullscreen?: boolean; // Enable fullscreen toggle button in toolbar (default: false)
 
   // Legacy props
   stats?: Record<string, unknown>;

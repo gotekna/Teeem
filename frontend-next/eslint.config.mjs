@@ -154,6 +154,15 @@ const eslintConfig = defineConfig([
             name: "@/components/ui/data-table",
             message: "DEPRECATED: Use TeeemTableView from @/components/table/TeeemTableView instead. See component-registry.ts"
           },
+          // ==========================================================================
+          // LUCIDE LOADER SSoT - Use Spinner component instead of Lucide loader icons
+          // SSoT: Spinner from @/components/ui/spinner
+          // ==========================================================================
+          {
+            name: "lucide-react",
+            importNames: ["Loader", "Loader2", "LoaderCircle"],
+            message: "SSoT: Use Spinner from @/components/ui/spinner instead of Lucide loader icons. See component-registry.ts"
+          },
         ],
         patterns: [
           {
@@ -175,6 +184,23 @@ const eslintConfig = defineConfig([
         ]
       }]
     }
+  },
+  // ==========================================================================
+  // NAVIGATION SSoT ENFORCEMENT
+  // Warn when using router.back() - use BackButton instead
+  // SSoT: BackButton from @/components/ui/back-button (has smart fallback)
+  // ==========================================================================
+  {
+    rules: {
+      "no-restricted-syntax": ["warn",
+        {
+          selector: "CallExpression[callee.object.name='router'][callee.property.name='back']",
+          message: "SSoT: Use BackButton from @/components/ui/back-button instead of router.back(). BackButton has smart fallback for external links. See component-registry.ts"
+        }
+      ]
+    },
+    // BackButton itself is allowed to use router.back() internally
+    ignores: ["components/ui/back-button.tsx"]
   },
 ]);
 

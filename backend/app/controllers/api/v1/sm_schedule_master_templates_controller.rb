@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :copy, :import_rows ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows ]
 
       # GET /api/v1/sm_schedule_master_templates
       def index
@@ -372,6 +372,57 @@ module Api
           linked: result[:linked],
           errors: result[:errors],
           message: "Linked #{result[:linked]} tasks to template rows"
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          errors: [ "Job not found" ]
+        }, status: :not_found
+      end
+
+      # POST /api/v1/sm_schedule_master_templates/:id/delete_orphans
+      # Delete orphan tasks (tasks in job with no matching template row)
+      #
+      # Params:
+      #   job_id: ID of the job (required)
+      #   task_ids: Array of task IDs to delete (required)
+      #
+      def delete_orphans
+        job = Job.find(params[:job_id])
+        task_ids = params[:task_ids] || []
+
+        deleted = 0
+        errors = []
+
+        task_ids.each do |task_id|
+          task = job.sm_tasks.find_by(id: task_id)
+          if task.nil?
+            errors << "Task #{task_id} not found"
+            next
+          end
+
+          # Safety check: only delete unlinked tasks (orphans)
+          if task.sm_schedule_master_id.present?
+            errors << "Task #{task_id} (#{task.name}) is linked to template - skipped"
+            next
+          end
+
+          # Safety check: don't delete tasks with job reality
+          if task.status.in?(%w[started completed]) || task.started_at.present? || task.completed_at.present?
+            errors << "Task #{task_id} (#{task.name}) has job reality - skipped"
+            next
+          end
+
+          task.destroy!
+          deleted += 1
+          Rails.logger.info "[SmScheduleMasterTemplatesController] Deleted orphan task #{task_id} (#{task.name}) from job #{job.id}"
+        end
+
+        render json: {
+          success: true,
+          deleted: deleted,
+          errors: errors,
+          message: "Deleted #{deleted} orphan tasks"
         }
       rescue ActiveRecord::RecordNotFound
         render json: {

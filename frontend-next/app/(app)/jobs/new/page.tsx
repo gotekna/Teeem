@@ -580,7 +580,8 @@ export default function NewJobPage() {
       }
     };
 
-    const timeoutId = setTimeout(searchSuburbs, 300);
+    // SSoT: Uses DEBOUNCE_SEARCH_MS from timeout-constants.ts
+    const timeoutId = setTimeout(searchSuburbs, DEBOUNCE_SEARCH_MS);
     return () => clearTimeout(timeoutId);
   }, [suburbSearchQuery]);
 

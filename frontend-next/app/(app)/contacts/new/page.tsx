@@ -115,7 +115,8 @@ export default function NewContactPage() {
         setSearchingCompanies(false);
       }
     };
-    const debounce = setTimeout(searchCompanies, 300);
+    // SSoT: Uses DEBOUNCE_SEARCH_MS from timeout-constants.ts
+    const debounce = setTimeout(searchCompanies, DEBOUNCE_SEARCH_MS);
     return () => clearTimeout(debounce);
   }, [companySearchQuery]);
 
@@ -147,7 +148,8 @@ export default function NewContactPage() {
         setSearchingEmployees(false);
       }
     };
-    const debounce = setTimeout(searchPeople, 300);
+    // SSoT: Uses DEBOUNCE_SEARCH_MS from timeout-constants.ts
+    const debounce = setTimeout(searchPeople, DEBOUNCE_SEARCH_MS);
     return () => clearTimeout(debounce);
   }, [employeeSearchQuery, pendingEmployees]);
 
