@@ -10,16 +10,7 @@ import SubtasksModal from './SubtasksModal'
 import {
   ArrowUpIcon, ArrowDownIcon, TrashIcon
 } from '@heroicons/react/24/outline'
-
-// User role/group options for assignment
-const ASSIGNABLE_ROLES = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'site', label: 'Site' },
-  { value: 'supervisor', label: 'Supervisor' },
-  { value: 'builder', label: 'Builder' },
-  { value: 'estimator', label: 'Estimator' }
-]
+import { useAssignableRoles } from '@/hooks/useAssignableRoles'
 
 // Define columns for Schedule Template table
 export const SCHEDULE_TEMPLATE_COLUMNS = [
@@ -63,6 +54,9 @@ export default function ScheduleTemplateTable({
   onSelectAll,
   documentationCategories = []
 }) {
+  // SSoT: Fetch roles from backend
+  const { roles: assignableRoles } = useAssignableRoles()
+
   // Modal states - managed at table level to allow portals
   const [activeModal, setActiveModal] = useState(null) // { type: string, rowId: number }
 
@@ -153,7 +147,7 @@ export default function ScheduleTemplateTable({
             className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-900 dark:text-white text-sm"
           >
             <option value="">Assign to group...</option>
-            {ASSIGNABLE_ROLES.map(role => (
+            {assignableRoles.map(role => (
               <option key={role.value} value={role.value}>{role.label}</option>
             ))}
           </select>

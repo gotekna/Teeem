@@ -36,6 +36,33 @@ export const SYSTEM_COLUMN_BG = "#fee2e2"; // red-100
  */
 export const NON_EDITABLE_COLUMNS = ["id", "created_at", "updated_at"];
 
+/**
+ * Default columns for generic tables
+ */
+export const DEFAULT_COLUMNS: TableColumn[] = [
+  { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
+  { key: "id", label: "ID", resizable: true, sortable: true, filterable: true, width: 50 },
+  { key: "actions", label: "", resizable: false, sortable: false, filterable: false, width: 50 },
+];
+
+/**
+ * Filter operators for display in cascade filters
+ */
+export const FILTER_OPERATOR_LABELS: Record<string, string> = {
+  "=": "equals",
+  "!=": "not equals",
+  ">": ">",
+  "<": "<",
+  ">=": ">=",
+  "<=": "<=",
+  "contains": "contains",
+  "not_contains": "not contains",
+  "starts_with": "starts with",
+  "ends_with": "ends with",
+  "is_empty": "is empty",
+  "is_not_empty": "is not empty",
+};
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================

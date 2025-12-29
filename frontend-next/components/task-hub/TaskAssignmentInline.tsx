@@ -13,16 +13,7 @@ import { Button } from '@/components/ui/button';
 import { User, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-
-// SSoT: Must match backend User::ASSIGNABLE_ROLES
-const ASSIGNABLE_ROLES = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'site', label: 'Site' },
-  { value: 'supervisor', label: 'Supervisor' },
-  { value: 'builder', label: 'Builder' },
-  { value: 'estimator', label: 'Estimator' },
-];
+import { useAssignableRoles } from '@/hooks/useAssignableRoles';
 
 interface UserOption {
   id: number;
@@ -44,6 +35,8 @@ export function TaskAssignmentInline({
   disabled,
   compact,
 }: TaskAssignmentInlineProps) {
+  // SSoT: Fetch roles from backend
+  const { roles } = useAssignableRoles();
   const [users, setUsers] = useState<UserOption[]>([]);
   const [mode, setMode] = useState<'user' | 'role'>(assignedRole ? 'role' : 'user');
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -133,7 +126,7 @@ export function TaskAssignmentInline({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_none">Unassigned</SelectItem>
-              {ASSIGNABLE_ROLES.map((role) => (
+              {roles.map((role) => (
                 <SelectItem key={role.value} value={role.value}>
                   {role.label}
                 </SelectItem>

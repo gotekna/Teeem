@@ -11,16 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { User, Users } from 'lucide-react';
-
-// SSoT: Must match backend User::ASSIGNABLE_ROLES
-const ASSIGNABLE_ROLES = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'site', label: 'Site' },
-  { value: 'supervisor', label: 'Supervisor' },
-  { value: 'builder', label: 'Builder' },
-  { value: 'estimator', label: 'Estimator' },
-];
+import { useAssignableRoles } from '@/hooks/useAssignableRoles';
 
 interface UserOption {
   id: number;
@@ -44,6 +35,9 @@ export function TaskAssignmentField({
   onAssignedRoleChange,
   disabled,
 }: TaskAssignmentFieldProps) {
+  // SSoT: Fetch roles from backend
+  const { roles } = useAssignableRoles();
+
   // Determine mode based on current values
   const mode = assignedRole ? 'role' : 'user';
 
@@ -98,7 +92,7 @@ export function TaskAssignmentField({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="_none">Unassigned</SelectItem>
-            {ASSIGNABLE_ROLES.map((role) => (
+            {roles.map((role) => (
               <SelectItem key={role.value} value={role.value}>
                 {role.label}
               </SelectItem>

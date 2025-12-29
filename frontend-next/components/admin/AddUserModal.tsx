@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { api } from "@/lib/api";
+import { useAssignableRoles } from "@/hooks/useAssignableRoles";
 
 interface AddUserModalProps {
   isOpen: boolean;
@@ -37,17 +38,9 @@ interface FormData {
   assigned_role: string;
 }
 
-const ASSIGNABLE_ROLES = [
-  { value: "", label: "None", description: "No group assignment" },
-  { value: "admin", label: "Admin", description: "Administrative tasks" },
-  { value: "sales", label: "Sales", description: "Sales team" },
-  { value: "site", label: "Site", description: "Site management" },
-  { value: "supervisor", label: "Supervisor", description: "Supervisor tasks" },
-  { value: "builder", label: "Builder", description: "Builder tasks" },
-  { value: "estimator", label: "Estimator", description: "Estimating tasks" },
-];
-
 export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps) {
+  // SSoT: Fetch assignable roles from backend (rolesWithNone includes "None" option)
+  const { rolesWithNone: assignableRoles } = useAssignableRoles();
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
@@ -240,11 +233,13 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
                 <SelectValue placeholder="Select a group" />
               </SelectTrigger>
               <SelectContent>
-                {ASSIGNABLE_ROLES.map((role) => (
+                {assignableRoles.map((role) => (
                   <SelectItem key={role.value} value={role.value}>
                     <div>
                       <div className="font-medium">{role.label}</div>
-                      <div className="text-xs text-muted-foreground">{role.description}</div>
+                      {role.description && (
+                        <div className="text-xs text-muted-foreground">{role.description}</div>
+                      )}
                     </div>
                   </SelectItem>
                 ))}

@@ -246,6 +246,7 @@ import { ViewRecordModal } from "./modals/ViewRecordModal";
 import { useExportHandlers } from "./core/hooks/useExportHandlers";
 import { useSchemaHandlers } from "./core/hooks/useSchemaHandlers";
 import { useTableHandlers } from "./core/hooks/useTableHandlers";
+import { useTableDragSelect } from "./core/hooks/useTableDragSelect";
 import { useGroupCounts } from "@/hooks/useGroupCounts";
 import { useTableKeyboardNavigation } from "@/hooks/useTableKeyboardNavigation";
 import { useTableSessionStorage } from "@/hooks/useTableSessionStorage";
@@ -260,6 +261,8 @@ import {
   SYSTEM_COLUMN_BG,
   isSystemGeneratedColumn,
   getCellTooltip,
+  DEFAULT_COLUMNS,
+  FILTER_OPERATOR_LABELS,
 } from "./utils/table-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
 
@@ -363,42 +366,13 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 // - SYSTEM_GENERATED_TYPES, SYSTEM_COLUMN_BG
 // - isSystemGeneratedColumn, getCellTooltip
 
-// ============================================================================
-// SUBCOMPONENTS
-// ============================================================================
-
-// Note: Inline components have been extracted to separate files (Phase 1 refactoring):
+// Note: Inline components have been extracted to separate files:
 // - SearchInput -> components/SearchInput.tsx
 // - ResizableColumnHeader -> components/ResizableColumnHeader.tsx
 // - SortableColumnRow -> components/SortableColumnRow.tsx
 // - CascadeFilterItem -> core/filtering/CascadeFilterItem.tsx
-
-// Default columns for generic tables
-const DEFAULT_COLUMNS: TableColumn[] = [
-  { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
-  { key: "id", label: "ID", resizable: true, sortable: true, filterable: true, width: 50 },
-  { key: "actions", label: "", resizable: false, sortable: false, filterable: false, width: 50 },
-];
-
-// Filter operators for display
-const FILTER_OPERATOR_LABELS: Record<string, string> = {
-  "=": "equals",
-  "!=": "not equals",
-  ">": ">",
-  "<": "<",
-  ">=": ">=",
-  "<=": "<=",
-  "contains": "contains",
-  "not_contains": "not contains",
-  "starts_with": "starts with",
-  "ends_with": "ends with",
-  "is_empty": "is empty",
-  "is_not_empty": "is not empty",
-};
-
-// Virtualization components are now imported from "./core/virtualization"
-// - VirtualizedGroupTable: For grouped views with nested tables
-// - VirtualizedFlatTable: For flat views with large datasets
+// - VirtualizedGroupTable, VirtualizedFlatTable -> core/virtualization/
+// - DEFAULT_COLUMNS, FILTER_OPERATOR_LABELS -> utils/table-utils.ts
 
 // ============================================================================
 // MAIN COMPONENT

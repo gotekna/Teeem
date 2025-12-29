@@ -223,14 +223,18 @@ useEffect(() => {
 <CustomTable rows={rows} />  // Lookup columns show IDs instead of names!
 ```
 
-### Known Violations (Being Migrated)
+### Migration Status (Updated 2025-12-29)
 
-| Controller | Status | Migration Plan |
-|------------|--------|----------------|
-| `sm_schedule_master_templates_controller.rb` | Partially fixed | Phase 1 |
-| `sm_schedule_master_controller.rb` | Needs header | Phase 1 |
-| `contacts_controller.rb` (4,192 lines) | Planned | Phase 3 |
-| See `TEEEM_DOCS/SSOT_VIOLATION_AUDIT.md` for full list | | |
+| Page | Pattern | Status |
+|------|---------|--------|
+| Jobs | `autoFetchRecords` | ✅ Compliant |
+| Contacts | SSR + `fetchFoundationBySlug` | ✅ Compliant |
+| Purchase Orders | `autoFetchRecords` | ✅ Compliant |
+| Estimates | `useFoundationBySlug` | ✅ Compliant |
+| Job Schedule Tab | `autoFetchRecords` | ✅ Compliant |
+| Schedule Master | `autoFetchRecords` | ✅ Compliant |
+
+**Custom controllers remain for business logic** (merge, sync, dropdowns) - this is correct architecture.
 
 ### Why This Matters
 
@@ -239,6 +243,66 @@ When lookup columns are added/changed:
 - **With custom `*_json`:** Must update every controller manually (breaks silently)
 
 **Reference:** `TEEEM_DOCS/SSOT_VIOLATION_AUDIT.md` - Full audit of all violations
+
+## 🔴 CRITICAL: SSoT - Constants & Enums
+
+**Constants that appear in multiple places MUST have ONE source of truth.**
+
+### Pattern
+
+```
+Backend Model (THE ONE SOURCE)
+    │
+    ├── Other models (reference via Model::CONSTANT)
+    │
+    └── API endpoint (exposes to frontend)
+            │
+            └── Frontend (fetches on mount, caches)
+```
+
+### Current SSoT Constants
+
+| Constant | SSoT Location | API Endpoint |
+|----------|---------------|--------------|
+| `ASSIGNABLE_ROLES` | `User::ASSIGNABLE_ROLES` | `/api/v1/sm_settings/assignable_roles` |
+| `DEPENDENCY_TYPES` | `SmScheduleMaster::DEPENDENCY_TYPES` | N/A (rarely changes) |
+| `COLUMN_TYPES` | `Column::COLUMN_SQL_TYPE_MAP` | Foundation columns API |
+
+### NEVER
+
+- ❌ Hardcode arrays in frontend that mirror backend constants
+- ❌ Duplicate constants across multiple models
+- ❌ Create frontend TypeScript enums that must "match" backend
+
+### ALWAYS
+
+- ✅ Define constant in ONE backend model
+- ✅ Reference it elsewhere: `User::ASSIGNABLE_ROLES`
+- ✅ Create API endpoint if frontend needs it
+- ✅ Frontend fetches with fallback defaults
+
+### Example: Assignable Roles
+
+```ruby
+# Backend - User model (THE ONE)
+ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze
+
+# Backend - SmScheduleMaster (references THE ONE)
+ASSIGNABLE_ROLES = User::ASSIGNABLE_ROLES
+
+# Backend - API endpoint
+def assignable_roles
+  render json: { assignable_roles: User::ASSIGNABLE_ROLES.map { |r| { value: r, label: r.titleize } } }
+end
+```
+
+```tsx
+// Frontend - Fetches with fallback
+const [roles, setRoles] = useState(DEFAULT_ROLES); // Fallback
+useEffect(() => {
+  api.get('/api/v1/sm_settings/assignable_roles').then(r => setRoles(r.assignable_roles));
+}, []);
+```
 
 ## 🔴 CRITICAL: Ultrathink Design Philosophy
 

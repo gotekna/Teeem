@@ -23,6 +23,7 @@ import GanttRulesModal from './GanttRulesModal'
 import GanttBugHunterModal from './GanttBugHunterModal'
 import { bugHunter } from './gantt-debugger'
 import ScheduleTemplateTable from './ScheduleTemplateTable'
+import { useAssignableRoles } from '@/hooks/useAssignableRoles'
 
 /**
  * Schedule Template Editor - Full 14-column grid interface for creating/editing schedule templates
@@ -45,15 +46,6 @@ function ColumnTooltip({ text, tooltip }) {
   )
 }
 
-// User role/group options for assignment
-const ASSIGNABLE_ROLES = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'site', label: 'Site' },
-  { value: 'supervisor', label: 'Supervisor' },
-  { value: 'builder', label: 'Builder' },
-  { value: 'estimator', label: 'Estimator' }
-]
 
 // Plan types for documentation
 const PLAN_TYPES = [
@@ -116,6 +108,8 @@ const defaultColumnConfig = {
 export default function ScheduleTemplateEditor() {
   const location = useLocation()
   const navigate = useNavigate()
+  // SSoT: Fetch roles from backend
+  const { roles: assignableRoles } = useAssignableRoles()
   const [templates, setTemplates] = useState([])
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [rows, setRows] = useState([])
@@ -2857,7 +2851,7 @@ function ScheduleTemplateRow({
                 className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-900 dark:text-white text-sm"
               >
                 <option value="">Assign to group...</option>
-                {ASSIGNABLE_ROLES.map(role => (
+                {assignableRoles.map(role => (
                   <option key={role.value} value={role.value}>{role.label}</option>
                 ))}
               </select>
