@@ -269,18 +269,20 @@ module Api
           stages_map = load_stages_map
           roles_map = load_roles_map
           cost_centres_map = load_cost_centres_map
-          json[:rows] = template.ordered_rows.map { |r| row_json(r, trades_map, stages_map, roles_map, cost_centres_map) }
+          header_map = load_header_map
+          json[:rows] = template.ordered_rows.map { |r| row_json(r, trades_map, stages_map, roles_map, cost_centres_map, header_map) }
         end
 
         json
       end
 
-      def row_json(row, trades_map = {}, stages_map = {}, roles_map = {}, cost_centres_map = {})
+      def row_json(row, trades_map = {}, stages_map = {}, roles_map = {}, cost_centres_map = {}, header_map = {})
         # Return lookup columns as { id: X, display: "Name" } format for TeeemTableView
         trade_value = row.trade.present? ? { id: row.trade.to_i, display: trades_map[row.trade.to_i] || row.trade } : nil
         stage_value = row.stage.present? ? { id: row.stage.to_i, display: stages_map[row.stage.to_i] || row.stage } : nil
         role_value = row.assigned_role.present? ? { id: row.assigned_role.to_i, display: roles_map[row.assigned_role.to_i] || row.assigned_role } : nil
         cost_centre_value = row.cost_centre.present? ? { id: row.cost_centre.to_i, display: cost_centres_map[row.cost_centre.to_i] || row.cost_centre } : nil
+        header_value = row.header.present? ? { id: row.header.to_i, display: header_map[row.header.to_i] || row.header } : nil
 
         {
           id: row.id,
@@ -297,6 +299,7 @@ module Api
           stage_name: stages_map[row.stage.to_i] || row.stage,
           assigned_role: role_value,
           cost_centre: cost_centre_value,
+          header: header_value,
           require_photo: row.require_photo,
           require_certificate: row.require_certificate,
           confirm: row.confirm,

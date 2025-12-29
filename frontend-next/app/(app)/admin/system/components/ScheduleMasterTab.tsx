@@ -1272,28 +1272,18 @@ export function ScheduleMasterTab() {
           <TabsContent value="data-view" className="absolute inset-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
           <div className={`flex flex-col h-full ${dataViewFullscreen ? "fixed inset-0 z-50 bg-background p-4" : ""}`}>
             <TeeemTableView
-              key={dataViewRefreshKey}
-              entries={(selectedTagFilter
-                ? dataViewRows.filter((row: SmScheduleMaster & { tags?: string[] }) =>
-                    row.tags?.includes(selectedTagFilter)
-                  )
-                : dataViewRows) as unknown as { id: number; [key: string]: unknown }[]
-              }
-              totalCount={selectedTagFilter
-                ? dataViewRows.filter((row: SmScheduleMaster & { tags?: string[] }) =>
-                    row.tags?.includes(selectedTagFilter)
-                  ).length
-                : dataViewRows.length
-              }
+              key={`${dataViewRefreshKey}-${dataViewTemplateId}-${selectedTagFilter}`}
               foundationId="sm_schedule_master"
               tableName={dataViewTemplateId
-                ? templates.find(t => t.id === dataViewTemplateId)?.name || "Schedule Template Rows"
-                : "Schedule Template Rows"
+                ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
+                : "PO Schedule Master"
               }
+              autoFetchRecords={!!dataViewTemplateId}
+              initialFilters={dataViewTemplateId ? [
+                { column: "sm_template_ids", operator: "array_contains", value: String(dataViewTemplateId) },
+                ...(selectedTagFilter ? [{ column: "tags", operator: "contains", value: selectedTagFilter }] : [])
+              ] : []}
               onRefresh={() => {
-                if (dataViewTemplateId) {
-                  loadDataViewRows(dataViewTemplateId);
-                }
                 setDataViewRefreshKey(prev => prev + 1);
               }}
               onRowUpdate={handleDataViewRowUpdate}
@@ -1317,7 +1307,8 @@ export function ScheduleMasterTab() {
                     value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
                     onValueChange={(value) => {
                       if (value) {
-                        loadDataViewRows(parseInt(value));
+                        // SSoT: Just update template ID, TeeemTableView will auto-fetch via Foundation API
+                        setDataViewTemplateId(parseInt(value));
                       }
                     }}
                   >

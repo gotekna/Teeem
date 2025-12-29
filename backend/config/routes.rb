@@ -731,6 +731,7 @@ Rails.application.routes.draw do
       post "duplicate_contacts/groups/:id/dismiss", to: "duplicate_contacts#dismiss"
 
       # Contact quality reviews (data quality management)
+      # LEGACY ROUTES - kept for backwards compatibility, routes to old controller
       resources :contact_quality_reviews, only: [] do
         member do
           post :approve, to: "contacts#approve_quality_review"
@@ -740,6 +741,43 @@ Rails.application.routes.draw do
         collection do
           post :bulk_approve, to: "contacts#bulk_approve_quality_reviews"
         end
+      end
+
+      # ========================================================================
+      # NEW NAMESPACED CONTROLLERS (ADR-001: Contacts Controller Decomposition)
+      # These are the SSoT routes - frontend should migrate to these
+      # ========================================================================
+      namespace :contacts do
+        # Quality Reviews Controller
+        # GET    /api/v1/contacts/quality_reviews           -> index
+        # POST   /api/v1/contacts/quality_reviews/scan      -> scan
+        # POST   /api/v1/contacts/quality_reviews/:id/approve -> approve
+        # POST   /api/v1/contacts/quality_reviews/:id/reject  -> reject
+        # POST   /api/v1/contacts/quality_reviews/:id/skip    -> skip
+        # POST   /api/v1/contacts/quality_reviews/bulk_approve -> bulk_approve
+        # GET    /api/v1/contacts/quality_reviews/:contact_id/analyze -> analyze
+        resources :quality_reviews, only: [:index] do
+          collection do
+            post :scan
+            post :bulk_approve
+          end
+          member do
+            post :approve
+            post :reject
+            post :skip
+          end
+        end
+        get "quality_reviews/:contact_id/analyze", to: "quality_reviews#analyze", as: :analyze_quality_review
+
+        # ABN Verification Controller
+        # GET    /api/v1/contacts/abn/validate              -> validate
+        # POST   /api/v1/contacts/abn/:contact_id/verify    -> verify
+        # POST   /api/v1/contacts/abn/find_missing          -> find_missing
+        resource :abn, only: [], controller: "abn_verification" do
+          get :validate
+          post :find_missing
+        end
+        post "abn/:contact_id/verify", to: "abn_verification#verify", as: :verify_abn
       end
 
       # SMS webhooks (Twilio callbacks - not nested)

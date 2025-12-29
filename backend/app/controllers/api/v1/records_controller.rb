@@ -226,6 +226,10 @@ module Api
                   ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
                 when "is_not_empty"
                   ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                when "array_contains"
+                  # For JSONB/array columns - check if array contains value
+                  # PostgreSQL @> operator: [1,2,3] @> '[2]' is true
+                  ["#{quoted_column}::jsonb @> ?::jsonb", "[#{value}]"]
                 else
                   nil
                 end
