@@ -882,11 +882,12 @@ module Api
             next if value.is_a?(Hash) && value.key?(:id)
 
             begin
-              # Use lookup_cache if available, otherwise query
-              related_record = if lookup_cache && lookup_cache[column.id]
-                lookup_cache[column.id][value.to_i]
-              elsif column.lookup_foundation.present?
-                column.lookup_foundation.dynamic_model.find_by(id: value)
+              # Use lookup_cache if available, fall back to database query if not found
+              # BUG FIX: Previously, if cache existed but value wasn't in it, we'd return nil
+              # without falling back to DB query. Now we properly fall back when cache misses.
+              related_record = lookup_cache&.dig(column.id, value.to_i)
+              if related_record.nil? && column.lookup_foundation.present?
+                related_record = column.lookup_foundation.dynamic_model.find_by(id: value)
               end
 
               if related_record
@@ -962,15 +963,16 @@ module Api
           # Handle lookup columns - return both ID and display value
           elsif column.column_type == "lookup" && value.present?
             begin
-              # Use cached lookup data if available, otherwise query
-              related_record = if lookup_cache && lookup_cache[column.id]
-                lookup_cache[column.id][value]
-              else
-                column.lookup_foundation.dynamic_model.find_by(id: value)
+              # Use cached lookup data if available, fall back to database query if not found
+              # Try both integer and string keys for cache lookup (Foundation records may store either)
+              lookup_id = value.is_a?(Integer) ? value : value.to_i
+              related_record = lookup_cache&.dig(column.id, lookup_id) || lookup_cache&.dig(column.id, value)
+              if related_record.nil? && column.lookup_foundation.present?
+                related_record = column.lookup_foundation.dynamic_model.find_by(id: value)
               end
 
               json[column.column_name] = {
-                id: value,
+                id: lookup_id,
                 display: related_record ? related_record.send(column.lookup_display_column).to_s : "[Deleted]"
               }
             rescue => e

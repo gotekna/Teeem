@@ -371,6 +371,14 @@ export function GanttCanvasView({
     setCollapsedHeaders(new Set());
   }, []);
 
+  // Auto-collapse all headers when "header" view is active
+  React.useEffect(() => {
+    if (viewSlug === 'header' && rows.length > 0) {
+      const allHeaderIds = rows.filter(r => r.header === 'Header').map(r => r.id);
+      setCollapsedHeaders(new Set(allHeaderIds));
+    }
+  }, [viewSlug, rows]);
+
   // Get set of header IDs for quick lookup
   const headerIds = React.useMemo(() => {
     return new Set(rows.filter(r => r.header === 'Header').map(r => r.id));
@@ -382,8 +390,8 @@ export function GanttCanvasView({
       const row = rows.find(r => String(r.id) === task.id);
       if (!row) return true;
 
-      // If showOnlyGrouped is enabled, only show headers
-      if (showOnlyGrouped) {
+      // If showOnlyGrouped is enabled OR viewSlug is 'header', only show headers
+      if (showOnlyGrouped || viewSlug === 'header') {
         const isHeader = row.header === 'Header';
         if (!isHeader) {
           return false;
@@ -392,7 +400,7 @@ export function GanttCanvasView({
 
       return true;
     });
-  }, [tasks, rows, showOnlyGrouped]);
+  }, [tasks, rows, showOnlyGrouped, viewSlug]);
 
   // Check if a row is a header (header === 'Header')
   const isHeaderRow = React.useCallback((row: SmScheduleMaster | undefined) => {

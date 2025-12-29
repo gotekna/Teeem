@@ -22,7 +22,7 @@ class SmScheduleMaster < ApplicationRecord
   # Associations
   # Note: sm_template_id is deprecated, use sm_template_ids (JSONB array) instead
   # Keeping belongs_to for backwards compatibility during migration
-  belongs_to :sm_template, optional: true
+  belongs_to :sm_template, class_name: "SmScheduleMasterTemplate", optional: true
 
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 

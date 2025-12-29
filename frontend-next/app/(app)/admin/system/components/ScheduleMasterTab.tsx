@@ -546,9 +546,9 @@ export function ScheduleMasterTab() {
     try {
       // Query sm_schedule_master rows where header_backup = 'Header' (the ones that ARE header rows)
       const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
-        "/api/v1/foundations/sm_schedule_master/records?per_page=100&filters=" + encodeURIComponent(JSON.stringify({
-          header_backup: { operator: "equals", value: "Header" }
-        }))
+        "/api/v1/foundations/sm_schedule_master/records?per_page=100&filters=" + encodeURIComponent(JSON.stringify([
+          { column: "header_backup", operator: "equals", value: "Header" }
+        ]))
       );
       if (data?.records) {
         setAvailableHeaderRows(data.records);

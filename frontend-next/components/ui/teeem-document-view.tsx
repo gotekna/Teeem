@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, ReactNode, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -86,6 +87,11 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
 
   // Styling
   className?: string;
+
+  // MASTERPIECE: Infinite scroll props
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }
 
 // Helper component for authenticated image loading
@@ -153,6 +159,10 @@ export function TeeemDocumentView<T extends DocumentItem>({
   statusLabels: statusLabelsInput,
   actionLabels: actionLabelsInput,
   className,
+  // MASTERPIECE: Infinite scroll
+  onLoadMore,
+  hasMore = false,
+  loadingMore = false,
 }: TeeemDocumentViewProps<T>) {
   // Merge labels with defaults
   const statusLabels = {
@@ -179,6 +189,40 @@ export function TeeemDocumentView<T extends DocumentItem>({
 
   // Track previous document to detect document changes (not initial selection)
   const prevDocumentRef = useRef<T | null>(null);
+
+  // MASTERPIECE: Infinite scroll ref and handler
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // MASTERPIECE: Virtual scrolling - only render visible rows
+  // Estimated row height: py-2 (16px) + border-b (1px) + text (~20px) = ~37px
+  const rowVirtualizer = useVirtualizer({
+    count: documents.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 37,
+    overscan: 10, // Render 10 extra rows above/below viewport for smooth scrolling
+  });
+
+  // Handle scroll for infinite loading
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current || !onLoadMore || !hasMore || loadingMore) {
+      return;
+    }
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    // Load more when within 200px of the bottom
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      onLoadMore();
+    }
+  }, [onLoadMore, hasMore, loadingMore]);
+
+  // Attach scroll listener
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !onLoadMore) return;
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [handleScroll, onLoadMore]);
 
   // Reset to thumbnail view only when switching between documents (not on initial selection)
   useEffect(() => {
@@ -502,49 +546,81 @@ export function TeeemDocumentView<T extends DocumentItem>({
           </div>
         )}
 
-        {/* Document list */}
-        <div className="flex-1 overflow-y-auto">
-          {documents.map((doc) => {
-            const id = getDocumentId(doc);
-            const name = getDocumentName(doc);
-            const status = getDocumentStatus(doc);
-            const isSelected = selectedDocument
-              ? getDocumentId(selectedDocument) === id
-              : false;
+        {/* Document list - MASTERPIECE: Virtual scroll container */}
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto"
+        >
+          {/* MASTERPIECE: Virtualized list - only renders visible rows */}
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const doc = documents[virtualRow.index];
+              const id = getDocumentId(doc);
+              const name = getDocumentName(doc);
+              const isSelected = selectedDocument
+                ? getDocumentId(selectedDocument) === id
+                : false;
 
-            return (
-              <div
-                key={id}
-                data-doc-id={id}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-2 border-b cursor-pointer hover:bg-muted/50 transition-colors",
-                  isSelected && "bg-muted",
-                  isInDragRange(id) && "bg-blue-100 dark:bg-blue-900/30"
-                )}
-                onClick={() => setSelectedDocument(doc)}
-              >
-                {enableSelection && (
-                  <div
-                    className="flex items-center justify-center p-1 -m-1 select-none"
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleSelectMouseDown(id, e);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Checkbox
-                      checked={selectedIds.includes(id)}
-                      className="pointer-events-none"
-                    />
+              return (
+                <div
+                  key={id}
+                  data-doc-id={id}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  className={cn(
+                    "absolute top-0 left-0 w-full flex items-center gap-2 px-3 py-2 border-b cursor-pointer hover:bg-muted/50 transition-colors",
+                    isSelected && "bg-muted",
+                    isInDragRange(id) && "bg-blue-100 dark:bg-blue-900/30"
+                  )}
+                  style={{
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  onClick={() => setSelectedDocument(doc)}
+                >
+                  {enableSelection && (
+                    <div
+                      className="flex items-center justify-center p-1 -m-1 select-none"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleSelectMouseDown(id, e);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        checked={selectedIds.includes(id)}
+                        className="pointer-events-none"
+                      />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{name}</p>
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{name}</p>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          {/* MASTERPIECE: Loading more indicator */}
+          {loadingMore && (
+            <div className="flex items-center justify-center py-3">
+              <Spinner className="h-5 w-5" />
+              <span className="ml-2 text-sm text-muted-foreground">Loading more...</span>
+            </div>
+          )}
+
+          {/* MASTERPIECE: End of list indicator */}
+          {!hasMore && documents.length > 0 && !loadingMore && (
+            <div className="py-3 text-center text-xs text-muted-foreground">
+              All {documents.length} documents loaded
+            </div>
+          )}
         </div>
 
         {/* Bulk actions footer */}

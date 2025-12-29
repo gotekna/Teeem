@@ -141,6 +141,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [tabs, setTabs] = useState<PlanTab[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+
+  // MASTERPIECE: Pagination state for infinite scroll
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<JobPlan | null>(null);
   const handlePlanSelect = useCallback((plan: JobPlan | null) => {
@@ -170,26 +176,69 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const [operationType, setOperationType] = useState<OperationType>("plan_upload");
   const [operationId, setOperationId] = useState<number | null>(null);
 
-  // Fetch plans
-  const fetchPlans = useCallback(async () => {
+  // MASTERPIECE: Fetch plans with cursor-based pagination
+  const fetchPlans = useCallback(async (cursor?: number | null, append = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        // Reset pagination state on fresh load
+        setPlans([]);
+        setNextCursor(null);
+        setHasMore(false);
+      }
 
-      const response = (await api.get(`/api/v1/jobs/${jobId}/job_plans`)) as {
+      const params = new URLSearchParams({ per_page: "50" });
+      if (cursor) {
+        params.set("cursor", cursor.toString());
+      }
+
+      const response = (await api.get(`/api/v1/jobs/${jobId}/job_plans?${params}`)) as {
         success: boolean;
         data?: JobPlan[];
+        pagination?: {
+          has_more: boolean;
+          next_cursor: number | null;
+          total_count: number | null;
+          per_page: number;
+        };
         error?: string;
       };
 
       if (response.success) {
-        setPlans(response.data || []);
+        const newPlans = response.data || [];
+
+        if (append) {
+          // Append to existing plans
+          setPlans(prev => [...prev, ...newPlans]);
+        } else {
+          // Replace plans (fresh load)
+          setPlans(newPlans);
+          // Only set total count on first load
+          if (response.pagination?.total_count != null) {
+            setTotalCount(response.pagination.total_count);
+          }
+        }
+
+        // Update pagination state
+        setHasMore(response.pagination?.has_more ?? false);
+        setNextCursor(response.pagination?.next_cursor ?? null);
       }
     } catch (err) {
       console.error("Error fetching plans:", err);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [jobId]);
+
+  // MASTERPIECE: Load more function for infinite scroll
+  const loadMorePlans = useCallback(() => {
+    if (hasMore && nextCursor && !loadingMore) {
+      fetchPlans(nextCursor, true);
+    }
+  }, [fetchPlans, hasMore, nextCursor, loadingMore]);
 
   // Fetch tabs (categories)
   const fetchTabs = useCallback(async () => {
@@ -864,6 +913,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           actionLabels={{ approve: "Set On Issue", openExternal: "Open in SharePoint" }}
           loading={loading}
           emptyMessage="Drop a PDF here or click Add Plan to get started"
+          // MASTERPIECE: Infinite scroll props
+          onLoadMore={loadMorePlans}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
         />
       </div>
 
