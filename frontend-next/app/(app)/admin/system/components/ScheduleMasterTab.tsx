@@ -2321,9 +2321,12 @@ export function ScheduleMasterTab() {
                     checked={editRowForm.is_active !== false}
                     onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, is_active: checked })}
                   />
-                  <Label htmlFor="row-is-active" className="text-xs">
-                    Active
-                  </Label>
+                  <div>
+                    <Label htmlFor="row-is-active" className="text-xs">
+                      Active
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Inactive tasks won't appear in new jobs</p>
+                  </div>
                   {editRowForm.is_active === false && (
                     <Badge variant="destructive" className="text-[10px]">Inactive</Badge>
                   )}
