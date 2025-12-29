@@ -395,7 +395,7 @@ export default function PricebookHealthPage() {
   const loadDuplicateContacts = async () => {
     try {
       setLoadingDuplicates(true);
-      const response = await api.get<DuplicateContacts>("/api/v1/contacts/possible_duplicates");
+      const response = await api.get<DuplicateContacts>("/api/v1/contacts/merge/duplicates");
       setDuplicateContacts(response);
     } catch (error) {
       console.error("Failed to load duplicate contacts:", error);

@@ -797,7 +797,7 @@ export default function CorporateDashboardPage() {
         // Fetch ownership chain from the new API endpoint
         try {
           const ownershipResponse = await api.get<{ success: boolean; data: OwnershipNodeState[] }>(
-            `/api/v1/contacts/${contactId}/ownership_chain`
+            `/api/v1/contacts/corporate_structure/${contactId}/ownership_chain`
           );
           if (ownershipResponse.success && ownershipResponse.data) {
             setFullScreenPersonOwnershipChain(ownershipResponse.data);

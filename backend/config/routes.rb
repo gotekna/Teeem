@@ -632,61 +632,6 @@ Rails.application.routes.draw do
       # Contacts management
       # SSoT: Core CRUD operations only - all specialized endpoints moved to namespaced controllers
       # See namespace :contacts block below for new SSoT routes
-      resources :contacts do
-        collection do
-          patch :bulk_update
-          post :bulk_delete
-          post :fix_name_casing
-          post :fix_email_assignment
-          post :match_supplier
-          get :read_only_fields
-          # SSoT: Contact choices from Contact model constants
-          get :entity_types        # Contact::ENTITY_TYPES
-          get :employment_statuses # Contact::EMPLOYMENT_STATUSES
-          get :roles               # Contact::ROLES
-        end
-        member do
-          get :internal_messages
-          get :activities
-        end
-
-        # Contact relationships (nested under contacts)
-        resources :relationships, controller: "contact_relationships", only: [ :index, :create, :show, :update, :destroy ] do
-          collection do
-            get :summary
-          end
-        end
-
-        # Xero links (nested under contacts)
-        resources :xero_links, controller: "contact_xero_links", only: [ :index, :create, :show, :update, :destroy ] do
-          member do
-            post :sync
-            post :resolve_conflict
-            post :approve
-            post :reject
-            post :transfer
-          end
-          collection do
-            get :conflicts
-          end
-        end
-
-        # SMS messages (nested under contacts)
-        resources :sms_messages, only: [ :index, :create ]
-
-        # Contact persons (nested under contacts) - for Xero sync
-        resources :contact_persons, only: [ :index, :create, :update, :destroy ]
-
-        # Contact groups (nested under contacts)
-        resources :contact_groups, only: [ :index ]
-      end
-
-      # Duplicate contacts management (Xero multi-tenant sync)
-      get "duplicate_contacts/groups", to: "duplicate_contacts#groups"
-      get "duplicate_contacts/groups/:id", to: "duplicate_contacts#show"
-      post "duplicate_contacts/groups/:id/merge", to: "duplicate_contacts#merge"
-      post "duplicate_contacts/groups/:id/dismiss", to: "duplicate_contacts#dismiss"
-
       # ========================================================================
       # NAMESPACED CONTROLLERS (ADR-001: Contacts Controller Decomposition)
       # SSoT: All specialized contacts endpoints are in these controllers
@@ -823,6 +768,62 @@ Rails.application.routes.draw do
           delete "/", action: :destroy
         end
       end
+
+      resources :contacts do
+        collection do
+          patch :bulk_update
+          post :bulk_delete
+          post :fix_name_casing
+          post :fix_email_assignment
+          post :match_supplier
+          get :read_only_fields
+          # SSoT: Contact choices from Contact model constants
+          get :entity_types        # Contact::ENTITY_TYPES
+          get :employment_statuses # Contact::EMPLOYMENT_STATUSES
+          get :roles               # Contact::ROLES
+        end
+        member do
+          get :internal_messages
+          get :activities
+        end
+
+        # Contact relationships (nested under contacts)
+        resources :relationships, controller: "contact_relationships", only: [ :index, :create, :show, :update, :destroy ] do
+          collection do
+            get :summary
+          end
+        end
+
+        # Xero links (nested under contacts)
+        resources :xero_links, controller: "contact_xero_links", only: [ :index, :create, :show, :update, :destroy ] do
+          member do
+            post :sync
+            post :resolve_conflict
+            post :approve
+            post :reject
+            post :transfer
+          end
+          collection do
+            get :conflicts
+          end
+        end
+
+        # SMS messages (nested under contacts)
+        resources :sms_messages, only: [ :index, :create ]
+
+        # Contact persons (nested under contacts) - for Xero sync
+        resources :contact_persons, only: [ :index, :create, :update, :destroy ]
+
+        # Contact groups (nested under contacts)
+        resources :contact_groups, only: [ :index ]
+      end
+
+      # Duplicate contacts management (Xero multi-tenant sync)
+      get "duplicate_contacts/groups", to: "duplicate_contacts#groups"
+      get "duplicate_contacts/groups/:id", to: "duplicate_contacts#show"
+      post "duplicate_contacts/groups/:id/merge", to: "duplicate_contacts#merge"
+      post "duplicate_contacts/groups/:id/dismiss", to: "duplicate_contacts#dismiss"
+
 
       # SMS webhooks (Twilio callbacks - not nested)
       post "sms/webhook", to: "sms_messages#webhook"

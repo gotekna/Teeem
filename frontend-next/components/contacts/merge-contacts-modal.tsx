@@ -111,8 +111,8 @@ export function MergeContactsModal({
 
     try {
       await api.post("/api/v1/contacts/merge", {
-        primary_contact_id: primaryContactId,
-        secondary_contact_ids: secondaryIds,
+        target_id: primaryContactId,
+        source_ids: secondaryIds,
       });
       // Pass the merged IDs back to parent so it can remove them from state
       onMergeComplete(secondaryIds, primaryContactId);

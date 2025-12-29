@@ -78,7 +78,7 @@ export default function CorporateStructurePage() {
           position: string;
           formatted_position?: string;
           is_current: boolean;
-        }> }>(`/api/v1/contacts/${contactId}/directorships`);
+        }> }>(`/api/v1/contacts/corporate_structure/${contactId}/directorships`);
 
         // Fetch shareholdings
         const shareholdingsResponse = await api.get<{ success: boolean; data: Array<{
@@ -87,7 +87,7 @@ export default function CorporateStructurePage() {
           company_name: string;
           shares: number;
           percentage: number;
-        }> }>(`/api/v1/contacts/${contactId}/shareholdings`);
+        }> }>(`/api/v1/contacts/corporate_structure/${contactId}/shareholdings`);
 
         // Combine into roles format
         const combinedRoles: PersonRole[] = [];
@@ -123,7 +123,7 @@ export default function CorporateStructurePage() {
 
         // Fetch ownership chain
         const ownershipResponse = await api.get<{ success: boolean; data: OwnershipNode[] }>(
-          `/api/v1/contacts/${contactId}/ownership_chain`
+          `/api/v1/contacts/corporate_structure/${contactId}/ownership_chain`
         );
         if (ownershipResponse.success && ownershipResponse.data) {
           setOwnershipChain(ownershipResponse.data);

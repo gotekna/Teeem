@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,22 +26,8 @@ import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 
-interface SmTask {
-  id: number;
-  task_number: number;
-  name: string;
-  trade?: string;
-  stage?: string;
-  status: string;
-  start_date?: string;
-  end_date?: string;
-  duration_days?: number;
-  supplier?: { id: number; display_name: string };
-  supplier_name?: string;
-  sm_schedule_master_id?: number;
-  purchase_order_id?: number;
-  purchase_order_number?: string;
-}
+// SSoT: SmTask interface removed - data now fetched via Foundation API
+// TeeemTableView handles data internally with autoFetchRecords
 
 interface JobScheduleTabProps {
   jobId: string | number;
@@ -132,9 +118,9 @@ interface JobTemplate {
 export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [tasks, setTasks] = useState<SmTask[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // SSoT: Use autoFetchRecords instead of manual fetching
+  // refreshKey triggers re-fetch when sync completes
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Sync state
   const [showSyncDialog, setShowSyncDialog] = useState(false);
@@ -146,28 +132,11 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   const [jobTemplate, setJobTemplate] = useState<JobTemplate | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
 
-  const loadTasks = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await api.get<{ sm_tasks: SmTask[] }>(`/api/v1/jobs/${jobId}/sm_tasks`);
-      // Add supplier_name for display
-      const tasksWithSupplierName = (response?.sm_tasks || []).map(task => ({
-        ...task,
-        supplier_name: task.supplier?.display_name || "",
-      }));
-      setTasks(tasksWithSupplierName);
-    } catch (err) {
-      console.error("Failed to load tasks:", err);
-      setError("Failed to load schedule tasks");
-    } finally {
-      setLoading(false);
-    }
-  }, [jobId]);
-
-  useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+  // SSoT: Data fetching moved to TeeemTableView with autoFetchRecords
+  // Trigger refresh by incrementing refreshKey after sync operations
+  const triggerRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1);
+  }, []);
 
   const handleRowClick = (row: TableRow) => {
     // Navigate to Schedule Master (SSoT) with task filter
@@ -292,8 +261,8 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
           title: "Sync Complete",
           description: `Created: ${response.summary.created}, Updated: ${response.summary.updated}, Skipped: ${response.summary.skipped}`,
         });
-        // Refresh the task list
-        loadTasks();
+        // Refresh the task list (triggers autoFetch re-query)
+        triggerRefresh();
       }
     } catch (err) {
       console.error("Failed to sync:", err);
@@ -310,11 +279,14 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        entries={tasks as unknown as TableRow[]}
+        key={refreshKey}
         foundationId="sm-tasks"
+        autoFetchRecords={true}
+        initialFilters={[
+          { id: "job-filter", column: "Construction", operator: "=", value: String(jobId) }
+        ]}
         inheritViewsFrom="sm_schedule_master"
         tableName="Schedule Tasks"
-        onRefresh={loadTasks}
         onRowClick={handleRowClick}
         leftActions={
           <div className="flex items-center gap-2">

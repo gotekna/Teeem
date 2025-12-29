@@ -755,7 +755,7 @@ export default function ContactDetailPage() {
         company?: { name: string };
         website_details?: { phone?: string; abn?: string; acn?: string; address?: string };
         error?: string;
-      }>(`/api/v1/contacts/${contact.id}/enrich_from_web`);
+      }>(`/api/v1/contacts/enrichment/${contact.id}/from_web`);
 
       if (response?.success) {
         const { is_sole_trader, company_created, company_linked, company_found_from_domain, found_from_contact, company, website_details } = response;
@@ -802,7 +802,7 @@ export default function ContactDetailPage() {
     try {
       setLoadingMemberships(true);
       const response = await api.get<{ success: boolean; data: CompanyGroupMembership[] }>(
-        `/api/v1/contacts/${contact?.id}/company_group_memberships`
+        `/api/v1/contacts/corporate_structure/${contact?.id}/memberships`
       );
       if (!mountedRef.current) return;
       setMemberships(response.data || []);
@@ -828,7 +828,7 @@ export default function ContactDetailPage() {
     try {
       setLoadingDirectorships(true);
       const response = await api.get<{ success: boolean; data: Directorship[] }>(
-        `/api/v1/contacts/${contact.id}/directorships`
+        `/api/v1/contacts/corporate_structure/${contact.id}/directorships`
       );
       setDirectorships(response.data || []);
     } catch (err) {
@@ -845,7 +845,7 @@ export default function ContactDetailPage() {
     try {
       setLoadingShareholdings(true);
       const response = await api.get<{ success: boolean; data: Shareholding[] }>(
-        `/api/v1/contacts/${contact.id}/shareholdings`
+        `/api/v1/contacts/corporate_structure/${contact.id}/shareholdings`
       );
       setShareholdings(response.data || []);
     } catch (err) {
@@ -862,7 +862,7 @@ export default function ContactDetailPage() {
     try {
       setLoadingTrustRoles(true);
       const response = await api.get<{ success: boolean; data: TrustRolesData }>(
-        `/api/v1/contacts/${contact.id}/trust_roles`
+        `/api/v1/contacts/corporate_structure/${contact.id}/trust_roles`
       );
       setTrustRoles(response.data || null);
     } catch (err) {
@@ -879,7 +879,7 @@ export default function ContactDetailPage() {
     try {
       setLoadingOwnershipChain(true);
       const response = await api.get<{ success: boolean; data: OwnershipNode[] }>(
-        `/api/v1/contacts/${contact.id}/ownership_chain`
+        `/api/v1/contacts/corporate_structure/${contact.id}/ownership_chain`
       );
       setOwnershipChain(response.data || []);
     } catch (err) {
@@ -896,7 +896,7 @@ export default function ContactDetailPage() {
     try {
       setLoadingCaseRelationships(true);
       const response = await api.get<{ success: boolean; data: CaseRelationship[]; total_count: number }>(
-        `/api/v1/contacts/${contact.id}/case_relationships`
+        `/api/v1/contacts/relationships/${contact.id}/cases`
       );
       setCaseRelationships(response.data || []);
     } catch (err) {
@@ -1182,7 +1182,7 @@ export default function ContactDetailPage() {
     // Save to backend
     try {
       const company_ids = newCompanies.map(c => parseInt(c.value));
-      await api.post(`/api/v1/contacts/${contact!.id}/reorder_companies`, { company_ids });
+      await api.post(`/api/v1/contacts/relationships/${contact!.id}/reorder_companies`, { company_ids });
       // Reload to update Primary Company display
       await loadContact();
     } catch (err) {
@@ -1432,7 +1432,7 @@ export default function ContactDetailPage() {
     // Save to backend
     try {
       const employee_ids = newEmployees.map(e => e.id);
-      await api.post(`/api/v1/contacts/${contact.id}/reorder_employees`, {
+      await api.post(`/api/v1/contacts/relationships/${contact.id}/reorder_employees`, {
         employee_ids
       });
     } catch (err) {

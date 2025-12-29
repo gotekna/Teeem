@@ -275,7 +275,7 @@ export default function ContactQualityReviewPage() {
   const handleScan = async () => {
     setScanning(true);
     try {
-      const result = await api.post<ScanResponse>("/api/v1/contacts/quality_scan", {});
+      const result = await api.post<ScanResponse>("/api/v1/contacts/quality_reviews/scan", {});
       console.log("Scan result:", result);
       await fetchReviews();
     } catch (error) {
