@@ -2467,10 +2467,17 @@ export default function TeeemTableView({
         // Read URL param here (not as effect dependency) to avoid re-triggering on URL changes
         const urlViewParam = searchParams.get('view');
 
+        // CRITICAL FIX: Tables with initialFilters are "embedded" contexts (subtabs, filtered views)
+        // They should NOT apply URL views because:
+        // 1. URL views are from parent page or other tabs (would pollute this table's filter context)
+        // 2. initialFilters defines the authoritative filter context for this table instance
+        // This prevents cross-table pollution when multiple TeeemTableView instances share the page
+        const skipUrlViewForEmbeddedContext = initialFilters && initialFilters.length > 0;
+
         // Support both slug (new) and numeric ID (legacy) in URL
         // Try to find view by slug first, then by numeric ID for backwards compatibility
         let urlMatchedView: (typeof filteredViews)[0] | undefined;
-        if (urlViewParam) {
+        if (urlViewParam && !skipUrlViewForEmbeddedContext) {
           // First try slug match (non-numeric strings)
           if (!/^\d+$/.test(urlViewParam)) {
             urlMatchedView = filteredViews.find(v => v.slug === urlViewParam);
