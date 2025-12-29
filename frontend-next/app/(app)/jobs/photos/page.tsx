@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
@@ -11,7 +11,7 @@ import { type PhotoItem } from "@/components/ui/photo-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Camera, RefreshCw, User, ChevronDown } from "lucide-react";
+import { Camera, RefreshCw, User, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +84,7 @@ export default function JobPhotosPage() {
   const [filtersInitialized, setFiltersInitialized] = useState(false);
   const [data, setData] = useState<SupervisorGroup>({});
   const [totalJobs, setTotalJobs] = useState(0);
+  const [expandedSupervisors, setExpandedSupervisors] = useState<Set<string>>(new Set());
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -188,6 +189,18 @@ export default function JobPhotosPage() {
     setSelectedSupervisors(prev => {
       const next = prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name];
       saveSelection(STORAGE_KEY_SUPERVISORS, next);
+      return next;
+    });
+  };
+
+  const toggleSupervisorExpanded = (name: string) => {
+    setExpandedSupervisors(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
       return next;
     });
   };
@@ -347,7 +360,7 @@ export default function JobPhotosPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-2">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <Spinner className="h-8 w-8" />
@@ -370,75 +383,65 @@ export default function JobPhotosPage() {
             <p>No photos found for selected filters</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {supervisorNames.map((supervisor) => (
-              <Card key={supervisor} className="dark:bg-gray-900/50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
+          <div className="space-y-1">
+            {supervisorNames.map((supervisor) => {
+              const isExpanded = expandedSupervisors.has(supervisor);
+              const jobs = data[supervisor];
+              return (
+                <Collapsible key={supervisor} open={isExpanded} onOpenChange={() => toggleSupervisorExpanded(supervisor)}>
+                  <CollapsibleTrigger className="flex items-center gap-2 w-full py-1.5 px-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-left">
+                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     <User className="h-4 w-4 text-muted-foreground" />
-                    {supervisor}
-                    <span className="text-sm font-normal text-muted-foreground">
-                      ({data[supervisor].length} job{data[supervisor].length !== 1 ? "s" : ""})
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {data[supervisor].map((job) => (
-                      <div key={job.job_id} className="space-y-2">
-                        <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">{supervisor}</span>
+                    <span className="text-xs text-muted-foreground">({jobs.length})</span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="ml-6 space-y-3 py-2">
+                      {jobs.map((job) => (
+                        <div key={job.job_id}>
                           <button
                             onClick={() => handlePhotoClick(job.job_id)}
-                            className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline text-left"
+                            className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline mb-1"
                           >
                             {job.job_number ? `${job.job_number} - ` : ""}{job.job_name}
                           </button>
-                          <span className="text-xs text-muted-foreground">
-                            {job.photos.length} photo{job.photos.length !== 1 ? "s" : ""}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
-                          {job.photos.map((photo, idx) => {
-                            const isOld = photo.days_old !== null && photo.days_old > 3;
-                            return (
-                              <div
-                                key={photo.id}
-                                className="relative group cursor-pointer aspect-square"
-                                onClick={() => handlePhotoClick(job.job_id)}
-                                onDoubleClick={() => handlePhotoExpand(job.photos, idx)}
-                              >
+                          <div className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] gap-1">
+                            {job.photos.map((photo, idx) => {
+                              const isOld = photo.days_old !== null && photo.days_old > 3;
+                              return (
                                 <div
-                                  className={cn(
-                                    "w-full h-full rounded-lg overflow-hidden border-2 transition-all",
-                                    isOld
-                                      ? "border-red-500 dark:border-red-600"
-                                      : "border-transparent hover:border-blue-500"
-                                  )}
+                                  key={photo.id}
+                                  className="relative cursor-pointer aspect-square"
+                                  onClick={() => handlePhotoClick(job.job_id)}
+                                  onDoubleClick={() => handlePhotoExpand(job.photos, idx)}
                                 >
-                                  <img
-                                    src={photo.thumbnail_url}
-                                    alt={photo.name}
-                                    className="w-full h-full object-cover"
-                                  />
+                                  <div
+                                    className={cn(
+                                      "w-full h-full rounded overflow-hidden border-2",
+                                      isOld
+                                        ? "border-red-500 dark:border-red-600"
+                                        : "border-transparent hover:border-blue-500"
+                                    )}
+                                  >
+                                    <img src={photo.thumbnail_url} alt={photo.name} className="w-full h-full object-cover" />
+                                  </div>
+                                  <div className={cn(
+                                    "absolute bottom-0 left-0 right-0 px-0.5 text-[10px] text-center",
+                                    isOld ? "bg-red-500/90 text-white" : "bg-black/60 text-white"
+                                  )}>
+                                    {formatDate(photo.modified_at)}
+                                  </div>
                                 </div>
-                                <div className={cn(
-                                  "absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center",
-                                  isOld
-                                    ? "bg-red-500/90 text-white"
-                                    : "bg-black/60 text-white"
-                                )}>
-                                  {formatDate(photo.modified_at)}
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
           </div>
         )}
       </div>
