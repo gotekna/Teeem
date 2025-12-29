@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,14 @@ const STEPS: { id: PrepareStep; label: string; icon: React.ReactNode }[] = [
 
 export default function ESignaturePreparePage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<PrepareStep>("document");
+  // SSoT: URL state for wizard step (enables browser back/forward)
+  const [urlState, setUrlState] = useUrlState({
+    step: null as string | null,  // null = "document"
+  });
+  const currentStep = (urlState.step as PrepareStep) || "document";
+  const setCurrentStep = (newStep: PrepareStep) => {
+    setUrlState({ step: newStep === "document" ? null : newStep });
+  };
 
   // Document state
   const [documentFile, setDocumentFile] = useState<File | null>(null);

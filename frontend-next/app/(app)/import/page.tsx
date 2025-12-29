@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import {
   CloudArrowUpIcon,
   DocumentIcon,
@@ -59,7 +60,14 @@ const COLUMN_TYPES = [
 export default function ImportPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [step, setStep] = useState<"upload" | "preview">("upload");
+  // SSoT: URL state for wizard step (enables browser back/forward)
+  const [urlState, setUrlState] = useUrlState({
+    step: null as string | null,  // null = "upload"
+  });
+  const step = (urlState.step as "upload" | "preview") || "upload";
+  const setStep = (newStep: "upload" | "preview") => {
+    setUrlState({ step: newStep === "upload" ? null : newStep });
+  };
   const [uploading, setUploading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);

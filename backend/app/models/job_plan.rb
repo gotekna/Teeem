@@ -4,9 +4,14 @@
 # SSoT: Plan type identification SHOULD go through PlanIdentificationService
 # See: app/services/plan_identification/plan_identification_service.rb
 #
+# MASTERPIECE: Counter caches for O(1) count lookups
+# - jobs.plans_count maintained by counter_cache
+# - job_plan_tabs.plans_count maintained by counter_cache
+# - on_issue counts maintained by callbacks (see update_on_issue_counts)
+#
 class JobPlan < ApplicationRecord
-  belongs_to :job
-  belongs_to :job_plan_tab, optional: true
+  belongs_to :job, counter_cache: true
+  belongs_to :job_plan_tab, optional: true, counter_cache: :plans_count
   belongs_to :plan_type, optional: true
   belongs_to :current_revision, class_name: 'JobPlanRevision', optional: true
   has_many :revisions, class_name: 'JobPlanRevision', dependent: :destroy
@@ -28,10 +33,17 @@ class JobPlan < ApplicationRecord
   # Auto-regenerate "All Plans" combined PDF when individual plans change
   after_commit :regenerate_all_plans_pdf, on: [:create, :update, :destroy], if: :should_regenerate_all_plans?
 
+  # MASTERPIECE: Update on_issue counter caches when plan changes
+  after_commit :update_on_issue_counts, on: [:create, :update, :destroy]
+
   scope :ordered, -> { includes(:plan_type).order('plan_types.sequence_order', 'plan_types.code', :variant_suffix) }
   scope :on_issue, -> { joins(:current_revision).where(job_plan_revisions: { is_on_issue: true }) }
   scope :regular_plans, -> { where(is_combined_pdf: false) }
   scope :combined_pdfs, -> { where(is_combined_pdf: true) }
+
+  # MASTERPIECE: Optimized scopes for pagination
+  scope :with_current_revision, -> { includes(current_revision: :issued_by) }
+  scope :ordered_for_list, -> { includes(:plan_type).order('plan_types.sequence_order', 'plan_types.code', :variant_suffix) }
 
   # Full display name: "02 - SITE PLAN" or "02b - SITE PLAN"
   def computed_display_name
@@ -112,5 +124,27 @@ class JobPlan < ApplicationRecord
   # Uses debounced enqueue to avoid multiple runs for rapid changes
   def regenerate_all_plans_pdf
     PlanCombinerJob.enqueue_for_job(job_id)
+  end
+
+  # MASTERPIECE: Update on_issue counter caches
+  # Called after any plan change that might affect on_issue counts
+  def update_on_issue_counts
+    # Update job_plan_tab on_issue count
+    if job_plan_tab_id.present?
+      count = JobPlan.where(job_plan_tab_id: job_plan_tab_id)
+                     .joins(:current_revision)
+                     .where(job_plan_revisions: { is_on_issue: true })
+                     .count
+      JobPlanTab.where(id: job_plan_tab_id)
+                .update_all(on_issue_plans_count: count)
+    end
+
+    # Update job on_issue count
+    count = JobPlan.where(job_id: job_id)
+                   .joins(:current_revision)
+                   .where(job_plan_revisions: { is_on_issue: true })
+                   .count
+    Job.where(id: job_id)
+       .update_all(on_issue_plans_count: count)
   end
 end

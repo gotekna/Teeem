@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_28_210710) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_29_010738) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5863,6 +5863,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_210710) do
     t.index ["is_on_issue"], name: "index_job_plan_revisions_on_is_on_issue"
     t.index ["issued_by_id"], name: "index_job_plan_revisions_on_issued_by_id"
     t.index ["job_plan_id", "revision"], name: "index_job_plan_revisions_on_job_plan_id_and_revision", unique: true
+    t.index ["job_plan_id"], name: "idx_on_issue_revisions", where: "(is_on_issue = true)"
     t.index ["job_plan_id"], name: "index_job_plan_revisions_on_job_plan_id"
     t.index ["thumbnail_file_id"], name: "index_job_plan_revisions_on_thumbnail_file_id"
   end
@@ -5877,7 +5878,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_210710) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "plans_count", default: 0, null: false
+    t.integer "on_issue_plans_count", default: 0, null: false
     t.index ["job_id", "plan_category_id"], name: "index_job_plan_tabs_on_job_id_and_plan_category_id"
+    t.index ["job_id", "plans_count"], name: "idx_job_plan_tabs_count"
     t.index ["job_id"], name: "index_job_plan_tabs_on_job_id"
     t.index ["parent_id"], name: "index_job_plan_tabs_on_parent_id"
     t.index ["plan_category_id"], name: "index_job_plan_tabs_on_plan_category_id"
@@ -5893,7 +5897,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_210710) do
     t.datetime "updated_at", null: false
     t.bigint "current_revision_id"
     t.boolean "is_combined_pdf", default: false, null: false
+    t.integer "revisions_count", default: 0, null: false
     t.index ["current_revision_id"], name: "index_job_plans_on_current_revision_id"
+    t.index ["job_id", "id"], name: "idx_job_plans_job_pagination"
+    t.index ["job_id", "job_plan_tab_id", "id"], name: "idx_job_plans_tab_pagination"
     t.index ["job_id", "plan_type_id", "variant_suffix"], name: "idx_job_plans_unique_per_job", unique: true
     t.index ["job_id"], name: "index_job_plans_on_job_id"
     t.index ["job_plan_tab_id"], name: "index_job_plans_on_job_plan_tab_id"
@@ -6095,6 +6102,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_210710) do
     t.decimal "labour_variance_percent", precision: 5, scale: 2
     t.decimal "site_latitude", precision: 10, scale: 7
     t.decimal "site_longitude", precision: 10, scale: 7
+    t.integer "plans_count", default: 0, null: false
+    t.integer "on_issue_plans_count", default: 0, null: false
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -7964,6 +7973,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_28_210710) do
     t.integer "spawn_scan_lag_days", default: 0
     t.string "trade_text", limit: 255
     t.string "stage_text", limit: 255
+    t.string "header_backup"
     t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"

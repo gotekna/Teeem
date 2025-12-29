@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import axios from "axios";
 import {
   CalendarDaysIcon,
@@ -434,6 +435,14 @@ const TaskDetailModal = ({
 
 export default function PortalSchedule() {
   const router = useRouter();
+  // SSoT: URL state for filter (enables shareable filtered views)
+  const [urlState, setUrlState] = useUrlState({
+    filter: null as string | null,  // null = "all"
+  });
+  const filter = urlState.filter || "all";
+  const setFilter = (newFilter: string) => {
+    setUrlState({ filter: newFilter === "all" ? null : newFilter });
+  };
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<TasksData>({
     all_tasks: [],
@@ -442,7 +451,6 @@ export default function PortalSchedule() {
     completed: [],
   });
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [filter, setFilter] = useState("all");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const fetchTasks = useCallback(async () => {
