@@ -1,5 +1,5 @@
 class JobStatus < ApplicationRecord
-  self.table_name = "job_status"
+  # Table renamed from job_status to job_statuses (Rails convention)
 
   # Many-to-many relationship with JobType through job_type_statuses
   # Prevent deletion if jobs exist in this status (data integrity)

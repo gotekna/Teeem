@@ -1,5 +1,5 @@
 class PricebookItem < ApplicationRecord
-  self.table_name = "pricebook"
+  self.table_name = "pricebooks"  # Table renamed from pricebook (Rails convention)
 
   # Associations
   belongs_to :supplier, class_name: "Contact", foreign_key: "supplier_id", optional: true

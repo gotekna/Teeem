@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
 class Trinity < ApplicationRecord
-  # Tell Rails to use 'trinity' as the table name (not 'trinities')
-  self.table_name = "trinity"
+  # Table renamed from trinity to trinities (Rails convention)
 
   # Constants
   ENTRY_TYPES = %w[

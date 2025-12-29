@@ -5,7 +5,7 @@ class EmailWarehouse < ApplicationRecord
   # Note: Uses custom update_searchable_vector callback instead of trigger
   searchable_columns :subject, :from_email, :body_text
 
-  self.table_name = "email_warehouse"
+  # Table renamed from email_warehouse to email_warehouses (Rails convention)
 
   # ActiveStorage attachments
   has_many_attached :files

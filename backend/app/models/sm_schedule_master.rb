@@ -11,7 +11,7 @@
 # - Use add_to_template/remove_from_template to manage membership
 #
 class SmScheduleMaster < ApplicationRecord
-  self.table_name = "sm_schedule_master"
+  # Table renamed from sm_schedule_master to sm_schedule_masters (Rails convention)
 
   # SSoT: Use User::ASSIGNABLE_ROLES - single source of truth for role constants
   # This alias provides backward compatibility for any existing references
