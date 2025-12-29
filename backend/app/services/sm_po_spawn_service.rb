@@ -28,9 +28,10 @@ class SmPoSpawnService
 
   # Spawn Order and Call tasks based on task configuration
   # Returns { success: bool, spawned_tasks: [], errors: [] }
+  # SSoT: Uses task.has_linked_po? which checks PurchaseOrder.sm_task_id
   def spawn!
     return success_result if task.nil?
-    return success_result unless task.purchase_order_id.present?
+    return success_result unless task.has_linked_po?
 
     # Check if tasks already spawned for this PO to avoid duplicates
     existing_spawns = SmSpawnLog.where(parent_task: task, spawn_trigger: "po_created")

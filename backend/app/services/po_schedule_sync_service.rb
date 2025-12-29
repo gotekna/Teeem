@@ -85,10 +85,13 @@ class PoScheduleSyncService
 
   private
 
-  # Find all tasks linked to this PO
-  # SSoT: SmTask.purchase_order_id is THE ONE link between PO and task
+  # Find the task linked to this PO
+  # SSoT: PurchaseOrder.sm_task_id is THE ONE link (Option B - single column)
   def find_linked_tasks
-    purchase_order.sm_tasks.includes(:predecessors, :supplier).to_a
+    return [] unless purchase_order.sm_task_id.present?
+    task = purchase_order.sm_task
+    return [] unless task
+    [task.tap { |t| t.association(:predecessors).load; t.association(:supplier).load rescue nil }]
   end
 
   # Current PO state for comparison

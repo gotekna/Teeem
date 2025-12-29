@@ -23,11 +23,10 @@ class PurchaseOrder < ApplicationRecord
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
   has_many :payments, dependent: :destroy
 
-  # SSoT: PO-Task Link
-  # Primary: PurchaseOrder.sm_task_id (single lookup)
-  # Legacy: SmTask.purchase_order_id (kept in sync via callback)
+  # SSoT: PO-Task Link (Option B - Single Column)
+  # THE ONE: PurchaseOrder.sm_task_id points to the linked task
+  # No reverse column on SmTask - use sm_task.linked_purchase_order for reverse lookup
   belongs_to :sm_task, class_name: "SmTask", optional: true
-  has_many :sm_tasks, class_name: "SmTask", foreign_key: :purchase_order_id, dependent: :nullify
 
   # SSoT: PO Task name - used by Foundation column display
   def po_task_name
@@ -37,12 +36,12 @@ class PurchaseOrder < ApplicationRecord
   # Virtual attribute for Foundation - returns the schedule master name via SmTask
   # Path: PO → SmTask → SmScheduleMaster.name
   def sm_schedule_master_name
-    sm_tasks.first&.sm_schedule_master&.name
+    sm_task&.sm_schedule_master&.name
   end
 
   # Virtual attribute for Foundation - returns the schedule master ID via SmTask
   def sm_schedule_master_id_via_task
-    sm_tasks.first&.sm_schedule_master_id
+    sm_task&.sm_schedule_master_id
   end
 
   has_many :purchase_order_documents, dependent: :destroy
@@ -103,8 +102,7 @@ class PurchaseOrder < ApplicationRecord
   before_save :calculate_variances
   after_create :log_po_created
   after_save :update_job_profit
-  after_save :sync_supplier_to_sm_tasks
-  after_save :sync_sm_task_bidirectional
+  after_save :sync_supplier_to_sm_task
   after_destroy :update_job_profit
 
   # Scopes
@@ -276,15 +274,18 @@ class PurchaseOrder < ApplicationRecord
   def effective_required_date
     return required_date if required_date.present?
 
-    # Fallback: Check sm_tasks linked via purchase_order_id (SSoT)
-    sm_tasks.first&.start_date
+    # Fallback: Use linked task's start_date (SSoT: sm_task_id)
+    sm_task&.start_date
   end
 
-  # Check if PO delivery timing aligns with linked tasks (SSoT: uses SmTask)
-  def delivery_aligned_with_tasks?
-    return true if sm_tasks.empty?
-    sm_tasks.all? { |task| delivery_before_task_start?(task) }
+  # Check if PO delivery timing aligns with linked task (SSoT: sm_task_id)
+  def delivery_aligned_with_task?
+    return true unless sm_task
+    delivery_before_task_start?(sm_task)
   end
+
+  # Alias for backwards compatibility
+  alias_method :delivery_aligned_with_tasks?, :delivery_aligned_with_task?
 
   # Check if this PO's delivery date is before a specific task's start date
   def delivery_before_task_start?(task)
@@ -292,14 +293,14 @@ class PurchaseOrder < ApplicationRecord
     required_on_site_date <= task.start_date
   end
 
-  # Get timing warnings for all linked tasks (SSoT: uses SmTask)
+  # Get timing warnings for linked task (SSoT: sm_task_id)
   def timing_warnings
     warnings = []
-    sm_tasks.each do |task|
-      unless delivery_before_task_start?(task)
-        days_late = (required_on_site_date - task.start_date).to_i
-        warnings << "PO delivery is #{days_late} days after #{task.name} starts"
-      end
+    return warnings unless sm_task
+
+    unless delivery_before_task_start?(sm_task)
+      days_late = (required_on_site_date - sm_task.start_date).to_i
+      warnings << "PO delivery is #{days_late} days after #{sm_task.name} starts"
     end
     warnings
   end
@@ -457,41 +458,23 @@ class PurchaseOrder < ApplicationRecord
     job&.calculate_and_update_profit!
   end
 
-  # Sync supplier changes to linked SmTasks (One Entity concept)
-  # When a PO's supplier changes, update all linked tasks to match
-  def sync_supplier_to_sm_tasks
-    return unless saved_change_to_supplier_id? && sm_tasks.any?
+  # Sync supplier changes to linked SmTask (One Entity concept)
+  # When a PO's supplier changes, update the linked task to match
+  # SSoT: PurchaseOrder.sm_task_id is THE ONE link
+  def sync_supplier_to_sm_task
+    return unless saved_change_to_supplier_id? && sm_task.present?
 
-    # Update all linked tasks with the new supplier
+    # Update linked task with the new supplier
     # This implements the "One Entity" rule - PO and Task share supplier
-    sm_tasks.update_all(supplier_id: supplier_id)
+    sm_task.update_column(:supplier_id, supplier_id)
 
-    Rails.logger.info "[PO-Task Sync] Updated #{sm_tasks.count} task(s) with supplier_id=#{supplier_id} for PO #{purchase_order_number}"
+    Rails.logger.info "[PO-Task Sync] Updated task #{sm_task.id} with supplier_id=#{supplier_id} for PO #{purchase_order_number}"
   rescue StandardError => e
     Rails.logger.error "[PO-Task Sync] Failed to sync supplier for PO #{id}: #{e.message}"
   end
 
-  # Sync bidirectional PO-Task link when sm_task_id changes
-  # SSoT: PurchaseOrder.sm_task_id is primary, SmTask.purchase_order_id stays in sync
-  def sync_sm_task_bidirectional
-    return unless saved_change_to_sm_task_id?
-
-    old_task_id, new_task_id = saved_change_to_sm_task_id
-
-    # Clear old task's link
-    if old_task_id.present?
-      SmTask.where(id: old_task_id).update_all(purchase_order_id: nil)
-    end
-
-    # Set new task's link
-    if new_task_id.present?
-      SmTask.where(id: new_task_id).update_all(purchase_order_id: id)
-    end
-
-    Rails.logger.info "[PO-Task Sync] Bidirectional sync: PO #{id} task changed from #{old_task_id} to #{new_task_id}"
-  rescue StandardError => e
-    Rails.logger.error "[PO-Task Sync] Failed bidirectional sync for PO #{id}: #{e.message}"
-  end
+  # NOTE: sync_sm_task_bidirectional removed as part of SSoT Option B
+  # SSoT: PurchaseOrder.sm_task_id is THE ONE link - no reverse column to sync
 
   # Activity logging
   def log_po_created

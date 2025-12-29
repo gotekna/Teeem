@@ -56,7 +56,8 @@ class SmTask < ApplicationRecord
   belongs_to :hold_released_by, class_name: "User", optional: true
   belongs_to :supplier_confirmed_by, class_name: "User", optional: true
 
-  belongs_to :purchase_order, optional: true
+  # SSoT: PO-Task link is via PurchaseOrder.sm_task_id (one PO -> one task)
+  # Use linked_purchase_order to get the PO for this task
   belongs_to :assigned_user, class_name: "User", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
@@ -174,7 +175,6 @@ class SmTask < ApplicationRecord
   # Callbacks
   before_validation :set_task_number, on: :create
   before_validation :calculate_end_date, if: -> { start_date_changed? || duration_days_changed? }
-  before_save :sync_supplier_from_po, if: -> { purchase_order_id_changed? && purchase_order_id.present? }
   before_save :clear_spawn_tasks_if_not_po
 
   # Lock hierarchy check (Rule 9.22)
@@ -352,21 +352,33 @@ class SmTask < ApplicationRecord
     )
   end
 
-  # PO Timing helpers (for CheckPoTimingJob)
-  def has_purchase_order?
-    purchase_order_id.present?
+  # SSoT: PO-Task link is via PurchaseOrder.sm_task_id
+  # This reverse lookup finds the PO that points to this task
+  def linked_purchase_order
+    @linked_purchase_order ||= PurchaseOrder.find_by(sm_task_id: id)
   end
+
+  # Alias for backwards compatibility
+  alias_method :purchase_order, :linked_purchase_order
+
+  def has_linked_po?
+    PurchaseOrder.exists?(sm_task_id: id)
+  end
+
+  # Alias for backwards compatibility
+  alias_method :has_purchase_order?, :has_linked_po?
 
   # Check if materials will arrive on time
   def materials_on_time?
-    return true unless has_purchase_order?
-    return true unless purchase_order.required_date.present? && start_date.present?
-    purchase_order.required_date <= start_date
+    po = linked_purchase_order
+    return true unless po
+    return true unless po.required_date.present? && start_date.present?
+    po.required_date <= start_date
   end
 
   # Get materials status for this task
   def materials_status
-    return "no_po" unless has_purchase_order?
+    return "no_po" unless has_linked_po?
     return "on_time" if materials_on_time?
     "delayed"
   end
@@ -403,16 +415,7 @@ class SmTask < ApplicationRecord
     end
   end
 
-  # Sync supplier from PO when task is linked (One Entity concept)
-  # When a task is linked to a PO, inherit the supplier from the PO
-  def sync_supplier_from_po
-    return unless purchase_order.present?
-
-    # Inherit supplier from PO - this is the "One Entity" rule
-    self.supplier_id = purchase_order.supplier_id
-
-    Rails.logger.info "[PO-Task Sync] Task #{id || 'new'} linked to PO #{purchase_order.purchase_order_number}, inherited supplier_id=#{supplier_id}"
-  rescue StandardError => e
-    Rails.logger.error "[PO-Task Sync] Failed to sync supplier from PO for task #{id}: #{e.message}"
-  end
+  # NOTE: sync_supplier_from_po removed as part of SSoT cleanup
+  # SSoT: PO-Task link is now via PurchaseOrder.sm_task_id only
+  # Supplier sync happens via PurchaseOrder model when sm_task_id is set
 end

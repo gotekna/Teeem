@@ -338,8 +338,8 @@ class SmScheduleMasterTemplateCopyService
       end
     end
 
-    # Link the task to this PO
-    task.update!(purchase_order_id: po.id)
+    # SSoT: Link PO to task via sm_task_id (Option B - single column)
+    po.update!(sm_task_id: task.id)
 
     # Spawn Order/Call tasks if configured on the task
     spawn_result = SmPoSpawnService.new(task, user: user).spawn!

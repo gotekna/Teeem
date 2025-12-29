@@ -423,7 +423,7 @@ export default function JobPhotosPage() {
                               {job.job_type} · {job.job_status} · {job.deposit ? "Deposit" : "No Dep"} · Start: {formatShortDate(job.start_date)} · PC: {formatShortDate(job.pc_date)}
                             </span>
                           </div>
-                          <div className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] gap-1">
+                          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
                             {job.photos.map((photo, idx) => {
                               const isOld = photo.days_old !== null && photo.days_old > 3;
                               return (
@@ -443,7 +443,7 @@ export default function JobPhotosPage() {
                                     <img src={photo.thumbnail_url} alt={photo.name} className="w-full h-full object-cover" />
                                   </div>
                                   <div className={cn(
-                                    "absolute bottom-0 left-0 right-0 px-0.5 text-[10px] text-center",
+                                    "absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center",
                                     isOld ? "bg-red-500/90 text-white" : "bg-black/60 text-white"
                                   )}>
                                     {formatDate(photo.modified_at)}
