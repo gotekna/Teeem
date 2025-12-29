@@ -2,6 +2,7 @@
 
 import React, { useCallback, useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -160,10 +161,11 @@ export function ContactOverviewTab({
     }
     setSearchingCompany(true);
     try {
+      // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
       const response = await api.get<{ contacts?: Array<{ id: number; display_name?: string; company_name_or_trust?: string; entity_type: string }> }>("/api/v1/contacts", {
         params: {
           search: query,
-          per_page: 10,
+          per_page: PAGE_SIZE_AUTOCOMPLETE,
           entity_types: "company,trust,partnership,sole_trader"
         },
       });
@@ -270,10 +272,11 @@ export function ContactOverviewTab({
     }
     setSearchingPerson(true);
     try {
+      // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
       const response = await api.get<{ contacts?: Array<{ id: number; display_name?: string; first_name?: string; last_name?: string; entity_type: string }> }>("/api/v1/contacts", {
         params: {
           search: query,
-          per_page: 10,
+          per_page: PAGE_SIZE_AUTOCOMPLETE,
           entity_type: "person"
         },
       });

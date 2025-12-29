@@ -29,6 +29,7 @@ import {
   FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 
 interface Contact {
   id: number;
@@ -216,8 +217,9 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
     try {
       setSearching(true);
       console.log("[JobPeopleTab] Searching contacts with query:", query);
+      // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
       const response = await api.get<{ contacts?: Contact[] }>("/api/v1/contacts", {
-        params: { search: query, per_page: 10 },
+        params: { search: query, per_page: PAGE_SIZE_AUTOCOMPLETE },
         dedupe: false, // Disable deduplication for search
       });
 

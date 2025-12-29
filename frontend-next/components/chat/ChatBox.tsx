@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -82,8 +83,9 @@ export function ChatBox({
 
   const loadConstructions = async () => {
     try {
+      // SSoT: Uses PAGE_SIZE_REFERENCE from pagination-constants.ts
       const response = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
-        params: { status: "Active", per_page: 100 },
+        params: { status: "Active", per_page: PAGE_SIZE_REFERENCE },
       });
       setConstructions(response?.constructions || []);
     } catch (error) {

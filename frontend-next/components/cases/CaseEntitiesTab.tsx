@@ -51,6 +51,7 @@ import {
   User,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 
 interface CaseContact {
   id: number;
@@ -186,8 +187,9 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
     }
     try {
       setSearchingContacts(true);
+      // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
       const response = await api.get<{ contacts?: ContactSearchResult[] }>("/api/v1/contacts", {
-        params: { search: query, per_page: 10 },
+        params: { search: query, per_page: PAGE_SIZE_AUTOCOMPLETE },
       });
       // Filter out contacts already in the case
       const existingIds = contacts.map((c) => c.contact_id);

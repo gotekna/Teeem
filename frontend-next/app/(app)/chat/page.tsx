@@ -47,6 +47,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import type {
   ChatMessage,
@@ -237,14 +238,16 @@ export default function ChatPage() {
   const loadEntities = useCallback(async () => {
     try {
       // Load jobs
+      // SSoT: Uses PAGE_SIZE_REFERENCE from pagination-constants.ts
       const jobsResponse = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
-        params: { status: "Active", per_page: 100 },
+        params: { status: "Active", per_page: PAGE_SIZE_REFERENCE },
       });
       setConstructions(jobsResponse?.constructions || []);
 
       // Load contacts
+      // SSoT: Uses PAGE_SIZE_REFERENCE from pagination-constants.ts
       const contactsResponse = await api.get<{ contacts: Contact[] }>("/api/v1/contacts", {
-        params: { per_page: 100 },
+        params: { per_page: PAGE_SIZE_REFERENCE },
       });
       setContacts(contactsResponse?.contacts || []);
 

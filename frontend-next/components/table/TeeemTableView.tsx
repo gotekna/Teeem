@@ -462,7 +462,7 @@ export default function TeeemTableView({
   initialShowTotals = true,
   hideFooter = false,
   alwaysVisibleColumns = [],
-  enableFullscreen = false,
+  enableFullscreen = true, // SSoT: Default enabled for all tables
   stats,
   category,
   showHeader = true,

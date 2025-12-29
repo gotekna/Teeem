@@ -32,6 +32,7 @@ import {
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
+import { PAGE_SIZE_SEARCH } from "@/lib/constants/pagination-constants";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -101,8 +102,9 @@ export default function NewContactPage() {
       }
       setSearchingCompanies(true);
       try {
+        // SSoT: Uses PAGE_SIZE_SEARCH from pagination-constants.ts
         const response = await api.get<{ contacts: ContactSearchResult[] }>("/api/v1/contacts", {
-          params: { search: companySearchQuery, per_page: 20 },
+          params: { search: companySearchQuery, per_page: PAGE_SIZE_SEARCH },
         });
         // Filter out persons - keep company, trust, and blank entity_type
         const nonPersons = (response?.contacts || []).filter(
@@ -129,11 +131,12 @@ export default function NewContactPage() {
       }
       setSearchingEmployees(true);
       try {
+        // SSoT: Uses PAGE_SIZE_SEARCH from pagination-constants.ts
         const response = await api.get<{ contacts: ContactSearchResult[] }>("/api/v1/contacts", {
           params: {
             search: employeeSearchQuery,
             entity_type: "person",  // Only search people
-            per_page: 20
+            per_page: PAGE_SIZE_SEARCH
           },
         });
         // Filter out already selected people

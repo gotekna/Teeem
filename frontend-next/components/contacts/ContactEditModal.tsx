@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
+import { PAGE_SIZE_SEARCH, PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -195,8 +196,9 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
       try {
         // Don't filter by entity_type - search all contacts and filter out persons client-side
         // This allows finding companies with blank entity_type (legacy data)
+        // SSoT: Uses PAGE_SIZE_SEARCH from pagination-constants.ts
         const response = await api.get<{ contacts: CompanySearchResult[] }>("/api/v1/contacts", {
-          params: { search: companySearchQuery, per_page: 20 },
+          params: { search: companySearchQuery, per_page: PAGE_SIZE_SEARCH },
         });
         // Filter out persons - keep company, trust, and blank entity_type
         const nonPersons = (response?.contacts || []).filter(
@@ -223,8 +225,9 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
       }
       setSearchingEmployees(true);
       try {
+        // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
         const response = await api.get<{ contacts: CompanySearchResult[] }>("/api/v1/contacts", {
-          params: { entity_type: "person", search: employeeSearchQuery, per_page: 10 },
+          params: { entity_type: "person", search: employeeSearchQuery, per_page: PAGE_SIZE_AUTOCOMPLETE },
         });
         // Filter out people already linked as employees
         const existingIds = employees.map(e => e.id);

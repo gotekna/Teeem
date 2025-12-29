@@ -1516,10 +1516,8 @@ export function ScheduleMasterTab() {
               onRowUpdate={handleDataViewRowUpdate}
               onRowDoubleClick={handleDataViewRowDoubleClick}
               initialShowTotals={true}
-              enableFullscreen={true}
               leftActions={
                 <div className="flex items-center gap-2">
-                  {/* SSoT: Fullscreen button removed - now in TeeemTableView via enableFullscreen prop */}
 
                   {/* Template selector */}
                   <Select

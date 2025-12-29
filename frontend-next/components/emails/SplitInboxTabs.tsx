@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { API_TIMEOUT_EMAIL_OFFLINE } from "@/lib/constants/timeout-constants";
+import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import {
   Star,
   Users,
@@ -337,7 +338,8 @@ export function useSplitInbox(options?: { accountId?: string }) {
     loading: showLoading,
     error: offlineEmails.error?.message || null,
     refresh: offlineEmails.refresh,
-    loadCategory: async () => ({ emails: [], pagination: { page: 1, per_page: 50, total: 0, total_pages: 0 } }),
+    // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
+    loadCategory: async () => ({ emails: [], pagination: { page: 1, per_page: PAGE_SIZE_LIST, total: 0, total_pages: 0 } }),
     selectedCategory: offlineEmails.selectedCategory,
     setSelectedCategory: offlineEmails.setSelectedCategory,
     counts: offlineEmails.counts,

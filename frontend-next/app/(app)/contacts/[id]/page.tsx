@@ -50,6 +50,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
@@ -913,10 +914,11 @@ export default function ContactDetailPage() {
       const response = await api.get<{ emails: EmailMessage[]; pagination: EmailsPagination }>(
         "/api/v1/email_warehouse",
         {
+          // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
           params: {
             email: contact.email,
             page,
-            per_page: 50,
+            per_page: PAGE_SIZE_LIST,
             latest_only: !showAllInThread,
           },
         }

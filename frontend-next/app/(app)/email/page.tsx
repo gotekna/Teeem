@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { formatDistanceToNow, format } from "date-fns";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import {
@@ -449,9 +450,10 @@ export default function EmailPage() {
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
-    per_page: 50,
+    per_page: PAGE_SIZE_LIST,
     total: 0,
     total_pages: 0,
   });

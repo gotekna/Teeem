@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/popover";
 import { Send, MessageSquare, Bookmark, Check, Briefcase, User, FileText } from "lucide-react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -144,8 +145,9 @@ export function EntityChat({
     if (jobs.length > 0) return; // Already loaded
     setJobsLoading(true);
     try {
+      // SSoT: Uses PAGE_SIZE_REFERENCE from pagination-constants.ts
       const response = await api.get<{ constructions: Job[] }>("/api/v1/jobs", {
-        params: { status: "Active", per_page: 100 },
+        params: { status: "Active", per_page: PAGE_SIZE_REFERENCE },
       });
       setJobs(response?.constructions || []);
     } catch (error) {
