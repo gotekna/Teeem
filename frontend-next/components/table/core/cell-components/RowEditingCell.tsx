@@ -132,6 +132,7 @@ export function RowEditingCell({
             [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
           }))
         }
+        onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
     );
   }
@@ -202,6 +203,7 @@ export function RowEditingCell({
             [entry.id]: { ...prev[entry.id], [column.key]: e.target.value ? new Date(e.target.value).toISOString() : null },
           }))
         }
+        onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
     );
   }
@@ -220,6 +222,7 @@ export function RowEditingCell({
               [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
             }))
           }
+          onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
         />
         <Button
           variant="ghost"
@@ -336,6 +339,7 @@ export function RowEditingCell({
               [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
             }))
           }
+          onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
         />
       </div>
     );
@@ -360,6 +364,7 @@ export function RowEditingCell({
               [entry.id]: { ...prev[entry.id], [column.key]: newCoords },
             }));
           }}
+          onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
         />
         <Input
           className="h-7 text-sm w-20"
@@ -373,6 +378,7 @@ export function RowEditingCell({
               [entry.id]: { ...prev[entry.id], [column.key]: newCoords },
             }));
           }}
+          onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
         />
       </div>
     );
@@ -390,6 +396,7 @@ export function RowEditingCell({
             [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
           }))
         }
+        onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
     );
   }
