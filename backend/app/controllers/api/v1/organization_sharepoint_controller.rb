@@ -3,7 +3,8 @@ module Api
     # RENAMED: OrganizationOnedriveController → OrganizationSharepointController
     class OrganizationSharepointController < ApplicationController
       # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
-      skip_before_action :authorize_request, only: [ :callback ]
+      # Skip auth for download previews (thumbnails) - uses browser caching, file IDs are unguessable
+      skip_before_action :authorize_request, only: [ :callback, :download ]
 
       # Require admin for sensitive operations
       before_action :require_admin, only: [ :disconnect, :change_root_folder, :sync_corporate_documents ]
@@ -1113,7 +1114,16 @@ module Api
 
       # GET /api/v1/organization_onedrive/download
       # Download file from OneDrive
+      # For preview=true (thumbnails): Public access with browser caching (7 days)
+      # For downloads (attachment): Requires user authentication
       def download
+        is_preview = params[:preview] == "true"
+
+        # Require user auth for actual downloads, allow preview without auth
+        unless is_preview || current_user
+          return render json: { error: "Authentication required for downloads" }, status: :unauthorized
+        end
+
         credential = MicrosoftCredential.sharepoint_credential
 
         unless credential&.valid_credential?
@@ -1159,10 +1169,28 @@ module Api
           end
 
           # Send file to user (inline for preview, attachment for download)
-          disposition = params[:preview] == "true" ? "inline" : "attachment"
+          disposition = is_preview ? "inline" : "attachment"
+          mime_type = file_metadata["file"]&.dig("mimeType") || "application/octet-stream"
+
+          # For previews (thumbnails), enable aggressive browser caching
+          # This is the "masterpiece" - browser caches for 7 days, zero cost, infinite scale
+          if is_preview
+            last_modified = file_metadata["lastModifiedDateTime"] || Time.current.iso8601
+            etag = Digest::MD5.hexdigest("#{file_id}-#{last_modified}")
+
+            # Check if client has valid cached version (ETag match)
+            if request.headers["If-None-Match"] == "\"#{etag}\""
+              return head :not_modified
+            end
+
+            response.headers["Cache-Control"] = "public, max-age=604800"  # 7 days
+            response.headers["ETag"] = "\"#{etag}\""
+            response.headers["Last-Modified"] = Time.parse(last_modified).httpdate rescue Time.current.httpdate
+          end
+
           send_data file_content,
             filename: file_metadata["name"],
-            type: file_metadata["file"]&.dig("mimeType") || "application/octet-stream",
+            type: mime_type,
             disposition: disposition
 
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
