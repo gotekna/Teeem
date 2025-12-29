@@ -799,6 +799,85 @@ Rails.application.routes.draw do
         resource :merge, only: [:create], controller: "merge" do
           get :duplicates
         end
+
+        # Corporate Structure Controller
+        # GET    /api/v1/contacts/corporate_structure/:contact_id/memberships    -> company_group_memberships
+        # GET    /api/v1/contacts/corporate_structure/:contact_id/directorships  -> directorships
+        # GET    /api/v1/contacts/corporate_structure/:contact_id/shareholdings  -> shareholdings
+        # GET    /api/v1/contacts/corporate_structure/:contact_id/trust_roles    -> trust_roles
+        # GET    /api/v1/contacts/corporate_structure/:contact_id/ownership_chain -> ownership_chain
+        scope "corporate_structure/:contact_id", controller: "corporate_structure" do
+          get :memberships, action: :company_group_memberships
+          get :directorships
+          get :shareholdings
+          get :trust_roles
+          get :ownership_chain
+        end
+
+        # Enrichment Controller
+        # POST   /api/v1/contacts/enrichment/:contact_id/from_bill    -> from_bill
+        # POST   /api/v1/contacts/enrichment/:contact_id/from_web     -> from_web
+        # POST   /api/v1/contacts/enrichment/preview_employees        -> preview_employees
+        # POST   /api/v1/contacts/enrichment/extract_employees        -> extract_employees
+        scope "enrichment", controller: "enrichment" do
+          post "preview_employees"
+          post "extract_employees"
+        end
+        scope "enrichment/:contact_id", controller: "enrichment" do
+          post :from_bill
+          post :from_web
+        end
+
+        # Health Controller
+        # GET    /api/v1/contacts/health                              -> show
+        # GET    /api/v1/contacts/health/invalid_entity_types         -> invalid_entity_types
+        # GET    /api/v1/contacts/health/price_only_with_xero         -> price_only_with_xero
+        # GET    /api/v1/contacts/health/company_with_first_name      -> company_with_first_name
+        # GET    /api/v1/contacts/health/person_without_name          -> person_without_name
+        # GET    /api/v1/contacts/health/missing_contact_info         -> missing_contact_info
+        # GET    /api/v1/contacts/health/connected_mailboxes          -> connected_mailboxes
+        resource :health, only: [:show], controller: "health" do
+          get :invalid_entity_types
+          get :price_only_with_xero
+          get :company_with_first_name
+          get :person_without_name
+          get :missing_contact_info
+          get :connected_mailboxes
+        end
+
+        # Relationships Controller
+        # GET    /api/v1/contacts/relationships/:contact_id/cases             -> case_relationships
+        # GET    /api/v1/contacts/relationships/:contact_id/coworkers         -> coworkers
+        # POST   /api/v1/contacts/relationships/:contact_id/reorder_employees -> reorder_employees
+        # POST   /api/v1/contacts/relationships/:contact_id/reorder_companies -> reorder_companies
+        scope "relationships/:contact_id", controller: "relationships" do
+          get :cases, action: :case_relationships
+          get :coworkers
+          post :reorder_employees
+          post :reorder_companies
+        end
+
+        # Xero Controller
+        # POST   /api/v1/contacts/xero/:contact_id/link_tenant  -> link_tenant
+        # POST   /api/v1/contacts/xero/:contact_id/link_contact -> link_contact
+        # POST   /api/v1/contacts/xero/:contact_id/sync_from    -> sync_from
+        # POST   /api/v1/contacts/xero/:contact_id/sync_to      -> sync_to
+        scope "xero/:contact_id", controller: "xero" do
+          post :link_tenant
+          post :link_contact
+          post :sync_from
+          post :sync_to
+        end
+
+        # Portal Users Controller
+        # POST   /api/v1/contacts/portal_users/:contact_id   -> create
+        # PATCH  /api/v1/contacts/portal_users/:contact_id   -> update
+        # DELETE /api/v1/contacts/portal_users/:contact_id   -> destroy
+        scope "portal_users/:contact_id", controller: "portal_users" do
+          post "/", action: :create
+          patch "/", action: :update
+          delete "/", action: :destroy
+        end
       end
 
       # SMS webhooks (Twilio callbacks - not nested)

@@ -169,6 +169,77 @@ When discovering duplicate/conflicting implementations:
 >
 > Which approach should be THE ONE?"
 
+## 🔴 CRITICAL: SSoT - API Endpoints (Foundation API)
+
+**Foundation API is THE SINGLE SOURCE OF TRUTH for all record queries.**
+
+### The Pattern
+
+```
+Foundation API (/api/v1/foundations/{slug}/records)
+    │
+    ├── Lookup expansion (automatic)
+    │   └── Converts IDs to {id, display} format
+    │
+    ├── Eager loading (automatic)
+    │   └── Prevents N+1 queries via Rails reflections
+    │
+    └── DisplayValueResolver (SSoT for display)
+        └── Consistent display across all tables
+```
+
+### NEVER Create
+
+- ❌ Custom `*_json` methods in controllers (e.g., `row_json`, `task_json`, `contact_json`)
+- ❌ Manual lookup expansion (e.g., `trades_map`, `stages_map`, `roles_map`)
+- ❌ Frontend API calls outside Foundation pattern
+- ❌ Duplicate TypeScript interfaces that mirror backend models
+
+### ALWAYS Use
+
+- ✅ `/api/v1/foundations/{slug}/records` for all record queries
+- ✅ `autoFetchRecords={true}` in TeeemTableView
+- ✅ `useFoundationBySlug` hook if you need custom control
+- ✅ `initialFilters` prop for filtered views
+
+### Frontend Pattern (Gold Standard)
+
+```tsx
+// CORRECT: Let TeeemTableView handle everything
+<TeeemTableView
+  foundationId="sm_schedule_master"
+  autoFetchRecords={true}
+  initialFilters={[
+    { id: "filter1", column: "template_id", operator: "=", value: String(templateId) }
+  ]}
+  onRefresh={() => setRefreshKey(k => k + 1)}
+/>
+
+// WRONG: Custom API call with manual data management
+const [rows, setRows] = useState([]);
+useEffect(() => {
+  api.get(`/api/v1/custom_endpoint/${id}/rows`).then(data => setRows(data.rows));
+}, [id]);
+<CustomTable rows={rows} />  // Lookup columns show IDs instead of names!
+```
+
+### Known Violations (Being Migrated)
+
+| Controller | Status | Migration Plan |
+|------------|--------|----------------|
+| `sm_schedule_master_templates_controller.rb` | Partially fixed | Phase 1 |
+| `sm_schedule_master_controller.rb` | Needs header | Phase 1 |
+| `contacts_controller.rb` (4,192 lines) | Planned | Phase 3 |
+| See `TEEEM_DOCS/SSOT_VIOLATION_AUDIT.md` for full list | | |
+
+### Why This Matters
+
+When lookup columns are added/changed:
+- **With Foundation API:** Works everywhere automatically
+- **With custom `*_json`:** Must update every controller manually (breaks silently)
+
+**Reference:** `TEEEM_DOCS/SSOT_VIOLATION_AUDIT.md` - Full audit of all violations
+
 ## 🔴 CRITICAL: Ultrathink Design Philosophy
 
 **Take a deep breath. We're not here to write code. We're here to make a dent in the universe.**
