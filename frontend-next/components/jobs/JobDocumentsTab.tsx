@@ -390,8 +390,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   // Handle photo upload (from camera or library)
   // ULTRA MASTERPIECE: Direct browser-to-SharePoint upload (50% faster)
-  const handlePhotoUpload = async (file: File) => {
-    if (!file || !orgStatus.connected) return;
+  // Returns true on success, false on failure
+  const handlePhotoUpload = async (file: File): Promise<boolean> => {
+    if (!file || !orgStatus.connected) return false;
 
     setUploadingPhoto(true);
     setShowPhotoOptions(false);
@@ -457,8 +458,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       });
 
       if (result.success) {
-        setMessage({ type: "success", text: `Photo uploaded successfully!` });
-
         // Refresh file list in background to get real SharePoint URLs
         // Wait a moment for SharePoint to index the file
         setTimeout(() => {
@@ -466,16 +465,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             URL.revokeObjectURL(blobUrl);
           });
         }, 2000);
+        return true;
       } else {
         throw new Error(result.error || "Upload failed");
       }
     } catch (err) {
       console.error("Failed to upload photo:", err);
-      setError("Failed to upload photo. Please try again.");
 
       // Remove optimistic item on failure
       setAllFiles((prev) => prev.filter((f) => f.id !== optimisticItem.id));
       URL.revokeObjectURL(blobUrl);
+      return false;
     } finally {
       setUploadingPhoto(false);
     }
@@ -496,10 +496,38 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // Upload all selected files
-    for (let i = 0; i < files.length; i++) {
-      await handlePhotoUpload(files[i]);
+    const totalFiles = files.length;
+    let successCount = 0;
+    let failCount = 0;
+
+    // Upload all selected files sequentially
+    for (let i = 0; i < totalFiles; i++) {
+      // Show progress message for multi-upload
+      if (totalFiles > 1) {
+        setMessage({ type: "info", text: `Uploading photo ${i + 1} of ${totalFiles}...` });
+      }
+
+      const success = await handlePhotoUpload(files[i]);
+      if (success) {
+        successCount++;
+      } else {
+        failCount++;
+      }
     }
+
+    // Show final summary
+    if (totalFiles > 1) {
+      if (failCount === 0) {
+        setMessage({ type: "success", text: `${successCount} photos uploaded successfully!` });
+      } else if (successCount === 0) {
+        setError(`Failed to upload ${failCount} photo${failCount > 1 ? "s" : ""}. Please try again.`);
+      } else {
+        setMessage({ type: "success", text: `${successCount} uploaded, ${failCount} failed.` });
+      }
+    } else if (successCount === 1) {
+      setMessage({ type: "success", text: "Photo uploaded successfully!" });
+    }
+
     // Reset the input so the same files can be selected again
     if (e.target) e.target.value = "";
   };
