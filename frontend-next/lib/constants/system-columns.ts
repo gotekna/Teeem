@@ -56,7 +56,7 @@ export const SYSTEM_GENERATED_TYPES = [
   'modified_by',
   'rollup',
   'count',
-  'lookup', // Lookups are derived from relationships
+  // NOTE: 'lookup' is NOT here - lookup columns ARE editable (via dropdown)
 ] as const;
 
 // =============================================================================
