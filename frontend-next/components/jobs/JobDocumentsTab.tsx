@@ -350,15 +350,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     const categoryName = activeCategory?.name?.toLowerCase() || "";
     const folderPath = activeCategory?.folder_path?.toLowerCase() || "";
 
-    // DEBUG: Log filter parameters
-    console.log('[PhotoFilter] Filtering:', {
-      categoryName,
-      folderPath,
-      allFilesCount: allFiles.length,
-      imageFilesCount: allFiles.filter(isImageFile).length,
-      sampleFiles: allFiles.slice(0, 3).map(f => ({ name: f.name, folder_path: f.folder_path }))
-    });
-
     // Filter allFiles to only those in this folder
     const photosInFolder = allFiles.filter((file) => {
       if (!isImageFile(file)) return false;
@@ -368,20 +359,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       // 1. File path contains category folder_path (e.g., "06 Photo/07 Supervisor Photos")
       // 2. File path contains category name (e.g., "Supervisor" in "Photo/Supervisor")
       // 3. Category folder_path contains file path (reverse match)
-      const match = (
+      return (
         (folderPath && fileFolderPath.includes(folderPath)) ||
         (categoryName && fileFolderPath.includes(categoryName)) ||
         (folderPath && folderPath.includes(fileFolderPath) && fileFolderPath.length > 0)
       );
-
-      if (isImageFile(file)) {
-        console.log('[PhotoFilter] File:', { name: file.name, fileFolderPath, match });
-      }
-
-      return match;
     });
 
-    console.log('[PhotoFilter] Result:', photosInFolder.length, 'photos');
     return photosInFolder.map(convertToPhotoItem);
   }, [allFiles, selectedCategory, selectedSubCategory, jobId]);
 
@@ -2079,10 +2063,20 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         </Card>
       )}
       {message && (
-        <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+        <Card className={message.type === "info"
+          ? "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800"
+          : "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+        }>
           <CardContent className="p-4 flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            <p className="text-sm text-green-700 dark:text-green-300">{message.text}</p>
+            {message.type === "info" ? (
+              <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+            ) : (
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            )}
+            <p className={message.type === "info"
+              ? "text-sm text-blue-700 dark:text-blue-300"
+              : "text-sm text-green-700 dark:text-green-300"
+            }>{message.text}</p>
           </CardContent>
         </Card>
       )}
