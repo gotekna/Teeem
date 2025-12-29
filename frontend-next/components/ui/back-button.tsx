@@ -108,20 +108,16 @@ export function BackButton({
       return;
     }
 
-    // Priority 2: Check if we have real browser history from same origin
-    // document.referrer is empty for external links, bookmarks, or direct URL entry
-    const referrer = typeof document !== "undefined" ? document.referrer : "";
-    const isSameOrigin =
-      referrer &&
-      typeof window !== "undefined" &&
-      new URL(referrer).origin === window.location.origin;
-
-    if (isSameOrigin) {
+    // Priority 2: Use browser history if available
+    // In Next.js App Router, most navigation is client-side so router.back() works
+    // history.length > 2 means user has navigated within the app (1 = initial, 2 = first nav)
+    const hasHistory = typeof window !== "undefined" && window.history.length > 2;
+    if (hasHistory) {
       router.back();
       return;
     }
 
-    // Priority 3: Use explicit fallback
+    // Priority 3: Use explicit fallback (for direct URL entry / no history)
     if (fallbackHref) {
       router.push(fallbackHref);
       return;

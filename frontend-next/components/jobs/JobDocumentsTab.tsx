@@ -464,12 +464,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           .catch(err => console.warn("[PhotoUpload] Fallback sync failed:", err));
 
         // Refresh file list in background to get real SharePoint URLs
-        // Wait a moment for SharePoint to index the file
+        // Wait for SharePoint to index the file (3s is usually enough)
         setTimeout(() => {
           loadAllFiles().then(() => {
             URL.revokeObjectURL(blobUrl);
           });
-        }, 2000);
+        }, 3000);
         return true;
       } else {
         throw new Error(result.error || "Upload failed");
@@ -529,6 +529,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       } else {
         setMessage({ type: "success", text: `${successCount} uploaded, ${failCount} failed.` });
       }
+
+      // ULTRA FIX: Do a final refresh after all uploads complete
+      // This ensures we get the real SharePoint URLs for all photos
+      // Wait longer (5s) to give SharePoint time to index all files
+      setTimeout(() => {
+        loadAllFiles();
+      }, 5000);
     } else if (successCount === 1) {
       setMessage({ type: "success", text: "Photo uploaded successfully!" });
     }
@@ -1041,7 +1048,26 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
       if (response?.success) {
         console.log('[All Files] Found', response.items?.length || 0, 'files');
-        setAllFiles(response.items || []);
+
+        // ULTRA FIX: Preserve optimistic items that aren't yet in the API response
+        // SharePoint may take a few seconds to index new files, so we keep optimistic
+        // items until they appear in the real data (matched by filename)
+        setAllFiles(prev => {
+          const newItems = response.items || [];
+          const newItemNames = new Set(newItems.map(item => item.name.toLowerCase()));
+
+          // Keep optimistic items (id starts with 'optimistic_') that aren't yet in response
+          const preservedOptimistic = prev.filter(item =>
+            item.id.startsWith('optimistic_') &&
+            !newItemNames.has(item.name.toLowerCase())
+          );
+
+          if (preservedOptimistic.length > 0) {
+            console.log('[All Files] Preserving', preservedOptimistic.length, 'optimistic items');
+          }
+
+          return [...newItems, ...preservedOptimistic];
+        });
         setAllFilesJobFolderUrl(response.job_folder_web_url || null);
         setAiStats(response.ai_stats || null);
       } else {

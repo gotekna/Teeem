@@ -713,6 +713,15 @@ export default function JobDetailPage() {
   const tabFromUrl = searchParams.get("tab");
   const subtabFromUrl = searchParams.get("subtab");
 
+  // Auto-redirect to default tab if no tab in URL (ensures URL reflects state for back button)
+  React.useEffect(() => {
+    if (!tabFromUrl && !tabsLoading && visibleJobTabs.length > 0) {
+      const defaultTab = userDefaultTab || "overview";
+      // Use replace to not add to history stack (user just opened the page)
+      router.replace(`/jobs/${jobId}?tab=${defaultTab}`, { scroll: false });
+    }
+  }, [tabFromUrl, tabsLoading, visibleJobTabs.length, userDefaultTab, jobId, router]);
+
   // Helper: find first enabled child of a parent tab
   const findFirstChildTab = React.useCallback((tabKey: string): string | null => {
     const parentTab = visibleJobTabs.find(t => t.tab_key === tabKey);
