@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_29_213738) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_001028) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8263,6 +8263,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_213738) do
     t.integer "updated_by"
   end
 
+  create_table "sm_voice_notes", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "recorded_by_id"
+    t.bigint "resource_id"
+    t.string "audio_url", null: false
+    t.integer "duration_seconds"
+    t.datetime "recorded_at"
+    t.text "transcription"
+    t.float "transcription_confidence"
+    t.datetime "transcribed_at"
+    t.text "transcription_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["recorded_at"], name: "index_sm_voice_notes_on_recorded_at"
+    t.index ["recorded_by_id"], name: "index_sm_voice_notes_on_recorded_by_id"
+    t.index ["resource_id"], name: "index_sm_voice_notes_on_resource_id"
+    t.index ["sm_task_id"], name: "index_sm_voice_notes_on_sm_task_id"
+  end
+
   create_table "sm_working_drawing_pages", force: :cascade do |t|
     t.bigint "task_id", null: false
     t.integer "page_number", null: false
@@ -10219,6 +10238,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_213738) do
   add_foreign_key "sm_time_entries", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_time_entries", "users", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "sm_time_entries", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_voice_notes", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_voice_notes", "sm_tasks"
+  add_foreign_key "sm_voice_notes", "users", column: "recorded_by_id"
   add_foreign_key "sm_working_drawing_pages", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sms_messages", "contacts"
   add_foreign_key "sms_messages", "users"

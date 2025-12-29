@@ -413,9 +413,14 @@ module Api
             next
           end
 
-          task.destroy!
-          deleted += 1
-          Rails.logger.info "[SmScheduleMasterTemplatesController] Deleted orphan task #{task_id} (#{task.name}) from job #{job.id}"
+          begin
+            task.destroy!
+            deleted += 1
+            Rails.logger.info "[SmScheduleMasterTemplatesController] Deleted orphan task #{task_id} (#{task.name}) from job #{job.id}"
+          rescue StandardError => e
+            Rails.logger.error "[SmScheduleMasterTemplatesController] Failed to delete task #{task_id}: #{e.class} - #{e.message}"
+            errors << "Task #{task_id} (#{task.name}) failed to delete: #{e.message}"
+          end
         end
 
         render json: {
@@ -429,6 +434,13 @@ module Api
           success: false,
           errors: [ "Job not found" ]
         }, status: :not_found
+      rescue StandardError => e
+        Rails.logger.error "[SmScheduleMasterTemplatesController] delete_orphans error: #{e.class} - #{e.message}"
+        Rails.logger.error e.backtrace.first(10).join("\n")
+        render json: {
+          success: false,
+          errors: [ "Server error: #{e.message}" ]
+        }, status: :internal_server_error
       end
 
       # GET /api/v1/sm_schedule_master_templates/default
