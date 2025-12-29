@@ -354,6 +354,12 @@ module Api
           .to_a
           .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
       end
+
+      # Load header lookup map (ID => name) - self-reference to sm_schedule_master
+      # Headers are tasks that act as group parents for other tasks
+      def load_header_map
+        SmScheduleMaster.pluck(:id, :name).to_h
+      end
     end
   end
 end

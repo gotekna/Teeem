@@ -630,67 +630,24 @@ Rails.application.routes.draw do
       resources :beneficiaries, only: [ :index ]
 
       # Contacts management
+      # SSoT: Core CRUD operations only - all specialized endpoints moved to namespaced controllers
+      # See namespace :contacts block below for new SSoT routes
       resources :contacts do
         collection do
           patch :bulk_update
           post :bulk_delete
-          post :merge
           post :fix_name_casing
           post :fix_email_assignment
           post :match_supplier
-          get :validate_abn
-          get :possible_duplicates
-          get :duplicates, action: :possible_duplicates  # Alias for frontend-next
           get :read_only_fields
           # SSoT: Contact choices from Contact model constants
           get :entity_types        # Contact::ENTITY_TYPES
           get :employment_statuses # Contact::EMPLOYMENT_STATUSES
           get :roles               # Contact::ROLES
-          # Health check endpoints (SSoT validation)
-          get :invalid_entity_types
-          get :price_only_with_xero
-          get :company_with_first_name
-          get :person_without_name
-          get :missing_contact_info
-          get :connected_mailboxes
-          get :preview_employee_extraction
-          post :extract_employees
-          get :health  # Quick health score for header display
-          # Data quality review endpoints
-          get :quality_reviews      # List pending quality reviews
-          post :quality_scan        # Run quality detection scan
-          # ABN verification
-          post :find_missing_abns   # Find and populate missing ABNs via ABR API
         end
         member do
-          post :reorder_employees
-          post :reorder_companies
-          get :categories
           get :internal_messages
-          get :company_group_memberships
-          get :directorships
-          get :shareholdings
-          get :trust_roles
-          get :ownership_chain
-          get :case_relationships
-          get :coworkers  # Get people at the same company(ies)
-          post :copy_price_history
-          delete :remove_from_categories
-          post :bulk_update_prices
-          delete :delete_price_column
           get :activities
-          post :link_xero_contact
-          post :link_to_xero_tenant
-          post :sync_from_xero
-          post :sync_to_xero
-          post :portal_user, to: "contacts#create_portal_user"
-          patch :portal_user, to: "contacts#update_portal_user"
-          delete :portal_user, to: "contacts#delete_portal_user"
-          post :enrich_from_web
-          patch :update_from_bill    # Update contact fields from extracted invoice data
-          # Data quality endpoints
-          post :verify_abn           # Verify ABN via ABR
-          get :analyze_quality       # Analyze contact for quality issues
         end
 
         # Contact relationships (nested under contacts)
@@ -730,22 +687,9 @@ Rails.application.routes.draw do
       post "duplicate_contacts/groups/:id/merge", to: "duplicate_contacts#merge"
       post "duplicate_contacts/groups/:id/dismiss", to: "duplicate_contacts#dismiss"
 
-      # Contact quality reviews (data quality management)
-      # LEGACY ROUTES - kept for backwards compatibility, routes to old controller
-      resources :contact_quality_reviews, only: [] do
-        member do
-          post :approve, to: "contacts#approve_quality_review"
-          post :reject, to: "contacts#reject_quality_review"
-          post :skip, to: "contacts#skip_quality_review"
-        end
-        collection do
-          post :bulk_approve, to: "contacts#bulk_approve_quality_reviews"
-        end
-      end
-
       # ========================================================================
-      # NEW NAMESPACED CONTROLLERS (ADR-001: Contacts Controller Decomposition)
-      # These are the SSoT routes - frontend should migrate to these
+      # NAMESPACED CONTROLLERS (ADR-001: Contacts Controller Decomposition)
+      # SSoT: All specialized contacts endpoints are in these controllers
       # ========================================================================
       namespace :contacts do
         # Quality Reviews Controller

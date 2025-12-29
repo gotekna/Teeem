@@ -225,6 +225,7 @@ module Api
         stage_value = row.stage.present? ? { id: row.stage.to_i, display: stages_map[row.stage.to_i] || row.stage } : nil
         role_value = row.assigned_role.present? ? { id: row.assigned_role.to_i, display: roles_map[row.assigned_role.to_i] || row.assigned_role } : nil
         cost_centre_value = row.cost_centre.present? ? { id: row.cost_centre.to_i, display: cost_centres_map[row.cost_centre.to_i] || row.cost_centre } : nil
+        header_value = row.header.present? ? { id: row.header.to_i, display: header_map[row.header.to_i] || row.header } : nil
 
         {
           id: row.id,
@@ -240,7 +241,7 @@ module Api
           stage: stage_value,
           trade_name: trades_map[row.trade.to_i] || row.trade,
           stage_name: stages_map[row.stage.to_i] || row.stage,
-          header: row.header,
+          header: header_value,
           cost_centre: cost_centre_value,
           assigned_role: role_value,
           checklist_id: row.checklist_id,
@@ -331,6 +332,13 @@ module Api
             .to_a
             .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
         end
+      end
+
+      # SSoT: Load header lookup map (ID => name) - self-reference to sm_schedule_master
+      # Headers are tasks that act as group parents for other tasks
+      # Memoized per request to avoid N+1 queries
+      def header_map
+        @header_map ||= SmScheduleMaster.pluck(:id, :name).to_h
       end
     end
   end

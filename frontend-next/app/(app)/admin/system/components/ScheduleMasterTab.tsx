@@ -128,6 +128,21 @@ function extractLookupId(value: unknown): string | undefined {
   return String(value);
 }
 
+/**
+ * Extracts the display value from a lookup column (Foundation API format).
+ * Lookup columns return {id: 123, display: "Name"} format.
+ */
+function extractLookupDisplay(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'object' && value !== null) {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.display === 'string') return obj.display;
+    if (typeof obj.label === 'string') return obj.label;
+    if (typeof obj.name === 'string') return obj.name;
+  }
+  return undefined;
+}
+
 interface SmScheduleMaster {
   id: number;
   task_number: number;
@@ -2260,7 +2275,7 @@ export function ScheduleMasterTab() {
                   <Label className="text-xs">Parent Header</Label>
                   <ComboboxDropdown
                     items={availableHeaderRows.map(h => ({ id: String(h.id), label: h.name }))}
-                    selectedItem={editRowForm.header ? { id: editRowForm.header, label: availableHeaderRows.find(h => String(h.id) === editRowForm.header)?.name || editRowForm.header } : undefined}
+                    selectedItem={editRowForm.header ? { id: editRowForm.header, label: availableHeaderRows.find(h => String(h.id) === editRowForm.header)?.name || extractLookupDisplay(editingRow?.header) || editRowForm.header } : undefined}
                     onSelect={(item) => setEditRowForm({ ...editRowForm, header: item.id })}
                     placeholder="Select header..."
                     emptyResults="No header rows found"
