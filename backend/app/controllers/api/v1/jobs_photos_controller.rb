@@ -71,6 +71,7 @@ module Api
                 id: photo.id,
                 name: photo.file_name,
                 thumbnail_url: photo.thumbnail_url,
+                full_url: photo.web_url,
                 modified_at: photo.last_modified_at&.iso8601,
                 days_old: photo.last_modified_at ? ((Time.current - photo.last_modified_at) / 1.day).to_i : nil
               }

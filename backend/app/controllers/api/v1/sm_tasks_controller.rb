@@ -763,7 +763,7 @@ module Api
           :supplier_confirm,
           :hold,
           :hold_date,
-          :purchase_order_id,
+          # NOTE: purchase_order_id removed - SSoT is PurchaseOrder.sm_task_id
           :assigned_user_id,
           :assigned_role,
           :supplier_id,
@@ -924,9 +924,9 @@ module Api
           hold_reason: task.hold_reason&.name,
           hold_notes: task.hold_notes,
           hold_started_at: task.hold_started_at,
-          # Relations
-          purchase_order_id: task.purchase_order_id,
-          purchase_order_number: task.purchase_order&.po_number,
+          # Relations (SSoT: PO link via PurchaseOrder.sm_task_id)
+          purchase_order_id: task.linked_purchase_order&.id,
+          purchase_order_number: task.linked_purchase_order&.po_number,
           po_required: task.po_required,
           assigned_user_id: task.assigned_user_id,
           supplier_id: task.supplier_id,
@@ -975,8 +975,9 @@ module Api
 
       def task_to_gantt_format(task)
         # po_required visibility: task is visible if po_required=false OR has a PO linked
+        # SSoT: Check PO link via has_linked_po? (PurchaseOrder.sm_task_id)
         po_required = task.po_required || false
-        has_po = task.purchase_order_id.present?
+        has_po = task.has_linked_po?
         is_visible = !po_required || has_po
 
         json = {
@@ -994,8 +995,8 @@ module Api
           hold_reason: task.hold_reason&.name,
           color: task.hold_reason&.color,
           parent_id: task.parent_task_id,
-          # PO-Task One Entity integration
-          purchase_order_id: task.purchase_order_id,
+          # PO-Task One Entity integration (SSoT: PurchaseOrder.sm_task_id)
+          purchase_order_id: task.linked_purchase_order&.id,
           supplier_id: task.supplier_id,
           supplier_name: task.supplier&.name,
           # po_required visibility - invisible tasks are skipped in dependencies
@@ -1004,14 +1005,16 @@ module Api
         }
 
         # Include PO details when linked (One Entity concept)
-        if task.purchase_order.present?
+        # SSoT: Uses linked_purchase_order (aliased as purchase_order for compatibility)
+        po = task.linked_purchase_order
+        if po.present?
           json[:purchase_order] = {
-            id: task.purchase_order.id,
-            po_number: task.purchase_order.purchase_order_number,
-            status: task.purchase_order.status,
-            total: task.purchase_order.total,
-            supplier_name: task.purchase_order.supplier&.name,
-            required_date: task.purchase_order.required_date
+            id: po.id,
+            po_number: po.purchase_order_number,
+            status: po.status,
+            total: po.total,
+            supplier_name: po.supplier&.name,
+            required_date: po.required_date
           }
         end
 

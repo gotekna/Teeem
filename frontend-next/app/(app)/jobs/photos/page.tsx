@@ -22,6 +22,7 @@ interface Photo {
   id: number;
   name: string;
   thumbnail_url: string;
+  full_url: string | null;
   modified_at: string | null;
   days_old: number | null;
 }
@@ -258,7 +259,7 @@ export default function JobPhotosPage() {
     setLightboxPhotos(photos.map(p => ({
       id: String(p.id),
       name: p.name,
-      url: p.thumbnail_url,
+      url: p.full_url || p.thumbnail_url,
       thumbnailUrl: p.thumbnail_url,
       modifiedAt: p.modified_at || undefined,
     })));
