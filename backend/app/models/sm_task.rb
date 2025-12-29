@@ -79,15 +79,15 @@ class SmTask < ApplicationRecord
   has_many :successors, through: :successor_dependencies, source: :successor_task
 
   # Logs
-  has_many :rollover_logs, class_name: "SmRolloverLog", dependent: :destroy
+  has_many :rollover_logs, class_name: "SmRolloverLog", foreign_key: :task_id, dependent: :destroy
   has_many :parent_spawn_logs, class_name: "SmSpawnLog", foreign_key: :parent_task_id, dependent: :destroy
   has_many :spawned_spawn_logs, class_name: "SmSpawnLog", foreign_key: :spawned_task_id, dependent: :destroy
-  has_many :hold_logs, class_name: "SmHoldLog", dependent: :destroy
-  has_many :working_drawing_pages, class_name: "SmWorkingDrawingPage", dependent: :destroy
+  has_many :hold_logs, class_name: "SmHoldLog", foreign_key: :hold_task_id, dependent: :destroy
+  has_many :working_drawing_pages, class_name: "SmWorkingDrawingPage", foreign_key: :task_id, dependent: :destroy
 
   # Phase 2: Resource Allocations
-  has_many :resource_allocations, class_name: "SmResourceAllocation", dependent: :destroy
-  has_many :time_entries, class_name: "SmTimeEntry", dependent: :destroy
+  has_many :resource_allocations, class_name: "SmResourceAllocation", foreign_key: :task_id, dependent: :destroy
+  has_many :time_entries, class_name: "SmTimeEntry", foreign_key: :task_id, dependent: :destroy
 
   # Phase 3: Field & Collaboration
   has_many :task_photos, class_name: "SmTaskPhoto", dependent: :destroy

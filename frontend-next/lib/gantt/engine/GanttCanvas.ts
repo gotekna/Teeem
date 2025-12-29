@@ -13,6 +13,7 @@ import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
+import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS } from '@/lib/constants/color-constants';
 
 // Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
@@ -351,44 +352,46 @@ export interface ScheduleVariance {
 // Default Configuration
 // ============================================================================
 
+// SSoT: Uses CHART_COLORS and GANTT_COLORS from @/lib/constants/color-constants
 const defaultLightColors: GanttColors = {
-  background: '#ffffff',
-  gridLines: '#e5e7eb',
-  todayMarker: '#ef4444',
-  weekendBackground: '#f9fafb',
+  background: CHART_COLORS.light.background,
+  gridLines: CHART_COLORS.light.gridLines,
+  todayMarker: CHART_COLORS.light.todayMarker,
+  weekendBackground: CHART_COLORS.light.weekendBackground,
   taskBar: {
-    notStarted: '#9ca3af',
-    inProgress: '#3b82f6',
-    completed: '#22c55e',
-    onHold: '#f59e0b',
-    atRisk: '#ef4444',
+    notStarted: GANTT_COLORS.taskStatus.notStarted,
+    inProgress: GANTT_COLORS.taskStatus.inProgress,
+    completed: GANTT_COLORS.taskStatus.completed,
+    onHold: GANTT_COLORS.taskStatus.onHold,
+    atRisk: GANTT_COLORS.taskStatus.atRisk,
   },
-  taskBarBorder: '#374151',
-  taskBarText: '#ffffff',
-  headerBackground: '#f3f4f6',
-  headerText: '#374151',
-  selectedRow: '#dbeafe',
-  hoverRow: '#f3f4f6',
+  taskBarBorder: GANTT_COLORS.taskBar.border,
+  taskBarText: GANTT_COLORS.taskBar.text,
+  headerBackground: CHART_COLORS.light.headerBackground,
+  headerText: CHART_COLORS.light.headerText,
+  selectedRow: CHART_COLORS.light.selectedRow,
+  hoverRow: CHART_COLORS.light.hoverRow,
 };
 
+// SSoT: Uses CHART_COLORS and GANTT_COLORS from @/lib/constants/color-constants
 const defaultDarkColors: GanttColors = {
-  background: '#1f2937',
-  gridLines: '#374151',
-  todayMarker: '#ef4444',
-  weekendBackground: '#111827',
+  background: CHART_COLORS.dark.background,
+  gridLines: CHART_COLORS.dark.gridLines,
+  todayMarker: CHART_COLORS.dark.todayMarker,
+  weekendBackground: CHART_COLORS.dark.weekendBackground,
   taskBar: {
-    notStarted: '#6b7280',
-    inProgress: '#3b82f6',
-    completed: '#22c55e',
-    onHold: '#f59e0b',
-    atRisk: '#ef4444',
+    notStarted: TAILWIND_COLORS.gray[500], // Lighter in dark mode for visibility
+    inProgress: GANTT_COLORS.taskStatus.inProgress,
+    completed: GANTT_COLORS.taskStatus.completed,
+    onHold: GANTT_COLORS.taskStatus.onHold,
+    atRisk: GANTT_COLORS.taskStatus.atRisk,
   },
-  taskBarBorder: '#9ca3af',
-  taskBarText: '#ffffff',
-  headerBackground: '#111827',
-  headerText: '#e5e7eb',
-  selectedRow: '#1e3a5f',
-  hoverRow: '#374151',
+  taskBarBorder: TAILWIND_COLORS.gray[400],
+  taskBarText: GANTT_COLORS.taskBar.text,
+  headerBackground: CHART_COLORS.dark.headerBackground,
+  headerText: CHART_COLORS.dark.headerText,
+  selectedRow: CHART_COLORS.dark.selectedRow,
+  hoverRow: CHART_COLORS.dark.hoverRow,
 };
 
 const defaultConfig: GanttConfig = {
@@ -7869,14 +7872,15 @@ export class GanttCanvas {
   }
 
   private getStatusColor(status: string): string {
+    // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
     const colorMap: Record<string, string> = {
-      'not-started': '#9ca3af',
-      'in-progress': '#3b82f6',
-      'completed': '#22c55e',
-      'on-hold': '#f59e0b',
-      'at-risk': '#ef4444'
+      'not-started': GANTT_COLORS.taskStatus.notStarted,
+      'in-progress': GANTT_COLORS.taskStatus.inProgress,
+      'completed': GANTT_COLORS.taskStatus.completed,
+      'on-hold': GANTT_COLORS.taskStatus.onHold,
+      'at-risk': GANTT_COLORS.taskStatus.atRisk
     };
-    return colorMap[status] || '#6b7280';
+    return colorMap[status] || TAILWIND_COLORS.gray[500];
   }
 
   // NOTE: formatDate is already defined above in the Print Styles section
@@ -10033,7 +10037,8 @@ export class GanttCanvas {
     // Background
     ctx.fillStyle = this.config.darkMode ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
     ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    ctx.strokeStyle = this.config.darkMode ? '#444' : '#ccc';
+    // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+    ctx.strokeStyle = this.config.darkMode ? TAILWIND_COLORS.gray[700] : TAILWIND_COLORS.gray[300];
     ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
     // Calculate scale
@@ -10046,7 +10051,7 @@ export class GanttCanvas {
     const scaleY = bounds.height / totalRows;
 
     // Draw tasks
-    ctx.fillStyle = this.config.darkMode ? '#6366f1' : '#4f46e5';
+    ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.indigo[500] : TAILWIND_COLORS.indigo[600];
     this.state.tasks.forEach((task, index) => {
       const taskStartDays = (task.startDate.getTime() - projectStart.getTime()) / (24 * 60 * 60 * 1000);
       const taskDuration = (task.endDate.getTime() - task.startDate.getTime()) / (24 * 60 * 60 * 1000);
@@ -10067,7 +10072,7 @@ export class GanttCanvas {
     const viewStartRow = state.scrollY / this.config.rowHeight;
     const viewRows = (this.containerHeight - this.config.headerHeight) / this.config.rowHeight;
 
-    ctx.strokeStyle = '#ef4444';
+    ctx.strokeStyle = TAILWIND_COLORS.red[500];
     ctx.lineWidth = 2;
     ctx.strokeRect(
       bounds.x + viewStartDays * scaleX,
@@ -15330,13 +15335,14 @@ ${this.getAutomatedTestResults()}
   }
 
   // FEATURE 581: COMPLETION PERCENTAGE CHART DATA
+  // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
   getCompletionChartData(): Array<{ label: string; value: number; color: string }> {
     const stats = this.getScheduleStats();
     return [
-      { label: 'Completed', value: stats.completedTasks, color: '#22c55e' },
-      { label: 'In Progress', value: stats.inProgressTasks, color: '#3b82f6' },
-      { label: 'Not Started', value: stats.notStartedTasks, color: '#9ca3af' },
-      { label: 'On Hold', value: stats.onHoldTasks, color: '#eab308' },
+      { label: 'Completed', value: stats.completedTasks, color: GANTT_COLORS.taskStatus.completed },
+      { label: 'In Progress', value: stats.inProgressTasks, color: GANTT_COLORS.taskStatus.inProgress },
+      { label: 'Not Started', value: stats.notStartedTasks, color: GANTT_COLORS.taskStatus.notStarted },
+      { label: 'On Hold', value: stats.onHoldTasks, color: TAILWIND_COLORS.yellow[500] },
     ];
   }
 
@@ -15547,14 +15553,15 @@ ${this.getAutomatedTestResults()}
   // ============================================================================
 
   // FEATURE 591-599: HOLD STATE TYPES
+  // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
   private holdReasons = [
-    { id: 'whs_incident', label: 'WHS Incident', color: '#dc2626' },
-    { id: 'weather_delay', label: 'Weather Delay', color: '#f59e0b' },
-    { id: 'permit_delay', label: 'Permit Delay', color: '#8b5cf6' },
-    { id: 'client_request', label: 'Client Request', color: '#3b82f6' },
-    { id: 'material_delay', label: 'Material Delay', color: '#ec4899' },
-    { id: 'subcontractor_issue', label: 'Subcontractor Issue', color: '#14b8a6' },
-    { id: 'other', label: 'Other', color: '#6b7280' },
+    { id: 'whs_incident', label: 'WHS Incident', color: TAILWIND_COLORS.red[600] },
+    { id: 'weather_delay', label: 'Weather Delay', color: TAILWIND_COLORS.amber[500] },
+    { id: 'permit_delay', label: 'Permit Delay', color: TAILWIND_COLORS.violet[500] },
+    { id: 'client_request', label: 'Client Request', color: TAILWIND_COLORS.blue[500] },
+    { id: 'material_delay', label: 'Material Delay', color: TAILWIND_COLORS.pink[500] },
+    { id: 'subcontractor_issue', label: 'Subcontractor Issue', color: TAILWIND_COLORS.teal[500] },
+    { id: 'other', label: 'Other', color: TAILWIND_COLORS.gray[500] },
   ];
 
   getHoldReasons(): typeof this.holdReasons {
