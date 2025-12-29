@@ -304,12 +304,35 @@ module Api
             .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
             .order(Arel.sql("COUNT(*) DESC"))
 
-          # Transform results
+          # Check if group_by column is a lookup - need to resolve display values
+          group_column = @foundation.columns.find_by(column_name: group_by_column)
+          is_lookup = group_column&.column_type == "lookup" && group_column&.lookup_foundation.present?
+
+          # Pre-fetch lookup values if this is a lookup column (avoid N+1)
+          lookup_cache = {}
+          if is_lookup
+            lookup_ids = groups_result.map(&:group_key).compact.map(&:to_i).uniq
+            if lookup_ids.any?
+              lookup_model = group_column.lookup_foundation.dynamic_model
+              display_col = group_column.lookup_display_column || "name"
+              lookup_cache = lookup_model.where(id: lookup_ids).pluck(:id, display_col.to_sym).to_h
+            end
+          end
+
+          # Transform results (resolve lookup display values)
           groups = groups_result.map do |row|
+            display_value = if row.group_key.nil?
+              "(Empty)"
+            elsif is_lookup && lookup_cache[row.group_key.to_i]
+              lookup_cache[row.group_key.to_i]
+            else
+              row.group_key.to_s
+            end
+
             {
               key: row.group_key,
               count: row.count,
-              display_value: row.group_key.nil? ? "(Empty)" : row.group_key.to_s
+              display_value: display_value
             }
           end
 

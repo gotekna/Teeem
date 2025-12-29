@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useUrlState } from "@/hooks/useUrlState";
 import { api } from "@/lib/api";
 import {
   UserGroupIcon,
@@ -31,19 +32,41 @@ interface CategoriesMap {
 }
 
 export default function PermissionsPage() {
+  // SSoT: URL state for user selection and search (enables shareable URLs)
+  const [urlState, setUrlState] = useUrlState({
+    user: null as string | null,   // selected user ID
+    search: null as string | null, // search query
+  });
+
   const [users, setUsers] = useState<User[]>([]);
   const [permissions, setPermissions] = useState<PermissionsMap>({});
   const [categories, setCategories] = useState<CategoriesMap>({});
   const [, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [rolePermissions, setRolePermissions] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const [updatingPermission, setUpdatingPermission] = useState<string | null>(
     null
   );
+
+  // Derive selectedUser from URL and users list
+  const selectedUser = urlState.user
+    ? users.find(u => u.id === parseInt(urlState.user as string, 10)) || null
+    : null;
+
+  // Derive searchQuery from URL (null = empty string for display)
+  const searchQuery = urlState.search || "";
+
+  // Update URL when user is selected
+  const setSelectedUser = useCallback((user: User | null) => {
+    setUrlState({ user: user ? String(user.id) : null });
+  }, [setUrlState]);
+
+  // Update URL when search changes
+  const setSearchQuery = useCallback((query: string) => {
+    setUrlState({ search: query || null });
+  }, [setUrlState]);
 
   useEffect(() => {
     loadData();
@@ -79,7 +102,7 @@ export default function PermissionsPage() {
     }
   };
 
-  const loadUserPermissions = async (userId: number) => {
+  const loadUserPermissions = useCallback(async (userId: number) => {
     try {
       const response = await api.get<{
         success: boolean;
@@ -88,14 +111,23 @@ export default function PermissionsPage() {
         role_permissions: string[];
       }>(`/api/v1/permissions/user/${userId}`);
       if (response?.success) {
-        setSelectedUser(response.user);
         setUserPermissions(response.permissions || []);
         setRolePermissions(response.role_permissions || []);
       }
     } catch (err) {
       console.error("Failed to load user permissions:", err);
     }
-  };
+  }, []);
+
+  // Load user permissions when selectedUser changes (from URL or click)
+  useEffect(() => {
+    if (selectedUser) {
+      loadUserPermissions(selectedUser.id);
+    } else {
+      setUserPermissions([]);
+      setRolePermissions([]);
+    }
+  }, [selectedUser, loadUserPermissions]);
 
   const togglePermission = async (
     permissionName: string,
@@ -194,7 +226,7 @@ export default function PermissionsPage() {
             {filteredUsers.map((user) => (
               <button
                 key={user.id}
-                onClick={() => loadUserPermissions(user.id)}
+                onClick={() => setSelectedUser(user)}
                 className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
                   selectedUser?.id === user.id
                     ? "bg-blue-50 border-l-4 border-blue-600"

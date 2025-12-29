@@ -1256,6 +1256,25 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         </div>
                       )}
                       </div>
+                      {/* Open in SharePoint button */}
+                      {jobFolderStatus.webUrl && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            // Construct the folder URL by appending category folder_path to job folder URL
+                            const baseUrl = jobFolderStatus.webUrl;
+                            const folderPath = activeCategory?.folder_path;
+                            const fullUrl = folderPath
+                              ? `${baseUrl}/${encodeURIComponent(folderPath.replace(/^\//, ""))}`
+                              : baseUrl;
+                            window.open(fullUrl, "_blank");
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          SharePoint
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2008,37 +2027,46 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         </Card>
       )}
 
-      {/* View Mode Toggle */}
-      <div className="flex items-center gap-2 bg-muted rounded-lg p-1 w-fit">
-        <Button
-          variant={viewMode === "tasks" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setViewMode("tasks")}
-        >
-          <FileText className="h-4 w-4 mr-2" />
-          Document Tasks
-        </Button>
-        <Button
-          variant={viewMode === "sharepoint" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setViewMode("sharepoint")}
-        >
-          <Cloud className="h-4 w-4 mr-2" />
-          SharePoint Folders
-        </Button>
-        <Button
-          variant={viewMode === "allfiles" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setViewMode("allfiles")}
-        >
-          <Folder className="h-4 w-4 mr-2" />
-          All Files
-        </Button>
-      </div>
+      {/* View Mode Toggle - hide for photo categories */}
+      {!isPhotoCategory(selectedSubCategory || selectedCategory) && (
+        <div className="flex items-center gap-2 bg-muted rounded-lg p-1 w-fit">
+          <Button
+            variant={viewMode === "tasks" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("tasks")}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Document Tasks
+          </Button>
+          <Button
+            variant={viewMode === "sharepoint" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("sharepoint")}
+          >
+            <Cloud className="h-4 w-4 mr-2" />
+            SharePoint Folders
+          </Button>
+          <Button
+            variant={viewMode === "allfiles" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("allfiles")}
+          >
+            <Folder className="h-4 w-4 mr-2" />
+            All Files
+          </Button>
+        </div>
+      )}
 
-      {viewMode === "tasks" && renderTasksView()}
-      {viewMode === "sharepoint" && renderSharePointView()}
-      {viewMode === "allfiles" && renderAllFilesView()}
+      {/* For photo categories, show photo gallery directly */}
+      {isPhotoCategory(selectedSubCategory || selectedCategory) ? (
+        renderTasksView()
+      ) : (
+        <>
+          {viewMode === "tasks" && renderTasksView()}
+          {viewMode === "sharepoint" && renderSharePointView()}
+          {viewMode === "allfiles" && renderAllFilesView()}
+        </>
+      )}
 
       {/* Import Legacy Files Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,10 +73,23 @@ function formatDuration(minutes: number): string {
 
 export default function AdminTrainingPage() {
   const router = useRouter();
+
+  // SSoT: URL state for search (enables shareable URLs)
+  const [urlState, setUrlState] = useUrlState({
+    search: null as string | null,
+  });
+
   const [modules, setModules] = React.useState<TrainingModule[]>([]);
   const [stats, setStats] = React.useState<TrainingStats | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [searchQuery, setSearchQuery] = React.useState("");
+
+  // Derive searchQuery from URL
+  const searchQuery = urlState.search || "";
+
+  // Update URL when search changes
+  const setSearchQuery = React.useCallback((query: string) => {
+    setUrlState({ search: query || null });
+  }, [setUrlState]);
 
   React.useEffect(() => {
     const fetchTraining = async () => {
