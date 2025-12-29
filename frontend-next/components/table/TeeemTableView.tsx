@@ -1083,10 +1083,21 @@ export default function TeeemTableView({
     });
   }, [entries, effectiveEntries, setSelectedRows]);
 
+  // CRITICAL FIX: Clear view/user filters when foundation changes to prevent cross-table pollution
+  // Since filter atoms are GLOBAL, filters from one foundation would otherwise affect all tables.
+  // This must run BEFORE loading views for the new foundation.
+  const prevFoundationRef = useRef<string | number | null>(null);
+  useEffect(() => {
+    if (effectiveFoundationId && prevFoundationRef.current !== null && prevFoundationRef.current !== effectiveFoundationId) {
+      // Foundation changed - clear all non-base filters to start fresh
+      setViewFilters([]);
+      clearAllUserFilters();
+    }
+    prevFoundationRef.current = effectiveFoundationId;
+  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters]);
+
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
-  // CRITICAL FIX: Clear view filters to prevent cross-table pollution when multiple TeeemTableView
-  // instances exist on the same page (e.g., tabs). Since filter atoms are GLOBAL, view filters
-  // from one table would otherwise affect all tables.
+  // Also clear view filters to prevent pollution from other tables with initialFilters
   const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters]);
   useEffect(() => {
     if (initialFilters && initialFilters.length > 0) {
