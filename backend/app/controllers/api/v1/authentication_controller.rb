@@ -53,9 +53,6 @@ module Api
       def signup
         user = User.new(signup_params)
 
-        # Set default role for validation (legacy column still required)
-        user.role ||= "user"
-
         # Auto-approve Tekna employees
         if user.email&.end_with?("@tekna.com.au")
           Rails.logger.info "Auto-approving Tekna employee: #{user.email}"

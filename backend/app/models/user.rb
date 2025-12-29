@@ -38,9 +38,6 @@ class User < ApplicationRecord
     MicrosoftCredential.for_user(self).delegated_credentials.connected.first
   end
 
-  # Role constants
-  ROLES = %w[user admin product_owner estimator supervisor builder].freeze
-
   # SSoT: Assignable roles for task/schedule assignment
   # Used by: SmScheduleMaster, SmTask, GanttCanvasView (via /api/v1/sm_settings/assignable_roles)
   ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze
@@ -49,7 +46,6 @@ class User < ApplicationRecord
   validates :name, presence: true
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
-  validates :role, inclusion: { in: ROLES }
   validate :validate_assigned_roles
 
   # Role helper methods
@@ -277,10 +273,6 @@ class User < ApplicationRecord
 
     assigned_roles = Role.where(id: normalized_ids)
     self.roles = assigned_roles
-
-    # Sync legacy 'role' column with primary role for backwards compatibility
-    # This ensures the old single-role column stays in sync with the new multi-role system
-    self.role = assigned_roles.first&.name
   end
 
   def role_names
