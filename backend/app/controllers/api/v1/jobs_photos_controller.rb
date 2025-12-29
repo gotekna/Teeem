@@ -112,14 +112,9 @@ module Api
       end
 
       # GET /api/v1/jobs_photos/supervisors
-      # Returns list of supervisors who have active jobs with photos
+      # Returns list of supervisors from User roles (SSoT)
       def supervisors
-        names = Job.joins(:job_status)
-                   .where.not(site_supervisor_name: [nil, ""])
-                   .where(job_status: JobStatus.where.not("LOWER(name) LIKE ?", "%lost%"))
-                   .distinct
-                   .pluck(:site_supervisor_name)
-                   .sort
+        names = User.where(role: "supervisor").order(:name).pluck(:name)
         render json: { success: true, data: names }
       end
     end
