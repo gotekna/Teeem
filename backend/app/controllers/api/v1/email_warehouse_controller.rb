@@ -362,7 +362,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # IMAP accounts
     user_imap_credentials.each do |cred|
-      all_accounts << cred.email if cred.email.present?
+      all_accounts << cred.email_address if cred.email_address.present?
     end
 
     # Get MS365 org credentials the user has mailbox access to
