@@ -430,8 +430,7 @@ export default function JobPhotosPage() {
                                 <div
                                   key={photo.id}
                                   className="relative cursor-pointer aspect-square"
-                                  onClick={() => handlePhotoClick(job.job_id)}
-                                  onDoubleClick={() => handlePhotoExpand(job.photos, idx)}
+                                  onClick={() => handlePhotoExpand(job.photos, idx)}
                                 >
                                   <div
                                     className={cn(
