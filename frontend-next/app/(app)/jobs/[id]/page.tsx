@@ -822,14 +822,10 @@ export default function JobDetailPage() {
   const handleTabChange = React.useCallback((newTab: string) => {
     const params = new URLSearchParams();
 
-    // Check if clicked tab is a child of some parent
-    const parentOfClickedTab = findParentOfTab(newTab);
-
-    if (parentOfClickedTab) {
-      // Clicked a child tab - set both parent and subtab
-      params.set("tab", parentOfClickedTab);
-      params.set("subtab", newTab);
-    } else if (isParentTab(newTab)) {
+    // ULTRA FIX: Check if clicked tab is a PARENT tab FIRST
+    // This prevents collision when parent "Site" (key=site) matches child "site" under Photo
+    // The order of checks matters: parent tabs take precedence over child tab matches
+    if (isParentTab(newTab)) {
       // Clicked a parent tab with children - set parent and auto-select first child
       const firstChild = findFirstChildTab(newTab);
       params.set("tab", newTab);
@@ -837,8 +833,16 @@ export default function JobDetailPage() {
         params.set("subtab", firstChild);
       }
     } else {
-      // Clicked a standalone tab (no children, not a child)
-      params.set("tab", newTab);
+      // Check if clicked tab is a child of some parent
+      const parentOfClickedTab = findParentOfTab(newTab);
+      if (parentOfClickedTab) {
+        // Clicked a child tab - set both parent and subtab
+        params.set("tab", parentOfClickedTab);
+        params.set("subtab", newTab);
+      } else {
+        // Clicked a standalone tab (no children, not a child)
+        params.set("tab", newTab);
+      }
     }
 
     // Clean URL for default tab without subtab
