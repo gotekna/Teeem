@@ -361,14 +361,34 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
     const orphanIds = Array.from(orphansToDelete);
     if (orphanIds.length > 0) {
       try {
-        await api.post(
+        const deleteResponse = await api.post<{
+          success: boolean;
+          deleted: number;
+          errors: string[];
+          message: string;
+        }>(
           `/api/v1/sm_schedule_master_templates/${jobTemplate.id}/delete_orphans`,
           { job_id: parseInt(String(jobId)), task_ids: orphanIds }
         );
-        toast({
-          title: "Orphans Deleted",
-          description: `Deleted ${orphanIds.length} orphan tasks`,
-        });
+
+        if (deleteResponse) {
+          if (deleteResponse.deleted > 0) {
+            toast({
+              title: "Orphans Deleted",
+              description: deleteResponse.message,
+            });
+          }
+
+          // Show warnings if some tasks were skipped
+          if (deleteResponse.errors && deleteResponse.errors.length > 0) {
+            console.warn("Delete orphans warnings:", deleteResponse.errors);
+            toast({
+              title: "Some Tasks Skipped",
+              description: `${deleteResponse.deleted} deleted, ${deleteResponse.errors.length} skipped (linked or has job reality)`,
+              variant: deleteResponse.deleted === 0 ? "destructive" : "default",
+            });
+          }
+        }
       } catch (err) {
         console.error("Failed to delete orphans:", err);
         toast({

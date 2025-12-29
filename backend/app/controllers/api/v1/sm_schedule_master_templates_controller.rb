@@ -391,6 +391,8 @@ module Api
         job = Job.find(params[:job_id])
         task_ids = params[:task_ids] || []
 
+        Rails.logger.info "[SmScheduleMasterTemplatesController] delete_orphans called for job #{job.id} with #{task_ids.count} task IDs: #{task_ids.inspect}"
+
         deleted = 0
         errors = []
 
@@ -398,18 +400,26 @@ module Api
           task = job.sm_tasks.find_by(id: task_id)
           if task.nil?
             errors << "Task #{task_id} not found"
+            Rails.logger.warn "[SmScheduleMasterTemplatesController] Task #{task_id} not found in job #{job.id}"
             next
           end
 
           # Safety check: only delete unlinked tasks (orphans)
           if task.sm_schedule_master_id.present?
-            errors << "Task #{task_id} (#{task.name}) is linked to template - skipped"
+            errors << "Task #{task_id} (#{task.name}) is linked to template row #{task.sm_schedule_master_id} - skipped"
+            Rails.logger.info "[SmScheduleMasterTemplatesController] Skipped task #{task_id} (#{task.name}) - linked to template row #{task.sm_schedule_master_id}"
             next
           end
 
-          # Safety check: don't delete tasks with job reality
-          if task.status.in?(%w[started completed]) || task.started_at.present? || task.completed_at.present?
-            errors << "Task #{task_id} (#{task.name}) has job reality - skipped"
+          # Safety check: don't delete tasks with job reality (use SmTask.locked? + timestamps)
+          # locked? checks: supplier_confirm, confirm, started, completed, hold
+          if task.locked? || task.started_at.present? || task.completed_at.present?
+            reason = []
+            reason << "lock_type=#{task.lock_type}" if task.locked?
+            reason << "started_at=#{task.started_at}" if task.started_at.present?
+            reason << "completed_at=#{task.completed_at}" if task.completed_at.present?
+            errors << "Task #{task_id} (#{task.name}) has job reality (#{reason.join(', ')}) - skipped"
+            Rails.logger.info "[SmScheduleMasterTemplatesController] Skipped task #{task_id} (#{task.name}) due to job reality: #{reason.join(', ')}"
             next
           end
 
