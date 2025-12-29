@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -29,7 +28,6 @@ import {
 import {
   Plus,
   Loader2,
-  ShoppingCart,
   ChevronsUpDown,
   Check,
   AlertTriangle,
@@ -37,9 +35,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import type { TableRow } from "@/components/table/types";
 
 // Foundation table name for Purchase Orders
@@ -64,32 +60,10 @@ interface JobPurchaseOrdersTabProps {
   jobTitle?: string;
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
 export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabProps) {
   const router = useRouter();
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Use Foundation hook to get purchase orders data
-  const { foundation, records, isLoading, refresh } = useFoundationBySlug(PURCHASE_ORDERS_TABLE_NAME);
-  const foundationId = foundation?.id;
-
-  // Filter records to only show POs for this job
-  const jobPurchaseOrders = useMemo(() => {
-    return records.filter((po) => {
-      // Handle both numeric job_id and lookup object formats
-      const poJobId = typeof po.job_id === 'object' && po.job_id !== null
-        ? (po.job_id as { id?: number }).id
-        : po.job_id;
-      return String(poJobId) === String(jobId);
-    });
-  }, [records, jobId]);
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -115,19 +89,18 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   }, [router]);
 
-  // Handle inline row update
+  // Handle inline row update - use slug-based API
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    if (!foundationId) return;
     try {
-      await api.patch(`/api/v1/foundations/${foundationId}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/${PURCHASE_ORDERS_TABLE_NAME}/records/${rowId}`, {
         record: { [field]: value }
       });
-      refresh();
+      setRefreshKey(k => k + 1);
     } catch (err) {
       console.error("Failed to update purchase order:", err);
       throw err;
     }
-  }, [foundationId, refresh]);
+  }, []);
 
   const loadContacts = async () => {
     if (contacts.length > 0) return;
@@ -187,7 +160,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         },
       });
       setShowCreateModal(false);
-      refresh();
+      setRefreshKey(k => k + 1);
     } catch (err) {
       console.error("Failed to create purchase order:", err);
       setError("Failed to create purchase order");
@@ -196,60 +169,20 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  // Stats from filtered records
-  const stats = useMemo(() => ({
-    total: jobPurchaseOrders.length,
-    totalValue: jobPurchaseOrders.reduce((sum, po) => sum + (Number(po.total) || 0), 0),
-    draft: jobPurchaseOrders.filter((po) => po.status === "draft").length,
-    pending: jobPurchaseOrders.filter((po) => po.status === "pending").length,
-  }), [jobPurchaseOrders]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner />
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full -mx-4">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 px-4 mb-4 shrink-0">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-sm text-muted-foreground">Total POs</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</div>
-            <p className="text-sm text-muted-foreground">Total Value</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-600">{stats.draft}</div>
-            <p className="text-sm text-muted-foreground">Drafts</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-            <p className="text-sm text-muted-foreground">Pending Approval</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* TeeemTableView with global views support */}
+      {/* TeeemTableView with server-side filtering by job_id */}
       <TeeemTableView
-        entries={jobPurchaseOrders}
-        foundationId={foundationId ? String(foundationId) : ""}
-        foundationIdNumeric={foundationId || 0}
+        key={refreshKey}
+        foundationId={PURCHASE_ORDERS_TABLE_NAME}
+        autoFetchRecords={true}
+        initialFilters={[
+          { id: "job-filter", column: "job_id", operator: "=", value: String(jobId) }
+        ]}
         tableName="Purchase Orders"
         enableExport={true}
-        onRefresh={refresh}
+        onRefresh={() => setRefreshKey(k => k + 1)}
         onRowClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
         leftActions={
