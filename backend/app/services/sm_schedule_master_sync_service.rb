@@ -643,7 +643,7 @@ class SmScheduleMasterSyncService
     next_sequence = max_sequence + 1
 
     # Calculate start date - either from job or today
-    start_date = job.construction_start_date || Date.current
+    start_date = job.start_date || Date.current
     # Calculate duration - use team-based calculation if supplier has team_size
     duration = calculate_task_duration
     end_date = start_date + (duration - 1).days
