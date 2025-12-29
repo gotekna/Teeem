@@ -2268,7 +2268,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, validationErrors, triggerAutoRefresh]);
+  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, triggerAutoRefresh, COLUMNS, setValidationErrors]);
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {

@@ -14,7 +14,7 @@ import type { GanttConfig, GanttTask, GanttDependency, GanttBaseline, ContextMen
 import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
-import { TAILWIND_COLORS, GANTT_COLORS, CHART_COLORS, CATEGORY_COLORS, STATUS_COLORS } from '@/lib/constants/color-constants';
+import { TAILWIND_COLORS, GANTT_COLORS, CHART_COLORS, CATEGORY_COLORS, STATUS_COLORS, COLORS } from '@/lib/constants/color-constants';
 
 // ============================================================================
 // Renderer Class
@@ -1707,7 +1707,7 @@ export class Renderer {
     this.ctx.shadowOffsetX = 2;
     this.ctx.shadowOffsetY = 2;
 
-    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : '#ffffff';
+    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : COLORS.white;
     this.ctx.beginPath();
     this.ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 6);
     this.ctx.fill();
@@ -1816,7 +1816,7 @@ export class Renderer {
     this.ctx.shadowOffsetY = 4;
 
     // Draw menu background
-    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : '#ffffff';
+    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : COLORS.white;
     this.ctx.beginPath();
     this.ctx.roundRect(menuX, menuY, menuWidth, menuHeight, 8);
     this.ctx.fill();
