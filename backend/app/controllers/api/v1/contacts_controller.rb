@@ -3486,10 +3486,10 @@ module Api
       def verify_abn
         contact = Contact.find(params[:id])
 
-        if contact.tax_number.blank?
+        if contact.abn.blank?
           return render json: {
             success: false,
-            error: "Contact has no ABN/tax number"
+            error: "Contact has no ABN"
           }, status: :unprocessable_entity
         end
 
@@ -3498,8 +3498,8 @@ module Api
         render json: {
           success: true,
           data: {
-            abn: contact.tax_number,
-            abn_formatted: AbrApiService.format(contact.tax_number),
+            abn: contact.abn,
+            abn_formatted: AbrApiService.format(contact.abn),
             entity_name: result[:entity_name],
             entity_type: result[:entity_type_description],
             entity_type_code: result[:entity_type_code],
