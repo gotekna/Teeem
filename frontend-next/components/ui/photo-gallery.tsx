@@ -28,8 +28,9 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { ImageIcon, Loader2 } from "lucide-react";
+import { ImageIcon, Loader2, Check, Square, CheckSquare } from "lucide-react";
 import { getTodayAsString, getCompanyTimezone } from "@/lib/timezone-utils";
+import { Button } from "@/components/ui/button";
 
 export interface PhotoItem {
   id: string;
@@ -46,7 +47,7 @@ export interface PhotoItem {
 export interface PhotoGalleryProps {
   /** Array of photos to display */
   photos: PhotoItem[];
-  /** Callback when a photo is clicked */
+  /** Callback when a photo is clicked (single click, opens lightbox) */
   onPhotoClick?: (photo: PhotoItem, index: number) => void;
   /** Group photos by date */
   groupByDate?: boolean;
@@ -58,6 +59,14 @@ export interface PhotoGalleryProps {
   emptyMessage?: string;
   /** Thumbnail size: sm (100px), md (150px), lg (200px), xl (250px) */
   thumbnailSize?: "sm" | "md" | "lg" | "xl";
+  /** Enable multi-select mode */
+  selectable?: boolean;
+  /** Currently selected photo IDs */
+  selectedIds?: Set<string>;
+  /** Callback when selection changes */
+  onSelectionChange?: (selectedIds: Set<string>) => void;
+  /** Callback for actions on selected photos (e.g., delete, download) */
+  onSelectionAction?: (action: string, selectedPhotos: PhotoItem[]) => void;
 }
 
 // Skeleton loader for loading state
@@ -86,11 +95,17 @@ function PhotoThumbnail({
   index,
   onClick,
   size = "md",
+  selectable = false,
+  isSelected = false,
+  onToggleSelect,
 }: {
   photo: PhotoItem;
   index: number;
   onClick?: (photo: PhotoItem, index: number) => void;
   size?: "sm" | "md" | "lg" | "xl";
+  selectable?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (photo: PhotoItem, shiftKey: boolean) => void;
 }) {
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState(false);
@@ -122,20 +137,53 @@ function PhotoThumbnail({
     }
   };
 
+  // Handle click - in selectable mode, toggle selection; otherwise open lightbox
+  const handleClick = (e: React.MouseEvent) => {
+    if (selectable) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleSelect?.(photo, e.shiftKey);
+    } else {
+      onClick?.(photo, index);
+    }
+  };
+
   return (
     <button
       type="button"
-      onClick={() => onClick?.(photo, index)}
+      onClick={handleClick}
       className={cn(
-        "relative overflow-hidden rounded-none border border-border bg-muted",
+        "relative overflow-hidden rounded-none border bg-muted",
         "transition-all duration-200",
-        "hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-background",
         "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
         "group cursor-pointer",
-        sizeClasses[size]
+        sizeClasses[size],
+        // Selection styling
+        isSelected
+          ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-background"
+          : "border-border hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-background"
       )}
       title={photo.name}
     >
+      {/* Selection checkbox - always visible in selectable mode */}
+      {selectable && (
+        <div
+          className={cn(
+            "absolute top-2 left-2 z-10 rounded-sm",
+            "transition-all duration-200",
+            isSelected
+              ? "bg-primary text-primary-foreground"
+              : "bg-black/50 text-white group-hover:bg-black/70"
+          )}
+        >
+          {isSelected ? (
+            <Check className="h-5 w-5 p-0.5" />
+          ) : (
+            <Square className="h-5 w-5 p-0.5" />
+          )}
+        </div>
+      )}
+
       {/* Loading placeholder */}
       {!loaded && !error && (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -163,7 +211,7 @@ function PhotoThumbnail({
             "absolute inset-0 h-full w-full object-cover",
             "transition-opacity duration-300",
             loaded ? "opacity-100" : "opacity-0",
-            "group-hover:scale-105 transition-transform duration-300"
+            !selectable && "group-hover:scale-105 transition-transform duration-300"
           )}
         />
       )}
@@ -249,7 +297,73 @@ export function PhotoGallery({
   className,
   emptyMessage = "No photos found",
   thumbnailSize = "md",
+  selectable = false,
+  selectedIds,
+  onSelectionChange,
+  onSelectionAction,
 }: PhotoGalleryProps) {
+  // Internal selection state if not controlled
+  const [internalSelectedIds, setInternalSelectedIds] = React.useState<Set<string>>(new Set());
+  // Track last clicked photo for shift-select range
+  const lastClickedRef = React.useRef<string | null>(null);
+
+  // Use external or internal selection state
+  const effectiveSelectedIds = selectedIds ?? internalSelectedIds;
+  const setEffectiveSelectedIds = (ids: Set<string>) => {
+    if (onSelectionChange) {
+      onSelectionChange(ids);
+    } else {
+      setInternalSelectedIds(ids);
+    }
+  };
+
+  // Handle photo selection toggle
+  const handleToggleSelect = (photo: PhotoItem, shiftKey: boolean) => {
+    const newSelectedIds = new Set(effectiveSelectedIds);
+
+    if (shiftKey && lastClickedRef.current) {
+      // Shift-click: select range
+      const lastIndex = photos.findIndex(p => p.id === lastClickedRef.current);
+      const currentIndex = photos.findIndex(p => p.id === photo.id);
+
+      if (lastIndex !== -1 && currentIndex !== -1) {
+        const start = Math.min(lastIndex, currentIndex);
+        const end = Math.max(lastIndex, currentIndex);
+
+        for (let i = start; i <= end; i++) {
+          newSelectedIds.add(photos[i].id);
+        }
+      }
+    } else {
+      // Normal click: toggle single photo
+      if (newSelectedIds.has(photo.id)) {
+        newSelectedIds.delete(photo.id);
+      } else {
+        newSelectedIds.add(photo.id);
+      }
+    }
+
+    lastClickedRef.current = photo.id;
+    setEffectiveSelectedIds(newSelectedIds);
+  };
+
+  // Select all photos
+  const handleSelectAll = () => {
+    const allIds = new Set(photos.map(p => p.id));
+    setEffectiveSelectedIds(allIds);
+  };
+
+  // Clear selection
+  const handleClearSelection = () => {
+    setEffectiveSelectedIds(new Set());
+    lastClickedRef.current = null;
+  };
+
+  // Get selected photos for action callback
+  const getSelectedPhotos = (): PhotoItem[] => {
+    return photos.filter(p => effectiveSelectedIds.has(p.id));
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -283,12 +397,69 @@ export function PhotoGallery({
     return photos.findIndex((p) => p.id === photo.id);
   };
 
+  // Selection toolbar - shown when selectable
+  const SelectionToolbar = () => {
+    if (!selectable) return null;
+
+    const selectedCount = effectiveSelectedIds.size;
+    const allSelected = selectedCount === photos.length;
+
+    return (
+      <div className="flex items-center justify-between mb-4 pb-3 border-b">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={allSelected ? handleClearSelection : handleSelectAll}
+            className="gap-2"
+          >
+            {allSelected ? (
+              <>
+                <Square className="h-4 w-4" />
+                Clear All
+              </>
+            ) : (
+              <>
+                <CheckSquare className="h-4 w-4" />
+                Select All
+              </>
+            )}
+          </Button>
+          {selectedCount > 0 && (
+            <span className="text-sm text-muted-foreground">
+              {selectedCount} selected
+            </span>
+          )}
+        </div>
+        {selectedCount > 0 && onSelectionAction && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSelectionAction("download", getSelectedPhotos())}
+            >
+              Download
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => onSelectionAction("delete", getSelectedPhotos())}
+            >
+              Delete
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Grouped view
   if (groupByDate) {
     const groupedPhotos = groupPhotosByDate(photos);
 
     return (
       <div className={cn("space-y-6", className)}>
+        <SelectionToolbar />
         {[...groupedPhotos.entries()].map(([dateKey, groupPhotos]) => (
           <div key={dateKey}>
             {/* Date header */}
@@ -308,6 +479,9 @@ export function PhotoGallery({
                   index={getGlobalIndex(photo)}
                   onClick={onPhotoClick}
                   size={thumbnailSize}
+                  selectable={selectable}
+                  isSelected={effectiveSelectedIds.has(photo.id)}
+                  onToggleSelect={handleToggleSelect}
                 />
               ))}
             </div>
@@ -319,16 +493,22 @@ export function PhotoGallery({
 
   // Flat grid view
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
-      {photos.map((photo, index) => (
-        <PhotoThumbnail
-          key={photo.id}
-          photo={photo}
-          index={index}
-          onClick={onPhotoClick}
-          size={thumbnailSize}
-        />
-      ))}
+    <div className={cn("space-y-4", className)}>
+      <SelectionToolbar />
+      <div className="flex flex-wrap gap-2">
+        {photos.map((photo, index) => (
+          <PhotoThumbnail
+            key={photo.id}
+            photo={photo}
+            index={index}
+            onClick={onPhotoClick}
+            size={thumbnailSize}
+            selectable={selectable}
+            isSelected={effectiveSelectedIds.has(photo.id)}
+            onToggleSelect={handleToggleSelect}
+          />
+        ))}
+      </div>
     </div>
   );
 }

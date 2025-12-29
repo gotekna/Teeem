@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -117,11 +118,36 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsExpanded, setDocsExpanded] = useState<string | undefined>(undefined);
 
-  // Filters
-  const [selectedAccount, setSelectedAccount] = useState<string>("all");
-  const [selectedFY, setSelectedFY] = useState<string>("all");
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  // SSoT: Filters managed by useUrlState hook (enables shareable URLs, back button)
+  const [urlState, setUrlState] = useUrlState({
+    account: null as string | null,  // null = "all"
+    fy: null as string | null,        // financial year, null = "all"
+    month: null as string | null,     // null = "all"
+    search: null as string | null,    // search query
+  });
+
+  // Derived filter values (null → "all" for display)
+  const selectedAccount = urlState.account || "all";
+  const selectedFY = urlState.fy || "all";
+  const selectedMonth = urlState.month || "all";
+  const searchQuery = urlState.search || "";
+
+  // Filter setters that update URL
+  const setSelectedAccount = useCallback((value: string) => {
+    setUrlState({ account: value === "all" ? null : value });
+  }, [setUrlState]);
+
+  const setSelectedFY = useCallback((value: string) => {
+    setUrlState({ fy: value === "all" ? null : value });
+  }, [setUrlState]);
+
+  const setSelectedMonth = useCallback((value: string) => {
+    setUrlState({ month: value === "all" ? null : value });
+  }, [setUrlState]);
+
+  const setSearchQuery = useCallback((value: string) => {
+    setUrlState({ search: value || null });
+  }, [setUrlState]);
 
   // Loading states
   const [loading, setLoading] = useState(true);

@@ -88,14 +88,23 @@ export default function ContactsPageClient({
   // SSoT: URL state managed by useUrlState hook
   const [urlState, setUrlState] = useUrlState({
     search: null as string | null,
+    mode: null as string | null,  // search mode: null = "contains"
   });
 
   // URL is SSoT for search (enables shareable filtered URLs)
   const initialSearchFromUrl = urlState.search || undefined;
 
+  // Derive search mode from URL (null = default "contains")
+  const searchMode: SearchMode = (urlState.mode as SearchMode) || "contains";
+
   // Update URL when search changes (uses SSoT hook)
   const handleSearchChange = useCallback((term: string) => {
     setUrlState({ search: term && term.trim() ? term : null });
+  }, [setUrlState]);
+
+  // Update URL when search mode changes
+  const setSearchMode = useCallback((mode: SearchMode) => {
+    setUrlState({ mode: mode === "contains" ? null : mode });
   }, [setUrlState]);
 
   // Helper function to deduplicate records by ID (belt-and-suspenders approach)
@@ -169,7 +178,6 @@ export default function ContactsPageClient({
   const [currentView, setCurrentView] = useState<any>(null);
   const [showExplorer, setShowExplorer] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchMode, setSearchMode] = useState<SearchMode>("contains");
 
   // Track if we've already started auto-loading (to prevent double-load)
   const hasStartedAutoLoad = useRef(false);

@@ -36,6 +36,7 @@ import {
   X,
   Sparkles,
   Check,
+  CheckSquare,
   ArrowRight,
   Camera,
   ImagePlus,
@@ -171,6 +172,8 @@ interface JobDocumentsTabProps {
 
 export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: propCategories }: JobDocumentsTabProps) {
   const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles">("tasks");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
   const [folders, setFolders] = useState<SharePointFolder[]>([]);
@@ -301,6 +304,40 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const handleCategoryPhotoClick = (photo: PhotoItem, index: number) => {
     setCategoryLightboxIndex(index);
     setCategoryLightboxOpen(true);
+  };
+
+  // Handle selection action (download, delete)
+  const handleSelectionAction = async (action: string, selectedPhotos: PhotoItem[]) => {
+    if (action === "download") {
+      // Download selected photos
+      for (const photo of selectedPhotos) {
+        const link = document.createElement("a");
+        link.href = photo.url;
+        link.download = photo.name;
+        link.target = "_blank";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        // Small delay between downloads to avoid browser blocking
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      setMessage({ type: "success", text: `Downloading ${selectedPhotos.length} photo(s)` });
+    } else if (action === "delete") {
+      // TODO: Implement delete functionality
+      setMessage({ type: "info", text: "Delete functionality coming soon" });
+    }
+    // Clear selection after action
+    setSelectedPhotoIds(new Set());
+    setSelectMode(false);
+  };
+
+  // Toggle select mode
+  const toggleSelectMode = () => {
+    if (selectMode) {
+      // Exiting select mode - clear selection
+      setSelectedPhotoIds(new Set());
+    }
+    setSelectMode(!selectMode);
   };
 
   // Get category photos by filtering allFiles by folder_path (more efficient than separate API call)
@@ -1151,26 +1188,48 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       </span>
                     )}
                   </CardTitle>
-                  {/* Add Photo button - show for photo categories (SSoT: uses is_photo_category flag) */}
+                  {/* Add Photo and Select buttons - show for photo categories (SSoT: uses is_photo_category flag) */}
                   {isPhotoCategory(activeCategory) && orgStatus.connected && (
-                    <div className="relative">
-                      <Button
-                        size="sm"
-                        onClick={() => setShowPhotoOptions(!showPhotoOptions)}
-                        disabled={uploadingPhoto}
-                      >
-                        {uploadingPhoto ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Camera className="h-4 w-4 mr-2" />
-                            Add Photo
-                          </>
-                        )}
-                      </Button>
+                    <div className="flex items-center gap-2">
+                      {/* Select button - toggle multi-select mode */}
+                      {categoryPhotoItems.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant={selectMode ? "default" : "outline"}
+                          onClick={toggleSelectMode}
+                        >
+                          {selectMode ? (
+                            <>
+                              <Check className="h-4 w-4 mr-2" />
+                              Done
+                            </>
+                          ) : (
+                            <>
+                              <CheckSquare className="h-4 w-4 mr-2" />
+                              Select
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      {/* Add Photo button */}
+                      <div className="relative">
+                        <Button
+                          size="sm"
+                          onClick={() => setShowPhotoOptions(!showPhotoOptions)}
+                          disabled={uploadingPhoto}
+                        >
+                          {uploadingPhoto ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Camera className="h-4 w-4 mr-2" />
+                              Add Photo
+                            </>
+                          )}
+                        </Button>
                       {/* Dropdown menu for camera/library selection */}
                       {showPhotoOptions && (
                         <div className="absolute right-0 top-full mt-1 z-50 bg-background border rounded-md shadow-lg min-w-[180px]">
@@ -1196,6 +1255,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           </button>
                         </div>
                       )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1217,9 +1277,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     ) : (
                       <PhotoGallery
                         photos={categoryPhotoItems}
-                        onPhotoClick={handleCategoryPhotoClick}
+                        onPhotoClick={selectMode ? undefined : handleCategoryPhotoClick}
                         groupByDate
                         thumbnailSize="lg"
+                        selectable={selectMode}
+                        selectedIds={selectedPhotoIds}
+                        onSelectionChange={setSelectedPhotoIds}
+                        onSelectionAction={handleSelectionAction}
                       />
                     )}
                   </div>

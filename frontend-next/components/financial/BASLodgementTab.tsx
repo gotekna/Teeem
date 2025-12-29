@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -158,18 +159,44 @@ interface ChartDataPoint {
 }
 
 export default function BASLodgementTab() {
+  // SSoT: URL state for period selection and view (enables shareable URLs)
+  const [urlState, setUrlState] = useUrlState({
+    period: null as string | null,  // Format: "Q1-FY2024"
+    view: null as string | null,     // null = "prepare"
+  });
+
   const [loading, setLoading] = useState(true);
   const [periods, setPeriods] = useState<Period[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<Period | null>(null);
+  const [selectedPeriodInternal, setSelectedPeriodInternal] = useState<Period | null>(null);
   const [basData, setBASData] = useState<BASData | null>(null);
   const [lodgements, setLodgements] = useState<Lodgement[]>([]);
   const [sbrStatus, setSBRStatus] = useState<SBRStatus | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-  const [activeView, setActiveView] = useState<"prepare" | "history" | "trend">("prepare");
+  const activeView = (urlState.view as "prepare" | "history" | "trend") || "prepare";
   const [showLodgeDialog, setShowLodgeDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [lodging, setLodging] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // Derive selectedPeriod from URL or internal state
+  const selectedPeriod = urlState.period
+    ? periods.find(p => `${p.quarter}-${p.financial_year}` === urlState.period) || selectedPeriodInternal
+    : selectedPeriodInternal;
+
+  // Update URL when period is selected
+  const setSelectedPeriod = useCallback((period: Period | null) => {
+    setSelectedPeriodInternal(period);
+    if (period) {
+      setUrlState({ period: `${period.quarter}-${period.financial_year}` });
+    } else {
+      setUrlState({ period: null });
+    }
+  }, [setUrlState]);
+
+  // Update URL when view changes
+  const setActiveView = useCallback((view: "prepare" | "history" | "trend") => {
+    setUrlState({ view: view === "prepare" ? null : view });
+  }, [setUrlState]);
 
   const fetchPeriods = useCallback(async () => {
     try {
@@ -178,17 +205,29 @@ export default function BASLodgementTab() {
         data: { periods: Period[]; current_period: Period | null };
       }>("/api/v1/gl/bas/periods");
       if (response.success) {
-        setPeriods(response.data.periods);
+        const loadedPeriods = response.data.periods;
+        setPeriods(loadedPeriods);
+
+        // If URL has a period param, try to use that
+        if (urlState.period) {
+          const urlPeriod = loadedPeriods.find(p => `${p.quarter}-${p.financial_year}` === urlState.period);
+          if (urlPeriod) {
+            setSelectedPeriodInternal(urlPeriod);
+            return; // URL period is valid, don't overwrite
+          }
+        }
+
+        // Otherwise use current period or first period
         if (response.data.current_period) {
           setSelectedPeriod(response.data.current_period);
-        } else if (response.data.periods.length > 0) {
-          setSelectedPeriod(response.data.periods[0]);
+        } else if (loadedPeriods.length > 0) {
+          setSelectedPeriod(loadedPeriods[0]);
         }
       }
     } catch (error) {
       console.error("Failed to fetch periods:", error);
     }
-  }, []);
+  }, [urlState.period, setSelectedPeriod]);
 
   const fetchBASData = useCallback(async () => {
     if (!selectedPeriod) return;
