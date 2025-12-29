@@ -9,7 +9,7 @@ module Api
         @purchase_orders = PurchaseOrder.includes(
           :supplier,
           :job,
-          :sm_tasks,  # SSoT: SmTask is THE ONE task system
+          :sm_task,  # SSoT: SmTask is THE ONE task system (singular - belongs_to)
           line_items: :pricebook_item
         ).all
 
@@ -86,7 +86,7 @@ module Api
               job: {
                 methods: [ :site_supervisor_info ]
               },
-              sm_tasks: {  # SSoT: SmTask is THE ONE task system
+              sm_task: {  # SSoT: SmTask is THE ONE task system (singular - belongs_to)
                 methods: [ :materials_status ]
               },
               line_items: {
