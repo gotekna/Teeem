@@ -1465,6 +1465,9 @@ Rails.application.routes.draw do
           get :roles
           post :roles, action: :add_role
           delete "roles/:role", action: :remove_role
+
+          # SSoT: User::ASSIGNABLE_ROLES for task dropdowns
+          get :assignable_roles
         end
       end
 

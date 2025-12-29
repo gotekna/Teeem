@@ -5,6 +5,88 @@
  * Extracted from TeeemTableView.tsx to reduce duplication and improve maintainability.
  */
 
+import { TableColumn } from "../types";
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/**
+ * Column types that are system-generated/computed (user cannot manually enter)
+ */
+export const SYSTEM_GENERATED_TYPES = [
+  "computed",
+  "formula",
+  "auto_number",
+  "created_time",
+  "modified_time",
+  "created_by",
+  "modified_by",
+  "rollup",
+  "count",
+];
+
+/**
+ * Background color for system-generated columns
+ */
+export const SYSTEM_COLUMN_BG = "#fee2e2"; // red-100
+
+/**
+ * Non-editable column keys
+ */
+export const NON_EDITABLE_COLUMNS = ["id", "created_at", "updated_at"];
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Check if a column is system-generated (non-editable, auto-computed)
+ */
+export function isSystemGeneratedColumn(column: TableColumn): boolean {
+  return (
+    column.editable === false ||
+    column.system === true ||
+    NON_EDITABLE_COLUMNS.includes(column.key) ||
+    NON_EDITABLE_COLUMNS.includes(column.key?.toLowerCase()) ||
+    SYSTEM_GENERATED_TYPES.includes(column.column_type || "")
+  );
+}
+
+/**
+ * Helper to get plain text for cell tooltip (handles objects, arrays, etc.)
+ */
+export function getCellTooltip(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "string") return value || undefined;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "object") {
+    // Handle lookup/relation objects
+    if ("display" in value) return String((value as { display: string }).display) || undefined;
+    if ("name" in value) return String((value as { name: string }).name) || undefined;
+    if ("label" in value) return String((value as { label: string }).label) || undefined;
+    // Handle arrays (multi-select)
+    if (Array.isArray(value) && value.length > 0) {
+      const text = value
+        .map((v) => {
+          if (typeof v === "object" && v !== null) {
+            if ("display" in v) return (v as { display: string }).display;
+            if ("name" in v) return (v as { name: string }).name;
+            return JSON.stringify(v);
+          }
+          return String(v);
+        })
+        .join(", ");
+      return text || undefined;
+    }
+  }
+  return undefined;
+}
+
+// ============================================================================
+// ID AND SELECTION UTILITIES
+// ============================================================================
+
 /**
  * Extract selected IDs from various value formats
  *

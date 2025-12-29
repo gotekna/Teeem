@@ -149,8 +149,9 @@ interface ColumnConfig {
   align?: 'left' | 'center' | 'right';
 }
 
-// SSoT: Must match backend User::ASSIGNABLE_ROLES
-const ASSIGNABLE_ROLES = [
+// SSoT: Roles are fetched from /api/v1/sm_settings/assignable_roles
+// This is just a fallback in case the API call fails
+const DEFAULT_ASSIGNABLE_ROLES = [
   { value: 'admin', label: 'Admin' },
   { value: 'sales', label: 'Sales' },
   { value: 'site', label: 'Site' },
@@ -346,6 +347,27 @@ export function GanttCanvasView({
     manuallyPositioned: boolean;
     manualStartDate: string | null;
   }>>(new Map());
+
+  // SSoT: Assignable roles fetched from backend
+  const [assignableRoles, setAssignableRoles] = React.useState(DEFAULT_ASSIGNABLE_ROLES);
+
+  // Fetch assignable roles from API (SSoT)
+  React.useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const response = await api.get<{ success: boolean; assignable_roles: Array<{ value: string; label: string }> }>(
+          '/api/v1/sm_settings/assignable_roles'
+        );
+        if (response?.assignable_roles) {
+          setAssignableRoles(response.assignable_roles);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch assignable roles, using defaults:', err);
+        // Keep using DEFAULT_ASSIGNABLE_ROLES
+      }
+    };
+    fetchRoles();
+  }, []);
 
   // Toggle header collapse state
   const toggleHeaderCollapse = React.useCallback((headerId: number) => {
@@ -2597,7 +2619,7 @@ export function GanttCanvasView({
                             className="w-full h-5 text-[10px] bg-transparent border-0 cursor-pointer hover:bg-muted/50 rounded px-0.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary capitalize"
                           >
                             <option value="">-</option>
-                            {ASSIGNABLE_ROLES.map((role) => (
+                            {assignableRoles.map((role) => (
                               <option key={role.value} value={role.value}>
                                 {role.label}
                               </option>

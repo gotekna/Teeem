@@ -13,8 +13,9 @@
 class SmScheduleMaster < ApplicationRecord
   self.table_name = "sm_schedule_master"
 
-  # Role/group constants for internal work assignment
-  ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze
+  # SSoT: Use User::ASSIGNABLE_ROLES - single source of truth for role constants
+  # This alias provides backward compatibility for any existing references
+  ASSIGNABLE_ROLES = User::ASSIGNABLE_ROLES
 
   # Dependency types
   DEPENDENCY_TYPES = %w[FS SS FF SF].freeze

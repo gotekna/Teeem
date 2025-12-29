@@ -211,11 +211,24 @@ module Api
       end
 
       # GET /api/v1/sm_settings/roles
+      # Returns configurable schedule master roles (custom per-org)
       def roles
         @settings = SmSetting.instance
         render json: {
           success: true,
           roles: @settings.roles
+        }
+      end
+
+      # GET /api/v1/sm_settings/assignable_roles
+      # SSoT: Returns User::ASSIGNABLE_ROLES for task assignment dropdowns
+      # Frontend should fetch this instead of hardcoding roles
+      def assignable_roles
+        render json: {
+          success: true,
+          assignable_roles: User::ASSIGNABLE_ROLES.map do |role|
+            { value: role, label: role.titleize }
+          end
         }
       end
 
