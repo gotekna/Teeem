@@ -201,6 +201,17 @@ module Api
                 conn = ActiveRecord::Base.connection
                 quoted_column = conn.quote_column_name(column)
 
+                # Convert boolean string values ("Yes"/"No") to actual booleans
+                # Frontend dropdowns send "Yes"/"No" for boolean columns
+                col_def = @foundation.columns.find_by(column_name: column)
+                if col_def&.column_type == "boolean" && value.is_a?(String)
+                  value = case value.downcase
+                          when "yes", "true", "1" then true
+                          when "no", "false", "0" then false
+                          else value
+                          end
+                end
+
                 case operator
                 when "="
                   ["#{quoted_column} = ?", value]
