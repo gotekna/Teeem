@@ -229,20 +229,26 @@ module Performance
         today_vitals.each do |vital|
           next if vital.sample_count < 10 # Need enough samples
 
-          # Get baseline P75 for this metric
-          baseline = PerformanceVital
-            .where("created_at >= ? AND created_at < ?", baseline_start, today)
-            .where(metric_name: vital.metric_name)
-            .select(
-              "AVG(value) as mean",
-              "STDDEV(value) as stddev",
-              "COUNT(*) as count"
-            )
-            .first
+          # Get baseline stats for this metric using raw SQL to avoid GROUP BY issues
+          baseline_result = ActiveRecord::Base.connection.execute(<<-SQL)
+            SELECT
+              AVG(value) as mean,
+              STDDEV(value) as stddev,
+              COUNT(*) as count
+            FROM performance_vitals
+            WHERE created_at >= '#{baseline_start}'
+              AND created_at < '#{today}'
+              AND metric_name = '#{vital.metric_name}'
+          SQL
 
-          next unless baseline && baseline.count >= 50
+          baseline = baseline_result.first
+          next unless baseline && baseline["count"].to_i >= 50
 
-          z_score = calculate_z_score(vital.p75, baseline.mean, baseline.stddev)
+          baseline_mean = baseline["mean"].to_f
+          baseline_stddev = baseline["stddev"].to_f
+          baseline_count = baseline["count"].to_i
+
+          z_score = calculate_z_score(vital.p75, baseline_mean, baseline_stddev)
           next unless z_score && z_score >= Z_SCORE_THRESHOLD
 
           severity = PerformanceAnomaly.severity_for_z_score(z_score)
@@ -253,12 +259,12 @@ module Performance
             severity: severity,
             metric_name: vital.metric_name,
             observed_value: vital.p75,
-            expected_value: baseline.mean,
+            expected_value: baseline_mean,
             z_score: z_score,
             detected_at: Time.current,
             context: {
               sample_count: vital.sample_count,
-              baseline_samples: baseline.count
+              baseline_samples: baseline_count
             }
           )
 

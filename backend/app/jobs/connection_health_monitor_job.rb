@@ -49,7 +49,8 @@ class ConnectionHealthMonitorJob < ApplicationJob
   def check_all_pools
     pools = {}
 
-    ActiveRecord::Base.connection_handler.all_connection_pools.each do |pool|
+    # Rails 8 API: use each_connection_pool instead of all_connection_pools
+    ActiveRecord::Base.connection_handler.each_connection_pool do |pool|
       db_name = pool.db_config.name.to_s
 
       stats = {

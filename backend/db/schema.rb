@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_001030) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7731,6 +7731,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001030) do
     t.index ["worker_profile_id"], name: "index_site_presence_sessions_on_worker_profile_id"
   end
 
+  create_table "sm_activities", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "user_id"
+    t.bigint "resource_id"
+    t.bigint "sm_task_id"
+    t.bigint "construction_id"
+    t.string "activity_type", null: false
+    t.string "trackable_type"
+    t.bigint "trackable_id"
+    t.text "metadata"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_sm_activities_on_activity_type"
+    t.index ["construction_id"], name: "index_sm_activities_on_construction_id"
+    t.index ["created_at"], name: "index_sm_activities_on_created_at"
+    t.index ["job_id"], name: "index_sm_activities_on_job_id"
+    t.index ["resource_id"], name: "index_sm_activities_on_resource_id"
+    t.index ["sm_task_id"], name: "index_sm_activities_on_sm_task_id"
+    t.index ["trackable_type", "trackable_id"], name: "index_sm_activities_on_trackable"
+    t.index ["user_id"], name: "index_sm_activities_on_user_id"
+  end
+
   create_table "sm_comment_mentions", force: :cascade do |t|
     t.bigint "sm_comment_id", null: false
     t.bigint "user_id"
@@ -10177,6 +10199,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001030) do
   add_foreign_key "site_presence_sessions", "sm_tasks"
   add_foreign_key "site_presence_sessions", "users", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "site_presence_sessions", "worker_profiles"
+  add_foreign_key "sm_activities", "jobs"
+  add_foreign_key "sm_activities", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_activities", "sm_tasks", on_delete: :nullify
+  add_foreign_key "sm_activities", "users"
   add_foreign_key "sm_comment_mentions", "sm_comments"
   add_foreign_key "sm_comment_mentions", "sm_resources", column: "resource_id"
   add_foreign_key "sm_comment_mentions", "users"
