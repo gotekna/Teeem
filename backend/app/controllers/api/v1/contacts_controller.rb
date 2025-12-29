@@ -4026,9 +4026,12 @@ module Api
           []
         end
 
+        # Build base query - only add includes if there are associations to load
+        base_query = eager_load_associations.any? ? Contact.includes(*eager_load_associations) : Contact
+
         if id_or_slug.to_s.match?(/\A\d+\z/)
           # Numeric ID - direct lookup
-          @contact = Contact.includes(*eager_load_associations).find(id_or_slug)
+          @contact = base_query.find(id_or_slug)
         else
           # Slug - search by name (convert slug back to search term)
           # Remove the _God_Loves_You_ suffix if present
@@ -4036,7 +4039,7 @@ module Api
           search_term = slug.gsub("-", " ")
 
           # Try exact substring match first
-          @contact = Contact.includes(*eager_load_associations)
+          @contact = base_query
                            .where("LOWER(display_name) LIKE ?", "%#{search_term.downcase}%").first
 
           # If not found, try matching all words (handles middle names)
@@ -4045,7 +4048,7 @@ module Api
             words = search_term.downcase.split(/\s+/).reject(&:blank?)
             if words.any?
               conditions = words.map { |w| "LOWER(display_name) LIKE '%#{Contact.sanitize_sql_like(w)}%'" }.join(" AND ")
-              @contact = Contact.includes(*eager_load_associations).where(conditions).first
+              @contact = base_query.where(conditions).first
             end
           end
 
