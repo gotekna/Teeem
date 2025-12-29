@@ -107,11 +107,10 @@ class SmRolloverJob < ApplicationJob
       job: task.job,
       rollover_batch_id: @batch_id,
       rollover_timestamp: @timestamp,
-      original_start_date: original_start,
-      original_end_date: original_end,
+      old_start_date: original_start,
+      old_end_date: original_end,
       new_start_date: new_start,
-      new_end_date: new_end,
-      days_rolled: days_past_due
+      new_end_date: new_end
     )
 
     # Cascade to successors
