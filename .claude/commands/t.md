@@ -253,6 +253,7 @@ Total: X issues to fix
 | `/t perf` | **Performance Audit** (optional, detailed) | ~5-10 min |
 | `/t speed` | **Speed Test** - Live browser timing via Chrome DevTools | ~3 min |
 | `/t deep` | **Code Guardian** - Full agent review | ~20 min |
+| `/t refactor` | **TTV Refactor** - Continue TeeemTableView refactoring | ~10-30 min |
 
 ## Optional: Performance Audit (`/t perf`)
 
@@ -325,6 +326,34 @@ Thresholds:
 - ✅ FAST: API <250ms, SQL <50ms, Payload <100KB
 - 🟡 MEDIUM: API 250-500ms, SQL 50-100ms, Payload 100-500KB
 - ❌ SLOW: API >500ms, SQL >100ms, Payload >500KB
+
+## Optional: TTV Refactor (`/t refactor`)
+
+**Spawns TTV Refactor agent to continue TeeemTableView refactoring.**
+
+Current Status (as of 2025-12-29):
+- TeeemTableView.tsx: 5,211 lines (target: <4,500 for Milestone 4)
+- 711 lines remaining to hit milestone
+
+**What the agent does:**
+1. Reviews current extraction status
+2. Identifies next high-value extraction opportunity
+3. Extracts pure utility functions to `table-data-utils.ts` or similar
+4. Updates TeeemTableView.tsx to use extracted utilities
+5. Runs TypeScript check to ensure no errors
+
+**Extraction priorities:**
+| Priority | Target | Lines | Value |
+|----------|--------|-------|-------|
+| 1 | Cell editing logic | ~200 | High |
+| 2 | Keyboard navigation | ~150 | Medium |
+| 3 | Selection logic | ~100 | Medium |
+| 4 | Render functions | ~300 | Low (coupled) |
+
+**When to use:**
+- Dedicated refactoring sessions
+- After completing a feature in TeeemTableView
+- When line count has crept back up
 
 ## Optional: Code Guardian (`/t deep`)
 

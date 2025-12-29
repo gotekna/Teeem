@@ -304,6 +304,56 @@ useEffect(() => {
 }, []);
 ```
 
+## 🔴 CRITICAL: SSoT - Frontend Constants
+
+**Before creating ANY `const` in frontend code, CHECK these SSoT files first.**
+
+### SSoT Constant Files (Check Before Creating)
+
+| Constant Type | SSoT File | Contains |
+|---------------|-----------|----------|
+| System columns | `lib/constants/system-columns.ts` | SYSTEM_VISIBLE_COLUMNS, SYSTEM_HIDDEN_COLUMNS, SYSTEM_GENERATED_TYPES |
+| Document types | `lib/constants/document-types.ts` | DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS |
+| Column types | `lib/column-types.ts` | COLUMN_TYPE_DEFAULTS |
+| UI components | `lib/component-registry.ts` | Standard component list |
+
+### NEVER Create
+
+- ❌ `const FOLDER_OPTIONS = [...]` - Use `DOCUMENT_FOLDER_OPTIONS` from document-types.ts
+- ❌ `const SCOPE_OPTIONS = [...]` - Use `DOCUMENT_TYPE_SCOPES` from document-types.ts
+- ❌ `const SYSTEM_COLUMNS = [...]` - Use helpers from system-columns.ts
+- ❌ Any constant that looks like it might exist elsewhere
+
+### ALWAYS
+
+- ✅ **Search first:** `grep -r "CONSTANT_NAME" lib/constants/` before creating
+- ✅ **Import from SSoT:** `import { X } from "@/lib/constants/..."`
+- ✅ **Spread if mutable needed:** `[...DOCUMENT_FOLDER_OPTIONS]` for state setters
+- ✅ **Use helpers:** `isSystemGeneratedType(x)` not `TYPES.includes(x)`
+
+### When Creating New Constants
+
+1. **Check if exists** - Search `lib/constants/` and `lib/` first
+2. **If reusable** - Add to appropriate SSoT file in `lib/constants/`
+3. **If module-specific** - Create `lib/constants/{module}.ts`
+4. **If truly local** - Only if used in ONE file and never reused
+
+### Helper Function Pattern
+
+For `as const` arrays, create helper functions to avoid TypeScript `.includes()` issues:
+
+```typescript
+// In SSoT file
+export const MY_CONSTANTS = ['a', 'b', 'c'] as const;
+export function isMyConstant(value: string): boolean {
+  return (MY_CONSTANTS as readonly string[]).includes(value);
+}
+
+// In consuming file
+import { isMyConstant } from "@/lib/constants/my-module";
+if (isMyConstant(someValue)) { ... }  // ✅ Works with any string
+```
+
 ## 🔴 CRITICAL: Ultrathink Design Philosophy
 
 **Take a deep breath. We're not here to write code. We're here to make a dent in the universe.**
