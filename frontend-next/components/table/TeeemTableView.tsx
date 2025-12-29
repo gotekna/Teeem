@@ -2161,15 +2161,41 @@ export default function TeeemTableView({
 
     if (editingRowIds.size === 0 || !onRowUpdate) return;
 
-    // Check for validation errors before saving
-    const errorCount = Object.values(validationErrors).reduce(
-      (count, rowErrors) => count + Object.keys(rowErrors).length,
-      0
-    );
-    if (errorCount > 0) {
+    // 🔴 CRITICAL: Validate ALL dirty cells before saving
+    // This catches validation errors even if user didn't blur the field
+    // SSoT: validation-formatters.ts via CellValidation.tsx
+    const newErrors: Record<number | string, Record<string, string>> = {};
+    let totalErrorCount = 0;
+
+    for (const rowId of editingRowIds) {
+      const rowData = editingData[rowId];
+      if (!rowData) continue;
+
+      const rowErrors: Record<string, string> = {};
+      for (const [columnKey, value] of Object.entries(rowData)) {
+        // Find column definition to get column_type
+        const column = COLUMNS.find((c) => c.key === columnKey);
+        if (!column) continue;
+
+        // Validate using SSoT validator
+        const result = validateCellWithRegistry(value, column.column_type || 'single_line_text');
+        if (result.error) {
+          rowErrors[columnKey] = result.error;
+          totalErrorCount++;
+        }
+      }
+
+      if (Object.keys(rowErrors).length > 0) {
+        newErrors[rowId] = rowErrors;
+      }
+    }
+
+    // If any validation errors, update state and block save
+    if (totalErrorCount > 0) {
+      setValidationErrors(newErrors);
       toast({
         title: "Cannot save",
-        description: `Please fix ${errorCount} validation error${errorCount !== 1 ? "s" : ""} first`,
+        description: `Please fix ${totalErrorCount} validation error${totalErrorCount !== 1 ? "s" : ""} first`,
         variant: "destructive",
       });
       return;

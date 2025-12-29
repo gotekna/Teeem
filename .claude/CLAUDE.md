@@ -86,6 +86,18 @@ When discovering duplicates:
 
 **Rule:** Search `lib/constants/` before creating ANY constant.
 
+## 🔴 SSoT - State (Jotai Atoms)
+
+**BEFORE adding useState, check `lib/table-atoms.ts`**
+
+| Need | SSoT Atom | NOT This |
+|------|-----------|----------|
+| Modal visibility | `activeTableModalAtom` | `useState(false)` for modals |
+| Filter UI toggle | `filterUIModeAtom` | Separate filter booleans |
+| Column config | `updateColumnConfigAtom` | Individual column setters |
+
+**Rule:** All table state lives in atoms. Read `lib/table-atoms.ts` header before adding state.
+
 ## 🔴 CRITICAL: Ultrathink Design Philosophy
 
 **Take a deep breath. We're not here to write code. We're here to make a dent in the universe.**

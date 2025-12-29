@@ -14,7 +14,7 @@ import type { GanttConfig, GanttTask, GanttDependency, GanttBaseline, ContextMen
 import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
-import { TAILWIND_COLORS, GANTT_COLORS, CHART_COLORS, CATEGORY_COLORS } from '@/lib/constants/color-constants';
+import { TAILWIND_COLORS, GANTT_COLORS, CHART_COLORS, CATEGORY_COLORS, STATUS_COLORS } from '@/lib/constants/color-constants';
 
 // ============================================================================
 // Renderer Class
@@ -88,7 +88,8 @@ export class Renderer {
       if (calendar) {
         if (calendar.isHoliday(currentDate)) {
           // Holiday shading (slightly different color from weekends)
-          this.ctx.fillStyle = this.config.darkMode ? '#2d1f1f' : '#fef2f2'; // Reddish tint
+          // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+          this.ctx.fillStyle = this.config.darkMode ? '#2d1f1f' : TAILWIND_COLORS.red[50]; // Reddish tint
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         } else if (calendar.isWeekend(currentDate)) {
           // Weekend shading
@@ -225,8 +226,8 @@ export class Renderer {
       if (dayWidth >= 25) {
         const dayLabel = currentDate.getDate().toString();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-        this.ctx.fillStyle = isWeekend ? '#9ca3af' : this.config.colors.headerText;
+        // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+        this.ctx.fillStyle = isWeekend ? TAILWIND_COLORS.gray[400] : this.config.colors.headerText;
         this.ctx.font = '11px Inter, system-ui, sans-serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
@@ -353,7 +354,8 @@ export class Renderer {
         const triangleSize = 8;
 
         // Draw the thin black bar
-        this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#1f2937';
+        // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+        this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[800];
         this.ctx.fillRect(startX, summaryY, taskWidth, summaryBarHeight);
 
         // Draw downward triangle at start
@@ -373,7 +375,7 @@ export class Renderer {
         this.ctx.fill();
 
         // Draw header name to the right of the bar
-        this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#1f2937';
+        this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[800];
         this.ctx.font = 'bold 11px Inter, system-ui, sans-serif';
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'middle';
@@ -395,7 +397,8 @@ export class Renderer {
         const centerY = barY + barHeight / 2;
 
         // Camera color - purple for Photo tasks
-        const cameraColor = this.config.darkMode ? '#a855f7' : '#9333ea'; // Purple
+        // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+        const cameraColor = this.config.darkMode ? TAILWIND_COLORS.purple[400] : TAILWIND_COLORS.purple[600];
 
         // Draw shadow
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
@@ -410,12 +413,12 @@ export class Renderer {
         this.ctx.fill();
 
         // Draw border
-        this.ctx.strokeStyle = this.config.darkMode ? '#7c3aed' : '#7c3aed';
+        this.ctx.strokeStyle = TAILWIND_COLORS.violet[600];
         this.ctx.lineWidth = 1.5;
         this.ctx.stroke();
 
         // Draw camera lens (circle in center)
-        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
         this.ctx.beginPath();
         const lensRadius = iconSize / 5;
         this.ctx.arc(centerX, centerY, lensRadius, 0, Math.PI * 2);
@@ -450,9 +453,10 @@ export class Renderer {
         const centerY = barY + barHeight / 2;
 
         // Diamond color - orange for Order, blue for Call
+        // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
         const diamondColor = isOrderTask
-          ? (this.config.darkMode ? '#f97316' : '#ea580c') // Orange
-          : (this.config.darkMode ? '#3b82f6' : '#2563eb'); // Blue
+          ? (this.config.darkMode ? TAILWIND_COLORS.orange[500] : TAILWIND_COLORS.orange[600]) // Orange
+          : (this.config.darkMode ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.blue[600]); // Blue
 
         // Draw shadow
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
@@ -476,13 +480,13 @@ export class Renderer {
 
         // Draw border
         this.ctx.strokeStyle = isOrderTask
-          ? (this.config.darkMode ? '#c2410c' : '#9a3412')
-          : (this.config.darkMode ? '#1d4ed8' : '#1e40af');
+          ? (this.config.darkMode ? TAILWIND_COLORS.orange[600] : TAILWIND_COLORS.amber[700])
+          : (this.config.darkMode ? TAILWIND_COLORS.blue[700] : TAILWIND_COLORS.blue[800]);
         this.ctx.lineWidth = 1.5;
         this.ctx.stroke();
 
         // Draw icon inside diamond
-        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
         this.ctx.font = 'bold 10px Inter, system-ui, sans-serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
@@ -542,9 +546,10 @@ export class Renderer {
       // Draw task bar border
       if (isCritical) {
         // Critical path: red glow effect
-        this.ctx.shadowColor = '#ef4444';
+        // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
+        this.ctx.shadowColor = GANTT_COLORS.taskBar.criticalPath;
         this.ctx.shadowBlur = 8;
-        this.ctx.strokeStyle = '#ef4444';
+        this.ctx.strokeStyle = GANTT_COLORS.taskBar.criticalPath;
         this.ctx.lineWidth = 2;
       } else {
         this.ctx.strokeStyle = this.config.colors.taskBarBorder;
@@ -682,15 +687,16 @@ export class Renderer {
       // Gray = on schedule (within 1 day)
       // Green = ahead of schedule
       // Red = behind schedule
+      // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
       let baselineColor: string;
       if (Math.abs(startVariance) <= 1 && Math.abs(endVariance) <= 1) {
-        baselineColor = this.config.darkMode ? '#4b5563' : '#9ca3af'; // Gray - on track
+        baselineColor = this.config.darkMode ? TAILWIND_COLORS.gray[600] : TAILWIND_COLORS.gray[400]; // Gray - on track
       } else if (endVariance < -1) {
-        baselineColor = this.config.darkMode ? '#166534' : '#22c55e'; // Green - ahead
+        baselineColor = this.config.darkMode ? TAILWIND_COLORS.green[800] : TAILWIND_COLORS.green[500]; // Green - ahead
       } else if (endVariance > 1) {
-        baselineColor = this.config.darkMode ? '#991b1b' : '#ef4444'; // Red - behind
+        baselineColor = this.config.darkMode ? TAILWIND_COLORS.red[800] : TAILWIND_COLORS.red[500]; // Red - behind
       } else {
-        baselineColor = this.config.darkMode ? '#4b5563' : '#9ca3af'; // Gray - mixed
+        baselineColor = this.config.darkMode ? TAILWIND_COLORS.gray[600] : TAILWIND_COLORS.gray[400]; // Gray - mixed
       }
 
       // Draw baseline bar with pattern (diagonal stripes)
@@ -718,7 +724,8 @@ export class Renderer {
         const textY = baselineY + baselineHeight / 2;
 
         this.ctx.font = '9px Inter, system-ui, sans-serif';
-        this.ctx.fillStyle = endVariance > 0 ? '#ef4444' : '#22c55e';
+        // SSoT: Uses STATUS_COLORS from @/lib/constants/color-constants
+        this.ctx.fillStyle = endVariance > 0 ? STATUS_COLORS.danger : STATUS_COLORS.success;
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(varianceText, textX, textY);
@@ -736,8 +743,9 @@ export class Renderer {
     const offset = 6; // Distance from bar edge
     const centerY = barY + barHeight / 2;
 
-    this.ctx.fillStyle = '#3b82f6';
-    this.ctx.strokeStyle = '#3b82f6';
+    // SSoT: Uses STATUS_COLORS from @/lib/constants/color-constants
+    this.ctx.fillStyle = STATUS_COLORS.info;
+    this.ctx.strokeStyle = STATUS_COLORS.info;
     this.ctx.lineWidth = 2.5;
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
@@ -776,7 +784,8 @@ export class Renderer {
     const handleY = barTop - poleHeight; // Handle sits above bar
 
     const isActive = hoveredEdge === 'right';
-    const handleColor = isActive ? '#f59e0b' : '#94a3b8'; // Orange when active, gray otherwise
+    // SSoT: Uses TAILWIND_COLORS and STATUS_COLORS from @/lib/constants/color-constants
+    const handleColor = isActive ? STATUS_COLORS.warning : TAILWIND_COLORS.slate[400]; // Orange when active, gray otherwise
 
     // Draw pole
     this.ctx.strokeStyle = handleColor;
@@ -788,7 +797,7 @@ export class Renderer {
 
     // Draw handle (square with rounded corners for resize affordance)
     this.ctx.fillStyle = handleColor;
-    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.strokeStyle = GANTT_COLORS.taskBar.text;
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.roundRect(poleX - handleRadius, handleY - handleRadius, handleRadius * 2, handleRadius * 2, 3);
@@ -796,7 +805,7 @@ export class Renderer {
     this.ctx.stroke();
 
     // Draw resize arrows inside handle
-    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.strokeStyle = GANTT_COLORS.taskBar.text;
     this.ctx.lineWidth = 1.5;
     const arrowSize = 3;
     // Left arrow
@@ -843,28 +852,29 @@ export class Renderer {
     const barHeight = taskBarHeight;
 
     // Draw ghost of original position (same size as actual task)
+    // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
     this.ctx.globalAlpha = 0.3;
-    this.ctx.fillStyle = '#9ca3af';
+    this.ctx.fillStyle = TAILWIND_COLORS.gray[400];
     this.ctx.beginPath();
     this.ctx.roundRect(originalStartX, barY, originalWidth, barHeight, 4);
     this.ctx.fill();
     this.ctx.globalAlpha = 1;
 
     // Draw new position with highlight (same size as actual task)
-    this.ctx.fillStyle = '#3b82f6';
+    this.ctx.fillStyle = STATUS_COLORS.info;
     this.ctx.beginPath();
     this.ctx.roundRect(newStartX, barY, taskWidth, barHeight, 4);
     this.ctx.fill();
 
     // Draw border
-    this.ctx.strokeStyle = '#1d4ed8';
+    this.ctx.strokeStyle = TAILWIND_COLORS.blue[700];
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.roundRect(newStartX, barY, taskWidth, barHeight, 4);
     this.ctx.stroke();
 
     // Draw task name
-    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
     this.ctx.font = '11px Inter, system-ui, sans-serif';
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'middle';
@@ -919,7 +929,7 @@ export class Renderer {
     this.ctx.fill();
 
     // Draw tooltip lines
-    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'middle';
     lines.forEach((line, i) => {
@@ -964,8 +974,9 @@ export class Renderer {
     const barHeight = taskBarHeight;
 
     // Draw ghost of original position (same size as actual task)
+    // SSoT: Uses TAILWIND_COLORS and STATUS_COLORS from @/lib/constants/color-constants
     this.ctx.globalAlpha = 0.3;
-    this.ctx.fillStyle = '#9ca3af';
+    this.ctx.fillStyle = TAILWIND_COLORS.gray[400];
     this.ctx.beginPath();
     this.ctx.roundRect(originalStartX, barY, originalWidth, barHeight, 4);
     this.ctx.fill();
@@ -973,20 +984,20 @@ export class Renderer {
 
     // Draw new position with highlight (green for expand, orange for shrink)
     const isExpanding = taskWidth > originalWidth;
-    this.ctx.fillStyle = isExpanding ? '#22c55e' : '#f59e0b';
+    this.ctx.fillStyle = isExpanding ? STATUS_COLORS.success : STATUS_COLORS.warning;
     this.ctx.beginPath();
     this.ctx.roundRect(newStartX, barY, taskWidth, barHeight, 4);
     this.ctx.fill();
 
     // Draw border
-    this.ctx.strokeStyle = isExpanding ? '#16a34a' : '#d97706';
+    this.ctx.strokeStyle = isExpanding ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.amber[600];
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.roundRect(newStartX, barY, taskWidth, barHeight, 4);
     this.ctx.stroke();
 
     // Draw task name
-    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
     this.ctx.font = '11px Inter, system-ui, sans-serif';
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'middle';
@@ -1026,7 +1037,7 @@ export class Renderer {
       this.ctx.fill();
 
       // Tooltip text
-      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
       this.ctx.font = 'bold 11px Inter, system-ui, sans-serif';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
@@ -1060,8 +1071,9 @@ export class Renderer {
     const fromX = fromEdge === 'start' ? startX : startX + taskWidth;
 
     // Draw line with animated dashes
+    // SSoT: Uses STATUS_COLORS from @/lib/constants/color-constants
     this.ctx.setLineDash([5, 3]);
-    this.ctx.strokeStyle = '#3b82f6';
+    this.ctx.strokeStyle = STATUS_COLORS.info;
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.moveTo(fromX, centerY);
@@ -1070,8 +1082,8 @@ export class Renderer {
     this.ctx.setLineDash([]);
 
     // Draw source connector (pulsing)
-    this.ctx.fillStyle = '#3b82f6';
-    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.fillStyle = STATUS_COLORS.info;
+    this.ctx.strokeStyle = GANTT_COLORS.taskBar.text;
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.arc(fromX, centerY, 7, 0, Math.PI * 2);
@@ -1092,8 +1104,8 @@ export class Renderer {
       const snapX = distToStart < distToEnd ? targetStartX : targetEndX;
 
       // Draw snap indicator
-      this.ctx.fillStyle = '#22c55e';
-      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.fillStyle = STATUS_COLORS.success;
+      this.ctx.strokeStyle = GANTT_COLORS.taskBar.text;
       this.ctx.lineWidth = 2;
       this.ctx.beginPath();
       this.ctx.arc(snapX, targetCenterY, 7, 0, Math.PI * 2);
@@ -1118,13 +1130,14 @@ export class Renderer {
    * Draw dependencies between tasks
    */
   // Dependency highlight colors (6-color palette as per spec)
+  // Uses CATEGORY_COLORS from color-constants.ts for consistency
   private static readonly DEPENDENCY_COLORS = [
-    '#f59e0b', // amber
-    '#3b82f6', // blue
-    '#8b5cf6', // purple
-    '#22c55e', // green
-    '#ec4899', // pink
-    '#06b6d4', // cyan
+    TAILWIND_COLORS.amber[500],  // amber
+    TAILWIND_COLORS.blue[500],   // blue
+    TAILWIND_COLORS.violet[500], // purple
+    TAILWIND_COLORS.green[500],  // green
+    TAILWIND_COLORS.pink[500],   // pink
+    TAILWIND_COLORS.cyan[500],   // cyan
   ];
 
   drawDependencies(
@@ -1196,7 +1209,7 @@ export class Renderer {
         // Check if this dependency is on the critical path
         const isCritical = criticalDependencyIds?.has(dep.id);
         if (isCritical) {
-          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, '#ef4444', tasks, from.index, to.index);
+          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, STATUS_COLORS.danger, tasks, from.index, to.index);
         } else {
           this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false, undefined, tasks, from.index, to.index);
         }
@@ -1222,11 +1235,11 @@ export class Renderer {
       // (but we still render highlighted ones for UX - user clicked on a task)
       if (!shouldRenderDep(from.index, to.index)) return;
 
-      // Predecessors: black/yellow stripes, Successors: black/white dashed
+      // Predecessors: black/yellow stripes, Successors: black/blue dashed
       if (isPredecessor) {
-        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#fbbf24', tasks, from.index, to.index);
+        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', TAILWIND_COLORS.amber[400], tasks, from.index, to.index);
       } else {
-        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#60a5fa', tasks, from.index, to.index);
+        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', TAILWIND_COLORS.blue[400], tasks, from.index, to.index);
       }
     });
 
@@ -1252,14 +1265,14 @@ export class Renderer {
         // Glow effect (pulses with flashPhase)
         const glowOpacity = 0.2 + flashPhase * 0.3;
         const glowColor = isPredecessor ? `rgba(251, 191, 36, ${glowOpacity})` : `rgba(200, 200, 200, ${glowOpacity})`;
-        this.ctx.shadowColor = isPredecessor ? '#fbbf24' : '#cccccc';
+        this.ctx.shadowColor = isPredecessor ? TAILWIND_COLORS.amber[400] : TAILWIND_COLORS.gray[400];
         this.ctx.shadowBlur = 4 + flashPhase * 6;
 
-        // Draw striped line - predecessors: black/yellow, successors: black/white
+        // Draw striped line - predecessors: black/yellow, successors: black/blue
         if (isPredecessor) {
-          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#fbbf24', tasks, from.index, to.index);
+          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', TAILWIND_COLORS.amber[400], tasks, from.index, to.index);
         } else {
-          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#60a5fa', tasks, from.index, to.index);
+          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', TAILWIND_COLORS.blue[400], tasks, from.index, to.index);
         }
 
         this.ctx.restore();
@@ -1326,24 +1339,24 @@ export class Renderer {
 
     // Priority order: Complete > Supplier Confirm > Confirm > Hold
 
-    // 1. Black for completed tasks (beats all)
+    // 1. Dark gray for completed tasks (beats all)
     if (task.rowData?.is_completed) {
-      return '#1f2937'; // Dark gray / near black
+      return TAILWIND_COLORS.gray[800]; // Dark gray / near black
     }
 
     // 2. Purple for supplier confirmed tasks (beats confirm and hold)
     if (task.rowData?.supplier_confirm) {
-      return '#8b5cf6'; // Purple - supplier confirmed
+      return TAILWIND_COLORS.violet[500]; // Purple - supplier confirmed
     }
 
     // 3. Green for confirmed tasks (beats hold)
     if (task.rowData?.confirm) {
-      return '#22c55e'; // Green - supervisor confirmed
+      return STATUS_COLORS.success; // Green - supervisor confirmed
     }
 
     // 4. Light brown for manually positioned (held) tasks
     if (task.rowData?.hold) {
-      return '#D4A574'; // Light brown / tan color
+      return '#D4A574'; // Light brown / tan - custom brand color for hold status
     }
 
     switch (task.status) {
@@ -1390,7 +1403,7 @@ export class Renderer {
     fromIndex?: number,
     toIndex?: number
   ): void {
-    const color = highlighted && highlightColor ? highlightColor : '#6b7280';
+    const color = highlighted && highlightColor ? highlightColor : TAILWIND_COLORS.gray[500];
     const lineWidth = highlighted ? 3 : 1.5;
 
     this.ctx.strokeStyle = color;
@@ -1428,7 +1441,7 @@ export class Renderer {
     this.drawArrowHead(toX, toY, toX > fromX ? 0 : Math.PI, color);
   }
 
-  private drawArrowHead(x: number, y: number, angle: number, color: string = '#6b7280'): void {
+  private drawArrowHead(x: number, y: number, angle: number, color: string = TAILWIND_COLORS.gray[500]): void {
     const size = 6;
 
     this.ctx.fillStyle = color;
@@ -1525,7 +1538,7 @@ export class Renderer {
     type: string
   ): void {
     const controlOffset = 20;
-    const color = '#ef4444'; // Red for broken
+    const color = STATUS_COLORS.danger; // Red for broken
     const lineWidth = 2;
 
     this.ctx.save();
@@ -1694,7 +1707,7 @@ export class Renderer {
     this.ctx.shadowOffsetX = 2;
     this.ctx.shadowOffsetY = 2;
 
-    this.ctx.fillStyle = this.config.darkMode ? '#1f2937' : '#ffffff';
+    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : '#ffffff';
     this.ctx.beginPath();
     this.ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 6);
     this.ctx.fill();
@@ -1706,12 +1719,12 @@ export class Renderer {
     this.ctx.shadowOffsetY = 0;
 
     // Draw border
-    this.ctx.strokeStyle = this.config.darkMode ? '#374151' : '#e5e7eb';
+    this.ctx.strokeStyle = this.config.darkMode ? TAILWIND_COLORS.gray[700] : TAILWIND_COLORS.gray[200];
     this.ctx.lineWidth = 1;
     this.ctx.stroke();
 
     // Draw text
-    this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#374151';
+    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[700];
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'top';
 
@@ -1742,13 +1755,13 @@ export class Renderer {
     const badgeY = this.config.headerHeight + 16;
 
     // Draw badge background
-    this.ctx.fillStyle = this.config.darkMode ? '#3b82f6' : '#2563eb';
+    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.blue[600];
     this.ctx.beginPath();
     this.ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 12);
     this.ctx.fill();
 
     // Draw text
-    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText(text, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
@@ -1803,7 +1816,7 @@ export class Renderer {
     this.ctx.shadowOffsetY = 4;
 
     // Draw menu background
-    this.ctx.fillStyle = this.config.darkMode ? '#1f2937' : '#ffffff';
+    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : '#ffffff';
     this.ctx.beginPath();
     this.ctx.roundRect(menuX, menuY, menuWidth, menuHeight, 8);
     this.ctx.fill();
@@ -1815,7 +1828,7 @@ export class Renderer {
     this.ctx.shadowOffsetY = 0;
 
     // Draw border
-    this.ctx.strokeStyle = this.config.darkMode ? '#374151' : '#e5e7eb';
+    this.ctx.strokeStyle = this.config.darkMode ? TAILWIND_COLORS.gray[700] : TAILWIND_COLORS.gray[200];
     this.ctx.lineWidth = 1;
     this.ctx.stroke();
 
@@ -1824,7 +1837,7 @@ export class Renderer {
     items.forEach(item => {
       if (item.separator) {
         // Draw separator line
-        this.ctx.strokeStyle = this.config.darkMode ? '#374151' : '#e5e7eb';
+        this.ctx.strokeStyle = this.config.darkMode ? TAILWIND_COLORS.gray[700] : TAILWIND_COLORS.gray[200];
         this.ctx.lineWidth = 1;
         this.ctx.beginPath();
         this.ctx.moveTo(menuX + padding, itemY + separatorHeight / 2);
@@ -1834,7 +1847,7 @@ export class Renderer {
       } else {
         // Draw hover background
         if (item.id === hoveredItemId && !item.disabled) {
-          this.ctx.fillStyle = this.config.darkMode ? '#374151' : '#f3f4f6';
+          this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[700] : TAILWIND_COLORS.gray[100];
           this.ctx.beginPath();
           this.ctx.roundRect(menuX + 4, itemY, menuWidth - 8, itemHeight, 4);
           this.ctx.fill();
@@ -1850,8 +1863,8 @@ export class Renderer {
         this.ctx.textBaseline = 'middle';
         if (item.icon) {
           this.ctx.fillStyle = item.disabled
-            ? (this.config.darkMode ? '#6b7280' : '#9ca3af')
-            : (this.config.darkMode ? '#e5e7eb' : '#374151');
+            ? (this.config.darkMode ? TAILWIND_COLORS.gray[500] : TAILWIND_COLORS.gray[400])
+            : (this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[700]);
           this.ctx.fillText(item.icon, iconX, itemY + itemHeight / 2);
         }
 
@@ -1859,8 +1872,8 @@ export class Renderer {
         if (item.label) {
           this.ctx.font = '13px Inter, system-ui, sans-serif';
           this.ctx.fillStyle = item.disabled
-            ? (this.config.darkMode ? '#6b7280' : '#9ca3af')
-            : (this.config.darkMode ? '#e5e7eb' : '#374151');
+            ? (this.config.darkMode ? TAILWIND_COLORS.gray[500] : TAILWIND_COLORS.gray[400])
+            : (this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[700]);
           this.ctx.fillText(item.label, textX, itemY + itemHeight / 2);
         }
 
@@ -1914,12 +1927,12 @@ export class Renderer {
     this.ctx.shadowBlur = 0;
 
     // Draw border
-    this.ctx.strokeStyle = this.config.darkMode ? '#4b5563' : '#d1d5db';
+    this.ctx.strokeStyle = this.config.darkMode ? TAILWIND_COLORS.gray[600] : TAILWIND_COLORS.gray[300];
     this.ctx.lineWidth = 1;
     this.ctx.stroke();
 
     // Draw "Minimap" label
-    this.ctx.fillStyle = this.config.darkMode ? '#9ca3af' : '#6b7280';
+    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[400] : TAILWIND_COLORS.gray[500];
     this.ctx.font = '10px Inter, system-ui, sans-serif';
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'top';
@@ -1969,7 +1982,7 @@ export class Renderer {
     const clampedVpHeight = Math.min(vpHeight, contentHeight);
 
     // Draw viewport rectangle
-    this.ctx.strokeStyle = this.config.darkMode ? '#60a5fa' : '#3b82f6';
+    this.ctx.strokeStyle = this.config.darkMode ? TAILWIND_COLORS.blue[400] : TAILWIND_COLORS.blue[500];
     this.ctx.lineWidth = 2;
     this.ctx.strokeRect(clampedVpX, clampedVpY, clampedVpWidth, clampedVpHeight);
 
@@ -2123,7 +2136,7 @@ export class Renderer {
     this.ctx.fillRect(left, top, width, height);
 
     // Draw border
-    this.ctx.strokeStyle = '#3b82f6'; // Blue border
+    this.ctx.strokeStyle = TAILWIND_COLORS.blue[500]; // Blue border
     this.ctx.lineWidth = 1;
     this.ctx.setLineDash([4, 2]); // Dashed line
     this.ctx.strokeRect(left, top, width, height);
@@ -2140,13 +2153,13 @@ export class Renderer {
       const badgeY = top - badgeHeight - 4;
 
       // Draw badge background
-      this.ctx.fillStyle = '#3b82f6';
+      this.ctx.fillStyle = TAILWIND_COLORS.blue[500];
       this.ctx.beginPath();
       this.ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 4);
       this.ctx.fill();
 
       // Draw badge text
-      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
@@ -2183,7 +2196,7 @@ export class Renderer {
 
     // Draw progress handle line
     const handleX = taskStartX + progressWidth;
-    this.ctx.strokeStyle = '#16a34a'; // Darker green
+    this.ctx.strokeStyle = TAILWIND_COLORS.green[600]; // Darker green
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.moveTo(handleX, barTop);
@@ -2200,13 +2213,13 @@ export class Renderer {
     const tooltipY = barTop - tooltipHeight - 4;
 
     // Draw tooltip background
-    this.ctx.fillStyle = '#1f2937';
+    this.ctx.fillStyle = TAILWIND_COLORS.gray[800];
     this.ctx.beginPath();
     this.ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 3);
     this.ctx.fill();
 
     // Draw tooltip text
-    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillStyle = GANTT_COLORS.taskBar.text;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillText(tooltipText, tooltipX + tooltipWidth / 2, tooltipY + tooltipHeight / 2);
