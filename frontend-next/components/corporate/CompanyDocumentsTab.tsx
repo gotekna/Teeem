@@ -33,6 +33,7 @@ import type { TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import type { CorporateCompany } from "@/lib/types/corporate";
+import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
 // Document interface for table
 interface CompanyDocument extends TableRow {
@@ -62,12 +63,7 @@ interface CompanyDocument extends TableRow {
   company_id?: number;
 }
 
-// Folder options for documents
-const DOCUMENT_FOLDER_OPTIONS = [
-  "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
-  "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
-  "LOANS", "MINUTES", "REGISTRY", "TRUST"
-];
+// SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
 // Document type options
 const DOCUMENT_TYPE_OPTIONS = [

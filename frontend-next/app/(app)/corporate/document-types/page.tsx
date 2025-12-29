@@ -37,8 +37,8 @@ const buildDocumentTypeColumns = (): TableColumn[] => [
   { key: "title_preview", label: "Title Preview", column_type: "single_line_text", resizable: true, sortable: false, filterable: false, width: 280 },
   { key: "file_extensions_display", label: "Extensions", column_type: "single_line_text", resizable: true, sortable: false, filterable: false, width: 120 },
   { key: "target_folder", label: "Target Folder", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, width: 140 },
-  { key: "primary_tab", label: "Primary Tab", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 120, choices: FOLDER_OPTIONS },
-  { key: "folder", label: "Folder", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 120, choices: FOLDER_OPTIONS },
+  { key: "primary_tab", label: "Primary Tab", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 120, choices: [...DOCUMENT_FOLDER_OPTIONS] },
+  { key: "folder", label: "Folder", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 120, choices: [...DOCUMENT_FOLDER_OPTIONS] },
   { key: "tabs_display", label: "All Tabs", column_type: "single_line_text", resizable: true, sortable: false, filterable: false, width: 200 },
   { key: "active", label: "Active", column_type: "boolean", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 70 },
   { key: "documents_count", label: "Docs", column_type: "whole_number", resizable: true, sortable: true, filterable: false, width: 60 }

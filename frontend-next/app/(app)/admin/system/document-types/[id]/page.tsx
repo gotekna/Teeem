@@ -185,13 +185,13 @@ export default function DocumentTypeDetailPage() {
           setFolderOptions(rootNames);
         } else {
           // Fallback to hard-coded list if API fails
-          setFolderOptions(FOLDER_OPTIONS);
+          setFolderOptions([...DOCUMENT_FOLDER_OPTIONS]);
           setFolderHierarchy([]);
         }
       } catch (error) {
         console.error("Failed to fetch folders:", error);
         // Fallback to hard-coded list if API fails
-        setFolderOptions(FOLDER_OPTIONS);
+        setFolderOptions([...DOCUMENT_FOLDER_OPTIONS]);
         setFolderHierarchy([]);
       }
     };

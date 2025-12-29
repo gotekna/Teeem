@@ -29,16 +29,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
+import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
 // SSoT: Use slug for Foundation lookup - numeric IDs differ per environment
 const DOCUMENT_TYPES_FOUNDATION_SLUG = "document-types";
 
-// Fallback folder options (used if API fails)
-const FOLDER_OPTIONS = [
-  "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
-  "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
-  "LOANS", "MINUTES", "REGISTRY", "TRUST"
-];
+// SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
 interface FolderOption {
   id: number;
@@ -611,7 +607,7 @@ export function DocumentTypesTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {FOLDER_OPTIONS.map(f => (
+                    {DOCUMENT_FOLDER_OPTIONS.map(f => (
                       <SelectItem key={f} value={f}>{f}</SelectItem>
                     ))}
                   </SelectContent>

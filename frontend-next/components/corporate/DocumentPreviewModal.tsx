@@ -37,24 +37,9 @@ import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { PDFEditor } from "@/components/ui/pdf-editor";
 import { ExcelViewer, ExcelViewerLoading, ExcelViewerError, type ExcelData } from "@/components/ui/excel-viewer";
 import { WordViewer, WordViewerLoading, WordViewerError, type WordData } from "@/components/ui/word-viewer";
+import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
-// Folder options for document organization
-const FOLDER_OPTIONS = [
-  "ADVICE",
-  "ASIC",
-  "ASSETS",
-  "ATO",
-  "BANK",
-  "COMPANY",
-  "DIVIDENDS",
-  "FINANCIALS",
-  "GENERAL",
-  "INSURANCE",
-  "LOANS",
-  "MINUTES",
-  "REGISTRY",
-  "TRUST",
-];
+// SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
 // Document type options mapped to folders/tabs
 const DOCUMENT_TYPE_BY_FOLDER: Record<string, { value: string; label: string; abbrev: string }[]> = {
@@ -1379,7 +1364,7 @@ export default function DocumentPreviewModal({
                         <SelectValue placeholder="Select..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {FOLDER_OPTIONS.map((folder) => (
+                        {DOCUMENT_FOLDER_OPTIONS.map((folder) => (
                           <SelectItem key={folder} value={folder}>{folder}</SelectItem>
                         ))}
                       </SelectContent>
