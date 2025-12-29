@@ -116,6 +116,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
@@ -2236,6 +2237,12 @@ export default function TeeemTableView({
           });
         }
 
+        // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+        // SSoT: records-cache.ts
+        if (effectiveFoundationId) {
+          clearCachedRecords(effectiveFoundationId);
+        }
+
         // Only refresh once after all updates
         // For autoFetch mode: trigger internal refresh
         // For manual mode: call parent's onRefresh callback
@@ -2247,6 +2254,10 @@ export default function TeeemTableView({
           for (const [key, value] of Object.entries(changes)) {
             await onRowUpdate(rowId, key, value);
           }
+        }
+        // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+        if (effectiveFoundationId) {
+          clearCachedRecords(effectiveFoundationId);
         }
         // After all updates via onRowUpdate, trigger internal refresh for autoFetch mode
         triggerAutoRefresh();
