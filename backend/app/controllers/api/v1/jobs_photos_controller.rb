@@ -12,7 +12,7 @@ module Api
       def index
         job_type_ids = params[:job_type_ids].presence
         status_ids = params[:status_ids].presence
-        photos_limit = (params[:limit] || 5).to_i.clamp(1, 10)
+        photos_limit = (params[:limit] || 10).to_i.clamp(1, 20)
 
         # Return empty if no job types selected
         if job_type_ids.blank?

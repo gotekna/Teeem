@@ -82,8 +82,8 @@ export default function JobPhotosPage() {
   const [lightboxPhotos, setLightboxPhotos] = useState<PhotoItem[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  // Calculate photos per job based on total job count
-  const photosPerJob = Math.max(1, Math.min(5, Math.floor(20 / Math.max(totalJobs, 1))));
+  // Calculate photos per job - more jobs = fewer photos per job
+  const photosPerJob = totalJobs <= 3 ? 10 : totalJobs <= 6 ? 7 : totalJobs <= 10 ? 5 : 3;
 
   // Load saved selections from localStorage
   const loadSaved = (key: string): number[] | null => {
@@ -341,19 +341,19 @@ export default function JobPhotosPage() {
                             {job.photos.length} photo{job.photos.length !== 1 ? "s" : ""}
                           </span>
                         </div>
-                        <div className="flex gap-2 flex-wrap">
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
                           {job.photos.map((photo, idx) => {
                             const isOld = photo.days_old !== null && photo.days_old > 3;
                             return (
                               <div
                                 key={photo.id}
-                                className="relative group cursor-pointer"
+                                className="relative group cursor-pointer aspect-square"
                                 onClick={() => handlePhotoClick(job.job_id)}
                                 onDoubleClick={() => handlePhotoExpand(job.photos, idx)}
                               >
                                 <div
                                   className={cn(
-                                    "w-24 h-24 rounded-lg overflow-hidden border-2 transition-all",
+                                    "w-full h-full rounded-lg overflow-hidden border-2 transition-all",
                                     isOld
                                       ? "border-red-500 dark:border-red-600"
                                       : "border-transparent hover:border-blue-500"
