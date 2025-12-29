@@ -803,6 +803,7 @@ export function ScheduleMasterTab() {
       order_time_days: fullRow.order_time_days,
       call_time_days: fullRow.call_time_days,
       linked_task_ids: fullRow.linked_task_ids,
+      allow_header: fullRow.allow_header,
       is_active: fullRow.is_active,
     });
     setShowEditSheet(true);

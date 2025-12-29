@@ -707,17 +707,29 @@ export default function TeeemTableView({
     fetchColumns();
   }, [effectiveFoundationId, columns]);
 
+  // Ref to hold current search value for use in auto-fetch refresh effect
+  // Initialized empty, updated by effect after search atom is declared
+  const searchRef = useRef<string>('');
+
   // Auto-fetch records when foundationIdNumeric is set AND entries not provided
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
+  // CRITICAL: Include search param to maintain filter state after refresh
   useEffect(() => {
     if (!useAutoFetch) return;
 
     const fetchInitialRecords = async () => {
       setIsLoadingMore(true);
       try {
+        // SSoT FIX: Include search term in refresh to maintain filter state
+        // Use ref to get current search value (avoids stale closure since search not in deps)
+        const currentSearch = searchRef.current;
+        const params: Record<string, string | number | boolean> = { limit: 100 };
+        if (currentSearch) {
+          params.search = currentSearch;
+        }
         const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
           `/api/v1/foundations/${effectiveFoundationId}/records`,
-          { params: { limit: 100 } }
+          { params }
         );
         setAutoFetchedRecords(response.records || []);
         setHasMore(response.has_more ?? true);
@@ -917,6 +929,9 @@ export default function TeeemTableView({
     setSearchAtom(newValue);
     onSearchChange?.(newValue);
   }, [search, setSearchAtom, onSearchChange]);
+
+  // Keep searchRef in sync for use in auto-fetch refresh effect (defined before search atom)
+  searchRef.current = search;
 
   // Initialize search from prop on mount (for URL-synced search)
   const hasInitializedSearchRef = useRef(false);

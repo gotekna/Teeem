@@ -343,17 +343,27 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Get category photos by filtering allFiles by folder_path (more efficient than separate API call)
   const categoryPhotoItems: PhotoItem[] = useMemo(() => {
     const activeCategory = selectedSubCategory || selectedCategory;
-    if (!activeCategory?.folder_path || !isPhotoCategory(activeCategory)) {
+    if (!isPhotoCategory(activeCategory)) {
       return [];
     }
 
-    const folderPath = activeCategory.folder_path;
-    // Filter allFiles to only those in this folder (or subfolders)
+    const categoryName = activeCategory?.name?.toLowerCase() || "";
+    const folderPath = activeCategory?.folder_path?.toLowerCase() || "";
+
+    // Filter allFiles to only those in this folder
     const photosInFolder = allFiles.filter((file) => {
       if (!isImageFile(file)) return false;
-      const fileFolderPath = file.folder_path || "";
-      // Match exact folder or subfolders (case-insensitive)
-      return fileFolderPath.toLowerCase().includes(folderPath.toLowerCase());
+      const fileFolderPath = (file.folder_path || "").toLowerCase();
+
+      // Match by multiple strategies (folder_path format varies):
+      // 1. File path contains category folder_path (e.g., "06 Photo/07 Supervisor Photos")
+      // 2. File path contains category name (e.g., "Supervisor" in "Photo/Supervisor")
+      // 3. Category folder_path contains file path (reverse match)
+      return (
+        (folderPath && fileFolderPath.includes(folderPath)) ||
+        (categoryName && fileFolderPath.includes(categoryName)) ||
+        (folderPath && folderPath.includes(fileFolderPath) && fileFolderPath.length > 0)
+      );
     });
 
     return photosInFolder.map(convertToPhotoItem);
@@ -449,10 +459,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       if (result.success) {
         setMessage({ type: "success", text: `Photo uploaded successfully!` });
 
-        // Refresh in background to get real SharePoint URLs
-        checkJobFolderStatus().then(() => {
-          URL.revokeObjectURL(blobUrl);
-        });
+        // Refresh file list in background to get real SharePoint URLs
+        // Wait a moment for SharePoint to index the file
+        setTimeout(() => {
+          loadAllFiles().then(() => {
+            URL.revokeObjectURL(blobUrl);
+          });
+        }, 2000);
       } else {
         throw new Error(result.error || "Upload failed");
       }
