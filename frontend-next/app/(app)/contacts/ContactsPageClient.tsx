@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import Link from "next/link";
 import { useAtomValue } from "jotai";
 import { Button } from "@/components/ui/button";
@@ -82,26 +83,20 @@ export default function ContactsPageClient({
   initialError,
 }: ContactsPageClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
   const { toast } = useToast();
 
-  // URL is SSoT for search (enables shareable filtered URLs)
-  const initialSearchFromUrl = searchParams.get("search") || undefined;
+  // SSoT: URL state managed by useUrlState hook
+  const [urlState, setUrlState] = useUrlState({
+    search: null as string | null,
+  });
 
-  // Update URL when search changes
-  // Use window.location.search directly to avoid stale closure issues with searchParams
+  // URL is SSoT for search (enables shareable filtered URLs)
+  const initialSearchFromUrl = urlState.search || undefined;
+
+  // Update URL when search changes (uses SSoT hook)
   const handleSearchChange = useCallback((term: string) => {
-    const params = new URLSearchParams(window.location.search);
-    if (term && term.trim()) {
-      params.set("search", term);
-    } else {
-      params.delete("search");
-    }
-    const queryString = params.toString();
-    const url = queryString ? `${pathname}?${queryString}` : pathname;
-    router.push(url, { scroll: false });
-  }, [pathname, router]);
+    setUrlState({ search: term && term.trim() ? term : null });
+  }, [setUrlState]);
 
   // Helper function to deduplicate records by ID (belt-and-suspenders approach)
   const deduplicateRecords = useCallback((recs: TTableRow[]) => {

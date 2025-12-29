@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useUrlState } from "@/hooks/useUrlState";
 import { PlusIcon, BanknotesIcon, CreditCardIcon } from "@heroicons/react/24/outline";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import TransactionForm from "@/components/financial/TransactionForm";
@@ -49,10 +49,14 @@ interface Summary {
 }
 
 export default function FinancialTransactionsPage() {
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
   const [activeTab, setActiveTab] = useUrlTabs("xero");
+
+  // SSoT: Modal state managed by useUrlState hook
+  const [urlState, setUrlState, clearUrlState] = useUrlState({
+    new: null as string | null,  // "income" | "expense"
+    edit: null as string | null, // transaction ID
+  });
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
@@ -64,24 +68,15 @@ export default function FinancialTransactionsPage() {
     net_profit: 0,
   });
 
-  // URL state helpers
-  const updateUrl = useCallback((params: URLSearchParams) => {
-    const queryString = params.toString();
-    const url = queryString ? `${pathname}?${queryString}` : pathname;
-    router.push(url, { scroll: false });
-  }, [pathname, router]);
-
+  // Clear modal URL params (uses SSoT hook)
   const clearModalUrl = useCallback(() => {
-    const params = new URLSearchParams(window.location.search);
-    params.delete("new");
-    params.delete("edit");
-    updateUrl(params);
-  }, [updateUrl]);
+    clearUrlState(["new", "edit"]);
+  }, [clearUrlState]);
 
   // Read URL params to open modal on mount/URL change
   useEffect(() => {
-    const newType = searchParams.get("new");
-    const editId = searchParams.get("edit");
+    const newType = urlState.new;
+    const editId = urlState.edit;
 
     if (newType === "income" || newType === "expense") {
       setTransactionType(newType);
@@ -100,7 +95,7 @@ export default function FinancialTransactionsPage() {
       setShowTransactionForm(false);
       setEditingTransaction(null);
     }
-  }, [searchParams, transactions]);
+  }, [urlState.new, urlState.edit, transactions]);
 
   useEffect(() => {
     fetchTransactions();
@@ -207,17 +202,11 @@ export default function FinancialTransactionsPage() {
   };
 
   const handleAddIncome = () => {
-    const params = new URLSearchParams(window.location.search);
-    params.set("new", "income");
-    params.delete("edit");
-    updateUrl(params);
+    setUrlState({ new: "income", edit: null });
   };
 
   const handleAddExpense = () => {
-    const params = new URLSearchParams(window.location.search);
-    params.set("new", "expense");
-    params.delete("edit");
-    updateUrl(params);
+    setUrlState({ new: "expense", edit: null });
   };
 
   const handleTransactionSuccess = async () => {

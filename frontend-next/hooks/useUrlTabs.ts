@@ -37,9 +37,10 @@ export function useUrlTabs(
   const activeTab = searchParams.get(paramName) || defaultTab;
 
   // Update URL when tab changes
+  // Uses window.location.search to avoid stale closure issues
   const setActiveTab = useCallback(
     (newTab: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
 
       if (newTab === defaultTab) {
         // Remove param if it's the default (cleaner URLs)
@@ -54,7 +55,7 @@ export function useUrlTabs(
 
       router.push(newUrl, { scroll: false });
     },
-    [router, searchParams, pathname, paramName, defaultTab]
+    [router, pathname, paramName, defaultTab]
   );
 
   return [activeTab, setActiveTab];
