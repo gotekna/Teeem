@@ -14,12 +14,12 @@ import type { TableRow } from "@/components/table/types";
 
 export default function PriceHistoriesPage() {
   // Use foundation hook for TeeemTableView with server-side stats
-  const { foundation, columns, records, originalRecords, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("price_histories");
+  const { foundation, columns, records, originalRecords, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("price-histories");
 
   // Handle row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/price_histories/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/price-histories/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();

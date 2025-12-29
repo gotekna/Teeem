@@ -11,17 +11,91 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Camera, RefreshCw, User, ChevronDown, ChevronRight } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY_TYPES = "job-photos-selected-job-types";
 const STORAGE_KEY_STATUSES = "job-photos-selected-statuses";
 const STORAGE_KEY_SUPERVISORS = "job-photos-selected-supervisors";
 
+// PhotoThumbnail with fallback - tries thumbnail_url first, falls back to proxy_url
+// SSoT: Same pattern as PhotoGallery component
+function PhotoThumbnailWithFallback({
+  photo,
+  onClick,
+  isOld,
+}: {
+  photo: { thumbnail_url: string; proxy_url: string; name: string; modified_at: string | null };
+  onClick: () => void;
+  isOld: boolean;
+}) {
+  const [useFallback, setUseFallback] = React.useState(false);
+  const [error, setError] = React.useState(false);
+
+  // Build full proxy URL with API base
+  const apiBase = getApiBaseUrl();
+  const fullProxyUrl = `${apiBase}${photo.proxy_url}`;
+
+  // Try thumbnail_url first, fall back to proxy_url if it fails
+  const imageSrc = useFallback ? fullProxyUrl : photo.thumbnail_url;
+
+  const handleError = () => {
+    if (!useFallback) {
+      // Thumbnail failed (likely expired), try proxy URL
+      setUseFallback(true);
+    } else {
+      // Both URLs failed
+      setError(true);
+    }
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "Unknown";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  };
+
+  return (
+    <div
+      className="relative cursor-pointer flex-shrink-0 w-32 h-32"
+      onClick={onClick}
+    >
+      <div
+        className={cn(
+          "w-full h-full rounded overflow-hidden border-2",
+          isOld
+            ? "border-red-500 dark:border-red-600"
+            : "border-transparent hover:border-blue-500"
+        )}
+      >
+        {error ? (
+          <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs">
+            Failed
+          </div>
+        ) : (
+          <img
+            src={imageSrc}
+            alt={photo.name}
+            className="w-full h-full object-cover"
+            onError={handleError}
+          />
+        )}
+      </div>
+      <div className={cn(
+        "absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center",
+        isOld ? "bg-red-500/90 text-white" : "bg-black/60 text-white"
+      )}>
+        {formatDate(photo.modified_at)}
+      </div>
+    </div>
+  );
+}
+
 interface Photo {
   id: number;
   name: string;
   thumbnail_url: string;
+  proxy_url: string;           // Backend proxy URL (always works, bypasses expired tokens)
   full_url: string | null;
   modified_at: string | null;
   days_old: number | null;
@@ -258,10 +332,11 @@ export default function JobPhotosPage() {
   };
 
   const handlePhotoExpand = (photos: Photo[], index: number) => {
+    const apiBase = getApiBaseUrl();
     setLightboxPhotos(photos.map(p => ({
       id: String(p.id),
       name: p.name,
-      url: p.full_url || p.thumbnail_url,
+      url: `${apiBase}${p.proxy_url}`,  // Use proxy URL for lightbox (always works)
       thumbnailUrl: p.thumbnail_url,
       modifiedAt: p.modified_at || undefined,
     })));
@@ -430,28 +505,12 @@ export default function JobPhotosPage() {
                             {job.photos.map((photo, idx) => {
                               const isOld = photo.days_old !== null && photo.days_old > 3;
                               return (
-                                <div
+                                <PhotoThumbnailWithFallback
                                   key={photo.id}
-                                  className="relative cursor-pointer flex-shrink-0 w-32 h-32"
+                                  photo={photo}
                                   onClick={() => handlePhotoExpand(job.photos, idx)}
-                                >
-                                  <div
-                                    className={cn(
-                                      "w-full h-full rounded overflow-hidden border-2",
-                                      isOld
-                                        ? "border-red-500 dark:border-red-600"
-                                        : "border-transparent hover:border-blue-500"
-                                    )}
-                                  >
-                                    <img src={photo.thumbnail_url} alt={photo.name} className="w-full h-full object-cover" />
-                                  </div>
-                                  <div className={cn(
-                                    "absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center",
-                                    isOld ? "bg-red-500/90 text-white" : "bg-black/60 text-white"
-                                  )}>
-                                    {formatDate(photo.modified_at)}
-                                  </div>
-                                </div>
+                                  isOld={isOld}
+                                />
                               );
                             })}
                           </div>

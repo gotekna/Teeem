@@ -594,7 +594,7 @@ export function ScheduleMasterTab() {
     try {
       // Query sm_schedule_master rows where allow_header = true (the ones that CAN be headers)
       const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
-        "/api/v1/foundations/sm_schedule_master/records?per_page=100&filters=" + encodeURIComponent(JSON.stringify([
+        "/api/v1/foundations/sm-schedule-master/records?per_page=100&filters=" + encodeURIComponent(JSON.stringify([
           { column: "allow_header", operator: "equals", value: "true" }
         ]))
       );
@@ -1496,7 +1496,7 @@ export function ScheduleMasterTab() {
 
             <TeeemTableView
               key={`${dataViewRefreshKey}-${dataViewTemplateId}-${selectedTagFilter}`}
-              foundationId="sm_schedule_master"
+              foundationId="sm-schedule-master"
               tableName={dataViewTemplateId
                 ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
                 : "PO Schedule Master"

@@ -636,7 +636,7 @@ export function DocumentTypesTab() {
 
       {/* Table - SSoT: Use slug, TeeemTableView resolves numeric ID */}
       <TeeemTableView
-          foundationId="document-types"
+          foundationId="document_types"
           tableName={`Document Types (${filteredDocTypes.length}${scopeFilter !== "all" ? ` - ${scopeFilter}` : ""})`}
           entries={filteredDocTypes}
           // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)

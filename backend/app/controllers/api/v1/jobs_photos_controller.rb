@@ -67,10 +67,14 @@ module Api
             start_date: job.start_date&.iso8601,
             pc_date: job.practical_completion_date&.iso8601,
             photos: photos.map do |photo|
+              # Build proxy URL for fetching image through backend (bypasses CORS and expired tokens)
+              # SSoT: Same pattern as organization_sharepoint#download
+              proxy_url = "/api/v1/organization_onedrive/download?file_id=#{photo.sharepoint_item_id}&preview=true"
               {
                 id: photo.id,
                 name: photo.file_name,
-                thumbnail_url: photo.thumbnail_url,
+                thumbnail_url: photo.thumbnail_url,  # Graph API thumbnail (may expire)
+                proxy_url: proxy_url,                 # Backend proxy (always works)
                 full_url: photo.web_url,
                 modified_at: photo.last_modified_at&.iso8601,
                 days_old: photo.last_modified_at ? ((Time.current - photo.last_modified_at) / 1.day).to_i : nil
