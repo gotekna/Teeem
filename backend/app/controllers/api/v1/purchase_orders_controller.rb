@@ -9,7 +9,7 @@ module Api
         @purchase_orders = PurchaseOrder.includes(
           :supplier,
           :job,
-          :sm_task,  # SSoT: SmTask is THE ONE task system (singular - belongs_to)
+          :sm_task,  # SSoT: SmTask is THE ONE task system (belongs_to association)
           line_items: :pricebook_item
         ).all
 
@@ -79,15 +79,17 @@ module Api
       def show
         company_setting = CorporateCompanySetting.instance
 
+        # Build sm_tasks array for frontend (backwards compatibility)
+        sm_tasks_json = @purchase_order.sm_tasks.map do |task|
+          task.as_json(methods: [ :materials_status ])
+        end
+
         render json: {
           **@purchase_order.as_json(
             include: {
               supplier: { methods: [ :display_name ] },
               job: {
                 methods: [ :site_supervisor_info ]
-              },
-              sm_task: {  # SSoT: SmTask is THE ONE task system (singular - belongs_to)
-                methods: [ :materials_status ]
               },
               line_items: {
                 include: { pricebook_item: { methods: [ :active_price ] } },
@@ -99,6 +101,7 @@ module Api
             },
             methods: [ :timing_warnings, :delivery_aligned_with_tasks? ]
           ),
+          sm_tasks: sm_tasks_json,  # SSoT: Backwards-compatible array format for frontend
           company_setting: company_setting.as_json
         }
       end

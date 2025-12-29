@@ -28,6 +28,11 @@ class PurchaseOrder < ApplicationRecord
   # No reverse column on SmTask - use sm_task.linked_purchase_order for reverse lookup
   belongs_to :sm_task, class_name: "SmTask", optional: true
 
+  # Backwards compatibility: Frontend expects sm_tasks array
+  def sm_tasks
+    sm_task ? [sm_task] : []
+  end
+
   # SSoT: PO Task name - used by Foundation column display
   def po_task_name
     sm_task&.name
