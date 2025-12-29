@@ -270,6 +270,17 @@ module Api
                   value_required = !%w[is_null is_not_null is_empty is_not_empty].include?(operator)
                   next if value_required && !value.present?
 
+                  # Convert boolean string values ("Yes"/"No") to actual booleans
+                  # This handles the case where frontend dropdowns send "Yes"/"No" for boolean columns
+                  col_def = @foundation.columns.find_by(column_name: column)
+                  if col_def&.column_type == "boolean" && value.is_a?(String)
+                    value = case value.downcase
+                            when "yes", "true", "1" then true
+                            when "no", "false", "0" then false
+                            else value
+                            end
+                  end
+
                   case operator
                   when "="
                     query = query.where(column => value)
