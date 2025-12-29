@@ -4815,41 +4815,35 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* ULTRA Solution: Active filters indicator with locked/clearable states */}
-      {/* Show when filters exist AND (no view active OR base filters exist) */}
-      {(safeFilters.length > 0 && !activeViewId) || baseFilters.length > 0 ? (
+      {/* ULTRA Solution: Active filters indicator - only show USER filters, not base/contextual filters */}
+      {/* Base filters (e.g., job scope) are applied but hidden from UI since they're contextual */}
+      {hasUserFilters ? (
         <div className="flex items-center gap-2 flex-wrap px-4">
           <span className="text-[11px] text-muted-foreground">Active filters:</span>
-          {/* Render merged filters with source-awareness */}
-          {mergedFilters.map((filter) => {
-            const col = COLUMNS.find((c) => c.key === filter.column);
-            const isLocked = filter.locked || filter.source === 'base';
-            return (
-              <Badge
-                key={filter.id}
-                variant={isLocked ? "outline" : "secondary"}
-                className={cn(
-                  "gap-1",
-                  isLocked
-                    ? "border-dashed bg-muted/30 cursor-default"
-                    : "cursor-pointer hover:bg-secondary/80"
-                )}
-                onClick={isLocked ? undefined : () => setShowGlobalViewsManager(true)}
-                title={isLocked ? "Base filter (cannot be cleared)" : "Click to edit filters"}
-              >
-                {isLocked && <Pin className="h-3 w-3 text-muted-foreground" />}
-                {/* Use friendly label if provided, otherwise show raw filter details */}
-                {filter.label ? (
-                  filter.label
-                ) : (
-                  <>
-                    {col?.label || filter.column}{" "}
-                    {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
-                    {!["is_empty", "is_not_empty"].includes(filter.operator) &&
-                      `"${filter.value}"`}
-                  </>
-                )}
-                {!isLocked && (
+          {/* Only render user-clearable filters (not base/locked filters) */}
+          {mergedFilters
+            .filter((f) => !f.locked && f.source !== 'base')
+            .map((filter) => {
+              const col = COLUMNS.find((c) => c.key === filter.column);
+              return (
+                <Badge
+                  key={filter.id}
+                  variant="secondary"
+                  className="gap-1 cursor-pointer hover:bg-secondary/80"
+                  onClick={() => setShowGlobalViewsManager(true)}
+                  title="Click to edit filters"
+                >
+                  {/* Use friendly label if provided, otherwise show raw filter details */}
+                  {filter.label ? (
+                    filter.label
+                  ) : (
+                    <>
+                      {col?.label || filter.column}{" "}
+                      {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
+                      {!["is_empty", "is_not_empty"].includes(filter.operator) &&
+                        `"${filter.value}"`}
+                    </>
+                  )}
                   <X
                     className="h-3 w-3 text-muted-foreground hover:text-foreground ml-1"
                     onClick={(e) => {
@@ -4857,10 +4851,9 @@ export default function TeeemTableView({
                       handleRemoveFilter(filter.id);
                     }}
                   />
-                )}
-              </Badge>
-            );
-          })}
+                </Badge>
+              );
+            })}
           {/* Only show "Clear all" if there are user-clearable filters */}
           {hasUserFilters && (
             <Button

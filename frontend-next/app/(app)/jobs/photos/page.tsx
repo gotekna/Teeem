@@ -8,12 +8,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { type PhotoItem } from "@/components/ui/photo-gallery";
+import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { Badge } from "@/components/ui/badge";
 import { Camera, RefreshCw, User } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "job-photos-selected-job-types";
+const STORAGE_KEY_TYPES = "job-photos-selected-job-types";
+const STORAGE_KEY_STATUSES = "job-photos-selected-statuses";
 
 interface Photo {
   id: number;
@@ -52,6 +54,16 @@ interface JobTypesResponse {
   data: JobType[];
 }
 
+interface JobStatus {
+  id: number;
+  name: string;
+}
+
+interface StatusesResponse {
+  success: boolean;
+  data: JobStatus[];
+}
+
 export default function JobPhotosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -59,6 +71,9 @@ export default function JobPhotosPage() {
   const [allJobTypes, setAllJobTypes] = useState<JobType[]>([]);
   const [selectedJobTypeIds, setSelectedJobTypeIds] = useState<number[]>([]);
   const [typesInitialized, setTypesInitialized] = useState(false);
+  const [allStatuses, setAllStatuses] = useState<JobStatus[]>([]);
+  const [selectedStatusIds, setSelectedStatusIds] = useState<number[]>([]);
+  const [statusesInitialized, setStatusesInitialized] = useState(false);
   const [data, setData] = useState<SupervisorGroup>({});
   const [totalJobs, setTotalJobs] = useState(0);
 
@@ -70,69 +85,99 @@ export default function JobPhotosPage() {
   // Calculate photos per job based on total job count
   const photosPerJob = Math.max(1, Math.min(5, Math.floor(20 / Math.max(totalJobs, 1))));
 
-  // Load saved job types from localStorage
-  const loadSavedJobTypes = (): number[] | null => {
+  // Load saved selections from localStorage
+  const loadSaved = (key: string): number[] | null => {
     if (typeof window === "undefined") return null;
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(key);
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   };
 
-  // Save job types to localStorage
-  const saveJobTypes = (typeIds: number[]) => {
+  // Save selections to localStorage
+  const saveSelection = (key: string, ids: number[]) => {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(typeIds));
+      localStorage.setItem(key, JSON.stringify(ids));
     } catch {
       // Ignore storage errors
     }
   };
 
-  // Load available job types
+  // Load available job types and statuses
   useEffect(() => {
-    const loadJobTypes = async () => {
+    const loadFilters = async () => {
       try {
-        const response = await api.get<JobTypesResponse>("/api/v1/jobs_photos/job_types");
-        if (response?.success) {
-          setAllJobTypes(response.data);
-
-          // Try to load saved selection, default to all selected
-          const saved = loadSavedJobTypes();
-          if (saved && saved.length > 0) {
-            // Filter saved types to only include valid ones
-            const validIds = response.data.map(t => t.id);
-            const validSaved = saved.filter(id => validIds.includes(id));
+        // Load job types
+        const typesResponse = await api.get<JobTypesResponse>("/api/v1/jobs_photos/job_types");
+        if (typesResponse?.success) {
+          setAllJobTypes(typesResponse.data);
+          const savedTypes = loadSaved(STORAGE_KEY_TYPES);
+          if (savedTypes && savedTypes.length > 0) {
+            const validIds = typesResponse.data.map(t => t.id);
+            const validSaved = savedTypes.filter(id => validIds.includes(id));
             setSelectedJobTypeIds(validSaved.length > 0 ? validSaved : validIds);
           } else {
-            // Default to all selected
-            setSelectedJobTypeIds(response.data.map(t => t.id));
+            setSelectedJobTypeIds(typesResponse.data.map(t => t.id));
           }
           setTypesInitialized(true);
         }
+
+        // Load statuses
+        const statusesResponse = await api.get<StatusesResponse>("/api/v1/jobs_photos/statuses");
+        if (statusesResponse?.success) {
+          setAllStatuses(statusesResponse.data);
+          const savedStatuses = loadSaved(STORAGE_KEY_STATUSES);
+          if (savedStatuses && savedStatuses.length > 0) {
+            const validIds = statusesResponse.data.map(s => s.id);
+            const validSaved = savedStatuses.filter(id => validIds.includes(id));
+            setSelectedStatusIds(validSaved.length > 0 ? validSaved : validIds);
+          } else {
+            setSelectedStatusIds(statusesResponse.data.map(s => s.id));
+          }
+          setStatusesInitialized(true);
+        }
       } catch (err) {
-        console.error("Failed to load job types:", err);
+        console.error("Failed to load filters:", err);
       }
     };
-    loadJobTypes();
+    loadFilters();
   }, []);
 
-  // Toggle job type selection and save
-  const toggleJobType = (typeId: number) => {
-    setSelectedJobTypeIds(prev => {
-      const newSelection = prev.includes(typeId)
-        ? prev.filter(id => id !== typeId)
-        : [...prev, typeId];
-      saveJobTypes(newSelection);
+  // Convert job types to MultipleSelector options
+  const jobTypeOptions: Option[] = allJobTypes.map(t => ({
+    value: String(t.id),
+    label: t.name,
+  }));
+
+  // Get selected options for MultipleSelector
+  const selectedOptions: Option[] = selectedJobTypeIds
+    .map(id => jobTypeOptions.find(o => o.value === String(id)))
+    .filter((o): o is Option => o !== undefined);
+
+  // Handle job type selection change from MultipleSelector
+  const handleJobTypeChange = (options: Option[]) => {
+    const newIds = options.map(o => Number(o.value));
+    setSelectedJobTypeIds(newIds);
+    saveSelection(STORAGE_KEY_TYPES, newIds);
+  };
+
+  // Toggle status selection
+  const toggleStatus = (statusId: number) => {
+    setSelectedStatusIds(prev => {
+      const newSelection = prev.includes(statusId)
+        ? prev.filter(id => id !== statusId)
+        : [...prev, statusId];
+      saveSelection(STORAGE_KEY_STATUSES, newSelection);
       return newSelection;
     });
   };
 
   // Load photos data
   const loadPhotos = useCallback(async () => {
-    if (!typesInitialized || selectedJobTypeIds.length === 0) {
+    if (!typesInitialized || !statusesInitialized || selectedJobTypeIds.length === 0 || selectedStatusIds.length === 0) {
       setData({});
       setTotalJobs(0);
       setLoading(false);
@@ -143,7 +188,8 @@ export default function JobPhotosPage() {
     setError(null);
     try {
       const typeParams = selectedJobTypeIds.map(id => `job_type_ids[]=${id}`).join("&");
-      const url = `/api/v1/jobs_photos?${typeParams}&limit=${photosPerJob}`;
+      const statusParams = selectedStatusIds.map(id => `status_ids[]=${id}`).join("&");
+      const url = `/api/v1/jobs_photos?${typeParams}&${statusParams}&limit=${photosPerJob}`;
       const response = await api.get<JobsPhotosResponse>(url);
       if (response?.success) {
         setData(response.data.supervisors);
@@ -157,7 +203,7 @@ export default function JobPhotosPage() {
     } finally {
       setLoading(false);
     }
-  }, [typesInitialized, selectedJobTypeIds, photosPerJob]);
+  }, [typesInitialized, statusesInitialized, selectedJobTypeIds, selectedStatusIds, photosPerJob]);
 
   useEffect(() => {
     loadPhotos();
@@ -205,27 +251,17 @@ export default function JobPhotosPage() {
             Refresh
           </Button>
         </div>
-        {/* Job Type Toggle Buttons */}
+        {/* Job Type Multi-Select Dropdown */}
         {allJobTypes.length > 0 && (
-          <div className="px-4 pb-3 flex flex-wrap gap-2">
-            {allJobTypes.map((jobType) => {
-              const isSelected = selectedJobTypeIds.includes(jobType.id);
-              return (
-                <Badge
-                  key={jobType.id}
-                  variant={isSelected ? "default" : "outline"}
-                  className={cn(
-                    "cursor-pointer transition-colors px-3 py-1",
-                    isSelected
-                      ? "bg-blue-600 hover:bg-blue-700 text-white"
-                      : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                  )}
-                  onClick={() => toggleJobType(jobType.id)}
-                >
-                  {jobType.name}
-                </Badge>
-              );
-            })}
+          <div className="px-4 pb-3">
+            <MultipleSelector
+              value={selectedOptions}
+              options={jobTypeOptions}
+              onChange={handleSelectionChange}
+              placeholder="Select house types..."
+              hidePlaceholderWhenSelected
+              className="max-w-md"
+            />
           </div>
         )}
       </div>

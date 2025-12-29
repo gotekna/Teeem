@@ -7,9 +7,11 @@ module Api
       # Returns jobs with their latest photos, grouped by supervisor
       # Params:
       #   - job_type_ids[]: array of job type IDs to filter by (required)
+      #   - status_ids[]: array of status IDs to filter by (optional, defaults to all non-lost)
       #   - limit: max photos per job (default: 5)
       def index
         job_type_ids = params[:job_type_ids].presence
+        status_ids = params[:status_ids].presence
         photos_limit = (params[:limit] || 5).to_i.clamp(1, 10)
 
         # Return empty if no job types selected
@@ -23,12 +25,17 @@ module Api
           }
         end
 
-        # Get Active status for filtering
-        active_status = JobStatus.find_by(name: "Active")
+        # Build status filter - use provided IDs or default to all non-lost statuses
+        if status_ids.present?
+          status_filter = status_ids
+        else
+          # Default: all statuses except those with "lost" in the name
+          status_filter = JobStatus.where.not("LOWER(name) LIKE ?", "%lost%").pluck(:id)
+        end
 
-        # Get jobs with the given job types (Active jobs only)
+        # Get jobs with the given job types and statuses
         jobs = Job.includes(:job_status, :job_type)
-                  .where(job_status: active_status)
+                  .where(job_status_id: status_filter)
                   .where(job_type_id: job_type_ids)
                   .where.not(site_supervisor_name: [nil, ""])
                   .order(:site_supervisor_name, :name)
@@ -86,6 +93,16 @@ module Api
       def job_types
         types = JobType.order(:name).select(:id, :name).map { |t| { id: t.id, name: t.name } }
         render json: { success: true, data: types }
+      end
+
+      # GET /api/v1/jobs_photos/statuses
+      # Returns available job statuses for the filter (excludes "lost" statuses)
+      def statuses
+        statuses = JobStatus.where.not("LOWER(name) LIKE ?", "%lost%")
+                            .order(:name)
+                            .select(:id, :name)
+                            .map { |s| { id: s.id, name: s.name } }
+        render json: { success: true, data: statuses }
       end
     end
   end
