@@ -33,6 +33,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 // Plan configuration components (SSoT: Plans config moved from separate tab)
 import {
   CategoriesSection as PlanCategoriesSection,
@@ -718,16 +726,16 @@ export function EntityTabsConfig({
             depth === 1 && "ml-26",
             depth >= 2 && "ml-36"
           )}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left py-1.5 px-3 font-medium text-muted-foreground w-20">CODE</th>
-                  <th className="text-left py-1.5 px-3 font-medium text-muted-foreground w-48">NAME</th>
-                  <th className="text-left py-1.5 px-3 font-medium text-muted-foreground">FILE NAME</th>
-                  <th className="text-left py-1.5 px-3 font-medium text-muted-foreground">DISPLAY NAME</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-sm">
+              <TableHeader>
+                <TableRow className="border-b bg-muted/50">
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-20">CODE</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-48">NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">FILE NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">DISPLAY NAME</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {tab.document_types.map((dt) => {
                   // Generate example using SSoT placeholders.ts
                   const applyReplacements = (str: string | undefined) => {
@@ -746,30 +754,30 @@ export function EntityTabsConfig({
                   return (
                     <React.Fragment key={dt.id}>
                       {/* Template row */}
-                      <tr
+                      <TableRow
                         className="border-b hover:bg-muted/50 cursor-pointer"
                         onDoubleClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
                       >
-                        <td className="py-1.5 px-3 font-mono text-xs">{dt.abbreviation || '—'}</td>
-                        <td className="py-1.5 px-3">{dt.name}</td>
-                        <td className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.file_name || '—'}</td>
-                        <td className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.display_name || '—'}</td>
-                      </tr>
+                        <TableCell className="py-1.5 px-3 font-mono text-xs">{dt.abbreviation || '—'}</TableCell>
+                        <TableCell className="py-1.5 px-3">{dt.name}</TableCell>
+                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.file_name || '—'}</TableCell>
+                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.display_name || '—'}</TableCell>
+                      </TableRow>
                       {/* Example row with resolved values */}
-                      <tr
+                      <TableRow
                         className="border-b last:border-0 hover:bg-muted/50 cursor-pointer bg-green-50/50 dark:bg-green-900/10"
                         onDoubleClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
                       >
-                        <td className="py-1 px-3 text-xs text-green-600 dark:text-green-400">↳ eg.</td>
-                        <td className="py-1 px-3 text-xs text-muted-foreground italic"></td>
-                        <td className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleFileName}</td>
-                        <td className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleDisplayName}</td>
-                      </tr>
+                        <TableCell className="py-1 px-3 text-xs text-green-600 dark:text-green-400">↳ eg.</TableCell>
+                        <TableCell className="py-1 px-3 text-xs text-muted-foreground italic"></TableCell>
+                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleFileName}</TableCell>
+                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleDisplayName}</TableCell>
+                      </TableRow>
                     </React.Fragment>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
         {/* Expanded children */}

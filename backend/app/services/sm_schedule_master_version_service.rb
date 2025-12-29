@@ -2,19 +2,22 @@
 
 # SmScheduleMasterVersionService - Manage template versions
 #
-# Handles creating, publishing, and archiving template versions.
-# Ensures only one draft and one published version per template.
+# TRANSIENT DRAFT MODEL:
+# - Drafts are metadata-only (no row copying)
+# - Rows are edited directly on the template
+# - Publishing snapshots rows to the version
+# - Discarding just deletes the draft record
 #
 # Usage:
 #   service = SmScheduleMasterVersionService.new(template, user: current_user)
 #
-#   # Create a new draft (copies rows from published version)
+#   # Create a new draft (metadata only, no row copying)
 #   result = service.create_draft
 #
-#   # Publish the draft
+#   # Publish the draft (snapshots rows to this version)
 #   result = service.publish_draft(change_summary: "Added scaffold tasks")
 #
-#   # Discard the draft
+#   # Discard the draft (just deletes the record)
 #   result = service.discard_draft
 #
 class SmScheduleMasterVersionService
@@ -25,44 +28,44 @@ class SmScheduleMasterVersionService
     @user = user
   end
 
-  # Create a new draft version
-  # Copies rows from the current published version (if exists)
+  # Create a new draft version (transient - metadata only, no row copying)
   def create_draft
     return failure("Draft already exists") if template.draft_version.present?
 
-    ActiveRecord::Base.transaction do
-      draft = template.sm_schedule_master_versions.create!(
-        status: 'draft',
-        change_summary: nil
-      )
+    draft = template.sm_schedule_master_versions.create!(
+      status: 'draft',
+      change_summary: nil
+    )
 
-      # Copy rows from published version
-      if template.published_version.present?
-        copy_rows(from: template.published_version, to: draft)
-      end
-
-      success(
-        version: draft,
-        message: "Draft version #{draft.version_number} created",
-        rows_copied: draft.row_count
-      )
-    end
+    success(
+      version: draft,
+      message: "Draft version #{draft.version_number} created",
+      rows_copied: 0  # Transient draft - no rows copied
+    )
   rescue ActiveRecord::RecordInvalid => e
     failure("Failed to create draft: #{e.message}")
   end
 
-  # Publish the current draft
-  # Archives the previous published version
+  # Publish the current draft (transient model)
+  # - Archives the previous published version
+  # - Snapshots all template rows to this version
   def publish_draft(change_summary: nil)
     draft = template.draft_version
     return failure("No draft to publish") unless draft.present?
-    return failure("Draft has no rows") if draft.row_count.zero?
+
+    row_count = template.sm_schedule_master_rows.count
+    return failure("Template has no rows") if row_count.zero?
 
     ActiveRecord::Base.transaction do
       # Archive current published version
       if template.published_version.present?
         template.published_version.update!(status: 'archived')
       end
+
+      # Snapshot: Update all template rows to point to this version
+      template.sm_schedule_master_rows.update_all(
+        sm_schedule_master_version_id: draft.id
+      )
 
       # Publish the draft
       draft.update!(
@@ -75,27 +78,25 @@ class SmScheduleMasterVersionService
       success(
         version: draft,
         message: "Version #{draft.version_number} published",
-        row_count: draft.row_count
+        row_count: row_count
       )
     end
   rescue ActiveRecord::RecordInvalid => e
     failure("Failed to publish: #{e.message}")
   end
 
-  # Discard the current draft (delete it and its rows)
+  # Discard the current draft (transient model - just deletes the record)
+  # No rows are affected since drafts don't own rows
   def discard_draft
     draft = template.draft_version
     return failure("No draft to discard") unless draft.present?
 
-    ActiveRecord::Base.transaction do
-      row_count = draft.row_count
-      draft.destroy!
+    draft.destroy!
 
-      success(
-        message: "Draft discarded",
-        rows_deleted: row_count
-      )
-    end
+    success(
+      message: "Draft discarded",
+      rows_deleted: 0  # Transient draft - no rows deleted
+    )
   rescue ActiveRecord::RecordInvalid => e
     failure("Failed to discard draft: #{e.message}")
   end

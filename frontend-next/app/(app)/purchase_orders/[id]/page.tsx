@@ -1491,42 +1491,42 @@ export default function PurchaseOrderDetailPage() {
 
                   {/* Comparison Table */}
                   <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50">
-                        <tr>
-                          <th className="text-left p-3 font-medium">Field</th>
-                          <th className="text-left p-3 font-medium">PO Value</th>
-                          <th className="text-left p-3 font-medium">Task Value</th>
-                          <th className="text-center p-3 font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="border-t">
-                          <td className="p-3">Required Date</td>
-                          <td className="p-3">{formatDate(syncPreview.po.required_date)}</td>
-                          <td className="p-3">{formatDate(syncPreview.linked_tasks[0]?.start_date)}</td>
-                          <td className="p-3 text-center">
+                    <Table className="w-full text-sm">
+                      <TableHeader className="bg-muted/50">
+                        <TableRow>
+                          <TableHead className="text-left p-3 font-medium">Field</TableHead>
+                          <TableHead className="text-left p-3 font-medium">PO Value</TableHead>
+                          <TableHead className="text-left p-3 font-medium">Task Value</TableHead>
+                          <TableHead className="text-center p-3 font-medium">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow className="border-t">
+                          <TableCell className="p-3">Required Date</TableCell>
+                          <TableCell className="p-3">{formatDate(syncPreview.po.required_date)}</TableCell>
+                          <TableCell className="p-3">{formatDate(syncPreview.linked_tasks[0]?.start_date)}</TableCell>
+                          <TableCell className="p-3 text-center">
                             {syncPreview.linked_tasks[0]?.date_matches ? (
                               <CheckCircle2 className="h-5 w-5 text-green-600 inline" />
                             ) : (
                               <AlertTriangle className="h-5 w-5 text-amber-500 inline" />
                             )}
-                          </td>
-                        </tr>
-                        <tr className="border-t">
-                          <td className="p-3">Supplier</td>
-                          <td className="p-3">{syncPreview.po.supplier_name || "Not set"}</td>
-                          <td className="p-3">{syncPreview.linked_tasks[0]?.supplier_name || "Not set"}</td>
-                          <td className="p-3 text-center">
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="border-t">
+                          <TableCell className="p-3">Supplier</TableCell>
+                          <TableCell className="p-3">{syncPreview.po.supplier_name || "Not set"}</TableCell>
+                          <TableCell className="p-3">{syncPreview.linked_tasks[0]?.supplier_name || "Not set"}</TableCell>
+                          <TableCell className="p-3 text-center">
                             {syncPreview.linked_tasks[0]?.supplier_matches ? (
                               <CheckCircle2 className="h-5 w-5 text-green-600 inline" />
                             ) : (
                               <AlertTriangle className="h-5 w-5 text-amber-500 inline" />
                             )}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
                   </div>
 
                   {/* Sync Preview */}

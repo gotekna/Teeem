@@ -44,8 +44,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableColumn, TableRow } from "@/components/table/types";
+import type { TableColumn, TableRow as TeeemTableRow } from "@/components/table/types";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { FullHeightContainer, ScrollContent } from "@/components/ui/layout-containers";
 import dynamic from "next/dynamic";
@@ -331,48 +339,48 @@ function ShareholdersTable() {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b">
-            <th className="text-left py-2 px-3 font-medium">Shareholder</th>
-            <th className="text-left py-2 px-3 font-medium">Company</th>
-            <th className="text-right py-2 px-3 font-medium">Shares</th>
-            <th className="text-right py-2 px-3 font-medium">%</th>
-            <th className="text-left py-2 px-3 font-medium">Class</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="w-full text-sm">
+        <TableHeader>
+          <TableRow className="border-b">
+            <TableHead className="text-left py-2 px-3 font-medium">Shareholder</TableHead>
+            <TableHead className="text-left py-2 px-3 font-medium">Company</TableHead>
+            <TableHead className="text-right py-2 px-3 font-medium">Shares</TableHead>
+            <TableHead className="text-right py-2 px-3 font-medium">%</TableHead>
+            <TableHead className="text-left py-2 px-3 font-medium">Class</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {shareholdings.map((sh) => (
-            <tr key={sh.id} className="border-b hover:bg-muted/50">
-              <td className="py-2 px-3">
+            <TableRow key={sh.id} className="border-b hover:bg-muted/50">
+              <TableCell className="py-2 px-3">
                 <button
                   onClick={() => router.push(`/contacts/${sh.shareholder_id}`)}
                   className="text-amber-600 hover:text-amber-800 hover:underline"
                 >
                   {sh.shareholder_name}
                 </button>
-              </td>
-              <td className="py-2 px-3">
+              </TableCell>
+              <TableCell className="py-2 px-3">
                 <button
                   onClick={() => router.push(`/corporate/companies/${sh.company_id}`)}
                   className="text-blue-600 hover:text-blue-800 hover:underline"
                 >
                   {sh.company_name}
                 </button>
-              </td>
-              <td className="py-2 px-3 text-right font-mono">
+              </TableCell>
+              <TableCell className="py-2 px-3 text-right font-mono">
                 {sh.number_of_shares?.toLocaleString() || "—"}
-              </td>
-              <td className="py-2 px-3 text-right">
+              </TableCell>
+              <TableCell className="py-2 px-3 text-right">
                 {sh.percentage ? `${sh.percentage}%` : "—"}
-              </td>
-              <td className="py-2 px-3">
+              </TableCell>
+              <TableCell className="py-2 px-3">
                 {sh.share_class || "Ordinary"}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -428,44 +436,44 @@ function BeneficiariesTable() {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b">
-            <th className="text-left py-2 px-3 font-medium">Beneficiary</th>
-            <th className="text-left py-2 px-3 font-medium">Trust</th>
-            <th className="text-left py-2 px-3 font-medium">Type</th>
-            <th className="text-right py-2 px-3 font-medium">%</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="w-full text-sm">
+        <TableHeader>
+          <TableRow className="border-b">
+            <TableHead className="text-left py-2 px-3 font-medium">Beneficiary</TableHead>
+            <TableHead className="text-left py-2 px-3 font-medium">Trust</TableHead>
+            <TableHead className="text-left py-2 px-3 font-medium">Type</TableHead>
+            <TableHead className="text-right py-2 px-3 font-medium">%</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {beneficiaries.map((b) => (
-            <tr key={b.id} className="border-b hover:bg-muted/50">
-              <td className="py-2 px-3">
+            <TableRow key={b.id} className="border-b hover:bg-muted/50">
+              <TableCell className="py-2 px-3">
                 <button
                   onClick={() => router.push(`/contacts/${b.beneficiary_id}`)}
                   className="text-rose-600 hover:text-rose-800 hover:underline"
                 >
                   {b.beneficiary_name}
                 </button>
-              </td>
-              <td className="py-2 px-3">
+              </TableCell>
+              <TableCell className="py-2 px-3">
                 <button
                   onClick={() => router.push(`/corporate/companies/${b.trust_id}`)}
                   className="text-blue-600 hover:text-blue-800 hover:underline"
                 >
                   {b.trust_name}
                 </button>
-              </td>
-              <td className="py-2 px-3">
+              </TableCell>
+              <TableCell className="py-2 px-3">
                 {b.beneficiary_type || "—"}
-              </td>
-              <td className="py-2 px-3 text-right">
+              </TableCell>
+              <TableCell className="py-2 px-3 text-right">
                 {b.percentage ? `${b.percentage}%` : "—"}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -490,7 +498,7 @@ export default function CorporateDashboardPage() {
     criticalCompanies: 0,
   });
   const [upcomingCompliance, setUpcomingCompliance] = React.useState<ComplianceItem[]>([]);
-  const [companies, setCompanies] = React.useState<TableRow[]>([]);
+  const [companies, setCompanies] = React.useState<TeeemTableRow[]>([]);
 
   // Company groups state
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
@@ -504,9 +512,9 @@ export default function CorporateDashboardPage() {
   // NOTE: Structure tab state moved to CorporateStructureTab component
 
   // People tab state
-  const [people, setPeople] = React.useState<TableRow[]>([]);
+  const [people, setPeople] = React.useState<TeeemTableRow[]>([]);
   const [loadingPeople, setLoadingPeople] = React.useState(false);
-  const [fullScreenPerson, setFullScreenPerson] = React.useState<TableRow | null>(null);
+  const [fullScreenPerson, setFullScreenPerson] = React.useState<TeeemTableRow | null>(null);
   const [fullScreenPersonRoles, setFullScreenPersonRoles] = React.useState<Array<{
     type: string;
     company_id: number;
@@ -592,7 +600,7 @@ export default function CorporateDashboardPage() {
       setLoading(true);
 
       // Load companies - only those belonging to a Company Group (corporate entities)
-      const companiesResponse = await api.get<{ companies: TableRow[] }>("/api/v1/companies");
+      const companiesResponse = await api.get<{ companies: TeeemTableRow[] }>("/api/v1/companies");
       const allCompanies = companiesResponse.companies || [];
       // Filter to only show companies in a company group
       const companiesList = allCompanies.filter((c) => c.company_group_id != null);
@@ -718,7 +726,7 @@ export default function CorporateDashboardPage() {
       try {
         setLoadingPeople(true);
         // Get all people from all company groups (people who have memberships)
-        const allPeople: TableRow[] = [];
+        const allPeople: TeeemTableRow[] = [];
         const seenIds = new Set<number>();
 
         for (const group of groups) {
@@ -856,16 +864,16 @@ export default function CorporateDashboardPage() {
 
   // ===== HANDLERS =====
 
-  const handleEdit = async (entry: TableRow) => {
+  const handleEdit = async (entry: TeeemTableRow) => {
     try {
-      const response = await api.patch<{ company: TableRow }>(`/api/v1/companies/${entry.id}`, { company: entry });
+      const response = await api.patch<{ company: TeeemTableRow }>(`/api/v1/companies/${entry.id}`, { company: entry });
       setCompanies(companies.map((c) => (c.id === entry.id ? response.company : c)));
     } catch (err) {
       console.error("Failed to update company:", err);
     }
   };
 
-  const handleDelete = async (entry: TableRow) => {
+  const handleDelete = async (entry: TeeemTableRow) => {
     if (!confirm(`Delete company "${entry.name}"? This cannot be undone.`)) return;
 
     try {
@@ -1565,34 +1573,34 @@ export default function CorporateDashboardPage() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 px-3 font-medium">Name</th>
-                          <th className="text-left py-2 px-3 font-medium">Email</th>
-                          <th className="text-left py-2 px-3 font-medium">Roles</th>
-                          <th className="text-left py-2 px-3 font-medium">Company Groups</th>
-                          <th className="text-left py-2 px-3 font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    <Table className="w-full text-sm">
+                      <TableHeader>
+                        <TableRow className="border-b">
+                          <TableHead className="text-left py-2 px-3 font-medium">Name</TableHead>
+                          <TableHead className="text-left py-2 px-3 font-medium">Email</TableHead>
+                          <TableHead className="text-left py-2 px-3 font-medium">Roles</TableHead>
+                          <TableHead className="text-left py-2 px-3 font-medium">Company Groups</TableHead>
+                          <TableHead className="text-left py-2 px-3 font-medium">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {people.map((person) => {
                           const name = (person.display_name || person.name || "Unknown") as string;
                           const email = (person.email || "—") as string;
                           const membershipTypes = (person.membership_types || []) as string[];
                           const groupNames = (person.company_group_names || []) as string[];
                           return (
-                            <tr key={person.id} className="border-b hover:bg-muted/50">
-                              <td className="py-2 px-3">
+                            <TableRow key={person.id} className="border-b hover:bg-muted/50">
+                              <TableCell className="py-2 px-3">
                                 <div className="flex items-center gap-2">
                                   <Users className="h-4 w-4 text-teal-500" />
                                   <div className="font-medium">{name}</div>
                                 </div>
-                              </td>
-                              <td className="py-2 px-3 text-muted-foreground">
+                              </TableCell>
+                              <TableCell className="py-2 px-3 text-muted-foreground">
                                 {email}
-                              </td>
-                              <td className="py-2 px-3">
+                              </TableCell>
+                              <TableCell className="py-2 px-3">
                                 <div className="flex flex-wrap gap-1">
                                   {membershipTypes.map((type, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs">
@@ -1600,8 +1608,8 @@ export default function CorporateDashboardPage() {
                                     </Badge>
                                   ))}
                                 </div>
-                              </td>
-                              <td className="py-2 px-3">
+                              </TableCell>
+                              <TableCell className="py-2 px-3">
                                 <div className="flex flex-wrap gap-1">
                                   {groupNames.map((gn, idx) => (
                                     <Badge key={idx} variant="secondary" className="text-xs">
@@ -1609,8 +1617,8 @@ export default function CorporateDashboardPage() {
                                     </Badge>
                                   ))}
                                 </div>
-                              </td>
-                              <td className="py-2 px-3">
+                              </TableCell>
+                              <TableCell className="py-2 px-3">
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={() => setFullScreenPerson(person)}
@@ -1628,12 +1636,12 @@ export default function CorporateDashboardPage() {
                                     View
                                   </button>
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           );
                         })}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>
@@ -1760,21 +1768,21 @@ export default function CorporateDashboardPage() {
                           {entityTypeLabels[entityType]} ({contacts.length})
                         </h3>
                         <div className="overflow-x-auto border rounded-lg">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b bg-muted/30">
-                                <th className="text-left py-2 px-3 font-medium">Contact</th>
-                                <th className="text-left py-2 px-3 font-medium">Entity Type</th>
-                                <th className="text-left py-2 px-3 font-medium">Company</th>
-                                <th className="text-left py-2 px-3 font-medium">Membership</th>
-                                <th className="text-left py-2 px-3 font-medium">Group</th>
-                                <th className="text-left py-2 px-3 font-medium">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
+                          <Table className="w-full text-sm">
+                            <TableHeader>
+                              <TableRow className="border-b bg-muted/30">
+                                <TableHead className="text-left py-2 px-3 font-medium">Contact</TableHead>
+                                <TableHead className="text-left py-2 px-3 font-medium">Entity Type</TableHead>
+                                <TableHead className="text-left py-2 px-3 font-medium">Company</TableHead>
+                                <TableHead className="text-left py-2 px-3 font-medium">Membership</TableHead>
+                                <TableHead className="text-left py-2 px-3 font-medium">Group</TableHead>
+                                <TableHead className="text-left py-2 px-3 font-medium">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
                               {contacts.map(renderContactRow)}
-                            </tbody>
-                          </table>
+                            </TableBody>
+                          </Table>
                         </div>
                       </div>
                     );
@@ -1782,21 +1790,21 @@ export default function CorporateDashboardPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 px-3 font-medium">Contact</th>
-                        <th className="text-left py-2 px-3 font-medium">Entity Type</th>
-                        <th className="text-left py-2 px-3 font-medium">Company</th>
-                        <th className="text-left py-2 px-3 font-medium">Membership</th>
-                        <th className="text-left py-2 px-3 font-medium">Group</th>
-                        <th className="text-left py-2 px-3 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <Table className="w-full text-sm">
+                    <TableHeader>
+                      <TableRow className="border-b">
+                        <TableHead className="text-left py-2 px-3 font-medium">Contact</TableHead>
+                        <TableHead className="text-left py-2 px-3 font-medium">Entity Type</TableHead>
+                        <TableHead className="text-left py-2 px-3 font-medium">Company</TableHead>
+                        <TableHead className="text-left py-2 px-3 font-medium">Membership</TableHead>
+                        <TableHead className="text-left py-2 px-3 font-medium">Group</TableHead>
+                        <TableHead className="text-left py-2 px-3 font-medium">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {groupedByContact.map(renderContactRow)}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>

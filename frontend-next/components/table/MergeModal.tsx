@@ -27,7 +27,15 @@ interface MergeModalProps {
   displayColumn?: string; // Which column to show as the record title
   secondaryColumns?: string[]; // Additional columns to show as details
   entityName?: string; // e.g., "Job", "Contact", "Record"
-  onMergeComplete: (deletedIds: (string | number)[]) => void; // Pass back which IDs were deleted
+  onMergeComplete: (deletedIds: (string | number)[], primaryId?: string | number) => void; // Pass back which IDs were deleted
+
+  // Extension props for domain-specific customization
+  defaultPrimaryId?: string | number; // Pre-select a specific record as primary
+  headerContent?: React.ReactNode; // Content above the radio list (warnings, alerts)
+  footerContent?: React.ReactNode; // Content below radio list (preview, additional info)
+  renderRecordExtra?: (record: Record<string, unknown>, isPrimary: boolean) => React.ReactNode; // Extra content per record
+  onMerge?: (primaryId: string | number, secondaryIds: (string | number)[]) => Promise<void>; // Override default API call
+  additionalActions?: React.ReactNode; // Extra buttons in dialog footer
 }
 
 /**
@@ -46,9 +54,16 @@ export function MergeModal({
   secondaryColumns = [],
   entityName = "Record",
   onMergeComplete,
+  // Extension props
+  defaultPrimaryId,
+  headerContent,
+  footerContent,
+  renderRecordExtra,
+  onMerge,
+  additionalActions,
 }: MergeModalProps) {
   const [primaryId, setPrimaryId] = useState<string | number | null>(
-    selectedIds[0] ?? null
+    defaultPrimaryId ?? selectedIds[0] ?? null
   );
   const [merging, setMerging] = useState(false);
 
@@ -60,9 +75,9 @@ export function MergeModal({
   // Reset primary when modal opens with new selection
   useMemo(() => {
     if (open && selectedIds.length > 0 && !selectedIds.includes(primaryId as string | number)) {
-      setPrimaryId(selectedIds[0]);
+      setPrimaryId(defaultPrimaryId ?? selectedIds[0]);
     }
-  }, [open, selectedIds, primaryId]);
+  }, [open, selectedIds, primaryId, defaultPrimaryId]);
 
   const handleMergeConfirm = async () => {
     if (!primaryId) return;
@@ -80,18 +95,23 @@ export function MergeModal({
         return;
       }
 
-      // Call the generic merge API
-      await api.post(
-        `/api/v1/foundations/${foundationId}/records/${primaryId}/merge`,
-        { secondary_ids: secondaryIds }
-      );
+      // Use custom merge handler if provided, otherwise use generic Foundation API
+      if (onMerge) {
+        await onMerge(primaryId, secondaryIds);
+      } else {
+        // Call the generic merge API
+        await api.post(
+          `/api/v1/foundations/${foundationId}/records/${primaryId}/merge`,
+          { secondary_ids: secondaryIds }
+        );
+      }
 
       // Show success toast
       toast.success(`Merged ${secondaryIds.length + 1} ${entityName.toLowerCase()}s`);
 
       // Close modal and pass deleted IDs for optimistic update
       onOpenChange(false);
-      onMergeComplete(secondaryIds);
+      onMergeComplete(secondaryIds, primaryId);
     } catch (error) {
       console.error("Failed to merge records:", error);
       toast.error(`Failed to merge ${entityName.toLowerCase()}s. Please try again.`);
@@ -151,7 +171,10 @@ export function MergeModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-4">
+        <div className="py-4 space-y-4">
+          {/* Custom header content (warnings, alerts) */}
+          {headerContent}
+
           <Label className="text-sm font-medium mb-3 block">
             Select Primary {entityName} ({selectedRecords.length}{" "}
             {entityName.toLowerCase()}s selected)
@@ -213,13 +236,15 @@ export function MergeModal({
                         ))}
                       </div>
                     )}
+                    {/* Custom extra content per record */}
+                    {renderRecordExtra?.(record, String(primaryId) === String(recordId))}
                   </Label>
                 </div>
               );
             })}
           </RadioGroup>
 
-          {selectedRecords.length > 1 && primaryId && (
+          {selectedRecords.length > 1 && primaryId && !footerContent && (
             <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
               <p className="text-sm text-amber-800 dark:text-amber-200">
                 <strong>Warning:</strong> {selectedRecords.length - 1}{" "}
@@ -229,9 +254,14 @@ export function MergeModal({
               </p>
             </div>
           )}
+
+          {/* Custom footer content (preview, additional info) */}
+          {footerContent}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          {/* Additional custom actions */}
+          {additionalActions}
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

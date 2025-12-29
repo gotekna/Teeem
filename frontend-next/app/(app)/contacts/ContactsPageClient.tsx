@@ -7,12 +7,16 @@ import Link from "next/link";
 import { useAtomValue } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
+import { MergeModal } from "@/components/table/MergeModal";
 import { XeroLinkTransferModal } from "@/components/contacts/XeroLinkTransferModal";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { isPerson, isCompany, isTrust, canHaveEmployees, getEntityTypeBadge } from "@/lib/entity-types";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Check, Loader2, Mail, Phone, Building2, ExternalLink, Trash2, UserPlus, Plus, AlertTriangle, Table2, Network, Search } from "lucide-react";
 import ContactsRelationalView from "./ContactsRelationalView";
 import ContactRelationshipsExplorer from "./ContactRelationshipsExplorer";
-import { Plus, AlertTriangle, Table2, Network, Search } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -63,6 +67,39 @@ interface Foundation {
   id: number;
   name: string;
   slug: string;
+}
+
+// Helper functions for contact merge display (moved from MergeContactsModal)
+function getInitials(name: string | undefined | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function getCompletenessColor(score: number | undefined | null): string {
+  if (!score) return "text-gray-400";
+  if (score >= 80) return "text-green-600";
+  if (score >= 50) return "text-yellow-600";
+  return "text-red-600";
+}
+
+// Auto-select the best contact for merge (highest completeness, has Xero connection)
+function getBestPrimaryContact(contacts: Contact[]): number | undefined {
+  if (contacts.length === 0) return undefined;
+  const sorted = [...contacts].sort((a, b) => {
+    // Prefer contacts with Xero connection
+    const aXero = a.xero_id;
+    const bXero = b.xero_id;
+    if (aXero && !bXero) return -1;
+    if (!aXero && bXero) return 1;
+    // Then by completeness score
+    return (b.completeness_score || 0) - (a.completeness_score || 0);
+  });
+  return sorted[0].id;
 }
 
 interface ContactsPageClientProps {
@@ -171,6 +208,8 @@ export default function ContactsPageClient({
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [fixingEmail, setFixingEmail] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
   const [xeroTransferIds, setXeroTransferIds] = useState<(number | string)[]>([]);
   const [xeroTransferModalOpen, setXeroTransferModalOpen] = useState(false);
 
@@ -448,28 +487,71 @@ export default function ContactsPageClient({
   //   return () => clearTimeout(timer);
   // }, [foundation]);
 
-  const handleMergeComplete = useCallback((mergedContactIds: number[], primaryContactId: number) => {
-    console.log('[ContactsPageClient] Merge complete - removing contacts:', mergedContactIds);
+  const handleMergeComplete = useCallback((deletedIds: (string | number)[], primaryId?: string | number) => {
+    console.log('[ContactsPageClient] Merge complete - removing contacts:', deletedIds);
     setSelectedForMerge([]);
+    setMergeError(null);
 
     // Optimistically remove merged contacts from state (no need to reload all 1,178 contacts!)
-    setRecords(prev => prev.filter(r => !mergedContactIds.includes(Number(r.id))));
+    setRecords(prev => prev.filter(r => !deletedIds.includes(Number(r.id))));
 
     // Update cache to remove merged contacts
     if (foundation?.id) {
-      removeMultipleFromCache(foundation.id, mergedContactIds);
+      removeMultipleFromCache(foundation.id, deletedIds);
     }
 
     // Update total count
     if (totalCount !== null) {
-      setTotalCount(totalCount - mergedContactIds.length);
+      setTotalCount(totalCount - deletedIds.length);
     }
 
     toast({
       title: "Contacts merged",
-      description: `${mergedContactIds.length} contact(s) merged successfully`,
+      description: `${deletedIds.length} contact(s) merged successfully`,
     });
   }, [foundation?.id, totalCount, toast]);
+
+  // Custom merge handler for contacts - uses contacts-specific API
+  const handleContactsMerge = useCallback(async (primaryId: string | number, secondaryIds: (string | number)[]) => {
+    await api.post("/api/v1/contacts/merge", {
+      target_id: primaryId,
+      source_ids: secondaryIds,
+    });
+  }, []);
+
+  // Handle fix email assignment: keep email on person, clear from companies, create employment links
+  const handleFixEmailAssignment = useCallback(async () => {
+    // Find the person contact
+    const personContact = selectedForMerge.find(c => isPerson(c.entity_type));
+    // Find all contacts that can have employees (company/trust/sole_trader)
+    const companyContacts = selectedForMerge.filter(c => canHaveEmployees(c.entity_type));
+
+    if (!personContact || companyContacts.length === 0) {
+      setMergeError("Could not identify person and company contacts");
+      return;
+    }
+
+    setFixingEmail(true);
+    setMergeError(null);
+
+    try {
+      await api.post("/api/v1/contacts/fix_email_assignment", {
+        person_id: personContact.id,
+        company_ids: companyContacts.map(c => c.id),
+      });
+      // No contacts are deleted in fix email assignment, just pass empty array
+      handleMergeComplete([], personContact.id);
+      setMergeModalOpen(false);
+      toast({
+        title: "Email assignment fixed",
+        description: `Email assigned to ${personContact.display_name || personContact.name}`,
+      });
+    } catch (err) {
+      setMergeError(err instanceof Error ? err.message : "Failed to fix email assignment");
+    } finally {
+      setFixingEmail(false);
+    }
+  }, [selectedForMerge, handleMergeComplete, toast]);
 
   // Xero transfer handler - called when 2 contacts are selected and Xero button is clicked
   const handleXeroTransfer = useCallback((ids: (number | string)[]) => {
@@ -726,12 +808,151 @@ export default function ContactsPageClient({
           />
         )}
 
-      {/* Merge Modal */}
-      <MergeContactsModal
+      {/* Merge Modal - uses generic MergeModal with contacts-specific extensions */}
+      <MergeModal
         open={mergeModalOpen}
-        onOpenChange={setMergeModalOpen}
-        contacts={selectedForMerge}
+        onOpenChange={(open) => {
+          setMergeModalOpen(open);
+          if (!open) setMergeError(null);
+        }}
+        selectedIds={selectedForMerge.map(c => c.id)}
+        foundationId="contacts"
+        records={selectedForMerge as unknown as Record<string, unknown>[]}
+        displayColumn="display_name"
+        secondaryColumns={["email", "phone"]}
+        entityName="Contact"
         onMergeComplete={handleMergeComplete}
+        // Extension props for contacts-specific behavior
+        defaultPrimaryId={getBestPrimaryContact(selectedForMerge)}
+        onMerge={handleContactsMerge}
+        // Header content: Entity type warnings
+        headerContent={(() => {
+          const entityTypes = [...new Set(selectedForMerge.map(c => c.entity_type).filter(Boolean))];
+          const hasPersonAndCompany = entityTypes.includes('person') &&
+            (entityTypes.includes('company') || entityTypes.includes('trust'));
+          const hasXeroConflict = selectedForMerge.filter(c => c.xero_id).length > 1;
+
+          return (
+            <>
+              {hasPersonAndCompany && (
+                <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-200">
+                    <strong>Different entity types detected!</strong> These contacts include both
+                    people and companies sharing the same email.
+                    <div className="mt-3 p-3 bg-white dark:bg-gray-900 rounded-md border border-amber-200 dark:border-amber-800">
+                      <p className="font-medium text-amber-900 dark:text-amber-100 mb-2">Recommended: Fix Email Assignment</p>
+                      <ul className="list-disc ml-5 space-y-1 text-sm">
+                        <li>Keep the email on the person contact</li>
+                        <li>Clear the email from company contacts</li>
+                        <li>Link the person as an employee of each company</li>
+                      </ul>
+                      <Button
+                        className="mt-3 bg-amber-600 hover:bg-amber-700"
+                        size="sm"
+                        onClick={handleFixEmailAssignment}
+                        disabled={fixingEmail}
+                      >
+                        {fixingEmail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Fix Email Assignment
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {hasXeroConflict && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Multiple contacts are linked to Xero. Only the primary contact's Xero connection
+                    will be preserved.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {mergeError && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{mergeError}</AlertDescription>
+                </Alert>
+              )}
+            </>
+          );
+        })()}
+        // Extra content per record: Avatar + stats
+        renderRecordExtra={(record, isPrimary) => {
+          const contact = record as unknown as Contact;
+          return (
+            <div className="flex items-start gap-3 mt-2">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="text-xs">{getInitials(contact.display_name || contact.name)}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  {contact.email && (
+                    <div className="flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {contact.email}
+                    </div>
+                  )}
+                  {(contact.phone || contact.mobile_phone || contact.office_phone) && (
+                    <div className="flex items-center gap-1">
+                      <Phone className="h-3 w-3" />
+                      {contact.phone || contact.mobile_phone || contact.office_phone}
+                    </div>
+                  )}
+                  {contact.company && (
+                    <div className="flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {contact.company}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2 flex items-center gap-4 text-xs">
+                  <span>{contact.jobs_count || 0} jobs</span>
+                  <span>{contact.purchase_orders_count || 0} POs</span>
+                  <span className={getCompletenessColor(contact.completeness_score)}>
+                    {contact.completeness_score || 0}% complete
+                  </span>
+                  {contact.xero_id && (
+                    <Badge variant="outline" className="text-blue-600 border-blue-200">
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Xero
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        }}
+        // Footer content: What will happen preview
+        footerContent={(() => {
+          const primaryContact = selectedForMerge.find(c => c.id === getBestPrimaryContact(selectedForMerge));
+          const secondaryContacts = selectedForMerge.filter(c => c.id !== primaryContact?.id);
+          if (!primaryContact || secondaryContacts.length === 0) return null;
+
+          return (
+            <div className="space-y-2 mt-4">
+              <Separator />
+              <p className="text-sm font-medium">What will happen:</p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-600" />
+                  Keep "{primaryContact.display_name || primaryContact.name}" as the primary contact
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-600" />
+                  Merge {secondaryContacts.reduce((sum, c) => sum + (c.jobs_count || 0), 0)} jobs
+                  and {secondaryContacts.reduce((sum, c) => sum + (c.purchase_orders_count || 0), 0)} POs
+                </li>
+                <li className="flex items-center gap-2">
+                  <Trash2 className="h-4 w-4 text-red-600" />
+                  Delete {secondaryContacts.length} duplicate contact(s)
+                </li>
+              </ul>
+            </div>
+          );
+        })()}
       />
 
       {/* Xero Link Transfer Modal */}

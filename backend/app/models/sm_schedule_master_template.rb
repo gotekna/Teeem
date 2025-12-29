@@ -5,15 +5,18 @@
 # Templates are reusable schedules that can be copied to constructions
 # as sm_tasks. Separate from old schedule_templates (DHTMLX system).
 #
-# Versioning:
+# Versioning (Transient Drafts):
 # - Templates have versions (draft, published, archived)
 # - Only one published version at a time
 # - Jobs reference the specific version applied
-# - Edit creates new draft, publish makes it active
+# - TRANSIENT DRAFTS: Draft is metadata-only, no row copying
+# - Edits happen directly to template rows
+# - Publish = create version snapshot, Discard = delete draft record
 #
-# Multi-Template Support (Legacy):
-# - SmScheduleMaster records can belong to multiple templates via sm_template_ids (JSONB array)
-# - This is being phased out in favor of version-based row ownership
+# Row Ownership:
+# - Rows belong to template via sm_template_ids (JSONB array)
+# - Rows also have sm_schedule_master_version_id for version snapshot
+# - Version ID is set when publishing (snapshot point)
 #
 class SmScheduleMasterTemplate < ApplicationRecord
   # Associations
@@ -41,7 +44,7 @@ class SmScheduleMasterTemplate < ApplicationRecord
     SmScheduleMaster.for_template(id)
   end
 
-  # Get row count
+  # Get row count (always from template rows - transient draft model)
   def row_count
     sm_schedule_master_rows.count
   end
@@ -78,22 +81,15 @@ class SmScheduleMasterTemplate < ApplicationRecord
     published_version
   end
 
-  # Create a new draft version
-  # If a published version exists, copies its rows to the draft
+  # Create a new draft version (transient - metadata only, no row copying)
+  # Rows are edited in place on the template, draft is just a marker
   def create_draft_version(user: nil)
     raise "Draft version already exists" if draft_version.present?
 
-    transaction do
-      draft = sm_schedule_master_versions.create!(
-        status: 'draft',
-        change_summary: nil
-      )
-
-      # Copy rows from published version if it exists
-      published_version&.copy_rows_to(draft)
-
-      draft
-    end
+    sm_schedule_master_versions.create!(
+      status: 'draft',
+      change_summary: nil
+    )
   end
 
   # Get or create a draft version for editing

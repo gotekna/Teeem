@@ -2,9 +2,15 @@
 
 # SmScheduleMasterVersion - Versioned snapshots of Schedule Master templates
 #
-# Each template can have multiple versions:
-# - draft: Being edited, not yet published
-# - published: Active version that can be applied to jobs
+# TRANSIENT DRAFT MODEL:
+# - Draft versions are metadata-only (no row copying)
+# - Rows are edited directly on the template
+# - Publishing creates a version snapshot (updates row version_ids)
+# - Discarding just deletes the draft record
+#
+# Version States:
+# - draft: Being edited, rows not yet snapshotted
+# - published: Active version, rows are snapshotted to this version
 # - archived: Previously published, kept for history
 #
 # Only ONE version can be published at a time per template.
@@ -19,10 +25,10 @@
 #   # Get the active published version
 #   version = template.published_version
 #
-#   # Create a new draft
+#   # Create a new draft (metadata only, no row copying)
 #   draft = template.create_draft_version(user: current_user)
 #
-#   # Publish the draft
+#   # Publish the draft (snapshots rows to this version)
 #   draft.publish!(user: current_user, change_summary: "Added scaffold tasks")
 #
 class SmScheduleMasterVersion < ApplicationRecord
@@ -72,16 +78,21 @@ class SmScheduleMasterVersion < ApplicationRecord
     status == 'archived'
   end
 
-  # Publish this draft version
+  # Publish this draft version (transient draft model)
   # - Archives the current published version (if any)
+  # - Snapshots all template rows to this version
   # - Sets this version as published
-  # - Makes rows immutable
   def publish!(user:, change_summary: nil)
     raise "Cannot publish a non-draft version" unless draft?
 
     transaction do
       # Archive current published version
       sm_schedule_master_template.published_version&.archive!
+
+      # Snapshot: Update all template rows to point to this version
+      sm_schedule_master_template.sm_schedule_master_rows.update_all(
+        sm_schedule_master_version_id: id
+      )
 
       # Update this version
       update!(
@@ -100,6 +111,14 @@ class SmScheduleMasterVersion < ApplicationRecord
     update!(status: 'archived')
   end
 
+  # Discard a draft version (transient draft model)
+  # Simply deletes the draft record - rows are not affected
+  def discard!
+    raise "Cannot discard a non-draft version" unless draft?
+
+    destroy!
+  end
+
   # Create a copy of this version's rows for a new draft
   def copy_rows_to(target_version)
     sm_schedule_master_rows.each do |row|
@@ -112,8 +131,14 @@ class SmScheduleMasterVersion < ApplicationRecord
   end
 
   # Get row count
+  # - For draft: count from template (rows not yet snapshotted)
+  # - For published/archived: count rows snapshotted to this version
   def row_count
-    sm_schedule_master_rows.count
+    if draft?
+      sm_schedule_master_template.sm_schedule_master_rows.count
+    else
+      sm_schedule_master_rows.count
+    end
   end
 
   # Get active row count

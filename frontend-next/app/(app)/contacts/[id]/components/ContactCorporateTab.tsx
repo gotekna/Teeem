@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   IdCard,
-  Table,
+  Table as TableIcon,
   Network,
   Lock,
   Home,
@@ -17,6 +17,14 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
@@ -83,7 +91,7 @@ export function ContactCorporateTab({
           Identity
         </TabsTrigger>
         <TabsTrigger value="summary">
-          <Table className="h-3.5 w-3.5 mr-1" />
+          <TableIcon className="h-3.5 w-3.5 mr-1" />
           Summary
           {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
             <Badge variant="secondary" className="ml-1.5">
@@ -488,24 +496,24 @@ function BankAccountsTable({ contact }: { contact: Contact }) {
       </CardHeader>
       <CardContent>
         <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Bank</th>
-                <th className="text-left px-4 py-2 text-muted-foreground font-medium">BSB</th>
-                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Account</th>
-                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Name</th>
-                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Xero</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+          <Table className="w-full text-sm">
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="text-left px-4 py-2 text-muted-foreground font-medium">Bank</TableHead>
+                <TableHead className="text-left px-4 py-2 text-muted-foreground font-medium">BSB</TableHead>
+                <TableHead className="text-left px-4 py-2 text-muted-foreground font-medium">Account</TableHead>
+                <TableHead className="text-left px-4 py-2 text-muted-foreground font-medium">Name</TableHead>
+                <TableHead className="text-left px-4 py-2 text-muted-foreground font-medium">Xero</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y">
               {contact.linked_company.bank_accounts.filter(ba => ba.status === "active").map((account) => (
-                <tr key={account.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-2 font-medium">{account.institution_name}</td>
-                  <td className="px-4 py-2 font-mono">{account.formatted_bsb || account.bsb || "-"}</td>
-                  <td className="px-4 py-2 font-mono">****{account.account_number.slice(-4)}</td>
-                  <td className="px-4 py-2">{account.account_name || "-"}</td>
-                  <td className="px-4 py-2">
+                <TableRow key={account.id} className="hover:bg-muted/30">
+                  <TableCell className="px-4 py-2 font-medium">{account.institution_name}</TableCell>
+                  <TableCell className="px-4 py-2 font-mono">{account.formatted_bsb || account.bsb || "-"}</TableCell>
+                  <TableCell className="px-4 py-2 font-mono">****{account.account_number.slice(-4)}</TableCell>
+                  <TableCell className="px-4 py-2">{account.account_name || "-"}</TableCell>
+                  <TableCell className="px-4 py-2">
                     {account.linked_to_xero ? (
                       <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                         <CheckCircle className="h-3 w-3 mr-1" />
@@ -514,11 +522,11 @@ function BankAccountsTable({ contact }: { contact: Contact }) {
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>

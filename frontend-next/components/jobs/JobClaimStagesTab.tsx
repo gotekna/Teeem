@@ -23,6 +23,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Loader2,
   RefreshCw,
   CheckCircle2,
@@ -573,23 +581,23 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-muted/50">
-                <tr className="text-left text-sm">
-                  <th className="px-4 py-3 font-medium">Stage</th>
-                  <th className="px-4 py-3 font-medium text-right">Expected</th>
-                  <th className="px-4 py-3 font-medium">Xero Invoice</th>
+            <Table className="w-full">
+              <TableHeader className="bg-muted/50">
+                <TableRow className="text-left text-sm">
+                  <TableHead className="px-4 py-3 font-medium">Stage</TableHead>
+                  <TableHead className="px-4 py-3 font-medium text-right">Expected</TableHead>
+                  <TableHead className="px-4 py-3 font-medium">Xero Invoice</TableHead>
                   {hasRetainage && (
-                    <th className="px-4 py-3 font-medium text-right">Retainage</th>
+                    <TableHead className="px-4 py-3 font-medium text-right">Retainage</TableHead>
                   )}
-                  <th className="px-4 py-3 font-medium text-right">Payment</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
+                  <TableHead className="px-4 py-3 font-medium text-right">Payment</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y">
                 {stages.map((stage) => (
-                  <tr key={stage.id} className="hover:bg-muted/30">
+                  <TableRow key={stage.id} className="hover:bg-muted/30">
                     {/* Stage Name */}
-                    <td className="px-4 py-3">
+                    <TableCell className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{stage.name}</span>
                         {stage.percentage && (
@@ -603,19 +611,19 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                           </Badge>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Expected Amount */}
-                    <td className="px-4 py-3 text-right">
+                    <TableCell className="px-4 py-3 text-right">
                       <span className="font-mono text-sm">
                         {stage.expected_amount
                           ? formatCurrency(stage.expected_amount)
                           : "-"}
                       </span>
-                    </td>
+                    </TableCell>
 
                     {/* Invoice */}
-                    <td className="px-4 py-3">
+                    <TableCell className="px-4 py-3">
                       {stage.matched && stage.invoice ? (
                         <div className="flex items-center gap-2">
                           <div className="flex-1">
@@ -711,11 +719,11 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                           </Button>
                         </div>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Retainage - only show column if any stage has retainage */}
                     {hasRetainage && (
-                      <td className="px-4 py-3 text-right">
+                      <TableCell className="px-4 py-3 text-right">
                         {stage.retainage_percentage && stage.retainage_percentage > 0 ? (
                           <div className="flex flex-col items-end gap-1">
                             {/* Retainage Status Badge */}
@@ -778,11 +786,11 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
-                      </td>
+                      </TableCell>
                     )}
 
                     {/* Payment Status */}
-                    <td className="px-4 py-3 text-right">
+                    <TableCell className="px-4 py-3 text-right">
                       {stage.matched && stage.invoice ? (
                         <div className="flex flex-col items-end gap-1">
                           <PaymentStatusBadge
@@ -847,11 +855,11 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                           Pending
                         </Badge>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

@@ -13,6 +13,14 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Mail,
   FolderOpen,
   CheckCircle2,
@@ -795,22 +803,22 @@ function OrganizationCard({
                   </div>
                   {tenantUsers.length > 0 && (
                     <div className="max-h-32 overflow-y-auto border rounded-lg">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted sticky top-0">
-                          <tr>
-                            <th className="text-left p-2 font-medium">Name</th>
-                            <th className="text-left p-2 font-medium">Email</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                      <Table className="w-full text-sm">
+                        <TableHeader className="bg-muted sticky top-0">
+                          <TableRow>
+                            <TableHead className="text-left p-2 font-medium">Name</TableHead>
+                            <TableHead className="text-left p-2 font-medium">Email</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {tenantUsers.map((u) => (
-                            <tr key={u.id} className="border-t">
-                              <td className="p-2">{u.name}</td>
-                              <td className="p-2 text-muted-foreground">{u.email}</td>
-                            </tr>
+                            <TableRow key={u.id} className="border-t">
+                              <TableCell className="p-2">{u.name}</TableCell>
+                              <TableCell className="p-2 text-muted-foreground">{u.email}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </div>
