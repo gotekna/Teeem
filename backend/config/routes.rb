@@ -1457,16 +1457,6 @@ Rails.application.routes.draw do
         collection do
           get :default
         end
-        # Version management (new versioned architecture)
-        resources :versions, controller: "sm_schedule_master_versions", only: [ :index, :show, :create, :update, :destroy ] do
-          member do
-            post :publish
-          end
-          collection do
-            get :compare
-            get :history
-          end
-        end
         resources :rows, controller: "sm_schedule_master", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :move

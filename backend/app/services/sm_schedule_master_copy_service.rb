@@ -15,10 +15,10 @@
 #     description: "Based on House Build with highset additions"
 #   )
 #
-#   # Import rows from another template into a draft
+#   # Import rows from another template
 #   result = service.import_rows(
-#     source_version: source_template.published_version,
-#     target_version: target_template.draft_version,
+#     source_template: source_template,
+#     target_template: target_template,
 #     row_ids: [1, 2, 3]  # Optional - if nil, imports all
 #   )
 #
@@ -30,13 +30,9 @@ class SmScheduleMasterCopyService
   end
 
   # Copy an entire template to a new template
-  # Creates new template with draft version containing copied rows
   def copy_template(source_template, new_name:, description: nil)
     return failure("Source template required") unless source_template.present?
     return failure("New name required") unless new_name.present?
-
-    source_version = source_template.published_version
-    return failure("Source template has no published version") unless source_version.present?
 
     ActiveRecord::Base.transaction do
       # Create new template
@@ -49,21 +45,11 @@ class SmScheduleMasterCopyService
         updated_by: user
       )
 
-      # Create draft version
-      draft = new_template.sm_schedule_master_versions.create!(
-        status: 'draft',
-        change_summary: "Initial copy from #{source_template.name} v#{source_version.version_number}"
-      )
-
       # Copy all rows
-      rows_copied = copy_rows_between_versions(
-        from: source_version,
-        to: draft
-      )
+      rows_copied = copy_rows_to_template(source_template, new_template)
 
       success(
         template: new_template,
-        version: draft,
         rows_copied: rows_copied,
         message: "Created '#{new_name}' with #{rows_copied} rows"
       )
@@ -72,26 +58,25 @@ class SmScheduleMasterCopyService
     failure("Failed to copy template: #{e.message}")
   end
 
-  # Import specific rows from source version into target draft version
+  # Import specific rows from source template into target template
   # If row_ids is nil, imports all rows
-  def import_rows(source_version:, target_version:, row_ids: nil)
-    return failure("Source version required") unless source_version.present?
-    return failure("Target version required") unless target_version.present?
-    return failure("Target must be a draft") unless target_version.draft?
+  def import_rows(source_template:, target_template:, row_ids: nil)
+    return failure("Source template required") unless source_template.present?
+    return failure("Target template required") unless target_template.present?
 
     # Get source rows
     source_rows = if row_ids.present?
-      source_version.sm_schedule_master_rows.where(id: row_ids)
+      source_template.sm_schedule_master_rows.where(id: row_ids)
     else
-      source_version.sm_schedule_master_rows
+      source_template.sm_schedule_master_rows
     end
 
     return failure("No rows to import") if source_rows.empty?
 
     ActiveRecord::Base.transaction do
       # Get existing task numbers in target to avoid conflicts
-      existing_task_numbers = target_version.sm_schedule_master_rows.pluck(:task_number)
-      max_sequence = target_version.sm_schedule_master_rows.maximum(:sequence_order) || 0
+      existing_task_numbers = target_template.sm_schedule_master_rows.pluck(:task_number)
+      max_sequence = target_template.sm_schedule_master_rows.maximum(:sequence_order) || 0
 
       rows_imported = 0
       skipped_rows = []
@@ -110,7 +95,7 @@ class SmScheduleMasterCopyService
         max_sequence += 1
 
         new_row = duplicate_row(source_row,
-          version_id: target_version.id,
+          template_id: target_template.id,
           task_number: new_task_number,
           sequence_order: max_sequence
         )
@@ -123,10 +108,9 @@ class SmScheduleMasterCopyService
       end
 
       # Remap predecessor IDs in imported rows
-      remap_predecessors(target_version, task_number_map)
+      remap_predecessors(target_template, task_number_map)
 
       success(
-        version: target_version,
         rows_imported: rows_imported,
         skipped_rows: skipped_rows,
         message: "Imported #{rows_imported} rows"
@@ -136,57 +120,14 @@ class SmScheduleMasterCopyService
     failure("Failed to import rows: #{e.message}")
   end
 
-  # Fork a template - creates new template from specific version
-  # Useful for creating a variant from an older version
-  def fork_from_version(source_version, new_name:, description: nil)
-    return failure("Source version required") unless source_version.present?
-    return failure("New name required") unless new_name.present?
-
-    source_template = source_version.sm_schedule_master_template
-
-    ActiveRecord::Base.transaction do
-      # Create new template
-      new_template = SmScheduleMasterTemplate.create!(
-        name: new_name,
-        description: description || "Forked from #{source_template.name} v#{source_version.version_number}",
-        copied_from_id: source_template.id,
-        is_active: true,
-        created_by: user,
-        updated_by: user
-      )
-
-      # Create draft version
-      draft = new_template.sm_schedule_master_versions.create!(
-        status: 'draft',
-        change_summary: "Forked from #{source_template.name} v#{source_version.version_number}"
-      )
-
-      # Copy rows
-      rows_copied = copy_rows_between_versions(
-        from: source_version,
-        to: draft
-      )
-
-      success(
-        template: new_template,
-        version: draft,
-        rows_copied: rows_copied,
-        source_version: source_version.version_number,
-        message: "Forked '#{new_name}' from v#{source_version.version_number} with #{rows_copied} rows"
-      )
-    end
-  rescue ActiveRecord::RecordInvalid => e
-    failure("Failed to fork template: #{e.message}")
-  end
-
   private
 
-  # Copy all rows from one version to another
-  def copy_rows_between_versions(from:, to:)
+  # Copy all rows from source template to target template
+  def copy_rows_to_template(source_template, target_template)
     count = 0
 
-    from.sm_schedule_master_rows.in_sequence.find_each do |source_row|
-      new_row = duplicate_row(source_row, version_id: to.id)
+    source_template.sm_schedule_master_rows.in_sequence.find_each do |source_row|
+      new_row = duplicate_row(source_row, template_id: target_template.id)
       new_row.save!
       count += 1
     end
@@ -195,7 +136,7 @@ class SmScheduleMasterCopyService
   end
 
   # Duplicate a row with optional overrides
-  def duplicate_row(source_row, version_id:, task_number: nil, sequence_order: nil)
+  def duplicate_row(source_row, template_id:, task_number: nil, sequence_order: nil)
     new_row = source_row.dup
 
     # Clear timestamps and IDs
@@ -203,12 +144,8 @@ class SmScheduleMasterCopyService
     new_row.created_at = nil
     new_row.updated_at = nil
 
-    # Set version
-    new_row.sm_schedule_master_version_id = version_id
-
-    # Clear legacy template references (versions own rows now)
-    # Note: sm_template_id column no longer exists, only sm_template_ids (JSONB)
-    new_row.sm_template_ids = []
+    # Set template ownership via sm_template_ids JSONB array
+    new_row.sm_template_ids = [template_id]
 
     # Apply overrides
     new_row.task_number = task_number if task_number.present?
@@ -222,10 +159,10 @@ class SmScheduleMasterCopyService
   end
 
   # Remap predecessor IDs after import to point to new task numbers
-  def remap_predecessors(version, task_number_map)
+  def remap_predecessors(template, task_number_map)
     return if task_number_map.empty?
 
-    version.sm_schedule_master_rows.find_each do |row|
+    template.sm_schedule_master_rows.find_each do |row|
       next if row.predecessor_ids.blank?
 
       updated_preds = row.predecessor_ids.map do |pred|
@@ -236,8 +173,8 @@ class SmScheduleMasterCopyService
           pred.merge("id" => new_id)
         else
           # Predecessor wasn't in our import - remove reference
-          # Or keep if it's a valid task in the target version
-          if version.sm_schedule_master_rows.exists?(task_number: old_id)
+          # Or keep if it's a valid task in the target template
+          if template.sm_schedule_master_rows.exists?(task_number: old_id)
             pred
           else
             nil

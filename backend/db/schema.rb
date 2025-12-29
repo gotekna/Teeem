@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_001032) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6109,7 +6109,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
     t.decimal "site_longitude", precision: 10, scale: 7
     t.integer "plans_count", default: 0, null: false
     t.integer "on_issue_plans_count", default: 0, null: false
-    t.bigint "sm_template_version_id"
     t.datetime "template_applied_at"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
@@ -6123,7 +6122,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
     t.index ["postcode"], name: "index_jobs_on_postcode"
     t.index ["searchable"], name: "idx_jobs_searchable_gin", using: :gin
     t.index ["sharepoint_folder_status"], name: "index_jobs_on_sharepoint_folder_status"
-    t.index ["sm_template_version_id"], name: "idx_jobs_template_version"
     t.index ["suburb"], name: "index_jobs_on_suburb"
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
   end
@@ -7966,21 +7964,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
     t.index ["updated_by_id"], name: "index_sm_schedule_master_templates_on_updated_by_id"
   end
 
-  create_table "sm_schedule_master_versions", force: :cascade do |t|
-    t.bigint "sm_schedule_master_template_id", null: false
-    t.integer "version_number", null: false
-    t.string "status", default: "draft", null: false
-    t.datetime "published_at"
-    t.bigint "published_by_id"
-    t.text "change_summary"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["published_by_id"], name: "index_sm_schedule_master_versions_on_published_by_id"
-    t.index ["sm_schedule_master_template_id", "status"], name: "idx_sm_versions_template_status"
-    t.index ["sm_schedule_master_template_id", "version_number"], name: "idx_sm_versions_template_number", unique: true
-    t.index ["sm_schedule_master_template_id"], name: "idx_sm_versions_template"
-  end
-
   create_table "sm_schedule_masters", force: :cascade do |t|
     t.integer "task_number", null: false
     t.string "name", null: false
@@ -8034,7 +8017,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
     t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
     t.boolean "allow_header", default: false, null: false
-    t.bigint "sm_schedule_master_version_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_masters_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_masters_on_cost_centre"
@@ -8046,7 +8028,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
     t.index ["linked_po_task_id"], name: "index_sm_schedule_masters_on_linked_po_task_id"
     t.index ["po_supplier_id"], name: "index_sm_schedule_masters_on_po_supplier_id"
     t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
-    t.index ["sm_schedule_master_version_id"], name: "idx_sm_rows_version"
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
     t.index ["sm_template_ids"], name: "index_sm_schedule_masters_on_sm_template_ids", using: :gin
     t.index ["stage"], name: "index_sm_schedule_masters_on_stage"
@@ -10074,7 +10055,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
   add_foreign_key "jobs", "job_statuses", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
-  add_foreign_key "jobs", "sm_schedule_master_versions", column: "sm_template_version_id"
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
   add_foreign_key "known_parties", "contacts"
   add_foreign_key "kudos_events", "purchase_orders"
@@ -10232,9 +10212,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001031) do
   add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"
-  add_foreign_key "sm_schedule_master_versions", "sm_schedule_master_templates"
-  add_foreign_key "sm_schedule_master_versions", "users", column: "published_by_id"
-  add_foreign_key "sm_schedule_masters", "sm_schedule_master_versions"
   add_foreign_key "sm_schedule_masters", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_schedule_masters", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_schedule_masters", "users", column: "created_by_id"

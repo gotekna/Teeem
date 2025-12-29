@@ -82,7 +82,6 @@ module Api
           @template.sm_schedule_master_rows.in_sequence.each do |row|
             new_row = row.dup
             new_row.sm_template_ids = [new_template.id]
-            new_row.sm_schedule_master_version_id = nil
             new_row.save!
           end
 
@@ -128,11 +127,6 @@ module Api
           render json: {
             success: true,
             template: template_json(result[:template]),
-            version: {
-              id: result[:version].id,
-              version_number: result[:version].version_number,
-              status: result[:version].status
-            },
             rows_copied: result[:rows_copied],
             message: result[:message]
           }, status: :created
@@ -145,35 +139,19 @@ module Api
       end
 
       # POST /api/v1/sm_schedule_master_templates/:id/import_rows
-      # Import rows from another template into this template's draft
+      # Import rows from another template into this template
       #
       # Params:
       #   source_template_id: ID of template to import from (required)
       #   row_ids: Array of row IDs to import (optional - imports all if not specified)
       #
       def import_rows
-        draft = @template.draft_version
-        unless draft.present?
-          return render json: {
-            success: false,
-            error: "Template has no draft version. Create a draft first."
-          }, status: :unprocessable_entity
-        end
-
         source_template = SmScheduleMasterTemplate.find(params[:source_template_id])
-        source_version = source_template.published_version
-
-        unless source_version.present?
-          return render json: {
-            success: false,
-            error: "Source template has no published version"
-          }, status: :unprocessable_entity
-        end
 
         service = SmScheduleMasterCopyService.new(user: current_user)
         result = service.import_rows(
-          source_version: source_version,
-          target_version: draft,
+          source_template: source_template,
+          target_template: @template,
           row_ids: params[:row_ids]
         )
 
@@ -481,9 +459,6 @@ module Api
       end
 
       def template_json(template, include_rows: false)
-        published = template.published_version
-        draft = template.draft_version
-
         json = {
           id: template.id,
           name: template.name,
@@ -494,10 +469,6 @@ module Api
           created_by: template.created_by&.as_json,
           created_at: template.created_at,
           updated_at: template.updated_at,
-          # Version info
-          has_draft: draft.present?,
-          published_version: published ? version_summary_json(published) : nil,
-          draft_version: draft ? version_summary_json(draft) : nil,
           copied_from_id: template.copied_from_id
         }
 
@@ -512,21 +483,6 @@ module Api
         end
 
         json
-      end
-
-      def version_summary_json(version)
-        {
-          id: version.id,
-          version_number: version.version_number,
-          status: version.status,
-          published_at: version.published_at,
-          published_by: version.published_by&.full_name,
-          published_by_id: version.published_by_id,
-          change_summary: version.change_summary,
-          row_count: version.row_count,
-          created_at: version.created_at,
-          updated_at: version.updated_at
-        }
       end
 
       def row_json(row, trades_map = {}, stages_map = {}, roles_map = {}, cost_centres_map = {}, header_map = {})

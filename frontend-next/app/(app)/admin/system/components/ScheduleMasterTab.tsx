@@ -64,12 +64,6 @@ import {
   MoreVertical,
   Tag,
   // SSoT: Expand/Minimize2 removed - fullscreen now handled by TeeemTableView
-  GitBranch,
-  Upload,
-  History,
-  FileEdit,
-  Archive,
-  AlertTriangle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -185,20 +179,6 @@ interface SmScheduleMaster {
   sm_template_ids: number[];
 }
 
-interface SmScheduleMasterVersion {
-  id: number;
-  version_number: number;
-  status: 'draft' | 'published' | 'archived';
-  published_at: string | null;
-  published_by: string | null;
-  published_by_id: number | null;
-  change_summary: string | null;
-  row_count: number;
-  jobs_using: number;
-  created_at: string;
-  updated_at: string;
-}
-
 interface SmScheduleMasterTemplate {
   id: number;
   name: string;
@@ -207,10 +187,6 @@ interface SmScheduleMasterTemplate {
   is_active: boolean;
   row_count: number;
   rows?: SmScheduleMaster[];
-  // Version info (new architecture)
-  published_version?: SmScheduleMasterVersion | null;
-  draft_version?: SmScheduleMasterVersion | null;
-  has_draft?: boolean;
   copied_from_id?: number | null;
   created_at: string;
   updated_at: string;
@@ -326,13 +302,6 @@ export function ScheduleMasterTab() {
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
-  // Version Management state
-  const [versions, setVersions] = React.useState<SmScheduleMasterVersion[]>([]);
-  const [loadingVersions, setLoadingVersions] = React.useState(false);
-  const [versionAction, setVersionAction] = React.useState<'creating' | 'publishing' | 'discarding' | null>(null);
-  const [showVersionHistory, setShowVersionHistory] = React.useState(false);
-  const [publishSummary, setPublishSummary] = React.useState("");
-  const [showPublishDialog, setShowPublishDialog] = React.useState(false);
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
@@ -723,125 +692,8 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // ============================================
-  // Version Management Functions
-  // ============================================
-
-  const fetchVersions = async (templateId: number) => {
-    setLoadingVersions(true);
-    try {
-      const data = await api.get<{
-        success: boolean;
-        versions: SmScheduleMasterVersion[];
-        template_name: string;
-      }>(`/api/v1/sm_schedule_master_templates/${templateId}/versions`);
-      setVersions(data?.versions || []);
-    } catch (error) {
-      console.error("Failed to fetch versions:", error);
-      setVersions([]);
-    } finally {
-      setLoadingVersions(false);
-    }
-  };
-
-  const createDraft = async () => {
-    if (!dataViewTemplateId) return;
-
-    setVersionAction('creating');
-    try {
-      const data = await api.post<{
-        success: boolean;
-        version: SmScheduleMasterVersion;
-        message: string;
-        rows_copied: number;
-      }>(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/versions`);
-
-      if (data) {
-        toast({
-          title: "Draft Created",
-          description: `Version ${data.version.version_number} created with ${data.rows_copied} rows`
-        });
-      }
-
-      // Refresh templates and versions
-      loadTemplates();
-      fetchVersions(dataViewTemplateId);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to create draft";
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
-    } finally {
-      setVersionAction(null);
-    }
-  };
-
-  const publishDraft = async () => {
-    if (!dataViewTemplateId) return;
-
-    const template = templates.find(t => t.id === dataViewTemplateId);
-    const draftVersion = template?.draft_version;
-    if (!draftVersion) return;
-
-    setVersionAction('publishing');
-    try {
-      const data = await api.post<{
-        success: boolean;
-        version: SmScheduleMasterVersion;
-        message: string;
-      }>(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/versions/${draftVersion.id}/publish`, {
-        change_summary: publishSummary || undefined
-      });
-
-      if (data) {
-        toast({
-          title: "Published",
-          description: `Version ${data.version.version_number} is now live`
-        });
-      }
-
-      setShowPublishDialog(false);
-      setPublishSummary("");
-
-      // Refresh templates and versions
-      loadTemplates();
-      fetchVersions(dataViewTemplateId);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to publish draft";
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
-    } finally {
-      setVersionAction(null);
-    }
-  };
-
-  const discardDraft = async () => {
-    if (!dataViewTemplateId) return;
-    if (!confirm("Are you sure you want to discard this draft? All changes will be lost.")) return;
-
-    const template = templates.find(t => t.id === dataViewTemplateId);
-    const draftVersion = template?.draft_version;
-    if (!draftVersion) return;
-
-    setVersionAction('discarding');
-    try {
-      await api.delete(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/versions/${draftVersion.id}`);
-
-      toast({ title: "Draft Discarded", description: "Changes have been discarded" });
-
-      // Refresh templates and versions
-      loadTemplates();
-      fetchVersions(dataViewTemplateId);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to discard draft";
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
-    } finally {
-      setVersionAction(null);
-    }
-  };
-
-  // Get current template's version info
+  // Get current template for display
   const currentTemplate = dataViewTemplateId ? templates.find(t => t.id === dataViewTemplateId) : null;
-  const hasDraft = currentTemplate?.draft_version != null;
-  const publishedVersion = currentTemplate?.published_version;
-  const draftVersion = currentTemplate?.draft_version;
 
   const toggleExpand = async (id: number) => {
     if (expandedTemplate === id) {
@@ -1443,57 +1295,6 @@ export function ScheduleMasterTab() {
           <TabsContent value="data-view" className="absolute inset-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
           {/* SSoT: Fullscreen now handled by TeeemTableView via enableFullscreen prop */}
           <div className="flex flex-col h-full">
-            {/* Draft mode banner */}
-            {dataViewTemplateId && (() => {
-              const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
-              const hasDraft = currentTemplate?.has_draft || currentTemplate?.draft_version;
-
-              if (!hasDraft) return null;
-
-              return (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-3 mx-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                      <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                        Draft Mode
-                      </span>
-                      <span className="text-sm text-amber-700 dark:text-amber-400">
-                        Changes are saved to draft v{currentTemplate?.draft_version?.version_number || '?'}. Publish when ready.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-                        onClick={discardDraft}
-                        disabled={versionAction === 'discarding'}
-                      >
-                        {versionAction === 'discarding' ? (
-                          <Spinner size={12} className="mr-1" />
-                        ) : null}
-                        Discard
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="h-7 bg-amber-600 hover:bg-amber-700 text-white"
-                        onClick={() => setShowPublishDialog(true)}
-                        disabled={versionAction === 'publishing'}
-                      >
-                        {versionAction === 'publishing' ? (
-                          <Spinner size={12} className="mr-1" />
-                        ) : (
-                          <Upload className="h-3 w-3 mr-1" />
-                        )}
-                        Publish
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
             <TeeemTableView
               key={`${dataViewRefreshKey}-${dataViewTemplateId}-${selectedTagFilter}`}
               foundationId="sm-schedule-master"
@@ -1540,108 +1341,6 @@ export function ScheduleMasterTab() {
                       ))}
                     </SelectContent>
                   </Select>
-
-                  {/* Version indicator badge */}
-                  {dataViewTemplateId && (() => {
-                    const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
-                    if (!currentTemplate) return null;
-
-                    const hasDraft = currentTemplate.has_draft || currentTemplate.draft_version;
-                    const publishedVersion = currentTemplate.published_version;
-                    const draftVersion = currentTemplate.draft_version;
-
-                    return (
-                      <div className="flex items-center gap-1">
-                        {hasDraft ? (
-                          <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700">
-                            <FileEdit className="h-3 w-3 mr-1" />
-                            Draft v{draftVersion?.version_number || '?'}
-                          </Badge>
-                        ) : publishedVersion ? (
-                          <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700">
-                            <GitBranch className="h-3 w-3 mr-1" />
-                            v{publishedVersion.version_number} Published
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground">
-                            No version
-                          </Badge>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Version actions dropdown */}
-                  {dataViewTemplateId && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9" title="Version actions">
-                          <GitBranch className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {(() => {
-                          const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
-                          const hasDraft = currentTemplate?.has_draft || currentTemplate?.draft_version;
-
-                          return (
-                            <>
-                              {!hasDraft && (
-                                <DropdownMenuItem
-                                  onClick={createDraft}
-                                  disabled={versionAction === 'creating'}
-                                >
-                                  {versionAction === 'creating' ? (
-                                    <Spinner size={16} className="mr-2" />
-                                  ) : (
-                                    <FileEdit className="h-4 w-4 mr-2" />
-                                  )}
-                                  Create Draft
-                                </DropdownMenuItem>
-                              )}
-                              {hasDraft && (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={() => setShowPublishDialog(true)}
-                                    disabled={versionAction === 'publishing'}
-                                  >
-                                    {versionAction === 'publishing' ? (
-                                      <Spinner size={16} className="mr-2" />
-                                    ) : (
-                                      <Upload className="h-4 w-4 mr-2" />
-                                    )}
-                                    Publish Draft
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={discardDraft}
-                                    disabled={versionAction === 'discarding'}
-                                    className="text-destructive focus:text-destructive"
-                                  >
-                                    {versionAction === 'discarding' ? (
-                                      <Spinner size={16} className="mr-2" />
-                                    ) : (
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                    )}
-                                    Discard Draft
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => {
-                                if (dataViewTemplateId) {
-                                  fetchVersions(dataViewTemplateId);
-                                  setShowVersionHistory(true);
-                                }
-                              }}>
-                                <History className="h-4 w-4 mr-2" />
-                                Version History
-                              </DropdownMenuItem>
-                            </>
-                          );
-                        })()}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
 
                   {/* Tag filter dropdown */}
                   <Select
@@ -2952,178 +2651,6 @@ export function ScheduleMasterTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTagDialog(false)}>
               Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Publish Draft Confirmation Dialog */}
-      <Dialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Publish Draft</DialogTitle>
-            <DialogDescription>
-              Publishing will make this draft version the new active version. Jobs using the previous version will be able to upgrade to this version.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="publish-summary">Change Summary (optional)</Label>
-              <Input
-                id="publish-summary"
-                placeholder="e.g., Added scaffold tasks, updated durations"
-                value={publishSummary}
-                onChange={(e) => setPublishSummary(e.target.value)}
-                className="mt-1.5"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Describe what changed in this version for future reference.
-              </p>
-            </div>
-
-            {dataViewTemplateId && (() => {
-              const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
-              const draftVersion = currentTemplate?.draft_version;
-              const publishedVersion = currentTemplate?.published_version;
-
-              return (
-                <div className="rounded-lg border p-3 bg-muted/30">
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Template:</span>
-                      <span className="font-medium">{currentTemplate?.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Draft version:</span>
-                      <span className="font-medium">v{draftVersion?.version_number || '?'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Current published:</span>
-                      <span className="font-medium">{publishedVersion ? `v${publishedVersion.version_number}` : 'None'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Row count:</span>
-                      <span className="font-medium">{draftVersion?.row_count || 0}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPublishDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={publishDraft}
-              disabled={versionAction === 'publishing'}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {versionAction === 'publishing' ? (
-                <>
-                  <Spinner size={16} className="mr-2" />
-                  Publishing...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Publish Version
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Version History Dialog */}
-      <Dialog open={showVersionHistory} onOpenChange={setShowVersionHistory}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Version History
-            </DialogTitle>
-            <DialogDescription>
-              {dataViewTemplateId && templates.find(t => t.id === dataViewTemplateId)?.name} - All published versions
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            {loadingVersions ? (
-              <div className="flex items-center justify-center py-8">
-                <Spinner size={24} className="text-muted-foreground" />
-              </div>
-            ) : versions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Archive className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No versions yet</p>
-                <p className="text-sm">Create and publish a draft to create the first version.</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {versions.map((version) => (
-                  <div
-                    key={version.id}
-                    className={`rounded-lg border p-3 ${
-                      version.status === 'published'
-                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                        : version.status === 'draft'
-                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
-                        : 'bg-muted/30'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">Version {version.version_number}</span>
-                          <Badge
-                            variant="outline"
-                            className={
-                              version.status === 'published'
-                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                : version.status === 'draft'
-                                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                                : ''
-                            }
-                          >
-                            {version.status}
-                          </Badge>
-                        </div>
-                        {version.change_summary && (
-                          <p className="text-sm text-muted-foreground mt-1">{version.change_summary}</p>
-                        )}
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
-                          <span>{version.row_count} rows</span>
-                          {version.jobs_using > 0 && (
-                            <span className="text-blue-600 dark:text-blue-400">
-                              {version.jobs_using} jobs using
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right text-xs text-muted-foreground">
-                        {version.published_at && (
-                          <>
-                            <div>Published {new Date(version.published_at).toLocaleDateString()}</div>
-                            {version.published_by && <div>by {version.published_by}</div>}
-                          </>
-                        )}
-                        {!version.published_at && version.created_at && (
-                          <div>Created {new Date(version.created_at).toLocaleDateString()}</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowVersionHistory(false)}>
-              Close
             </Button>
           </DialogFooter>
         </DialogContent>

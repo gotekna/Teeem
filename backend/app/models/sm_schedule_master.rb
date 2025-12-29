@@ -24,13 +24,12 @@ class SmScheduleMaster < ApplicationRecord
   # Excludes self-referential (linked_po_task, spawn_scan_task) and heavy (po_supplier) associations
   # Used by Foundation API's apply_eager_loading method
   def self.safe_eager_load_associations
-    [:checklist, :created_by, :updated_by, :sm_schedule_master_version]
+    [:checklist, :created_by, :updated_by]
   end
 
   # Associations
   # Note: sm_template_id column has been removed
-  # sm_template_ids (JSONB array) was the legacy multi-template support
-  # New architecture: rows belong to a version via sm_schedule_master_version_id
+  # sm_template_ids (JSONB array) handles multi-template membership
 
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 
@@ -49,10 +48,6 @@ class SmScheduleMaster < ApplicationRecord
 
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
-
-  # Version ownership (new architecture)
-  # Rows belong to a specific version when using versioned templates
-  belongs_to :sm_schedule_master_version, optional: true
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
