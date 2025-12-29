@@ -711,9 +711,34 @@ export default function TeeemTableView({
   // Initialized empty, updated by effect after search atom is declared
   const searchRef = useRef<string>('');
 
+  // ULTRA Solution: Filter state managed by sourced atoms
+  // Must be declared before autoFetch effects that depend on baseFilters
+  const {
+    cascadeFilters,
+    mergedFilters,
+    baseFilters,
+    hasUserFilters,
+    filterGroups,
+    setFilterGroups,
+    interGroupLogic,
+    setInterGroupLogic,
+    setBaseFilters,
+    setUserFilters,
+    addUserFilter,
+    removeFilter,
+    clearAllUserFilters,
+  } = useFilterState();
+
+  // Defensive: ensure cascadeFilters is always an array for .map/.length calls
+  const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
+
   // Auto-fetch records when foundationIdNumeric is set AND entries not provided
+  // ULTRA Solution: Create stable filter key for dependency tracking
+  // Only include base filters in the key since user filters change frequently
+  const baseFiltersKey = useMemo(() => JSON.stringify(baseFilters), [baseFilters]);
+
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
-  // CRITICAL: Include search param to maintain filter state after refresh
+  // CRITICAL: Include filters in API call - backend needs to know about base filters
   useEffect(() => {
     if (!useAutoFetch) return;
 
@@ -723,9 +748,19 @@ export default function TeeemTableView({
         // SSoT FIX: Include search term in refresh to maintain filter state
         // Use ref to get current search value (avoids stale closure since search not in deps)
         const currentSearch = searchRef.current;
-        const params: Record<string, string | number | boolean> = { limit: 100 };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const params: Record<string, any> = { limit: 100 };
         if (currentSearch) {
           params.search = currentSearch;
+        }
+        // ULTRA Solution: Include base filters in API call
+        // These are immutable filters from initialFilters prop (e.g., template filter)
+        if (baseFilters.length > 0) {
+          params.filters = JSON.stringify(baseFilters.map(f => ({
+            column: f.column,
+            operator: f.operator,
+            value: f.value,
+          })));
         }
         const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
           `/api/v1/foundations/${effectiveFoundationId}/records`,
@@ -741,9 +776,10 @@ export default function TeeemTableView({
     };
 
     fetchInitialRecords();
-  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey]);
+  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey]);
 
   // Auto-load more records in background after initial render
+  // ULTRA Solution: Include base filters to ensure consistent data loading
   useEffect(() => {
     if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0) return;
 
@@ -755,9 +791,19 @@ export default function TeeemTableView({
 
       setIsLoadingMore(true);
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const params: Record<string, any> = { cursor, limit: 100 };
+        // ULTRA Solution: Include base filters in load-more to maintain filter consistency
+        if (baseFilters.length > 0) {
+          params.filters = JSON.stringify(baseFilters.map(f => ({
+            column: f.column,
+            operator: f.operator,
+            value: f.value,
+          })));
+        }
         const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
           `/api/v1/foundations/${effectiveFoundationId}/records`,
-          { params: { cursor, limit: 100 } }
+          { params }
         );
         setAutoFetchedRecords(prev => [...prev, ...(response.records || [])]);
         setHasMore(response.has_more ?? false);
@@ -769,7 +815,7 @@ export default function TeeemTableView({
     }, 2000); // Wait 2 seconds before auto-loading more
 
     return () => clearTimeout(timer);
-  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId]);
+  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId, baseFilters]);
 
   // Server-side search for auto-fetch mode
   // Supports all search modes: contains (default), exact, starts_with, fuzzy, regex
@@ -1029,27 +1075,6 @@ export default function TeeemTableView({
       return prev;
     });
   }, [entries, effectiveEntries, setSelectedRows]);
-
-  // ULTRA Solution: Filter state managed by sourced atoms
-  // Use the hook for reading merged filters and action functions
-  const {
-    cascadeFilters,
-    mergedFilters,
-    baseFilters,
-    hasUserFilters,
-    filterGroups,
-    setFilterGroups,
-    interGroupLogic,
-    setInterGroupLogic,
-    setBaseFilters,
-    setUserFilters,
-    addUserFilter,
-    removeFilter,
-    clearAllUserFilters,
-  } = useFilterState();
-
-  // Defensive: ensure cascadeFilters is always an array for .map/.length calls
-  const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
 
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
   const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters]);

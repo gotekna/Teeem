@@ -864,7 +864,7 @@ export function GanttCanvasView({
     try {
       setLoadingPhotos(true);
 
-      // Use legacy_files endpoint to get all files with thumbnails
+      // Use job_all_files endpoint to get all files from job's SharePoint folder
       const response = await api.get<{
         success: boolean;
         items: Array<{
@@ -875,23 +875,25 @@ export function GanttCanvasView({
           type: "file" | "folder";
           thumbnail_url?: string;
           download_url?: string;
+          folder_path?: string;
         }>;
-      }>(`/api/v1/organization_onedrive/legacy_files?job_id=${TEST_JOB_ID}&recursive=true`);
+      }>(`/api/v1/organization_onedrive/job_all_files?job_id=${TEST_JOB_ID}`);
 
       if (response?.success && response.items) {
-        // Filter for image files only
+        // Filter for image files only (from any photo folder)
         const imageExtensions = [".jpg", ".jpeg", ".png", ".heic", ".gif", ".webp"];
         const imageFiles = response.items.filter((item) => {
-          if (item.type !== "file") return false;
+          if (item.type === "folder") return false;
           const ext = item.name.toLowerCase().split(".").pop();
           return ext && imageExtensions.some((e) => e.endsWith(ext));
         });
 
         // Convert to PhotoItem format
+        // Note: Use thumbnail_url for both since download_url may require SharePoint auth
         const photos: PhotoItem[] = imageFiles.map((file) => ({
           id: file.id,
           name: file.name,
-          url: file.download_url || file.web_url || "", // Full-size URL (required)
+          url: file.thumbnail_url || file.download_url || "", // Use thumbnail as primary (works without auth)
           thumbnailUrl: file.thumbnail_url || file.download_url || "",
           webUrl: file.web_url,
           modifiedAt: file.modified,

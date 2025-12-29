@@ -822,10 +822,14 @@ export default function JobDetailPage() {
   const handleTabChange = React.useCallback((newTab: string) => {
     const params = new URLSearchParams();
 
-    // ULTRA FIX: Check if clicked tab is a PARENT tab FIRST
-    // This prevents collision when parent "Site" (key=site) matches child "site" under Photo
-    // The order of checks matters: parent tabs take precedence over child tab matches
-    if (isParentTab(newTab)) {
+    // SSoT: Handle composite keys (parent__child) from HierarchicalTabsList
+    // This is the ONLY reliable way to identify which parent a child belongs to
+    // when multiple parents have children with the same tab_key (e.g., "site")
+    if (newTab.includes("__")) {
+      const [parent, child] = newTab.split("__");
+      params.set("tab", parent);
+      params.set("subtab", child);
+    } else if (isParentTab(newTab)) {
       // Clicked a parent tab with children - set parent and auto-select first child
       const firstChild = findFirstChildTab(newTab);
       params.set("tab", newTab);

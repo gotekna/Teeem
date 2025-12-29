@@ -41,6 +41,26 @@ export function getFilterDisplayValue(val: unknown): unknown {
  * @param filter - The filter condition to apply
  * @returns true if the entry passes the filter
  */
+/**
+ * Compare values with proper type coercion for booleans
+ * Handles: boolean true vs string "true", boolean false vs string "false"
+ */
+function compareValues(value: unknown, filterValue: unknown): boolean {
+  // Handle boolean comparison: boolean true == "true", boolean false == "false"
+  if (typeof value === 'boolean') {
+    if (filterValue === 'true' || filterValue === true) return value === true;
+    if (filterValue === 'false' || filterValue === false) return value === false;
+    return false;
+  }
+  if (typeof filterValue === 'boolean') {
+    if (value === 'true' || value === true) return filterValue === true;
+    if (value === 'false' || value === false) return filterValue === false;
+    return false;
+  }
+  // Default loose equality for non-boolean values
+  return value == filterValue;
+}
+
 export function evaluateFilter(entry: TableRow, filter: CascadeFilter): boolean {
   const rawValue = entry[filter.column];
   const filterValue = filter.value;
@@ -48,9 +68,9 @@ export function evaluateFilter(entry: TableRow, filter: CascadeFilter): boolean 
 
   switch (filter.operator) {
     case "=":
-      return value == filterValue;
+      return compareValues(value, filterValue);
     case "!=":
-      return value != filterValue;
+      return !compareValues(value, filterValue);
     case ">":
       return Number(value) > Number(filterValue);
     case "<":
@@ -79,6 +99,55 @@ export function evaluateFilter(entry: TableRow, filter: CascadeFilter): boolean 
       return value == null || value === "";
     case "is_not_empty":
       return value != null && value !== "";
+    case "array_contains": {
+      // Handle array_contains operator for array columns (e.g., sm_template_ids)
+      // Value could be: [1, 2, 3] array, or raw array value
+      // Filter value is the ID to check for (as string or number)
+      const rawArr = entry[filter.column];
+      if (!rawArr) return false;
+
+      // Handle array of IDs
+      if (Array.isArray(rawArr)) {
+        const targetId = String(filterValue);
+        return rawArr.some(item => {
+          // Item could be object {id, name} or primitive
+          if (typeof item === 'object' && item !== null) {
+            return String((item as { id?: number }).id) === targetId;
+          }
+          return String(item) === targetId;
+        });
+      }
+
+      // Handle comma-separated string (legacy format)
+      if (typeof rawArr === 'string') {
+        const ids = rawArr.split(',').map(s => s.trim());
+        return ids.includes(String(filterValue));
+      }
+
+      return false;
+    }
+    case "array_not_contains": {
+      // Inverse of array_contains
+      const rawArr = entry[filter.column];
+      if (!rawArr) return true; // Empty array doesn't contain the value
+
+      if (Array.isArray(rawArr)) {
+        const targetId = String(filterValue);
+        return !rawArr.some(item => {
+          if (typeof item === 'object' && item !== null) {
+            return String((item as { id?: number }).id) === targetId;
+          }
+          return String(item) === targetId;
+        });
+      }
+
+      if (typeof rawArr === 'string') {
+        const ids = rawArr.split(',').map(s => s.trim());
+        return !ids.includes(String(filterValue));
+      }
+
+      return true;
+    }
     default:
       return true;
   }

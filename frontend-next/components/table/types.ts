@@ -53,7 +53,7 @@ export interface CascadeFilter {
   id: string | number;
   column: string;
   value: string | number | boolean | null;
-  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "not_contains" | "starts_with" | "ends_with" | "is_empty" | "is_not_empty" | "between" | "array_contains";
+  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "not_contains" | "starts_with" | "ends_with" | "is_empty" | "is_not_empty" | "between" | "array_contains" | "array_not_contains";
   label?: string;
   groupId?: string;
 }

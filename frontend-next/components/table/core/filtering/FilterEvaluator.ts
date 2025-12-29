@@ -18,7 +18,7 @@ import type { TableRow } from '../../types';
 export interface CascadeFilter {
   id: string | number;
   column: string;
-  operator: '=' | '!=' | '>' | '<' | '>=' | '<=' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'is_empty' | 'is_not_empty';
+  operator: '=' | '!=' | '>' | '<' | '>=' | '<=' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'is_empty' | 'is_not_empty' | 'array_contains' | 'array_not_contains';
   value: unknown;
   groupId?: string | number;
 }
@@ -47,9 +47,29 @@ function getFilterDisplayValue(val: unknown): unknown {
 }
 
 /**
+ * Compare values with proper type coercion for booleans
+ * Handles: boolean true vs string "true", boolean false vs string "false"
+ */
+function compareValues(value: unknown, filterValue: unknown): boolean {
+  // Handle boolean comparison: boolean true == "true", boolean false == "false"
+  if (typeof value === 'boolean') {
+    if (filterValue === 'true' || filterValue === true) return value === true;
+    if (filterValue === 'false' || filterValue === false) return value === false;
+    return false;
+  }
+  if (typeof filterValue === 'boolean') {
+    if (value === 'true' || value === true) return filterValue === true;
+    if (value === 'false' || value === false) return filterValue === false;
+    return false;
+  }
+  // Default loose equality for non-boolean values
+  return value == filterValue;
+}
+
+/**
  * Evaluate a single filter against a table row
  *
- * Supports 12 operators with proper type coercion and case-insensitive string matching.
+ * Supports operators with proper type coercion and case-insensitive string matching.
  *
  * @param entry - Table row to evaluate
  * @param filter - Filter to apply
@@ -62,10 +82,10 @@ export function evaluateSingleFilter(entry: TableRow, filter: CascadeFilter): bo
 
   switch (filter.operator) {
     case '=':
-      return value == filterValue;
+      return compareValues(value, filterValue);
 
     case '!=':
-      return value != filterValue;
+      return !compareValues(value, filterValue);
 
     case '>':
       return Number(value) > Number(filterValue);
@@ -104,6 +124,51 @@ export function evaluateSingleFilter(entry: TableRow, filter: CascadeFilter): bo
 
     case 'is_not_empty':
       return value != null && value !== '';
+
+    case 'array_contains': {
+      // Handle array_contains operator for array columns (e.g., sm_template_ids)
+      const rawArr = entry[filter.column];
+      if (!rawArr) return false;
+
+      if (Array.isArray(rawArr)) {
+        const targetId = String(filterValue);
+        return rawArr.some(item => {
+          if (typeof item === 'object' && item !== null) {
+            return String((item as { id?: number }).id) === targetId;
+          }
+          return String(item) === targetId;
+        });
+      }
+
+      if (typeof rawArr === 'string') {
+        const ids = rawArr.split(',').map(s => s.trim());
+        return ids.includes(String(filterValue));
+      }
+
+      return false;
+    }
+
+    case 'array_not_contains': {
+      const rawArr = entry[filter.column];
+      if (!rawArr) return true;
+
+      if (Array.isArray(rawArr)) {
+        const targetId = String(filterValue);
+        return !rawArr.some(item => {
+          if (typeof item === 'object' && item !== null) {
+            return String((item as { id?: number }).id) === targetId;
+          }
+          return String(item) === targetId;
+        });
+      }
+
+      if (typeof rawArr === 'string') {
+        const ids = rawArr.split(',').map(s => s.trim());
+        return !ids.includes(String(filterValue));
+      }
+
+      return true;
+    }
 
     default:
       return true;

@@ -298,6 +298,14 @@ module Api
                     query = query.where("#{conn.quote_column_name(column)} IS NULL OR #{conn.quote_column_name(column)} = ''")
                   when "is_not_empty"
                     query = query.where("#{conn.quote_column_name(column)} IS NOT NULL AND #{conn.quote_column_name(column)} != ''")
+                  when "array_contains"
+                    # Handle array columns (e.g., sm_template_ids which is integer[])
+                    # PostgreSQL: value = ANY(column)
+                    # This works for integer[] columns where we check if a single value is in the array
+                    query = query.where("? = ANY(#{conn.quote_column_name(column)})", value.to_i)
+                  when "array_not_contains"
+                    # Inverse: NOT (value = ANY(column)) or column IS NULL
+                    query = query.where("NOT (? = ANY(#{conn.quote_column_name(column)})) OR #{conn.quote_column_name(column)} IS NULL", value.to_i)
                   end
                 end
               end

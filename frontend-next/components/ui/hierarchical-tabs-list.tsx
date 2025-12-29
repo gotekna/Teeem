@@ -177,7 +177,7 @@ export function HierarchicalTabsList({
                 key={child.tab_key}
                 // SSoT: Use composite key to match TabsContent value
                 value={compositeKey}
-                onClick={() => onTabChange?.(child.tab_key)}
+                onClick={() => onTabChange?.(compositeKey)}
                 data-state={isChildActive ? "active" : "inactive"}
                 className={cn(
                   "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all",
