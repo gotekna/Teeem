@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 
 // Dynamically import Leaflet components to avoid SSR issues
 const MapContainer = dynamic(

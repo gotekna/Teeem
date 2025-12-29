@@ -43,6 +43,7 @@ import {
   Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -208,7 +209,8 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
         setSearchingCompanies(false);
       }
     };
-    const debounce = setTimeout(searchCompanies, 300);
+    // SSoT: Uses DEBOUNCE_SEARCH_MS from timeout-constants.ts
+    const debounce = setTimeout(searchCompanies, DEBOUNCE_SEARCH_MS);
     return () => clearTimeout(debounce);
   }, [companySearchQuery]);
 
@@ -233,7 +235,8 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
         setSearchingEmployees(false);
       }
     };
-    const debounce = setTimeout(searchEmployees, 300);
+    // SSoT: Uses DEBOUNCE_SEARCH_MS from timeout-constants.ts
+    const debounce = setTimeout(searchEmployees, DEBOUNCE_SEARCH_MS);
     return () => clearTimeout(debounce);
   }, [employeeSearchQuery, employees]);
 

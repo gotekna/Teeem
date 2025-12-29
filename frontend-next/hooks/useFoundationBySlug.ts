@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
 import type { Foundation } from './useFoundationData';
 import { isSystemOrHiddenColumn } from '@/lib/corporate/column-utils';
+import { CACHE_TTL_VIEWS } from '@/lib/constants/cache-constants';
 
 /**
  * Extended return type with server-side search support
@@ -71,9 +72,10 @@ interface ViewsResponse {
 }
 
 // Module-level cache for preloaded views (shared with TeeemTableView)
- 
+
 export const preloadedViewsCache: Record<number, { views: any[]; timestamp: number }> = {};
-const VIEWS_CACHE_TTL = 60000; // 1 minute
+// SSoT: Uses CACHE_TTL_VIEWS from cache-constants.ts
+const VIEWS_CACHE_TTL = CACHE_TTL_VIEWS;
 
 /**
  * Hook for loading foundation data by slug (not ID)

@@ -29,6 +29,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { format } from "date-fns";
 import { CaseProposalsTab } from "@/components/cases/case-proposals-tab";
 import { useToast } from "@/components/ui/use-toast";
@@ -122,7 +123,8 @@ export default function CasesPage() {
       }
     };
 
-    const debounce = setTimeout(loadCases, 300);
+    // SSoT: Uses DEBOUNCE_SEARCH_MS from timeout-constants.ts
+    const debounce = setTimeout(loadCases, DEBOUNCE_SEARCH_MS);
     return () => clearTimeout(debounce);
   }, [search, statusFilter, typeFilter, priorityFilter]);
 

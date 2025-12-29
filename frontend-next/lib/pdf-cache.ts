@@ -10,8 +10,11 @@
  * - Falls back gracefully if Cache API unavailable
  */
 
+import { CACHE_EXPIRY_PDF } from './constants/cache-constants';
+
 const PDF_CACHE_NAME = "teeem-pdf-cache-v1";
-const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// SSoT: Uses CACHE_EXPIRY_PDF from cache-constants.ts
+const CACHE_MAX_AGE_MS = CACHE_EXPIRY_PDF;
 
 /**
  * Check if Cache API is available (not available in some contexts like incognito)

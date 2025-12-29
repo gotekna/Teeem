@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { CACHE_EXPIRY_TABLE_SESSION } from "@/lib/constants/cache-constants";
 
 /**
  * View state that can be persisted to session storage
@@ -33,7 +34,8 @@ export interface TableViewState {
 }
 
 const STORAGE_VERSION = 1;
-const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+// SSoT: Uses CACHE_EXPIRY_TABLE_SESSION from cache-constants.ts
+const CACHE_EXPIRY_MS = CACHE_EXPIRY_TABLE_SESSION;
 
 /**
  * Get the storage key for a foundation
