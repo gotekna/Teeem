@@ -2272,7 +2272,7 @@ export function ScheduleMasterTab() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Parent Header</Label>
+                  <Label className="text-xs">Header Gantt</Label>
                   <ComboboxDropdown
                     items={availableHeaderRows.map(h => ({ id: String(h.id), label: h.name }))}
                     selectedItem={(() => {

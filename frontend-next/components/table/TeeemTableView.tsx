@@ -990,8 +990,10 @@ export default function TeeemTableView({
   // This prevents "ghost selection" where IDs remain selected after records are deleted/merged
   // Only runs when entries change (not when selectedRows changes, to avoid infinite loop)
   const entriesRef = useRef(entries);
-  // Ref to hold current filteredAndSortedEntries for use in callbacks before useMemo is defined
+  // Refs to hold current values for use in callbacks before useMemo is defined
   const filteredAndSortedEntriesRef = useRef<Record<string, unknown>[]>([]);
+  const groupedEntriesRef = useRef<GroupedEntries | null>(null);
+  const collapsedGroupsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     // Skip if entries haven't actually changed (same reference)
     if (entriesRef.current === entries) return;
@@ -1048,6 +1050,8 @@ export default function TeeemTableView({
   const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : (initialGroupByColumn || null);
   // Collapsed groups managed by atom (persists with saved views)
   const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedGroupsAtom);
+  // Keep ref in sync for use in toggleSelectAll callback
+  collapsedGroupsRef.current = collapsedGroups;
   // groupViewMode managed by atom (SSoT)
   const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
 
@@ -1673,8 +1677,13 @@ export default function TeeemTableView({
   }, [entries]);
 
   const toggleSelectAll = useCallback(() => {
+    // Use refs to access current values (defined after this callback via useMemo)
+    const currentGroupedEntries = groupedEntriesRef.current;
+    const currentCollapsedGroups = collapsedGroupsRef.current;
+    const currentFilteredEntries = filteredAndSortedEntriesRef.current;
+
     // In grouped view, select only visible/expanded rows
-    if (groupedEntries) {
+    if (currentGroupedEntries) {
       const visibleRows: TableRowType[] = [];
       const collectRows = (
         groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
@@ -1682,7 +1691,7 @@ export default function TeeemTableView({
       ) => {
         Object.entries(groups).forEach(([groupKey, group]) => {
           const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
-          const isCollapsed = collapsedGroups.has(fullKey);
+          const isCollapsed = currentCollapsedGroups.has(fullKey);
           if (!isCollapsed) {
             if (group.subgroups && Object.keys(group.subgroups).length > 0) {
               collectRows(group.subgroups as typeof groups, fullKey);
@@ -1692,7 +1701,7 @@ export default function TeeemTableView({
           }
         });
       };
-      collectRows(groupedEntries);
+      collectRows(currentGroupedEntries);
 
       // Check if all visible rows are selected
       const visibleIds = visibleRows.map(r => r.id);
@@ -1711,14 +1720,14 @@ export default function TeeemTableView({
       }
     } else {
       // Flat view: select all filtered entries
-      if (selectedRows.size === filteredAndSortedEntries.length) {
+      if (selectedRows.size === currentFilteredEntries.length) {
         setSelectedRows(new Set<string | number>());
       } else {
-        setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
+        setSelectedRows(new Set(currentFilteredEntries.map((e) => e.id as string | number)));
       }
     }
 
-  }, [groupedEntries, collapsedGroups, selectedRows, filteredAndSortedEntries]);
+  }, [selectedRows]);
 
   // Merge handler - opens the shared merge modal
   const handleMergeClick = useCallback((ids: (number | string)[]) => {
@@ -2707,6 +2716,9 @@ export default function TeeemTableView({
       search
     );
   }, [filteredAndSortedEntries, groupByColumns, sortColumns, serverGroupCounts, search]);
+
+  // Keep ref in sync for use in toggleSelectAll callback
+  groupedEntriesRef.current = groupedEntries;
 
   // Expand/collapse all group handlers (must be after groupedEntries)
   // Uses getAllGroupKeysUtil from table-data-utils.ts
