@@ -518,18 +518,18 @@ export function NavigationTab() {
             <div className="space-y-2">
               <Label>Parent Item</Label>
               <ComboboxDropdown
-                options={[
-                  { value: "__none__", label: "None (top-level)" },
+                items={[
+                  { id: "__none__", label: "None (top-level)" },
                   ...items
                     .filter((i) => !i.parent_id) // Only show top-level items as parents
                     .map((i) => ({
-                      value: i.id.toString(),
+                      id: i.id.toString(),
                       label: i.name,
                     })),
                 ]}
-                value={parentForNewItem?.toString() || "__none__"}
-                onValueChange={(value) => {
-                  setParentForNewItem(value === "__none__" ? null : parseInt(value));
+                selectedItem={{ id: parentForNewItem?.toString() || "__none__", label: parentForNewItem ? items.find(i => i.id === parentForNewItem)?.name || "" : "None (top-level)" }}
+                onSelect={(item) => {
+                  setParentForNewItem(item?.id === "__none__" ? null : parseInt(item?.id || "0"));
                 }}
                 placeholder="Select parent..."
               />
@@ -711,8 +711,8 @@ export function NavigationTab() {
 
                   return (
                     <ComboboxDropdown
-                      options={[
-                        { value: "__none__", label: "None (top-level)" },
+                      items={[
+                        { id: "__none__", label: "None (top-level)" },
                         ...items
                           .filter((i) => {
                             // Exclude self
@@ -724,13 +724,13 @@ export function NavigationTab() {
                             return true;
                           })
                           .map((i) => ({
-                            value: i.id.toString(),
+                            id: i.id.toString(),
                             label: i.name,
                           })),
                       ]}
-                      value={currentParentId?.toString() || "__none__"}
-                      onValueChange={(value) => {
-                        const newParentId = value === "__none__" ? null : parseInt(value);
+                      selectedItem={{ id: currentParentId?.toString() || "__none__", label: currentParent?.name || "None (top-level)" }}
+                      onSelect={(item) => {
+                        const newParentId = item?.id === "__none__" ? null : parseInt(item?.id || "0");
                         handleSetParent(editingItem.id, newParentId);
                       }}
                       placeholder={currentParent ? currentParent.name : "None (top-level)"}

@@ -138,29 +138,37 @@ class JobDocumentSyncJob < ApplicationJob
       current_id, depth, current_path = folders_to_process.shift
 
       begin
+        # Start with initial URL for this folder
         url = "/drives/#{@drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$expand=thumbnails&$top=200"
-        result = @client.get(url)
 
-        result["value"]&.each do |item|
-          if item["file"]
-            # Extract thumbnail URLs from Microsoft Graph response (publicly accessible)
-            thumbnails = item.dig("thumbnails", 0) || {}
-            thumbnail_url = thumbnails.dig("medium", "url") || thumbnails.dig("small", "url")
+        # Follow pagination to get ALL items (fixes bug where folders >200 items were truncated)
+        while url
+          result = @client.get(url)
 
-            files << {
-              id: item["id"],
-              name: item["name"],
-              size: item["size"],
-              web_url: item["webUrl"],
-              modified: item["lastModifiedDateTime"],
-              folder_path: current_path,
-              thumbnail_url: thumbnail_url
-            }
-          elsif item["folder"] && depth < max_depth
-            folder_name = item["name"]
-            new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
-            folders_to_process << [ item["id"], depth + 1, new_path ]
+          result["value"]&.each do |item|
+            if item["file"]
+              # Extract thumbnail URLs from Microsoft Graph response (publicly accessible)
+              thumbnails = item.dig("thumbnails", 0) || {}
+              thumbnail_url = thumbnails.dig("medium", "url") || thumbnails.dig("small", "url")
+
+              files << {
+                id: item["id"],
+                name: item["name"],
+                size: item["size"],
+                web_url: item["webUrl"],
+                modified: item["lastModifiedDateTime"],
+                folder_path: current_path,
+                thumbnail_url: thumbnail_url
+              }
+            elsif item["folder"] && depth < max_depth
+              folder_name = item["name"]
+              new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
+              folders_to_process << [ item["id"], depth + 1, new_path ]
+            end
           end
+
+          # Follow @odata.nextLink for pagination (Microsoft Graph returns this when more items exist)
+          url = result["@odata.nextLink"]
         end
       rescue MicrosoftGraphClient::APIError => e
         Rails.logger.warn("[JobDocumentSync] Failed to list folder #{current_id}: #{e.message}")
