@@ -2,8 +2,9 @@ module Api
   module V1
     class ContactsController < ApplicationController
       # SSoT: Extract related functionality into concerns to reduce file size
-      include Contacts::PortalUserManagement
-      include Contacts::XeroSync
+      # Note: Use :: prefix to avoid namespace conflict with Api::V1::Contacts:: module
+      include ::Contacts::PortalUserManagement
+      include ::Contacts::XeroSync
 
       before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web, :reorder_employees, :reorder_companies, :coworkers, :update_from_bill ]
       before_action :require_corporate_permission, only: [ :directorships, :shareholdings, :trust_roles, :ownership_chain ]
