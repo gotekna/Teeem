@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -16,6 +16,8 @@ import type { TableRow } from "@/components/table/types";
 
 export default function PriceBookPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
   // Use foundation hook for TeeemTableView with server-side stats
   const { foundation, records, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("pricebook-items");
@@ -23,11 +25,44 @@ export default function PriceBookPage() {
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Handle row double-click - open drawer
+  // URL state helpers
+  const updateUrl = useCallback((params: URLSearchParams) => {
+    const queryString = params.toString();
+    const url = queryString ? `${pathname}?${queryString}` : pathname;
+    router.push(url, { scroll: false });
+  }, [pathname, router]);
+
+  // Read URL params to open drawer on mount/URL change
+  useEffect(() => {
+    const itemIdParam = searchParams.get("itemId");
+    if (itemIdParam) {
+      const id = parseInt(itemIdParam, 10);
+      if (!isNaN(id)) {
+        setSelectedItemId(id);
+        setDrawerOpen(true);
+      }
+    } else {
+      setDrawerOpen(false);
+      setSelectedItemId(null);
+    }
+  }, [searchParams]);
+
+  // Handle drawer open change - sync to URL
+  const handleDrawerOpenChange = useCallback((open: boolean) => {
+    const params = new URLSearchParams(window.location.search);
+    if (!open) {
+      params.delete("itemId");
+      updateUrl(params);
+    }
+    // If opening, URL is already set by handleRowDoubleClick
+  }, [updateUrl]);
+
+  // Handle row double-click - open drawer via URL
   const handleRowDoubleClick = useCallback((row: TableRow) => {
-    setSelectedItemId(row.id as number);
-    setDrawerOpen(true);
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    params.set("itemId", String(row.id));
+    updateUrl(params);
+  }, [updateUrl]);
 
   // Handle row click - navigate to detail page
   const handleRowClick = useCallback((row: TableRow) => {
@@ -100,7 +135,7 @@ export default function PriceBookPage() {
       <PricebookDetailDrawer
         itemId={selectedItemId}
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        onOpenChange={handleDrawerOpenChange}
       />
     </TablePage>
   );

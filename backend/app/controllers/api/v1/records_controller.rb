@@ -323,8 +323,8 @@ module Api
           records = query.offset((page - 1) * per_page).limit(per_page)
         end
 
-        # Build lookup cache to prevent N+1 queries (only for user foundations with lookup columns)
-        lookup_cache = @foundation.table_type == "system" ? {} : build_lookup_cache(records)
+        # Build lookup cache to prevent N+1 queries (for all foundations with lookup columns)
+        lookup_cache = build_lookup_cache(records)
 
         # Serialize records to JSON
         serialized_records = records.map { |r| record_to_json(r, lookup_cache) }
@@ -870,6 +870,37 @@ module Api
               end
             rescue => e
               Rails.logger.error "Error expanding multiple_lookups #{column.column_name}: #{e.message}"
+            end
+          end
+
+          # Expand lookup columns for system tables (e.g., header in sm_schedule_master)
+          # This handles lookup columns that don't follow the _id naming convention
+          @foundation.columns.where(column_type: "lookup").each do |column|
+            value = json[column.column_name]
+            next if value.blank?
+            # Skip if already expanded (e.g., _id columns handled by association lookup above)
+            next if value.is_a?(Hash) && value.key?(:id)
+
+            begin
+              # Use lookup_cache if available, otherwise query
+              related_record = if lookup_cache && lookup_cache[column.id]
+                lookup_cache[column.id][value.to_i]
+              elsif column.lookup_foundation.present?
+                column.lookup_foundation.dynamic_model.find_by(id: value)
+              end
+
+              if related_record
+                display_col = column.lookup_display_column || "name"
+                json[column.column_name] = {
+                  id: value.to_i,
+                  display: related_record.send(display_col).to_s
+                }
+              else
+                json[column.column_name] = { id: value.to_i, display: "[Deleted]" }
+              end
+            rescue => e
+              Rails.logger.error "Error expanding lookup #{column.column_name}: #{e.message}"
+              json[column.column_name] = { id: value.to_i, display: "[Error]" }
             end
           end
 

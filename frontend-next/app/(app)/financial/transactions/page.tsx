@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { PlusIcon, BanknotesIcon, CreditCardIcon } from "@heroicons/react/24/outline";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -48,6 +49,9 @@ interface Summary {
 }
 
 export default function FinancialTransactionsPage() {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useUrlTabs("xero");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +63,44 @@ export default function FinancialTransactionsPage() {
     total_expenses: 0,
     net_profit: 0,
   });
+
+  // URL state helpers
+  const updateUrl = useCallback((params: URLSearchParams) => {
+    const queryString = params.toString();
+    const url = queryString ? `${pathname}?${queryString}` : pathname;
+    router.push(url, { scroll: false });
+  }, [pathname, router]);
+
+  const clearModalUrl = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("new");
+    params.delete("edit");
+    updateUrl(params);
+  }, [updateUrl]);
+
+  // Read URL params to open modal on mount/URL change
+  useEffect(() => {
+    const newType = searchParams.get("new");
+    const editId = searchParams.get("edit");
+
+    if (newType === "income" || newType === "expense") {
+      setTransactionType(newType);
+      setEditingTransaction(null);
+      setShowTransactionForm(true);
+    } else if (editId) {
+      // Find the transaction to edit
+      const transaction = transactions.find(t => t.id === parseInt(editId, 10));
+      if (transaction) {
+        setEditingTransaction(transaction);
+        setTransactionType(transaction.transaction_type as "income" | "expense");
+        setShowTransactionForm(true);
+      }
+    } else {
+      // No modal params - ensure modal is closed
+      setShowTransactionForm(false);
+      setEditingTransaction(null);
+    }
+  }, [searchParams, transactions]);
 
   useEffect(() => {
     fetchTransactions();
@@ -165,22 +207,23 @@ export default function FinancialTransactionsPage() {
   };
 
   const handleAddIncome = () => {
-    setEditingTransaction(null);
-    setTransactionType("income");
-    setShowTransactionForm(true);
+    const params = new URLSearchParams(window.location.search);
+    params.set("new", "income");
+    params.delete("edit");
+    updateUrl(params);
   };
 
   const handleAddExpense = () => {
-    setEditingTransaction(null);
-    setTransactionType("expense");
-    setShowTransactionForm(true);
+    const params = new URLSearchParams(window.location.search);
+    params.set("new", "expense");
+    params.delete("edit");
+    updateUrl(params);
   };
 
   const handleTransactionSuccess = async () => {
     await fetchTransactions();
     await fetchSummary();
-    setShowTransactionForm(false);
-    setEditingTransaction(null);
+    clearModalUrl(); // This will trigger useEffect to close modal
   };
 
   const handleImport = () => {
@@ -352,10 +395,7 @@ export default function FinancialTransactionsPage() {
       {/* Transaction Form Modal */}
       <TransactionForm
         isOpen={showTransactionForm}
-        onClose={() => {
-          setShowTransactionForm(false);
-          setEditingTransaction(null);
-        }}
+        onClose={clearModalUrl}
         onSuccess={handleTransactionSuccess}
         transaction={editingTransaction}
         type={transactionType}

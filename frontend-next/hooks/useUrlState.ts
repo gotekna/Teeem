@@ -71,9 +71,11 @@ export function useUrlState<T extends Record<string, string | string[] | null>>(
   }, [searchParams, defaults]);
 
   // Update URL with new state (merges with existing params)
+  // Uses window.location.search to avoid stale closure issues when
+  // multiple updates happen before React re-renders with new searchParams
   const setState = useCallback(
     (updates: Partial<T>) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
 
       for (const [key, value] of Object.entries(updates)) {
         const defaultValue = defaults[key as keyof T];
@@ -110,13 +112,13 @@ export function useUrlState<T extends Record<string, string | string[] | null>>(
 
       router.push(newUrl, { scroll: false });
     },
-    [router, searchParams, pathname, defaults]
+    [router, pathname, defaults]
   );
 
   // Clear specific params or all tracked params
   const clearState = useCallback(
     (keys?: (keyof T)[]) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
 
       const keysToDelete = keys || (Object.keys(defaults) as (keyof T)[]);
       keysToDelete.forEach((key) => params.delete(key as string));
@@ -126,7 +128,7 @@ export function useUrlState<T extends Record<string, string | string[] | null>>(
 
       router.push(newUrl, { scroll: false });
     },
-    [router, searchParams, pathname, defaults]
+    [router, pathname, defaults]
   );
 
   return [state, setState, clearState];

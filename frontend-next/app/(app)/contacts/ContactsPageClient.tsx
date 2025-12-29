@@ -90,8 +90,9 @@ export default function ContactsPageClient({
   const initialSearchFromUrl = searchParams.get("search") || undefined;
 
   // Update URL when search changes
+  // Use window.location.search directly to avoid stale closure issues with searchParams
   const handleSearchChange = useCallback((term: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search);
     if (term && term.trim()) {
       params.set("search", term);
     } else {
@@ -100,7 +101,7 @@ export default function ContactsPageClient({
     const queryString = params.toString();
     const url = queryString ? `${pathname}?${queryString}` : pathname;
     router.push(url, { scroll: false });
-  }, [searchParams, pathname, router]);
+  }, [pathname, router]);
 
   // Helper function to deduplicate records by ID (belt-and-suspenders approach)
   const deduplicateRecords = useCallback((recs: TTableRow[]) => {
