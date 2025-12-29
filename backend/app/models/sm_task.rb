@@ -58,6 +58,8 @@ class SmTask < ApplicationRecord
 
   # SSoT: PO-Task link is via PurchaseOrder.sm_task_id (one PO -> one task)
   # Use linked_purchase_order to get the PO for this task
+  has_one :purchase_order, class_name: "PurchaseOrder", foreign_key: "sm_task_id"
+
   belongs_to :assigned_user, class_name: "User", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
