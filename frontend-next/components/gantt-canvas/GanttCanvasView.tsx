@@ -39,6 +39,8 @@ import {
   Eye,
   PanelLeftClose,
   PanelLeft,
+  PanelRightClose,
+  PanelRight,
   Check,
   X,
   Expand,
@@ -47,6 +49,8 @@ import {
   Layers,
   ChevronsDownUp,
   ChevronsUpDown,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -94,6 +98,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { initCompanySettings, getTodayInCompanyTimezone } from "@/lib/stores/company-settings-store";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
+import type { PhotoItem } from "@/components/ui/photo-gallery";
 
 // ============================================================================
 // Types
@@ -288,6 +294,14 @@ export function GanttCanvasView({
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
   const [showDependencies, setShowDependencies] = React.useState(true);
+
+  // Photo panel state (for testing - hardcoded to job 46)
+  const TEST_JOB_ID = 46; // TODO: Make this configurable
+  const [showPhotoPanel, setShowPhotoPanel] = React.useState(false);
+  const [jobPhotos, setJobPhotos] = React.useState<PhotoItem[]>([]);
+  const [loadingPhotos, setLoadingPhotos] = React.useState(false);
+  const [lightboxOpen, setLightboxOpen] = React.useState(false);
+  const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
   // Collapsed headers state - stores row IDs of collapsed header rows
   const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<number>>(new Set());
@@ -842,6 +856,69 @@ export function GanttCanvasView({
       }
     }
   }, [templateId, isStaticMode]);
+
+  // Load job photos for the photo panel
+  const loadJobPhotos = React.useCallback(async () => {
+    if (!showPhotoPanel) return;
+
+    try {
+      setLoadingPhotos(true);
+
+      // Use legacy_files endpoint to get all files with thumbnails
+      const response = await api.get<{
+        success: boolean;
+        items: Array<{
+          id: string;
+          name: string;
+          web_url?: string;
+          modified?: string;
+          type: "file" | "folder";
+          thumbnail_url?: string;
+          download_url?: string;
+        }>;
+      }>(`/api/v1/organization_onedrive/legacy_files?job_id=${TEST_JOB_ID}&recursive=true`);
+
+      if (response?.success && response.items) {
+        // Filter for image files only
+        const imageExtensions = [".jpg", ".jpeg", ".png", ".heic", ".gif", ".webp"];
+        const imageFiles = response.items.filter((item) => {
+          if (item.type !== "file") return false;
+          const ext = item.name.toLowerCase().split(".").pop();
+          return ext && imageExtensions.some((e) => e.endsWith(ext));
+        });
+
+        // Convert to PhotoItem format
+        const photos: PhotoItem[] = imageFiles.map((file) => ({
+          id: file.id,
+          name: file.name,
+          url: file.download_url || file.web_url || "", // Full-size URL (required)
+          thumbnailUrl: file.thumbnail_url || file.download_url || "",
+          webUrl: file.web_url,
+          modifiedAt: file.modified,
+        }));
+
+        // Sort by date (newest first)
+        photos.sort((a, b) => {
+          const dateA = a.modifiedAt ? new Date(a.modifiedAt).getTime() : 0;
+          const dateB = b.modifiedAt ? new Date(b.modifiedAt).getTime() : 0;
+          return dateB - dateA;
+        });
+
+        setJobPhotos(photos);
+      }
+    } catch (err) {
+      console.error("Error loading job photos:", err);
+    } finally {
+      setLoadingPhotos(false);
+    }
+  }, [showPhotoPanel, TEST_JOB_ID]);
+
+  // Load photos when panel opens
+  React.useEffect(() => {
+    if (showPhotoPanel && jobPhotos.length === 0) {
+      loadJobPhotos();
+    }
+  }, [showPhotoPanel, jobPhotos.length, loadJobPhotos]);
 
   // Save dependencies
   const saveDependencies = React.useCallback(async () => {
@@ -2389,6 +2466,16 @@ export function GanttCanvasView({
             <GitBranch className="h-4 w-4" />
           </Button>
 
+          {/* Photo Panel Toggle */}
+          <Button
+            variant={showPhotoPanel ? "default" : "ghost"}
+            size="icon"
+            title={showPhotoPanel ? "Hide Photos" : "Show Job Photos"}
+            onClick={() => setShowPhotoPanel(!showPhotoPanel)}
+          >
+            {showPhotoPanel ? <PanelRightClose className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+          </Button>
+
           <div className="flex-1" />
 
           {/* Template Selector */}
@@ -2745,6 +2832,92 @@ export function GanttCanvasView({
           className="flex-1 min-h-0 bg-background"
           style={{ position: "relative" }}
         />
+
+        {/* Photo Panel - Right Side */}
+        {showPhotoPanel && (
+          <div className="w-64 border-l bg-background flex flex-col overflow-hidden">
+            {/* Panel Header */}
+            <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Camera className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Job {TEST_JOB_ID} Photos</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setShowPhotoPanel(false)}
+                title="Close Panel"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Photo Count */}
+            <div className="px-3 py-2 border-b text-xs text-muted-foreground">
+              {loadingPhotos ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Loading photos...
+                </span>
+              ) : (
+                <span>{jobPhotos.length} photos</span>
+              )}
+            </div>
+
+            {/* Photos Grid */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {loadingPhotos ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : jobPhotos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-center">
+                  <Camera className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                  <p className="text-sm text-muted-foreground">No photos found</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {jobPhotos.map((photo, index) => (
+                    <button
+                      key={photo.id}
+                      onClick={() => {
+                        setLightboxIndex(index);
+                        setLightboxOpen(true);
+                      }}
+                      className="aspect-square rounded-md overflow-hidden bg-muted/50 hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <img
+                        src={photo.thumbnailUrl}
+                        alt={photo.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Refresh Button */}
+            <div className="p-2 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={loadJobPhotos}
+                disabled={loadingPhotos}
+              >
+                {loadingPhotos ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Refresh
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Dependency Editor Dialog */}
@@ -3553,6 +3726,16 @@ export function GanttCanvasView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Photo Lightbox */}
+      <ImageLightbox
+        photos={jobPhotos}
+        initialIndex={lightboxIndex}
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        showDownload={true}
+        showOpenExternal={true}
+      />
     </div>
   );
 

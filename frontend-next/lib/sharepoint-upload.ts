@@ -170,6 +170,10 @@ export async function uploadToSharePointDirect(
       message: "Finalizing...",
     });
 
+    if (!result.id) {
+      console.warn('[DirectUpload] Upload succeeded but no item ID returned from SharePoint - warehouse sync may be skipped');
+    }
+
     if (result.id && jobId) {
       try {
         await api.post("/api/v1/sharepoint/upload_complete", {

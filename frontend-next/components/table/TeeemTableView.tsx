@@ -354,9 +354,6 @@ import {
 // View state atoms (keep separate for now - already in use)
 import {
   activeViewIdAtom,
-  currentFiltersAtom,
-  currentFilterGroupsAtom,
-  currentInterGroupLogicAtom,
   currentVisibleColumnsAtom,
   currentColumnOrderAtom,
   currentColumnWidthsAtom,
@@ -374,6 +371,9 @@ import {
   loadFoundationViewsAtom,
   invalidateViewsCacheAtom,
 } from '@/lib/view-state-atoms';
+
+// ULTRA Solution: Sourced filter state hook
+import { useFilterState } from './core/state/useFilterState';
 import { selectDefaultView } from '@/lib/view-loading-utils';
 
 // Helper functions and constants now imported from ./utils/table-utils:
@@ -1030,20 +1030,37 @@ export default function TeeemTableView({
     });
   }, [entries, effectiveEntries, setSelectedRows]);
 
-  // Filter state managed by atoms
-  const [cascadeFilters, setCascadeFilters] = useAtom(currentFiltersAtom);
+  // ULTRA Solution: Filter state managed by sourced atoms
+  // Use the hook for reading merged filters and action functions
+  const {
+    cascadeFilters,
+    mergedFilters,
+    baseFilters,
+    hasUserFilters,
+    filterGroups,
+    setFilterGroups,
+    interGroupLogic,
+    setInterGroupLogic,
+    setBaseFilters,
+    setUserFilters,
+    addUserFilter,
+    removeFilter,
+    clearAllUserFilters,
+  } = useFilterState();
+
   // Defensive: ensure cascadeFilters is always an array for .map/.length calls
   const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
-  const [filterGroups, setFilterGroups] = useAtom(currentFilterGroupsAtom);
 
-  // Apply initialFilters when they change (SSoT: allows parent to set initial filters via prop)
+  // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
   const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters]);
   useEffect(() => {
     if (initialFilters && initialFilters.length > 0) {
-      setCascadeFilters(initialFilters);
+      setBaseFilters(initialFilters);
     }
-  }, [initialFiltersKey, setCascadeFilters]); // Only re-run when initialFilters changes (JSON stringified)
-  const [interGroupLogic, setInterGroupLogic] = useAtom(currentInterGroupLogicAtom);
+  }, [initialFiltersKey, setBaseFilters]); // Only re-run when initialFilters changes (JSON stringified)
+
+  // Backward compatibility alias
+  const setCascadeFilters = setUserFilters;
   // showFilters managed by atom (SSoT)
   const [showFilters, setShowFilters] = useAtom(showFiltersAtom);
 
@@ -1639,16 +1656,17 @@ export default function TeeemTableView({
     []
   );
 
-  const removeFilter = useCallback((id: string | number) => {
-    setCascadeFilters((prev) => prev.filter((f) => f.id !== id));
-     
-  }, []);
+  // ULTRA Solution: Use sourced filter removal (preserves base filters)
+  // removeFilter from hook already handles only removing non-base filters
+  const handleRemoveFilter = useCallback((id: string | number) => {
+    removeFilter(id);
+  }, [removeFilter]);
 
+  // ULTRA Solution: Clear ALL user-clearable filters (preserves base filters)
   const clearAllFilters = useCallback(() => {
-    setCascadeFilters([]);
+    clearAllUserFilters();
     setActiveViewId(null);
-     
-  }, []);
+  }, [clearAllUserFilters, setActiveViewId]);
 
   // Row selection handlers
   const toggleRowSelection = useCallback((id: number | string) => {
@@ -4766,36 +4784,58 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* Active filters indicator - only show when NO saved view is active (view buttons already indicate active view) */}
-      {safeFilters.length > 0 && !activeViewId && (
+      {/* ULTRA Solution: Active filters indicator with locked/clearable states */}
+      {/* Show when filters exist AND (no view active OR base filters exist) */}
+      {(safeFilters.length > 0 && !activeViewId) || baseFilters.length > 0 ? (
         <div className="flex items-center gap-2 flex-wrap px-4">
           <span className="text-[11px] text-muted-foreground">Active filters:</span>
-          {safeFilters.map((filter) => {
+          {/* Render merged filters with source-awareness */}
+          {mergedFilters.map((filter) => {
             const col = COLUMNS.find((c) => c.key === filter.column);
+            const isLocked = filter.locked || filter.source === 'base';
             return (
               <Badge
                 key={filter.id}
-                variant="secondary"
-                className="gap-1 cursor-pointer hover:bg-secondary/80"
-                onClick={() => setShowGlobalViewsManager(true)}
+                variant={isLocked ? "outline" : "secondary"}
+                className={cn(
+                  "gap-1",
+                  isLocked
+                    ? "border-dashed bg-muted/30 cursor-default"
+                    : "cursor-pointer hover:bg-secondary/80"
+                )}
+                onClick={isLocked ? undefined : () => setShowGlobalViewsManager(true)}
+                title={isLocked ? "Base filter (cannot be cleared)" : "Click to edit filters"}
               >
+                {isLocked && <Pin className="h-3 w-3 text-muted-foreground" />}
                 {col?.label || filter.column}{" "}
                 {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
                 {!["is_empty", "is_not_empty"].includes(filter.operator) &&
                   `"${filter.value}"`}
+                {!isLocked && (
+                  <X
+                    className="h-3 w-3 text-muted-foreground hover:text-foreground ml-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveFilter(filter.id);
+                    }}
+                  />
+                )}
               </Badge>
             );
           })}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearAllFilters}
-            className="h-6 px-2 text-muted-foreground"
-          >
-            Clear all
-          </Button>
+          {/* Only show "Clear all" if there are user-clearable filters */}
+          {hasUserFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearAllFilters}
+              className="h-6 px-2 text-muted-foreground"
+            >
+              Clear all
+            </Button>
+          )}
         </div>
-      )}
+      ) : null}
 
       {/* Bulk actions - HIDDEN - now shown inline in toolbar */}
       {false && selectedRows.size > 0 && (

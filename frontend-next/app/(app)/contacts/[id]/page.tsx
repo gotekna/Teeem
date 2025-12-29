@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSetAtom } from "jotai";
 import Link from "next/link";
-import { currentFiltersAtom, currentFilterGroupsAtom, foundationViewsAtom, activeViewIdAtom } from "@/lib/view-state-atoms";
+import { resetAllFiltersAtom, foundationViewsAtom, activeViewIdAtom } from "@/lib/view-state-atoms";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -332,18 +332,17 @@ export default function ContactDetailPage() {
   const activeSubTab = searchParams.get("subtab") || "identity";
 
   // Jotai atom setters for resetting view state when switching to emails tab
-  const setCascadeFilters = useSetAtom(currentFiltersAtom);
-  const setFilterGroups = useSetAtom(currentFilterGroupsAtom);
+  // ULTRA Solution: Use action atoms for filter mutations
+  const resetAllFilters = useSetAtom(resetAllFiltersAtom);
   const setSavedViews = useSetAtom(foundationViewsAtom);
   const setActiveViewId = useSetAtom(activeViewIdAtom);
 
   // Reset all view state when entering the emails tab to prevent stale state from Contacts list
   const resetFiltersForEmailsTab = useCallback(() => {
-    setCascadeFilters([]);
-    setFilterGroups([{ id: "default", logic: "AND" }]);
+    resetAllFilters(); // Clears all user filters and resets filter groups
     setSavedViews([]); // Clear saved views so Contacts views don't show
     setActiveViewId(null); // Clear active view
-  }, [setCascadeFilters, setFilterGroups, setSavedViews, setActiveViewId]);
+  }, [resetAllFilters, setSavedViews, setActiveViewId]);
 
   useEffect(() => {
     loadContact();

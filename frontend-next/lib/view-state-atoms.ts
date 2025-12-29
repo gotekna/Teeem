@@ -10,11 +10,58 @@
  * - No prop drilling or callback chains
  * - Better performance (only re-renders components using changed atoms)
  * - Proper cache management with invalidation
+ *
+ * FILTER ARCHITECTURE (ULTRA Solution):
+ * - Filter state is now source-aware (base/view/user/search/quickFilter)
+ * - Base filters from initialFilters prop are IMMUTABLE
+ * - User filters can be cleared without affecting base filters
+ * - See lib/filter-atoms.ts for the SSoT filter implementation
  */
 
 import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from '@/components/table/types';
+
+// Import the actual atoms for use in applyViewAtom
+import {
+  viewFiltersAtom as _viewFiltersAtom,
+  filterGroupsAtom as _filterGroupsAtom,
+  interGroupLogicAtom as _interGroupLogicAtom,
+} from './filter-atoms';
+
+// Re-export all filter atoms from the SSoT location
+export {
+  // Types
+  type FilterSource,
+  type SourcedCascadeFilter,
+  type SourcedFilterState,
+  // Individual source atoms
+  baseFiltersAtom,
+  viewFiltersAtom,
+  userFiltersAtom,
+  searchFiltersAtom,
+  quickFilterAtom,
+  // Filter groups
+  filterGroupsAtom,
+  interGroupLogicAtom,
+  // Derived atoms
+  mergedFiltersAtom,
+  apiFiltersAtom,
+  hasUserFiltersAtom,
+  filterStateBySourceAtom,
+  // Action atoms
+  setBaseFiltersAtom,
+  setViewFiltersAtom,
+  addUserFilterAtom,
+  setUserFiltersAtom,
+  setSearchFiltersAtom,
+  setQuickFiltersAtom,
+  removeFilterAtom,
+  clearFiltersAtom,
+  clearAllUserFiltersAtom,
+  resetFilterGroupsAtom,
+  resetAllFiltersAtom,
+} from './filter-atoms';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -40,19 +87,23 @@ const ensureFilterIds = (filters: CascadeFilter[]): CascadeFilter[] =>
 export const activeViewIdAtom = atom<number | string | null>(null);
 
 /**
- * Current cascade filters (conditions for filtering table rows)
+ * @deprecated Use apiFiltersAtom from filter-atoms.ts instead
+ * Current cascade filters - now backed by merged filter sources
+ * This is a compatibility alias that reads from mergedFiltersAtom
  */
-export const currentFiltersAtom = atom<CascadeFilter[]>([]);
+export { apiFiltersAtom as currentFiltersAtom } from './filter-atoms';
 
 /**
+ * @deprecated Use filterGroupsAtom from filter-atoms.ts instead
  * Filter groups for organizing filters with AND/OR logic
  */
-export const currentFilterGroupsAtom = atom<FilterGroup[]>([{ id: "default", logic: "AND" }]);
+export { filterGroupsAtom as currentFilterGroupsAtom } from './filter-atoms';
 
 /**
+ * @deprecated Use interGroupLogicAtom from filter-atoms.ts instead
  * Logic operator between filter groups (AND or OR)
  */
-export const currentInterGroupLogicAtom = atom<"AND" | "OR">("OR");
+export { interGroupLogicAtom as currentInterGroupLogicAtom } from './filter-atoms';
 
 /**
  * Column visibility state (key: column name, value: visible boolean)
@@ -165,7 +216,9 @@ export const hasUnsavedChangesAtom = atom((get) => {
   if (!savedView) return false;
 
   // Compare current state with saved view
-  const currentFilters = get(currentFiltersAtom);
+  // Import apiFiltersAtom directly since we're inside this file
+  const { apiFiltersAtom } = require('./filter-atoms');
+  const currentFilters = get(apiFiltersAtom);
   const currentVisibleColumns = get(currentVisibleColumnsAtom);
   const currentColumnOrder = get(currentColumnOrderAtom);
   const currentSortColumns = get(currentSortColumnsAtom);
@@ -188,6 +241,9 @@ export const hasUnsavedChangesAtom = atom((get) => {
  * This replaces the loadViewState callback pattern
  *
  * All state updates happen atomically - React batches them into a single render
+ *
+ * ULTRA Solution: Sets VIEW filters only - base filters from initialFilters
+ * prop are preserved and not affected by view changes.
  */
 export const applyViewAtom = atom(
   null,
@@ -233,10 +289,16 @@ export const applyViewAtom = atom(
       interGroupLogic = view.interGroupLogic;
     }
 
-    // Apply with ensureFilterIds to prevent React key conflicts
-    set(currentFiltersAtom, ensureFilterIds(filters));
-    set(currentFilterGroupsAtom, filterGroups);
-    set(currentInterGroupLogicAtom, interGroupLogic);
+    // ULTRA Solution: Set VIEW filters only (base filters are preserved)
+    // Convert regular filters to sourced filters with 'view' source
+    const sourcedFilters = ensureFilterIds(filters).map(f => ({
+      ...f,
+      source: 'view' as const,
+      locked: false,
+    }));
+    set(_viewFiltersAtom, sourcedFilters);
+    set(_filterGroupsAtom, filterGroups);
+    set(_interGroupLogicAtom, interGroupLogic);
 
     // Column configuration
     if (view.visibleColumns) {
@@ -351,15 +413,18 @@ export const saveViewAtom = atom(
         g => g !== '__collapse_all_pending__' // Don't save the pending marker
       );
 
+      // Import filter atoms for reading current state
+      const { apiFiltersAtom, filterGroupsAtom, interGroupLogicAtom } = require('./filter-atoms');
+
       const viewData = {
         foundation_id: options.foundationId,
         name: options.name,
         view_type: "custom" as const,
         is_global: options.isGlobal,
         filters: {
-          cascadeFilters: get(currentFiltersAtom),
-          filterGroups: get(currentFilterGroupsAtom),
-          interGroupLogic: get(currentInterGroupLogicAtom),
+          cascadeFilters: get(apiFiltersAtom),
+          filterGroups: get(filterGroupsAtom),
+          interGroupLogic: get(interGroupLogicAtom),
         },
         columns: {
           visible: get(currentVisibleColumnsAtom),

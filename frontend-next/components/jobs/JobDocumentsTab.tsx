@@ -458,6 +458,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       });
 
       if (result.success) {
+        // FALLBACK: Trigger job-specific document sync to ensure warehouse is updated
+        // This handles edge cases where upload_complete is skipped (e.g., missing SharePoint item ID)
+        api.post("/api/v1/organization_onedrive/sync_job_documents", { job_id: jobId })
+          .catch(err => console.warn("[PhotoUpload] Fallback sync failed:", err));
+
         // Refresh file list in background to get real SharePoint URLs
         // Wait a moment for SharePoint to index the file
         setTimeout(() => {
