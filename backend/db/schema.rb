@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_001028) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7991,8 +7991,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001028) do
     t.index ["is_active"], name: "index_sm_schedule_master_on_is_active"
     t.index ["linked_po_task_id"], name: "index_sm_schedule_master_on_linked_po_task_id"
     t.index ["po_supplier_id"], name: "index_sm_schedule_master_on_po_supplier_id"
+    t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
     t.index ["sm_schedule_master_version_id"], name: "idx_sm_rows_version"
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids", using: :gin
+    t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
     t.index ["stage"], name: "index_sm_schedule_master_on_stage"
     t.index ["supplier_confirm"], name: "index_sm_schedule_master_on_supplier_confirm", where: "(supplier_confirm = true)"
     t.index ["task_number"], name: "index_sm_schedule_master_on_task_number"
@@ -8325,6 +8327,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001028) do
     t.bigint "key_hash", null: false
     t.integer "byte_size", null: false
     t.index ["byte_size"], name: "index_solid_cache_entries_on_byte_size"
+    t.index ["created_at"], name: "index_solid_cache_entries_on_created_at"
     t.index ["key_hash", "byte_size"], name: "index_solid_cache_entries_on_key_hash_and_byte_size"
     t.index ["key_hash"], name: "index_solid_cache_entries_on_key_hash", unique: true
   end
