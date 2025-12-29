@@ -9,6 +9,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { type PhotoItem } from "@/components/ui/photo-gallery";
+import { Badge } from "@/components/ui/badge";
 import { Camera, RefreshCw, User } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -46,12 +47,24 @@ interface StatusesResponse {
   data: string[];
 }
 
+interface JobType {
+  id: number;
+  name: string;
+}
+
+interface JobTypesResponse {
+  success: boolean;
+  data: JobType[];
+}
+
 export default function JobPhotosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Active");
   const [statuses, setStatuses] = useState<ComboboxItem[]>([]);
+  const [jobTypes, setJobTypes] = useState<JobType[]>([]);
+  const [selectedJobTypeIds, setSelectedJobTypeIds] = useState<number[]>([]);
   const [data, setData] = useState<SupervisorGroup>({});
   const [totalJobs, setTotalJobs] = useState(0);
 
@@ -66,7 +79,7 @@ export default function JobPhotosPage() {
   // Current selected status item
   const selectedStatus = statuses.find(s => s.id === status);
 
-  // Load available statuses
+  // Load available statuses and job types
   useEffect(() => {
     const loadStatuses = async () => {
       try {
@@ -78,17 +91,41 @@ export default function JobPhotosPage() {
         console.error("Failed to load statuses:", err);
       }
     };
+    const loadJobTypes = async () => {
+      try {
+        const response = await api.get<JobTypesResponse>("/api/v1/jobs_photos/job_types");
+        if (response?.success) {
+          setJobTypes(response.data);
+        }
+      } catch (err) {
+        console.error("Failed to load job types:", err);
+      }
+    };
     loadStatuses();
+    loadJobTypes();
   }, []);
+
+  // Toggle job type selection
+  const toggleJobType = (id: number) => {
+    setSelectedJobTypeIds(prev =>
+      prev.includes(id)
+        ? prev.filter(typeId => typeId !== id)
+        : [...prev, id]
+    );
+  };
 
   // Load photos data
   const loadPhotos = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<JobsPhotosResponse>(
-        `/api/v1/jobs_photos?status=${encodeURIComponent(status)}&limit=${photosPerJob}`
-      );
+      let url = `/api/v1/jobs_photos?status=${encodeURIComponent(status)}&limit=${photosPerJob}`;
+      // Add job type filter if any selected
+      if (selectedJobTypeIds.length > 0) {
+        const jobTypeParams = selectedJobTypeIds.map(id => `job_type_ids[]=${id}`).join("&");
+        url += `&${jobTypeParams}`;
+      }
+      const response = await api.get<JobsPhotosResponse>(url);
       if (response?.success) {
         setData(response.data.supervisors);
         setTotalJobs(response.data.total_jobs);
@@ -101,7 +138,7 @@ export default function JobPhotosPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, photosPerJob]);
+  }, [status, photosPerJob, selectedJobTypeIds]);
 
   useEffect(() => {
     loadPhotos();
@@ -137,25 +174,61 @@ export default function JobPhotosPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b dark:border-gray-800">
-        <div className="flex items-center gap-3">
-          <BackButton fallbackHref="/jobs" />
-          <Camera className="h-5 w-5 text-muted-foreground" />
-          <h1 className="text-lg font-semibold">Job Photos</h1>
+      <div className="border-b dark:border-gray-800">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <BackButton fallbackHref="/jobs" />
+            <Camera className="h-5 w-5 text-muted-foreground" />
+            <h1 className="text-lg font-semibold">Job Photos</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <ComboboxDropdown
+              items={statuses}
+              selectedItem={selectedStatus}
+              onSelect={(item) => setStatus(item.id)}
+              placeholder="Select status..."
+              className="w-40"
+            />
+            <Button variant="outline" size="sm" onClick={loadPhotos} disabled={loading}>
+              <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <ComboboxDropdown
-            items={statuses}
-            selectedItem={selectedStatus}
-            onSelect={(item) => setStatus(item.id)}
-            placeholder="Select status..."
-            className="w-40"
-          />
-          <Button variant="outline" size="sm" onClick={loadPhotos} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-            Refresh
-          </Button>
-        </div>
+        {/* Job Type Filter */}
+        {jobTypes.length > 0 && (
+          <div className="px-4 pb-3 flex flex-wrap gap-2">
+            <span className="text-sm text-muted-foreground mr-1 self-center">Types:</span>
+            {jobTypes.map((type) => {
+              const isSelected = selectedJobTypeIds.includes(type.id);
+              return (
+                <Badge
+                  key={type.id}
+                  variant={isSelected ? "default" : "outline"}
+                  className={cn(
+                    "cursor-pointer transition-colors",
+                    isSelected
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                  )}
+                  onClick={() => toggleJobType(type.id)}
+                >
+                  {type.name}
+                </Badge>
+              );
+            })}
+            {selectedJobTypeIds.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => setSelectedJobTypeIds([])}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Content */}

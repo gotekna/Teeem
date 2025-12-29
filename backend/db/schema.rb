@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_29_054756) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_29_072854) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7971,9 +7971,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_054756) do
     t.boolean "spawn_call_task", default: false
     t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
-    t.string "trade_text", limit: 255
-    t.string "stage_text", limit: 255
-    t.string "header_backup"
     t.boolean "allow_header", default: false, null: false
     t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"

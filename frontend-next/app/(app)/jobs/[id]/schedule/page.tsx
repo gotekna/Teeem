@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
 import type { GanttTask } from "@/lib/gantt/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -19,17 +17,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  Calendar,
-  ListChecks,
-  Upload,
-  BarChart3,
-  Loader2,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Pause,
-} from "lucide-react";
+import { Calendar, Upload, Loader2 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { parseISO } from "date-fns";
@@ -74,6 +62,7 @@ interface SmTasksResponse {
 
 interface Job {
   id: number;
+  name: string;  // Address (e.g., "123 Main St, Brisbane")
   title: string;
   status: string;
   stage: string;
@@ -102,13 +91,13 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
 export default function ScheduleMasterPage() {
   const params = useParams();
   const jobId = params.id as string;
+  const router = useRouter();
 
   const { toast } = useToast();
   const [job, setJob] = React.useState<Job | null>(null);
   const [tasks, setTasks] = React.useState<SmTask[]>([]);
   const [tasksMeta, setTasksMeta] = React.useState<SmTasksResponse["meta"] | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [activeView, setActiveView] = React.useState<"gantt" | "list">("gantt");
 
   // Import modal state
   const [importModalOpen, setImportModalOpen] = React.useState(false);
@@ -218,30 +207,6 @@ export default function ScheduleMasterPage() {
     return deps;
   }, [tasks]);
 
-  // Stats - calculated from tasks array
-  // A task is VISIBLE if: po_required=false OR (po_required=true AND has PO)
-  // "Total Tasks" shows only VISIBLE tasks in this schedule
-  const stats = React.useMemo(() => {
-    // Filter to only visible tasks (po_required logic)
-    const visibleTasks = tasks.filter((t) => !t.po_required || t.purchase_order_id);
-
-    const total = visibleTasks.length;
-    const completed = visibleTasks.filter((t) => t.status === "completed").length;
-    const started = visibleTasks.filter((t) => t.status === "started").length;
-    const notStarted = visibleTasks.filter((t) => t.status === "not_started").length;
-    const holdCount = visibleTasks.filter((t) => t.is_hold_task && t.status === "not_started").length;
-    const poLinked = visibleTasks.filter((t) => t.purchase_order_id).length;
-
-    return {
-      total,
-      completed,
-      inProgress: started,
-      notStarted,
-      holdCount,
-      poLinked
-    };
-  }, [tasks]);
-
   // Handle task drag event from Canvas Gantt
   const handleTaskDrag = async (task: GanttTask, newStartDate: Date) => {
     const taskId = parseInt(task.id);
@@ -285,199 +250,57 @@ export default function ScheduleMasterPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="flex flex-col h-full -mt-4">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between pb-1 shrink-0">
+        <div className="flex items-center gap-2">
           <BackButton fallbackHref="/jobs" />
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Schedule Master</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {job?.title || "Loading..."} • Task scheduling and Gantt view
-            </p>
+          <span className="text-sm font-medium">{job?.name || "Loading..."}</span>
+          <div className="flex items-center gap-1 ml-2">
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=plans`, '_blank')}>
+              Plans
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=jobs&subtab=purchase-orders`, '_blank')}>
+              PO
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=site`, '_blank')}>
+              Site
+            </Button>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setImportModalOpen(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Import Schedule
+          <Button variant="outline" size="sm" onClick={() => setImportModalOpen(true)}>
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Import
           </Button>
-          <Button>Add Task</Button>
+          <Button size="sm">Add Task</Button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <ListChecks className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Total Tasks</span>
+      {/* Gantt Chart - fills remaining space */}
+      <Card className="p-0 overflow-hidden flex-1">
+        <div className="h-full">
+          {tasks.length > 0 ? (
+            <GanttCanvasView
+              staticTasks={ganttTasks}
+              staticDependencies={ganttDependencies}
+              showToolbar={true}
+              onTaskDrag={handleTaskDrag}
+              className="h-full"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <Calendar className="h-12 w-12 mb-4" />
+              <p className="text-lg font-medium">No schedule tasks yet</p>
+              <p className="text-sm">Import a schedule or add tasks to get started.</p>
+              <Button className="mt-4" onClick={() => setImportModalOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import Schedule
+              </Button>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.total}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">Completed</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.completed}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-500" />
-              <span className="text-sm text-muted-foreground">In Progress</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.inProgress}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-muted-foreground">Not Started</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.notStarted}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Pause className="h-4 w-4 text-orange-500" />
-              <span className="text-sm text-muted-foreground">On Hold</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.holdCount}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-indigo-500" />
-              <span className="text-sm text-muted-foreground">PO Linked</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.poLinked}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* View Tabs */}
-      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as "gantt" | "list")}>
-        <TabsList>
-          <TabsTrigger value="gantt" className="gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Gantt View
-          </TabsTrigger>
-          <TabsTrigger value="list" className="gap-2">
-            <ListChecks className="h-4 w-4" />
-            List View
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="gantt" className="mt-4">
-          <Card className="p-0 overflow-hidden">
-            <div className="h-[600px]">
-              {tasks.length > 0 ? (
-                <GanttCanvasView
-                  staticTasks={ganttTasks}
-                  staticDependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  className="h-full"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                  <Calendar className="h-12 w-12 mb-4" />
-                  <p className="text-lg font-medium">No schedule tasks yet</p>
-                  <p className="text-sm">Import a schedule or add tasks to get started.</p>
-                  <Button className="mt-4" onClick={() => setImportModalOpen(true)}>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import Schedule
-                  </Button>
-                </div>
-              )}
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="list" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Task List</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {tasks.length > 0 ? (
-                <div className="space-y-2">
-                  {tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            task.status === "completed"
-                              ? "bg-green-500"
-                              : task.status === "started"
-                              ? "bg-blue-500"
-                              : "bg-gray-300"
-                          }`}
-                        />
-                        <span className="font-medium">{task.name}</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(task.start_date).toLocaleDateString("en-AU")} -{" "}
-                          {new Date(task.end_date).toLocaleDateString("en-AU")}
-                        </span>
-                        {task.purchase_order_id && <Badge variant="secondary">PO Linked</Badge>}
-                        {task.is_hold_task && <Badge variant="outline" className="text-orange-500 border-orange-500">On Hold</Badge>}
-                        <Badge
-                          variant={
-                            task.status === "completed"
-                              ? "default"
-                              : task.status === "started"
-                              ? "secondary"
-                              : "outline"
-                          }
-                        >
-                          {task.status === "not_started" ? "Not Started" : task.status === "started" ? "In Progress" : "Completed"}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">
-                  No tasks found. Import a schedule to get started.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 p-4 border border-border bg-card">
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-          Status:
-        </span>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-gray-400" />
-          <span className="text-[11px]">Not Started</span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-500" />
-          <span className="text-[11px]">In Progress</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500" />
-          <span className="text-[11px]">Completed</span>
-        </div>
-      </div>
+      </Card>
 
       {/* Import Modal */}
       <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>

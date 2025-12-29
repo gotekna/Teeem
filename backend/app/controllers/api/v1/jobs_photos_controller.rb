@@ -7,19 +7,27 @@ module Api
       # Returns jobs with their latest photos, grouped by supervisor
       # Params:
       #   - status: job status name (default: 'Active')
+      #   - job_type_ids[]: array of job type IDs to filter by (optional, defaults to all)
       #   - limit: max photos per job (default: 5)
       def index
         status_name = params[:status].presence || "Active"
         photos_limit = (params[:limit] || 5).to_i.clamp(1, 10)
+        job_type_ids = params[:job_type_ids].presence
 
         # Find the status
         status = JobStatus.find_by(name: status_name)
 
         # Get jobs with the given status
-        jobs = Job.includes(:job_status)
+        jobs = Job.includes(:job_status, :job_type)
                   .where(job_status: status)
                   .where.not(site_supervisor_name: [nil, ""])
-                  .order(:site_supervisor_name, :name)
+
+        # Filter by job types if specified
+        if job_type_ids.present?
+          jobs = jobs.where(job_type_id: job_type_ids)
+        end
+
+        jobs = jobs.order(:site_supervisor_name, :name)
 
         # Build response grouped by supervisor
         grouped_data = {}
@@ -75,6 +83,13 @@ module Api
       def statuses
         statuses = JobStatus.order(:name).pluck(:name)
         render json: { success: true, data: statuses }
+      end
+
+      # GET /api/v1/jobs_photos/job_types
+      # Returns available job types for the filter dropdown
+      def job_types
+        types = JobType.order(:name).select(:id, :name).map { |t| { id: t.id, name: t.name } }
+        render json: { success: true, data: types }
       end
     end
   end
