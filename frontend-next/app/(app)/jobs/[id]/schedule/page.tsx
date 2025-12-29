@@ -17,7 +17,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
-import { Calendar, Upload, Loader2 } from "lucide-react";
+import { Calendar, Loader2, Upload } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { parseISO } from "date-fns";
@@ -257,22 +257,18 @@ export default function ScheduleMasterPage() {
           <BackButton fallbackHref="/jobs" />
           <span className="text-sm font-medium">{job?.name || "Loading..."}</span>
           <div className="flex items-center gap-1 ml-2">
-            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=plans`, '_blank')}>
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/plans`, '_blank')}>
               Plans
             </Button>
-            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=jobs&subtab=purchase-orders`, '_blank')}>
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
               PO
             </Button>
-            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=site`, '_blank')}>
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
               Site
             </Button>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setImportModalOpen(true)}>
-            <Upload className="h-3.5 w-3.5 mr-1.5" />
-            Import
-          </Button>
           <Button size="sm">Add Task</Button>
         </div>
       </div>
