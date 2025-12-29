@@ -339,6 +339,9 @@ module Api
       end
 
       def template_json(template, include_rows: false)
+        published = template.published_version
+        draft = template.draft_version
+
         json = {
           id: template.id,
           name: template.name,
@@ -348,7 +351,12 @@ module Api
           row_count: template.row_count,
           created_by: template.created_by&.as_json,
           created_at: template.created_at,
-          updated_at: template.updated_at
+          updated_at: template.updated_at,
+          # Version info
+          has_draft: draft.present?,
+          published_version: published ? version_summary_json(published) : nil,
+          draft_version: draft ? version_summary_json(draft) : nil,
+          copied_from_id: template.copied_from_id
         }
 
         if include_rows
@@ -364,18 +372,33 @@ module Api
         json
       end
 
+      def version_summary_json(version)
+        {
+          id: version.id,
+          version_number: version.version_number,
+          status: version.status,
+          published_at: version.published_at,
+          published_by: version.published_by&.full_name,
+          published_by_id: version.published_by_id,
+          change_summary: version.change_summary,
+          row_count: version.row_count,
+          created_at: version.created_at,
+          updated_at: version.updated_at
+        }
+      end
+
       def row_json(row, trades_map = {}, stages_map = {}, roles_map = {}, cost_centres_map = {}, header_map = {})
         # Return lookup columns as { id: X, display: "Name" } format for TeeemTableView
         trade_value = row.trade.present? ? { id: row.trade.to_i, display: trades_map[row.trade.to_i] || row.trade } : nil
         stage_value = row.stage.present? ? { id: row.stage.to_i, display: stages_map[row.stage.to_i] || row.stage } : nil
         role_value = row.assigned_role.present? ? { id: row.assigned_role.to_i, display: roles_map[row.assigned_role.to_i] || row.assigned_role } : nil
         cost_centre_value = row.cost_centre.present? ? { id: row.cost_centre.to_i, display: cost_centres_map[row.cost_centre.to_i] || row.cost_centre } : nil
-        # Header has dual meaning: "Header" string = this row IS a header, numeric ID = parent reference
+        # Header Gantt has dual meaning: "Header" string = this row IS a header, numeric ID = parent reference
         # Keep "Header" as string for backward compatibility with GanttCanvasView
-        header_value = if row.header == "Header"
+        header_value = if row.header_gantt == "Header"
           "Header"  # This row IS a header - keep as string
-        elsif row.header.present?
-          { id: row.header.to_i, display: header_map[row.header.to_i] || row.header }  # Parent lookup
+        elsif row.header_gantt.present?
+          { id: row.header_gantt.to_i, display: header_map[row.header_gantt.to_i] || row.header_gantt }  # Parent lookup
         end
 
         {
@@ -393,7 +416,7 @@ module Api
           stage_name: stages_map[row.stage.to_i] || row.stage,
           assigned_role: role_value,
           cost_centre: cost_centre_value,
-          header: header_value,
+          header_gantt: header_value,
           require_photo: row.require_photo,
           require_certificate: row.require_certificate,
           confirm: row.confirm,

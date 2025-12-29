@@ -66,6 +66,12 @@ import {
   Tag,
   Expand,
   Minimize2,
+  GitBranch,
+  Upload,
+  History,
+  FileEdit,
+  Archive,
+  AlertTriangle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -157,7 +163,7 @@ interface SmScheduleMaster {
   stage_name?: string;  // SSoT: Resolved from Foundation SM Stages by backend
   assigned_role?: string | null;
   cost_centre?: string;
-  header?: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
+  header_gantt?: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
   allow_header?: boolean;  // If true, this row can be selected as a header for other tasks
   is_active?: boolean;
   tags?: string[];
@@ -180,6 +186,20 @@ interface SmScheduleMaster {
   sm_template_ids: number[];
 }
 
+interface SmScheduleMasterVersion {
+  id: number;
+  version_number: number;
+  status: 'draft' | 'published' | 'archived';
+  published_at: string | null;
+  published_by: string | null;
+  published_by_id: number | null;
+  change_summary: string | null;
+  row_count: number;
+  jobs_using: number;
+  created_at: string;
+  updated_at: string;
+}
+
 interface SmScheduleMasterTemplate {
   id: number;
   name: string;
@@ -188,6 +208,11 @@ interface SmScheduleMasterTemplate {
   is_active: boolean;
   row_count: number;
   rows?: SmScheduleMaster[];
+  // Version info (new architecture)
+  published_version?: SmScheduleMasterVersion | null;
+  draft_version?: SmScheduleMasterVersion | null;
+  has_draft?: boolean;
+  copied_from_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -206,7 +231,7 @@ type SubTab = typeof VALID_SUBTABS[number];
 // All columns for tracking
 const ALL_COLUMNS = [
   // Core Identity
-  "task_number", "name", "description", "sequence_order", "header",
+  "task_number", "name", "description", "sequence_order", "header_gantt", "allow_header",
   // Scheduling
   "duration_days", "predecessor_ids", "predecessor_ids_backup",
   // Locking & Status (prevents cascade, confirms completion)
@@ -220,7 +245,7 @@ const ALL_COLUMNS = [
   "po_required", "critical_po",
   // Auto-PO (create_po_on_job_start + po_line_items work together)
   "create_po_on_job_start", "po_line_items", "linked_po_task_id",
-  "order_time_days", "call_time_days",
+  "order_time_days", "call_time_days", "po_supplier_id",
   // Completion Requirements
   "require_photo", "pass_fail_enabled",
   // Subtasks
@@ -301,6 +326,14 @@ export function ScheduleMasterTab() {
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
   const [dataViewFullscreen, setDataViewFullscreen] = React.useState(false);
+
+  // Version Management state
+  const [versions, setVersions] = React.useState<SmScheduleMasterVersion[]>([]);
+  const [loadingVersions, setLoadingVersions] = React.useState(false);
+  const [versionAction, setVersionAction] = React.useState<'creating' | 'publishing' | 'discarding' | null>(null);
+  const [showVersionHistory, setShowVersionHistory] = React.useState(false);
+  const [publishSummary, setPublishSummary] = React.useState("");
+  const [showPublishDialog, setShowPublishDialog] = React.useState(false);
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
@@ -691,6 +724,126 @@ export function ScheduleMasterTab() {
     }
   };
 
+  // ============================================
+  // Version Management Functions
+  // ============================================
+
+  const fetchVersions = async (templateId: number) => {
+    setLoadingVersions(true);
+    try {
+      const data = await api.get<{
+        success: boolean;
+        versions: SmScheduleMasterVersion[];
+        template_name: string;
+      }>(`/api/v1/sm_schedule_master_templates/${templateId}/versions`);
+      setVersions(data?.versions || []);
+    } catch (error) {
+      console.error("Failed to fetch versions:", error);
+      setVersions([]);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  const createDraft = async () => {
+    if (!dataViewTemplateId) return;
+
+    setVersionAction('creating');
+    try {
+      const data = await api.post<{
+        success: boolean;
+        version: SmScheduleMasterVersion;
+        message: string;
+        rows_copied: number;
+      }>(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/versions`);
+
+      if (data) {
+        toast({
+          title: "Draft Created",
+          description: `Version ${data.version.version_number} created with ${data.rows_copied} rows`
+        });
+      }
+
+      // Refresh templates and versions
+      loadTemplates();
+      fetchVersions(dataViewTemplateId);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to create draft";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setVersionAction(null);
+    }
+  };
+
+  const publishDraft = async () => {
+    if (!dataViewTemplateId) return;
+
+    const template = templates.find(t => t.id === dataViewTemplateId);
+    const draftVersion = template?.draft_version;
+    if (!draftVersion) return;
+
+    setVersionAction('publishing');
+    try {
+      const data = await api.post<{
+        success: boolean;
+        version: SmScheduleMasterVersion;
+        message: string;
+      }>(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/versions/${draftVersion.id}/publish`, {
+        change_summary: publishSummary || undefined
+      });
+
+      if (data) {
+        toast({
+          title: "Published",
+          description: `Version ${data.version.version_number} is now live`
+        });
+      }
+
+      setShowPublishDialog(false);
+      setPublishSummary("");
+
+      // Refresh templates and versions
+      loadTemplates();
+      fetchVersions(dataViewTemplateId);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to publish draft";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setVersionAction(null);
+    }
+  };
+
+  const discardDraft = async () => {
+    if (!dataViewTemplateId) return;
+    if (!confirm("Are you sure you want to discard this draft? All changes will be lost.")) return;
+
+    const template = templates.find(t => t.id === dataViewTemplateId);
+    const draftVersion = template?.draft_version;
+    if (!draftVersion) return;
+
+    setVersionAction('discarding');
+    try {
+      await api.delete(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/versions/${draftVersion.id}`);
+
+      toast({ title: "Draft Discarded", description: "Changes have been discarded" });
+
+      // Refresh templates and versions
+      loadTemplates();
+      fetchVersions(dataViewTemplateId);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to discard draft";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setVersionAction(null);
+    }
+  };
+
+  // Get current template's version info
+  const currentTemplate = dataViewTemplateId ? templates.find(t => t.id === dataViewTemplateId) : null;
+  const hasDraft = currentTemplate?.draft_version != null;
+  const publishedVersion = currentTemplate?.published_version;
+  const draftVersion = currentTemplate?.draft_version;
+
   const toggleExpand = async (id: number) => {
     if (expandedTemplate === id) {
       setExpandedTemplate(null);
@@ -792,7 +945,7 @@ export function ScheduleMasterTab() {
       stage: extractLookupId(fullRow.stage),
       assigned_role: extractLookupId(fullRow.assigned_role),
       cost_centre: extractLookupId(fullRow.cost_centre),
-      header: extractLookupId(fullRow.header),  // Parent header row (self-reference lookup)
+      header_gantt: extractLookupId(fullRow.header_gantt),  // Parent header row (self-reference lookup)
       po_required: fullRow.po_required,
       critical_po: fullRow.critical_po,
       create_po_on_job_start: fullRow.create_po_on_job_start,
@@ -1300,6 +1453,57 @@ export function ScheduleMasterTab() {
           {/* Data View Tab - Full TeeemTableView */}
           <TabsContent value="data-view" className="absolute inset-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
           <div className={`flex flex-col h-full ${dataViewFullscreen ? "fixed inset-0 z-50 bg-background p-4" : ""}`}>
+            {/* Draft mode banner */}
+            {dataViewTemplateId && (() => {
+              const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
+              const hasDraft = currentTemplate?.has_draft || currentTemplate?.draft_version;
+
+              if (!hasDraft) return null;
+
+              return (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-3 mx-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                        Draft Mode
+                      </span>
+                      <span className="text-sm text-amber-700 dark:text-amber-400">
+                        Changes are saved to draft v{currentTemplate?.draft_version?.version_number || '?'}. Publish when ready.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                        onClick={discardDraft}
+                        disabled={versionAction === 'discarding'}
+                      >
+                        {versionAction === 'discarding' ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : null}
+                        Discard
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-7 bg-amber-600 hover:bg-amber-700 text-white"
+                        onClick={() => setShowPublishDialog(true)}
+                        disabled={versionAction === 'publishing'}
+                      >
+                        {versionAction === 'publishing' ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Upload className="h-3 w-3 mr-1" />
+                        )}
+                        Publish
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <TeeemTableView
               key={`${dataViewRefreshKey}-${dataViewTemplateId}-${selectedTagFilter}`}
               foundationId="sm_schedule_master"
@@ -1352,6 +1556,108 @@ export function ScheduleMasterTab() {
                       ))}
                     </SelectContent>
                   </Select>
+
+                  {/* Version indicator badge */}
+                  {dataViewTemplateId && (() => {
+                    const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
+                    if (!currentTemplate) return null;
+
+                    const hasDraft = currentTemplate.has_draft || currentTemplate.draft_version;
+                    const publishedVersion = currentTemplate.published_version;
+                    const draftVersion = currentTemplate.draft_version;
+
+                    return (
+                      <div className="flex items-center gap-1">
+                        {hasDraft ? (
+                          <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700">
+                            <FileEdit className="h-3 w-3 mr-1" />
+                            Draft v{draftVersion?.version_number || '?'}
+                          </Badge>
+                        ) : publishedVersion ? (
+                          <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700">
+                            <GitBranch className="h-3 w-3 mr-1" />
+                            v{publishedVersion.version_number} Published
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            No version
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Version actions dropdown */}
+                  {dataViewTemplateId && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-9 w-9" title="Version actions">
+                          <GitBranch className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {(() => {
+                          const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
+                          const hasDraft = currentTemplate?.has_draft || currentTemplate?.draft_version;
+
+                          return (
+                            <>
+                              {!hasDraft && (
+                                <DropdownMenuItem
+                                  onClick={createDraft}
+                                  disabled={versionAction === 'creating'}
+                                >
+                                  {versionAction === 'creating' ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <FileEdit className="h-4 w-4 mr-2" />
+                                  )}
+                                  Create Draft
+                                </DropdownMenuItem>
+                              )}
+                              {hasDraft && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => setShowPublishDialog(true)}
+                                    disabled={versionAction === 'publishing'}
+                                  >
+                                    {versionAction === 'publishing' ? (
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <Upload className="h-4 w-4 mr-2" />
+                                    )}
+                                    Publish Draft
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={discardDraft}
+                                    disabled={versionAction === 'discarding'}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    {versionAction === 'discarding' ? (
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                    )}
+                                    Discard Draft
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => {
+                                if (dataViewTemplateId) {
+                                  fetchVersions(dataViewTemplateId);
+                                  setShowVersionHistory(true);
+                                }
+                              }}>
+                                <History className="h-4 w-4 mr-2" />
+                                Version History
+                              </DropdownMenuItem>
+                            </>
+                          );
+                        })()}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
 
                   {/* Tag filter dropdown */}
                   <Select
@@ -1473,10 +1779,16 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground">Determines where this task appears in the list. Lower numbers appear first. You can use decimals (e.g., 1.5) to insert tasks between existing ones.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["header"] || false} onCheckedChange={(v) => updateColumnStatus("header", !!v)} />
-                    <CopyableCode>header</CopyableCode>
+                    <Checkbox checked={columnStatus.complete["header_gantt"] || false} onCheckedChange={(v) => updateColumnStatus("header_gantt", !!v)} />
+                    <CopyableCode>header_gantt</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
-                    <span className="text-muted-foreground">Set to &quot;Header&quot; to make this row a section divider (like &quot;FOUNDATION STAGE&quot;). Headers group related tasks together visually.</span>
+                    <span className="text-muted-foreground">Links this task to a parent header row for grouping in the Gantt chart. Select another task that has &quot;Allow Header&quot; enabled, or set to &quot;Header&quot; to make this row itself a section divider.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["allow_header"] || false} onCheckedChange={(v) => updateColumnStatus("allow_header", !!v)} />
+                    <CopyableCode>allow_header</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">When turned on, this task can be selected as a header/parent for other tasks. Use this for major milestones that other tasks should be grouped under.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1536,61 +1848,61 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["hold"] || false} onCheckedChange={(v) => updateColumnStatus("hold", !!v)} />
                     <CopyableCode>hold</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold</Badge>Task is pinned to hold_date</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold</Badge>When turned on, this task is &quot;pinned&quot; to a specific date and won&apos;t move when other tasks push forward. Use this when a date is fixed (e.g., council inspection scheduled for a specific day).</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["hold_date"] || false} onCheckedChange={(v) => updateColumnStatus("hold_date", !!v)} />
                     <CopyableCode>hold_date</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">date</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold Date</Badge>Fixed start date when hold=true</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold Date</Badge>The fixed date this task is pinned to. Only used when &quot;hold&quot; is turned on. The task will always start on this date regardless of what happens to other tasks.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["hold_at"] || false} onCheckedChange={(v) => updateColumnStatus("hold_at", !!v)} />
                     <CopyableCode>hold_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold At</Badge>Timestamp when hold was enabled</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold At</Badge>Records exactly when the hold was turned on. Useful for audit purposes to see when decisions were made to lock dates.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["dependency_broken"] || false} onCheckedChange={(v) => updateColumnStatus("dependency_broken", !!v)} />
                     <CopyableCode>dependency_broken</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Task was detached from dependency chain</span>
+                    <span className="text-muted-foreground">Indicates this task was manually removed from the dependency chain. When true, the task schedules independently and won&apos;t be pushed by predecessor tasks.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["confirm"] || false} onCheckedChange={(v) => updateColumnStatus("confirm", !!v)} />
                     <CopyableCode>confirm</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirm</Badge>Supervisor sign-off (LOCKS from cascade)</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirm</Badge>Supervisor has signed off on this task&apos;s dates. Once confirmed, the task is LOCKED - it won&apos;t move even if earlier tasks are delayed. Use this to commit to a supplier.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["confirmed_at"] || false} onCheckedChange={(v) => updateColumnStatus("confirmed_at", !!v)} />
                     <CopyableCode>confirmed_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirmed At</Badge>Timestamp when supervisor confirmed</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirmed At</Badge>Records the exact date and time when the supervisor confirmed the task. Helps track when commitments were made.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("supplier_confirm", !!v)} />
                     <CopyableCode>supplier_confirm</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirm</Badge>Supplier confirmation (LOCKS from cascade)</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirm</Badge>The supplier has confirmed they can do the work on these dates. Once supplier-confirmed, the task is LOCKED and won&apos;t be pushed by delays.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["supplier_confirmed_at"] || false} onCheckedChange={(v) => updateColumnStatus("supplier_confirmed_at", !!v)} />
                     <CopyableCode>supplier_confirmed_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirmed At</Badge>Timestamp when supplier confirmed</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirmed At</Badge>Records when the supplier gave their confirmation. Important for accountability if dates aren&apos;t met.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["completed"] || false} onCheckedChange={(v) => updateColumnStatus("completed", !!v)} />
                     <CopyableCode>completed</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed</Badge>Task completed (LOCKS from cascade)</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed</Badge>Marks the task as finished. Completed tasks are LOCKED and their dates become permanent. Successor tasks can now start as scheduled.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["completed_at"] || false} onCheckedChange={(v) => updateColumnStatus("completed_at", !!v)} />
                     <CopyableCode>completed_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">date</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed At</Badge>Timestamp when marked complete</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed At</Badge>The actual date the task was marked complete. This may differ from the planned end date if work finished early or late.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1614,25 +1926,25 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["trade"] || false} onCheckedChange={(v) => updateColumnStatus("trade", !!v)} />
                     <CopyableCode>trade</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
-                    <span className="text-muted-foreground">Trade category (Plumbing, Electrical, etc.)</span>
+                    <span className="text-muted-foreground">The type of work for this task (e.g., Plumbing, Electrical, Carpentry). Used to filter the Gantt by trade and helps match tasks to the right suppliers.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["stage"] || false} onCheckedChange={(v) => updateColumnStatus("stage", !!v)} />
                     <CopyableCode>stage</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
-                    <span className="text-muted-foreground">Construction stage (Foundation, Frame, etc.)</span>
+                    <span className="text-muted-foreground">Which construction phase this task belongs to (e.g., Foundation, Frame, Lock-up, Fixing, Finishing). Helps organise tasks into major milestones.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["assigned_role"] || false} onCheckedChange={(v) => updateColumnStatus("assigned_role", !!v)} />
                     <CopyableCode>assigned_role</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
-                    <span className="text-muted-foreground">Internal role assignment (admin, site, supervisor, etc.)</span>
+                    <span className="text-muted-foreground">Which team member role is responsible for this task (e.g., Site Supervisor, Admin, Project Manager). Used to filter tasks by who needs to action them.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["cost_centre"] || false} onCheckedChange={(v) => updateColumnStatus("cost_centre", !!v)} />
                     <CopyableCode>cost_centre</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
-                    <span className="text-muted-foreground">Cost centre for accounting</span>
+                    <span className="text-muted-foreground">Accounting code for tracking costs. Links this task&apos;s expenses to the correct budget category in your financial reports.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1656,43 +1968,49 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["po_required"] || false} onCheckedChange={(v) => updateColumnStatus("po_required", !!v)} />
                     <CopyableCode>po_required</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Task invisible in Gantt until PO linked; dependencies skip over it</span>
+                    <span className="text-muted-foreground">This task needs a Purchase Order before it can appear on the job. The task stays hidden in the Gantt until a PO is linked to it. Dependencies automatically skip over hidden PO tasks.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["critical_po"] || false} onCheckedChange={(v) => updateColumnStatus("critical_po", !!v)} />
                     <CopyableCode>critical_po</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Critical path marker - searchable/filterable in Gantt</span>
+                    <span className="text-muted-foreground">Flags this as a critical path task. These tasks are highlighted and easily searchable in the Gantt. Delays to critical tasks will push back the entire project completion date.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["create_po_on_job_start"] || false} onCheckedChange={(v) => updateColumnStatus("create_po_on_job_start", !!v)} />
                     <CopyableCode>create_po_on_job_start</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Auto-create PO when job starts</span>
+                    <span className="text-muted-foreground">Automatically creates a Purchase Order for this task when the job is started. Uses the line items defined in po_line_items. Great for tasks that always need the same materials.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
                     <Checkbox checked={columnStatus.complete["po_line_items"] || false} onCheckedChange={(v) => updateColumnStatus("po_line_items", !!v)} />
                     <CopyableCode>po_line_items</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">jsonb</Badge>
-                    <span className="text-muted-foreground">↳ Line items for auto-PO: [{'{'}pricebook_item_id, qty{'}'}]</span>
+                    <span className="text-muted-foreground">↳ The items to include when auto-creating a PO. Each entry specifies a pricebook item and quantity. Example: concrete, timber, or fixtures that are always needed for this task.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["linked_po_task_id"] || false} onCheckedChange={(v) => updateColumnStatus("linked_po_task_id", !!v)} />
                     <CopyableCode>linked_po_task_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
-                    <span className="text-muted-foreground">Link this task&apos;s PO to another task&apos;s PO</span>
+                    <span className="text-muted-foreground">Connects this task to another task&apos;s PO instead of having its own. Useful when multiple tasks share one purchase order (e.g., plumbing rough-in and plumbing fit-off on same PO).</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["order_time_days"] || false} onCheckedChange={(v) => updateColumnStatus("order_time_days", !!v)} />
                     <CopyableCode>order_time_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
-                    <span className="text-muted-foreground">Lead time for ordering materials</span>
+                    <span className="text-muted-foreground">How many working days before the task starts that materials need to be ordered. Helps ensure materials arrive in time. Example: 5 days for custom windows.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["call_time_days"] || false} onCheckedChange={(v) => updateColumnStatus("call_time_days", !!v)} />
                     <CopyableCode>call_time_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
-                    <span className="text-muted-foreground">Days before to call/schedule supplier</span>
+                    <span className="text-muted-foreground">How many working days before the task starts that you should contact the supplier to confirm the booking. Example: Call electrician 3 days ahead to confirm date.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["po_supplier_id"] || false} onCheckedChange={(v) => updateColumnStatus("po_supplier_id", !!v)} />
+                    <CopyableCode>po_supplier_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">The default supplier for this task&apos;s Purchase Orders. When a PO is auto-created, it will use this supplier. Pricebook items are filtered to show only this supplier&apos;s prices.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1716,13 +2034,13 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["require_photo"] || false} onCheckedChange={(v) => updateColumnStatus("require_photo", !!v)} />
                     <CopyableCode>require_photo</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Photo evidence needed on completion</span>
+                    <span className="text-muted-foreground">A photo must be uploaded before this task can be marked complete. Ensures visual proof of work for quality control and record-keeping.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["pass_fail_enabled"] || false} onCheckedChange={(v) => updateColumnStatus("pass_fail_enabled", !!v)} />
                     <CopyableCode>pass_fail_enabled</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Enable pass/fail status on task</span>
+                    <span className="text-muted-foreground">Adds Pass/Fail buttons to this task. Useful for inspections or quality checks where work needs to be explicitly approved or rejected.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1746,25 +2064,25 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["has_subtasks"] || false} onCheckedChange={(v) => updateColumnStatus("has_subtasks", !!v)} />
                     <CopyableCode>has_subtasks</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Task has child subtasks</span>
+                    <span className="text-muted-foreground">Indicates this task has smaller steps (subtasks) within it. Subtasks let you break down complex work into individual checklist items that must all be completed.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["subtask_count"] || false} onCheckedChange={(v) => updateColumnStatus("subtask_count", !!v)} />
                     <CopyableCode>subtask_count</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
-                    <span className="text-muted-foreground">Number of subtasks</span>
+                    <span className="text-muted-foreground">How many subtasks this task contains. The main task can only be completed when all subtasks are ticked off.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["subtask_names"] || false} onCheckedChange={(v) => updateColumnStatus("subtask_names", !!v)} />
                     <CopyableCode>subtask_names</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string[]</Badge>
-                    <span className="text-muted-foreground">Names of each subtask</span>
+                    <span className="text-muted-foreground">The names of each subtask step. These appear as a checklist when viewing the task. Example: [&quot;Frame walls&quot;, &quot;Install noggins&quot;, &quot;Brace frame&quot;].</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["linked_task_ids"] || false} onCheckedChange={(v) => updateColumnStatus("linked_task_ids", !!v)} />
                     <CopyableCode>linked_task_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">Non-PO tasks that follow this PO task's visibility (only visible when PO task is on job)</span>
+                    <span className="text-muted-foreground">Other tasks that should appear/disappear together with this one. When this PO task is added to a job, all linked tasks also appear automatically.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1788,7 +2106,7 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["documentation_category_ids"] || false} onCheckedChange={(v) => updateColumnStatus("documentation_category_ids", !!v)} />
                     <CopyableCode>documentation_category_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer[]</Badge>
-                    <span className="text-muted-foreground">Documentation tabs this task belongs to</span>
+                    <span className="text-muted-foreground">Which documentation folders this task&apos;s photos and files should appear under. Photos uploaded to this task will be visible in the selected documentation tabs on the job.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1809,16 +2127,28 @@ export function ScheduleMasterTab() {
                     <span>Description</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["spawn_order_task"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_order_task", !!v)} />
+                    <CopyableCode>spawn_order_task</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Automatically create an &quot;Order Materials&quot; reminder task based on order_time_days. The reminder appears the right number of days before this task starts.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["spawn_call_task"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_call_task", !!v)} />
+                    <CopyableCode>spawn_call_task</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Automatically create a &quot;Call Supplier&quot; reminder task based on call_time_days. The reminder appears the right number of days before this task starts.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["spawn_scan_task_id"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_scan_task_id", !!v)} />
                     <CopyableCode>spawn_scan_task_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">bigint</Badge>
-                    <span className="text-muted-foreground">Which task template to spawn for document scan</span>
+                    <span className="text-muted-foreground">When this task is completed, automatically create a follow-up scanning task. Select which task template to use for the scan. Great for tasks that generate paperwork needing to be digitised.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["spawn_scan_lag_days"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_scan_lag_days", !!v)} />
                     <CopyableCode>spawn_scan_lag_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
-                    <span className="text-muted-foreground">Days after completion to schedule the scan task</span>
+                    <span className="text-muted-foreground">How many working days after this task completes before the scan task should be scheduled. Example: 2 days gives time for paperwork to reach the office.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1842,7 +2172,7 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["checklist_id"] || false} onCheckedChange={(v) => updateColumnStatus("checklist_id", !!v)} />
                     <CopyableCode>checklist_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
-                    <span className="text-muted-foreground">Supervisor checklist template to use</span>
+                    <span className="text-muted-foreground">Links a supervisor inspection checklist to this task. When viewing the task, the checklist items will appear and need to be completed. Used for quality control inspections.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1866,7 +2196,7 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["sm_template_ids"] || false} onCheckedChange={(v) => updateColumnStatus("sm_template_ids", !!v)} />
                     <CopyableCode>sm_template_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">Array of template IDs this row belongs to (multi-template support)</span>
+                    <span className="text-muted-foreground">Which schedule templates include this task. A single task can be shared across multiple templates (e.g., &quot;Site Clean&quot; in both House and Duplex templates). When you edit the task, changes apply everywhere.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1890,19 +2220,19 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["tags"] || false} onCheckedChange={(v) => updateColumnStatus("tags", !!v)} />
                     <CopyableCode>tags</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string[]</Badge>
-                    <span className="text-muted-foreground">Tags for filtering/grouping</span>
+                    <span className="text-muted-foreground">Custom labels for searching and filtering. Add any tags you like (e.g., &quot;exterior&quot;, &quot;council-required&quot;, &quot;final-fix&quot;). Tasks can then be filtered by tag in the Gantt.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["color"] || false} onCheckedChange={(v) => updateColumnStatus("color", !!v)} />
                     <CopyableCode>color</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
-                    <span className="text-muted-foreground">Custom color for Gantt bar</span>
+                    <span className="text-muted-foreground">Override the default bar colour in the Gantt chart. Useful for visually distinguishing special tasks (e.g., red for inspections, green for milestones).</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["is_active"] || false} onCheckedChange={(v) => updateColumnStatus("is_active", !!v)} />
                     <CopyableCode>is_active</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Soft delete flag</span>
+                    <span className="text-muted-foreground">When turned off, this task is hidden from templates but not permanently deleted. Useful for temporarily removing tasks or keeping old tasks for reference.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1926,25 +2256,25 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["created_by_id"] || false} onCheckedChange={(v) => updateColumnStatus("created_by_id", !!v)} />
                     <CopyableCode>created_by_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
-                    <span className="text-muted-foreground">User who created</span>
+                    <span className="text-muted-foreground">Which user originally created this task in the template. Automatically recorded when a new task is added.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["updated_by_id"] || false} onCheckedChange={(v) => updateColumnStatus("updated_by_id", !!v)} />
                     <CopyableCode>updated_by_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
-                    <span className="text-muted-foreground">User who last updated</span>
+                    <span className="text-muted-foreground">Which user most recently made changes to this task. Helps track who modified what.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["created_at"] || false} onCheckedChange={(v) => updateColumnStatus("created_at", !!v)} />
                     <CopyableCode>created_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
-                    <span className="text-muted-foreground">Creation timestamp</span>
+                    <span className="text-muted-foreground">The exact date and time this task was first added to the template. Automatically set by the system.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["updated_at"] || false} onCheckedChange={(v) => updateColumnStatus("updated_at", !!v)} />
                     <CopyableCode>updated_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
-                    <span className="text-muted-foreground">Last update timestamp</span>
+                    <span className="text-muted-foreground">The date and time of the last change to this task. Updates automatically whenever any field is modified.</span>
                   </div>
                 </div>
               </CardContent>
@@ -2278,18 +2608,18 @@ export function ScheduleMasterTab() {
                   <ComboboxDropdown
                     items={availableHeaderRows.map(h => ({ id: String(h.id), label: h.name }))}
                     selectedItem={(() => {
-                      const headerId = extractLookupId(editRowForm.header);
+                      const headerId = extractLookupId(editRowForm.header_gantt);
                       if (!headerId || headerId === 'Header') return undefined;  // Skip if "Header" marker
                       const headerName = availableHeaderRows.find(h => String(h.id) === headerId)?.name
-                        || extractLookupDisplay(editingRow?.header)
+                        || extractLookupDisplay(editingRow?.header_gantt)
                         || headerId;
                       return { id: headerId, label: headerName };
                     })()}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, header: item.id })}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, header_gantt: item.id })}
                     placeholder="Select header..."
                     emptyResults="No header rows found"
                     clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, header: null })}
+                    onClear={() => setEditRowForm({ ...editRowForm, header_gantt: null })}
                   />
                 </div>
                 {/* Auto-save status indicator */}
@@ -2324,8 +2654,8 @@ export function ScheduleMasterTab() {
                     disabled={editRowForm.po_required || editRowForm.create_po_on_job_start}
                     onCheckedChange={(checked) => {
                       if (checked) {
-                        // Clear header field when becoming a header
-                        setEditRowForm({ ...editRowForm, allow_header: checked, header: null });
+                        // Clear header_gantt field when becoming a header
+                        setEditRowForm({ ...editRowForm, allow_header: checked, header_gantt: null });
                       } else {
                         setEditRowForm({ ...editRowForm, allow_header: checked });
                       }
@@ -2638,6 +2968,178 @@ export function ScheduleMasterTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTagDialog(false)}>
               Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Publish Draft Confirmation Dialog */}
+      <Dialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publish Draft</DialogTitle>
+            <DialogDescription>
+              Publishing will make this draft version the new active version. Jobs using the previous version will be able to upgrade to this version.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="publish-summary">Change Summary (optional)</Label>
+              <Input
+                id="publish-summary"
+                placeholder="e.g., Added scaffold tasks, updated durations"
+                value={publishSummary}
+                onChange={(e) => setPublishSummary(e.target.value)}
+                className="mt-1.5"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Describe what changed in this version for future reference.
+              </p>
+            </div>
+
+            {dataViewTemplateId && (() => {
+              const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
+              const draftVersion = currentTemplate?.draft_version;
+              const publishedVersion = currentTemplate?.published_version;
+
+              return (
+                <div className="rounded-lg border p-3 bg-muted/30">
+                  <div className="text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Template:</span>
+                      <span className="font-medium">{currentTemplate?.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Draft version:</span>
+                      <span className="font-medium">v{draftVersion?.version_number || '?'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Current published:</span>
+                      <span className="font-medium">{publishedVersion ? `v${publishedVersion.version_number}` : 'None'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Row count:</span>
+                      <span className="font-medium">{draftVersion?.row_count || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPublishDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={publishDraft}
+              disabled={versionAction === 'publishing'}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {versionAction === 'publishing' ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Publish Version
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Version History Dialog */}
+      <Dialog open={showVersionHistory} onOpenChange={setShowVersionHistory}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Version History
+            </DialogTitle>
+            <DialogDescription>
+              {dataViewTemplateId && templates.find(t => t.id === dataViewTemplateId)?.name} - All published versions
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            {loadingVersions ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : versions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Archive className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No versions yet</p>
+                <p className="text-sm">Create and publish a draft to create the first version.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {versions.map((version) => (
+                  <div
+                    key={version.id}
+                    className={`rounded-lg border p-3 ${
+                      version.status === 'published'
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                        : version.status === 'draft'
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                        : 'bg-muted/30'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Version {version.version_number}</span>
+                          <Badge
+                            variant="outline"
+                            className={
+                              version.status === 'published'
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                : version.status === 'draft'
+                                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                                : ''
+                            }
+                          >
+                            {version.status}
+                          </Badge>
+                        </div>
+                        {version.change_summary && (
+                          <p className="text-sm text-muted-foreground mt-1">{version.change_summary}</p>
+                        )}
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                          <span>{version.row_count} rows</span>
+                          {version.jobs_using > 0 && (
+                            <span className="text-blue-600 dark:text-blue-400">
+                              {version.jobs_using} jobs using
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-muted-foreground">
+                        {version.published_at && (
+                          <>
+                            <div>Published {new Date(version.published_at).toLocaleDateString()}</div>
+                            {version.published_by && <div>by {version.published_by}</div>}
+                          </>
+                        )}
+                        {!version.published_at && version.created_at && (
+                          <div>Created {new Date(version.created_at).toLocaleDateString()}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowVersionHistory(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

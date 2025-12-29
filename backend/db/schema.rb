@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_29_213737) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_29_213738) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7961,7 +7961,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_213737) do
     t.integer "linked_po_task_id"
     t.string "cost_centre"
     t.boolean "supplier_confirm", default: false
-    t.string "header"
+    t.string "header_gantt"
     t.jsonb "sm_template_ids", default: []
     t.boolean "hold"
     t.date "hold_date"
@@ -7986,7 +7986,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_213737) do
     t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"
     t.index ["created_by_id"], name: "index_sm_schedule_master_on_created_by_id"
     t.index ["dependency_broken"], name: "index_sm_schedule_master_on_dependency_broken", where: "(dependency_broken = true)"
-    t.index ["header"], name: "index_sm_schedule_master_on_header"
+    t.index ["header_gantt"], name: "index_sm_schedule_master_on_header_gantt"
     t.index ["hold"], name: "index_sm_schedule_master_on_hold", where: "(hold = true)"
     t.index ["is_active"], name: "index_sm_schedule_master_on_is_active"
     t.index ["linked_po_task_id"], name: "index_sm_schedule_master_on_linked_po_task_id"

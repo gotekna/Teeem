@@ -10,6 +10,14 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Loader2, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CorporateCompany } from "@/lib/types/corporate";
@@ -72,19 +80,19 @@ export function MembersTab({ company, companyId }: MembersTabProps) {
 
       {members.length > 0 ? (
         <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Member</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Type</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Joined</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Member</TableHead>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Type</TableHead>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Joined</TableHead>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y">
               {members.map((member, idx) => (
-                <tr key={member.id || idx} className="hover:bg-muted/30">
-                  <td className="px-4 py-3">
+                <TableRow key={member.id || idx} className="hover:bg-muted/30">
+                  <TableCell className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-medium">
                         {member.name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
@@ -96,23 +104,23 @@ export function MembersTab({ company, companyId }: MembersTabProps) {
                         )}
                       </div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm capitalize">{member.member_type || "Member"}</td>
-                  <td className="px-4 py-3 text-sm">
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-sm capitalize">{member.member_type || "Member"}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">
                     {member.joined_date ? format(new Date(member.joined_date), "dd/MM/yyyy") : "-"}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
                     <Badge className={member.status === "active"
                       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
                       : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
                     }>
                       {member.status || "Active"}
                     </Badge>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       ) : (
         <div className="text-center py-12 border rounded-lg">

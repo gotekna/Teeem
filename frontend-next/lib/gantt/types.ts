@@ -117,7 +117,7 @@ export interface SmScheduleMaster {
   linked_po_task_name: string | null;
   supplier_confirm: boolean;
   finance_approved: boolean;
-  header: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
+  header_gantt: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
   // Multi-template support
   sm_template_ids: number[];
   // Manual positioning (held dates)
@@ -581,10 +581,10 @@ export function convertRowsToTasks(
   const tasks = sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
 
   // Third pass: update header tasks to span their children
-  // Header rows have header === 'Header'
+  // Header rows have header_gantt === 'Header'
   // Note: parent_row_id removed - header grouping handled by sequence_order positioning
   const headerIds = new Set(
-    sortedRows.filter(r => r.header === 'Header').map(r => r.id)
+    sortedRows.filter(r => r.header_gantt === 'Header').map(r => r.id)
   );
 
   if (headerIds.size > 0) {
@@ -595,7 +595,7 @@ export function convertRowsToTasks(
     // If header has dependencies, shift children first
     for (const task of tasks) {
       const row = sortedRows.find(r => String(r.id) === task.id);
-      if (row?.header === 'Header') {
+      if (row?.header_gantt === 'Header') {
         const children = headerChildrenMap.get(row.id);
         if (children && children.length > 0) {
           // Find current min start from children

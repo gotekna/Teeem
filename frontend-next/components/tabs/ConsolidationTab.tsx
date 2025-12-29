@@ -13,6 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Loader2, Plus, X, Building2, GitMerge, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -545,20 +553,20 @@ export function ConsolidationTab({ company, onUpdate }: ConsolidationTabProps) {
       ) : (
         <Card>
           <div className="overflow-hidden">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">ACN</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+            <Table className="min-w-full">
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</TableHead>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">ACN</TableHead>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</TableHead>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</TableHead>
+                  <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-border">
                 {consolidatedCompanies.map((c) => (
-                  <tr key={c.id} className="hover:bg-muted/50">
-                    <td className="px-4 py-3">
+                  <TableRow key={c.id} className="hover:bg-muted/50">
+                    <TableCell className="px-4 py-3">
                       <button
                         onClick={() => router.push(`/corporate/companies/${c.id}`)}
                         className="text-sm font-medium text-primary hover:underline"
@@ -566,23 +574,23 @@ export function ConsolidationTab({ company, onUpdate }: ConsolidationTabProps) {
                         {c.name}
                       </button>
                       {c.code && <span className="ml-2 text-xs text-muted-foreground">({c.code})</span>}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{c.acn || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{c.entity_type || "Company"}</td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-sm text-muted-foreground">{c.acn || "-"}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm text-muted-foreground">{c.entity_type || "Company"}</TableCell>
+                    <TableCell className="px-4 py-3">
                       <Badge variant={c.status === "active" ? "default" : "secondary"} className={c.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : ""}>
                         {c.status || "active"}
                       </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right">
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleRemoveConsolidation(c.id)} title="Remove from consolidation">
                         <X className="h-5 w-5 text-muted-foreground hover:text-destructive" />
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </Card>
       )}

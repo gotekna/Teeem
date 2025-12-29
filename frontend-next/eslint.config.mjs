@@ -73,6 +73,36 @@ const eslintConfig = defineConfig([
     }
   },
   // ==========================================================================
+  // TABLE SSoT ENFORCEMENT
+  // Warn when using raw <table> elements - use TeeemTableView instead
+  // SSoT: TeeemTableView for data tables, SetupTable for config lists
+  //
+  // ACCEPTABLE EXCEPTIONS (complex financial layouts):
+  // - components/xero/XeroStatementView.tsx - P&L/Balance Sheet formatting
+  // - components/xero/XeroPLStatementView.tsx - P&L specific layout
+  // - components/xero/XeroBalanceSheetStatementView.tsx - Balance sheet layout
+  // - components/xero/XeroBankStatementReportView.tsx - Bank statement format
+  // - components/ui/table.tsx - Base Table primitives (used by TeeemTableView)
+  // ==========================================================================
+  {
+    rules: {
+      "no-restricted-syntax": ["warn",
+        {
+          selector: "JSXOpeningElement[name.name='table']",
+          message: "SSoT: Use TeeemTableView, ViewTableView, or SimpleTableView instead of raw <table>. See component-registry.ts"
+        },
+        {
+          selector: "JSXOpeningElement[name.name='tbody']",
+          message: "SSoT: Use TeeemTableView, ViewTableView, or SimpleTableView instead of raw table elements. See component-registry.ts"
+        },
+        {
+          selector: "JSXOpeningElement[name.name='thead']",
+          message: "SSoT: Use TeeemTableView, ViewTableView, or SimpleTableView instead of raw table elements. See component-registry.ts"
+        }
+      ]
+    }
+  },
+  // ==========================================================================
   // COMPONENT SSoT ENFORCEMENT
   // Warn when importing deprecated components - use THE ONE instead
   // See: frontend-next/lib/component-registry.ts for the full list

@@ -177,7 +177,7 @@ module Api
         params.require(:row).permit(
           :name, :description, :task_number, :sequence_order,
           :duration_days,
-          :trade, :stage, :header, :assigned_role, :cost_centre,
+          :trade, :stage, :header_gantt, :assigned_role, :cost_centre,
           :checklist_id,
           :require_photo, :confirm,
           :po_required, :critical_po, :create_po_on_job_start, :po_supplier_id,
@@ -207,7 +207,7 @@ module Api
         data.permit(
           :name, :description, :task_number, :sequence_order,
           :duration_days,
-          :trade, :stage, :header, :assigned_role,
+          :trade, :stage, :header_gantt, :assigned_role,
           :require_photo, :confirm,
           :po_required, :critical_po,
           :has_subtasks, :subtask_count,
@@ -227,12 +227,12 @@ module Api
         stage_value = row.stage.present? ? { id: row.stage.to_i, display: stages_map[row.stage.to_i] || row.stage } : nil
         role_value = row.assigned_role.present? ? { id: row.assigned_role.to_i, display: roles_map[row.assigned_role.to_i] || row.assigned_role } : nil
         cost_centre_value = row.cost_centre.present? ? { id: row.cost_centre.to_i, display: cost_centres_map[row.cost_centre.to_i] || row.cost_centre } : nil
-        # Header has dual meaning: "Header" string = this row IS a header, numeric ID = parent reference
+        # Header Gantt has dual meaning: "Header" string = this row IS a header, numeric ID = parent reference
         # Keep "Header" as string for backward compatibility with GanttCanvasView
-        header_value = if row.header == "Header"
+        header_value = if row.header_gantt == "Header"
           "Header"  # This row IS a header - keep as string
-        elsif row.header.present?
-          { id: row.header.to_i, display: header_map[row.header.to_i] || row.header }  # Parent lookup
+        elsif row.header_gantt.present?
+          { id: row.header_gantt.to_i, display: header_map[row.header_gantt.to_i] || row.header_gantt }  # Parent lookup
         end
 
         {
@@ -249,7 +249,7 @@ module Api
           stage: stage_value,
           trade_name: trades_map[row.trade.to_i] || row.trade,
           stage_name: stages_map[row.stage.to_i] || row.stage,
-          header: header_value,
+          header_gantt: header_value,
           cost_centre: cost_centre_value,
           assigned_role: role_value,
           checklist_id: row.checklist_id,

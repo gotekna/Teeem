@@ -32,6 +32,14 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Suburb {
   id: number;
@@ -283,34 +291,34 @@ export function SuburbsTab() {
             </div>
           ) : (
             <div className="max-h-[500px] overflow-y-auto">
-              <table className="w-full">
-                <thead className="sticky top-0 bg-background border-b">
-                  <tr className="text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-medium">Suburb</th>
-                    <th className="pb-2 font-medium">Postcode</th>
-                    <th className="pb-2 font-medium">State</th>
-                    <th className="pb-2 font-medium">Council</th>
-                    <th className="pb-2 font-medium w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
+              <Table className="w-full">
+                <TableHeader className="sticky top-0 bg-background border-b">
+                  <TableRow className="text-left text-xs text-muted-foreground">
+                    <TableHead className="pb-2 font-medium">Suburb</TableHead>
+                    <TableHead className="pb-2 font-medium">Postcode</TableHead>
+                    <TableHead className="pb-2 font-medium">State</TableHead>
+                    <TableHead className="pb-2 font-medium">Council</TableHead>
+                    <TableHead className="pb-2 font-medium w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y">
                   {filteredSuburbs.slice(0, 100).map((suburb) => (
-                    <tr key={suburb.id} className="hover:bg-muted/50">
-                      <td className="py-2 text-sm font-medium">{suburb.name}</td>
-                      <td className="py-2 text-sm text-muted-foreground">{suburb.postcode}</td>
-                      <td className="py-2">
+                    <TableRow key={suburb.id} className="hover:bg-muted/50">
+                      <TableCell className="py-2 text-sm font-medium">{suburb.name}</TableCell>
+                      <TableCell className="py-2 text-sm text-muted-foreground">{suburb.postcode}</TableCell>
+                      <TableCell className="py-2">
                         <Badge variant="outline" className="text-xs">
                           {suburb.state}
                         </Badge>
-                      </td>
-                      <td className="py-2 text-sm">
+                      </TableCell>
+                      <TableCell className="py-2 text-sm">
                         {suburb.council ? (
                           <span className="text-green-600 dark:text-green-400">{suburb.council}</span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
-                      </td>
-                      <td className="py-2">
+                      </TableCell>
+                      <TableCell className="py-2">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -319,11 +327,11 @@ export function SuburbsTab() {
                         >
                           <Pencil className="h-3 w-3" />
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
               {filteredSuburbs.length > 100 && (
                 <p className="text-center text-sm text-muted-foreground mt-4">
                   Showing first 100 of {filteredSuburbs.length} results. Use search to narrow down.

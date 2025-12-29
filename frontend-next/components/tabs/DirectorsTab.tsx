@@ -9,6 +9,14 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { api } from "@/lib/api";
@@ -56,21 +64,21 @@ export function DirectorsTab({ companyId, entityId }: DirectorsTabProps) {
           <p className="text-sm text-muted-foreground py-2">No {title.toLowerCase()} recorded</p>
         ) : (
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Name</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Position</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Appointed</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Resigned</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+                  <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Position</TableHead>
+                  <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Appointed</TableHead>
+                  <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Resigned</TableHead>
+                  <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y">
                 {/* Current officers first */}
                 {current.map((officer) => (
-                  <tr key={officer.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3">
+                  <TableRow key={officer.id} className="hover:bg-muted/30">
+                    <TableCell className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-medium">
                           {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
@@ -84,19 +92,19 @@ export function DirectorsTab({ companyId, entityId }: DirectorsTabProps) {
                           )}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{officer.formatted_position}</td>
-                    <td className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</td>
-                    <td className="px-4 py-3 text-sm">-</td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm">-</TableCell>
+                    <TableCell className="px-4 py-3">
                       <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
                 {/* Former officers */}
                 {former.map((officer) => (
-                  <tr key={officer.id} className="hover:bg-muted/30 opacity-60">
-                    <td className="px-4 py-3">
+                  <TableRow key={officer.id} className="hover:bg-muted/30 opacity-60">
+                    <TableCell className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 text-xs font-medium">
                           {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
@@ -108,17 +116,17 @@ export function DirectorsTab({ companyId, entityId }: DirectorsTabProps) {
                           )}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">{officer.formatted_position}</td>
-                    <td className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</td>
-                    <td className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), "dd/MM/yyyy") : "-"}</td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), "dd/MM/yyyy") : "-"}</TableCell>
+                    <TableCell className="px-4 py-3">
                       <Badge variant="secondary">Former</Badge>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>

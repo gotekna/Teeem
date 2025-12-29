@@ -400,7 +400,7 @@ export function GanttCanvasView({
 
   // Collapse all headers
   const collapseAllHeaders = React.useCallback(() => {
-    const allHeaderIds = rows.filter(r => r.header === 'Header').map(r => r.id);
+    const allHeaderIds = rows.filter(r => r.header_gantt === 'Header').map(r => r.id);
     setCollapsedHeaders(new Set(allHeaderIds));
   }, [rows]);
 
@@ -412,14 +412,14 @@ export function GanttCanvasView({
   // Auto-collapse all headers when "header" view is active
   React.useEffect(() => {
     if (viewSlug === 'header' && rows.length > 0) {
-      const allHeaderIds = rows.filter(r => r.header === 'Header').map(r => r.id);
+      const allHeaderIds = rows.filter(r => r.header_gantt === 'Header').map(r => r.id);
       setCollapsedHeaders(new Set(allHeaderIds));
     }
   }, [viewSlug, rows]);
 
   // Get set of header IDs for quick lookup
   const headerIds = React.useMemo(() => {
-    return new Set(rows.filter(r => r.header === 'Header').map(r => r.id));
+    return new Set(rows.filter(r => r.header_gantt === 'Header').map(r => r.id));
   }, [rows]);
 
   // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
@@ -430,7 +430,7 @@ export function GanttCanvasView({
 
       // If showOnlyGrouped is enabled OR viewSlug is 'header', only show headers
       if (showOnlyGrouped || viewSlug === 'header') {
-        const isHeader = row.header === 'Header';
+        const isHeader = row.header_gantt === 'Header';
         if (!isHeader) {
           return false;
         }
@@ -440,9 +440,9 @@ export function GanttCanvasView({
     });
   }, [tasks, rows, showOnlyGrouped, viewSlug]);
 
-  // Check if a row is a header (header === 'Header')
+  // Check if a row is a header (header_gantt === 'Header')
   const isHeaderRow = React.useCallback((row: SmScheduleMaster | undefined) => {
-    return row?.header === 'Header';
+    return row?.header_gantt === 'Header';
   }, []);
 
   // Get child count for a header (hierarchy removed - returns 0)

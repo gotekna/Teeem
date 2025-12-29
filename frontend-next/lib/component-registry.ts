@@ -405,6 +405,18 @@ const TIER_3_COMPONENTS: StandardComponent[] = [
     usageCount: 0,
   },
   {
+    id: "simple-table-view",
+    name: "SimpleTableView",
+    displayName: "Simple Table",
+    category: "display",
+    tier: 3,
+    status: "standard",
+    importPath: "@/components/table/SimpleTableView",
+    description: "Lightweight read-only table with virtualization. ~400 lines vs TeeemTableView's 2500 lines.",
+    whenToUse: "Simple data display without Foundation, sorting, or filtering. Lightweight alternative to ViewTableView.",
+    usageCount: 2,
+  },
+  {
     id: "sheet",
     name: "Sheet",
     displayName: "Side Panel",

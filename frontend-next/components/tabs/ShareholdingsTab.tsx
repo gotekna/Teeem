@@ -10,6 +10,14 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CorporateCompany, Shareholding } from "@/lib/types/corporate";
@@ -67,23 +75,23 @@ export function ShareholdingsTab({ company, companyId }: ShareholdingsTabProps) 
 
       {shareholders.length > 0 ? (
         <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Shareholder</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Class</th>
-                <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Shares</th>
-                <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">%</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Acquired</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Disposed</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Shareholder</TableHead>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Class</TableHead>
+                <TableHead className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Shares</TableHead>
+                <TableHead className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">%</TableHead>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Acquired</TableHead>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Disposed</TableHead>
+                <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y">
               {/* Current shareholders first */}
               {currentShareholders.map((sh) => (
-                <tr key={sh.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3">
+                <TableRow key={sh.id} className="hover:bg-muted/30">
+                  <TableCell className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-medium">
                         {sh.shareholder_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
@@ -95,21 +103,21 @@ export function ShareholdingsTab({ company, companyId }: ShareholdingsTabProps) 
                         )}
                       </div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</td>
-                  <td className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-right">{sh.percentage}%</td>
-                  <td className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</td>
-                  <td className="px-4 py-3 text-sm">-</td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm text-right">{sh.percentage}%</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">-</TableCell>
+                  <TableCell className="px-4 py-3">
                     <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
               {/* Former shareholders */}
               {formerShareholders.map((sh) => (
-                <tr key={sh.id} className="hover:bg-muted/30 opacity-60">
-                  <td className="px-4 py-3">
+                <TableRow key={sh.id} className="hover:bg-muted/30 opacity-60">
+                  <TableCell className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 text-xs font-medium">
                         {sh.shareholder_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
@@ -121,19 +129,19 @@ export function ShareholdingsTab({ company, companyId }: ShareholdingsTabProps) 
                         )}
                       </div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</td>
-                  <td className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-right">{sh.percentage}%</td>
-                  <td className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</td>
-                  <td className="px-4 py-3 text-sm">{sh.disposal_date ? format(new Date(sh.disposal_date), "dd/MM/yyyy") : "-"}</td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm text-right">{sh.percentage}%</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">{sh.disposal_date ? format(new Date(sh.disposal_date), "dd/MM/yyyy") : "-"}</TableCell>
+                  <TableCell className="px-4 py-3">
                     <Badge variant="secondary">Former</Badge>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       ) : (
         <p className="text-muted-foreground text-center py-8">No shareholders recorded</p>
