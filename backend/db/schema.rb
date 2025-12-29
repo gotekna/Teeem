@@ -5863,7 +5863,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_072854) do
     t.index ["is_on_issue"], name: "index_job_plan_revisions_on_is_on_issue"
     t.index ["issued_by_id"], name: "index_job_plan_revisions_on_issued_by_id"
     t.index ["job_plan_id", "revision"], name: "index_job_plan_revisions_on_job_plan_id_and_revision", unique: true
-    t.index ["job_plan_id"], name: "idx_on_issue_revisions", where: "(is_on_issue = true)"
     t.index ["job_plan_id"], name: "index_job_plan_revisions_on_job_plan_id"
     t.index ["thumbnail_file_id"], name: "index_job_plan_revisions_on_thumbnail_file_id"
   end
@@ -5899,8 +5898,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_072854) do
     t.boolean "is_combined_pdf", default: false, null: false
     t.integer "revisions_count", default: 0, null: false
     t.index ["current_revision_id"], name: "index_job_plans_on_current_revision_id"
-    t.index ["job_id", "id"], name: "idx_job_plans_job_pagination"
-    t.index ["job_id", "job_plan_tab_id", "id"], name: "idx_job_plans_tab_pagination"
     t.index ["job_id", "plan_type_id", "variant_suffix"], name: "idx_job_plans_unique_per_job", unique: true
     t.index ["job_id"], name: "index_job_plans_on_job_id"
     t.index ["job_plan_tab_id"], name: "index_job_plans_on_job_plan_tab_id"

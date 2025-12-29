@@ -6,28 +6,32 @@ module Api
       # GET /api/v1/jobs_photos
       # Returns jobs with their latest photos, grouped by supervisor
       # Params:
-      #   - status: job status name (default: 'Active')
-      #   - job_type_ids[]: array of job type IDs to filter by (optional, defaults to all)
+      #   - statuses[]: array of job status names (required)
       #   - limit: max photos per job (default: 5)
       def index
-        status_name = params[:status].presence || "Active"
+        status_names = params[:statuses].presence
         photos_limit = (params[:limit] || 5).to_i.clamp(1, 10)
-        job_type_ids = params[:job_type_ids].presence
 
-        # Find the status
-        status = JobStatus.find_by(name: status_name)
-
-        # Get jobs with the given status
-        jobs = Job.includes(:job_status, :job_type)
-                  .where(job_status: status)
-                  .where.not(site_supervisor_name: [nil, ""])
-
-        # Filter by job types if specified
-        if job_type_ids.present?
-          jobs = jobs.where(job_type_id: job_type_ids)
+        # Return empty if no statuses selected
+        if status_names.blank?
+          return render json: {
+            success: true,
+            data: {
+              statuses: [],
+              total_jobs: 0,
+              supervisors: {}
+            }
+          }
         end
 
-        jobs = jobs.order(:site_supervisor_name, :name)
+        # Find the statuses
+        statuses = JobStatus.where(name: status_names)
+
+        # Get jobs with the given statuses
+        jobs = Job.includes(:job_status)
+                  .where(job_status: statuses)
+                  .where.not(site_supervisor_name: [nil, ""])
+                  .order(:site_supervisor_name, :name)
 
         # Build response grouped by supervisor
         grouped_data = {}
@@ -71,7 +75,7 @@ module Api
         render json: {
           success: true,
           data: {
-            status: status_name,
+            statuses: status_names,
             total_jobs: total_jobs,
             supervisors: sorted_data
           }
@@ -83,13 +87,6 @@ module Api
       def statuses
         statuses = JobStatus.order(:name).pluck(:name)
         render json: { success: true, data: statuses }
-      end
-
-      # GET /api/v1/jobs_photos/job_types
-      # Returns available job types for the filter dropdown
-      def job_types
-        types = JobType.order(:name).select(:id, :name).map { |t| { id: t.id, name: t.name } }
-        render json: { success: true, data: types }
       end
     end
   end

@@ -15,7 +15,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Calendar, Loader2, Upload } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
@@ -106,6 +114,30 @@ export default function ScheduleMasterPage() {
   const [importing, setImporting] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Add Task modal state
+  const [addTaskModalOpen, setAddTaskModalOpen] = React.useState(false);
+  const [newTaskName, setNewTaskName] = React.useState("");
+  const [newTaskStartDate, setNewTaskStartDate] = React.useState("");
+  const [addingTask, setAddingTask] = React.useState(false);
+
+  // PO creation fields
+  const [createPO, setCreatePO] = React.useState(false);
+  const [suppliers, setSuppliers] = React.useState<Array<{ id: number; name: string }>>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = React.useState<number | null>(null);
+  const [poPrice, setPoPrice] = React.useState("");
+
+  // Dependency linking
+  const [linkToTaskId, setLinkToTaskId] = React.useState<number | null>(null);
+
+  // Fetch suppliers when modal opens
+  React.useEffect(() => {
+    if (addTaskModalOpen && suppliers.length === 0) {
+      api.get<{ suppliers: Array<{ id: number; name: string }> }>("/api/v1/suppliers")
+        .then((res) => setSuppliers(res.suppliers || []))
+        .catch((err) => console.error("Failed to load suppliers:", err));
+    }
+  }, [addTaskModalOpen, suppliers.length]);
+
   React.useEffect(() => {
     const fetchData = async () => {
       try {
@@ -136,6 +168,72 @@ export default function ScheduleMasterPage() {
       setTasksMeta(tasksData.meta || null);
     } catch (error) {
       console.error("Failed to refetch tasks:", error);
+    }
+  };
+
+  // Handle add task
+  const handleAddTask = async () => {
+    if (!newTaskName.trim()) {
+      toast({ title: "Error", description: "Task name is required", variant: "destructive" });
+      return;
+    }
+
+    if (createPO && !selectedSupplierId) {
+      toast({ title: "Error", description: "Please select a supplier for the PO", variant: "destructive" });
+      return;
+    }
+
+    setAddingTask(true);
+    try {
+      const startDate = newTaskStartDate || new Date().toISOString().split("T")[0];
+
+      // Step 1: Create the task
+      const taskResponse = await api.post<{ sm_task: SmTask }>(`/api/v1/jobs/${jobId}/sm_tasks`, {
+        sm_task: {
+          name: newTaskName.trim(),
+          start_date: startDate,
+          duration_days: 1,
+          status: "not_started",
+        },
+      });
+
+      const newTask = taskResponse.sm_task;
+
+      // Step 2: Create PO if requested
+      if (createPO && selectedSupplierId && newTask) {
+        await api.post("/api/v1/purchase_orders", {
+          purchase_order: {
+            job_id: jobId,
+            supplier_id: selectedSupplierId,
+            description: newTaskName.trim(),
+            budget: poPrice ? parseFloat(poPrice) : undefined,
+            required_date: startDate,
+            schedule_task_id: newTask.id,
+          },
+        });
+      }
+
+      // Step 3: Create dependency if requested
+      if (linkToTaskId && newTask) {
+        await api.post(`/api/v1/sm_tasks/${newTask.id}/dependencies`, {
+          predecessor_id: linkToTaskId,
+        });
+      }
+
+      toast({ title: "Success", description: createPO ? "Task and PO created successfully" : "Task added successfully" });
+      setAddTaskModalOpen(false);
+      setNewTaskName("");
+      setNewTaskStartDate("");
+      setCreatePO(false);
+      setSelectedSupplierId(null);
+      setPoPrice("");
+      setLinkToTaskId(null);
+      refetchTasks();
+    } catch (error) {
+      console.error("Failed to add task:", error);
+      toast({ title: "Error", description: "Failed to add task", variant: "destructive" });
+    } finally {
+      setAddingTask(false);
     }
   };
 
@@ -269,7 +367,7 @@ export default function ScheduleMasterPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm">Add Task</Button>
+          <Button size="sm" onClick={() => setAddTaskModalOpen(true)}>Add Task</Button>
         </div>
       </div>
 
@@ -354,6 +452,118 @@ export default function ScheduleMasterPage() {
                   <Upload className="h-4 w-4 mr-2" />
                   Import
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Task Modal */}
+      <Dialog open={addTaskModalOpen} onOpenChange={setAddTaskModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Task</DialogTitle>
+            <DialogDescription>
+              Create a new task for this job schedule.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="task-name">Task Name</Label>
+              <Input
+                id="task-name"
+                placeholder="e.g., Pour Concrete Slab"
+                value={newTaskName}
+                onChange={(e) => setNewTaskName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-start">Start Date</Label>
+              <Input
+                id="task-start"
+                type="date"
+                value={newTaskStartDate}
+                onChange={(e) => setNewTaskStartDate(e.target.value)}
+              />
+            </div>
+
+            {/* Create PO Toggle */}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="create-po">Create Purchase Order</Label>
+              <Switch
+                id="create-po"
+                checked={createPO}
+                onCheckedChange={setCreatePO}
+              />
+            </div>
+
+            {/* PO Fields - shown when createPO is true */}
+            {createPO && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="supplier">Supplier</Label>
+                  <Select
+                    value={selectedSupplierId?.toString() || ""}
+                    onValueChange={(v) => setSelectedSupplierId(v ? parseInt(v) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select supplier..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map((s) => (
+                        <SelectItem key={s.id} value={s.id.toString()}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="po-price">PO Price ($)</Label>
+                  <Input
+                    id="po-price"
+                    type="number"
+                    placeholder="0.00"
+                    value={poPrice}
+                    onChange={(e) => setPoPrice(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Link to Task (Dependency) */}
+            <div className="space-y-2">
+              <Label htmlFor="link-task">Link After Task (Optional)</Label>
+              <Select
+                value={linkToTaskId?.toString() || ""}
+                onValueChange={(v) => setLinkToTaskId(v ? parseInt(v) : null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select predecessor task..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {tasks.map((t) => (
+                    <SelectItem key={t.id} value={t.id.toString()}>
+                      {t.task_number}. {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddTaskModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddTask} disabled={!newTaskName.trim() || addingTask || (createPO && !selectedSupplierId)}>
+              {addingTask ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                "Add Task"
               )}
             </Button>
           </DialogFooter>
