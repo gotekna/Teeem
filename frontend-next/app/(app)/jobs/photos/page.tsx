@@ -261,88 +261,88 @@ export default function JobPhotosPage() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b dark:border-gray-800">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <BackButton fallbackHref="/jobs" />
-            <Camera className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-lg font-semibold">Job Photos</h1>
+        <div className="flex items-center gap-2 p-3">
+          <BackButton fallbackHref="/jobs" />
+          <Camera className="h-4 w-4 text-muted-foreground" />
+          <h1 className="text-base font-semibold">Job Photos</h1>
+
+          {/* Filters inline */}
+          <div className="flex items-center gap-1.5 ml-3">
+            {/* Job Type Dropdown */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 text-xs px-2">
+                  Types ({selectedJobTypeIds.length})
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-44 p-2" align="start">
+                <div className="space-y-1">
+                  {allJobTypes.map(type => (
+                    <label key={type.id} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
+                      <Checkbox
+                        checked={selectedJobTypeIds.includes(type.id)}
+                        onCheckedChange={() => toggleJobType(type.id)}
+                      />
+                      <span className="text-sm">{type.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Supervisor Dropdown */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 text-xs px-2">
+                  Supers ({selectedSupervisors.length})
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52 p-2 max-h-64 overflow-y-auto" align="start">
+                <div className="space-y-1">
+                  {allSupervisors.map(name => (
+                    <label key={name} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
+                      <Checkbox
+                        checked={selectedSupervisors.includes(name)}
+                        onCheckedChange={() => toggleSupervisor(name)}
+                      />
+                      <span className="text-sm truncate">{name}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Divider */}
+            <div className="h-5 w-px bg-gray-300 dark:bg-gray-700 mx-1" />
+
+            {/* Status Toggle Buttons */}
+            {allStatuses.map(status => {
+              const isSelected = selectedStatusIds.includes(status.id);
+              return (
+                <Badge
+                  key={status.id}
+                  variant={isSelected ? "default" : "outline"}
+                  className={cn(
+                    "cursor-pointer transition-colors text-xs px-2 py-0.5",
+                    isSelected
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                  )}
+                  onClick={() => toggleStatus(status.id)}
+                >
+                  {status.name}
+                </Badge>
+              );
+            })}
           </div>
-          <Button variant="outline" size="sm" onClick={loadPhotos} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+
+          {/* Refresh button */}
+          <Button variant="outline" size="sm" onClick={loadPhotos} disabled={loading} className="ml-auto h-7 text-xs px-2">
+            <RefreshCw className={cn("h-3 w-3 mr-1", loading && "animate-spin")} />
             Refresh
           </Button>
-        </div>
-
-        {/* Filters Row */}
-        <div className="px-4 pb-3 flex flex-wrap items-center gap-3">
-          {/* Job Type Dropdown */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8">
-                House Types ({selectedJobTypeIds.length})
-                <ChevronDown className="ml-1 h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-48 p-2" align="start">
-              <div className="space-y-1">
-                {allJobTypes.map(type => (
-                  <label key={type.id} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
-                    <Checkbox
-                      checked={selectedJobTypeIds.includes(type.id)}
-                      onCheckedChange={() => toggleJobType(type.id)}
-                    />
-                    <span className="text-sm">{type.name}</span>
-                  </label>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          {/* Supervisor Dropdown */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8">
-                Supervisors ({selectedSupervisors.length})
-                <ChevronDown className="ml-1 h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-2 max-h-64 overflow-y-auto" align="start">
-              <div className="space-y-1">
-                {allSupervisors.map(name => (
-                  <label key={name} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
-                    <Checkbox
-                      checked={selectedSupervisors.includes(name)}
-                      onCheckedChange={() => toggleSupervisor(name)}
-                    />
-                    <span className="text-sm truncate">{name}</span>
-                  </label>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          {/* Divider */}
-          <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
-
-          {/* Status Toggle Buttons */}
-          {allStatuses.map(status => {
-            const isSelected = selectedStatusIds.includes(status.id);
-            return (
-              <Badge
-                key={status.id}
-                variant={isSelected ? "default" : "outline"}
-                className={cn(
-                  "cursor-pointer transition-colors px-3 py-1",
-                  isSelected
-                    ? "bg-blue-600 hover:bg-blue-700 text-white"
-                    : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                )}
-                onClick={() => toggleStatus(status.id)}
-              >
-                {status.name}
-              </Badge>
-            );
-          })}
         </div>
       </div>
 
