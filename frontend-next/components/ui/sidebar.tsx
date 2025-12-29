@@ -43,6 +43,7 @@ export function Sidebar() {
   const { isExpanded, setIsExpanded } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
   const [badges, setBadges] = useState<Record<string, number>>({});
+  const [emailAccountBadges, setEmailAccountBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
 
@@ -189,6 +190,22 @@ export function Sidebar() {
       if (plansResponse) {
         setBadges(prev => ({ ...prev, plans_pending: plansResponse.pending_count || 0 }));
       }
+
+      // Load unread email counts
+      const emailResponse = await safeFetch<{ total: number; by_account: Array<{ email: string; count: number }> }>(
+        "/api/v1/email_warehouse/unread_counts"
+      );
+      if (emailResponse) {
+        setBadges(prev => ({ ...prev, unreadEmails: emailResponse.total || 0 }));
+        // Store per-account counts for email account badges
+        const accountBadges: Record<string, number> = {};
+        (emailResponse.by_account || []).forEach(({ email, count }) => {
+          if (email) {
+            accountBadges[email.toLowerCase()] = count;
+          }
+        });
+        setEmailAccountBadges(accountBadges);
+      }
     };
 
     if (isAuthenticated) {
@@ -241,7 +258,11 @@ export function Sidebar() {
   ) => {
     const ItemIcon = getIcon(item.icon);
     const active = isActive(item.href);
-    const badgeCount = item.badge_key ? badges[item.badge_key] : 0;
+    // Check for email account badge (href like /email?account=X means it's an email account)
+    const isEmailAccount = item.href.startsWith('/email?account=');
+    const emailAccountCount = isEmailAccount ? (emailAccountBadges[item.name.toLowerCase()] ?? 0) : null;
+    const badgeCount = emailAccountCount !== null ? emailAccountCount : (item.badge_key ? badges[item.badge_key] : 0);
+    const showBadge = emailAccountCount !== null || badgeCount > 0; // Always show for email accounts
     const isItemLoading = loadingHref === item.href;
 
     return (
@@ -252,9 +273,9 @@ export function Sidebar() {
         onClick={() => !active && setLoadingHref(item.href)}
         className={cn(
           "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
-          isChild && (isExpanded || mobile) && !isGrandchild && !hasChevron && "pl-7",
+          isChild && (isExpanded || mobile) && !isGrandchild && !hasChevron && "pl-10",
           isChild && (isExpanded || mobile) && !isGrandchild && hasChevron && "pl-1", // Less padding when chevron present
-          isGrandchild && (isExpanded || mobile) && "pl-8", // Reduced from pl-14
+          isGrandchild && (isExpanded || mobile) && "pl-14", // Indent beyond parent
           active
             ? "bg-secondary text-secondary-foreground"
             : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
@@ -266,8 +287,11 @@ export function Sidebar() {
           ) : (
             <ItemIcon size={16} />
           )}
-          {badgeCount > 0 && !isExpanded && !mobile && (
-            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+          {showBadge && !isExpanded && !mobile && (
+            <span className={cn(
+              "absolute -top-1.5 -right-1.5 w-4 h-4 text-white text-[10px] font-bold rounded-full flex items-center justify-center",
+              badgeCount > 0 ? "bg-yellow-500" : "bg-muted-foreground/50"
+            )}>
               {badgeCount > 9 ? "9+" : badgeCount}
             </span>
           )}
@@ -276,12 +300,18 @@ export function Sidebar() {
           className={cn(
             "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
             isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
-            isItemLoading && "opacity-50"
+            isItemLoading && "opacity-50",
+            hasChevron && "font-semibold" // Bold for items with children
           )}
         >
           {item.name}
-          {badgeCount > 0 && (isExpanded || mobile) && (
-            <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+          {showBadge && (isExpanded || mobile) && (
+            <Badge className={cn(
+              "text-xs px-1.5 py-0",
+              badgeCount > 0
+                ? "bg-yellow-500 text-white hover:bg-yellow-500"
+                : "bg-muted text-muted-foreground hover:bg-muted"
+            )}>
               {badgeCount}
             </Badge>
           )}
@@ -289,8 +319,13 @@ export function Sidebar() {
         {!isExpanded && !mobile && (
           <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
             {item.name}
-            {badgeCount > 0 && (
-              <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+            {showBadge && (
+              <Badge className={cn(
+                "text-xs px-1.5 py-0",
+                badgeCount > 0
+                  ? "bg-yellow-500 text-white hover:bg-yellow-500"
+                  : "bg-muted text-muted-foreground hover:bg-muted"
+              )}>
                 {badgeCount}
               </Badge>
             )}
@@ -360,7 +395,8 @@ export function Sidebar() {
               className={cn(
                 "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
                 isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
-                isItemLoading && "opacity-50"
+                isItemLoading && "opacity-50",
+                hasChildren && "font-semibold"
               )}
             >
               {item.name}

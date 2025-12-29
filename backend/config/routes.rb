@@ -1041,6 +1041,7 @@ Rails.application.routes.draw do
           get :unassigned
           get :search
           get :stats
+          get :unread_counts
           get :sync_status
           post :sync
           post :sync_for_job
