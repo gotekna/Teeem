@@ -158,6 +158,7 @@ interface SmScheduleMaster {
   assigned_role?: string | null;
   cost_centre?: string;
   header?: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
+  allow_header?: boolean;  // If true, this row can be selected as a header for other tasks
   is_active?: boolean;
   tags?: string[];
   po_required: boolean;
@@ -556,13 +557,13 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // SSoT: Load header rows (rows where header is NULL - they ARE headers)
+  // SSoT: Load header rows (rows where allow_header = true)
   const loadHeaderRows = async () => {
     try {
-      // Query sm_schedule_master rows where header_backup = 'Header' (the ones that ARE header rows)
+      // Query sm_schedule_master rows where allow_header = true (the ones that CAN be headers)
       const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
         "/api/v1/foundations/sm_schedule_master/records?per_page=100&filters=" + encodeURIComponent(JSON.stringify([
-          { column: "header_backup", operator: "equals", value: "Header" }
+          { column: "allow_header", operator: "equals", value: "true" }
         ]))
       );
       if (data?.records) {
@@ -2312,6 +2313,31 @@ export function ScheduleMasterTab() {
                   )}
                   {autoSaveStatus === 'idle' && (
                     <span className="text-muted-foreground">Auto-save enabled</span>
+                  )}
+                </div>
+                {/* Allow Header */}
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  <Switch
+                    id="row-allow-header"
+                    checked={editRowForm.allow_header || false}
+                    disabled={editRowForm.po_required || editRowForm.create_po_on_job_start}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        // Clear header field when becoming a header
+                        setEditRowForm({ ...editRowForm, allow_header: checked, header: null });
+                      } else {
+                        setEditRowForm({ ...editRowForm, allow_header: checked });
+                      }
+                    }}
+                  />
+                  <div>
+                    <Label htmlFor="row-allow-header" className={`text-xs ${(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                      Allow Header
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Can be selected as parent for other tasks</p>
+                  </div>
+                  {editRowForm.allow_header && (
+                    <Badge className="text-[10px] bg-blue-500">Header</Badge>
                   )}
                 </div>
                 {/* Active Status */}

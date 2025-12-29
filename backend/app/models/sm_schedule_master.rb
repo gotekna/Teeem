@@ -52,13 +52,21 @@ class SmScheduleMaster < ApplicationRecord
   validates :sequence_order, presence: true
   validates :duration_days, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :duration_positive_for_tasks
+  validate :header_cannot_be_po
 
   def duration_positive_for_tasks
-    return if header == 'Header' # Headers can have 0 duration
+    return if allow_header # Headers can have 0 duration
     if duration_days.present? && duration_days <= 0
       errors.add(:duration_days, 'must be greater than 0 for tasks')
     end
   end
+
+  def header_cannot_be_po
+    if allow_header && (po_required || create_po_on_job_start)
+      errors.add(:allow_header, "cannot be enabled for PO tasks")
+    end
+  end
+
   validates :subtask_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }, if: :has_subtasks?
   validate :subtask_names_match_count
   validate :predecessor_ids_valid
@@ -78,6 +86,7 @@ class SmScheduleMaster < ApplicationRecord
   # Callbacks
   before_validation :set_task_number, on: :create
   before_validation :clean_invalid_predecessors
+  before_validation :uppercase_name_if_header
   before_save :clear_spawn_tasks_if_not_po
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
 
@@ -172,6 +181,11 @@ class SmScheduleMaster < ApplicationRecord
     # Task numbers are now globally unique (not per-template)
     max_number = SmScheduleMaster.maximum(:task_number) || 0
     self.task_number = max_number + 1
+  end
+
+  # Force uppercase name for header rows
+  def uppercase_name_if_header
+    self.name = name.upcase if allow_header && name.present?
   end
 
   # Clear spawn_order_task and spawn_call_task if po_required is false

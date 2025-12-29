@@ -191,6 +191,8 @@ module Api
           :supplier_confirm,
           # Manual positioning
           :hold, :hold_date, :dependency_broken,
+          # Header and active status
+          :allow_header, :is_active,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           documentation_category_ids: [],

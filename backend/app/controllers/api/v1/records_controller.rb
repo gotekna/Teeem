@@ -886,22 +886,33 @@ module Api
             next if value.is_a?(Hash) && value.key?(:id)
 
             begin
-              # Use lookup_cache if available, fall back to database query if not found
-              # BUG FIX: Previously, if cache existed but value wasn't in it, we'd return nil
-              # without falling back to DB query. Now we properly fall back when cache misses.
-              related_record = lookup_cache&.dig(column.id, value.to_i)
+              # Determine if value is a numeric ID or a string name
+              # String columns store values like "accounts_department" instead of numeric IDs
+              is_numeric = value.is_a?(Integer) || (value.is_a?(String) && value.match?(/\A\d+\z/))
+              numeric_id = is_numeric ? value.to_i : nil
+
+              # Use lookup_cache if available (keyed by numeric ID), fall back to database query
+              related_record = numeric_id ? lookup_cache&.dig(column.id, numeric_id) : nil
+
               if related_record.nil? && column.lookup_foundation.present?
-                related_record = column.lookup_foundation.dynamic_model.find_by(id: value)
+                lookup_model = column.lookup_foundation.dynamic_model
+                if is_numeric
+                  # Numeric ID - look up by id
+                  related_record = lookup_model.find_by(id: numeric_id)
+                else
+                  # String value - look up by name column (e.g., "accounts_department" -> Role.name)
+                  related_record = lookup_model.find_by(name: value)
+                end
               end
 
               if related_record
                 display_col = column.lookup_display_column || "name"
                 json[column.column_name] = {
-                  id: value.to_i,
+                  id: related_record.id,  # Always use the actual record ID
                   display: related_record.send(display_col).to_s
                 }
               else
-                json[column.column_name] = { id: value.to_i, display: "[Deleted]" }
+                json[column.column_name] = { id: numeric_id || 0, display: "[Deleted]" }
               end
             rescue => e
               Rails.logger.error "Error expanding lookup #{column.column_name}: #{e.message}"
