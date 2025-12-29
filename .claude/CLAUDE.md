@@ -98,6 +98,28 @@ When discovering duplicates:
 
 **Rule:** All table state lives in atoms. Read `lib/table-atoms.ts` header before adding state.
 
+## 🔴 SSoT - Validation
+
+**SSoT:** `lib/formatters/validation-formatters.ts` (reads from backend type definitions)
+
+| Need | SSoT | NOT This |
+|------|------|----------|
+| Validate cell value | `validateCell()` from `CellValidation.tsx` | Inline regex patterns |
+| Validation patterns | Backend `ColumnTypeDefinition` | Hardcoded frontend patterns |
+
+**Rule:** Validation blocks save. Invalid data cannot be saved - user must fix or cancel.
+
+## 🔴 SSoT - Cache Invalidation
+
+**SSoT:** `lib/records-cache.ts`
+
+**After ANY mutation (save, bulk update, delete, merge), call:**
+```typescript
+clearCachedRecords(foundationId);  // BEFORE triggerAutoRefresh()
+```
+
+**Rule:** Clear cache BEFORE refresh to ensure fresh data. Stale cache = stale UI.
+
 ## 🔴 CRITICAL: Ultrathink Design Philosophy
 
 **Take a deep breath. We're not here to write code. We're here to make a dent in the universe.**

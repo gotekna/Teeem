@@ -1326,6 +1326,11 @@ export default function TeeemTableView({
       });
       setShowDeleteConfirmModal(false);
       setRecordToDelete(null);
+
+      // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+      // SSoT: records-cache.ts
+      clearCachedRecords(effectiveFoundationId);
+
       // Refresh data - both internal (autoFetch) and external (parent callback)
       triggerAutoRefresh();
       onRefresh?.();
@@ -1874,11 +1879,18 @@ export default function TeeemTableView({
     setMergeSelectedIds([]);
     setSelectedRows(new Set<string | number>());
 
+    // 🔴 CRITICAL: Clear cache so next refresh gets fresh data
+    // Even though we don't refresh now, the cache should be invalidated
+    // SSoT: records-cache.ts
+    if (effectiveFoundationId) {
+      clearCachedRecords(effectiveFoundationId);
+    }
+
     // NOTE: We intentionally do NOT call onRefresh() here anymore.
     // The optimistic hide via pendingDeleteIds provides instant feedback.
     // A full refresh would reset grouped views, scroll position, and cause flicker.
     // Data will naturally sync on the next user-triggered refresh or navigation.
-  }, []);
+  }, [effectiveFoundationId]);
 
   // Group handlers
   // Lazy load all records for a group when expanding (server-side grouping)
@@ -2163,7 +2175,7 @@ export default function TeeemTableView({
     if (editingRowIds.size === 0 || !onRowUpdate) return;
 
     // 🔴 CRITICAL: Validate ALL dirty cells before saving
-    // This catches validation errors even if user didn't blur the field
+    // Block save if invalid - user can fix it or cancel (cancel clears invalid data)
     // SSoT: validation-formatters.ts via CellValidation.tsx
     const newErrors: Record<number | string, Record<string, string>> = {};
     let totalErrorCount = 0;
@@ -2191,12 +2203,12 @@ export default function TeeemTableView({
       }
     }
 
-    // If any validation errors, update state and block save
+    // If any validation errors, block save so user can fix
     if (totalErrorCount > 0) {
       setValidationErrors(newErrors);
       toast({
         title: "Cannot save",
-        description: `Please fix ${totalErrorCount} validation error${totalErrorCount !== 1 ? "s" : ""} first`,
+        description: `Fix ${totalErrorCount} error${totalErrorCount !== 1 ? "s" : ""} or cancel to discard`,
         variant: "destructive",
       });
       return;
@@ -2421,6 +2433,13 @@ export default function TeeemTableView({
       setBulkUpdateColumn("");
       setBulkUpdateValue("");
       setSelectedRows(new Set<string | number>());
+
+      // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+      // SSoT: records-cache.ts
+      if (effectiveFoundationId) {
+        clearCachedRecords(effectiveFoundationId);
+      }
+
       console.log('[Bulk Update] Calling refresh...');
       // Refresh data - both internal (autoFetch) and external (parent callback)
       triggerAutoRefresh();
