@@ -1309,8 +1309,8 @@ export function ScheduleMasterTab() {
               }
               autoFetchRecords={!!dataViewTemplateId}
               initialFilters={dataViewTemplateId ? [
-                { id: "template", column: "sm_template_ids", operator: "array_contains" as const, value: String(dataViewTemplateId) },
-                ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter }] : [])
+                { id: "template", column: "sm_template_ids", operator: "array_contains" as const, value: String(dataViewTemplateId), label: `Template: ${templates.find(t => t.id === dataViewTemplateId)?.name || 'Selected'}` },
+                ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
               ] : []}
               onRefresh={() => {
                 setDataViewRefreshKey(prev => prev + 1);

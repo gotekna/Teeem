@@ -740,6 +740,7 @@ export default function TeeemTableView({
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
   // CRITICAL: Include filters in API call - backend needs to know about base filters
   useEffect(() => {
+    console.log('[TeeemTableView] autoFetch effect:', { useAutoFetch, effectiveFoundationId, baseFiltersLength: baseFilters.length, baseFilters });
     if (!useAutoFetch) return;
 
     const fetchInitialRecords = async () => {
@@ -4832,10 +4833,17 @@ export default function TeeemTableView({
                 title={isLocked ? "Base filter (cannot be cleared)" : "Click to edit filters"}
               >
                 {isLocked && <Pin className="h-3 w-3 text-muted-foreground" />}
-                {col?.label || filter.column}{" "}
-                {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
-                {!["is_empty", "is_not_empty"].includes(filter.operator) &&
-                  `"${filter.value}"`}
+                {/* Use friendly label if provided, otherwise show raw filter details */}
+                {filter.label ? (
+                  filter.label
+                ) : (
+                  <>
+                    {col?.label || filter.column}{" "}
+                    {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
+                    {!["is_empty", "is_not_empty"].includes(filter.operator) &&
+                      `"${filter.value}"`}
+                  </>
+                )}
                 {!isLocked && (
                   <X
                     className="h-3 w-3 text-muted-foreground hover:text-foreground ml-1"

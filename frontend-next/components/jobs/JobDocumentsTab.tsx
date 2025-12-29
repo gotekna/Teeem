@@ -680,13 +680,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
           // SSoT: Match by tab_key directly (e.g., "supervisor-photo")
           // No name conversion needed - tab_key is the unique identifier
+          let foundMatch = false;
+
           for (const parent of categories) {
             // If composite key provided, only search within the specified parent
             if (parentKey && parent.tab_key !== parentKey) {
               continue;
             }
 
-            if (parent.children) {
+            if (parent.children && parent.children.length > 0) {
               const matchingChild = parent.children.find(
                 (child) => child.tab_key === childKey
               );
@@ -700,6 +702,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 initialCategoryAppliedRef.current = true;
                 setSelectedCategory(parent);
                 setSelectedSubCategory(matchingChild);
+                foundMatch = true;
                 return;
               }
             }
@@ -710,6 +713,26 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 is_photo_category: parent.is_photo_category,
               });
               setSelectedCategory(parent);
+              foundMatch = true;
+              return;
+            }
+          }
+
+          // SSoT FALLBACK: Categories may be passed as a flat list (already children)
+          // This happens when job page passes parent.children directly
+          // In this case, match childKey against the flat list
+          if (!foundMatch && isCompositeKey) {
+            const matchingCategory = categories.find(
+              (cat) => cat.tab_key === childKey
+            );
+            if (matchingCategory) {
+              console.log("[JobDocumentsTab] Found matching category (flat list):", {
+                tab_key: matchingCategory.tab_key,
+                name: matchingCategory.name,
+                is_photo_category: matchingCategory.is_photo_category,
+              });
+              initialCategoryAppliedRef.current = true;
+              setSelectedCategory(matchingCategory);
               return;
             }
           }
