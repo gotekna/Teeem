@@ -1,11 +1,19 @@
 /**
- * Cell Display Functions - SSoT for all 31 column types
+ * Cell Display Functions
  *
  * Display (read-only) rendering for all column types.
- * This is THE SINGLE SOURCE OF TRUTH for how values are displayed in tables.
  *
- * Each function takes a value and column definition, returns a React node.
- * Consistent styling: text-[11px] base size, dark mode support.
+ * THE NEW WAY (SSoT):
+ *   Use displayCell() which reads formatting rules from ColumnTypeDefinition.
+ *   The backend database is the single source of truth.
+ *
+ * THE OLD WAY (deprecated):
+ *   Individual displayXxx() functions are kept for backward compatibility
+ *   but will be removed once all consumers migrate to displayCell().
+ *
+ * Migration:
+ *   BEFORE: displayAbn(value)
+ *   AFTER:  displayCell(value, column) or formatValue(value, 'abn')
  */
 
 import React from "react";
@@ -16,6 +24,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CheckCircle2, Circle, ExternalLink, Check, ShieldCheck } from "lucide-react";
 import type { TableColumn, TableRow } from "../../types";
+import { formatValue } from "@/lib/formatters/display-formatters";
+import { isTypeDefinitionsLoaded } from "@/lib/column-type-registry";
 
 // Consistent link styling
 const LINK_CLASSES = "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
@@ -688,4 +698,127 @@ export function displayDefault(value: unknown): React.ReactNode {
   }
 
   return <span className="text-[11px]">{String(value)}</span>;
+}
+
+// ============================================================================
+// NEW SSoT-BASED DISPLAY FUNCTION
+// This is THE ONE function that should be used going forward.
+// It reads formatting rules from ColumnTypeDefinition (the database SSoT).
+// ============================================================================
+
+/**
+ * Display a cell value using the SSoT type registry
+ *
+ * This is the main entry point for rendering cell values.
+ * It uses the ColumnTypeDefinition from the backend to determine formatting.
+ *
+ * If type definitions aren't loaded yet, falls back to legacy functions.
+ *
+ * @param value - The raw cell value
+ * @param column - The column definition
+ * @param row - Optional row for special types (xero_links)
+ * @returns Rendered React node
+ */
+export function displayCell(
+  value: unknown,
+  column: TableColumn,
+  row?: TableRow
+): React.ReactNode {
+  const columnType = column.column_type || "single_line_text";
+
+  // Special case: xero_links needs row data
+  if (columnType === "xero_links") {
+    return displayXeroLinks(value, column, row);
+  }
+
+  // If type definitions are loaded, use the new SSoT-based formatters
+  if (isTypeDefinitionsLoaded()) {
+    return formatValue(value, columnType);
+  }
+
+  // Fallback to legacy functions if type definitions not loaded
+  return displayCellLegacy(value, column, row);
+}
+
+/**
+ * Legacy display function - uses hardcoded switch statement
+ * This is kept as a fallback in case the SSoT registry fails to load.
+ * The registry loads on auth in AuthContext, so this should rarely be used.
+ * @deprecated Fallback only - SSoT formatters handle all rendering when registry is loaded
+ */
+function displayCellLegacy(
+  value: unknown,
+  column: TableColumn,
+  row?: TableRow
+): React.ReactNode {
+  const columnType = column.column_type;
+
+  switch (columnType) {
+    case "single_line_text":
+      return displaySingleLineText(value);
+    case "multiple_lines_text":
+      return displayMultipleLinesText(value);
+    case "email":
+      return displayEmail(value);
+    case "phone":
+      return displayPhone(value);
+    case "mobile":
+      return displayMobile(value);
+    case "url":
+      return displayUrl(value);
+    case "number":
+      return displayNumber(value);
+    case "whole_number":
+      return displayWholeNumber(value);
+    case "currency":
+      return displayCurrency(value);
+    case "percentage":
+      return displayPercentage(value);
+    case "date":
+      return displayDate(value);
+    case "date_and_time":
+      return displayDateTime(value);
+    case "boolean":
+      return displayBoolean(value);
+    case "choice":
+      return displayChoice(value);
+    case "lookup":
+    case "relation":
+    case "user":
+      return displayLookup(value);
+    case "multiple_lookups":
+      return displayMultipleLookups(value);
+    case "gps_coordinates":
+      return displayGpsCoordinates(value);
+    case "color_picker":
+      return displayColorPicker(value);
+    case "file_upload":
+      return displayFileUpload(value);
+    case "structured_data":
+      return displayStructuredData(value);
+    case "array_of_items":
+      return displayArrayOfItems(value);
+    case "searchable_text":
+      return displaySearchableText(value);
+    case "action_buttons":
+      return displayActionButtons(value);
+    case "computed":
+      return displayComputed(value, column);
+    case "abn":
+      return displayAbn(value);
+    case "acn":
+      return displayAcn(value);
+    case "bsb":
+      return displayBsb(value);
+    case "bank_account":
+      return displayBankAccount(value);
+    case "postcode":
+      return displayPostcode(value);
+    case "tfn":
+      return displayTfn(value);
+    case "xero_links":
+      return displayXeroLinks(value, column, row);
+    default:
+      return displayDefault(value);
+  }
 }

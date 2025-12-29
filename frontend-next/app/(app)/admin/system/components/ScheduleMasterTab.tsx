@@ -1452,31 +1452,31 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["task_number"] || false} onCheckedChange={(v) => updateColumnStatus("task_number", !!v)} />
                     <CopyableCode>task_number</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
-                    <span className="text-muted-foreground">Display number for the task (globally unique)</span>
+                    <span className="text-muted-foreground">The unique number shown next to each task (e.g., Task #47). Used when referencing tasks in dependencies like &quot;starts after Task 46&quot;.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["name"] || false} onCheckedChange={(v) => updateColumnStatus("name", !!v)} />
                     <CopyableCode>name</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
-                    <span className="text-muted-foreground">Task name/description</span>
+                    <span className="text-muted-foreground">The main title of the task that appears in the Gantt chart and lists (e.g., &quot;Slab Pour&quot;, &quot;Frame Inspection&quot;). Keep it short and descriptive.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["description"] || false} onCheckedChange={(v) => updateColumnStatus("description", !!v)} />
                     <CopyableCode>description</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">text</Badge>
-                    <span className="text-muted-foreground">Extended description of the task</span>
+                    <span className="text-muted-foreground">Additional notes or instructions for this task. Use this for details like special requirements, contact numbers, or things to watch out for.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["sequence_order"] || false} onCheckedChange={(v) => updateColumnStatus("sequence_order", !!v)} />
                     <CopyableCode>sequence_order</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">decimal</Badge>
-                    <span className="text-muted-foreground">Controls display order in the list</span>
+                    <span className="text-muted-foreground">Determines where this task appears in the list. Lower numbers appear first. You can use decimals (e.g., 1.5) to insert tasks between existing ones.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["header"] || false} onCheckedChange={(v) => updateColumnStatus("header", !!v)} />
                     <CopyableCode>header</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
-                    <span className="text-muted-foreground">Header vs Task - allows section grouping</span>
+                    <span className="text-muted-foreground">Set to &quot;Header&quot; to make this row a section divider (like &quot;FOUNDATION STAGE&quot;). Headers group related tasks together visually.</span>
                   </div>
                 </div>
               </CardContent>
@@ -1500,19 +1500,19 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["duration_days"] || false} onCheckedChange={(v) => updateColumnStatus("duration_days", !!v)} />
                     <CopyableCode>duration_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
-                    <span className="text-muted-foreground">How many working days the task takes</span>
+                    <span className="text-muted-foreground">How many working days (Mon-Fri) this task takes to complete. Enter 1 for same-day tasks, 5 for a full week, etc. Weekends are automatically skipped.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["predecessor_ids"] || false} onCheckedChange={(v) => updateColumnStatus("predecessor_ids", !!v)} />
                     <CopyableCode>predecessor_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">Array of {`{id, type, lag}`} - defines task dependencies (FS, SS, FF, SF)</span>
+                    <span className="text-muted-foreground">Links to tasks that must finish before this one can start. Format: FS (Finish-to-Start, most common), SS (Start-to-Start), FF (Finish-to-Finish), SF (Start-to-Finish). Lag adds extra waiting days.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["predecessor_ids_backup"] || false} onCheckedChange={(v) => updateColumnStatus("predecessor_ids_backup", !!v)} />
                     <CopyableCode>predecessor_ids_backup</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">Backup of dependencies before they were broken</span>
+                    <span className="text-muted-foreground">Stores the original dependencies when a link is broken (e.g., when a locked task can&apos;t move). Used to restore connections later if needed.</span>
                   </div>
                 </div>
               </CardContent>

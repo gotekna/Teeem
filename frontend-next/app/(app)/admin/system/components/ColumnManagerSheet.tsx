@@ -39,7 +39,7 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getColumnTypeEmoji } from "@/lib/column-types";
+import { getColumnTypeEmoji } from "@/lib/column-type-registry";
 
 interface ColumnConfig {
   id: number;

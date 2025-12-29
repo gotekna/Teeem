@@ -45,7 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { getColumnTypeEmoji, COLUMN_TYPES } from "@/lib/column-types";
+import { getColumnTypeEmoji, getColumnTypes, getTypeDefinition } from "@/lib/column-type-registry";
 import type { TableColumn } from "./types";
 import { useSetAtom } from "jotai";
 import { invalidateColumnsCacheAtom } from "@/lib/column-state-atoms";
@@ -72,19 +72,17 @@ interface EditedColumn {
   lookup_display_column: string;
 }
 
-// Get column metadata from COLUMN_TYPES
+// Get column metadata from SSoT registry
 const getColumnMetadata = (columnType: string) => {
-  const columnTypeDef = COLUMN_TYPES.find(
-    (type) => type.value === columnType
-  );
+  const columnTypeDef = getTypeDefinition(columnType);
 
   if (columnTypeDef) {
     return {
-      sqlType: columnTypeDef.sqlType || "Unknown",
-      validation: columnTypeDef.validationRules || "No validation rules defined",
-      usedFor: columnTypeDef.usedFor || "No description available",
-      example: columnTypeDef.example || "No example available",
-      label: columnTypeDef.label || columnType,
+      sqlType: columnTypeDef.sql_type || "Unknown",
+      validation: columnTypeDef.validation_message || "No validation rules defined",
+      usedFor: columnTypeDef.used_for || "No description available",
+      example: columnTypeDef.example_values || "No example available",
+      label: columnTypeDef.display_name || columnType,
       icon: getColumnTypeEmoji(columnType),
     };
   }
@@ -614,7 +612,7 @@ export function ColumnEditorModal({
                           <SelectValue placeholder="Select new type" />
                         </SelectTrigger>
                         <SelectContent>
-                          {COLUMN_TYPES.map((type) => (
+                          {getColumnTypes().map((type) => (
                             <SelectItem key={type.value} value={type.value}>
                               <span className="flex items-center gap-2">
                                 <span>{getColumnTypeEmoji(type.value)}</span>

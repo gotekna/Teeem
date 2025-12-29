@@ -19,7 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getColumnTypeEmoji, getColumnTypeLabel } from "@/lib/column-types";
+import { getColumnTypeEmoji, getColumnTypeLabel } from "@/lib/column-type-registry";
 import { Key, Link, Calculator, Copy, Check } from "lucide-react";
 import { TableColumn } from "./types";
 

@@ -1975,7 +1975,6 @@ export class GanttCanvas {
       );
 
       if (dep && !removedIds.includes(dep.id)) {
-        console.log(`Removing circular dependency: ${dep.fromId} → ${dep.toId}`);
         this.removeDependency(dep.id);
         removedIds.push(dep.id);
       }
@@ -2821,7 +2820,6 @@ export class GanttCanvas {
     if (this.isCreatingDependency && this.dependencyFromTask && this.dependencyFromEdge) {
       // Check if we dropped on a target task
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
-      console.log('[Dependency Drop] mouse:', e.offsetX, e.offsetY, 'targetTask:', targetTask?.name, 'fromTask:', this.dependencyFromTask.name);
 
       if (targetTask && targetTask.id !== this.dependencyFromTask.id) {
         // Determine the dependency type based on which connectors were used
@@ -11158,8 +11156,10 @@ export class GanttCanvas {
 
   isPalmTouch(touch: Touch): boolean {
     if (!this.palmRejectionEnabled) return false;
-    if ('radiusX' in touch && 'radiusY' in touch) {
-      const area = Math.PI * (touch as any).radiusX * (touch as any).radiusY;
+    // radiusX/radiusY are non-standard Touch properties for touch area detection
+    const extendedTouch = touch as Touch & { radiusX?: number; radiusY?: number };
+    if (extendedTouch.radiusX !== undefined && extendedTouch.radiusY !== undefined) {
+      const area = Math.PI * extendedTouch.radiusX * extendedTouch.radiusY;
       if (area > 50) return true;
     }
     return false;
@@ -14199,7 +14199,6 @@ export class GanttCanvas {
   copyGanttBibleToClipboard(): boolean {
     try {
       navigator.clipboard.writeText(this.ganttBibleContent.trim());
-      console.log('[GanttCanvas] Gantt Bible copied to clipboard');
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Failed to copy Gantt Bible:', e);
@@ -14234,7 +14233,6 @@ export class GanttCanvas {
   copyBugHunterLexiconToClipboard(): boolean {
     try {
       navigator.clipboard.writeText(this.bugHunterLexiconContent.trim());
-      console.log('[GanttCanvas] Bug Hunter Lexicon copied to clipboard');
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Failed to copy Bug Hunter Lexicon:', e);
@@ -14278,7 +14276,6 @@ ${this.getAutomatedTestResults()}
   copyTestStatusReportToClipboard(): boolean {
     try {
       navigator.clipboard.writeText(this.generateTestStatusReport().trim());
-      console.log('[GanttCanvas] Test Status Report copied to clipboard');
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Failed to copy Test Status Report:', e);
@@ -14322,7 +14319,6 @@ ${this.getAutomatedTestResults()}
   copyGanttRulesToClipboard(): boolean {
     try {
       navigator.clipboard.writeText(this.ganttRulesContent.trim());
-      console.log('[GanttCanvas] Gantt Rules copied to clipboard');
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Failed to copy Gantt Rules:', e);

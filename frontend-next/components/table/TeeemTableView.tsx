@@ -198,7 +198,7 @@ import {
   STATUS_COLORS,
   SEVERITY_COLORS,
 } from "./types";
-import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumnTypeValidationRules, COLUMN_TYPES } from "@/lib/column-types";
+import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumnTypeValidationRules, getColumnTypes } from "@/lib/column-type-registry";
 import { DataHealthWidget, HealthIndicatorButton } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
@@ -5111,7 +5111,7 @@ export default function TeeemTableView({
       <SchemaModals
         COLUMNS={COLUMNS}
         tableName={tableName}
-        COLUMN_TYPES={COLUMN_TYPES}
+        COLUMN_TYPES={getColumnTypes()}
         schemaLoading={schemaLoading}
         showCreateColumnModal={showCreateColumnModal}
         setShowCreateColumnModal={setShowCreateColumnModal}

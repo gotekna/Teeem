@@ -104,6 +104,7 @@ class SmTaskImportService
     @created_dependencies = []
     @task_number_to_task = {} # Maps imported task_number to created SmTask
     @supplier_cache = {} # Cache for supplier lookups
+    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
   end
 
   def execute
@@ -195,7 +196,7 @@ class SmTaskImportService
         task.duration_days = (task.end_date - task.start_date).to_i + 1
       end
     else
-      task.end_date = task.start_date + (task.duration_days - 1).days
+      task.end_date = @calendar.add_working_days(task.start_date, task.duration_days - 1)
     end
 
     if task.save

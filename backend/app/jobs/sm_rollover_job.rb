@@ -23,6 +23,7 @@ class SmRolloverJob < ApplicationJob
     @batch_id = SecureRandom.uuid
     @timestamp = Time.current
     @settings = SmSetting.instance
+    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
 
     unless @settings.rollover_enabled?
       Rails.logger.info "[SmRolloverJob] Rollover disabled in settings, skipping"
@@ -89,9 +90,9 @@ class SmRolloverJob < ApplicationJob
     original_start = task.start_date
     original_end = task.end_date
 
-    # Calculate new dates
+    # Calculate new dates using working days
     new_start = today
-    new_end = today + (task.duration_days - 1).days
+    new_end = @calendar.add_working_days(today, task.duration_days - 1)
 
     # Update the task
     task.update!(
@@ -138,13 +139,12 @@ class SmRolloverJob < ApplicationJob
       next if successor.locked?
       next unless successor.status_not_started?
 
-      # Calculate new dates for successor
-      new_start = successor.start_date + days_shifted.days
-      new_end = successor.end_date + days_shifted.days
+      # Calculate new dates based on dependency type (respects working days)
+      new_dates = calculate_successor_dates(successor, dep, task)
 
       successor.update!(
-        start_date: new_start,
-        end_date: new_end,
+        start_date: new_dates[:start_date],
+        end_date: new_dates[:end_date],
         updated_at: @timestamp
       )
 
@@ -155,5 +155,28 @@ class SmRolloverJob < ApplicationJob
     end
 
     cascaded
+  end
+
+  # Calculate successor dates based on dependency type (mirrors SmCascadeService logic)
+  def calculate_successor_dates(successor, dep, predecessor)
+    case dep.dependency_type
+    when "FS" # Finish-to-Start
+      new_start = @calendar.add_working_days(predecessor.end_date, dep.lag_days + 1)
+    when "SS" # Start-to-Start
+      new_start = @calendar.add_working_days(predecessor.start_date, dep.lag_days)
+    when "FF" # Finish-to-Finish
+      target_end = @calendar.add_working_days(predecessor.end_date, dep.lag_days)
+      new_start = @calendar.subtract_working_days(target_end, successor.duration_days - 1)
+    when "SF" # Start-to-Finish
+      target_end = @calendar.add_working_days(predecessor.start_date, dep.lag_days)
+      new_start = @calendar.subtract_working_days(target_end, successor.duration_days - 1)
+    else
+      new_start = @calendar.add_working_days(predecessor.end_date, dep.lag_days + 1)
+    end
+
+    {
+      start_date: new_start,
+      end_date: @calendar.add_working_days(new_start, successor.duration_days - 1)
+    }
   end
 end

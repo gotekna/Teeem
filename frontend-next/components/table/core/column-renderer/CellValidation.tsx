@@ -1,17 +1,27 @@
 /**
  * Cell Validation Functions
  *
- * Validation rules for all 31 column types.
- * Extracted from the validateCell function in TeeemTableView.
+ * Validation rules for all column types.
  *
- * Each function returns:
- * - null if valid
- * - Error message string if invalid
+ * THE NEW WAY (SSoT):
+ *   Use validateCell() which reads validation rules from ColumnTypeDefinition.
+ *   The backend database is the single source of truth.
  *
- * Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md
+ * THE OLD WAY (deprecated):
+ *   Individual validateXxx() functions are kept for backward compatibility
+ *   but validation patterns should come from ColumnTypeDefinition.validation_regex.
+ *
+ * Migration:
+ *   All validation is now done through validateCell() which checks if
+ *   type definitions are loaded and uses the SSoT patterns when available.
  */
 
 import type { TableColumn } from "../../types";
+import {
+  validateCell as validateCellNew,
+  type ValidationResult,
+} from "@/lib/formatters/validation-formatters";
+import { isTypeDefinitionsLoaded } from "@/lib/column-type-registry";
 
 /**
  * Validate single line text (max 255 characters)
@@ -433,10 +443,13 @@ export function validateDefault(): string | null {
 }
 
 /**
- * Main validation function - matches old API for backward compatibility
+ * Main validation function - uses SSoT when available
  *
  * This is the main entry point used by EditableCell and other components.
  * Returns a ValidationResult object with isValid and error fields.
+ *
+ * If type definitions are loaded from the backend, uses the SSoT patterns.
+ * Otherwise, falls back to the legacy hardcoded patterns.
  *
  * @param value - Value to validate
  * @param columnType - Type of column
@@ -444,6 +457,24 @@ export function validateDefault(): string | null {
  * @returns Validation result with isValid boolean and error message
  */
 export function validateCell(
+  value: unknown,
+  columnType: string,
+  column?: TableColumn
+): { isValid: boolean; error: string | null } {
+  // Use SSoT-based validation when type definitions are loaded
+  if (isTypeDefinitionsLoaded()) {
+    return validateCellNew(value, columnType, column);
+  }
+
+  // Fallback to legacy validation
+  return validateCellLegacy(value, columnType, column);
+}
+
+/**
+ * Legacy validation function - uses hardcoded patterns
+ * @deprecated Patterns should come from ColumnTypeDefinition.validation_regex
+ */
+function validateCellLegacy(
   value: unknown,
   columnType: string,
   column?: TableColumn
@@ -547,3 +578,6 @@ export function validateCell(
     error,
   };
 }
+
+// Re-export the ValidationResult type for consumers
+export type { ValidationResult };

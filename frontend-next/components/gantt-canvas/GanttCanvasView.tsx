@@ -114,6 +114,8 @@ interface TemplateOption {
 interface GanttCanvasViewProps {
   /** Template ID - loads data from API */
   templateId?: number;
+  /** Job ID - for job-specific features like photo panel */
+  jobId?: number;
   /** Static tasks - bypasses API, used for demos */
   staticTasks?: GanttTask[];
   /** Static dependencies - used with staticTasks */
@@ -254,6 +256,7 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
 
 export function GanttCanvasView({
   templateId,
+  jobId,
   staticTasks,
   staticDependencies,
   showToolbar = true,
@@ -295,8 +298,7 @@ export function GanttCanvasView({
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
   const [showDependencies, setShowDependencies] = React.useState(true);
 
-  // Photo panel state (for testing - hardcoded to job 46)
-  const TEST_JOB_ID = 46; // TODO: Make this configurable
+  // Photo panel state (only available when jobId is provided)
   const [showPhotoPanel, setShowPhotoPanel] = React.useState(false);
   const [jobPhotos, setJobPhotos] = React.useState<PhotoItem[]>([]);
   const [loadingPhotos, setLoadingPhotos] = React.useState(false);
@@ -859,7 +861,7 @@ export function GanttCanvasView({
 
   // Load job photos for the photo panel
   const loadJobPhotos = React.useCallback(async () => {
-    if (!showPhotoPanel) return;
+    if (!showPhotoPanel || !jobId) return;
 
     try {
       setLoadingPhotos(true);
@@ -877,7 +879,7 @@ export function GanttCanvasView({
           download_url?: string;
           folder_path?: string;
         }>;
-      }>(`/api/v1/organization_onedrive/job_all_files?job_id=${TEST_JOB_ID}`);
+      }>(`/api/v1/organization_onedrive/job_all_files?job_id=${jobId}`);
 
       if (response?.success && response.items) {
         // Filter for image files only (from any photo folder)
@@ -913,7 +915,7 @@ export function GanttCanvasView({
     } finally {
       setLoadingPhotos(false);
     }
-  }, [showPhotoPanel, TEST_JOB_ID]);
+  }, [showPhotoPanel, jobId]);
 
   // Load photos when panel opens
   React.useEffect(() => {
@@ -1319,8 +1321,7 @@ export function GanttCanvasView({
       // Check if this dependency already exists
       const alreadyExists = currentPredecessors.some(p => p.id === fromRow.task_number);
       if (alreadyExists) {
-        console.log('Dependency already exists, skipping');
-        return;
+        return; // Silently skip duplicate dependencies
       }
 
       // Add new predecessor
@@ -1523,8 +1524,7 @@ export function GanttCanvasView({
 
     const previousState = undoHistory.get(task.id);
     if (!previousState) {
-      console.log('No undo history for task:', task.id);
-      return;
+      return; // No undo history available for this task
     }
 
     try {
@@ -2468,15 +2468,17 @@ export function GanttCanvasView({
             <GitBranch className="h-4 w-4" />
           </Button>
 
-          {/* Photo Panel Toggle */}
-          <Button
-            variant={showPhotoPanel ? "default" : "ghost"}
-            size="icon"
-            title={showPhotoPanel ? "Hide Photos" : "Show Job Photos"}
-            onClick={() => setShowPhotoPanel(!showPhotoPanel)}
-          >
-            {showPhotoPanel ? <PanelRightClose className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-          </Button>
+          {/* Photo Panel Toggle - only show when jobId is provided */}
+          {jobId && (
+            <Button
+              variant={showPhotoPanel ? "default" : "ghost"}
+              size="icon"
+              title={showPhotoPanel ? "Hide Photos" : "Show Job Photos"}
+              onClick={() => setShowPhotoPanel(!showPhotoPanel)}
+            >
+              {showPhotoPanel ? <PanelRightClose className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+            </Button>
+          )}
 
           <div className="flex-1" />
 
@@ -2835,14 +2837,14 @@ export function GanttCanvasView({
           style={{ position: "relative" }}
         />
 
-        {/* Photo Panel - Right Side */}
-        {showPhotoPanel && (
+        {/* Photo Panel - Right Side (only when jobId is provided) */}
+        {showPhotoPanel && jobId && (
           <div className="w-64 border-l bg-background flex flex-col overflow-hidden">
             {/* Panel Header */}
             <div className="flex items-center justify-between p-3 border-b bg-muted/30">
               <div className="flex items-center gap-2">
                 <Camera className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Job {TEST_JOB_ID} Photos</span>
+                <span className="text-sm font-medium">Job {jobId} Photos</span>
               </div>
               <Button
                 variant="ghost"
@@ -3591,30 +3593,44 @@ export function GanttCanvasView({
                     }
                   }
 
-                  // CRITICAL FIX: Execute all API calls in parallel
-                  try {
-                    await Promise.all(
-                      pendingUpdates.map(update =>
-                        api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${update.id}`, {
-                          row: update.apiPayload
-                        })
-                      )
-                    );
+                  // CRITICAL FIX: Execute all API calls in parallel with graceful partial failure handling
+                  const results = await Promise.allSettled(
+                    pendingUpdates.map(update =>
+                      api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${update.id}`, {
+                        row: update.apiPayload
+                      }).then(() => update.id) // Return ID on success
+                    )
+                  );
 
-                    // CRITICAL FIX: Single setRows call with all updates
+                  // Collect successful updates
+                  const successfulIds = new Set(
+                    results
+                      .filter((r): r is PromiseFulfilledResult<number> => r.status === 'fulfilled')
+                      .map(r => r.value)
+                  );
+                  const failedCount = results.filter(r => r.status === 'rejected').length;
+
+                  // Apply only successful updates to local state
+                  if (successfulIds.size > 0) {
                     setRows(prev => {
-                      const updateMap = new Map(pendingUpdates.map(u => [u.id, u.rowUpdate]));
+                      const updateMap = new Map(
+                        pendingUpdates
+                          .filter(u => successfulIds.has(u.id))
+                          .map(u => [u.id, u.rowUpdate])
+                      );
                       return prev.map(r => {
                         const update = updateMap.get(r.id);
                         return update ? { ...r, ...update } : r;
                       });
                     });
-                  } catch (err) {
-                    console.error('Failed to apply cascade updates:', err);
+                  }
+
+                  // Show warning if some updates failed
+                  if (failedCount > 0) {
                     toast({
                       variant: "destructive",
-                      title: "Update failed",
-                      description: "Failed to apply cascade updates. Please try again.",
+                      title: "Partial update failure",
+                      description: `${failedCount} of ${pendingUpdates.length} updates failed. Please refresh and try again.`,
                     });
                   }
 

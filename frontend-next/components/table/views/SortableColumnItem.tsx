@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
 import type { ColumnPriority } from "@/lib/column-priority";
-import { getColumnTypeLabel, getColumnTypeIcon } from "@/lib/column-types";
+import { getColumnTypeLabel, getColumnTypeIcon } from "@/lib/column-type-registry";
 
 // DnD Primitives - SSoT for drag and drop UI
 import { DragHandle, ItemBadge, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";

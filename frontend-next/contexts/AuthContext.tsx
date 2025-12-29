@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { api } from '@/lib/api';
+import { loadTypeDefinitions } from '@/lib/column-type-registry';
 
 interface User {
   id: number;
@@ -114,6 +115,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const response = await api.get<AuthResponse>('/api/v1/auth/me');
       if (response.success && response.user) {
         setUser(response.user);
+        // Load column type definitions from SSoT (fires in background)
+        loadTypeDefinitions();
       } else {
         logout();
       }
@@ -141,6 +144,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setAuthToken(mockToken);
     setToken(mockToken);
     setUser(mockUser);
+    // Load column type definitions from SSoT (fires in background)
+    loadTypeDefinitions();
     console.log('✅ Dev Mode: Logged in as', mockUser.name);
     setLoading(false);
   };
@@ -155,6 +160,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setAuthToken(response.token);
         setToken(response.token);
         setUser(response.user);
+        // Load column type definitions from SSoT (fires in background)
+        loadTypeDefinitions();
         return { success: true };
       } else {
         return { success: false, error: response?.error || 'Login failed' };
@@ -188,6 +195,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setAuthToken(response.token);
         setToken(response.token);
         setUser(response.user);
+        // Load column type definitions from SSoT (fires in background)
+        loadTypeDefinitions();
         return { success: true };
       } else {
         return { success: false, errors: response?.errors || ['Signup failed'] };

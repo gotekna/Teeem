@@ -87,6 +87,7 @@ import {
 } from "@/components/ui/accordion";
 import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
 import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
+import { ColumnTypeDefinitionsTab } from "./ColumnTypeDefinitionsTab";
 import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
 
 interface ColumnType {
@@ -2343,6 +2344,10 @@ export function GoldStandardTab() {
           <Settings className="h-4 w-4" />
           UI Components
         </TabsTrigger>
+        <TabsTrigger value="column-types-ssot" className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30">
+          <Settings className="h-4 w-4" />
+          Column Types (SSoT)
+        </TabsTrigger>
         <TabsTrigger value="view-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
           <TableProperties className="h-4 w-4" />
           ViewTable Demo
@@ -2379,6 +2384,10 @@ export function GoldStandardTab() {
 
       <TabsContent value="ui-components" className="mt-0">
         <UIComponentsPlaygroundTab />
+      </TabsContent>
+
+      <TabsContent value="column-types-ssot" className="mt-0">
+        <ColumnTypeDefinitionsTab />
       </TabsContent>
 
       <TabsContent value="view-table-demo" className="mt-0">

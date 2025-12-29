@@ -32,6 +32,7 @@ class SmScheduleMasterTemplateCopyService
     @tasks_needing_pos = [] # Tasks where template row had create_po_on_job_start but no supplier configured
     @task_number_map = {} # Maps template row task_number to created SmTask
     @row_map = {}         # Maps template row id to SmScheduleMaster
+    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
   end
 
   def execute
@@ -134,7 +135,7 @@ class SmScheduleMasterTemplateCopyService
         tags: row.tags,
         # Start with template row start_date offset, will be calculated later
         start_date: start_date,
-        end_date: start_date + (row.duration_days - 1).days,
+        end_date: @calendar.add_working_days(start_date, row.duration_days - 1),
         # Audit
         created_by: user,
         updated_by: user
@@ -197,7 +198,7 @@ class SmScheduleMasterTemplateCopyService
       # Calculate earliest start based on predecessors
       earliest_start = calculate_earliest_start(task)
       task.start_date = earliest_start
-      task.end_date = earliest_start + (task.duration_days - 1).days
+      task.end_date = @calendar.add_working_days(earliest_start, task.duration_days - 1)
       task.save!
     end
   end
@@ -213,15 +214,18 @@ class SmScheduleMasterTemplateCopyService
       pred = dep.predecessor_task
       case dep.dependency_type
       when "FS" # Finish-to-Start: successor starts after predecessor ends
-        pred.end_date + 1.day + dep.lag_days.days
+        @calendar.add_working_days(pred.end_date, dep.lag_days + 1)
       when "SS" # Start-to-Start: successor starts when predecessor starts
-        pred.start_date + dep.lag_days.days
+        @calendar.add_working_days(pred.start_date, dep.lag_days)
       when "FF" # Finish-to-Finish: successor ends when predecessor ends
-        pred.end_date - (task.duration_days - 1).days + dep.lag_days.days
+        # Work backwards from when predecessor finishes
+        target_end = @calendar.add_working_days(pred.end_date, dep.lag_days)
+        @calendar.subtract_working_days(target_end, task.duration_days - 1)
       when "SF" # Start-to-Finish: successor ends when predecessor starts
-        pred.start_date - (task.duration_days - 1).days + dep.lag_days.days
+        target_end = @calendar.add_working_days(pred.start_date, dep.lag_days)
+        @calendar.subtract_working_days(target_end, task.duration_days - 1)
       else
-        pred.end_date + 1.day + dep.lag_days.days
+        @calendar.add_working_days(pred.end_date, dep.lag_days + 1)
       end
     end.max
 
