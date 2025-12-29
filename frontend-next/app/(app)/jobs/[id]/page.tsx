@@ -1368,9 +1368,37 @@ export default function JobDetailPage() {
           // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
           // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
           if (tab.is_photo_category) {
+            // SSoT: Find parent tab to pass its children as categories
+            // This eliminates duplicate API call - parent already has the data from useEntityTabs
+            const parentTab = visibleJobTabs.find(p =>
+              p.children?.some(c => c.tab_key === tab.tab_key)
+            );
+            // Convert EntityTab children to DocumentCategory format
+            const categories = parentTab?.children?.map(c => ({
+              id: c.id,
+              tab_key: c.tab_key,
+              name: c.display_name,
+              display_name: c.display_name,
+              is_photo_category: c.is_photo_category,
+              folder_path: c.folder_path ?? undefined,  // Convert null to undefined
+              children: c.children?.map(gc => ({
+                id: gc.id,
+                tab_key: gc.tab_key,
+                name: gc.display_name,
+                display_name: gc.display_name,
+                is_photo_category: gc.is_photo_category,
+                folder_path: gc.folder_path ?? undefined,  // Convert null to undefined
+              })),
+            }));
+
             return (
               <TabsContent key={tabValue} value={tabValue} className="mt-4">
-                <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory={tabValue} />
+                <JobDocumentsTab
+                  jobId={job.id}
+                  jobTitle={job.name}
+                  initialCategory={tabValue}
+                  categories={categories}
+                />
               </TabsContent>
             );
           }

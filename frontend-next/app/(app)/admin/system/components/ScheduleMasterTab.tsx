@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -231,39 +231,32 @@ const COLUMN_STATUS_KEY = "sm_column_status";
 
 export function ScheduleMasterTab() {
   const { toast } = useToast();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
+
+  // SSoT: URL state managed by useUrlState hook
+  const [urlState, setUrlState] = useUrlState({
+    subtab: null as string | null,  // null = default "schedule-templates"
+    view: null as string | null,     // Foundation view filter
+    table: null as string | null,    // Lookup table selection
+  });
 
   // URL is SSoT for tab state (back button support)
-  const subtabParam = searchParams.get("subtab");
-  const activeTab: SubTab = VALID_SUBTABS.includes(subtabParam as SubTab)
-    ? (subtabParam as SubTab)
+  const activeTab: SubTab = VALID_SUBTABS.includes(urlState.subtab as SubTab)
+    ? (urlState.subtab as SubTab)
     : "schedule-templates";
 
   // URL view param (Foundation view filter)
-  const viewSlug = searchParams.get("view") || undefined;
+  const viewSlug = urlState.view || undefined;
 
   // Clear view filter from URL
   const handleViewClear = React.useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("view");
-    const url = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-    router.push(url, { scroll: false });
-  }, [searchParams, pathname, router]);
+    setUrlState({ view: null });
+  }, [setUrlState]);
 
   // Update URL when tab changes
   const handleTabChange = React.useCallback((value: string) => {
     const newTab = value as SubTab;
-    const params = new URLSearchParams(searchParams.toString());
-    if (newTab === "schedule-templates") {
-      params.delete("subtab");
-    } else {
-      params.set("subtab", newTab);
-    }
-    const url = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-    router.push(url, { scroll: false });
-  }, [searchParams, pathname, router]);
+    setUrlState({ subtab: newTab === "schedule-templates" ? null : newTab });
+  }, [setUrlState]);
 
   // Schedule Templates state
   const [templates, setTemplates] = React.useState<SmScheduleMasterTemplate[]>([]);
@@ -336,18 +329,14 @@ export function ScheduleMasterTab() {
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
 
   // URL is SSoT for table selection (enables shareable links)
-  const tableParam = searchParams.get("table");
-  const selectedLookupTable: LookupTableId = LOOKUP_TABLES.some(t => t.id === tableParam)
-    ? (tableParam as LookupTableId)
+  const selectedLookupTable: LookupTableId = LOOKUP_TABLES.some(t => t.id === urlState.table)
+    ? (urlState.table as LookupTableId)
     : "sm_trades";
 
   // Update URL when table changes
   const handleTableChange = React.useCallback((tableId: LookupTableId) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("table", tableId);
-    const url = `${pathname}?${params.toString()}`;
-    router.push(url, { scroll: false });
-  }, [searchParams, pathname, router]);
+    setUrlState({ table: tableId === "sm_trades" ? null : tableId });
+  }, [setUrlState]);
 
   const [lookupTableRefreshKey, setLookupTableRefreshKey] = React.useState(0);
 

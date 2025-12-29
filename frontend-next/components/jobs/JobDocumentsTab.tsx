@@ -166,9 +166,10 @@ interface JobDocumentsTabProps {
   jobId: string | number;
   jobTitle?: string;
   initialCategory?: string; // e.g., "site-photo" -> auto-selects "Site Photo" category
+  categories?: DocumentCategory[]; // SSoT: Categories from parent (useEntityTabs) - eliminates duplicate API call
 }
 
-export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumentsTabProps) {
+export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: propCategories }: JobDocumentsTabProps) {
   const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles">("tasks");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
@@ -454,7 +455,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
     checkOrganizationStatus();
     loadDocumentCategories();
 
-  }, [jobId, initialCategory]);  // SSoT: Re-run when initialCategory changes (e.g., switching photo tabs)
+  }, [jobId, initialCategory, propCategories]);  // SSoT: Re-run when initialCategory or propCategories changes
 
   // Track if initialCategory has been applied to prevent useEffect from overwriting it
   const initialCategoryAppliedRef = useRef(false);
@@ -544,10 +545,21 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
 
   const loadDocumentCategories = async () => {
     try {
-      console.log('[JobDocumentsTab] Loading documentation_tabs for job:', jobId);
-      const response = await api.get<DocumentCategory[]>(`/api/v1/jobs/${jobId}/documentation_tabs`);
-      const categories = response || [];
-      console.log('[JobDocumentsTab] Loaded categories:', categories.length, categories.map(c => ({
+      let categories: DocumentCategory[];
+
+      // SSoT: Use prop categories if provided (from useEntityTabs in parent)
+      // This eliminates duplicate API calls and ensures consistency
+      if (propCategories && propCategories.length > 0) {
+        console.log('[JobDocumentsTab] Using prop categories (SSoT):', propCategories.length);
+        categories = propCategories;
+      } else {
+        // Fallback to API for standalone usage (e.g., Documents tab)
+        console.log('[JobDocumentsTab] Loading documentation_tabs from API for job:', jobId);
+        const response = await api.get<DocumentCategory[]>(`/api/v1/jobs/${jobId}/documentation_tabs`);
+        categories = response || [];
+      }
+
+      console.log('[JobDocumentsTab] Categories:', categories.length, categories.map(c => ({
         id: c.id,
         tab_key: c.tab_key,
         name: c.name,
