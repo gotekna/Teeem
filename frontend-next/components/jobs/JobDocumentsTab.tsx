@@ -223,6 +223,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [categoryLightboxOpen, setCategoryLightboxOpen] = useState(false);
   const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
 
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [photosToDelete, setPhotosToDelete] = useState<PhotoItem[]>([]);
+  const [deleting, setDeleting] = useState(false);
+
   // Check if the current category is a photo category
   // SSoT: "Photo Gallery View" checkbox on each tab controls this
   const isPhotoCategory = (category: DocumentCategory | null): boolean => {
@@ -323,10 +328,47 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       }
       setMessage({ type: "success", text: `Downloading ${selectedPhotos.length} photo(s)` });
     } else if (action === "delete") {
-      // TODO: Implement delete functionality
-      setMessage({ type: "info", text: "Delete functionality coming soon" });
+      // Show confirmation dialog
+      setPhotosToDelete(selectedPhotos);
+      setDeleteDialogOpen(true);
+      return; // Don't clear selection yet - wait for confirmation
     }
     // Clear selection after action
+    setSelectedPhotoIds(new Set());
+    setSelectMode(false);
+  };
+
+  // Execute delete after confirmation
+  const executeDelete = async () => {
+    if (photosToDelete.length === 0) return;
+
+    setDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const photo of photosToDelete) {
+      try {
+        await handleDeletePhoto(photo.id);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to delete ${photo.name}:`, err);
+        failCount++;
+      }
+    }
+
+    // Show result message
+    if (failCount === 0) {
+      setMessage({ type: "success", text: `${successCount} photo${successCount > 1 ? "s" : ""} deleted successfully` });
+    } else if (successCount === 0) {
+      setError(`Failed to delete ${failCount} photo${failCount > 1 ? "s" : ""}`);
+    } else {
+      setMessage({ type: "success", text: `${successCount} deleted, ${failCount} failed` });
+    }
+
+    // Clear state
+    setDeleting(false);
+    setDeleteDialogOpen(false);
+    setPhotosToDelete([]);
     setSelectedPhotoIds(new Set());
     setSelectMode(false);
   };
@@ -2283,6 +2325,75 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   <Download className="h-4 w-4 mr-2" />
                   Import {selectedLegacyFiles.length} {selectedLegacyFiles.length === 1 ? "File" : "Files"}
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        if (!open && !deleting) {
+          setDeleteDialogOpen(false);
+          setPhotosToDelete([]);
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5" />
+              Delete {photosToDelete.length} Photo{photosToDelete.length > 1 ? "s" : ""}?
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete {photosToDelete.length === 1 ? "this photo" : "these photos"} from SharePoint. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {photosToDelete.length > 0 && photosToDelete.length <= 5 && (
+            <div className="space-y-2 max-h-40 overflow-auto">
+              {photosToDelete.map((photo) => (
+                <div key={photo.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <File className="h-4 w-4" />
+                  <span className="truncate">{photo.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {photosToDelete.length > 5 && (
+            <div className="text-sm text-muted-foreground">
+              {photosToDelete.slice(0, 3).map((photo) => (
+                <div key={photo.id} className="flex items-center gap-2">
+                  <File className="h-4 w-4" />
+                  <span className="truncate">{photo.name}</span>
+                </div>
+              ))}
+              <div className="text-muted-foreground mt-1">
+                ...and {photosToDelete.length - 3} more
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setPhotosToDelete([]);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={executeDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>Delete</>
               )}
             </Button>
           </DialogFooter>
