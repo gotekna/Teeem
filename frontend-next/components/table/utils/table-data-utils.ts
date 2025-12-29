@@ -66,11 +66,21 @@ export function evaluateFilter(entry: TableRow, filter: CascadeFilter): boolean 
   const filterValue = filter.value;
   const value = getFilterDisplayValue(rawValue);
 
+  // For equality comparisons with lookup objects, compare against ID when filter value is numeric
+  // This handles initialFilters like { column: "job_id", value: "46" } where API returns { id: 46, display: "..." }
+  const isLookupObject = typeof rawValue === 'object' && rawValue !== null && 'id' in rawValue;
+  const filterValueIsNumeric = /^\d+$/.test(String(filterValue));
+
+  // Use ID for comparison if: lookup object + equality operator + numeric filter value
+  const valueForEquality = (isLookupObject && filterValueIsNumeric)
+    ? (rawValue as { id: number | string }).id
+    : value;
+
   switch (filter.operator) {
     case "=":
-      return compareValues(value, filterValue);
+      return compareValues(valueForEquality, filterValue);
     case "!=":
-      return !compareValues(value, filterValue);
+      return !compareValues(valueForEquality, filterValue);
     case ">":
       return Number(value) > Number(filterValue);
     case "<":
