@@ -128,9 +128,16 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
         )
 
         if upload_result && upload_result[:id]
-          doc.update!(sharepoint_file_id: upload_result[:id])
-          stats[:uploaded] += 1
-          Rails.logger.info("[XeroSharepointUploadBackfill] Uploaded: #{filename} -> #{upload_result[:web_url]}")
+          begin
+            doc.update!(sharepoint_file_id: upload_result[:id])
+            stats[:uploaded] += 1
+            Rails.logger.info("[XeroSharepointUploadBackfill] Uploaded: #{filename} -> #{upload_result[:web_url]}")
+          rescue ActiveRecord::RecordNotUnique
+            # Another process already uploaded with this SharePoint file ID (race condition)
+            # This is fine - the file exists in SharePoint, just skip
+            stats[:already_uploaded] += 1
+            Rails.logger.info("[XeroSharepointUploadBackfill] Already uploaded by another process: #{filename}")
+          end
         else
           stats[:errors] += 1
           stats[:error_details] << "Upload returned no ID for document #{doc.id}"
