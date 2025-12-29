@@ -107,6 +107,12 @@ class PricebookItem < ApplicationRecord
   end
 
   # Instance methods
+
+  # Display name for lookups (used by DisplayValueResolver)
+  def display_name
+    item_name.presence || item_code
+  end
+
   def display_price
     return "No price" if current_price.nil?
     "$#{'%.2f' % current_price}"

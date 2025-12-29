@@ -304,7 +304,7 @@ module Api
       end
 
       def calculate_avg_resolution_time
-        completed = SmTask.tickets.completed
+        completed = SmTask.tickets.status_completed
           .where.not(completed_at: nil)
           .where("created_at >= ?", 30.days.ago)
 
