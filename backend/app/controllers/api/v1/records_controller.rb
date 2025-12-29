@@ -201,21 +201,24 @@ module Api
                 conn = ActiveRecord::Base.connection
                 quoted_column = conn.quote_column_name(column)
 
-                # Convert boolean string values ("Yes"/"No") to actual booleans
-                # Frontend dropdowns send "Yes"/"No" for boolean columns
+                # Convert boolean string values ("Yes"/"No"/"true"/"false") to actual booleans
+                # Frontend dropdowns send string values for boolean columns
                 col_def = @foundation.columns.find_by(column_name: column)
+                Rails.logger.info "[BOOL_FILTER] column=#{column}, operator=#{operator}, value=#{value.inspect}, col_type=#{col_def&.column_type}"
                 if col_def&.column_type == "boolean" && value.is_a?(String)
                   value = case value.downcase
                           when "yes", "true", "1" then true
                           when "no", "false", "0" then false
                           else value
                           end
+                  Rails.logger.info "[BOOL_FILTER] Converted to: #{value.inspect}"
                 end
 
                 case operator
-                when "="
+                when "=", "equals"
+                  Rails.logger.info "[BOOL_FILTER] Building WHERE #{column} = #{value.inspect}"
                   ["#{quoted_column} = ?", value]
-                when "!="
+                when "!=", "not_equals"
                   ["#{quoted_column} != ? OR #{quoted_column} IS NULL", value]
                 when ">"
                   ["#{quoted_column} > ?", value]

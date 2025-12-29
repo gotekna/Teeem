@@ -282,9 +282,9 @@ module Api
                   end
 
                   case operator
-                  when "="
+                  when "=", "equals"
                     query = query.where(column => value)
-                  when "!="
+                  when "!=", "not_equals"
                     query = query.where.not(column => value)
                   when "contains"
                     query = query.where("#{conn.quote_column_name(column)} ILIKE ?", "%#{value}%")

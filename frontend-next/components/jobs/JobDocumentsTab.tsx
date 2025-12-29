@@ -350,6 +350,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     const categoryName = activeCategory?.name?.toLowerCase() || "";
     const folderPath = activeCategory?.folder_path?.toLowerCase() || "";
 
+    // DEBUG: Log filter parameters
+    console.log('[PhotoFilter] Filtering:', {
+      categoryName,
+      folderPath,
+      allFilesCount: allFiles.length,
+      imageFilesCount: allFiles.filter(isImageFile).length,
+      sampleFiles: allFiles.slice(0, 3).map(f => ({ name: f.name, folder_path: f.folder_path }))
+    });
+
     // Filter allFiles to only those in this folder
     const photosInFolder = allFiles.filter((file) => {
       if (!isImageFile(file)) return false;
@@ -359,13 +368,20 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       // 1. File path contains category folder_path (e.g., "06 Photo/07 Supervisor Photos")
       // 2. File path contains category name (e.g., "Supervisor" in "Photo/Supervisor")
       // 3. Category folder_path contains file path (reverse match)
-      return (
+      const match = (
         (folderPath && fileFolderPath.includes(folderPath)) ||
         (categoryName && fileFolderPath.includes(categoryName)) ||
         (folderPath && folderPath.includes(fileFolderPath) && fileFolderPath.length > 0)
       );
+
+      if (isImageFile(file)) {
+        console.log('[PhotoFilter] File:', { name: file.name, fileFolderPath, match });
+      }
+
+      return match;
     });
 
+    console.log('[PhotoFilter] Result:', photosInFolder.length, 'photos');
     return photosInFolder.map(convertToPhotoItem);
   }, [allFiles, selectedCategory, selectedSubCategory, jobId]);
 
