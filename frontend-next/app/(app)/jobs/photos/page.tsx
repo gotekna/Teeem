@@ -71,8 +71,8 @@ export default function JobPhotosPage() {
     const loadStatuses = async () => {
       try {
         const response = await api.get<StatusesResponse>("/api/v1/jobs_photos/statuses");
-        if (response.data.success) {
-          setStatuses(response.data.data.map(s => ({ id: s, label: s })));
+        if (response?.success) {
+          setStatuses(response.data.map((s: string) => ({ id: s, label: s })));
         }
       } catch (err) {
         console.error("Failed to load statuses:", err);
@@ -89,9 +89,9 @@ export default function JobPhotosPage() {
       const response = await api.get<JobsPhotosResponse>(
         `/api/v1/jobs_photos?status=${encodeURIComponent(status)}&limit=${photosPerJob}`
       );
-      if (response.data.success) {
-        setData(response.data.data.supervisors);
-        setTotalJobs(response.data.data.total_jobs);
+      if (response?.success) {
+        setData(response.data.supervisors);
+        setTotalJobs(response.data.total_jobs);
       } else {
         setError("Failed to load photos");
       }
