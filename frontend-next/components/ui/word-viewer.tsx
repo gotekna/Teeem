@@ -10,6 +10,7 @@ import {
   Check,
 } from "lucide-react";
 import { Button } from "./button";
+import { Spinner } from "./spinner";
 
 export interface WordData {
   text: string;

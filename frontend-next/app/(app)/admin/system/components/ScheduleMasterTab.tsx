@@ -1386,7 +1386,9 @@ export function ScheduleMasterTab() {
                                     <p className="font-medium text-sm">{row.name}</p>
                                     <div className="flex items-center gap-2 mt-0.5">
                                       {row.trade && (
-                                        <span className="text-xs text-muted-foreground">{row.trade}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {typeof row.trade === 'object' ? row.trade.display : row.trade}
+                                        </span>
                                       )}
                                     </div>
                                   </div>

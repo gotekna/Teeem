@@ -142,7 +142,7 @@ export function HealthTab({ company, onUpdate }: HealthTabProps) {
       {/* Actions */}
       <div className="flex justify-end">
         <Button onClick={handleReloadFromSpreadsheet} disabled={reloading}>
-          <Loader2 className={cn("h-4 w-4 mr-2", reloading ? "animate-spin" : "hidden")} />
+          {reloading && <Spinner size={16} className="mr-2" />}
           {reloading ? "Reloading..." : "Reload from Spreadsheet"}
         </Button>
       </div>

@@ -261,7 +261,7 @@ export function Sidebar() {
       >
         <div className="relative shrink-0">
           {isItemLoading ? (
-            <Loader2 size={16} className="animate-spin text-primary" />
+            <Spinner size={16} className="text-primary" />
           ) : (
             <ItemIcon size={16} />
           )}
@@ -345,7 +345,7 @@ export function Sidebar() {
           >
             <div className="relative shrink-0">
               {isItemLoading ? (
-                <Loader2 size={16} className="animate-spin text-primary" />
+                <Spinner size={16} className="text-primary" />
               ) : (
                 <ItemIcon size={16} />
               )}
@@ -482,7 +482,7 @@ export function Sidebar() {
         {navLoading ? (
           /* Loading state */
           <div className="flex items-center justify-center py-8">
-            <Loader2 size={20} className="animate-spin text-muted-foreground" />
+            <Spinner size={20} className="text-muted-foreground" />
           </div>
         ) : navError ? (
           /* Error state */

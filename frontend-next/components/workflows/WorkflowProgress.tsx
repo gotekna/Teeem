@@ -12,6 +12,7 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 interface WorkflowNode {
   id: number;
@@ -112,7 +113,7 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
       return <CheckCircle className={cn(iconClass, 'text-green-500')} />;
     }
     if (node.status === 'active') {
-      return <Loader2 className={cn(iconClass, 'text-blue-500 animate-spin')} />;
+      return <Spinner size={16} className="text-blue-500" />;
     }
     if (node.status === 'waiting') {
       return <Clock className={cn(iconClass, 'text-orange-500')} />;
