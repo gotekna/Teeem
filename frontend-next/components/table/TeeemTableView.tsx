@@ -4,8 +4,24 @@
 /**
  * TeeemTableView - The One Table Standard
  *
- * A comprehensive, feature-rich table component for TEEEM.
- * Ported from the React version (frontend/src/components/documentation/TeeemTableView.jsx)
+ * 🔴 STOP! BEFORE ADDING STATE, READ THIS:
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ALL state lives in Jotai atoms. DO NOT add useState for:
+ *
+ * MODALS → Use activeTableModalAtom (lib/table-atoms.ts)
+ *   ❌ const [showMyModal, setShowMyModal] = useState(false)
+ *   ✅ setActiveModal({ modal: 'myModalType', data: {...} })
+ *
+ * FILTER UI → Use filterUIModeAtom (lib/table-atoms.ts)
+ *   ❌ const [showFilters, setShowFilters] = useState(false)
+ *   ✅ filterPanelOpenAtom / showColumnFiltersAtom (derived, mutually exclusive)
+ *
+ * COLUMN CONFIG → Use updateColumnConfigAtom (lib/view-state-atoms.ts)
+ *   ❌ setColumnWidths(...); setColumnOrder(...); // can desync
+ *   ✅ setColumnConfig({ widths, order, visible, sort }) // atomic update
+ *
+ * SSoT FILES: lib/table-atoms.ts, lib/view-state-atoms.ts, lib/filter-atoms.ts
+ * ═══════════════════════════════════════════════════════════════════════════
  *
  * Features:
  * - Column sorting (single and multi-column)

@@ -14,6 +14,7 @@ import type { GanttConfig, GanttTask, GanttDependency, GanttBaseline, ContextMen
 import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
+import { TAILWIND_COLORS, GANTT_COLORS, CHART_COLORS, CATEGORY_COLORS } from '@/lib/constants/color-constants';
 
 // ============================================================================
 // Renderer Class

@@ -66,6 +66,55 @@ export interface DeprecatedComponent {
 }
 
 // =============================================================================
+// 🔴 STATE ARCHITECTURE PATTERNS - READ BEFORE ADDING STATE
+// =============================================================================
+//
+// SSoT: lib/table-atoms.ts and lib/view-state-atoms.ts
+//
+// BEFORE adding useState or new atoms, check if a pattern exists:
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ MODALS - Use TableModalType Registry (NOT individual boolean atoms)        │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │ SSoT: activeTableModalAtom (only ONE modal open at a time)                 │
+// │                                                                             │
+// │ ❌ WRONG: const [showMyModal, setShowMyModal] = useState(false)            │
+// │ ❌ WRONG: export const showMyModalAtom = atom<boolean>(false)              │
+// │                                                                             │
+// │ ✅ RIGHT: Use existing TableModalType or extend it:                        │
+// │           setActiveModal({ modal: 'myNewModal', data: {...} })             │
+// │                                                                             │
+// │ Types: 'addRecord' | 'editRecord' | 'viewRecord' | 'deleteConfirm'         │
+// │        'bulkUpdate' | 'merge' | 'emailContacts' | 'saveView'               │
+// │        'createColumn' | 'editColumns' | 'export' | etc.                    │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ FILTER UI - Use FilterUIMode (NOT separate booleans)                       │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │ SSoT: filterUIModeAtom: 'none' | 'inline' | 'panel'                        │
+// │                                                                             │
+// │ ❌ WRONG: Both filterPanelOpen AND showColumnFilters can be true           │
+// │ ✅ RIGHT: They're mutually exclusive (derived from filterUIModeAtom)       │
+// │                                                                             │
+// │ The boolean atoms (filterPanelOpenAtom, showColumnFiltersAtom) are         │
+// │ DERIVED from filterUIModeAtom for backward compatibility.                  │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ COLUMN CONFIG - Use Atomic Updates (NOT individual atom sets)              │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │ SSoT: updateColumnConfigAtom (updates all column state atomically)         │
+// │                                                                             │
+// │ ❌ WRONG: Set columnWidths, columnOrder, visibleColumns separately         │
+// │ ✅ RIGHT: setColumnConfig({ widths, order, visible, sort })                │
+// │                                                                             │
+// │ This prevents state desync when one update fails but others succeed.       │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// =============================================================================
+
+// =============================================================================
 // TIER 1: CORE PRIMITIVES (High Usage)
 // =============================================================================
 

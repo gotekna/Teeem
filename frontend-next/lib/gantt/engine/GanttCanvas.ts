@@ -6965,39 +6965,42 @@ export class GanttCanvas {
 
   /**
    * Add milestone marker (convenience method)
+   * SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
    */
   addMilestone(name: string, date: Date, color?: string): string {
     return this.addTimelineMarker({
       type: 'milestone',
       name,
       date,
-      color: color || '#4F46E5',
+      color: color || TAILWIND_COLORS.indigo[600],
       showLabel: true
     });
   }
 
   /**
    * Add deadline marker (convenience method)
+   * SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
    */
   addDeadline(name: string, date: Date, color?: string): string {
     return this.addTimelineMarker({
       type: 'deadline',
       name,
       date,
-      color: color || '#EF4444',
+      color: color || TAILWIND_COLORS.red[500],
       showLabel: true
     });
   }
 
   /**
    * Add event marker (convenience method)
+   * SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
    */
   addEvent(name: string, date: Date, color?: string): string {
     return this.addTimelineMarker({
       type: 'event',
       name,
       date,
-      color: color || '#10B981',
+      color: color || TAILWIND_COLORS.emerald[500],
       showLabel: true
     });
   }
@@ -7197,15 +7200,16 @@ export class GanttCanvas {
   // =========================================================================
 
   private customContextMenuBuilder?: (task: GanttTask | null) => ContextMenuItem[];
+  // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
   private contextMenuTheme: ContextMenuTheme = {
-    backgroundColor: '#ffffff',
-    textColor: '#1f2937',
-    hoverBackgroundColor: '#f3f4f6',
-    borderColor: '#e5e7eb',
-    dividerColor: '#e5e7eb',
-    dangerColor: '#ef4444',
-    disabledColor: '#9ca3af',
-    shortcutColor: '#6b7280',
+    backgroundColor: CHART_COLORS.light.background,
+    textColor: TAILWIND_COLORS.gray[800],
+    hoverBackgroundColor: TAILWIND_COLORS.gray[100],
+    borderColor: TAILWIND_COLORS.gray[200],
+    dividerColor: TAILWIND_COLORS.gray[200],
+    dangerColor: TAILWIND_COLORS.red[500],
+    disabledColor: TAILWIND_COLORS.gray[400],
+    shortcutColor: TAILWIND_COLORS.gray[500],
     borderRadius: 8,
     itemPadding: 8,
     minWidth: 180,
@@ -7801,7 +7805,8 @@ export class GanttCanvas {
         type: 'hold',
         label: 'On Hold',
         value: this.formatHoldReason(task.holdState.reason),
-        color: '#f59e0b'
+        // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+        color: TAILWIND_COLORS.amber[500]
       });
     }
 
@@ -8066,7 +8071,8 @@ export class GanttCanvas {
       to: { opacity: 1 },
       repeat: 2,
       yoyo: true,
-      data: { color: color || '#3b82f6' },
+      // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+      data: { color: color || TAILWIND_COLORS.blue[500] },
       onUpdate: (progress, values) => {
         this.markDirty();
       }
@@ -8312,10 +8318,11 @@ export class GanttCanvas {
   // =========================================================================
 
   private milestones: Set<string> = new Set();
+  // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
   private milestoneConfig: MilestoneConfig = {
     shape: 'diamond',
     size: 20,
-    color: '#6366f1',
+    color: GANTT_COLORS.ui.milestone,
     showLabel: true,
     labelPosition: 'right'
   };
@@ -8379,12 +8386,13 @@ export class GanttCanvas {
   // =========================================================================
 
   private summaryTasks: Set<string> = new Set();
+  // SSoT: Uses TAILWIND_COLORS and GANTT_COLORS from @/lib/constants/color-constants
   private summaryConfig: SummaryTaskConfig = {
     barHeight: 8,
-    barColor: '#6b7280',
+    barColor: TAILWIND_COLORS.gray[500],
     endCaps: true,
     showProgress: true,
-    progressColor: '#3b82f6',
+    progressColor: GANTT_COLORS.taskBar.progress,
     showDateRange: true,
     autoCalculateDates: true
   };
@@ -9931,7 +9939,8 @@ export class GanttCanvas {
     const fromY = this.viewport.rowToY(taskIndex) + this.config.rowHeight / 2;
 
     this.ctx.beginPath();
-    this.ctx.strokeStyle = '#6366f1';
+    // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
+    this.ctx.strokeStyle = GANTT_COLORS.ui.focusRing;
     this.ctx.lineWidth = 2;
     this.ctx.setLineDash([5, 5]);
     this.ctx.moveTo(fromX, fromY);
@@ -10127,7 +10136,8 @@ export class GanttCanvas {
   // =========================================================================
   // Note: Core baseline methods defined earlier. These are rendering extensions.
   private baselineRenderOpacity: number = 0.4;
-  private baselineRenderColor: string = '#9ca3af';
+  // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
+  private baselineRenderColor: string = GANTT_COLORS.taskBar.baseline;
 
   setBaselineRenderStyle(opacity: number, color: string): void {
     this.baselineRenderOpacity = Math.max(0, Math.min(1, opacity));
@@ -10169,7 +10179,8 @@ export class GanttCanvas {
   // =========================================================================
   private criticalPathVisible: boolean = false;
   private criticalPathTaskIds: Set<string> = new Set();
-  private criticalPathColor: string = '#ef4444';
+  // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
+  private criticalPathColor: string = GANTT_COLORS.taskBar.criticalPath;
 
   setCriticalPathVisible(visible: boolean): void {
     this.criticalPathVisible = visible;
@@ -10739,7 +10750,8 @@ export class GanttCanvas {
   // FEATURE 40: FOCUS RING FOR ACCESSIBILITY
   // =========================================================================
   private focusRingVisible: boolean = true;
-  private focusRingColor: string = '#6366f1';
+  // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
+  private focusRingColor: string = GANTT_COLORS.ui.focusRing;
   private focusRingWidth: number = 3;
 
   // Note: focusTask and getFocusedTaskId exist at Feature 14
@@ -11236,7 +11248,8 @@ export class GanttCanvas {
   // FEATURE 61: TODAY MARKER LINE
   // =========================================================================
   private todayMarkerEnabled: boolean = true;
-  private todayMarkerColor: string = '#ef4444';
+  // SSoT: Uses CHART_COLORS from @/lib/constants/color-constants
+  private todayMarkerColor: string = CHART_COLORS.light.todayMarker;
   private todayMarkerWidth: number = 2;
 
   setTodayMarkerEnabled(enabled: boolean): void {
@@ -11468,8 +11481,9 @@ export class GanttCanvas {
   // =========================================================================
   // FEATURE 72: MAJOR/MINOR GRID LINES
   // =========================================================================
-  private majorGridLineColor: string = '#e5e7eb';
-  private minorGridLineColor: string = '#f3f4f6';
+  // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+  private majorGridLineColor: string = TAILWIND_COLORS.gray[200];
+  private minorGridLineColor: string = TAILWIND_COLORS.gray[100];
   private majorGridLineWidth: number = 1;
   private minorGridLineWidth: number = 0.5;
 
@@ -11595,7 +11609,8 @@ export class GanttCanvas {
   // =========================================================================
   // FEATURE 79: TASK TEXT STYLING
   // =========================================================================
-  private taskTextColor: string = '#ffffff';
+  // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
+  private taskTextColor: string = GANTT_COLORS.taskBar.text;
   private taskTextFont: string = '12px Inter, sans-serif';
   private taskTextPadding: number = 8;
 
@@ -15649,7 +15664,8 @@ ${this.getAutomatedTestResults()}
     const reasonConfig = this.holdReasons.find(r => r.id === holdInfo.reason);
     return {
       show: true,
-      color: reasonConfig?.color || '#6b7280',
+      // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+      color: reasonConfig?.color || TAILWIND_COLORS.gray[500],
       reason: reasonConfig?.label || 'On Hold',
     };
   }
@@ -15670,7 +15686,8 @@ ${this.getAutomatedTestResults()}
       return {
         reason: config?.label || reason,
         count,
-        color: config?.color || '#6b7280',
+        // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+        color: config?.color || TAILWIND_COLORS.gray[500],
       };
     });
 

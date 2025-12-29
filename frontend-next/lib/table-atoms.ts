@@ -85,58 +85,112 @@ export const selectAllAtom = atom<boolean>(false);
 // ============================================================================
 
 /**
- * Modal types that can be open
+ * Complete modal type registry for TeeemTableView
  * null = no modal open
+ *
+ * SSoT ARCHITECTURE: Only ONE modal can be open at a time.
+ * This structural guarantee prevents the drift that occurs with
+ * individual boolean atoms (where multiple could be true simultaneously).
+ *
+ * Legacy boolean atoms (showMergeModalAtom, etc.) are now DERIVED from
+ * this registry for backward compatibility.
  */
-export type ModalType =
-  | 'addRow'
-  | 'editRow'
-  | 'deleteRow'
+export type TableModalType =
+  // Record operations
+  | 'addRecord'
+  | 'editRecord'
+  | 'viewRecord'
+  | 'deleteConfirm'
+  // Bulk operations
+  | 'bulkUpdate'
   | 'bulkDelete'
+  | 'merge'
+  | 'emailContacts'
+  // View management
+  | 'saveView'
+  | 'globalViewsManager'
+  // Column management
+  | 'createColumn'
+  | 'editColumns'
+  | 'deleteColumn'
+  | 'viewSchema'
+  | 'editColumn'
+  // Export/Import
   | 'export'
   | 'import'
-  | 'columnSettings'
-  | 'bulkEdit'
-  | 'filter'
-  | 'viewManager'
-  | 'columnResize'
-  | 'rowDetails'
-  | 'aiAssistant'
+  // Misc
   | 'lookup'
   | 'duplicateReview'
+  | 'aiAssistant'
   | null;
 
 /**
- * Currently active modal (only one at a time)
+ * @deprecated Use TableModalType instead
+ * Kept for backward compatibility
  */
-export const activeModalAtom = atom<ModalType>(null);
+export type ModalType = TableModalType;
+
+/**
+ * Currently active modal (only one at a time)
+ * SSoT: All modal visibility should derive from this atom
+ */
+export const activeTableModalAtom = atom<TableModalType>(null);
+
+/**
+ * @deprecated Use activeTableModalAtom instead
+ * Alias for backward compatibility
+ */
+export const activeModalAtom = activeTableModalAtom;
 
 /**
  * Modal-specific data (row being edited, lookup options, etc.)
  * Different modals store different data here
  */
-export const modalDataAtom = atom<Record<string, unknown>>({});
+export const tableModalDataAtom = atom<Record<string, unknown>>({});
+
+/**
+ * @deprecated Use tableModalDataAtom instead
+ */
+export const modalDataAtom = tableModalDataAtom;
 
 /**
  * Helper to open a modal with data
+ * Atomically sets both the modal type and its data
+ */
+export const openTableModalAtom = atom(
+  null,
+  (get, set, params: { modal: TableModalType; data?: Record<string, unknown> }) => {
+    set(activeTableModalAtom, params.modal);
+    set(tableModalDataAtom, params.data || {});
+  }
+);
+
+/**
+ * @deprecated Use openTableModalAtom instead
  */
 export const openModalAtom = atom(
   null,
-  (get, set, params: { modal: ModalType; data?: Record<string, unknown> }) => {
-    set(activeModalAtom, params.modal);
+  (get, set, params: { modal: TableModalType; data?: Record<string, unknown> }) => {
+    set(activeTableModalAtom, params.modal);
     if (params.data) {
-      set(modalDataAtom, params.data);
+      set(tableModalDataAtom, params.data);
     }
   }
 );
 
 /**
  * Helper to close the current modal
+ * Clears both the modal type and data
  */
-export const closeModalAtom = atom(null, (get, set) => {
-  set(activeModalAtom, null);
-  set(modalDataAtom, {});
+export const closeTableModalAtom = atom(null, (get, set) => {
+  set(activeTableModalAtom, null);
+  set(tableModalDataAtom, {});
 });
+
+/**
+ * @deprecated Use closeTableModalAtom instead
+ */
+export const closeModalAtom = closeTableModalAtom;
 
 // ============================================================================
 // UI STATE
@@ -247,6 +301,10 @@ export {
   currentAutoFitColumnsAtom,
   currentShowTotalsAtom,
   collapsedGroupsAtom,
+  // Column config atomic actions (SSoT)
+  type ColumnConfigUpdate,
+  updateColumnConfigAtom,
+  resetColumnConfigAtom,
   // View collection state
   viewsCacheAtom,
   VIEWS_CACHE_TTL,
@@ -589,8 +647,32 @@ export const hideContextMenuAtom = atom(null, (get, set) => {
 // PANEL/UI STATE (replaces useState in TeeemTableView)
 // ============================================================================
 
+// ============================================================================
+// FILTER UI MODE (Exclusive Mode Pattern)
+// ============================================================================
+
 /**
- * Whether the filter panel is open
+ * Filter UI mode - only ONE can be active at a time
+ *
+ * SSoT ARCHITECTURE: This is the source of truth for filter UI visibility.
+ * Using a mode enum instead of separate booleans prevents the drift where
+ * both filterPanelOpen and showColumnFilters could be true simultaneously.
+ *
+ * - 'none': No filter UI visible
+ * - 'inline': Column filter row visible under headers
+ * - 'panel': ViewManagerSheet side panel open
+ */
+export type FilterUIMode = 'none' | 'inline' | 'panel';
+
+/**
+ * SSoT for filter UI visibility
+ * Only ONE filter UI mode can be active at a time
+ */
+export const filterUIModeAtom = atom<FilterUIMode>('none');
+
+/**
+ * @deprecated Use filterUIModeAtom === 'none' instead
+ * Legacy atom kept for backward compatibility - was never used
  */
 export const showFiltersAtom = atom<boolean>(false);
 
@@ -601,14 +683,42 @@ export const healthPanelOpenAtom = atom<boolean>(false);
 
 /**
  * Whether the filter panel (sheet) is open
+ * DERIVED from filterUIModeAtom for backward compatibility
+ *
+ * Read: true when mode is 'panel'
+ * Write: sets mode to 'panel' (true) or 'none' (false)
+ *
+ * Supports both direct value and functional update pattern for
+ * compatibility with React.Dispatch<SetStateAction<boolean>>
  */
-export const filterPanelOpenAtom = atom<boolean>(false);
+export const filterPanelOpenAtom = atom(
+  (get) => get(filterUIModeAtom) === 'panel',
+  (get, set, value: boolean | ((prev: boolean) => boolean)) => {
+    const currentValue = get(filterUIModeAtom) === 'panel';
+    const newValue = typeof value === 'function' ? value(currentValue) : value;
+    set(filterUIModeAtom, newValue ? 'panel' : 'none');
+  }
+);
 
 /**
  * Whether inline column filters row is visible
  * Shows a row of filter inputs directly under each column header
+ * DERIVED from filterUIModeAtom for backward compatibility
+ *
+ * Read: true when mode is 'inline'
+ * Write: sets mode to 'inline' (true) or 'none' (false)
+ *
+ * Supports both direct value and functional update pattern for
+ * compatibility with React.Dispatch<SetStateAction<boolean>>
  */
-export const showColumnFiltersAtom = atom<boolean>(false);
+export const showColumnFiltersAtom = atom(
+  (get) => get(filterUIModeAtom) === 'inline',
+  (get, set, value: boolean | ((prev: boolean) => boolean)) => {
+    const currentValue = get(filterUIModeAtom) === 'inline';
+    const newValue = typeof value === 'function' ? value(currentValue) : value;
+    set(filterUIModeAtom, newValue ? 'inline' : 'none');
+  }
+);
 
 /**
  * Row limit for pagination

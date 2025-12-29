@@ -165,6 +165,119 @@ export const currentStickyActionsAtom = atom<boolean>(true);
 export const collapsedGroupsAtom = atom<Set<string>>(new Set<string>());
 
 // ============================================================================
+// COLUMN CONFIG ATOMIC ACTION
+// ============================================================================
+
+/**
+ * Column configuration update interface
+ * Used by updateColumnConfigAtom to update multiple column settings atomically
+ */
+export interface ColumnConfigUpdate {
+  widths?: Record<string, number>;
+  order?: string[];
+  visible?: Record<string, boolean>;
+  sort?: SortColumn[];
+  groupBy?: string[];
+  autoFit?: boolean;
+  smartFit?: boolean;
+  showTotals?: boolean;
+  totalsColumns?: string[];
+  stickyActions?: boolean;
+}
+
+/**
+ * Atomic column config update
+ *
+ * SSoT ARCHITECTURE: Updates multiple column-related atoms in a single transaction.
+ * This prevents the drift that occurs when 4 separate atoms (widths, order, visible, sort)
+ * are updated independently and one update fails, leaving state inconsistent.
+ *
+ * Usage:
+ * ```typescript
+ * setColumnConfig({
+ *   widths: { name: 200, email: 150 },
+ *   order: ['name', 'email', 'phone'],
+ *   visible: { name: true, email: true, phone: false },
+ *   sort: [{ column: 'name', direction: 'asc' }]
+ * });
+ * ```
+ */
+export const updateColumnConfigAtom = atom(
+  null,
+  (get, set, update: ColumnConfigUpdate) => {
+    // Validate consistency if both order and visible are provided
+    if (update.order && update.visible) {
+      // All visible columns should exist in order
+      const visibleKeys = Object.keys(update.visible).filter(k => update.visible![k]);
+      const orderSet = new Set(update.order);
+      const missingFromOrder = visibleKeys.filter(k => !orderSet.has(k));
+
+      if (missingFromOrder.length > 0) {
+        console.warn(
+          '[updateColumnConfigAtom] Some visible columns not in order:',
+          missingFromOrder
+        );
+        // Auto-fix: append missing columns to order
+        update.order = [...update.order, ...missingFromOrder];
+      }
+    }
+
+    // Atomic batch update - all or nothing
+    if (update.widths !== undefined) {
+      set(currentColumnWidthsAtom, update.widths);
+    }
+    if (update.order !== undefined) {
+      set(currentColumnOrderAtom, update.order);
+    }
+    if (update.visible !== undefined) {
+      set(currentVisibleColumnsAtom, update.visible);
+    }
+    if (update.sort !== undefined) {
+      set(currentSortColumnsAtom, update.sort);
+    }
+    if (update.groupBy !== undefined) {
+      set(currentGroupByColumnsAtom, update.groupBy);
+    }
+    if (update.autoFit !== undefined) {
+      set(currentAutoFitColumnsAtom, update.autoFit);
+    }
+    if (update.smartFit !== undefined) {
+      set(currentSmartFitAtom, update.smartFit);
+    }
+    if (update.showTotals !== undefined) {
+      set(currentShowTotalsAtom, update.showTotals);
+    }
+    if (update.totalsColumns !== undefined) {
+      set(currentTotalsColumnsAtom, update.totalsColumns);
+    }
+    if (update.stickyActions !== undefined) {
+      set(currentStickyActionsAtom, update.stickyActions);
+    }
+  }
+);
+
+/**
+ * Reset all column config to defaults
+ * Useful when switching foundations or clearing custom configuration
+ */
+export const resetColumnConfigAtom = atom(
+  null,
+  (get, set) => {
+    set(currentColumnWidthsAtom, {});
+    set(currentColumnOrderAtom, []);
+    set(currentVisibleColumnsAtom, {});
+    set(currentSortColumnsAtom, []);
+    set(currentGroupByColumnsAtom, []);
+    set(currentAutoFitColumnsAtom, false);
+    set(currentSmartFitAtom, true);
+    set(currentShowTotalsAtom, true);
+    set(currentTotalsColumnsAtom, []);
+    set(currentStickyActionsAtom, true);
+    set(collapsedGroupsAtom, new Set<string>());
+  }
+);
+
+// ============================================================================
 // VIEW COLLECTION STATE
 // ============================================================================
 

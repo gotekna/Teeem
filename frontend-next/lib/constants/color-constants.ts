@@ -149,53 +149,90 @@ export const TAILWIND_COLORS = {
 } as const;
 
 // =============================================================================
-// BRAND COLORS
+// BRAND COLORS (from /brand-guidelines page)
 // =============================================================================
 
 /**
  * TEEEM brand colors from Brand Guidelines.
- * These match the CSS variables defined in globals.css
+ * SSoT: These match the design tokens in /brand-guidelines and globals.css
+ *
+ * @see /brand-guidelines for visual reference
  */
 export const BRAND_COLORS = {
-  // Primary text colors
-  textPrimary: '#1D1D1D',
-  textSecondary: '#606060',
-  textMuted: '#878787',
+  // Text Colors (Brand Guidelines: "Text Colors" section)
+  text: {
+    primary: '#1D1D1D',     // Foreground - Primary text
+    secondary: '#606060',   // Descriptions, secondary text
+    muted: '#878787',       // Labels, muted text
+  },
 
-  // Background colors
-  background: '#F2F1EF',
-  backgroundWhite: '#ffffff',
-  backgroundDark: '#1f2937',
+  // Background Colors (Brand Guidelines: "Backgrounds" section)
+  background: {
+    primary: '#ffffff',           // Light mode main background
+    primaryDark: '#0d0d0d',       // Dark mode main background
+    secondary: '#F2F1EF',         // Light mode secondary
+    secondaryDark: '#1D1D1D',     // Dark mode secondary
+  },
 
-  // Accent colors
-  accentBlue: '#3b82f6',
-  accentToday: '#ffe4e6', // Light pink for today highlighting
+  // Status Background Colors (Brand Guidelines: "Status Colors" section)
+  // Used for Pills, Badges, and status indicators
+  status: {
+    success: {
+      light: '#DCFCE7',    // green-100 - Completed, active
+      dark: '#14532D',     // green-900
+    },
+    warning: {
+      light: '#FEF3C7',    // amber-100 - Pending, attention
+      dark: '#78350F',     // amber-900
+    },
+    error: {
+      light: '#FEE2E2',    // red-100 - Failed, destructive
+      dark: '#7F1D1D',     // red-900
+    },
+    info: {
+      light: '#DBEAFE',    // blue-100 - Processing, info
+      dark: '#1E3A8A',     // blue-900
+    },
+  },
 } as const;
 
 // =============================================================================
-// STATUS COLORS
+// STATUS COLORS (for canvas/chart rendering)
 // =============================================================================
 
 /**
- * Status colors for tasks, workflows, and entities.
- * Consistent across Gantt charts, tables, badges, etc.
+ * Status colors for tasks, workflows, and canvas rendering.
+ * These are the "solid" colors used for task bars, progress indicators, etc.
+ *
+ * For status BACKGROUND colors (pills, badges), use BRAND_COLORS.status
+ * which provides light/dark variants per brand guidelines.
+ *
+ * Brand Guidelines Mapping:
+ * - success (green) = Completed, Active
+ * - warning (amber) = Pending, On Hold
+ * - error (red) = Failed, At Risk
+ * - info (blue) = Processing, In Progress
+ *
+ * @see /brand-guidelines "Status Colors" section
  */
 export const STATUS_COLORS = {
-  // Task/Workflow statuses
-  notStarted: TAILWIND_COLORS.gray[400],    // #9ca3af
-  inProgress: TAILWIND_COLORS.blue[500],    // #3b82f6
-  completed: TAILWIND_COLORS.green[500],    // #22c55e
-  onHold: TAILWIND_COLORS.amber[500],       // #f59e0b
-  atRisk: TAILWIND_COLORS.red[500],         // #ef4444
+  // Task/Workflow statuses (Gantt, charts)
+  notStarted: TAILWIND_COLORS.gray[400],    // #9ca3af - Inactive/not started
+  inProgress: TAILWIND_COLORS.blue[500],    // #3b82f6 - Info/processing
+  completed: TAILWIND_COLORS.green[500],    // #22c55e - Success/completed
+  onHold: TAILWIND_COLORS.amber[500],       // #f59e0b - Warning/pending
+  atRisk: TAILWIND_COLORS.red[500],         // #ef4444 - Error/failed
 
-  // Alternative status names
-  pending: TAILWIND_COLORS.gray[400],
-  active: TAILWIND_COLORS.blue[500],
-  done: TAILWIND_COLORS.green[500],
-  paused: TAILWIND_COLORS.amber[500],
-  error: TAILWIND_COLORS.red[500],
+  // Alternative status names (aliases)
+  pending: TAILWIND_COLORS.amber[500],      // Warning - matches brand "Pending"
+  active: TAILWIND_COLORS.green[500],       // Success - matches brand "Active"
+  done: TAILWIND_COLORS.green[500],         // Success
+  paused: TAILWIND_COLORS.amber[500],       // Warning
+  error: TAILWIND_COLORS.red[500],          // Error
+  failed: TAILWIND_COLORS.red[500],         // Error
+  processing: TAILWIND_COLORS.blue[500],    // Info
 
-  // Success/Warning/Error semantic colors
+  // Semantic colors (direct mapping to brand)
   success: TAILWIND_COLORS.green[500],
   warning: TAILWIND_COLORS.amber[500],
   danger: TAILWIND_COLORS.red[500],
@@ -209,53 +246,62 @@ export const STATUS_COLORS = {
 /**
  * Colors for charts, graphs, and canvas rendering.
  * Light and dark mode variants included.
+ *
+ * Uses BRAND_COLORS for consistency with brand guidelines.
+ * @see /brand-guidelines
  */
 export const CHART_COLORS = {
   light: {
-    background: '#ffffff',
-    gridLines: TAILWIND_COLORS.gray[200],     // #e5e7eb
-    todayMarker: TAILWIND_COLORS.red[500],    // #ef4444
-    weekendBackground: TAILWIND_COLORS.gray[50], // #f9fafb
-    headerBackground: TAILWIND_COLORS.gray[100], // #f3f4f6
-    headerText: TAILWIND_COLORS.gray[700],    // #374151
-    selectedRow: TAILWIND_COLORS.blue[100],   // #dbeafe
-    hoverRow: TAILWIND_COLORS.gray[100],      // #f3f4f6
-    borderColor: TAILWIND_COLORS.gray[200],   // #e5e7eb
-    textColor: TAILWIND_COLORS.gray[800],     // #1f2937
+    background: BRAND_COLORS.background.primary,        // #ffffff
+    gridLines: TAILWIND_COLORS.gray[200],               // #e5e7eb
+    todayMarker: STATUS_COLORS.danger,                  // #ef4444 - Error/danger
+    weekendBackground: TAILWIND_COLORS.gray[50],        // #f9fafb
+    headerBackground: TAILWIND_COLORS.gray[100],        // #f3f4f6
+    headerText: TAILWIND_COLORS.gray[700],              // #374151
+    selectedRow: BRAND_COLORS.status.info.light,        // #dbeafe - Info background
+    hoverRow: TAILWIND_COLORS.gray[100],                // #f3f4f6
+    borderColor: TAILWIND_COLORS.gray[200],             // #e5e7eb
+    textColor: BRAND_COLORS.text.primary,               // #1D1D1D
   },
   dark: {
-    background: TAILWIND_COLORS.gray[800],    // #1f2937
-    gridLines: TAILWIND_COLORS.gray[700],     // #374151
-    todayMarker: TAILWIND_COLORS.red[500],    // #ef4444
-    weekendBackground: TAILWIND_COLORS.gray[900], // #111827
-    headerBackground: TAILWIND_COLORS.gray[900], // #111827
-    headerText: TAILWIND_COLORS.gray[200],    // #e5e7eb
-    selectedRow: '#1e3a5f',                   // Custom dark blue
-    hoverRow: TAILWIND_COLORS.gray[700],      // #374151
-    borderColor: TAILWIND_COLORS.gray[700],   // #374151
-    textColor: TAILWIND_COLORS.gray[200],     // #e5e7eb
+    background: BRAND_COLORS.background.secondaryDark,  // #1D1D1D
+    gridLines: TAILWIND_COLORS.gray[700],               // #374151
+    todayMarker: STATUS_COLORS.danger,                  // #ef4444 - Error/danger
+    weekendBackground: TAILWIND_COLORS.gray[900],       // #111827
+    headerBackground: TAILWIND_COLORS.gray[900],        // #111827
+    headerText: TAILWIND_COLORS.gray[200],              // #e5e7eb
+    selectedRow: BRAND_COLORS.status.info.dark,         // #1E3A8A - Info background
+    hoverRow: TAILWIND_COLORS.gray[700],                // #374151
+    borderColor: TAILWIND_COLORS.gray[700],             // #374151
+    textColor: TAILWIND_COLORS.gray[200],               // #e5e7eb
   },
 } as const;
 
 /**
  * Task bar colors for Gantt charts.
+ * Uses STATUS_COLORS for consistency with brand guidelines.
+ *
+ * @see /brand-guidelines "Status Colors" section
  */
 export const GANTT_COLORS = {
+  // Task status colors (maps to brand status semantics)
   taskStatus: {
-    notStarted: TAILWIND_COLORS.gray[400],
-    inProgress: TAILWIND_COLORS.blue[500],
-    completed: TAILWIND_COLORS.green[500],
-    onHold: TAILWIND_COLORS.amber[500],
-    atRisk: TAILWIND_COLORS.red[500],
+    notStarted: STATUS_COLORS.notStarted,   // Gray - inactive
+    inProgress: STATUS_COLORS.inProgress,   // Blue - info/processing
+    completed: STATUS_COLORS.completed,     // Green - success
+    onHold: STATUS_COLORS.onHold,           // Amber - warning/pending
+    atRisk: STATUS_COLORS.atRisk,           // Red - error/danger
   },
+  // Task bar rendering
   taskBar: {
     border: TAILWIND_COLORS.gray[700],
     text: '#ffffff',
-    default: TAILWIND_COLORS.blue[500],
-    progress: TAILWIND_COLORS.blue[500],
+    default: STATUS_COLORS.info,            // Blue - default bar color
+    progress: STATUS_COLORS.info,           // Blue - progress fill
     baseline: TAILWIND_COLORS.gray[400],
-    criticalPath: TAILWIND_COLORS.red[500],
+    criticalPath: STATUS_COLORS.danger,     // Red - critical path
   },
+  // UI elements
   ui: {
     focusRing: TAILWIND_COLORS.indigo[500],
     milestone: TAILWIND_COLORS.indigo[500],
@@ -318,10 +364,14 @@ export const COLORS = {
 
 /**
  * Get status color by status string.
+ * Maps various status names to brand-consistent colors.
+ *
+ * @see /brand-guidelines "Status Indicators" section
  */
 export function getStatusColor(status: string): string {
   const normalizedStatus = status.toLowerCase().replace(/[_-]/g, '');
   const colorMap: Record<string, string> = {
+    // Gantt/task statuses
     notstarted: STATUS_COLORS.notStarted,
     inprogress: STATUS_COLORS.inProgress,
     completed: STATUS_COLORS.completed,
@@ -329,9 +379,20 @@ export function getStatusColor(status: string): string {
     onhold: STATUS_COLORS.onHold,
     paused: STATUS_COLORS.paused,
     atrisk: STATUS_COLORS.atRisk,
-    error: STATUS_COLORS.error,
-    pending: STATUS_COLORS.pending,
-    active: STATUS_COLORS.active,
+
+    // Brand status names (from Pills)
+    active: STATUS_COLORS.active,           // Success - green
+    pending: STATUS_COLORS.pending,         // Warning - amber
+    processing: STATUS_COLORS.processing,   // Info - blue
+    failed: STATUS_COLORS.failed,           // Error - red
+    error: STATUS_COLORS.error,             // Error - red
+    inactive: STATUS_COLORS.notStarted,     // Gray
+
+    // Semantic shortcuts
+    success: STATUS_COLORS.success,
+    warning: STATUS_COLORS.warning,
+    danger: STATUS_COLORS.danger,
+    info: STATUS_COLORS.info,
   };
   return colorMap[normalizedStatus] || TAILWIND_COLORS.gray[500];
 }
