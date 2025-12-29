@@ -251,19 +251,43 @@ export default function JobPhotosPage() {
             Refresh
           </Button>
         </div>
-        {/* Job Type Multi-Select Dropdown */}
-        {allJobTypes.length > 0 && (
-          <div className="px-4 pb-3">
+        {/* Filters */}
+        <div className="px-4 pb-3 space-y-3">
+          {/* Job Type Multi-Select Dropdown */}
+          {allJobTypes.length > 0 && (
             <MultipleSelector
               value={selectedOptions}
               options={jobTypeOptions}
-              onChange={handleSelectionChange}
+              onChange={handleJobTypeChange}
               placeholder="Select house types..."
               hidePlaceholderWhenSelected
               className="max-w-md"
             />
-          </div>
-        )}
+          )}
+          {/* Status Toggle Buttons */}
+          {allStatuses.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {allStatuses.map((status) => {
+                const isSelected = selectedStatusIds.includes(status.id);
+                return (
+                  <Badge
+                    key={status.id}
+                    variant={isSelected ? "default" : "outline"}
+                    className={cn(
+                      "cursor-pointer transition-colors px-3 py-1",
+                      isSelected
+                        ? "bg-blue-600 hover:bg-blue-700 text-white"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                    )}
+                    onClick={() => toggleStatus(status.id)}
+                  >
+                    {status.name}
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Content */}
