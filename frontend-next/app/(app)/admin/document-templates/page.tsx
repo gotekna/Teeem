@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -173,22 +173,23 @@ const FIELD_REFERENCE: FieldGroup[] = [
 
 export default function DocumentTemplatesPage() {
   const { toast } = useToast();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-  const editTemplateId = searchParams.get("edit");
 
-  // URL-synced tab state
-  const tabParam = searchParams.get("tab");
+  // SSoT: URL state managed by useUrlState hook
+  const [urlState, setUrlState] = useUrlState({
+    tab: null as string | null,   // null = "templates"
+    edit: null as string | null,  // template ID to edit
+  });
+
+  // Derive tab state from URL
   const validTabs = ["templates", "fields", "preview"] as const;
   type TabType = typeof validTabs[number];
-  const activeTab: TabType = validTabs.includes(tabParam as TabType) ? (tabParam as TabType) : "templates";
+  const activeTab: TabType = validTabs.includes(urlState.tab as TabType) ? (urlState.tab as TabType) : "templates";
+  const editTemplateId = urlState.edit;
 
+  // Update URL when tab changes
   const handleTabChange = useCallback((tab: TabType) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", tab);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [searchParams, router, pathname]);
+    setUrlState({ tab: tab === "templates" ? null : tab });
+  }, [setUrlState]);
 
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [loading, setLoading] = useState(true);

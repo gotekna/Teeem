@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,8 +231,12 @@ function TabsDisplayCell({
 
 export function DocumentTypesTab() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const scopeFilter = (searchParams.get("scope") as "company" | "job" | "contacts" | "all") || "all";
+
+  // SSoT: URL state managed by useUrlState hook
+  const [urlState, setUrlState] = useUrlState({
+    scope: null as string | null,  // null = "all"
+  });
+  const scopeFilter = (urlState.scope as "company" | "job" | "contacts" | "all") || "all";
 
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -261,10 +266,8 @@ export function DocumentTypesTab() {
 
   // Handle scope tab change
   const handleScopeChange = React.useCallback((value: string) => {
-    const currentParams = new URLSearchParams(searchParams.toString());
-    currentParams.set("scope", value);
-    router.push(`?${currentParams.toString()}`);
-  }, [router, searchParams]);
+    setUrlState({ scope: value === "all" ? null : value });
+  }, [setUrlState]);
 
   React.useEffect(() => {
     fetchColumns();

@@ -1368,10 +1368,13 @@ export default function JobDetailPage() {
           // SSoT: Use compositeKey for children to prevent collision with same-named parent tabs
           const tabValue = tab.compositeKey || tab.tab_key;
 
-          // Photo tabs use JobDocumentsTab with initialCategory
+          // Document/Photo tabs use JobDocumentsTab with initialCategory
           // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
           // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
-          if (tab.is_photo_category) {
+          // Render JobDocumentsTab for:
+          // 1. Photo categories (is_photo_category: true) - shows photo gallery
+          // 2. Document categories with SharePoint (folder_path set) - shows document viewer
+          if (tab.is_photo_category || tab.folder_path) {
             // SSoT: Find parent tab to pass its children as categories
             // This eliminates duplicate API call - parent already has the data from useEntityTabs
             const parentTab = visibleJobTabs.find(p =>

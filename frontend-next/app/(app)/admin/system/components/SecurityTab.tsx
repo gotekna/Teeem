@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useUrlSubTabs } from "@/hooks/useUrlTabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -891,15 +891,8 @@ function GroupsManagementTab() {
 
 // Main Security Tab Component
 export function SecurityTab() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const securityTab = searchParams.get("securityTab") || "users";
-
-  const handleTabChange = (value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("securityTab", value);
-    router.push(`/admin/system?${params.toString()}`);
-  };
+  // SSoT: URL subtab state managed by useUrlSubTabs hook
+  const [securityTab, handleTabChange] = useUrlSubTabs("users", "securityTab");
 
   return (
     <div className="space-y-6">

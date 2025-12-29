@@ -1587,6 +1587,19 @@ export default function TeeemTableView({
     return map;
   }, [serverGroupCounts]);
 
+  // Build a map of group key -> display value for lookup columns
+  // The server's /groups endpoint returns displayValue for lookup columns (e.g., "SITE COSTS" instead of "621")
+  const serverDisplayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const group of serverGroupCounts) {
+      const key = group.key === null ? "(Empty)" : String(group.key);
+      // Use displayValue from server if available, otherwise fall back to key
+      const display = group.displayValue || key;
+      map.set(key, display);
+    }
+    return map;
+  }, [serverGroupCounts]);
+
   // Lazy loading state for groups - fetch all records when expanding
   // Tracks which groups are currently being loaded from server
   const [groupLoadingState, setGroupLoadingState] = useState<Set<string>>(new Set());
@@ -4446,7 +4459,7 @@ export default function TeeemTableView({
               <ChevronDown className="h-4 w-4 shrink-0" />
             )}
             <span className="font-bold text-[13px]">
-              {groupKey}
+              {serverDisplayMap.get(groupKey) || groupKey}
             </span>
             <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
               ({rowCount})
@@ -4722,7 +4735,7 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {groupKey}
+                {serverDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
