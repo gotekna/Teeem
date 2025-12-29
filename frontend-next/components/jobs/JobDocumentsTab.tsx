@@ -1263,10 +1263,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           variant="outline"
                           onClick={() => {
                             // Construct the folder URL by appending category folder_path to job folder URL
-                            const baseUrl = jobFolderStatus.webUrl;
+                            const baseUrl = jobFolderStatus.webUrl!;
                             const folderPath = activeCategory?.folder_path;
                             const fullUrl = folderPath
-                              ? `${baseUrl}/${encodeURIComponent(folderPath.replace(/^\//, ""))}`
+                              ? `${baseUrl}/${folderPath.replace(/^\//, "").split("/").map(encodeURIComponent).join("/")}`
                               : baseUrl;
                             window.open(fullUrl, "_blank");
                           }}
