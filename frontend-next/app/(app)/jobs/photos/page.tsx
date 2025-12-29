@@ -30,6 +30,11 @@ interface JobPhotos {
   job_id: number;
   job_name: string;
   job_number: string | null;
+  job_type: string | null;
+  job_status: string | null;
+  deposit: number | null;
+  start_date: string | null;
+  pc_date: string | null;
   photos: Photo[];
 }
 
@@ -267,6 +272,12 @@ export default function JobPhotosPage() {
     return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
   };
 
+  const formatShortDate = (dateStr: string | null) => {
+    if (!dateStr) return "-";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  };
+
   const supervisorNames = Object.keys(data);
 
   return (
@@ -401,12 +412,17 @@ export default function JobPhotosPage() {
                     <div className="ml-6 space-y-3 py-2">
                       {jobs.map((job) => (
                         <div key={job.job_id}>
-                          <button
-                            onClick={() => handlePhotoClick(job.job_id)}
-                            className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline mb-1"
-                          >
-                            {job.job_number ? `${job.job_number} - ` : ""}{job.job_name}
-                          </button>
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <button
+                              onClick={() => handlePhotoClick(job.job_id)}
+                              className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              {job.job_number ? `${job.job_number} - ` : ""}{job.job_name}
+                            </button>
+                            <span className="text-[10px] text-muted-foreground">
+                              {job.job_type} · {job.job_status} · {job.deposit ? "Deposit" : "No Dep"} · Start: {formatShortDate(job.start_date)} · PC: {formatShortDate(job.pc_date)}
+                            </span>
+                          </div>
                           <div className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] gap-1">
                             {job.photos.map((photo, idx) => {
                               const isOld = photo.days_old !== null && photo.days_old > 3;

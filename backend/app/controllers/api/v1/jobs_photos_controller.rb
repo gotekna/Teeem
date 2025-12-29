@@ -61,6 +61,11 @@ module Api
             job_id: job.id,
             job_name: job.name,
             job_number: job.job_number,
+            job_type: job.job_type&.name,
+            job_status: job.job_status&.name,
+            deposit: job.deposit,
+            start_date: job.start_date&.iso8601,
+            pc_date: job.practical_completion_date&.iso8601,
             photos: photos.map do |photo|
               {
                 id: photo.id,
