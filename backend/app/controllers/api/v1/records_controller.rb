@@ -1100,12 +1100,33 @@ module Api
       # SSoT: Auto-derive associations from model reflections
       # No manual maintenance needed - Rails reflection system finds all belongs_to associations
       # Works for ALL tables (system and user-created)
+      #
+      # Performance: Excludes self-referential associations to prevent circular loading
+      # and skips heavy associations that cause N+1 or memory issues
       def apply_eager_loading(query, model)
+        # Check if model defines which associations are safe to eager load
+        # This allows models to whitelist only the associations they want loaded
+        if model.respond_to?(:safe_eager_load_associations)
+          safe_associations = model.safe_eager_load_associations
+          return safe_associations.any? ? query.includes(*safe_associations) : query
+        end
+
+        # Default behavior: Include all belongs_to except problematic ones
         associations = []
 
-        # Method 1: Get associations from model's belongs_to reflections (most reliable)
-        # This uses Rails' built-in reflection system to find all belongs_to associations
+        # Associations to skip globally (heavy or problematic)
+        skip_associations = [
+          :po_supplier,       # Contact model with 81+ associations - load lazily
+          :photo_entity_tab   # EntityTab has recursive parent/children
+        ]
+
         model.reflect_on_all_associations(:belongs_to).each do |reflection|
+          # Skip self-referential associations (prevents circular loading)
+          next if reflection.klass == model rescue false
+
+          # Skip globally problematic associations
+          next if skip_associations.include?(reflection.name)
+
           associations << reflection.name
         end
 

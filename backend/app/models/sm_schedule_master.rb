@@ -20,6 +20,13 @@ class SmScheduleMaster < ApplicationRecord
   # Dependency types
   DEPENDENCY_TYPES = %w[FS SS FF SF].freeze
 
+  # Performance: Define which associations are safe to eager load
+  # Excludes self-referential (linked_po_task, spawn_scan_task) and heavy (po_supplier) associations
+  # Used by Foundation API's apply_eager_loading method
+  def self.safe_eager_load_associations
+    [:checklist, :created_by, :updated_by, :sm_schedule_master_version]
+  end
+
   # Associations
   # Note: sm_template_id column has been removed
   # sm_template_ids (JSONB array) was the legacy multi-template support

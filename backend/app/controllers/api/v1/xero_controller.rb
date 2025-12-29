@@ -2640,21 +2640,19 @@ module Api
         end
       end
 
-      # Find the most recent active sync job
+      # Find any active sync job
+      # Uses XeroSyncStatus (SSoT) instead of scanning cache keys
       def find_active_sync_job
-        # This is a simple implementation using cache
-        # In production, you might want to use a proper job tracking mechanism
-        cache_keys = Rails.cache.instance_variable_get(:@data)&.keys || []
-        job_keys = cache_keys.select { |k| k.to_s.start_with?("xero_sync_job_") }
+        # Check XeroSyncStatus for any sync in progress
+        active_sync = XeroSyncStatus.where(status: "in_progress").order(updated_at: :desc).first
+        return nil unless active_sync
 
-        job_keys.each do |key|
-          job_data = Rails.cache.read(key)
-          if job_data && [ "queued", "processing" ].include?(job_data[:status])
-            return job_data
-          end
-        end
-
-        nil
+        {
+          status: "processing",
+          sync_type: active_sync.sync_type,
+          tenant_id: active_sync.tenant_id,
+          started_at: active_sync.updated_at
+        }
       end
 
       # Find potential TEEEM contact matches for a Xero contact name

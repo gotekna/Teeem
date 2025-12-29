@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -17,6 +16,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { Spinner } from "@/components/ui/spinner";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { Switch } from "@/components/ui/switch";
 import { getIcon } from "@/lib/icon-map";
 import {
   SortableList,
@@ -463,15 +464,12 @@ export function NavigationTab() {
 
       {/* New Item Dialog */}
       <Dialog open={showNewItem} onOpenChange={setShowNewItem}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {parentForNewItem
-                ? `New Child Item (under ${items.find((i) => i.id === parentForNewItem)?.name})`
-                : "New Navigation Item"}
-            </DialogTitle>
+            <DialogTitle>New Navigation Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Name & URL */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Name</Label>
@@ -494,6 +492,8 @@ export function NavigationTab() {
                 />
               </div>
             </div>
+
+            {/* Icon & Badge Key */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Icon</Label>
@@ -513,51 +513,125 @@ export function NavigationTab() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="item-active"
+
+            {/* Parent Selection */}
+            <div className="space-y-2">
+              <Label>Parent Item</Label>
+              <ComboboxDropdown
+                options={[
+                  { value: "__none__", label: "None (top-level)" },
+                  ...items
+                    .filter((i) => !i.parent_id) // Only show top-level items as parents
+                    .map((i) => ({
+                      value: i.id.toString(),
+                      label: i.name,
+                    })),
+                ]}
+                value={parentForNewItem?.toString() || "__none__"}
+                onValueChange={(value) => {
+                  setParentForNewItem(value === "__none__" ? null : parseInt(value));
+                }}
+                placeholder="Select parent..."
+              />
+            </div>
+
+            {/* Toggles */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label>Active</Label>
+                  <p className="text-xs text-muted-foreground">Show in sidebar</p>
+                </div>
+                <Switch
                   checked={itemForm.is_active}
                   onCheckedChange={(checked) =>
-                    setItemForm((f) => ({ ...f, is_active: !!checked }))
+                    setItemForm((f) => ({ ...f, is_active: checked }))
                   }
                 />
-                <Label htmlFor="item-active">Active (visible)</Label>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="item-collapsed"
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label>Collapsed</Label>
+                  <p className="text-xs text-muted-foreground">Start collapsed</p>
+                </div>
+                <Switch
                   checked={itemForm.is_collapsed_default}
                   onCheckedChange={(checked) =>
-                    setItemForm((f) => ({ ...f, is_collapsed_default: !!checked }))
+                    setItemForm((f) => ({ ...f, is_collapsed_default: checked }))
                   }
                 />
-                <Label htmlFor="item-collapsed">Collapsed by default</Label>
               </div>
             </div>
+
+            {/* Role Visibility */}
             <div className="space-y-2">
-              <Label>Visible to Roles (empty = all roles)</Label>
-              <div className="flex flex-wrap gap-2">
-                {USER_ROLES.map((role) => (
-                  <div key={role.value} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`item-role-${role.value}`}
-                      checked={itemForm.visible_to_roles.includes(role.value)}
-                      onCheckedChange={(checked) => {
-                        setItemForm((f) => ({
-                          ...f,
-                          visible_to_roles: checked
-                            ? [...f.visible_to_roles, role.value]
-                            : f.visible_to_roles.filter((r) => r !== role.value),
-                        }));
-                      }}
-                    />
-                    <Label htmlFor={`item-role-${role.value}`} className="text-sm">
-                      {role.label}
-                    </Label>
+              <Label>Visible to Roles</Label>
+              {parentForNewItem ? (
+                <>
+                  {(() => {
+                    const parent = items.find((i) => i.id === parentForNewItem);
+                    const parentRoles = parent?.visible_to_roles || [];
+                    const hasRoleRestrictions = parentRoles.length > 0;
+                    return (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Inherited from <span className="font-medium">{parent?.name}</span>
+                        </p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {hasRoleRestrictions ? (
+                            // Show only the inherited roles as solid badges
+                            parentRoles.map((roleValue) => {
+                              const role = USER_ROLES.find((r) => r.value === roleValue);
+                              return (
+                                <Badge
+                                  key={roleValue}
+                                  className="bg-primary text-primary-foreground cursor-not-allowed"
+                                >
+                                  {role?.label || roleValue}
+                                </Badge>
+                              );
+                            })
+                          ) : (
+                            // Parent has no restrictions - show "All roles"
+                            <Badge variant="secondary" className="cursor-not-allowed">
+                              All roles
+                            </Badge>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">Leave empty for all roles</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {USER_ROLES.map((role) => {
+                      const isSelected = itemForm.visible_to_roles.includes(role.value);
+                      return (
+                        <Badge
+                          key={role.value}
+                          variant={isSelected ? "default" : "outline"}
+                          className={cn(
+                            "cursor-pointer transition-colors",
+                            isSelected && "bg-primary"
+                          )}
+                          onClick={() => {
+                            setItemForm((f) => ({
+                              ...f,
+                              visible_to_roles: isSelected
+                                ? f.visible_to_roles.filter((r) => r !== role.value)
+                                : [...f.visible_to_roles, role.value],
+                            }));
+                          }}
+                        >
+                          {role.label}
+                        </Badge>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -577,11 +651,12 @@ export function NavigationTab() {
 
       {/* Edit Item Dialog */}
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Navigation Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Name & URL */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Name</Label>
@@ -602,6 +677,8 @@ export function NavigationTab() {
                 />
               </div>
             </div>
+
+            {/* Icon & Badge Key */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Icon</Label>
@@ -617,96 +694,152 @@ export function NavigationTab() {
                   onChange={(e) =>
                     setItemForm((f) => ({ ...f, badge_key: e.target.value }))
                   }
+                  placeholder="e.g., pendingProposals"
                 />
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="edit-item-active"
+
+            {/* Parent Selection */}
+            {editingItem && (
+              <div className="space-y-2">
+                <Label>Parent Item</Label>
+                {(() => {
+                  // Get live data from items (editingItem is stale after parent changes)
+                  const currentItem = items.find((i) => i.id === editingItem.id);
+                  const currentParentId = currentItem?.parent_id;
+                  const currentParent = currentParentId ? items.find((i) => i.id === currentParentId) : null;
+
+                  return (
+                    <ComboboxDropdown
+                      options={[
+                        { value: "__none__", label: "None (top-level)" },
+                        ...items
+                          .filter((i) => {
+                            // Exclude self
+                            if (i.id === editingItem.id) return false;
+                            // Exclude own children (can't be child of own child)
+                            if (i.parent_id === editingItem.id) return false;
+                            // Only show top-level items as potential parents (max 2 levels deep)
+                            if (i.parent_id !== null) return false;
+                            return true;
+                          })
+                          .map((i) => ({
+                            value: i.id.toString(),
+                            label: i.name,
+                          })),
+                      ]}
+                      value={currentParentId?.toString() || "__none__"}
+                      onValueChange={(value) => {
+                        const newParentId = value === "__none__" ? null : parseInt(value);
+                        handleSetParent(editingItem.id, newParentId);
+                      }}
+                      placeholder={currentParent ? currentParent.name : "None (top-level)"}
+                    />
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Toggles */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label>Active</Label>
+                  <p className="text-xs text-muted-foreground">Show in sidebar</p>
+                </div>
+                <Switch
                   checked={itemForm.is_active}
                   onCheckedChange={(checked) =>
-                    setItemForm((f) => ({ ...f, is_active: !!checked }))
+                    setItemForm((f) => ({ ...f, is_active: checked }))
                   }
                 />
-                <Label htmlFor="edit-item-active">Active (visible)</Label>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="edit-item-collapsed"
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label>Collapsed</Label>
+                  <p className="text-xs text-muted-foreground">Start collapsed</p>
+                </div>
+                <Switch
                   checked={itemForm.is_collapsed_default}
                   onCheckedChange={(checked) =>
-                    setItemForm((f) => ({ ...f, is_collapsed_default: !!checked }))
+                    setItemForm((f) => ({ ...f, is_collapsed_default: checked }))
                   }
                 />
-                <Label htmlFor="edit-item-collapsed">Collapsed by default</Label>
               </div>
             </div>
-            {/* Parent selection for existing items */}
-            {editingItem && !editingItem.parent_id && (
-              <div className="space-y-2">
-                <Label>Make this a child of</Label>
-                <div className="flex flex-wrap gap-2">
-                  {topLevelItems
-                    .filter((i) => i.id !== editingItem.id)
-                    .map((parent) => (
-                      <Button
-                        key={parent.id}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSetParent(editingItem.id, parent.id)}
-                        className="text-xs"
-                      >
-                        {parent.name}
-                      </Button>
-                    ))}
-                </div>
-              </div>
-            )}
-            {editingItem?.parent_id && (
-              <div className="space-y-2">
-                <Label>Currently a child of</Label>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">
-                    {items.find((i) => i.id === editingItem.parent_id)?.name}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSetParent(editingItem.id, null)}
-                    className="text-xs"
-                  >
-                    Make top-level
-                  </Button>
-                </div>
-              </div>
-            )}
+
+            {/* Role Visibility */}
             <div className="space-y-2">
-              <Label>Visible to Roles (empty = all roles)</Label>
-              <div className="flex flex-wrap gap-2">
-                {USER_ROLES.map((role) => (
-                  <div key={role.value} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`edit-item-role-${role.value}`}
-                      checked={itemForm.visible_to_roles.includes(role.value)}
-                      onCheckedChange={(checked) => {
-                        setItemForm((f) => ({
-                          ...f,
-                          visible_to_roles: checked
-                            ? [...f.visible_to_roles, role.value]
-                            : f.visible_to_roles.filter((r) => r !== role.value),
-                        }));
-                      }}
-                    />
-                    <Label
-                      htmlFor={`edit-item-role-${role.value}`}
-                      className="text-sm"
-                    >
-                      {role.label}
-                    </Label>
+              <Label>Visible to Roles</Label>
+              {(() => {
+                // Get live data from items (editingItem is stale after parent changes)
+                const currentItem = items.find((i) => i.id === editingItem?.id);
+                const currentParentId = currentItem?.parent_id;
+                const parent = currentParentId ? items.find((i) => i.id === currentParentId) : null;
+
+                if (currentParentId && parent) {
+                  const parentRoles = parent.visible_to_roles || [];
+                  const hasRoleRestrictions = parentRoles.length > 0;
+                  return (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Inherited from <span className="font-medium">{parent.name}</span>
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {hasRoleRestrictions ? (
+                          // Show only the inherited roles as solid badges
+                          parentRoles.map((roleValue) => {
+                            const role = USER_ROLES.find((r) => r.value === roleValue);
+                            return (
+                              <Badge
+                                key={roleValue}
+                                className="bg-primary text-primary-foreground cursor-not-allowed"
+                              >
+                                {role?.label || roleValue}
+                              </Badge>
+                            );
+                          })
+                        ) : (
+                          // Parent has no restrictions - show "All roles"
+                          <Badge variant="secondary" className="cursor-not-allowed">
+                            All roles
+                          </Badge>
+                        )}
+                      </div>
+                    </>
+                  );
+                }
+                return (
+                <>
+                  <p className="text-xs text-muted-foreground">Leave empty for all roles</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {USER_ROLES.map((role) => {
+                      const isSelected = itemForm.visible_to_roles.includes(role.value);
+                      return (
+                        <Badge
+                          key={role.value}
+                          variant={isSelected ? "default" : "outline"}
+                          className={cn(
+                            "cursor-pointer transition-colors",
+                            isSelected && "bg-primary"
+                          )}
+                          onClick={() => {
+                            setItemForm((f) => ({
+                              ...f,
+                              visible_to_roles: isSelected
+                                ? f.visible_to_roles.filter((r) => r !== role.value)
+                                : [...f.visible_to_roles, role.value],
+                            }));
+                          }}
+                        >
+                          {role.label}
+                        </Badge>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                </>
+                );
+              })()}
             </div>
           </div>
           <DialogFooter>

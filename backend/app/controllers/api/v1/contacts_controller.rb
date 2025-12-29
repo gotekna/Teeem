@@ -185,13 +185,39 @@ module Api
         # Include director details if filtering for directors
         director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
+        # Performance: Eager load associations to avoid N+1 queries
+        # portal_user and corporate_group are always included in as_json response
+        @contacts = @contacts.includes(:portal_user, :corporate_group)
+
+        # Conditional eager loading for company relationships
+        if include_companies
+          @contacts = @contacts.includes(:primary_company, outgoing_relationships: :related_contact)
+        end
+
+        # Performance: Pre-compute expensive boolean flags via SQL (avoids N+1)
+        # These replace the expensive method calls that were causing ~1,130 queries per request
+        contact_ids = @contacts.map(&:id)
+        precomputed_flags = precompute_contact_flags(contact_ids)
+
+        # Note: Removed is_customer?, is_supplier?, is_director? from methods - they're pre-computed above
         contacts_json = @contacts.as_json(
           include: {
             portal_user: {},
             corporate_group: {}
           },
-          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count, :xero_linked_count, :xero_customer?, :xero_supplier? ]
+          methods: [ :is_sales?, :is_land_agent?, :display_name, :company_group_memberships_count, :xero_linked_count, :xero_customer?, :xero_supplier? ]
         )
+
+        # Performance: Build hash map for O(1) lookups instead of O(n²) array search
+        contacts_by_id = @contacts.index_by(&:id)
+
+        # Merge pre-computed flags into JSON
+        contacts_json.each do |contact_json|
+          flags = precomputed_flags[contact_json["id"]] || {}
+          contact_json["is_customer?"] = flags[:is_customer] || false
+          contact_json["is_supplier?"] = flags[:is_supplier] || false
+          contact_json["is_director?"] = flags[:is_director] || false
+        end
 
         # Add company and job counts for all contacts
         if include_companies || include_jobs
@@ -207,7 +233,7 @@ module Api
           end
 
           contacts_json.each do |contact_json|
-            contact = @contacts.find { |c| c.id == contact_json["id"] }
+            contact = contacts_by_id[contact_json["id"]]
             next unless contact
 
             if include_companies
@@ -271,7 +297,7 @@ module Api
           end
 
           contacts_json.each do |contact_json|
-            contact = @contacts.find { |c| c.id == contact_json["id"] }
+            contact = contacts_by_id[contact_json["id"]]
             next unless contact
 
             # Payment terms (for auto-calculating PO due date)
@@ -1360,6 +1386,50 @@ module Api
             role
           end
         end.compact
+      end
+
+      # Performance: Pre-compute is_customer?, is_supplier?, is_director? via SQL
+      # Replaces ~1,130 individual EXISTS queries with 4 batch queries
+      # Returns: { contact_id => { is_customer: bool, is_supplier: bool, is_director: bool } }
+      def precompute_contact_flags(contact_ids)
+        return {} if contact_ids.blank?
+
+        flags = Hash.new { |h, k| h[k] = {} }
+
+        # is_customer: has job_contacts
+        JobContact.where(contact_id: contact_ids)
+          .distinct
+          .pluck(:contact_id)
+          .each { |id| flags[id][:is_customer] = true }
+
+        # is_supplier: has purchase_orders, pricebook_items, price_histories, or bills
+        PurchaseOrder.where(supplier_id: contact_ids)
+          .distinct
+          .pluck(:supplier_id)
+          .each { |id| flags[id][:is_supplier] = true }
+
+        PricebookItem.where(supplier_id: contact_ids)
+          .distinct
+          .pluck(:supplier_id)
+          .each { |id| flags[id][:is_supplier] = true }
+
+        PriceHistory.where(supplier_id: contact_ids)
+          .distinct
+          .pluck(:supplier_id)
+          .each { |id| flags[id][:is_supplier] = true }
+
+        ExternalInvoice.bills.where(contact_id: contact_ids)
+          .distinct
+          .pluck(:contact_id)
+          .each { |id| flags[id][:is_supplier] = true }
+
+        # is_director: has current directorships
+        CorporateCompanyDirector.where(contact_id: contact_ids, is_current: true)
+          .distinct
+          .pluck(:contact_id)
+          .each { |id| flags[id][:is_director] = true }
+
+        flags
       end
 
     end
