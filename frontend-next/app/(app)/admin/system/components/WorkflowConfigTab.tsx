@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2,
   GripVertical,
   X,
   Briefcase,
@@ -27,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
 import {
   DndContext,
   closestCenter,
@@ -459,7 +459,7 @@ export function WorkflowConfigTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -530,7 +530,7 @@ export function WorkflowConfigTab() {
                 >
                   {savingDescription ? (
                     <>
-                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      <Spinner size={12} className="mr-1" />
                       Saving...
                     </>
                   ) : (
@@ -560,7 +560,7 @@ export function WorkflowConfigTab() {
               </div>
             ) : loadingStatuses ? (
               <div className="flex items-center justify-center h-[400px]">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Spinner size={24} className="text-muted-foreground" />
               </div>
             ) : (
               <div className="space-y-4">
@@ -630,7 +630,7 @@ export function WorkflowConfigTab() {
               </div>
             ) : loadingStages ? (
               <div className="flex items-center justify-center h-[400px]">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Spinner size={24} className="text-muted-foreground" />
               </div>
             ) : (
               <div className="space-y-4">

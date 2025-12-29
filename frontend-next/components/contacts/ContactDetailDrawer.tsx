@@ -22,7 +22,6 @@ import {
   Users,
   ShieldCheck,
   ExternalLink,
-  Loader2,
   FileText,
   Hash,
   MessageSquare,
@@ -31,6 +30,7 @@ import { api } from "@/lib/api";
 import { slugifyContactName } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
 import { EntityChat } from "@/components/chat/EntityChat";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ContactPerson {
   id: number;
@@ -149,7 +149,7 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
       <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : !contact ? (
           <div className="flex items-center justify-center h-full">

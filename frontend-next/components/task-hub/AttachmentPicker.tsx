@@ -6,8 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { Spinner } from "@/components/ui/spinner";
 import { api } from '@/lib/api';
-import { Mail, FileText, Upload, X, Search, Loader2 } from 'lucide-react';
+import {
+  Mail,
+  FileText,
+  Upload,
+  X,
+  Search,
+} from "lucide-react";
 
 export interface PendingAttachment {
   type: 'email' | 'document' | 'upload';
@@ -154,7 +161,7 @@ function EmailSearchPanel({
           className="text-sm pr-8"
         />
         {loading ? (
-          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+          <Spinner size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
         ) : (
           <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         )}
@@ -247,7 +254,7 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
           className="text-sm pr-8"
         />
         {loading ? (
-          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+          <Spinner size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
         ) : (
           <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         )}
@@ -255,7 +262,7 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
       <div className="max-h-[320px] overflow-y-auto space-y-1">
         {loading ? (
           <div className="flex justify-center py-4">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Spinner size={24} className="text-muted-foreground" />
           </div>
         ) : documents.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-4">No documents found</p>

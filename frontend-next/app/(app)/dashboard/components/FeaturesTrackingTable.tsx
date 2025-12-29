@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 // Badge imported but kept for potential future use
-import { Loader2, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface FeatureChapter {
@@ -115,7 +116,7 @@ export default function FeaturesTrackingTable() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

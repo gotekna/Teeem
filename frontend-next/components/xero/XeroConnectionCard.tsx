@@ -15,7 +15,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Loader2,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -25,6 +24,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -229,7 +229,7 @@ export function XeroConnectionCard({
       <Card className="mb-4">
         <CardContent className="p-4">
           <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Spinner size={16} />
             <span className="text-sm text-muted-foreground">Loading Xero status...</span>
           </div>
         </CardContent>
@@ -319,7 +319,7 @@ export function XeroConnectionCard({
                   disabled={syncing}
                 >
                   {syncing ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <RefreshCw className="h-4 w-4 mr-2" />
                   )}
@@ -333,7 +333,7 @@ export function XeroConnectionCard({
                   className="text-destructive hover:text-destructive"
                 >
                   {disconnecting ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <Unlink className="h-4 w-4 mr-2" />
                   )}
@@ -347,7 +347,7 @@ export function XeroConnectionCard({
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {connecting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <Link2 className="h-4 w-4 mr-2" />
                 )}

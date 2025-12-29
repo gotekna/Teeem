@@ -20,11 +20,12 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, Loader2, SkipForward } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 
 // SSoT: SmTask interface removed - data now fetched via Foundation API
 // TeeemTableView handles data internally with autoFetchRecords
@@ -332,7 +333,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
             <>
               {(comparing || loadingTemplate) && !compareResult && (
                 <div className="py-8 flex flex-col items-center gap-2">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <Spinner size={32} className="text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
                     {loadingTemplate ? "Loading template..." : "Comparing template with job tasks..."}
                   </p>
@@ -472,7 +473,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
                     >
                       {syncing ? (
                         <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Spinner size={16} className="mr-2" />
                           Syncing...
                         </>
                       ) : (

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ExternalLink,
   Play,
@@ -17,7 +18,6 @@ import {
   CheckCircle2,
   Circle,
   Clock,
-  Loader2,
 } from "lucide-react";
 
 interface Feature {
@@ -241,7 +241,7 @@ export function UnrealEngineTab() {
 
             <Button variant="outline" onClick={checkServerStatus} disabled={checkingStatus}>
               {checkingStatus ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <div className={`h-2 w-2 rounded-full mr-2 ${
                   serverStatus === "running" ? "bg-green-500" :

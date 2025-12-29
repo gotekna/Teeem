@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   ChevronDown,
   Check,
-  Loader2,
   Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -225,7 +224,7 @@ export function ContactHeader({
                               disabled={pushing}
                             >
                               {pushing ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Spinner size={12} />
                               ) : (
                                 <>
                                   <Plus className="h-3 w-3 mr-1" />

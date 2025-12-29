@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { FileText, Loader2, RefreshCw } from "lucide-react";
+import { FileText, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 import { useRouter } from "next/navigation";
 
 // Warehouse invoice type (from external_invoices table)
@@ -208,7 +209,7 @@ export function XeroInvoicesListByTenant({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

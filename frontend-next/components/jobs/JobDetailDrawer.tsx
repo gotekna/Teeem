@@ -30,7 +30,6 @@ import {
   Cloud,
   MessageSquare,
   ClipboardList,
-  Loader2,
   Shield,
   ExternalLink,
 } from "lucide-react";
@@ -45,6 +44,7 @@ import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
 import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Contact {
   id: number;
@@ -155,7 +155,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
       <SheetContent side="right" className="w-full sm:max-w-2xl lg:max-w-4xl p-0 flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : !job ? (
           <div className="flex items-center justify-center h-full">

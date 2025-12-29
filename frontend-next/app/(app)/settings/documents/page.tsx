@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Save, Loader2, CheckCircle2, FolderOpen } from "lucide-react";
+import { Save, CheckCircle2, FolderOpen } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface DocumentPaths {
@@ -66,7 +67,7 @@ export default function DocumentSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -166,7 +167,7 @@ export default function DocumentSettingsPage() {
           <div className="pt-4">
             <Button onClick={handleSave} disabled={saving} className="w-full">
               {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}

@@ -11,7 +11,8 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { getTabComponent } from "@/lib/tab-component-registry";
 import type { CorporateCompany } from "@/lib/types/corporate";
 
@@ -50,7 +51,7 @@ interface OverviewTabRendererProps {
 function TabSkeleton() {
   return (
     <div className="flex items-center justify-center p-8">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <Spinner size={24} className="text-muted-foreground" />
     </div>
   );
 }

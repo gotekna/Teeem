@@ -31,7 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Loader2,
   RefreshCw,
   CheckCircle2,
   Clock,
@@ -51,6 +50,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 function formatCurrency(value: number): string {
@@ -438,7 +438,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -571,7 +571,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
               disabled={autoMatching}
             >
               {autoMatching ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
@@ -669,7 +669,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                               title="Generate Invoice PDF"
                             >
                               {generatingPdfId === stage.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Spinner size={16} />
                               ) : (
                                 <FileDown className="h-4 w-4" />
                               )}
@@ -683,7 +683,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                               title="Unmatch invoice"
                             >
                               {matchingStageId === stage.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Spinner size={16} />
                               ) : (
                                 <Unlink className="h-4 w-4" />
                               )}
@@ -711,7 +711,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                             disabled={creatingInvoiceId === stage.id}
                           >
                             {creatingInvoiceId === stage.id ? (
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              <Spinner size={16} className="mr-1" />
                             ) : (
                               <Plus className="h-4 w-4 mr-1" />
                             )}
@@ -775,7 +775,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                                 disabled={releasingRetainageId === stage.id}
                               >
                                 {releasingRetainageId === stage.id ? (
-                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  <Spinner size={12} className="mr-1" />
                                 ) : (
                                   <Unlock className="h-3 w-3 mr-1" />
                                 )}
@@ -947,7 +947,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
             >
               {matchingStageId ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Matching...
                 </>
               ) : (

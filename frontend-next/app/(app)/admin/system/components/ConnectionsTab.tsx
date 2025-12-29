@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Loader2,
   Cloud,
   Mail,
   MessageSquare,
@@ -56,6 +55,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 
 // SharePoint Connection Component
 function SharePointConnection() {
@@ -118,7 +118,7 @@ function SharePointConnection() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size={24} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -177,7 +177,7 @@ function SharePointConnection() {
                 disabled={disconnecting}
               >
                 {disconnecting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <X className="h-4 w-4 mr-2" />
                 )}
@@ -188,7 +188,7 @@ function SharePointConnection() {
         ) : (
           <Button onClick={handleConnect} disabled={connecting}>
             {connecting ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
             ) : (
               <Cloud className="h-4 w-4 mr-2" />
             )}
@@ -271,7 +271,7 @@ function OutlookConnection() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size={24} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -347,7 +347,7 @@ function OutlookConnection() {
           <div className="space-y-4">
             <Button onClick={handleConnect} disabled={connecting}>
               {connecting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Mail className="h-4 w-4 mr-2" />
               )}
@@ -445,7 +445,7 @@ function TwilioConfiguration() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size={24} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -531,7 +531,7 @@ function TwilioConfiguration() {
           <Button onClick={handleSave} disabled={saving}>
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Saving...
               </>
             ) : (
@@ -545,7 +545,7 @@ function TwilioConfiguration() {
           >
             {testing ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Testing...
               </>
             ) : (
@@ -746,7 +746,7 @@ function S3StorageConnection() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center h-24">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Spinner size={20} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -907,7 +907,7 @@ function S3StorageConnection() {
                 onClick={handleTest}
                 disabled={testing || !formData.bucket || !formData.access_key_id}
               >
-                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <TestTube className="h-4 w-4 mr-1" />}
+                {testing ? <Spinner size={16} /> : <TestTube className="h-4 w-4 mr-1" />}
                 Test
               </Button>
               <Button
@@ -915,7 +915,7 @@ function S3StorageConnection() {
                 onClick={handleSave}
                 disabled={saving || !formData.name || !formData.bucket || !formData.access_key_id}
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                {saving ? <Spinner size={16} /> : "Save"}
               </Button>
             </div>
           </div>
@@ -1103,7 +1103,7 @@ function DocumentStorageProvider() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size={24} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -1191,7 +1191,7 @@ function DocumentStorageProvider() {
                 disabled={savingProvider || (selectedProvider !== "sharepoint" && !selectedCredentialId)}
               >
                 {savingProvider ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  <Spinner size={16} className="mr-1" />
                 ) : (
                   <Check className="h-4 w-4 mr-1" />
                 )}
@@ -1323,10 +1323,10 @@ function DocumentStorageProvider() {
               </a>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleS3Test} disabled={testing || !s3Form.bucket}>
-                  {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Test"}
+                  {testing ? <Spinner size={12} /> : "Test"}
                 </Button>
                 <Button size="sm" onClick={handleS3Save} disabled={saving || !s3Form.name || !s3Form.bucket}>
-                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                  {saving ? <Spinner size={12} /> : "Save"}
                 </Button>
               </div>
             </div>
@@ -1488,7 +1488,7 @@ function DocumentMigration() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size={24} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -1514,7 +1514,7 @@ function DocumentMigration() {
           </div>
           {status?.migration_in_progress && (
             <Badge variant="outline" className="animate-pulse">
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              <Spinner size={12} className="mr-1" />
               Migrating...
             </Badge>
           )}
@@ -1616,7 +1616,7 @@ function DocumentMigration() {
                 disabled={starting || !estimate || estimate.document_count === 0}
               >
                 {starting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <Play className="h-4 w-4 mr-2" />
                 )}
@@ -1625,7 +1625,7 @@ function DocumentMigration() {
               {hasFailures && (
                 <Button variant="outline" onClick={handleRetryFailed} disabled={retrying}>
                   {retrying ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <RotateCcw className="h-4 w-4 mr-2" />
                   )}
@@ -1636,7 +1636,7 @@ function DocumentMigration() {
           ) : (
             <Button variant="destructive" onClick={handleCancelMigration} disabled={cancelling}>
               {cancelling ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Square className="h-4 w-4 mr-2" />
               )}

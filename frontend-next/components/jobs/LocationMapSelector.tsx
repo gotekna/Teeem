@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MapPin, Loader2, Check } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { MapPin, Check } from "lucide-react";
 import { api } from "@/lib/api";
 
 // Dynamically import Leaflet components to avoid SSR issues
@@ -162,7 +163,7 @@ export function LocationMapSelector({
   if (!leafletReady) {
     return (
       <div className="flex items-center justify-center h-64 bg-muted rounded-lg">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -180,7 +181,7 @@ export function LocationMapSelector({
           className="mt-1"
         />
         {searching && (
-          <Loader2 className="absolute right-3 top-9 h-4 w-4 animate-spin text-muted-foreground" />
+          <Spinner size={16} className="absolute right-3 top-9 text-muted-foreground" />
         )}
 
         {showSuggestions && addressSuggestions.length > 0 && (

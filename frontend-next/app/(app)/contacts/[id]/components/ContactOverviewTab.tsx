@@ -36,8 +36,20 @@ import {
   validateABN,
   validateACN,
 } from "../types";
-import { Link2, Users, Building2, ExternalLink, Plus, Trash2, ChevronDown, ChevronRight, Search, X, Loader2 } from "lucide-react";
+import {
+  Link2,
+  Users,
+  Building2,
+  ExternalLink,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  Search,
+  X,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
 
 // Simplified props - component manages its own state
@@ -776,7 +788,7 @@ export function ContactOverviewTab({
                                   disabled={savingCompanyLink}
                                 >
                                   {savingCompanyLink ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    <Spinner size={12} />
                                   ) : (
                                     <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                                   )}
@@ -844,7 +856,7 @@ export function ContactOverviewTab({
                         {/* Search results */}
                         {searchingCompany ? (
                           <div className="flex items-center justify-center py-4">
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            <Spinner size={16} className="text-muted-foreground" />
                           </div>
                         ) : companySearchResults.length > 0 ? (
                           <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-1">
@@ -955,7 +967,7 @@ export function ContactOverviewTab({
                           {/* Search results */}
                           {searchingPerson ? (
                             <div className="flex items-center justify-center py-4">
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              <Spinner size={16} className="text-muted-foreground" />
                             </div>
                           ) : personSearchResults.length > 0 ? (
                             <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-1">

@@ -25,7 +25,6 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { BackButton } from "@/components/ui/back-button";
 import {
-  Loader2,
   Play,
   FileText,
   Mail,
@@ -78,6 +77,7 @@ import { CaseEntitiesTab } from "@/components/cases/CaseEntitiesTab";
 import { CaseQATab } from "@/components/cases/CaseQATab";
 import { CaseOverviewTab } from "@/components/cases/CaseOverviewTab";
 import { CaseDocumentsTab } from "@/components/cases/CaseDocumentsTab";
+import { Spinner } from "@/components/ui/spinner";
 
 // Tabs for case detail
 const CASE_TABS = [
@@ -609,7 +609,7 @@ export default function CaseDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -837,7 +837,7 @@ export default function CaseDetailPage() {
           <div className="space-y-6">
             {loadingRelationships ? (
               <div className="flex items-center justify-center h-32">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Spinner size={24} className="text-muted-foreground" />
               </div>
             ) : (
               <>
@@ -1161,7 +1161,7 @@ export default function CaseDetailPage() {
             <CardContent>
               {loadingActions ? (
                 <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : actions.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -1181,7 +1181,7 @@ export default function CaseDetailPage() {
                               <Badge className={getActionStatusColor(action.status)}>
                                 {action.status === "completed" && <CheckCircle className="h-3 w-3 mr-1" />}
                                 {action.status === "failed" && <XCircle className="h-3 w-3 mr-1" />}
-                                {action.status === "running" && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                                {action.status === "running" && <Spinner size={12} className="mr-1" />}
                                 {action.status}
                               </Badge>
                             </div>
@@ -1239,7 +1239,7 @@ export default function CaseDetailPage() {
             <CardContent>
               {loadingEmails ? (
                 <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : emails.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -1367,7 +1367,7 @@ export default function CaseDetailPage() {
                 </Button>
                 <Button onClick={runAction} disabled={!selectedActionType || runningAction}>
                   {runningAction ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <Play className="h-4 w-4 mr-2" />
                   )}
@@ -1422,7 +1422,7 @@ export default function CaseDetailPage() {
               disabled={!newSubCaseTitle.trim() || creatingSubCase}
             >
               {creatingSubCase ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Plus className="h-4 w-4 mr-2" />
               )}
@@ -1538,7 +1538,7 @@ export default function CaseDetailPage() {
             </Button>
             <Button onClick={handleSaveCase} disabled={savingCase || !editCaseForm.title.trim()}>
               {savingCase ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : null}
               Save Changes
             </Button>

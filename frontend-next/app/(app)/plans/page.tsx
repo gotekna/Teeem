@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw,
   Play,
@@ -15,7 +16,6 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Loader2,
   Scan,
 } from "lucide-react";
 import {
@@ -138,7 +138,7 @@ export default function PlansPage() {
       case "pending":
         return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
       case "processing":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Processing</Badge>;
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200"><Spinner size={12} className="mr-1" />Processing</Badge>;
       case "processed":
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Processed</Badge>;
       case "skipped":
@@ -169,7 +169,7 @@ export default function PlansPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -190,7 +190,7 @@ export default function PlansPage() {
           </Button>
           <Button onClick={handleScanFolders} disabled={scanning}>
             {scanning ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
             ) : (
               <Scan className="h-4 w-4 mr-2" />
             )}

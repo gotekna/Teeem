@@ -75,7 +75,6 @@ import {
   Play,
   PlusCircle,
   MinusCircle,
-  Loader2,
   Save,
   RotateCcw,
   Plus,
@@ -202,6 +201,7 @@ import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumn
 import { DataHealthWidget, HealthIndicatorButton } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { Spinner } from "@/components/ui/spinner";
 import { MergeModal } from "./MergeModal";
 import { EmailToContactsModal } from "../emails/EmailToContactsModal";
 import { ViewManagerSheet } from "./views";
@@ -3618,7 +3618,7 @@ export default function TeeemTableView({
         >
           <div className="flex items-center gap-2 whitespace-nowrap">
             {isLoadingThisGroup ? (
-              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              <Spinner size={16} className="shrink-0" />
             ) : isCollapsed ? (
               <ChevronRight className="h-4 w-4 shrink-0" />
             ) : (
@@ -3665,7 +3665,7 @@ export default function TeeemTableView({
               className="flex items-center justify-center py-8 text-muted-foreground"
               style={{ marginLeft: `${16 + depth * 24}px` }}
             >
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <Spinner size={20} className="mr-2" />
               <span>Loading {serverCount ? serverCount.toLocaleString() : ''} records...</span>
             </div>
           );
@@ -3894,7 +3894,7 @@ export default function TeeemTableView({
           >
             <div className="flex items-center gap-2 whitespace-nowrap">
               {isLoadingThisGroup ? (
-                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                <Spinner size={16} className="shrink-0" />
               ) : isCollapsed ? (
                 <ChevronRight className="h-4 w-4 shrink-0" />
               ) : (
@@ -3938,7 +3938,7 @@ export default function TeeemTableView({
                 className="py-8 text-center text-muted-foreground"
               >
                 <div className="flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  <Spinner size={20} className="mr-2" />
                   <span>Loading {serverCount ? serverCount.toLocaleString() : ''} records...</span>
                 </div>
               </TableCell>
@@ -4346,7 +4346,7 @@ export default function TeeemTableView({
             {/* Load All button OR loading indicator - inline with record count */}
             {loadingMore ? (
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Spinner size={12} />
                 Loading more records...
               </span>
             ) : serverHasMore && onLoadAll ? (
@@ -4636,7 +4636,7 @@ export default function TeeemTableView({
                   {foundationId === "contacts" && (
                     <DropdownMenuItem onClick={handleFindMissingAbns} disabled={isFindingAbns}>
                       {isFindingAbns ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Spinner size={16} className="mr-2" />
                       ) : (
                         <Search className="h-4 w-4 mr-2" />
                       )}
@@ -5048,7 +5048,7 @@ export default function TeeemTableView({
         ) : filteredAndSortedEntries.length === 0 && loadingMore ? (
           /* Show loading state when searching but still loading records */
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="h-8 w-8 animate-spin mb-4" />
+            <Spinner size={32} className="mb-4" />
             <p className="text-sm font-medium">Loading records...</p>
             <p className="text-xs mt-1">Searching through all {totalCount || 'available'} records</p>
           </div>
@@ -5316,7 +5316,7 @@ export default function TeeemTableView({
                 >
                   {isDeleting ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Deleting...
                     </>
                   ) : (

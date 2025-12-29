@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { getApiBaseUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Mail, RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { Mail, RefreshCw } from "lucide-react";
 
 interface EmailVerificationStepProps {
   token: string;
@@ -161,7 +162,7 @@ export function EmailVerificationStep({
           <Button onClick={sendCode} disabled={isSending} className="w-full max-w-xs">
             {isSending ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Sending...
               </>
             ) : (
@@ -208,7 +209,7 @@ export function EmailVerificationStep({
             >
               {isVerifying ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Verifying...
                 </>
               ) : (

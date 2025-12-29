@@ -23,11 +23,11 @@ import {
   Eye,
   Copy,
   FileText,
-  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface MinuteTemplate {
   id: number;
@@ -267,7 +267,7 @@ export default function MinuteTemplatesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -526,7 +526,7 @@ Director`}
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingTemplate ? (
@@ -549,7 +549,7 @@ Director`}
           <div className="flex-1 overflow-y-auto py-4">
             {previewLoading ? (
               <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Spinner size={32} className="text-muted-foreground" />
               </div>
             ) : previewContent ? (
               <div className="space-y-4">

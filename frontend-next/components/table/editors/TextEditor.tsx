@@ -23,7 +23,8 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from "@/components/ui/spinner";
+
 import type { TextEditorProps } from './types';
 
 export function TextEditor({
@@ -144,7 +145,7 @@ export function TextEditor({
       {/* Saving indicator */}
       {isSaving && (
         <div className="absolute right-2 top-1/2 -translate-y-1/2">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Spinner size={16} className="text-muted-foreground" />
         </div>
       )}
 

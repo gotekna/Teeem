@@ -1,13 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertCircle, Check, X, Loader2, Users, Percent, Clock, FileText } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  X,
+  Users,
+  Percent,
+  Clock,
+  FileText,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface Contact {
@@ -248,7 +257,7 @@ export function XeroDuplicateReviewPanel({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -351,7 +360,7 @@ export function XeroDuplicateReviewPanel({
                 className="text-destructive hover:text-destructive"
               >
                 {processingId === group.id ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <X className="h-4 w-4 mr-2" />
                 )}
@@ -363,7 +372,7 @@ export function XeroDuplicateReviewPanel({
                 disabled={processingId === group.id}
               >
                 {processingId === group.id ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <Check className="h-4 w-4 mr-2" />
                 )}

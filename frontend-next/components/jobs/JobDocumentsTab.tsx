@@ -27,7 +27,6 @@ import {
   ShieldCheck,
   Settings,
   RefreshCw,
-  Loader2,
   ChevronRight,
   ArrowLeft,
   File,
@@ -54,6 +53,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { uploadToSharePointDirect, type UploadProgress } from "@/lib/sharepoint-upload";
 
@@ -1311,7 +1311,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         {/* Content for the active category */}
         {loadingTasks ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : (
           <div className="space-y-4">
@@ -1360,7 +1360,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         >
                           {uploadingPhoto ? (
                             <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              <Spinner size={16} className="mr-2" />
                               Uploading...
                             </>
                           ) : (
@@ -1492,7 +1492,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                 <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
                                   <span>
                                     {uploading === task.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      <Spinner size={16} />
                                     ) : (
                                       <Upload className="h-4 w-4 mr-1" />
                                     )}
@@ -1547,7 +1547,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (orgStatus.loading) {
       return (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="text-muted-foreground" />
         </div>
       );
     }
@@ -1585,7 +1585,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               <Button onClick={handleCreateFolders} disabled={creatingFolders}>
                 {creatingFolders ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                     Creating Folders...
                   </>
                 ) : (
@@ -1682,7 +1682,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           <CardContent className="p-0">
             {loadingContents ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Spinner size={32} className="text-muted-foreground" />
               </div>
             ) : currentFolderId ? (
               // Show folder contents
@@ -1794,7 +1794,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (orgStatus.loading) {
       return (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="text-muted-foreground" />
         </div>
       );
     }
@@ -1866,7 +1866,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               disabled={analyzingDocs || loadingAllFiles}
             >
               {analyzingDocs ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                <Spinner size={16} className="mr-1" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-1" />
               )}
@@ -1879,7 +1879,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               disabled={loadingAllFiles}
             >
               {loadingAllFiles ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size={16} />
               ) : (
                 <RefreshCw className="h-4 w-4 mr-1" />
               )}
@@ -1983,7 +1983,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         title="Approve rename"
                       >
                         {approvingDoc === item.document_id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Spinner size={16} />
                         ) : (
                           <Check className="h-4 w-4" />
                         )}
@@ -2044,7 +2044,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             <CardContent className="p-0">
               {loadingAllFiles ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <Spinner size={32} className="text-muted-foreground" />
                 </div>
               ) : (
                 <Table>
@@ -2165,7 +2165,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         }>
           <CardContent className="p-4 flex items-center gap-2">
             {message.type === "info" ? (
-              <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+              <Spinner size={20} className="text-blue-600" />
             ) : (
               <CheckCircle className="h-5 w-5 text-green-600" />
             )}
@@ -2235,7 +2235,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           <div className="flex-1 overflow-y-auto min-h-0">
             {loadingLegacy ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Spinner size={32} className="text-muted-foreground" />
                 <span className="ml-3 text-muted-foreground">Searching for files...</span>
               </div>
             ) : legacyItems.length === 0 ? (
@@ -2317,7 +2317,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             >
               {importing ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Importing...
                 </>
               ) : (
@@ -2389,7 +2389,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             >
               {deleting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Deleting...
                 </>
               ) : (

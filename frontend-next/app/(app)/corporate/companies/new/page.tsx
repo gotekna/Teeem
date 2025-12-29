@@ -15,8 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Save, Search } from "lucide-react";
+import { Save, Search } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface CompanyGroup {
@@ -298,7 +299,7 @@ export default function NewCompanyPage() {
                 >
                   {lookingUp ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Looking up...
                     </>
                   ) : (
@@ -476,7 +477,7 @@ export default function NewCompanyPage() {
             <Button type="submit" disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (

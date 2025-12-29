@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  Loader2,
   FileText,
   Search,
   ExternalLink,
@@ -34,6 +33,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { Spinner } from "@/components/ui/spinner";
 
 interface CaseDocument {
   id: number;
@@ -214,7 +214,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
         <CardContent>
           {caseFolderInfo === null ? (
             <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Spinner size={20} className="text-muted-foreground" />
               <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
             </div>
           ) : caseFolderInfo.has_folder ? (
@@ -238,7 +238,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
               <Button onClick={createCaseFolder} disabled={creatingFolder}>
                 {creatingFolder ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                     Creating...
                   </>
                 ) : (
@@ -392,7 +392,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
                 >
                   {scanningFolders ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Scanning...
                     </>
                   ) : (
@@ -420,7 +420,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
         <CardContent>
           {loadingDocuments ? (
             <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Spinner size={24} className="text-muted-foreground" />
             </div>
           ) : documents.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">

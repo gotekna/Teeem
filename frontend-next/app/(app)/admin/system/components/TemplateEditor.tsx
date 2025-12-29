@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
 import {
-  Loader2,
   Save,
   Eye,
   Code,
@@ -194,7 +194,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -292,7 +292,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
                 </div>
                 <Button onClick={saveTemplate} disabled={saving || !hasChanges}>
                   {saving ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <Save className="h-4 w-4 mr-2" />
                   )}
@@ -380,7 +380,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
                     {selectedLayout && (
                       <Button onClick={saveLayout} disabled={saving || !hasChanges}>
                         {saving ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Spinner size={16} className="mr-2" />
                         ) : (
                           <Save className="h-4 w-4 mr-2" />
                         )}
@@ -428,7 +428,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
             <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
               {previewLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <Spinner size={32} className="text-muted-foreground" />
                 </div>
               ) : (
                 <div className="h-full overflow-auto bg-white">

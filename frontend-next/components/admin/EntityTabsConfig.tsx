@@ -71,7 +71,6 @@ import {
   ItemBadge,
 } from "@/components/ui/dnd";
 import {
-  Loader2,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -91,6 +90,7 @@ import { api } from "@/lib/api";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import { useUrlState } from "@/hooks/useUrlState";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { Spinner } from "@/components/ui/spinner";
 import type {
   EntityTab,
   EntityTabScope,
@@ -1157,7 +1157,7 @@ export function EntityTabsConfig({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1236,7 +1236,7 @@ export function EntityTabsConfig({
                     </Badge>
                   ))}
                   {entityTypesSaving && (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <Spinner size={16} className="text-muted-foreground" />
                   )}
                 </div>
                 <div className="flex gap-2">
@@ -1369,7 +1369,7 @@ export function EntityTabsConfig({
                 Cancel
               </Button>
               <Button size="sm" onClick={handleFormSubmit} disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {saving && <Spinner size={16} className="mr-2" />}
                 {editingTab ? "Save Changes" : "Create Tab"}
               </Button>
             </div>
@@ -1806,7 +1806,7 @@ export function EntityTabsConfig({
               onClick={() => deleteConfirmTab && handleDelete(deleteConfirmTab)}
               disabled={saving}
             >
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {saving && <Spinner size={16} className="mr-2" />}
               Delete
             </Button>
           </DialogFooter>
@@ -1816,7 +1816,7 @@ export function EntityTabsConfig({
       {/* Saving indicator */}
       {saving && (
         <div className="fixed bottom-4 right-4 bg-background border rounded-lg shadow-lg px-4 py-2 flex items-center gap-2 z-50">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Spinner size={16} />
           <span className="text-sm">Saving...</span>
         </div>
       )}

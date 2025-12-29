@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Scan, Loader2 } from "lucide-react";
+import { Scan } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { XeroDuplicateReviewPanel } from "@/components/contacts/XeroDuplicateReviewPanel";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 export default function DuplicatesPage() {
@@ -51,7 +52,7 @@ export default function DuplicatesPage() {
         <Button onClick={handleScan} disabled={scanning}>
           {scanning ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
               Scanning...
             </>
           ) : (

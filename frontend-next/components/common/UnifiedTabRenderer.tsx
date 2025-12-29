@@ -27,7 +27,8 @@ import { Suspense } from "react";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import { getTabComponent, isTabComponentRegistered } from "@/lib/tab-component-registry";
 import { TabNavigation } from "./TabNavigation";
-import { Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import type { EntityTab, EntityTabScope, TabGroup } from "@/lib/types/entity-tabs";
 import type { TabComponentProps, TabNavigationState } from "@/lib/types/tab-component";
 
@@ -95,7 +96,7 @@ interface UnifiedTabRendererProps {
 function TabSkeleton() {
   return (
     <div className="flex items-center justify-center p-8">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <Spinner size={24} className="text-muted-foreground" />
     </div>
   );
 }

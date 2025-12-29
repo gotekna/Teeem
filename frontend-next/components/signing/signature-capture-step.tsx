@@ -5,7 +5,14 @@ import { getApiBaseUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Pen, Type, Upload, Trash2, ArrowLeft } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Pen,
+  Type,
+  Upload,
+  Trash2,
+  ArrowLeft,
+} from "lucide-react";
 
 interface SignatureCaptureStepProps {
   token: string;
@@ -413,7 +420,7 @@ export function SignatureCaptureStep({
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Spinner size={16} className="mr-2" />
               {initialsMode ? "Applying..." : "Signing..."}
             </>
           ) : (

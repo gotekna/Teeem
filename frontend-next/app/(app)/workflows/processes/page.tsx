@@ -39,7 +39,6 @@ import {
   Eye,
   ChevronDown,
   ChevronRight,
-  Loader2,
   Circle,
 } from "lucide-react";
 import {
@@ -50,6 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { formatDistanceToNow } from "date-fns";
 
 interface BpmnProcessSummary {
@@ -746,7 +746,7 @@ export default function BpmnProcessesPage() {
                         <div className="border-t dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
                           {detailLoading ? (
                             <div className="flex items-center justify-center py-8">
-                              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                              <Spinner size={24} className="text-slate-400" />
                             </div>
                           ) : instanceDetail ? (
                             <div className="space-y-4">

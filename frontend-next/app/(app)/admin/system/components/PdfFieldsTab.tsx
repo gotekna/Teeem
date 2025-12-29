@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
@@ -43,6 +42,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { Spinner } from "@/components/ui/spinner";
 
 // Initialize pdf.js worker
 if (typeof window !== "undefined") {
@@ -650,7 +650,7 @@ export function PdfFieldsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <Spinner size={32} />
       </div>
     );
   }
@@ -756,7 +756,7 @@ export function PdfFieldsTab() {
           onClick={loadPdfPreview}
           disabled={loadingPdf}
         >
-          {loadingPdf ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+          {loadingPdf ? <Spinner size={12} className="mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
           Reload PDF
         </Button>
 
@@ -1044,7 +1044,7 @@ export function PdfFieldsTab() {
       >
         {loadingPdf ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin" />
+            <Spinner size={32} />
           </div>
         ) : pdfUrl ? (
           <div className="flex gap-2 p-2 pb-8" style={{ minHeight: 'min-content' }}>

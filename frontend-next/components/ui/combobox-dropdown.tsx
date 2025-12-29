@@ -1,6 +1,12 @@
 "use client";
 
-import { Check, ChevronsUpDown, Search, X, Loader2 } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  Search,
+  X,
+} from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import * as React from "react";
 
 import { CommandList } from "cmdk";
@@ -200,7 +206,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         <CommandList ref={listRef} className="max-h-[300px] overflow-y-auto overflow-x-hidden">
           {isLoading ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Spinner size={20} className="text-muted-foreground" />
             </div>
           ) : (
             <>
@@ -315,7 +321,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
             />
             {/* Icon: Loading > Clear > Search */}
             {isLoading ? (
-              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+              <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             ) : clearable && selectedItem && !open ? (
               <X
                 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"

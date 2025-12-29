@@ -5,7 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, Pencil, X, Calendar, FileText, Eye, Download, Send } from "lucide-react";
+import {
+  Save,
+  Pencil,
+  X,
+  Calendar,
+  FileText,
+  Eye,
+  Download,
+  Send,
+} from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Job {
   id: number;
@@ -483,7 +493,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                 disabled={generating}
               >
                 {generating ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <FileText className="h-4 w-4 mr-2" />
                 )}
@@ -501,7 +511,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                 Cancel
               </Button>
               <Button onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                {saving ? <Spinner size={16} className="mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Save
               </Button>
             </>
@@ -1023,7 +1033,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
               disabled={generating}
             >
               {generating ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}

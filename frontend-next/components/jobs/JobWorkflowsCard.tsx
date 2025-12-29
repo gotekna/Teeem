@@ -13,7 +13,6 @@ import {
 import { api } from '@/lib/api';
 import {
   Workflow,
-  Loader2,
   CheckCircle,
   Clock,
   AlertCircle,
@@ -24,10 +23,11 @@ import {
   Pause,
   Play,
   X,
-} from 'lucide-react';
+} from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
+import { Spinner } from "@/components/ui/spinner";
 
 interface WorkflowInstance {
   id: number;
@@ -149,7 +149,7 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Spinner size={20} className="text-muted-foreground" />
           </div>
         </CardContent>
       </Card>

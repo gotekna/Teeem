@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -27,7 +28,6 @@ import {
   AlertTriangle,
   Clock,
   RefreshCcw,
-  Loader2,
   ExternalLink,
   BarChart3,
   FolderOpen,
@@ -475,7 +475,7 @@ export function DataWarehouseTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -717,7 +717,7 @@ export function DataWarehouseTab() {
                 </div>
               ) : (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner size={24} className="text-muted-foreground" />
                 </div>
               )}
             </CardContent>
@@ -757,7 +757,7 @@ export function DataWarehouseTab() {
               <CardContent>
                 {loadingViewData ? (
                   <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <Spinner size={32} className="text-muted-foreground" />
                   </div>
                 ) : viewData && viewData.data.length > 0 ? (
                   <div className="space-y-4">
@@ -1223,7 +1223,7 @@ export function DataWarehouseTab() {
                         ) : activity.status === "failed" ? (
                           <XCircle className="h-3 w-3 text-red-500" />
                         ) : (
-                          <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                          <Spinner size={12} className="text-blue-500" />
                         )}
                         <span className="font-mono">{activity.view_name}</span>
                       </div>

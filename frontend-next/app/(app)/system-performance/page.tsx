@@ -9,12 +9,13 @@ import {
   CpuChipIcon,
   CircleStackIcon,
 } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 // Types
@@ -110,7 +111,7 @@ export default function SystemPerformancePage() {
   if (loading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

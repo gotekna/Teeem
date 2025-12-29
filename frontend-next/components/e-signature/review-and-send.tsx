@@ -16,10 +16,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Send,
-  Loader2,
   Mail,
 } from "lucide-react";
 import type { Signer, SignatureField, SignatureFieldType } from "@/components/ui/pdf-editor/types";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface ReviewAndSendProps {
@@ -270,7 +270,7 @@ export function ReviewAndSend({
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              <Spinner size={20} className="mr-2" />
               Sending...
             </>
           ) : (

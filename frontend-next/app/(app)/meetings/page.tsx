@@ -17,9 +17,9 @@ import {
   Video,
   Plus,
   ChevronRight,
-  Loader2,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { format, isToday, isTomorrow } from "date-fns";
 
@@ -95,7 +95,7 @@ export default function MeetingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

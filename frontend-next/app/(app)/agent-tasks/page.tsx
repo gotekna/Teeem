@@ -9,10 +9,11 @@ import {
   ArrowPathIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 // Types
@@ -303,7 +304,7 @@ export default function AgentTasksPage() {
   if (loading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

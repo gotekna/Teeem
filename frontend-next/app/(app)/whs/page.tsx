@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Shield,
   AlertTriangle,
@@ -15,7 +16,6 @@ import {
   Users,
   HardHat,
   ClipboardCheck,
-  Loader2,
   Plus,
   ChevronRight,
 } from "lucide-react";
@@ -120,7 +120,7 @@ export default function WHSPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

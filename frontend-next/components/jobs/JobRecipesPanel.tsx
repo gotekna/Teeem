@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -22,7 +23,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Loader2,
   Plus,
   Trash2,
   FileText,
@@ -262,7 +262,7 @@ export function JobRecipesPanel({ jobId, onPOGenerated }: JobRecipesPanelProps) 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -492,7 +492,7 @@ export function JobRecipesPanel({ jobId, onPOGenerated }: JobRecipesPanelProps) 
             <div className="max-h-[400px] overflow-y-auto border rounded-lg">
               {loadingAvailable ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : availableRecipes.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -533,7 +533,7 @@ export function JobRecipesPanel({ jobId, onPOGenerated }: JobRecipesPanelProps) 
                             disabled={adding === recipe.id}
                           >
                             {adding === recipe.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Spinner size={16} />
                             ) : (
                               <Plus className="h-4 w-4" />
                             )}
@@ -615,7 +615,7 @@ export function JobRecipesPanel({ jobId, onPOGenerated }: JobRecipesPanelProps) 
                 <Button onClick={handleGeneratePO} disabled={generatingPO}>
                   {generatingPO ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Generating...
                     </>
                   ) : (

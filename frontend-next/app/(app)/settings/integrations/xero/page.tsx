@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCw,
-  Loader2,
   ExternalLink,
   AlertTriangle,
   Link2,
@@ -39,6 +38,7 @@ import { XeroCommonContacts } from "./components/XeroCommonContacts";
 import { DuplicateContactsTab } from "@/components/settings/xero/DuplicateContactsTab";
 import { useGetDuplicateCount } from "@/lib/hooks/useDuplicateContacts";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface XeroStatus {
   connected: boolean;
@@ -292,7 +292,7 @@ export default function XeroIntegrationPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -406,7 +406,7 @@ export default function XeroIntegrationPage() {
                     disabled={disconnecting}
                   >
                     {disconnecting ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                     ) : (
                       <XCircle className="h-4 w-4 mr-2" />
                     )}
@@ -424,7 +424,7 @@ export default function XeroIntegrationPage() {
                   </Alert>
                   <Button onClick={handleConnect} disabled={connecting} className="mt-4">
                     {connecting ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                     ) : (
                       <ExternalLink className="h-4 w-4 mr-2" />
                     )}
@@ -538,7 +538,7 @@ export default function XeroIntegrationPage() {
                             disabled={settingPrimary === tenant.tenant_id}
                           >
                             {settingPrimary === tenant.tenant_id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <Spinner size={12} />
                             ) : (
                               <Star className="h-3 w-3" />
                             )}

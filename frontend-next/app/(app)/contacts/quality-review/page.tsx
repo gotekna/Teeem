@@ -12,7 +12,6 @@ import {
   Building2,
   Check,
   ChevronRight,
-  Loader2,
   RefreshCw,
   Search,
   User,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -179,7 +179,7 @@ function ReviewCard({
               disabled={isProcessing}
               className="w-20"
             >
-              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+              {isProcessing ? <Spinner size={16} /> : <Check className="h-4 w-4 mr-1" />}
               {isProcessing ? "" : "Fix"}
             </Button>
             <Button
@@ -455,7 +455,7 @@ export default function ContactQualityReviewPage() {
         <TabsContent value={activeTab} className="mt-4">
           {loading ? (
             <div className="flex items-center justify-center h-48">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           ) : reviews.length === 0 ? (
             <Card>

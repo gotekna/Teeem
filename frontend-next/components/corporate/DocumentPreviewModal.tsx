@@ -26,7 +26,6 @@ import {
   ExternalLink,
   Check,
   Sparkles,
-  Loader2,
   AlertTriangle,
   Pencil,
   X,
@@ -37,6 +36,7 @@ import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { PDFEditor } from "@/components/ui/pdf-editor";
 import { ExcelViewer, ExcelViewerLoading, ExcelViewerError, type ExcelData } from "@/components/ui/excel-viewer";
 import { WordViewer, WordViewerLoading, WordViewerError, type WordData } from "@/components/ui/word-viewer";
+import { Spinner } from "@/components/ui/spinner";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
 // SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
@@ -1627,7 +1627,7 @@ export default function DocumentPreviewModal({
                       className="h-7 text-xs bg-green-600 hover:bg-green-700"
                     >
                       {validating ? (
-                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Validating</>
+                        <><Spinner size={12} className="mr-1" />Validating</>
                       ) : (
                         <><Check className="h-3 w-3 mr-1" />Validate Document</>
                       )}
@@ -1644,7 +1644,7 @@ export default function DocumentPreviewModal({
                   <div className="pt-2 border-t space-y-1.5">
                     <div className="flex items-center gap-1">
                       <Button onClick={handleSave} disabled={saving || !editedTitle.trim()} size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700">
-                        {saving ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Saving</> : <><Check className="h-3 w-3 mr-1" />Apply</>}
+                        {saving ? <><Spinner size={12} className="mr-1" />Saving</> : <><Check className="h-3 w-3 mr-1" />Apply</>}
                       </Button>
                       <Button
                         variant="ghost"
@@ -1700,7 +1700,7 @@ export default function DocumentPreviewModal({
 
                 {isProcessing ? (
                   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Loader2 className="h-6 w-6 animate-spin mb-2 text-purple-500" />
+                    <Spinner size={24} className="mb-2 text-purple-500" />
                     <p className="text-xs">AI analyzing...</p>
                   </div>
                 ) : (
@@ -1986,7 +1986,7 @@ export default function DocumentPreviewModal({
                           className="h-7 text-xs bg-purple-600 hover:bg-purple-700"
                         >
                           {applyingSuggestion ? (
-                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Applying</>
+                            <><Spinner size={12} className="mr-1" />Applying</>
                           ) : (
                             <><Sparkles className="h-3 w-3 mr-1" />Apply AI</>
                           )}
@@ -1999,7 +1999,7 @@ export default function DocumentPreviewModal({
                           className="h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
                         >
                           {aiVerifying ? (
-                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing</>
+                            <><Spinner size={12} className="mr-1" />Analyzing</>
                           ) : (
                             <><RefreshCw className="h-3 w-3 mr-1" />Re-run</>
                           )}
@@ -2015,7 +2015,7 @@ export default function DocumentPreviewModal({
                           className="w-full h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
                         >
                           {aiVerifying ? (
-                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing...</>
+                            <><Spinner size={12} className="mr-1" />Analyzing...</>
                           ) : (
                             <><Sparkles className="h-3 w-3 mr-1" />Run AI Analysis</>
                           )}
@@ -2142,7 +2142,7 @@ export default function DocumentPreviewModal({
                 />
               ) : previewLoading ? (
                 <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground">
-                  <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                  <Spinner size={48} className="mb-4" />
                   <p className="text-sm">Loading preview...</p>
                 </div>
               ) : fileType === "pdf" && document.id ? (

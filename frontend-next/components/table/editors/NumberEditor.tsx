@@ -15,7 +15,8 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from "@/components/ui/spinner";
+
 import type { NumberEditorProps } from './types';
 
 export function NumberEditor({
@@ -234,7 +235,7 @@ export function NumberEditor({
       {/* Saving indicator */}
       {isSaving && (
         <div className="absolute right-2 top-1/2 -translate-y-1/2">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Spinner size={16} className="text-muted-foreground" />
         </div>
       )}
 

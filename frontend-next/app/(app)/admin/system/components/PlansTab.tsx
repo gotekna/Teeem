@@ -27,7 +27,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus,
-  Loader2,
   Pencil,
   Trash2,
   Folder,
@@ -39,6 +38,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { TokenBuilder } from "@/components/ui/tokens/TokenBuilder";
 import type { PlaceholderToken } from "@/lib/placeholders";
 import { SortableList, SortableItem, ItemBadge } from "@/components/ui/dnd";
+import { Spinner } from "@/components/ui/spinner";
 
 // Custom placeholders for Plan Types
 const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
@@ -318,7 +318,7 @@ export function CategoriesSection() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -387,7 +387,7 @@ export function CategoriesSection() {
                       disabled={deleting === category.id}
                     >
                       {deleting === category.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Spinner size={16} />
                       ) : (
                         <Trash2 className="h-4 w-4 text-red-500" />
                       )}
@@ -441,7 +441,7 @@ export function CategoriesSection() {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {saving ? <Spinner size={16} className="mr-2" /> : null}
               {editing ? "Update" : "Create"}
             </Button>
           </DialogFooter>
@@ -648,7 +648,7 @@ export function TypesSection() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -671,7 +671,7 @@ export function TypesSection() {
                   Cancel
                 </Button>
                 <Button size="sm" onClick={handleSaveDefaults} disabled={savingDefaults}>
-                  {savingDefaults && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {savingDefaults && <Spinner size={16} className="mr-2" />}
                   Save
                 </Button>
               </div>
@@ -817,7 +817,7 @@ export function TypesSection() {
                         disabled={deleting === type.id}
                       >
                         {deleting === type.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Spinner size={16} />
                         ) : (
                           <Trash2 className="h-4 w-4 text-red-500" />
                         )}
@@ -1043,7 +1043,7 @@ export function TypesSection() {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {saving ? <Spinner size={16} className="mr-2" /> : null}
               {editing ? "Update" : "Create"}
             </Button>
           </DialogFooter>
@@ -1165,7 +1165,7 @@ export function RevisionFormatsSection() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1242,7 +1242,7 @@ export function RevisionFormatsSection() {
                       disabled={deleting === format.id}
                     >
                       {deleting === format.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Spinner size={16} />
                       ) : (
                         <Trash2 className="h-4 w-4 text-red-500" />
                       )}
@@ -1299,7 +1299,7 @@ export function RevisionFormatsSection() {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {saving ? <Spinner size={16} className="mr-2" /> : null}
               {editing ? "Update" : "Create"}
             </Button>
           </DialogFooter>

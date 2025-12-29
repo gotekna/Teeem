@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Users,
   FileText,
@@ -14,7 +15,6 @@ import {
   AlertTriangle,
   Clock,
   RefreshCw,
-  Loader2,
   Building2,
   Activity,
   ChevronRight,
@@ -171,7 +171,7 @@ export function XeroSyncStats() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center h-48">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -234,7 +234,7 @@ export function XeroSyncStats() {
               disabled={syncing !== null}
             >
               {syncing === "contacts" ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Users className="h-4 w-4 mr-2" />
               )}
@@ -246,7 +246,7 @@ export function XeroSyncStats() {
               disabled={syncing !== null}
             >
               {syncing === "full" ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Zap className="h-4 w-4 mr-2" />
               )}

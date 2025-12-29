@@ -31,6 +31,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ChevronDown,
   ChevronRight,
@@ -38,7 +39,6 @@ import {
   FolderOpen,
   FolderPlus,
   FolderTree,
-  Loader2,
   Plus,
   Trash2,
   X,
@@ -369,7 +369,7 @@ export function EntityTabsTable() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -531,7 +531,7 @@ export function EntityTabsTable() {
                                   onClick={() => handleSavePath(tab)}
                                   disabled={saving}
                                 >
-                                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-green-600" />}
+                                  {saving ? <Spinner size={12} /> : <Check className="h-3 w-3 text-green-600" />}
                                 </Button>
                                 <Button
                                   size="icon"
@@ -633,7 +633,7 @@ export function EntityTabsTable() {
                                         onClick={() => handleAddSubTab(tab)}
                                         disabled={saving || !addingSubTab.name.trim()}
                                       >
-                                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                                        {saving ? <Spinner size={12} /> : "Add"}
                                       </Button>
                                       <Button
                                         size="sm"
@@ -707,7 +707,7 @@ export function EntityTabsTable() {
                               className="h-7"
                               disabled={saving || !addingTab.name.trim()}
                             >
-                              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add Tab"}
+                              {saving ? <Spinner size={12} /> : "Add Tab"}
                             </Button>
                             <Button
                               size="sm"
@@ -823,7 +823,7 @@ export function EntityTabsTable() {
               >
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                     Saving...
                   </>
                 ) : (

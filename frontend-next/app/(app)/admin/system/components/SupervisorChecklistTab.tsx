@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/table";
 import {
   Plus,
-  Loader2,
   Pencil,
   Trash2,
   ClipboardCheck,
@@ -32,6 +31,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ChecklistTemplate {
   id: number;
@@ -176,7 +176,7 @@ export function SupervisorChecklistTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -265,7 +265,7 @@ export function SupervisorChecklistTab() {
               <div className="col-span-full flex gap-2">
                 <Button type="submit" disabled={saving}>
                   {saving ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
@@ -377,7 +377,7 @@ export function SupervisorChecklistTab() {
                       {editingId === template.id ? (
                         <div className="flex items-center justify-end gap-2">
                           <Button size="sm" onClick={handleUpdate} disabled={saving}>
-                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                            {saving ? <Spinner size={16} /> : "Save"}
                           </Button>
                           <Button
                             size="sm"

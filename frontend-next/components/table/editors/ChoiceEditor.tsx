@@ -16,7 +16,7 @@
 
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, Loader2, X } from 'lucide-react';
+import { Check, ChevronDown, X } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Spinner } from "@/components/ui/spinner";
 import type { ChoiceEditorProps, ChoiceOption } from './types';
 
 export function ChoiceEditor({
@@ -262,7 +263,7 @@ export function ChoiceEditor({
                 />
               )}
               {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size={16} />
               ) : (
                 <ChevronDown className="h-4 w-4 opacity-50" />
               )}

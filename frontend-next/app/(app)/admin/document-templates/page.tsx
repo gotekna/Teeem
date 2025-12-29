@@ -38,11 +38,11 @@ import {
   Eye,
   RefreshCw,
   ExternalLink,
-  Loader2,
   BookOpen,
   TestTube,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface DocumentTemplate {
   id: number;
@@ -275,7 +275,7 @@ export default function DocumentTemplatesPage() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Spinner size={32} className="text-slate-400" />
       </div>
     );
   }
@@ -659,7 +659,7 @@ This contract is made on {{job.contract_date}}.`}
                 disabled={!selectedTemplate?.sharepoint_linked || !previewJobId || previewing}
               >
                 {previewing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <Eye className="mr-2 h-4 w-4" />
                 )}

@@ -3,7 +3,15 @@
 import { useState, useEffect } from "react";
 import { getApiBaseUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, Download, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle } from "lucide-react";
+import {
+  FileText,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  AlertTriangle,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
 
 interface DocumentViewerStepProps {
   token: string;
@@ -91,7 +100,7 @@ export function DocumentViewerStep({
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <Spinner size={32} className="text-primary mb-4" />
         <p className="text-muted-foreground">Loading document...</p>
       </div>
     );

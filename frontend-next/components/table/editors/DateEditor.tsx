@@ -15,7 +15,7 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { format, parse, isValid } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -24,6 +24,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
+import { Spinner } from "@/components/ui/spinner";
 import type { DateEditorProps } from './types';
 
 export function DateEditor({
@@ -227,7 +228,7 @@ export function DateEditor({
               <span>{placeholder || 'Pick a date'}</span>
             )}
             {isSaving && (
-              <Loader2 className="ml-auto h-4 w-4 animate-spin" />
+              <Spinner size={16} className="ml-auto" />
             )}
           </Button>
         </PopoverTrigger>

@@ -50,7 +50,6 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Camera,
-  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -2861,7 +2860,7 @@ export function GanttCanvasView({
             <div className="px-3 py-2 border-b text-xs text-muted-foreground">
               {loadingPhotos ? (
                 <span className="flex items-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Spinner size={12} />
                   Loading photos...
                 </span>
               ) : (
@@ -2873,7 +2872,7 @@ export function GanttCanvasView({
             <div className="flex-1 overflow-y-auto p-2">
               {loadingPhotos ? (
                 <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : jobPhotos.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-center">
@@ -2913,7 +2912,7 @@ export function GanttCanvasView({
                 disabled={loadingPhotos}
               >
                 {loadingPhotos ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <RefreshCw className="h-4 w-4 mr-2" />
                 )}

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   AlertTriangle,
   Check,
@@ -20,7 +21,6 @@ import {
   FileText,
   Globe,
   Link2,
-  Loader2,
   Mail,
   MapPin,
   Phone,
@@ -252,7 +252,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : (
           <div className="flex flex-col h-full">
@@ -274,7 +274,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                   className="shrink-0"
                 >
                   {autoMatching ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <Sparkles className="h-4 w-4 mr-2" />
                   )}
@@ -489,7 +489,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                     disabled={linking === contact.xero_contact_name}
                                   >
                                     {linking === contact.xero_contact_name ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                      <Spinner size={12} />
                                     ) : (
                                       <>
                                         <Link2 className="h-3 w-3 mr-1" />
@@ -519,7 +519,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                               disabled={linking === contact.xero_contact_name}
                             >
                               {linking === contact.xero_contact_name ? (
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                <Spinner size={12} className="mr-1" />
                               ) : (
                                 <Plus className="h-3 w-3 mr-1" />
                               )}

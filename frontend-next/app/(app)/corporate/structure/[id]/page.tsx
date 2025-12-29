@@ -6,9 +6,10 @@ import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft, GitBranch, Building2 } from "lucide-react";
+import { ArrowLeft, GitBranch, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 
 // Dynamic import for PersonStructureChart to avoid SSR issues with ReactFlow
 const PersonStructureChart = dynamic(
@@ -143,7 +144,7 @@ export default function CorporateStructurePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[80vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

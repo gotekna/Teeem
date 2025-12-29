@@ -40,10 +40,10 @@ import {
   RefreshCw,
   Webhook,
   FileEdit,
-  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 // Trigger types from backend
@@ -305,7 +305,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
       {/* Loading state */}
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          <Spinner size={24} className="text-slate-400" />
         </div>
       )}
 
@@ -569,7 +569,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
             <Button onClick={handleSaveTrigger} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (

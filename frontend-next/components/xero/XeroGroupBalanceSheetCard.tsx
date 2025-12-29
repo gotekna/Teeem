@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -12,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, RefreshCw, Scale } from "lucide-react";
+import { RefreshCw, Scale } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +108,7 @@ export function XeroGroupBalanceSheetCard({ companyId }: XeroGroupBalanceSheetCa
               className="w-40"
             />
             <Button onClick={loadReport} disabled={loading} size="sm">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {loading ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
               <span className="ml-2">Load</span>
             </Button>
           </div>
@@ -123,7 +124,7 @@ export function XeroGroupBalanceSheetCard({ companyId }: XeroGroupBalanceSheetCa
         {/* Loading State */}
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         )}
 

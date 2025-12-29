@@ -3,15 +3,11 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  RefreshCw,
-  FileText,
-  Plus,
-} from "lucide-react";
+import { RefreshCw, FileText, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow, TableColumn } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 
 interface PLReport {
   id: number;
@@ -228,7 +224,7 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
               size="sm"
             >
               {generating === "historical" ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Plus className="h-4 w-4 mr-2" />
               )}
@@ -236,7 +232,7 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
             </Button>
             <Button onClick={loadReports} disabled={loading} size="sm" variant="outline">
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size={16} />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
@@ -255,7 +251,7 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
         {/* Loading state */}
         {loading && reports.length === 0 ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : (
           /* TeeemTableView handles empty state and table rendering */

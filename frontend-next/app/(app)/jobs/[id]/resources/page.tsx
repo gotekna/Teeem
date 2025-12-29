@@ -10,7 +10,7 @@ import {
   PlusIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 // ============================================
@@ -510,7 +511,7 @@ export default function SmResourcesPage() {
   if (loading && resources.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

@@ -8,7 +8,6 @@ import { Progress } from "@/components/ui/progress";
 import {
   CheckCircle,
   Circle,
-  Loader2,
   Link2,
   Database,
   Landmark,
@@ -21,6 +20,7 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface XeroSetupWizardProps {
   companyId: string;
@@ -217,7 +217,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
       <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 dark:border-blue-900">
         <CardContent className="py-8">
           <div className="flex items-center justify-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+            <Spinner size={20} className="text-blue-600" />
             <span className="text-sm text-muted-foreground">Loading setup status...</span>
           </div>
         </CardContent>
@@ -309,7 +309,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
                   {step.status === "completed" ? (
                     <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                   ) : step.status === "in_progress" || (isCurrentStep && syncing) ? (
-                    <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                    <Spinner size={20} className="text-blue-600" />
                   ) : (
                     <StepIcon className={cn(
                       "h-5 w-5",
@@ -353,7 +353,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
                     >
                       {syncing ? (
                         <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Spinner size={16} className="mr-2" />
                           Syncing...
                         </>
                       ) : (

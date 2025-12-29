@@ -6,13 +6,12 @@ import { cn } from '@/lib/utils';
 import {
   CheckCircle,
   Circle,
-  Loader2,
   Play,
   Square,
   Diamond,
   Clock,
   AlertCircle,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface WorkflowNode {
   id: number;
@@ -142,7 +141,7 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
   if (loading) {
     return (
       <div className="flex items-center justify-center py-4">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <Spinner size={20} className="text-muted-foreground" />
       </div>
     );
   }

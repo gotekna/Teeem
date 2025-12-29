@@ -41,7 +41,6 @@ import {
   Percent,
   Network,
   Table,
-  Loader2,
   Save,
   X,
   Plus,

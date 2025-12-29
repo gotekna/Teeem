@@ -14,7 +14,7 @@
 
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, Loader2, X } from 'lucide-react';
+import { Check, ChevronDown, X } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Spinner } from "@/components/ui/spinner";
 import type { LookupEditorProps, LookupRecord } from './types';
 
 export function LookupEditor({
@@ -287,7 +288,7 @@ export function LookupEditor({
                 />
               )}
               {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size={16} />
               ) : (
                 <ChevronDown className="h-4 w-4 opacity-50" />
               )}
@@ -305,7 +306,7 @@ export function LookupEditor({
             <CommandList>
               {isLoading ? (
                 <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : (
                 <>

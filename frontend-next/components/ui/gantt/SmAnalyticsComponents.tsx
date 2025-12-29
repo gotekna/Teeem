@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+
 import { api, getApiBaseUrl } from "@/lib/api";
 
 // ============================================
@@ -187,7 +188,7 @@ export function CriticalPathView({ constructionId }: CriticalPathViewProps) {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }
@@ -272,7 +273,7 @@ export function EvmDashboard({ constructionId }: EvmDashboardProps) {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }
@@ -423,7 +424,7 @@ export function AiSuggestionsPanel({ constructionId }: AiSuggestionsPanelProps) 
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }
@@ -593,7 +594,7 @@ export function BaselineComparisonComponent({ constructionId }: BaselineComparis
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }
@@ -606,7 +607,7 @@ export function BaselineComparisonComponent({ constructionId }: BaselineComparis
           <Button onClick={createBaseline} disabled={creating} size="sm">
             {creating ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Creating...
               </>
             ) : (

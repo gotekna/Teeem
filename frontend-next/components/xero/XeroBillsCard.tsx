@@ -9,10 +9,11 @@
 
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 
 interface XeroBillsCardProps {
   companyId: string;
@@ -105,7 +106,7 @@ export function XeroBillsCard({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }

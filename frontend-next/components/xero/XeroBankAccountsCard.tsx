@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -12,7 +13,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2,
   AlertTriangle,
   RefreshCw,
   Landmark,
@@ -354,7 +354,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
       <Card>
         <CardContent className="py-12">
           <div className="flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         </CardContent>
       </Card>
@@ -620,7 +620,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
         {/* Transactions Table */}
         {transactionsLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : sortedTransactions.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">

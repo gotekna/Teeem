@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
-  Loader2,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -55,6 +54,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { Spinner } from "@/components/ui/spinner";
 import { fetchEntityTypes, EntityTypeMetadata } from "@/lib/entity-types";
 
 // Entity type field configuration - defines which fields are used/required for each type
@@ -176,7 +176,7 @@ function EntityTypesReferenceCard() {
     return (
       <Card className="p-6">
         <div className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size={24} className="text-muted-foreground" />
         </div>
       </Card>
     );
@@ -558,7 +558,7 @@ export function ContactTypesTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -723,7 +723,7 @@ export function ContactTypesTab() {
                           disabled={deleting === type.id}
                         >
                           {deleting === type.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size={16} />
                           ) : (
                             <MoreHorizontal className="h-4 w-4" />
                           )}
@@ -825,7 +825,7 @@ export function ContactTypesTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingType ? (

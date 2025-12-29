@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
-  Loader2,
   MoreHorizontal,
   Copy,
   Trash2,
@@ -52,6 +51,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface FolderTemplateItem {
@@ -942,7 +942,7 @@ export function FoldersTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -961,7 +961,7 @@ export function FoldersTab() {
         </div>
         {saving && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Spinner size={16} />
             Saving...
           </div>
         )}
@@ -1033,7 +1033,7 @@ export function FoldersTab() {
                     {/* Folder Validation Status */}
                     {validatingFolder ? (
                       <div className="flex items-center gap-2 mt-3 p-2 bg-muted/50 rounded-md text-xs">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        <Spinner size={16} className="text-muted-foreground" />
                         <span className="text-muted-foreground">Validating folder location...</span>
                       </div>
                     ) : folderValidation && !folderValidation.valid ? (
@@ -1222,7 +1222,7 @@ export function FoldersTab() {
             >
               {savingFolder ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (
@@ -1284,7 +1284,7 @@ export function FoldersTab() {
             >
               {savingJobNameFormat ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (

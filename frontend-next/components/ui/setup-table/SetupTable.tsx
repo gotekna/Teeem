@@ -27,11 +27,17 @@
  */
 
 import * as React from "react";
-import { type LucideIcon, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import {
+  type LucideIcon,
+  Plus,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
+import { Spinner } from "@/components/ui/spinner";
 
 export interface SetupTableProps<T extends { id: string | number }> {
   /** Array of items to display */
@@ -116,7 +122,7 @@ export function SetupTable<T extends { id: string | number }>({
       <div className="p-2">
         {loading ? (
           <div className="py-8 flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Spinner size={24} className="text-muted-foreground" />
           </div>
         ) : items.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">

@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Loader2, Shield, User } from "lucide-react";
+import { Search, Shield, User } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface UserType {
   id: number;
@@ -144,7 +145,7 @@ export function PermissionsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -244,7 +245,7 @@ export function PermissionsTab() {
             </div>
           ) : loadingPermissions ? (
             <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
@@ -300,7 +301,7 @@ export function PermissionsTab() {
                               </Badge>
                             )}
                             {toggling === permission.name && (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Spinner size={16} />
                             )}
                           </div>
                         );

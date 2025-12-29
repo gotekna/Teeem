@@ -9,7 +9,7 @@ import {
   XMarkIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface PreviewData {
@@ -255,7 +256,7 @@ export default function ImportPage() {
             >
               {uploading ? (
                 <>
-                  <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
+                  <Spinner size={48} className="text-muted-foreground" />
                   <p className="mt-4 text-sm text-muted-foreground">Processing file...</p>
                 </>
               ) : (
@@ -431,7 +432,7 @@ export default function ImportPage() {
             <Button onClick={handleImport} disabled={importing || !tableName.trim()}>
               {importing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Importing...
                 </>
               ) : (

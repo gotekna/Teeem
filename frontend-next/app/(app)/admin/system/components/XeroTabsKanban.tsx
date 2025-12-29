@@ -23,7 +23,8 @@ import {
   type KanbanItem,
 } from "@/components/ui/kanban";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
@@ -393,7 +394,7 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {saving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          {saving && <Spinner size={16} className="text-muted-foreground" />}
           <Button variant="outline" size="sm" onClick={onUpdate} disabled={saving}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh

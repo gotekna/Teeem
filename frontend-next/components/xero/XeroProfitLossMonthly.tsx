@@ -3,7 +3,13 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, TrendingUp, TrendingDown, Calendar } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +113,7 @@ export function XeroProfitLossMonthly({ companyId }: XeroProfitLossMonthlyProps)
             )}
           </div>
           <Button onClick={loadData} disabled={loading} size="sm" variant="outline">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {loading ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
             <span className="ml-2">Refresh</span>
           </Button>
         </div>
@@ -121,7 +127,7 @@ export function XeroProfitLossMonthly({ companyId }: XeroProfitLossMonthlyProps)
 
         {loading && data.length === 0 && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         )}
 

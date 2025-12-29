@@ -14,11 +14,11 @@ import {
   ArrowLeftRight,
   ArrowRight,
   ArrowLeft,
-  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Alert,
   AlertDescription,
@@ -378,7 +378,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
   if (loadingLinks) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -532,7 +532,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                       title={`Unlink from ${link.xero_tenant_name}`}
                     >
                       {unlinkingLinkId === link.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Spinner size={16} />
                       ) : (
                         <Unlink2 className="h-4 w-4" />
                       )}
@@ -574,7 +574,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                   >
                     {linkingToTenant === tenant.tenant_id ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Spinner size={16} className="mr-2" />
                         Linking...
                       </>
                     ) : (

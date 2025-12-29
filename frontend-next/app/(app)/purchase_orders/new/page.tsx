@@ -15,8 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface LineItem {
@@ -250,7 +251,7 @@ export default function NewPurchaseOrderPage() {
                 <Button type="submit" disabled={loading}>
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Creating...
                     </>
                   ) : (

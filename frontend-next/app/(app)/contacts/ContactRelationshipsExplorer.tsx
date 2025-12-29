@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Users, Building2, Briefcase, User, ExternalLink, Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Search,
+  Users,
+  Building2,
+  Briefcase,
+  User,
+  ExternalLink,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -178,7 +186,7 @@ export default function ContactRelationshipsExplorer({ initialContactId }: Conta
               className="flex-1"
             />
             <Button onClick={handleSearch} disabled={searching || !searchQuery.trim()}>
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {searching ? <Spinner size={16} /> : <Search className="h-4 w-4" />}
               Search
             </Button>
           </div>
@@ -239,7 +247,7 @@ export default function ContactRelationshipsExplorer({ initialContactId }: Conta
           {loading ? (
             <Card>
               <CardContent className="flex items-center justify-center p-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Spinner size={32} className="text-muted-foreground" />
               </CardContent>
             </Card>
           ) : (

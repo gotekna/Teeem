@@ -11,7 +11,15 @@ import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { CheckCircle, AlertTriangle, Loader2, Upload, Sparkles, FolderSearch, FileCheck } from "lucide-react"
+import { Spinner } from "@/components/ui/spinner";
+import {
+  CheckCircle,
+  AlertTriangle,
+  Upload,
+  Sparkles,
+  FolderSearch,
+  FileCheck,
+} from "lucide-react";
 import { api } from "@/lib/api"
 
 // =============================================================================
@@ -173,7 +181,7 @@ export function PlanProcessingModal({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {isProcessing && <Loader2 className="h-5 w-5 animate-spin" />}
+            {isProcessing && <Spinner />}
             {isComplete && <CheckCircle className="h-5 w-5 text-green-500" />}
             {isFailed && <AlertTriangle className="h-5 w-5 text-red-500" />}
             {title}

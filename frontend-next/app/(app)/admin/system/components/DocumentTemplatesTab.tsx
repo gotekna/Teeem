@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { api, getApiBaseUrl } from "@/lib/api";
 import {
-  Loader2,
   Eye,
   FileText,
   RefreshCw,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import { TemplateEditor } from "./TemplateEditor";
 import { BankStatementTemplatesTab } from "./BankStatementTemplatesTab";
 
@@ -238,7 +238,7 @@ export function DocumentTemplatesTab() {
         <TabsContent value="documents">
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           ) : (
             <div className="space-y-6">
@@ -533,7 +533,7 @@ export function DocumentTemplatesTab() {
                     </div>
                   ) : previewLoading ? (
                     <div className="flex items-center justify-center h-full">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <Spinner size={32} className="text-muted-foreground" />
                     </div>
                   ) : (
                     <div className="h-full overflow-auto bg-white">

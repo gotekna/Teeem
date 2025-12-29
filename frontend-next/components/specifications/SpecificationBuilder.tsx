@@ -6,7 +6,6 @@ import {
   FileText,
   ChevronDown,
   ChevronRight,
-  Loader2,
   Download,
   RefreshCw,
   Plus,
@@ -21,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 // Types
@@ -416,7 +416,7 @@ export function SpecificationBuilder({ jobId, jobTypeId }: SpecificationBuilderP
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -452,7 +452,7 @@ export function SpecificationBuilder({ jobId, jobTypeId }: SpecificationBuilderP
             </Button>
             <Button size="sm" onClick={handleSave} disabled={saving || !isDirty}>
               {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
@@ -505,7 +505,7 @@ export function SpecificationBuilder({ jobId, jobTypeId }: SpecificationBuilderP
             </Button>
             <Button size="sm" onClick={handleSaveCustom} disabled={saving || !isDirty}>
               {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}

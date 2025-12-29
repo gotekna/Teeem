@@ -9,7 +9,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ExternalLink, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  ExternalLink,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+} from "lucide-react";
 import { getApiBaseUrl } from "@/lib/api";
 
 interface BankStatementComparisonModalProps {
@@ -146,7 +152,7 @@ export function BankStatementComparisonModal({
 
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : (
           <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -34,7 +35,6 @@ import {
   AlertCircle,
   Users,
   FileText,
-  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -174,7 +174,7 @@ export default function ESignaturePage() {
       <div className="flex-1 overflow-auto px-6 py-4">
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">

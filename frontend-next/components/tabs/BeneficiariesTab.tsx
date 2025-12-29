@@ -12,7 +12,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ExternalLink, Plus } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { ExternalLink, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CorporateCompany, TrustRolesData, TrustRolesMember } from "@/lib/types/corporate";
 
@@ -47,7 +48,7 @@ export function BeneficiariesTab({ company, onAddBeneficiary }: BeneficiariesTab
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }

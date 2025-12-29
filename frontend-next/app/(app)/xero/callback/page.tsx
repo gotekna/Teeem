@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface Status {
@@ -129,7 +130,7 @@ export default function XeroCallbackPage() {
             {status.loading ? (
               <>
                 <div className="mx-auto flex h-16 w-16 items-center justify-center">
-                  <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                  <Spinner size={20} className="text-primary" />
                 </div>
                 <h2 className="mt-6 text-xl font-semibold">Connecting to Xero...</h2>
                 <p className="mt-2 text-sm text-muted-foreground">

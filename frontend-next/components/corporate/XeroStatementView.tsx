@@ -13,7 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, RefreshCw, Search, Download, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import {
+  RefreshCw,
+  Search,
+  Download,
+  ArrowUpRight,
+  ArrowDownLeft,
+} from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -21,6 +27,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Spinner } from "@/components/ui/spinner";
 import { FileText, ExternalLink } from "lucide-react";
 
 // Types
@@ -506,7 +513,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
               title="Download PDF transaction report (with legal disclaimer per s262A ITAA 1936)"
             >
               {downloading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Download className="h-4 w-4 mr-2" />
               )}
@@ -519,7 +526,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
               disabled={syncing}
             >
               {syncing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
@@ -640,7 +647,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
         {/* Loading state or TeeemTableView */}
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Spinner size={24} className="text-muted-foreground" />
           </div>
         ) : (
           <div className="-mx-4">
@@ -710,7 +717,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
               <AccordionContent>
                 {docsLoading ? (
                   <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <Spinner size={16} className="text-muted-foreground" />
                   </div>
                 ) : relatedDocs.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-2">

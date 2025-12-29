@@ -5,13 +5,13 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   CheckCircle,
   AlertTriangle,
   XCircle,
   RefreshCw,
   ExternalLink,
-  Loader2,
   Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -118,7 +118,7 @@ export function IntegrationsPanel({
       <CardContent className="pt-0">
         {loading ? (
           <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Spinner size={20} className="text-muted-foreground" />
           </div>
         ) : (
           <div className="space-y-2">
@@ -161,7 +161,7 @@ export function IntegrationsPanel({
                       disabled={actionLoading === integration.id}
                     >
                       {actionLoading === integration.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Spinner size={12} />
                       ) : integration.actionType === "retry" ? (
                         <>
                           <RefreshCw className="h-3 w-3 mr-1" />

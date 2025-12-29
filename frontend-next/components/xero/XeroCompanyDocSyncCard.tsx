@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import {
   FileText,
   Cloud,
@@ -12,7 +13,6 @@ import {
   Clock,
   AlertTriangle,
   RefreshCw,
-  Loader2,
   Database,
   Download,
   Upload,
@@ -135,7 +135,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size={24} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );

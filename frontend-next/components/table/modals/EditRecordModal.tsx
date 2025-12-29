@@ -31,11 +31,20 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Pencil, Settings, Eye, EyeOff, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Pencil,
+  Settings,
+  Eye,
+  EyeOff,
+  GripVertical,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Spinner } from "@/components/ui/spinner";
 import { RecordFormField, type ColumnDefinition } from './RecordFormRenderer';
 import type { TableColumn, TableRow } from '../types';
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
@@ -448,7 +457,7 @@ export function EditRecordModal({
           <Button onClick={handleSave} disabled={saving}>
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Saving...
               </>
             ) : (

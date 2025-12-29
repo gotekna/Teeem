@@ -3,7 +3,14 @@
 import * as React from "react";
 import type { PDFViewerProps } from "./pdf-viewer";
 import { cn } from "@/lib/utils";
-import { Loader2, FileText, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  FileText,
+  ExternalLink,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "./button";
 import { getCachedPdf, cachePdf } from "@/lib/pdf-cache";
 
@@ -235,7 +242,7 @@ export function PDFViewerImpl({
           className
         )}
       >
-        <Loader2 className="h-8 w-8 animate-spin mb-2" />
+        <Spinner size={32} className="mb-2" />
         <p className="text-sm text-muted-foreground">Loading PDF...</p>
       </div>
     );

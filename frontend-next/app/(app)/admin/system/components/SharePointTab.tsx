@@ -10,7 +10,6 @@ import {
   Cloud,
   CheckCircle2,
   AlertCircle,
-  Loader2,
   FolderTree,
   Save,
   RefreshCw,
@@ -26,6 +25,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { TokenBuilder } from "@/components/ui/tokens";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Sheet,
   SheetContent,
@@ -228,7 +228,7 @@ export function SharePointTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -336,7 +336,7 @@ export function SharePointTab() {
             <Button onClick={handleTest} disabled={testing || !formData.sharepoint_site_id}>
               {testing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Testing...
                 </>
               ) : (
@@ -594,7 +594,7 @@ export function SharePointTab() {
         <Button variant="outline" onClick={handleResetAllPaths} disabled={resetting}>
           {resetting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Spinner size={16} className="mr-2" />
               Resetting...
             </>
           ) : (
@@ -607,7 +607,7 @@ export function SharePointTab() {
         <Button onClick={handleSave} disabled={saving}>
           {saving ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Spinner size={16} className="mr-2" />
               Saving...
             </>
           ) : (

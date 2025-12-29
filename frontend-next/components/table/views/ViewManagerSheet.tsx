@@ -72,7 +72,6 @@ import {
   Columns3,
   Globe,
   User,
-  Loader2,
   Check,
   Search,
 } from "lucide-react";
@@ -81,6 +80,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useFoundationColumns } from "@/lib/column-state-atoms";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { Spinner } from "@/components/ui/spinner";
 import { sortHiddenColumnsAlphabetically } from "../column-utils";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from "../types";
@@ -770,7 +770,7 @@ export function ViewManagerSheet({
         if (isLoading) {
           return (
             <div className="w-[140px] h-8 flex items-center justify-center border rounded">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Spinner size={16} className="text-muted-foreground" />
             </div>
           );
         }
@@ -912,7 +912,7 @@ export function ViewManagerSheet({
         if (isLoading) {
           return (
             <div className="w-[140px] h-8 flex items-center justify-center border rounded">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Spinner size={16} className="text-muted-foreground" />
             </div>
           );
         }
@@ -1163,7 +1163,7 @@ export function ViewManagerSheet({
 
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           ) : (
             <div className="flex-1 flex overflow-hidden">
@@ -1274,7 +1274,7 @@ export function ViewManagerSheet({
                               </Button>
                               <Button variant="outline" size="sm" onClick={handleSaveView} disabled={saving}>
                                 {saving ? (
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  <Spinner size={16} className="mr-2" />
                                 ) : (
                                   <Save className="h-4 w-4 mr-2" />
                                 )}
@@ -1287,7 +1287,7 @@ export function ViewManagerSheet({
                                 onOpenChange(false);
                               }} disabled={saving}>
                                 {saving ? (
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  <Spinner size={16} className="mr-2" />
                                 ) : (
                                   <Check className="h-4 w-4 mr-2" />
                                 )}

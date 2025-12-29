@@ -19,8 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { api } from '@/lib/api';
-import { Workflow, Loader2, Play, CheckCircle } from 'lucide-react';
+import { Workflow, Play, CheckCircle } from "lucide-react";
 import { useToast } from '@/components/ui/use-toast';
+import { Spinner } from "@/components/ui/spinner";
 
 interface BpmnProcess {
   id: number;
@@ -171,7 +172,7 @@ export function StartWorkflowButton({ jobId, jobName }: StartWorkflowButtonProps
               <label className="text-sm font-medium">Select Workflow</label>
               {loading ? (
                 <div className="flex items-center gap-2 h-10 px-3 border rounded-md">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size={16} />
                   <span className="text-muted-foreground">Loading workflows...</span>
                 </div>
               ) : processes.length === 0 ? (
@@ -237,7 +238,7 @@ export function StartWorkflowButton({ jobId, jobName }: StartWorkflowButtonProps
             >
               {starting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Starting...
                 </>
               ) : (

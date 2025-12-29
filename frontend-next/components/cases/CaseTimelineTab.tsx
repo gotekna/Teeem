@@ -14,8 +14,8 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  Loader2,
   Clock,
   RefreshCw,
   Activity,
@@ -135,7 +135,7 @@ export function CaseTimelineTab({ caseId }: CaseTimelineTabProps) {
       <CardContent>
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Spinner size={24} className="text-muted-foreground" />
           </div>
         ) : timelineEvents.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">

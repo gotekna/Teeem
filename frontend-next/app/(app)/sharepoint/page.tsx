@@ -5,7 +5,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+
+import { Spinner } from "@/components/ui/spinner";
 
 export default function SharePointPage() {
   const router = useRouter();
@@ -56,7 +57,7 @@ export default function SharePointPage() {
   return (
     <div className="flex h-full items-center justify-center bg-background">
       <div className="text-center">
-        <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="mx-auto text-muted-foreground" />
         <p className="mt-4 text-muted-foreground">Opening SharePoint...</p>
       </div>
     </div>

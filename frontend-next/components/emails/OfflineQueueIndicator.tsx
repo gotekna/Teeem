@@ -1,7 +1,8 @@
 "use client";
 
-import { Cloud, CloudOff, Loader2 } from "lucide-react";
+import { Cloud, CloudOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -67,7 +68,7 @@ export function OfflineQueueIndicator({
             )}
           >
             {isProcessing ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Spinner size={12} />
             ) : isOffline ? (
               <CloudOff className="h-3 w-3" />
             ) : (

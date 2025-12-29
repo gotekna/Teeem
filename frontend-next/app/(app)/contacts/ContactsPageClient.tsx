@@ -14,7 +14,20 @@ import { isPerson, isCompany, isTrust, canHaveEmployees, getEntityTypeBadge } fr
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, Mail, Phone, Building2, ExternalLink, Trash2, UserPlus, Plus, AlertTriangle, Table2, Network, Search } from "lucide-react";
+import {
+  Check,
+  Mail,
+  Phone,
+  Building2,
+  ExternalLink,
+  Trash2,
+  UserPlus,
+  Plus,
+  AlertTriangle,
+  Table2,
+  Network,
+  Search,
+} from "lucide-react";
 import ContactsRelationalView from "./ContactsRelationalView";
 import ContactRelationshipsExplorer from "./ContactRelationshipsExplorer";
 import { BackButton } from "@/components/ui/back-button";
@@ -24,6 +37,7 @@ import { useViewMode } from "@/contexts/ViewModeContext";
 import { TablePage } from "@/components/ui/page-wrappers";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
 import type { SearchMode } from "@/components/table/components/SearchInput";
+import { Spinner } from "@/components/ui/spinner";
 import {
   currentFiltersAtom,
   currentFilterGroupsAtom,
@@ -853,7 +867,7 @@ export default function ContactsPageClient({
                         onClick={handleFixEmailAssignment}
                         disabled={fixingEmail}
                       >
-                        {fixingEmail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        {fixingEmail && <Spinner size={16} className="mr-2" />}
                         <UserPlus className="h-4 w-4 mr-2" />
                         Fix Email Assignment
                       </Button>

@@ -1,9 +1,15 @@
 "use client";
 
 import React, { useRef, useCallback, useEffect, useState, memo } from "react";
-import { Search, X, Loader2, MoreHorizontal, Check } from "lucide-react";
+import {
+  Search,
+  X,
+  MoreHorizontal,
+  Check,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -121,7 +127,7 @@ export const SearchInput = memo(function SearchInput({
     <div className="flex items-center gap-2 flex-1">
       <div className="relative flex-1 max-w-md">
         {serverSearchLoading ? (
-          <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+          <Spinner size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         ) : (
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         )}

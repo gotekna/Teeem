@@ -13,11 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { Lead } from "@/types/leads";
 import { QBCCContractData } from "@/types/contracts";
 import { api } from "@/lib/api";
 import {
-  Loader2,
   ArrowLeft,
   ArrowRight,
   Building,
@@ -670,7 +670,7 @@ export function GenerateContractModal({
           {currentStep === "review" ? (
             <Button onClick={handleGenerateContract} disabled={loading}>
               {loading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <FileText className="h-4 w-4 mr-2" />
               )}
@@ -679,7 +679,7 @@ export function GenerateContractModal({
           ) : currentStep === "send" ? (
             <Button onClick={handleSendForSignature} disabled={loading}>
               {loading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}

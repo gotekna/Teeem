@@ -46,7 +46,6 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import {
   Plus,
-  Loader2,
   Pencil,
   Trash2,
   Copy,
@@ -86,6 +85,7 @@ import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle } from "lucide-react";
 
 // Copyable code component for column names
@@ -1229,7 +1229,7 @@ export function ScheduleMasterTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1341,7 +1341,7 @@ export function ScheduleMasterTab() {
                           disabled={duplicating === template.id}
                         >
                           {duplicating === template.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size={16} />
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
@@ -1354,7 +1354,7 @@ export function ScheduleMasterTab() {
                           disabled={deleting === template.id}
                         >
                           {deleting === template.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size={16} />
                           ) : (
                             <Trash2 className="h-4 w-4" />
                           )}
@@ -1367,7 +1367,7 @@ export function ScheduleMasterTab() {
                     <CardContent>
                       {loadingRows === template.id ? (
                         <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          <Spinner size={24} className="text-muted-foreground" />
                         </div>
                       ) : (
                         <>
@@ -1432,7 +1432,7 @@ export function ScheduleMasterTab() {
           <TabsContent value="gantt-preview" className="absolute inset-0 overflow-hidden data-[state=inactive]:hidden">
           {loadingRows === ganttTemplateId && (
             <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           )}
 
@@ -1481,7 +1481,7 @@ export function ScheduleMasterTab() {
                         disabled={versionAction === 'discarding'}
                       >
                         {versionAction === 'discarding' ? (
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          <Spinner size={12} className="mr-1" />
                         ) : null}
                         Discard
                       </Button>
@@ -1492,7 +1492,7 @@ export function ScheduleMasterTab() {
                         disabled={versionAction === 'publishing'}
                       >
                         {versionAction === 'publishing' ? (
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          <Spinner size={12} className="mr-1" />
                         ) : (
                           <Upload className="h-3 w-3 mr-1" />
                         )}
@@ -1612,7 +1612,7 @@ export function ScheduleMasterTab() {
                                   disabled={versionAction === 'creating'}
                                 >
                                   {versionAction === 'creating' ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    <Spinner size={16} className="mr-2" />
                                   ) : (
                                     <FileEdit className="h-4 w-4 mr-2" />
                                   )}
@@ -1626,7 +1626,7 @@ export function ScheduleMasterTab() {
                                     disabled={versionAction === 'publishing'}
                                   >
                                     {versionAction === 'publishing' ? (
-                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      <Spinner size={16} className="mr-2" />
                                     ) : (
                                       <Upload className="h-4 w-4 mr-2" />
                                     )}
@@ -1638,7 +1638,7 @@ export function ScheduleMasterTab() {
                                     className="text-destructive focus:text-destructive"
                                   >
                                     {versionAction === 'discarding' ? (
-                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      <Spinner size={16} className="mr-2" />
                                     ) : (
                                       <Trash2 className="h-4 w-4 mr-2" />
                                     )}
@@ -1710,7 +1710,7 @@ export function ScheduleMasterTab() {
             )}
             {dataViewLoading && (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Spinner size={32} className="text-muted-foreground" />
               </div>
             )}
           </div>
@@ -2373,7 +2373,7 @@ export function ScheduleMasterTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingTemplate ? (
@@ -2630,7 +2630,7 @@ export function ScheduleMasterTab() {
                 <div className="flex items-center text-sm pt-2">
                   {autoSaveStatus === 'saving' && (
                     <span className="flex items-center text-muted-foreground">
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Saving...
                     </span>
                   )}
@@ -2749,7 +2749,7 @@ export function ScheduleMasterTab() {
               <Label>Supplier</Label>
               {loadingSuppliers ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size={16} />
                   Loading suppliers...
                 </div>
               ) : suppliers.length === 0 ? (
@@ -2774,7 +2774,7 @@ export function ScheduleMasterTab() {
                 <Label>Items to Include in PO</Label>
                 {loadingPriceHistories ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Spinner size={16} />
                     Loading items...
                   </div>
                 ) : priceHistories.length === 0 ? (
@@ -2862,7 +2862,7 @@ export function ScheduleMasterTab() {
             >
               {savingAutoPO ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (
@@ -2897,7 +2897,7 @@ export function ScheduleMasterTab() {
                 }}
               />
               <Button onClick={handleAddTag} disabled={savingTag || !newTagName.trim()}>
-                {savingTag ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {savingTag ? <Spinner size={16} /> : <Plus className="h-4 w-4" />}
               </Button>
             </div>
 
@@ -3043,7 +3043,7 @@ export function ScheduleMasterTab() {
             >
               {versionAction === 'publishing' ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Publishing...
                 </>
               ) : (
@@ -3073,7 +3073,7 @@ export function ScheduleMasterTab() {
           <div className="py-4">
             {loadingVersions ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Spinner size={24} className="text-muted-foreground" />
               </div>
             ) : versions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">

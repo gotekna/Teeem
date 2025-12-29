@@ -14,7 +14,8 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from "@/components/ui/spinner";
+
 import type { BooleanEditorProps } from './types';
 
 export function BooleanEditor({
@@ -105,7 +106,7 @@ export function BooleanEditor({
       {/* Saving indicator */}
       {isSaving && (
         <div className="ml-2">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Spinner size={16} className="text-muted-foreground" />
         </div>
       )}
 

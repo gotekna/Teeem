@@ -7,12 +7,12 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import {
   FileText,
   ExternalLink,
   Maximize2,
-  Loader2,
   X,
 } from "lucide-react";
 
@@ -236,7 +236,7 @@ export default function DocumentSidePanel({
           >
             {previewLoading ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                <Spinner size={48} className="mb-4" />
                 <p className="text-sm">Loading preview...</p>
               </div>
             ) : previewUrl ? (

@@ -32,7 +32,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Plus, Settings, Eye, EyeOff, GripVertical } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Plus,
+  Settings,
+  Eye,
+  EyeOff,
+  GripVertical,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
@@ -571,7 +578,7 @@ export function CreateRecordDialog({
           <Button onClick={handleCreate} disabled={saving}>
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Creating...
               </>
             ) : (

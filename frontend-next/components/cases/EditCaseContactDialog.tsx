@@ -21,8 +21,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
-import { Loader2, User, ExternalLink } from "lucide-react";
+import { User, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
 
 interface CaseContactData {
@@ -185,7 +186,7 @@ export function EditCaseContactDialog({
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : contactData ? (
           <form onSubmit={handleSubmit}>
@@ -382,7 +383,7 @@ export function EditCaseContactDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {saving && <Spinner size={16} className="mr-2" />}
                 Save Changes
               </Button>
             </DialogFooter>

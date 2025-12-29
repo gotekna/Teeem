@@ -20,7 +20,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Loader2,
   RefreshCw,
   Activity,
   Database,
@@ -43,6 +42,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn, safePercent } from "@/lib/utils";
 
 // Types matching the Performance Observatory API
@@ -276,7 +276,7 @@ export function PerformanceTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -345,7 +345,7 @@ export function PerformanceTab() {
           </Select>
           <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
             {refreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner size={16} />
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}

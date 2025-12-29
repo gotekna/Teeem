@@ -13,8 +13,8 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  Loader2,
   BarChart3,
   TrendingUp,
   TrendingDown,
@@ -96,7 +96,7 @@ export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }

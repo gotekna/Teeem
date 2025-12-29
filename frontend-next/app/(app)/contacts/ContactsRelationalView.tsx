@@ -14,7 +14,8 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { api } from "@/lib/api";
-import { Loader2 } from "lucide-react";
+
+import { Spinner } from "@/components/ui/spinner";
 import { useRouter } from "next/navigation";
 
 interface Contact {
@@ -221,7 +222,7 @@ export default function ContactsRelationalView({ contacts }: ContactsRelationalV
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

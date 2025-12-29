@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Database,
   Server,
@@ -13,7 +14,6 @@ import {
   CheckCircle,
   AlertTriangle,
   XCircle,
-  Loader2,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -115,7 +115,7 @@ export function InfrastructurePanel({ metrics, loading }: InfrastructurePanelPro
       <CardContent className="pt-0">
         {loading ? (
           <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Spinner size={20} className="text-muted-foreground" />
           </div>
         ) : (
           <div className="space-y-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowRight, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { ArrowRight, AlertCircle, CheckCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface Contact {
@@ -150,7 +151,7 @@ export function XeroLinkTransferModal({
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Spinner size={24} className="text-muted-foreground" />
           </div>
         ) : !hasLinks ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -240,7 +241,7 @@ export function XeroLinkTransferModal({
           >
             {transferring ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Transferring...
               </>
             ) : (

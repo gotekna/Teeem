@@ -25,7 +25,6 @@ import {
   Calendar,
   TextCursor,
   Trash2,
-  Loader2,
   GripVertical,
 } from "lucide-react";
 import type {
@@ -39,6 +38,7 @@ import {
   SIGNER_COLORS,
 } from "@/components/ui/pdf-editor/types";
 import { SignerPanel } from "@/components/ui/pdf-editor/signer-panel";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 // Initialize pdf.js worker
@@ -358,7 +358,7 @@ export function ESignaturePdfEditor({
                 onLoadSuccess={onDocumentLoadSuccess}
                 loading={
                   <div className="flex items-center justify-center h-64 w-[600px] bg-white">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <Spinner size={32} className="text-muted-foreground" />
                   </div>
                 }
               >

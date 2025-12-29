@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Loader2,
   Plus,
   Search,
   Briefcase,
@@ -33,6 +32,7 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { CaseProposalsTab } from "@/components/cases/case-proposals-tab";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface CaseItem {
   id: number;
@@ -332,7 +332,7 @@ export default function CasesPage() {
             <CardContent className="p-0">
               {loading ? (
                 <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <Spinner size={32} className="text-muted-foreground" />
                 </div>
               ) : cases.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">

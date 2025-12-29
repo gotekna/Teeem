@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Trophy,
   Bot,
@@ -11,7 +12,6 @@ import {
   Crown,
   Medal,
   Award,
-  Loader2,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -90,7 +90,7 @@ export function HealthLeaderboard({
       <CardContent className="pt-4">
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Spinner size={24} className="text-muted-foreground" />
           </div>
         ) : (
           <>

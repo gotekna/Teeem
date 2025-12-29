@@ -21,8 +21,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Save, Car, Wrench, Building2, Box, Hash } from "lucide-react";
+import {
+  Save,
+  Car,
+  Wrench,
+  Building2,
+  Box,
+  Hash,
+} from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface Company {
@@ -204,7 +212,7 @@ export default function NewAssetPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -582,7 +590,7 @@ export default function NewAssetPage() {
           </Button>
           <Button type="submit" disabled={saving}>
             {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}

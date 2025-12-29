@@ -4,11 +4,12 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useCorporateTable } from "@/hooks/use-corporate-table";
 import type { TableRow } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function AssetsPage() {
   const router = useRouter();
@@ -42,7 +43,7 @@ export default function AssetsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

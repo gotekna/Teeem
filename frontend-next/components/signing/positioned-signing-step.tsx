@@ -17,9 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import {
   CheckCircle2,
-  Loader2,
   PenLine,
   AtSign,
   Calendar,
@@ -335,7 +335,7 @@ export function PositionedSigningStep({
               onLoadError={onDocumentLoadError}
               loading={
                 <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <Spinner size={32} />
                 </div>
               }
               error={
@@ -417,7 +417,7 @@ export function PositionedSigningStep({
           <Button onClick={submitSignature} disabled={isSubmitting} size="lg">
             {isSubmitting ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Submitting...
               </>
             ) : (

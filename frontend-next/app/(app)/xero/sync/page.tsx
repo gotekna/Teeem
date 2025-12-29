@@ -12,11 +12,12 @@ import {
   BanknotesIcon,
   ChartBarIcon,
 } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 // Types
@@ -171,7 +172,7 @@ export default function XeroSyncPage() {
   if (loading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -305,7 +306,7 @@ export default function XeroSyncPage() {
           >
             <div className="flex items-center gap-3">
               {syncing.contacts ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
+                <Spinner size={24} />
               ) : (
                 <UserGroupIcon className="h-6 w-6 text-indigo-600" />
               )}

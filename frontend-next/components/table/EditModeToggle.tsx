@@ -16,9 +16,10 @@
 
 import React, { useCallback, memo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
-import { Pencil, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Pencil, Check, AlertTriangle } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Spinner } from "@/components/ui/spinner";
 import {
   tableEditModeAtom,
   hasAnyValidationErrorsAtom,
@@ -81,7 +82,7 @@ export const EditModeToggle = memo(function EditModeToggle({
       >
         {isSaving ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Spinner size={16} className="mr-2" />
             Saving...
           </>
         ) : hasErrors ? (
@@ -160,7 +161,7 @@ export const EditModeToggleCompact = memo(function EditModeToggleCompact({
       )}
     >
       {isSaving ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Spinner size={16} />
       ) : isEditMode ? (
         hasErrors ? (
           <AlertTriangle className="h-4 w-4" />

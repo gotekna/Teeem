@@ -3,7 +3,8 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
-import { Loader2, FileText, ExternalLink, RefreshCw } from "lucide-react";
+import { FileText, ExternalLink, RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "./button";
 
 export interface FieldHighlight {
@@ -32,7 +33,7 @@ export interface PDFViewerProps {
 function PDFViewerLoading({ className }: { className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center h-full", className)}>
-      <Loader2 className="h-8 w-8 animate-spin mb-2" />
+      <Spinner size={32} className="mb-2" />
       <p className="text-sm text-muted-foreground">Loading PDF viewer...</p>
     </div>
   );

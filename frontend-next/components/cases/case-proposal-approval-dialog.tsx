@@ -63,12 +63,12 @@ import {
   Users,
   Search,
   X,
-  Loader2,
   Pencil,
   Maximize2,
   Minimize2,
 } from "lucide-react";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface InvolvedParty {
@@ -972,7 +972,7 @@ export function CaseProposalApprovalDialog({
                           className="pl-8"
                         />
                         {searchingJobs && (
-                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" />
+                          <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2" />
                         )}
                       </div>
                     </div>
@@ -1057,7 +1057,7 @@ export function CaseProposalApprovalDialog({
                           className="pl-8"
                         />
                         {searchingCompanies && (
-                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" />
+                          <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2" />
                         )}
                       </div>
                     </div>

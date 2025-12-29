@@ -15,8 +15,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2 } from 'lucide-react';
+
 import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
+import { Spinner } from "@/components/ui/spinner";
 import type { TableColumn } from '../types';
 
 export interface BulkUpdateModalProps {
@@ -143,7 +144,7 @@ export function BulkUpdateModal({
                     <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-2">
                       {isLoading ? (
                         <div className="flex items-center gap-2 text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Spinner size={16} />
                           Loading options...
                         </div>
                       ) : options.length === 0 ? (
@@ -270,7 +271,7 @@ export function BulkUpdateModal({
             disabled={!bulkUpdateColumn || !bulkUpdateValue || bulkUpdateSaving}
           >
             {bulkUpdateSaving ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              <Spinner size={16} className="mr-1" />
             ) : null}
             Update {selectedRowsCount} row{selectedRowsCount !== 1 ? "s" : ""}
           </Button>

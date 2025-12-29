@@ -26,7 +26,6 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCw,
-  Loader2,
   AlertTriangle,
   Building2,
   ChevronDown,
@@ -38,6 +37,7 @@ import {
   Heart,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -219,7 +219,7 @@ export default function MicrosoftIntegrationPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -424,7 +424,7 @@ export default function MicrosoftIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100 dark:bg-blue-900" : "bg-gray-100 dark:bg-gray-800"}`}>
                       {isThisOneConnecting ? (
-                        <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
+                        <Spinner size={20} className="text-blue-500" />
                       ) : (
                         <Building2 className="h-5 w-5 text-gray-400" />
                       )}
@@ -437,7 +437,7 @@ export default function MicrosoftIntegrationPage() {
                   <div className="flex items-center gap-2">
                     {isThisOneConnecting ? (
                       <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        <Spinner size={12} className="mr-1" />
                         Connecting...
                       </Badge>
                     ) : (
@@ -798,7 +798,7 @@ function OrganizationCard({
                       Tenant Users
                     </h4>
                     <Button variant="outline" size="sm" onClick={handleLoadUsers} disabled={loadingUsers}>
-                      {loadingUsers ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                      {loadingUsers ? <Spinner size={12} /> : <RefreshCw className="h-3 w-3" />}
                     </Button>
                   </div>
                   {tenantUsers.length > 0 && (
@@ -850,19 +850,19 @@ function OrganizationCard({
 
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button variant="outline" size="sm" onClick={handleTest} disabled={testing}>
-                    {testing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
+                    {testing ? <Spinner size={16} className="mr-1" /> : <Mail className="h-4 w-4 mr-1" />}
                     Test Email
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleTestSharePoint} disabled={testingSharePoint}>
-                    {testingSharePoint ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FolderOpen className="h-4 w-4 mr-1" />}
+                    {testingSharePoint ? <Spinner size={16} className="mr-1" /> : <FolderOpen className="h-4 w-4 mr-1" />}
                     Test SharePoint
                   </Button>
                   <Button variant="default" size="sm" onClick={handleSyncToSharePoint} disabled={syncing} className="bg-blue-600 hover:bg-blue-700">
-                    {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Database className="h-4 w-4 mr-1" />}
+                    {syncing ? <Spinner size={16} className="mr-1" /> : <Database className="h-4 w-4 mr-1" />}
                     Sync to SharePoint
                   </Button>
                   <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
-                    {disconnecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
+                    {disconnecting ? <Spinner size={16} className="mr-1" /> : <XCircle className="h-4 w-4 mr-1" />}
                     Disconnect
                   </Button>
                 </div>
@@ -880,11 +880,11 @@ function OrganizationCard({
                 </Alert>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={handleRetryConsent} disabled={retrying}>
-                    {retrying ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                    {retrying ? <Spinner size={16} className="mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                     Retry Consent
                   </Button>
                   <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
-                    {disconnecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
+                    {disconnecting ? <Spinner size={16} className="mr-1" /> : <XCircle className="h-4 w-4 mr-1" />}
                     Cancel
                   </Button>
                 </div>

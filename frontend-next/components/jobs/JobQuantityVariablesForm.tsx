@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, RefreshCw, Calculator, Ruler, Home, Settings } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Save,
+  RefreshCw,
+  Calculator,
+  Ruler,
+  Home,
+  Settings,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -150,7 +158,7 @@ export function JobQuantityVariablesForm({ jobId, onSave }: JobQuantityVariables
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -276,7 +284,7 @@ export function JobQuantityVariablesForm({ jobId, onSave }: JobQuantityVariables
             disabled={!hasChanges || saving}
           >
             {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}

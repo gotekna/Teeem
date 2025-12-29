@@ -79,9 +79,10 @@ module Api
 
         if new_template.save
           # Copy all rows
-          @template.sm_schedule_master_rows.ordered.each do |row|
+          @template.sm_schedule_master_rows.in_sequence.each do |row|
             new_row = row.dup
-            new_row.sm_template = new_template
+            new_row.sm_template_ids = [new_template.id]
+            new_row.sm_schedule_master_version_id = nil
             new_row.save!
           end
 
@@ -418,7 +419,6 @@ module Api
           cost_centre: cost_centre_value,
           header_gantt: header_value,
           require_photo: row.require_photo,
-          require_certificate: row.require_certificate,
           confirm: row.confirm,
           po_required: row.po_required,
           critical_po: row.critical_po,
@@ -429,7 +429,6 @@ module Api
           pass_fail_enabled: row.pass_fail_enabled,
           color: row.color,
           tags: row.tags,
-          parent_row_id: row.parent_row_id,
           is_active: row.is_active
         }
       end

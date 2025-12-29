@@ -4,8 +4,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import BpmnJsDesigner from "@/components/workflows/designer/BpmnJsDesigner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
 
 export default function WorkflowDesignerPage() {
@@ -77,7 +78,7 @@ export default function WorkflowDesignerPage() {
   if (isLoading && !isNew) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Spinner size={32} className="text-slate-400" />
       </div>
     );
   }

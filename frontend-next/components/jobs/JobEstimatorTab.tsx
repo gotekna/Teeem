@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Sparkles,
   ClipboardList,
@@ -12,7 +13,6 @@ import {
   Lightbulb,
   Clock,
   FileText,
-  Loader2,
   ChefHat,
   ArrowRight,
 } from "lucide-react";
@@ -145,7 +145,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
             <Button onClick={handleAnalyze} disabled={loading}>
               {loading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Analyzing...
                 </>
               ) : (
@@ -191,7 +191,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
       {loading && !analysis && (
         <Card>
           <CardContent className="py-12 text-center">
-            <Loader2 className="mx-auto h-12 w-12 text-primary animate-spin" />
+            <Spinner size={48} className="mx-auto text-primary" />
             <h3 className="mt-4 text-sm font-medium">Analyzing Job...</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               This may take a moment while we process the job data

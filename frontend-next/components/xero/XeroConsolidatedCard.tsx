@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  Loader2,
   RefreshCw,
   BarChart3,
   Database,
@@ -198,7 +198,7 @@ export function XeroConsolidatedCard({ companyId, companyName }: XeroConsolidate
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -277,7 +277,7 @@ export function XeroConsolidatedCard({ companyId, companyName }: XeroConsolidate
                   className="w-36"
                 />
                 <Button onClick={loadProfitLossReports} disabled={loadingReports} size="sm">
-                  {loadingReports ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {loadingReports ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
                   <span className="ml-2">Load All</span>
                 </Button>
               </div>
@@ -292,7 +292,7 @@ export function XeroConsolidatedCard({ companyId, companyName }: XeroConsolidate
 
               {loadingReports && (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <Spinner size={32} className="text-muted-foreground" />
                   <span className="ml-2 text-muted-foreground">Loading reports from all companies...</span>
                 </div>
               )}
@@ -315,7 +315,7 @@ export function XeroConsolidatedCard({ companyId, companyName }: XeroConsolidate
                   className="w-36"
                 />
                 <Button onClick={loadBalanceSheetReports} disabled={loadingReports} size="sm">
-                  {loadingReports ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {loadingReports ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
                   <span className="ml-2">Load All</span>
                 </Button>
               </div>
@@ -330,7 +330,7 @@ export function XeroConsolidatedCard({ companyId, companyName }: XeroConsolidate
 
               {loadingReports && (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <Spinner size={32} className="text-muted-foreground" />
                   <span className="ml-2 text-muted-foreground">Loading reports from all companies...</span>
                 </div>
               )}

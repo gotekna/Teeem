@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
-  Loader2,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -44,6 +43,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface WorkflowStep {
@@ -238,7 +238,7 @@ export function WorkflowsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -306,7 +306,7 @@ export function WorkflowsTab() {
                         disabled={deleting === workflow.id || toggling === workflow.id}
                       >
                         {deleting === workflow.id || toggling === workflow.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Spinner size={16} />
                         ) : (
                           <MoreHorizontal className="h-4 w-4" />
                         )}
@@ -448,7 +448,7 @@ export function WorkflowsTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingWorkflow ? (

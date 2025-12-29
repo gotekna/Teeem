@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import {
   Workflow,
-  Loader2,
   CheckCircle,
   Clock,
   AlertCircle,
@@ -21,10 +20,11 @@ import {
   ChevronRight,
   Calendar,
   Building,
-} from 'lucide-react';
+} from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 import { WorkflowProgress } from '@/components/workflows/WorkflowProgress';
+import { Spinner } from "@/components/ui/spinner";
 
 interface WorkflowStats {
   active_instances: number;
@@ -127,7 +127,7 @@ export default function WorkflowsDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

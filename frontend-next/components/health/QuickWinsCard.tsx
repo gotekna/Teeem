@@ -4,7 +4,8 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Loader2, Check, Sparkles } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { Zap, Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface QuickWin {
@@ -75,7 +76,7 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+            <Spinner size={24} className="text-orange-500" />
           </div>
         </CardContent>
       </Card>
@@ -156,7 +157,7 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
                 disabled={fixingId === quickWin.id}
               >
                 {fixingId === quickWin.id ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Spinner size={12} />
                 ) : justFixed === quickWin.id ? (
                   <Check className="h-3 w-3" />
                 ) : (

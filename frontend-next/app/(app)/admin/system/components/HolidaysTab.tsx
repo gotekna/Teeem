@@ -40,7 +40,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
-  Loader2,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -48,6 +47,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { format } from "date-fns";
 
 const REGIONS = [
@@ -341,7 +341,7 @@ export function HolidaysTab() {
       <Card>
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : (
           <Table>
@@ -380,7 +380,7 @@ export function HolidaysTab() {
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" disabled={deleting === holiday.id}>
                             {deleting === holiday.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Spinner size={16} />
                             ) : (
                               <MoreHorizontal className="h-4 w-4" />
                             )}
@@ -512,7 +512,7 @@ export function HolidaysTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingHoliday ? (

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -29,7 +30,6 @@ import {
   TrendingDown,
   Shield,
   Download,
-  Loader2,
   Building2,
   Car,
   Wrench,
@@ -522,7 +522,7 @@ export default function AssetReportsPage() {
       {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="text-muted-foreground" />
         </div>
       )}
 

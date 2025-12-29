@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ChevronRight,
   ChevronDown,
@@ -13,7 +14,6 @@ import {
   Search,
   Users,
   DollarSign,
-  Loader2,
   FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -454,7 +454,7 @@ export default function CompanyGroupsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -557,7 +557,7 @@ export default function CompanyGroupsPage() {
           <div className="flex-1 overflow-y-auto">
             {loadingStructure ? (
               <div className="flex items-center justify-center h-48">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Spinner size={24} className="text-muted-foreground" />
               </div>
             ) : selectedGroup ? (
               filteredCompanies.length > 0 || (structure?.people && structure.people.length > 0) ? (

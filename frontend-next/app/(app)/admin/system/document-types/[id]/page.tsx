@@ -18,7 +18,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDown, ChevronRight, ChevronLeft, Type, Copy } from "lucide-react";
+import {
+  Save,
+  Trash2,
+  FileText,
+  X,
+  GripVertical,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Type,
+  Copy,
+} from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -29,6 +40,7 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 // Token Components - SSoT for placeholder handling
 import { TokenBadge } from "@/components/ui/tokens";
+import { Spinner } from "@/components/ui/spinner";
 import {
   type PlaceholderToken,
   type PlaceholderScope,
@@ -987,7 +999,7 @@ export default function DocumentTypeDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1069,7 +1081,7 @@ export default function DocumentTypeDetailPage() {
           <Button onClick={handleSave} disabled={saving}>
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 {isNew ? "Creating..." : "Saving..."}
               </>
             ) : (
@@ -2053,7 +2065,7 @@ export default function DocumentTypeDetailPage() {
         <Button onClick={handleSave} disabled={saving} size="lg">
           {saving ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
               Saving...
             </>
           ) : (

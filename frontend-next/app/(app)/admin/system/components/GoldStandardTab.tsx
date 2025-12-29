@@ -32,7 +32,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Loader2,
   RefreshCw,
   Download,
   CheckCircle,
@@ -89,6 +88,7 @@ import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-conf
 import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
 import { ColumnTypeDefinitionsTab } from "./ColumnTypeDefinitionsTab";
 import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ColumnType {
   columnName: string;
@@ -832,7 +832,7 @@ function GoldStandardDataTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1013,7 +1013,7 @@ function GoldStandardTableTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1553,7 +1553,7 @@ function GoldDocumentTypeEditor() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1601,7 +1601,7 @@ function GoldDocumentTypeEditor() {
                 </p>
               </div>
               <Button onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {saving ? <Spinner size={16} className="mr-2" /> : null}
                 Save Changes
               </Button>
             </div>
@@ -1840,7 +1840,7 @@ function SyncCheckTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

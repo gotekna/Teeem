@@ -11,7 +11,7 @@ import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { X, Loader2 } from 'lucide-react';
+import { X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { ResizableColumnHeader } from '../../components/ResizableColumnHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from '@/lib/utils';
 import type { TableColumn, CascadeFilter } from '../../types';
 
@@ -411,7 +412,7 @@ export function TableHeaderSection({
                 if (isLoading) {
                   return (
                     <div className="h-7 flex items-center justify-center text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Spinner size={12} />
                     </div>
                   );
                 }

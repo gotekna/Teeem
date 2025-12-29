@@ -2,8 +2,9 @@
 
 import { useGetDuplicateGroups } from "@/lib/hooks/useDuplicateContacts";
 import { DuplicateContactGroup } from "./DuplicateContactGroup";
-import { Loader2, CheckCircle } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 export function DuplicateContactsTab() {
   const { data, isLoading, error } = useGetDuplicateGroups();
@@ -11,7 +12,7 @@ export function DuplicateContactsTab() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

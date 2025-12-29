@@ -28,9 +28,15 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { ImageIcon, Loader2, Check, Square, CheckSquare } from "lucide-react";
+import {
+  ImageIcon,
+  Check,
+  Square,
+  CheckSquare,
+} from "lucide-react";
 import { getTodayAsString, getCompanyTimezone } from "@/lib/timezone-utils";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 export interface PhotoItem {
   id: string;
@@ -187,7 +193,7 @@ function PhotoThumbnail({
       {/* Loading placeholder */}
       {!loaded && !error && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Spinner size={24} className="text-muted-foreground" />
         </div>
       )}
 

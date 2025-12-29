@@ -31,7 +31,6 @@ import {
   Download,
   FileText,
   Calendar,
-  Loader2,
   BarChart3,
   ArrowUpRight,
   ArrowDownRight,
@@ -66,6 +65,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { cn, safePercent } from "@/lib/utils";
 
@@ -589,7 +589,7 @@ function DashboardTab({
   jobs: JobProfitability[];
   onNavigate: (tab: string) => void;
 }) {
-  if (!summary) return <Loader2 className="h-8 w-8 animate-spin mx-auto" />;
+  if (!summary) return <Spinner size={32} className="mx-auto" />;
 
   return (
     <div className="space-y-6">
@@ -1168,7 +1168,7 @@ function AgedReportsTab({
                         disabled={selectedPayables.size === 0 || processingPayment}
                       >
                         {processingPayment ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Spinner size={16} className="mr-2" />
                         ) : (
                           <Banknote className="h-4 w-4 mr-2" />
                         )}
@@ -1180,7 +1180,7 @@ function AgedReportsTab({
                         disabled={selectedPayables.size === 0 || generatingAba}
                       >
                         {generatingAba ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Spinner size={16} className="mr-2" />
                         ) : (
                           <FileCheck className="h-4 w-4 mr-2" />
                         )}
@@ -1843,7 +1843,7 @@ export default function FinancialPage() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <Spinner size={32} className="mx-auto text-primary" />
           <p className="text-sm text-muted-foreground mt-2">Loading financial data...</p>
         </div>
       </div>

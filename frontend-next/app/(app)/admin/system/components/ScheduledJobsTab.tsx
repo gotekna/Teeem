@@ -5,12 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SimpleTableView, type SimpleColumn } from "@/components/table";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Clock,
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Loader2,
   Timer,
   Layers,
   Play,
@@ -92,7 +92,7 @@ export function ScheduledJobsTab() {
   if (loading && jobs.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

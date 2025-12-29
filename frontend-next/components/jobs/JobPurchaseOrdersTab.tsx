@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/popover";
 import {
   Plus,
-  Loader2,
   ChevronsUpDown,
   Check,
   AlertTriangle,
@@ -37,6 +36,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 
 // Foundation table name for Purchase Orders
 const PURCHASE_ORDERS_TABLE_NAME = "purchase_orders";
@@ -375,7 +375,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             <Button onClick={handleCreate} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (

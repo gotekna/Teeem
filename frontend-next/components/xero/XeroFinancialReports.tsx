@@ -4,12 +4,8 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Loader2,
-  RefreshCw,
-  BarChart3,
-  Database,
-} from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { RefreshCw, BarChart3, Database } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { XeroReportRow } from "./types";
@@ -85,7 +81,7 @@ export function XeroProfitLossCard({ companyId }: XeroProfitLossCardProps) {
               className="w-36"
             />
             <Button onClick={loadReport} disabled={loading} size="sm">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {loading ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
               <span className="ml-2">Load</span>
             </Button>
           </div>
@@ -107,7 +103,7 @@ export function XeroProfitLossCard({ companyId }: XeroProfitLossCardProps) {
 
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         )}
 
@@ -177,7 +173,7 @@ export function XeroBalanceSheetCard({ companyId }: XeroBalanceSheetCardProps) {
               className="w-36"
             />
             <Button onClick={loadReport} disabled={loading} size="sm">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {loading ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
               <span className="ml-2">Load</span>
             </Button>
           </div>
@@ -199,7 +195,7 @@ export function XeroBalanceSheetCard({ companyId }: XeroBalanceSheetCardProps) {
 
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         )}
 

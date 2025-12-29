@@ -23,7 +23,6 @@ import {
 import {
   FileText,
   Mail,
-  Loader2,
   CheckCircle,
   Plus,
   Upload,
@@ -49,6 +48,7 @@ import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
 import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
+import { Spinner } from "@/components/ui/spinner";
 // Layout mode is handled by parent page wrapper (TabbedDetailPage)
 // This tab uses EdgeToEdgeTabContent for internal padding
 
@@ -1110,7 +1110,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               onClick={handleSavePlan}
               disabled={saving || !selectedPlanTypeId}
             >
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {saving && <Spinner size={16} className="mr-2" />}
               Add Plan
             </Button>
           </DialogFooter>

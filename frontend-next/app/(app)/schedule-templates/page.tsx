@@ -19,7 +19,6 @@ import {
   ListTodo,
   LayoutGrid,
   List,
-  Loader2,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import {
@@ -270,7 +269,7 @@ export default function ScheduleTemplatesPage() {
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon">
                           {(duplicating === template.id || settingDefault === template.id || deleting === template.id) ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size={16} />
                           ) : (
                             <MoreHorizontal className="h-4 w-4" />
                           )}
@@ -372,7 +371,7 @@ export default function ScheduleTemplatesPage() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingTemplate ? (

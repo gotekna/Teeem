@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Link as LinkIcon, CheckCircle, Loader2, Building2 } from "lucide-react";
+import {
+  Search,
+  Link as LinkIcon,
+  CheckCircle,
+  Building2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -209,7 +215,7 @@ export function LinkXeroContactModal({
           <label className="text-sm font-medium">Select Xero Organization</label>
           {loadingTenants ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner size={16} />
               Loading organizations...
             </div>
           ) : unlinkedTenants.length === 0 ? (
@@ -252,7 +258,7 @@ export function LinkXeroContactModal({
             <Button type="submit" disabled={searching || !searchQuery.trim()}>
               {searching ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Searching...
                 </>
               ) : (
@@ -350,7 +356,7 @@ export function LinkXeroContactModal({
           <Button onClick={handleLink} disabled={!selectedXeroContact || !selectedTenant || linking}>
             {linking ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Linking...
               </>
             ) : (

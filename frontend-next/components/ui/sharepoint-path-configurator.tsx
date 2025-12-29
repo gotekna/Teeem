@@ -32,8 +32,8 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  Loader2,
   FolderTree,
   Copy,
   CheckCircle,
@@ -360,7 +360,7 @@ export function SharePointPathConfigurator({
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center p-8", className)}>
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
         <span className="ml-2 text-sm text-muted-foreground">Loading path configuration...</span>
       </div>
     );
@@ -545,7 +545,7 @@ export function SharePointPathConfigurator({
             >
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (

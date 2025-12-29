@@ -40,7 +40,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   Plus,
-  Loader2,
   Pencil,
   Trash2,
   MoreHorizontal,
@@ -55,10 +54,11 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-} from 'lucide-react';
+} from "lucide-react";
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 import { TaskAssignmentField } from '@/components/task-hub/TaskAssignmentField';
+import { Spinner } from "@/components/ui/spinner";
 
 // SSoT: Matches backend SmRecurringTaskDefinition::FREQUENCIES
 const FREQUENCIES = [
@@ -322,7 +322,7 @@ export function RecurringTasksSection() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -810,7 +810,7 @@ export function RecurringTasksSection() {
             <Button onClick={handleSubmit} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingDefinition ? (

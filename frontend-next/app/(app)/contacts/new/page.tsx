@@ -21,10 +21,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Loader2, User, Building2, Plus, ChevronsUpDown, Check, X } from "lucide-react";
+import {
+  User,
+  Building2,
+  Plus,
+  ChevronsUpDown,
+  Check,
+  X,
+} from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { hasFirstLastName, hasCompanyName, canHaveEmployees, canHaveEmployer, getEntityTypeIcon, isTrust } from "@/lib/entity-types";
@@ -469,7 +477,7 @@ export default function NewContactPage() {
                           <CommandList>
                             {searchingCompanies && (
                               <div className="flex items-center justify-center py-4">
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Spinner size={16} />
                               </div>
                             )}
                             {!searchingCompanies && companySearchQuery.length >= 2 && companySearchResults.length === 0 && (
@@ -560,7 +568,7 @@ export default function NewContactPage() {
                           <CommandList>
                             {searchingEmployees && (
                               <CommandEmpty>
-                                <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                                <Spinner size={16} className="mx-auto" />
                               </CommandEmpty>
                             )}
                             {!searchingEmployees && employeeSearchQuery.length < 2 && (
@@ -701,7 +709,7 @@ export default function NewContactPage() {
               <div className="space-y-3">
                 {entityTypesLoading ? (
                   <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <Spinner />
                   </div>
                 ) : (
                   createFormTypes.map((type) => (
@@ -737,7 +745,7 @@ export default function NewContactPage() {
           <Button type="submit" disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Creating...
               </>
             ) : (

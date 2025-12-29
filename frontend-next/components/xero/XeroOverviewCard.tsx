@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  Loader2,
   Link2Off,
   Users,
   FileText,
@@ -80,7 +80,7 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }

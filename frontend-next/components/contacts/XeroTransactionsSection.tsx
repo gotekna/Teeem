@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { FileText, CreditCard, FileCheck, Loader2 } from "lucide-react";
+import { FileText, CreditCard, FileCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 import type { XeroInvoice, XeroCreditNote, XeroQuote, XeroLink } from "@/types/xero";
 
 interface XeroTransactionsSectionProps {
@@ -150,7 +151,7 @@ export function XeroTransactionsSection({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

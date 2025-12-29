@@ -3,7 +3,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import {
-  Loader2,
   FileText,
   Download,
   Printer,
@@ -200,7 +199,7 @@ function escapeHtml(text: string): string {
 export function WordViewerLoading({ className }: { className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center h-full", className)}>
-      <Loader2 className="h-8 w-8 animate-spin mb-2 text-blue-600" />
+      <Spinner size={32} className="mb-2 text-blue-600" />
       <p className="text-sm text-muted-foreground">Loading document...</p>
     </div>
   );

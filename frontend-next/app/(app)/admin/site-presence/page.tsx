@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import {
   Clock,
@@ -26,7 +27,6 @@ import {
   Play,
   Pause,
   ExternalLink,
-  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -204,7 +204,7 @@ export default function SitePresenceDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

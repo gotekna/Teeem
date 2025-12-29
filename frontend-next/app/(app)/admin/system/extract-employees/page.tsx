@@ -13,7 +13,6 @@ import {
   ArrowLeft,
   Mail,
   Search,
-  Loader2,
   Trash2,
   Plus,
   Building2,
@@ -31,6 +30,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface MatchingContact {
   id: number;
@@ -720,7 +720,7 @@ function ExtractEmployeesContent() {
 
                   {loadingMailboxes ? (
                     <div className="flex items-center justify-center py-8 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      <Spinner size={20} className="mr-2" />
                       Loading mailboxes...
                     </div>
                   ) : mailboxes.length === 0 ? (
@@ -803,7 +803,7 @@ function ExtractEmployeesContent() {
                 >
                   {searching ? (
                     <>
-                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      <Spinner size={20} className="mr-2" />
                       Searching Email Warehouse...
                     </>
                   ) : (
@@ -1503,7 +1503,7 @@ function ExtractEmployeesContent() {
               <Button onClick={handleExecute} disabled={executing || selectedCount === 0} size="lg">
                 {executing ? (
                   <>
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    <Spinner size={20} className="mr-2" />
                     Processing...
                   </>
                 ) : (
@@ -1539,7 +1539,7 @@ function ExtractEmployeesLoading() {
       </div>
       <div className="container mx-auto px-6 py-8">
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="text-muted-foreground" />
         </div>
       </div>
     </div>

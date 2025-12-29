@@ -22,7 +22,6 @@ import {
   CheckCircle,
   XCircle,
   Cloud,
-  Loader2,
   Plus,
   Sparkles,
 } from "lucide-react";
@@ -32,6 +31,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
+import { Spinner } from "@/components/ui/spinner";
 import type { CorporateCompany } from "@/lib/types/corporate";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
@@ -245,7 +245,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
         if (doc.ai_verification_status === "processing") {
           return (
             <div className="flex justify-center" title="AI analyzing...">
-              <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+              <Spinner size={16} className="text-purple-500" />
             </div>
           );
         }
@@ -461,7 +461,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   if (loading && documents.length === 0) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -492,7 +492,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
           >
             {bulkAiProcessing ? (
               <>
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                <Spinner size={16} className="mr-1" />
                 {bulkAiProgress ? `${bulkAiProgress.current}/${bulkAiProgress.total}` : "Processing..."}
               </>
             ) : (

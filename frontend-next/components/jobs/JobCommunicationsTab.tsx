@@ -16,7 +16,6 @@ import {
   Phone,
   Send,
   Search,
-  Loader2,
   RefreshCw,
   Paperclip,
   MessageSquare,
@@ -26,6 +25,7 @@ import {
 import { api } from "@/lib/api";
 import DOMPurify from "isomorphic-dompurify";
 import { EntityChat } from "@/components/chat/EntityChat";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Message {
   id: number;
@@ -192,7 +192,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
       <CardContent>
         {loading ? (
           <div className="flex justify-center items-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : filteredMessages.length === 0 ? (
           <div className="text-center py-12">
@@ -240,7 +240,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
             />
             <Button type="submit" disabled={!newMessage.trim() || sending}>
               {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size={16} />
               ) : (
                 <Send className="h-4 w-4" />
               )}
@@ -337,7 +337,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );

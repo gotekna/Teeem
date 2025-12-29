@@ -36,7 +36,6 @@ import {
 import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import {
   Edit,
-  Loader2,
   Plus,
   ListTodo,
   Clock,
@@ -992,7 +991,7 @@ export default function ScheduleTemplateDetailPage() {
             <Button onClick={handleSaveRow} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (
@@ -1028,7 +1027,7 @@ export default function ScheduleTemplateDetailPage() {
                   <Label>Select Job</Label>
                   {loadingJobs ? (
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Spinner size={16} />
                       Loading jobs...
                     </div>
                   ) : (
@@ -1055,7 +1054,7 @@ export default function ScheduleTemplateDetailPage() {
                 <Button onClick={handleCompare} disabled={comparing || !selectedJobId}>
                   {comparing ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Comparing...
                     </>
                   ) : (
@@ -1200,7 +1199,7 @@ export default function ScheduleTemplateDetailPage() {
                 >
                   {syncing ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Syncing...
                     </>
                   ) : (
@@ -1328,7 +1327,7 @@ export default function ScheduleTemplateDetailPage() {
                   <Label>Select Job</Label>
                   {loadingJobs ? (
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Spinner size={16} />
                       Loading jobs...
                     </div>
                   ) : (
@@ -1359,7 +1358,7 @@ export default function ScheduleTemplateDetailPage() {
                 <Button onClick={handleCopyToJob} disabled={copying || !copyJobId}>
                   {copying ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Spinner size={16} className="mr-2" />
                       Copying...
                     </>
                   ) : (
@@ -1472,7 +1471,7 @@ export default function ScheduleTemplateDetailPage() {
               <Label>Supplier</Label>
               {loadingSuppliers ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size={16} />
                   Loading suppliers...
                 </div>
               ) : (
@@ -1521,7 +1520,7 @@ export default function ScheduleTemplateDetailPage() {
             >
               {savingAutoPO ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (

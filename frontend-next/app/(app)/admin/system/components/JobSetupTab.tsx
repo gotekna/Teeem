@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus,
-  Loader2,
   Pencil,
   Trash2,
   Briefcase,
@@ -57,6 +56,7 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -755,7 +755,7 @@ export function JobSetupTab() {
           {/* Suburbs Table */}
           {suburbsLoading ? (
             <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Spinner size={24} className="text-muted-foreground" />
             </div>
           ) : filteredSuburbs.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -863,7 +863,7 @@ export function JobSetupTab() {
             </div>
           ) : claimStagesLoading ? (
             <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Spinner size={24} className="text-muted-foreground" />
             </div>
           ) : claimStages.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -1006,7 +1006,7 @@ export function JobSetupTab() {
             <Button onClick={handleSaveClaimStage} disabled={claimStageSaving}>
               {claimStageSaving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingClaimStage ? (
@@ -1100,7 +1100,7 @@ export function JobSetupTab() {
             <Button onClick={handleSaveSuburb} disabled={suburbSaving}>
               {suburbSaving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (
@@ -1170,7 +1170,7 @@ export function JobSetupTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingItem ? (

@@ -32,7 +32,6 @@ import {
   FileText,
   Key,
   ExternalLink,
-  Loader2,
   Network,
   GitBranch,
   Maximize2,
@@ -42,13 +41,14 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 import dynamic from "next/dynamic";
 import { isTrust } from "@/lib/entity-types";
 
 // Dynamically import the chart to avoid SSR issues with React Flow
 const CorporateStructureChart = dynamic(
   () => import("@/components/corporate/CorporateStructureChart"),
-  { ssr: false, loading: () => <div className="h-[600px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> }
+  { ssr: false, loading: () => <div className="h-[600px] flex items-center justify-center"><Spinner size={32} /></div> }
 );
 
 // ============================================
@@ -335,7 +335,7 @@ export function CorporateStructureTab({
         </Card>
       ) : loadingStructure ? (
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="text-muted-foreground" />
         </div>
       ) : structureData ? (
         <>

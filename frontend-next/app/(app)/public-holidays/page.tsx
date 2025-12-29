@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PlusIcon } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 
 // SSoT: Columns fetched from Foundation API (ID: 405)
 
@@ -270,7 +271,7 @@ export default function PublicHolidaysPage() {
               <Button type="submit" disabled={saving}>
                 {saving ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                     Adding...
                   </>
                 ) : (

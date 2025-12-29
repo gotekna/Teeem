@@ -21,13 +21,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Plus, Loader2, Building2, Briefcase, Users, FolderOpen } from "lucide-react";
+import {
+  Plus,
+  Building2,
+  Briefcase,
+  Users,
+  FolderOpen,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
@@ -523,7 +530,7 @@ export function DocumentTypesTab() {
   if (loading && documentTypes.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -615,7 +622,7 @@ export function DocumentTypesTab() {
               </div>
               <div className="flex gap-2">
                 <Button type="submit" disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {saving ? <Spinner size={16} className="mr-2" /> : null}
                   Add
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>

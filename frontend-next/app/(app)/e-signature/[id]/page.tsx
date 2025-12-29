@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Send,
   XCircle,
@@ -25,7 +26,6 @@ import {
   FileText,
   Users,
   AlertCircle,
-  Loader2,
   Mail,
   Calendar,
   Shield,
@@ -136,7 +136,7 @@ export default function ESignatureDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -182,7 +182,7 @@ export default function ESignatureDetailPage() {
                 disabled={sendMutation.isPending || request.signers.length === 0}
               >
                 {sendMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                 ) : (
                   <Send className="h-4 w-4 mr-2" />
                 )}
@@ -374,7 +374,7 @@ export default function ESignatureDetailPage() {
               disabled={cancelMutation.isPending}
             >
               {cancelMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <XCircle className="h-4 w-4 mr-2" />
               )}

@@ -37,13 +37,13 @@ import {
   X,
   Download,
   ExternalLink,
-  Loader2,
   ImageIcon,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import type { PhotoItem } from "@/components/ui/photo-gallery";
+import { Spinner } from "@/components/ui/spinner";
 
 export interface ImageLightboxProps {
   /** Array of photos */
@@ -438,7 +438,7 @@ export function ImageLightbox({
               title="Delete photo"
             >
               {deleting ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Spinner />
               ) : (
                 <Trash2 className="h-5 w-5" />
               )}
@@ -489,7 +489,7 @@ export function ImageLightbox({
           {/* Loading spinner */}
           {(loading || resolving) && (
             <div className="absolute inset-0 flex items-center justify-center flex-col gap-2">
-              <Loader2 className="h-10 w-10 animate-spin text-white" />
+              <Spinner size={40} className="text-white" />
               {resolving && (
                 <p className="text-white/60 text-sm">Loading full image...</p>
               )}

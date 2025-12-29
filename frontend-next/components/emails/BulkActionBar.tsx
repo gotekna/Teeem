@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Archive,
   Star,
@@ -10,7 +11,6 @@ import {
   Mail,
   MailOpen,
   X,
-  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +107,7 @@ export function BulkActionBar({
           className="h-7 px-2 text-xs"
         >
           {isLoading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Spinner size={12} />
           ) : (
             <Archive className="h-3.5 w-3.5" />
           )}

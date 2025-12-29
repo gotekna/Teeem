@@ -4,13 +4,19 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import {
+  FileText,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+} from "lucide-react";
 import { EmailVerificationStep } from "@/components/signing/email-verification-step";
 import { DocumentViewerStep } from "@/components/signing/document-viewer-step";
 import { ConsentStep } from "@/components/signing/consent-step";
 import { SignatureCaptureStep } from "@/components/signing/signature-capture-step";
 import { PositionedSigningStep } from "@/components/signing/positioned-signing-step";
 import { CompletionStep } from "@/components/signing/completion-step";
+import { Spinner } from "@/components/ui/spinner";
 import { getApiBaseUrl } from "@/lib/api";
 
 interface SignerInfo {
@@ -172,7 +178,7 @@ export default function SigningCeremonyPage() {
       case "loading":
         return (
           <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <Spinner size={32} className="text-primary mb-4" />
             <p className="text-muted-foreground">Loading signing session...</p>
           </div>
         );

@@ -14,13 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Loader2, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { Spinner } from "@/components/ui/spinner";
 import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
 // Re-export for local use (SSoT: @/lib/constants/document-types.ts)
@@ -282,7 +283,7 @@ export default function DocumentTypesPage() {
   if (loading && documentTypes.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -353,7 +354,7 @@ export default function DocumentTypesPage() {
               </div>
               <div className="flex gap-2">
                 <Button type="submit" disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {saving ? <Spinner size={16} className="mr-2" /> : null}
                   Add
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>

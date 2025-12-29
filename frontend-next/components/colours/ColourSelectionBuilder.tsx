@@ -6,7 +6,6 @@ import {
   Palette,
   ChevronDown,
   ChevronRight,
-  Loader2,
   Download,
   RefreshCw,
 } from "lucide-react";
@@ -18,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 // Types
@@ -402,7 +402,7 @@ export function ColourSelectionBuilder({ jobId, jobTypeId }: ColourSelectionBuil
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -428,7 +428,7 @@ export function ColourSelectionBuilder({ jobId, jobTypeId }: ColourSelectionBuil
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving || !isDirty}>
             {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}

@@ -10,6 +10,7 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -18,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2 } from "lucide-react";
+
 import { api } from "@/lib/api";
 import type { CorporateCompany, Shareholding } from "@/lib/types/corporate";
 
@@ -57,7 +58,7 @@ export function ShareholdingsTab({ company, companyId }: ShareholdingsTabProps) 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }

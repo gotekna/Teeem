@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -18,7 +19,6 @@ import {
   ChevronRight,
   ChevronDown,
   Home,
-  Loader2,
   AlertCircle,
   RefreshCw,
   Cloud,
@@ -116,7 +116,7 @@ function TreeFolder({
             }}
           >
             {node.isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Spinner size={16} className="text-muted-foreground" />
             ) : node.isExpanded ? (
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             ) : (
@@ -461,7 +461,7 @@ export function SharePointFolderBrowser({
               >
                 {creatingFolder ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                     Creating...
                   </>
                 ) : (
@@ -501,7 +501,7 @@ export function SharePointFolderBrowser({
             <SelectValue>
               <div className="flex items-center gap-2">
                 {switchingDrive ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size={16} />
                 ) : currentDrive === "personal" ? (
                   <Cloud className="h-4 w-4 text-blue-500" />
                 ) : (

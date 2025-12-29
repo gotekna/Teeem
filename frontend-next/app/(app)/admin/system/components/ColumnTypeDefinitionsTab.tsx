@@ -32,9 +32,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, RefreshCw, Plus, Pencil, Trash2, Eye, Code } from "lucide-react";
+import {
+  RefreshCw,
+  Plus,
+  Pencil,
+  Trash2,
+  Eye,
+  Code,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { formatValue } from "@/lib/formatters/display-formatters";
 import { reloadTypeDefinitions, type ColumnTypeDefinition } from "@/lib/column-type-registry";
 
@@ -293,7 +301,7 @@ export function ColumnTypeDefinitionsTab() {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={fetchDefinitions} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {loading ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
               Refresh
             </Button>
             <Button size="sm" onClick={handleCreate}>
@@ -323,7 +331,7 @@ export function ColumnTypeDefinitionsTab() {
 
           {loading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           ) : (
             <div className="border rounded-md max-h-[600px] overflow-auto">
@@ -677,7 +685,7 @@ export function ColumnTypeDefinitionsTab() {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {saving && <Spinner size={16} className="mr-2" />}
               Save
             </Button>
           </DialogFooter>

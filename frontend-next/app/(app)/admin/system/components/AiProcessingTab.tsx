@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,6 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Loader2,
   FileText,
   Eye,
   Sparkles,
@@ -168,7 +168,7 @@ export function AiProcessingTab() {
   if (loading && configs.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -303,7 +303,7 @@ export function AiProcessingTab() {
                       </Badge>
                     )}
                     {saving === config.id && (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      <Spinner size={16} className="text-muted-foreground" />
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">

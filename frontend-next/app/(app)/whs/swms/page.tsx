@@ -25,7 +25,6 @@ import {
   ClipboardCheck,
   Plus,
   Search,
-  Loader2,
   Calendar,
   CheckCircle,
   Clock,
@@ -36,6 +35,7 @@ import {
   Edit,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface SWMS {
@@ -201,7 +201,7 @@ export default function WHSSWMSPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

@@ -12,10 +12,10 @@ import {
   XCircle,
   Plus,
   RefreshCw,
-  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface FieldComparison {
   extracted: string | null;
@@ -267,7 +267,7 @@ export function ContactComparisonCard({
               >
                 {updating ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                     Updating...
                   </>
                 ) : (

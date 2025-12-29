@@ -44,7 +44,6 @@ import {
   MoreHorizontal,
   Plus,
   Search,
-  Loader2,
   Pencil,
   Trash2,
   Mail,
@@ -53,6 +52,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
+import { Spinner } from "@/components/ui/spinner";
 
 interface User {
   id: number;
@@ -177,7 +177,7 @@ function UsersManagementTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -357,7 +357,7 @@ function UsersManagementTab() {
             <Button onClick={handleInvite} disabled={inviting || !inviteEmail}>
               {inviting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Sending...
                 </>
               ) : (
@@ -519,7 +519,7 @@ function RolesManagementTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -620,7 +620,7 @@ function RolesManagementTab() {
             <Button onClick={handleAddRole} disabled={saving || !newRoleName}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (
@@ -670,7 +670,7 @@ function RolesManagementTab() {
             <Button onClick={handleSaveEdit} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (
@@ -696,7 +696,7 @@ function RolesManagementTab() {
           <div className="max-h-[400px] overflow-y-auto">
             {loadingRoleUsers ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Spinner size={24} className="text-muted-foreground" />
               </div>
             ) : roleUsers.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
@@ -785,7 +785,7 @@ function GroupsManagementTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -875,7 +875,7 @@ function GroupsManagementTab() {
             <Button onClick={handleAddGroup} disabled={saving || !newGroupName}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (

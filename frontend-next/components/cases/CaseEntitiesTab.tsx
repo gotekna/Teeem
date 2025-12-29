@@ -38,8 +38,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  Loader2,
   FileText,
   Users,
   Building2,
@@ -375,7 +375,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }
@@ -736,7 +736,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
             </div>
             {searchingContacts && (
               <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <Spinner size={20} className="text-muted-foreground" />
               </div>
             )}
             {!searchingContacts &&
@@ -772,7 +772,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
                         </div>
                       </div>
                     </div>
-                    {addingContact && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {addingContact && <Spinner size={16} />}
                   </div>
                 ))}
               </div>

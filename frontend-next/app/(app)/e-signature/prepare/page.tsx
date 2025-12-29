@@ -24,7 +24,6 @@ import {
   ChevronRight,
   Upload,
   Check,
-  Loader2,
   AlertCircle,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
@@ -33,6 +32,7 @@ import { SignerPanel } from "@/components/ui/pdf-editor/signer-panel";
 import { ReviewAndSend } from "@/components/e-signature/review-and-send";
 import type { Signer, SignatureField } from "@/components/ui/pdf-editor/types";
 import { SIGNER_COLORS } from "@/components/ui/pdf-editor/types";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -407,7 +407,7 @@ export default function ESignaturePreparePage() {
           <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Sending...
               </>
             ) : (

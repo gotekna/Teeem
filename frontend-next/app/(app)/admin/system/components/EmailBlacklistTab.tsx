@@ -32,7 +32,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
-  Loader2,
   Plus,
   Trash2,
   Edit,
@@ -44,6 +43,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface BlacklistItem {
@@ -394,7 +394,7 @@ export function EmailBlacklistTab() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Spinner size={24} className="text-muted-foreground" />
             </div>
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -530,7 +530,7 @@ export function EmailBlacklistTab() {
               Cancel
             </Button>
             <Button onClick={handleAdd} disabled={submitting}>
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {submitting && <Spinner size={16} className="mr-2" />}
               Add Pattern
             </Button>
           </DialogFooter>
@@ -587,7 +587,7 @@ export function EmailBlacklistTab() {
               Cancel
             </Button>
             <Button onClick={handleEdit} disabled={submitting}>
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {submitting && <Spinner size={16} className="mr-2" />}
               Save Changes
             </Button>
           </DialogFooter>
@@ -629,7 +629,7 @@ export function EmailBlacklistTab() {
               />
             </div>
             <Button onClick={handleTest} disabled={submitting} className="w-full">
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {submitting && <Spinner size={16} className="mr-2" />}
               Test Email
             </Button>
 

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -21,7 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Plus, X, Building2, GitMerge, ChevronRight } from "lucide-react";
+import {
+  Plus,
+  X,
+  Building2,
+  GitMerge,
+  ChevronRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { CorporateCompany } from "@/lib/types/corporate";
@@ -371,7 +378,7 @@ export function ConsolidationTab({ company, onUpdate }: ConsolidationTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }

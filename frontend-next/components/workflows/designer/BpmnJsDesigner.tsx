@@ -3,7 +3,25 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText, PenTool, Plus, Trash2, GripVertical, Users, Settings, Cog, UserCheck } from "lucide-react";
+import {
+  Save,
+  Download,
+  Upload,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Eye,
+  Play,
+  FileText,
+  PenTool,
+  Plus,
+  Trash2,
+  GripVertical,
+  Users,
+  Settings,
+  Cog,
+  UserCheck,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
@@ -12,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 
 // Default empty BPMN diagram
 const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1251,7 +1270,7 @@ export default function BpmnJsDesigner({
           className="bg-green-600 hover:bg-green-700"
         >
           {isTestRunning ? (
-            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            <Spinner size={16} className="mr-1" />
           ) : (
             <Play className="w-4 h-4 mr-1" />
           )}

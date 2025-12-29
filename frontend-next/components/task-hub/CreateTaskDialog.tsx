@@ -24,10 +24,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { api } from '@/lib/api';
-import { Loader2, Plus } from 'lucide-react';
+import { Plus } from "lucide-react";
 import { TaskAssignmentField } from './TaskAssignmentField';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { useToast } from '@/components/ui/use-toast';
+import { Spinner } from "@/components/ui/spinner";
 
 interface Job {
   id: number;
@@ -247,7 +248,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
         {loadingData ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -439,7 +440,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
               <Button type="submit" disabled={saving}>
                 {saving ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                     Creating...
                   </>
                 ) : (

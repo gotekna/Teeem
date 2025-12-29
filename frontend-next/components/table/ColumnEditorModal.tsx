@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Loader2,
   Save,
   Lock,
   Info,
@@ -44,6 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { getColumnTypeEmoji, getColumnTypes, getTypeDefinition } from "@/lib/column-type-registry";
 import type { TableColumn } from "./types";
@@ -632,7 +632,7 @@ export function ColumnEditorModal({
                     >
                       {saving ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <Spinner size={16} className="mr-2" />
                           Converting...
                         </>
                       ) : (
@@ -902,7 +902,7 @@ export function ColumnEditorModal({
                 >
                   {saving ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Spinner size={16} className="mr-2" />
                       Saving...
                     </>
                   ) : (
@@ -1002,7 +1002,7 @@ export function ColumnEditorModal({
                     >
                       {saving ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <Spinner size={16} className="mr-2" />
                           Saving...
                         </>
                       ) : (
@@ -1146,7 +1146,7 @@ export function ColumnEditorModal({
                     >
                       {saving ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <Spinner size={16} className="mr-2" />
                           Saving...
                         </>
                       ) : (
@@ -1220,7 +1220,7 @@ export function ColumnEditorModal({
                 <Button onClick={handleSave} disabled={saving || !hasChanges()}>
                   {saving ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Spinner size={16} className="mr-2" />
                       Saving...
                     </>
                   ) : (

@@ -29,7 +29,6 @@ import {
   FileText,
   DollarSign,
   Edit,
-  Loader2,
   Briefcase,
   Heart,
   Landmark,
@@ -54,6 +53,7 @@ import { OverviewTabRenderer } from "@/components/corporate/OverviewTabRenderer"
 import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 // ActivityTab is used for main "activity-main" tab (not overview sub-tab)
 import { ActivityTab } from "@/components/tabs";
+import { Spinner } from "@/components/ui/spinner";
 // Shared types for corporate entities (SSoT for Company type)
 import type { CorporateCompany } from "@/lib/types/corporate";
 
@@ -323,7 +323,7 @@ export default function CompanyDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -685,7 +685,7 @@ export default function CompanyDetailPage() {
               <Button onClick={handleSaveCompany} disabled={savingEdit}>
                 {savingEdit ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                     Saving...
                   </>
                 ) : (

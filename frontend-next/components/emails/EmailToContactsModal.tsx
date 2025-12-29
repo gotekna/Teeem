@@ -23,7 +23,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
-  Loader2,
   CheckCircle2,
   AlertCircle,
   Building2,
@@ -34,6 +33,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { extractEmailsFromRows } from "@/lib/email-utils";
 
@@ -821,7 +821,7 @@ export function EmailToContactsModal({
         {step === "create" && (
           <div className="flex-1 flex items-center justify-center py-8">
             <div className="text-center space-y-4">
-              <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+              <Spinner size={48} className="mx-auto text-primary" />
               <div>
                 <p className="font-medium">Creating contacts...</p>
                 <p className="text-sm text-muted-foreground">Please wait</p>
@@ -887,7 +887,7 @@ export function EmailToContactsModal({
                 Cancel
               </Button>
               <Button onClick={handleAnalyze} disabled={analyzing}>
-                {analyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {analyzing && <Spinner size={16} className="mr-2" />}
                 Analyze Emails
               </Button>
             </>

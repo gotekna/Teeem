@@ -24,7 +24,6 @@ import {
   FileText,
   Key,
   ExternalLink,
-  Loader2,
   CheckCircle2,
   ArrowLeftRight,
   Network,
@@ -58,10 +57,11 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { FullHeightContainer, ScrollContent } from "@/components/ui/layout-containers";
 import dynamic from "next/dynamic";
 import { CorporateStructureTab } from "@/components/corporate/CorporateStructureTab";
+import { Spinner } from "@/components/ui/spinner";
 
 const PersonStructureChart = dynamic(
   () => import("@/components/corporate/PersonStructureChart"),
-  { ssr: false, loading: () => <div className="h-[400px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> }
+  { ssr: false, loading: () => <div className="h-[400px] flex items-center justify-center"><Spinner size={32} /></div> }
 );
 
 import { useEntityTypes } from "@/hooks/useEntityTypes";
@@ -279,7 +279,7 @@ function QuickAction({ label, icon: Icon, href, onClick, variant = "outline", co
       disabled={disabled || loading}
     >
       {loading ? (
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        <Spinner size={16} className="mr-2" />
       ) : (
         Icon && <Icon className="h-4 w-4 mr-2" />
       )}
@@ -324,7 +324,7 @@ function ShareholdersTable() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }
@@ -421,7 +421,7 @@ function BeneficiariesTable() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1280,7 +1280,7 @@ export default function CorporateDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1411,7 +1411,7 @@ export default function CorporateDashboardPage() {
                           <div className="mt-3 space-y-1">
                             {!structure ? (
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Spinner size={12} />
                                 <span>Loading...</span>
                               </div>
                             ) : structure.companies && structure.companies.length > 0 ? (
@@ -1556,7 +1556,7 @@ export default function CorporateDashboardPage() {
         <TabsContent value="people" className="mt-4">
           {loadingPeople ? (
             <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           ) : (
             <Card>
@@ -1679,7 +1679,7 @@ export default function CorporateDashboardPage() {
               <div className="flex-1 overflow-hidden">
                 {loadingPersonRoles ? (
                   <div className="flex items-center justify-center h-full">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <Spinner size={32} className="text-muted-foreground" />
                   </div>
                 ) : (
                   <PersonStructureChart
@@ -1746,7 +1746,7 @@ export default function CorporateDashboardPage() {
             <CardContent>
               {loadingMemberships ? (
                 <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : groupedByContact.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">

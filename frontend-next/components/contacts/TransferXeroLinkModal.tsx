@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ArrowRightLeft, Loader2, Search, User } from "lucide-react";
+import { ArrowRightLeft, Search, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import type { XeroLink } from "@/types/xero";
 
@@ -151,7 +152,7 @@ export function TransferXeroLinkModal({
           <div className="max-h-60 overflow-y-auto space-y-1">
             {searching && (
               <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <Spinner size={20} className="text-muted-foreground" />
               </div>
             )}
 
@@ -212,7 +213,7 @@ export function TransferXeroLinkModal({
           >
             {transferring ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Transferring...
               </>
             ) : (

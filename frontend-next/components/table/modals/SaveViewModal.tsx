@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, User, Globe, Save } from 'lucide-react';
+import { Spinner } from "@/components/ui/spinner";
+import { User, Globe, Save } from "lucide-react";
 
 export interface SaveViewModalProps {
   /** Whether modal is open */
@@ -131,7 +132,7 @@ export function SaveViewModal({
             disabled={!newViewName.trim() || savingView}
           >
             {savingView ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              <Spinner size={16} className="mr-1" />
             ) : saveAsGlobal ? (
               <Globe className="h-4 w-4 mr-1" />
             ) : (

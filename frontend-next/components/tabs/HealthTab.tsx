@@ -10,7 +10,13 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, XCircle, CheckCircle, AlertTriangle, BarChart3 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  XCircle,
+  CheckCircle,
+  AlertTriangle,
+  BarChart3,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { CorporateCompany } from "@/lib/types/corporate";
@@ -123,7 +129,7 @@ export function HealthTab({ company, onUpdate }: HealthTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }

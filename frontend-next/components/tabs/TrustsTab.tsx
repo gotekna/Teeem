@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, X } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CorporateCompany } from "@/lib/types/corporate";
 
@@ -166,7 +167,7 @@ export function TrustsTab({ company, onUpdate }: TrustsTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size={24} className="text-muted-foreground" />
       </div>
     );
   }

@@ -4,15 +4,11 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Loader2,
-  RefreshCw,
-  FileText,
-  Plus,
-} from "lucide-react";
+import { RefreshCw, FileText, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 
 interface BSReport {
   id: number;
@@ -279,7 +275,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
               size="sm"
             >
               {generating ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Plus className="h-4 w-4 mr-2" />
               )}
@@ -287,7 +283,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
             </Button>
             <Button onClick={loadReports} disabled={loading} size="sm" variant="outline">
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size={16} />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
@@ -306,7 +302,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
         {/* Loading state */}
         {loading && reports.length === 0 ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : bankNames.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">

@@ -16,8 +16,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown, ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { Loader2, Building2, User, Users, DollarSign, Wrench, ClipboardList, Calculator, Mail, FileText, AlertTriangle, Clock, Wallet, MessageSquare, Paperclip, CheckSquare } from "lucide-react";
+import {
+  Building2,
+  User,
+  Users,
+  DollarSign,
+  Wrench,
+  ClipboardList,
+  Calculator,
+  Mail,
+  FileText,
+  AlertTriangle,
+  Clock,
+  Wallet,
+  MessageSquare,
+  Paperclip,
+  CheckSquare,
+} from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -763,7 +780,7 @@ export default function NewJobPage() {
   if (loadingProposal) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -887,7 +904,7 @@ export default function NewJobPage() {
                     >
                       {suburbSearchLoading ? (
                         <div className="p-3 text-center text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                          <Spinner size={16} className="inline mr-2" />
                           Searching...
                         </div>
                       ) : (
@@ -963,7 +980,7 @@ export default function NewJobPage() {
             <CardContent className="flex-1 flex flex-col">
               {loadingLookups ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col space-y-4">
@@ -1418,7 +1435,7 @@ export default function NewJobPage() {
           <Button type="submit" disabled={loading || loadingLookups}>
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Creating...
               </>
             ) : proposal ? (

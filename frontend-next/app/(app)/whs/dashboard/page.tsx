@@ -10,8 +10,9 @@ import {
   CheckCircleIcon,
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
-import { Loader2 } from "lucide-react";
+
 import { Card, CardContent } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 // Types
@@ -135,7 +136,7 @@ export default function WhsDashboardPage() {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size={32} className="mx-auto text-muted-foreground" />
           <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
         </div>
       </div>

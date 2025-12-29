@@ -25,7 +25,8 @@ import { Suspense } from "react";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import { getTabComponent } from "@/lib/tab-component-registry";
 import { TabNavigation } from "@/components/common/TabNavigation";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { AlertCircle } from "lucide-react";
 import type { EntityTab } from "@/lib/types/entity-tabs";
 
 // ============================================
@@ -90,7 +91,7 @@ interface XeroTabRendererProps {
 function TabSkeleton() {
   return (
     <div className="flex items-center justify-center p-8">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <Spinner size={24} className="text-muted-foreground" />
     </div>
   );
 }

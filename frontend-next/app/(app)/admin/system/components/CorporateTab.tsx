@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
-  Loader2,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -56,6 +55,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface CompanyGroup {
@@ -227,7 +227,7 @@ function GroupsSubTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -310,7 +310,7 @@ function GroupsSubTab() {
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" disabled={deleting === group.id}>
                           {deleting === group.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size={16} />
                           ) : (
                             <MoreHorizontal className="h-4 w-4" />
                           )}
@@ -438,7 +438,7 @@ function GroupsSubTab() {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving || !formData.name.trim()}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {saving && <Spinner size={16} className="mr-2" />}
               {editingGroup ? "Save Changes" : "Create Group"}
             </Button>
           </DialogFooter>
@@ -781,7 +781,7 @@ function CompaniesSubTab() {
       <Card>
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : (
           <Table>
@@ -857,7 +857,7 @@ function CompaniesSubTab() {
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" disabled={deleting === company.id}>
                             {deleting === company.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Spinner size={16} />
                             ) : (
                               <MoreHorizontal className="h-4 w-4" />
                             )}
@@ -1039,7 +1039,7 @@ function CompaniesSubTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingCompany ? (
@@ -1087,7 +1087,7 @@ function CompaniesSubTab() {
             {/* Search Results */}
             {searchingContacts ? (
               <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <Spinner size={20} className="text-muted-foreground" />
               </div>
             ) : contactSearchResults.length > 0 ? (
               <div className="max-h-48 overflow-y-auto border rounded-md">
@@ -1171,7 +1171,7 @@ function CompaniesSubTab() {
             >
               {addingToCorporate ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Adding...
                 </>
               ) : (

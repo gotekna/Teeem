@@ -23,7 +23,6 @@ import {
   ScanText,
   Wallet,
   RefreshCw,
-  Loader2,
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { PDFViewer, FieldHighlight } from "@/components/ui/pdf-viewer";
@@ -383,7 +382,7 @@ export function BillsInvoiceViewer({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

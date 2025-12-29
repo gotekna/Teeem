@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Accordion,
   AccordionContent,
@@ -25,7 +26,6 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
-  Loader2,
   Search,
   Package,
   Users,
@@ -474,7 +474,7 @@ export default function PricebookHealthPage() {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Spinner size={48} className="text-primary" />
       </div>
     );
   }
@@ -649,7 +649,7 @@ export default function PricebookHealthPage() {
                                     <TableCell colSpan={5} className="bg-muted/30 p-4">
                                       {loadingMissingItems ? (
                                         <div className="flex items-center justify-center py-4">
-                                          <Loader2 className="h-6 w-6 animate-spin" />
+                                          <Spinner size={24} />
                                           <span className="ml-2 text-sm text-muted-foreground">Loading missing items...</span>
                                         </div>
                                       ) : items.length > 0 ? (
@@ -1212,7 +1212,7 @@ export default function PricebookHealthPage() {
                           </Badge>
                         )}
                       </div>
-                      {loadingDuplicates && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+                      {loadingDuplicates && <Spinner size={20} className="text-muted-foreground" />}
                     </div>
                   </AccordionTrigger>
                 </CardHeader>
@@ -1220,7 +1220,7 @@ export default function PricebookHealthPage() {
                 <CardContent>
                   {loadingDuplicates ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <Spinner size={32} className="text-muted-foreground" />
                     </div>
                   ) : duplicateContacts ? (
                     <>

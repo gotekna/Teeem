@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Loader2,
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
@@ -22,6 +21,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 // Types
@@ -212,7 +212,7 @@ export function XeroHealthTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -280,7 +280,7 @@ export function XeroHealthTab() {
         </div>
         <Button onClick={handleRefresh} disabled={refreshing}>
           {refreshing ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Spinner size={16} className="mr-2" />
           ) : (
             <RefreshCw className="h-4 w-4 mr-2" />
           )}
@@ -599,7 +599,7 @@ export function XeroHealthTab() {
               className="bg-blue-600 hover:bg-blue-700"
             >
               {regeneratingStatements ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
               ) : (
                 <Play className="h-4 w-4 mr-2" />
               )}

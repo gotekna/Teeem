@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ArrowLeft,
   Building2,
@@ -12,7 +13,6 @@ import {
   EyeOff,
   Copy,
   Check,
-  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import {
@@ -114,7 +114,7 @@ export default function AsicLoginsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

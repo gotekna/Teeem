@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,6 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import {
-  Loader2,
   Plus,
   Pencil,
   Trash2,
@@ -222,7 +222,7 @@ export function BankStatementTemplatesTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -637,7 +637,7 @@ export function BankStatementTemplatesTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : (
@@ -665,7 +665,7 @@ export function BankStatementTemplatesTab() {
             <Button variant="destructive" onClick={handleDelete} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Deleting...
                 </>
               ) : (

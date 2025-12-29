@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Spinner } from "@/components/ui/spinner";
 import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { api } from '@/lib/api';
@@ -18,11 +19,10 @@ import {
   ChevronUp,
   ExternalLink,
   FileText,
-  Loader2,
   Mail,
   Paperclip,
   Plus,
-} from 'lucide-react';
+} from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -231,7 +231,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <Label htmlFor={`started-${task.id}`} className="text-xs cursor-pointer">
               Started
             </Label>
-            {loading === 'started' && <Loader2 className="h-3 w-3 animate-spin" />}
+            {loading === 'started' && <Spinner size={12} />}
           </div>
 
           {/* Hold */}
@@ -246,7 +246,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <Label htmlFor={`hold-${task.id}`} className="text-xs cursor-pointer">
               Hold
             </Label>
-            {loading === 'hold' && <Loader2 className="h-3 w-3 animate-spin" />}
+            {loading === 'hold' && <Spinner size={12} />}
           </div>
 
           {/* Confirm with date picker */}
@@ -288,7 +288,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                 />
               </PopoverContent>
             </Popover>
-            {loading === 'confirm' && <Loader2 className="h-3 w-3 animate-spin" />}
+            {loading === 'confirm' && <Spinner size={12} />}
           </div>
 
           {/* Supplier Confirm with date picker */}
@@ -330,7 +330,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                 />
               </PopoverContent>
             </Popover>
-            {loading === 'supplier_confirm' && <Loader2 className="h-3 w-3 animate-spin" />}
+            {loading === 'supplier_confirm' && <Spinner size={12} />}
           </div>
 
           {/* Completed */}
@@ -345,7 +345,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <Label htmlFor={`completed-${task.id}`} className="text-xs cursor-pointer">
               Done
             </Label>
-            {loading === 'completed' && <Loader2 className="h-3 w-3 animate-spin" />}
+            {loading === 'completed' && <Spinner size={12} />}
           </div>
         </div>
 
@@ -368,7 +368,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             disabled={!!loading}
           />
           <span className="text-xs text-muted-foreground">days</span>
-          {loading === 'duration' && <Loader2 className="h-3 w-3 animate-spin" />}
+          {loading === 'duration' && <Spinner size={12} />}
         </div>
 
         {/* Assignment */}
@@ -430,7 +430,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             disabled={attachmentLoading}
           >
             {attachmentLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Spinner size={12} />
             ) : (
               <Plus className="h-3 w-3" />
             )}

@@ -14,7 +14,13 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Loader2, Settings2, Database, FileQuestion } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  FileText,
+  Settings2,
+  Database,
+  FileQuestion,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { NODE_TYPE_META, SERVICE_TASK_TYPES, BpmnNodeData } from "../types";
 
@@ -336,7 +342,7 @@ function ServiceTaskProperties({
             <Label>Document Template</Label>
             {loadingTemplates ? (
               <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size={16} />
                 Loading templates...
               </div>
             ) : templates.length === 0 ? (

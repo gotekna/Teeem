@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -22,7 +23,6 @@ import {
 } from "@/components/ui/dnd";
 import {
   RefreshCw,
-  Loader2,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -259,7 +259,7 @@ export function JobTabsConfigTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -382,7 +382,7 @@ export function JobTabsConfigTab() {
       {/* Saving indicator */}
       {saving && (
         <div className="fixed bottom-4 right-4 bg-background border rounded-lg shadow-lg px-4 py-2 flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Spinner size={16} />
           <span className="text-sm">Saving...</span>
         </div>
       )}

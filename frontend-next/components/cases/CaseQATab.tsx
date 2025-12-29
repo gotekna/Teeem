@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -28,7 +29,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2,
   Settings,
   HelpCircle,
   RefreshCw,
@@ -331,7 +331,7 @@ export function CaseQATab({
                 Cancel
               </Button>
               <Button size="sm" onClick={saveFolderSettings} disabled={savingFolders}>
-                {savingFolders && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                {savingFolders && <Spinner size={16} className="mr-1" />}
                 Save
               </Button>
             </div>
@@ -523,7 +523,7 @@ export function CaseQATab({
                     )}
                   >
                     {processingStatus.status === "processing" && (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      <Spinner size={12} className="mr-1" />
                     )}
                     {processingStatus.status === "completed" && (
                       <CheckCircle className="h-3 w-3 mr-1" />
@@ -593,7 +593,7 @@ export function CaseQATab({
         <CardContent>
           {loadingQA ? (
             <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Spinner size={24} className="text-muted-foreground" />
             </div>
           ) : qaPairs.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -701,7 +701,7 @@ export function CaseQATab({
           <CardContent>
             {loadingDuplicates ? (
               <div className="flex items-center justify-center h-32">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Spinner size={24} className="text-muted-foreground" />
               </div>
             ) : duplicates.length === 0 ? (
               <div className="text-center py-4 text-muted-foreground">

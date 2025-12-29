@@ -12,11 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tag,
   AlertTriangle,
   ExternalLink,
-  Loader2,
   Package,
   BarChart3,
   Image as ImageIcon,
@@ -136,7 +136,7 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
       <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : !item ? (
           <div className="flex items-center justify-center h-full">

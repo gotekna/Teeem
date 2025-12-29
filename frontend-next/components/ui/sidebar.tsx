@@ -16,7 +16,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Loader2,
 } from "lucide-react";
 import {
   Persona,
@@ -27,6 +26,7 @@ import { useTheme } from "next-themes";
 import { Button } from "./button";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Popover,

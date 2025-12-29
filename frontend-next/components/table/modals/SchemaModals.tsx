@@ -20,7 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, PlusCircle, MinusCircle, Check } from 'lucide-react';
+import { Spinner } from "@/components/ui/spinner";
+import { PlusCircle, MinusCircle, Check } from "lucide-react";
 import { cn } from '@/lib/utils';
 import type { TableColumn } from '../types';
 
@@ -206,7 +207,7 @@ export function SchemaModals({
             </Button>
             <Button onClick={handleCreateColumn} disabled={schemaLoading || !newColumnName || !newColumnType}>
               {schemaLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                <Spinner size={16} className="mr-1" />
               ) : (
                 <PlusCircle className="h-4 w-4 mr-1" />
               )}
@@ -269,7 +270,7 @@ export function SchemaModals({
               disabled={!selectedColumnToDelete || schemaLoading}
             >
               {schemaLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                <Spinner size={16} className="mr-1" />
               ) : (
                 <MinusCircle className="h-4 w-4 mr-1" />
               )}

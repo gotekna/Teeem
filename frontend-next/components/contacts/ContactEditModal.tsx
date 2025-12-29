@@ -28,9 +28,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Loader2, Save, X, User, Building2, Phone, Globe, FileText, Plus, Star, Trash2, ChevronsUpDown, Check } from "lucide-react";
+import {
+  Save,
+  X,
+  User,
+  Building2,
+  Phone,
+  Globe,
+  FileText,
+  Plus,
+  Star,
+  Trash2,
+  ChevronsUpDown,
+  Check,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { isPerson as isPersonType, isCompany as isCompanyType } from "@/lib/entity-types";
 
@@ -685,7 +699,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
                         <CommandList>
                           {searchingCompanies && (
                             <div className="flex items-center justify-center py-4">
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Spinner size={16} />
                             </div>
                           )}
                           {!searchingCompanies && companySearchQuery.length >= 2 && companySearchResults.length === 0 && (
@@ -769,7 +783,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
                       <CommandList>
                         {searchingEmployees && (
                           <div className="flex items-center justify-center py-4">
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size={16} />
                           </div>
                         )}
                         {!searchingEmployees && employeeSearchQuery.length >= 2 && employeeSearchResults.length === 0 && (
@@ -894,7 +908,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
           </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}

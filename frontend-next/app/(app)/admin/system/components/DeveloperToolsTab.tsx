@@ -31,7 +31,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Loader2,
   RefreshCw,
   Database,
   Search,
@@ -50,6 +49,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -304,7 +304,7 @@ export function DeveloperToolsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -367,7 +367,7 @@ export function DeveloperToolsTab() {
                   disabled={creatingSetupViews}
                 >
                   {creatingSetupViews ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
@@ -380,7 +380,7 @@ export function DeveloperToolsTab() {
                   disabled={syncing}
                 >
                   {syncing ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <RefreshCw className="h-4 w-4 mr-2" />
                   )}
@@ -917,7 +917,7 @@ export function DeveloperToolsTab() {
             <Button onClick={handleCreateTable} disabled={creating || !newTableName.trim()}>
               {creating ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (
@@ -942,7 +942,7 @@ export function DeveloperToolsTab() {
           </DialogHeader>
           {loadingPreview ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           ) : (
             <div className="border rounded-lg max-h-96 overflow-y-auto">

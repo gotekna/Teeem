@@ -8,12 +8,12 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
-  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Accordion,
   AccordionContent,
@@ -203,7 +203,7 @@ export function DataHealthWidget({
     return (
       <div className="bg-background border rounded-lg p-4">
         <div className="flex items-center justify-center py-2">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Spinner size={20} className="text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">
             Checking data health...
           </span>
@@ -370,7 +370,7 @@ export function DataHealthWidget({
                             >
                               {fixingCheckName === check.check_name ? (
                                 <>
-                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  <Spinner size={12} className="mr-1" />
                                   Fixing...
                                 </>
                               ) : (
@@ -520,7 +520,7 @@ export function HealthIndicatorButton({
       title={`Data Health: ${score}% (${issues} issues)`}
     >
       {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Spinner size={16} />
       ) : (
         <>
           {/* Hospital Cross Icon */}

@@ -29,7 +29,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  Loader2,
   Check,
   X,
   RefreshCw,
@@ -43,6 +42,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useUrlState } from "@/hooks/useUrlState";
 
@@ -274,7 +274,7 @@ export function XeroFieldMapping() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -582,7 +582,7 @@ export function XeroContactSync() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Loader2,
   RefreshCw,
   XCircle,
   Check,
@@ -16,6 +15,7 @@ import {
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 
 interface CompanyInfo {
   id: number;
@@ -315,7 +315,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         disabled={loading || standardizing}
         title="Rename bank accounts in Xero to use standardized format: BANK BSB ACCOUNT_NUMBER"
       >
-        {standardizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+        {standardizing ? <Spinner size={16} /> : <Wand2 className="h-4 w-4" />}
         <span className="ml-2">Standardize Bank Names</span>
       </Button>
       <Button
@@ -325,7 +325,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         disabled={loading || syncing}
         title="Sync accounts from Xero to local database"
       >
-        {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        {syncing ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
         <span className="ml-2">Sync from Xero</span>
       </Button>
     </div>
@@ -336,7 +336,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Spinner size={16} />
             <span>Loading Xero accounts...</span>
           </div>
         </CardContent>

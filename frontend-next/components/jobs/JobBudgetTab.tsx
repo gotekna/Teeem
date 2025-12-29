@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -12,7 +13,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RefreshCw, Loader2, DollarSign, Info, AlertCircle } from "lucide-react";
+import {
+  RefreshCw,
+  DollarSign,
+  Info,
+  AlertCircle,
+} from "lucide-react";
 import { api } from "@/lib/api";
 
 interface BudgetItem {
@@ -96,7 +102,7 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +14,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { MapPin, Pencil, Check, X, Loader2 } from "lucide-react";
+import {
+  MapPin,
+  Pencil,
+  Check,
+  X,
+} from "lucide-react";
 import { api } from "@/lib/api";
 
 // Dynamically import Leaflet components to avoid SSR issues
@@ -710,7 +716,7 @@ export function LocationMap({
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-64 bg-muted rounded-lg">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         </CardContent>
       </Card>
@@ -794,7 +800,7 @@ export function LocationMap({
                       className="mt-1"
                     />
                     {searching && (
-                      <Loader2 className="absolute right-3 top-9 h-4 w-4 animate-spin text-muted-foreground" />
+                      <Spinner size={16} className="absolute right-3 top-9 text-muted-foreground" />
                     )}
 
                     {showSuggestions && addressSuggestions.length > 0 && (
@@ -919,7 +925,7 @@ export function LocationMap({
                       >
                         {suburbSearchLoading ? (
                           <div className="p-2 text-center text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                            <Spinner size={16} className="inline mr-2" />
                             Searching...
                           </div>
                         ) : (
@@ -982,7 +988,7 @@ export function LocationMap({
                   >
                     {geocoding ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Spinner size={16} className="mr-2" />
                         Finding...
                       </>
                     ) : (

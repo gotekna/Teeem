@@ -9,12 +9,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import {
   Folder,
   ChevronRight,
   Home,
-  Loader2,
   Check,
 } from "lucide-react";
 
@@ -167,7 +167,7 @@ export function SharePointFolderPicker({
         <div className="border rounded-md max-h-80 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Spinner size={20} className="text-muted-foreground" />
               <span className="ml-2 text-sm text-muted-foreground">
                 Loading folders...
               </span>
