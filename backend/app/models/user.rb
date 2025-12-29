@@ -24,6 +24,9 @@ class User < ApplicationRecord
   has_many :user_roles, dependent: :destroy
   has_many :roles, through: :user_roles
 
+  # SSoT: Scope for finding users by role name (uses user_roles join table)
+  scope :with_role, ->(role_name) { joins(:roles).where(roles: { name: role_name }).distinct }
+
   # Placeholder for company association (not yet implemented)
   # Returns nil - callers should handle this gracefully
   def company

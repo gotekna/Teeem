@@ -209,8 +209,8 @@ class AssetReminderService
     if finance_emails.present?
       finance_emails.is_a?(Array) ? finance_emails : [ finance_emails ]
     else
-      # Default to admin users
-      User.where(role: "admin").pluck(:email)
+      # Default to admin users (SSoT: user_roles + roles tables)
+      User.with_role("admin").pluck(:email)
     end
   end
 

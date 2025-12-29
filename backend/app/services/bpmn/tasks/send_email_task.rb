@@ -39,7 +39,7 @@ module Bpmn
           recipients = Array(value)
         when "role"
           role = @config["recipient_value"]
-          recipients = User.where(role: role).pluck(:email)
+          recipients = User.with_role(role).pluck(:email)
         when "subject_field"
           field = @config["recipient_value"]
           value = @subject.try(field)

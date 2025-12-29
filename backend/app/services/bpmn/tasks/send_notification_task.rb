@@ -56,7 +56,7 @@ module Bpmn
           recipients = User.where(id: user_ids).to_a
         when "role"
           role = @config["role"]
-          recipients = User.where(role: role).to_a
+          recipients = User.with_role(role).to_a
         when "variable"
           var_value = @variables[@config["recipient_variable"]]
           if var_value.is_a?(Array)
@@ -70,7 +70,7 @@ module Bpmn
           user = @subject.try(field)
           recipients << user if user.is_a?(User)
         when "all_admins"
-          recipients = User.where(role: "admin").to_a
+          recipients = User.with_role("admin").to_a
         end
 
         recipients.compact.uniq

@@ -112,9 +112,9 @@ module Api
       end
 
       # GET /api/v1/jobs_photos/supervisors
-      # Returns list of supervisors from User roles (SSoT)
+      # Returns list of supervisors from User roles (SSoT: user_roles + roles tables)
       def supervisors
-        names = User.where(role: "supervisor").order(:name).pluck(:name)
+        names = User.with_role("supervisor").order(:name).pluck(:name)
         render json: { success: true, data: names }
       end
     end
