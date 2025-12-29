@@ -53,7 +53,6 @@ class Job < ApplicationRecord
   # SM Gantt associations (Schedule Master v2)
   has_many :sm_tasks, dependent: :destroy
   has_many :sm_rollover_logs, dependent: :destroy
-  belongs_to :sm_template_version, class_name: 'SmScheduleMasterVersion', optional: true
 
   # Site Presence & Cost Intelligence
   has_many :site_presence_sessions, dependent: :destroy
@@ -343,13 +342,12 @@ class Job < ApplicationRecord
 
   # Get the template used for this job's schedule
   def schedule_template
-    sm_template_version&.sm_schedule_master_template
+    job_type&.sm_schedule_master_template
   end
 
-  # Check if a newer template version is available
+  # Check if a newer template version is available (versioning removed)
   def schedule_upgrade_available?
-    return false unless schedule_template.present?
-    schedule_template.has_newer_version_than?(self)
+    false
   end
 
   # Get the default template for this job's type
@@ -633,14 +631,13 @@ class Job < ApplicationRecord
   end
 
   # Auto-apply schedule template from job type when job is created
-  # Uses the versioned template architecture - applies the published version
+  # Applies the schedule template from the job type
   def apply_schedule_template_from_job_type
     return unless job_type.present?
     return unless job_type.has_schedule_template?
 
     template = job_type.sm_schedule_master_template
-    version = template.published_version
-    return unless version.present?
+    return unless template.present?
 
     # Use the copy service to apply the template
     result = SmScheduleMasterTemplateCopyService.new(template, self, {
@@ -651,12 +648,9 @@ class Job < ApplicationRecord
     }).execute
 
     if result[:success]
-      # Record which version was applied
-      update_columns(
-        sm_template_version_id: version.id,
-        template_applied_at: Time.current
-      )
-      Rails.logger.info "[Job##{id}] Applied schedule template '#{template.name}' v#{version.version_number} (#{result[:tasks_created]} tasks)"
+      # Record when template was applied
+      update_columns(template_applied_at: Time.current)
+      Rails.logger.info "[Job##{id}] Applied schedule template '#{template.name}' (#{result[:tasks_created]} tasks)"
     else
       Rails.logger.error "[Job##{id}] Failed to apply schedule template: #{result[:errors].join(', ')}"
     end

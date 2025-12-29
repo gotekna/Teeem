@@ -215,55 +215,21 @@ module Api
       end
 
       # GET /api/v1/jobs/:job_id/sm_tasks/upgrade_preview
-      # Preview what would change if upgrading to the latest template version
+      # Versioning has been removed - templates are now applied directly
       def upgrade_preview
-        service = SmScheduleMasterUpgradeService.new(@job, user: current_user)
-        result = service.preview_upgrade
-
-        if result[:success]
-          render json: {
-            success: true,
-            job_id: @job.id,
-            job_name: @job.name,
-            current_version: result[:current_version],
-            target_version: result[:target_version],
-            template_name: result[:template_name],
-            summary: result[:summary],
-            details: {
-              to_add: result[:details][:to_add].map { |r| { name: r[:name], task_number: r[:task_number] } },
-              to_remove: result[:details][:to_remove].map { |r| { name: r[:name], protected: r[:protected], reason: r[:protection_reason] } },
-              to_update: result[:details][:to_update].map { |r| { name: r[:name], changes: r[:changes], protected: r[:protected], reason: r[:protection_reason] } },
-              protected: result[:details][:protected],
-              custom: result[:details][:custom]
-            }
-          }
-        else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
-        end
+        render json: {
+          success: false,
+          error: "Template versioning has been removed. Templates are now applied directly."
+        }, status: :gone
       end
 
       # POST /api/v1/jobs/:job_id/sm_tasks/upgrade
-      # Execute upgrade to the latest template version
+      # Versioning has been removed - templates are now applied directly
       def upgrade
-        service = SmScheduleMasterUpgradeService.new(@job, user: current_user)
-        result = service.execute_upgrade
-
-        if result[:success]
-          render json: {
-            success: true,
-            job_id: @job.id,
-            message: "Upgraded to version #{result[:version_upgraded]}",
-            results: result[:results]
-          }
-        else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
-        end
+        render json: {
+          success: false,
+          error: "Template versioning has been removed. Templates are now applied directly."
+        }, status: :gone
       end
 
       # GET /api/v1/constructions/:job_id/sm_tasks/gantt_data
