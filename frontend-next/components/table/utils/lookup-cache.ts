@@ -8,6 +8,7 @@
  */
 
 import { api } from "@/lib/api";
+import { PAGE_SIZE_LARGE } from "@/lib/constants/pagination-constants";
 
 // Type definitions
 export interface LookupOption {
@@ -70,9 +71,10 @@ export async function fetchLookupOptionsForTable(
   const cacheKey = `table_${tableId}_${displayColumn}`;
 
   return getLookupOptions(cacheKey, async () => {
+    // SSoT: Uses PAGE_SIZE_LARGE from pagination-constants.ts
     const response = await api.get<{ records: Record<string, unknown>[] }>(
       `/api/v1/foundations/${tableId}/records`,
-      { params: { per_page: 1000 } }
+      { params: { per_page: PAGE_SIZE_LARGE } }
     );
 
     return (response.records || []).map(record => ({

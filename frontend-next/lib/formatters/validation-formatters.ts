@@ -15,6 +15,7 @@
 
 import { getTypeDefinition, type ColumnTypeDefinition } from "../column-type-registry";
 import type { TableColumn } from "@/components/table/types";
+import { EMAIL_REGEX } from "../email-constants";
 
 /**
  * Validation result returned by validators
@@ -471,8 +472,8 @@ function validateFallback(
   // Basic fallback patterns for common types
   switch (columnType) {
     case "email": {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(String(value))) {
+      // SSoT: Use EMAIL_REGEX from email-constants.ts
+      if (!EMAIL_REGEX.test(String(value))) {
         error = "Invalid email format";
       }
       break;

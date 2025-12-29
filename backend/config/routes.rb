@@ -1447,8 +1447,10 @@ Rails.application.routes.draw do
           post :duplicate
           post :sync_to_job
           get :compare_to_job
-          post :copy          # Copy entire template (versioned)
-          post :import_rows   # Import rows from another template
+          get :analyze_matches   # Intelligent matching analysis (pre-sync)
+          post :apply_links      # Apply confirmed links to tasks
+          post :copy             # Copy entire template (versioned)
+          post :import_rows      # Import rows from another template
         end
         collection do
           get :default

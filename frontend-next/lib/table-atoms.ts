@@ -14,6 +14,7 @@
  */
 
 import { atom } from 'jotai';
+import { TABLE_ROW_LIMIT } from './constants/pagination-constants';
 
 // ============================================================================
 // EDIT MODE STATE (from table-edit-atoms.ts)
@@ -611,8 +612,9 @@ export const showColumnFiltersAtom = atom<boolean>(false);
 
 /**
  * Row limit for pagination
+ * SSoT: Uses TABLE_ROW_LIMIT from pagination-constants.ts
  */
-export const rowLimitAtom = atom<number>(100);
+export const rowLimitAtom = atom<number>(TABLE_ROW_LIMIT);
 
 /**
  * Whether to show all rows (disable pagination)

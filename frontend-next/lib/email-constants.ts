@@ -6,6 +6,26 @@
  */
 
 // =============================================================================
+// VALIDATION CONSTANTS
+// =============================================================================
+
+/**
+ * Email validation regex pattern.
+ * SSoT: Use this regex for ALL email validation across the codebase.
+ * Pattern: local-part@domain.tld (basic RFC 5322 subset)
+ */
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Validate an email address using the SSoT regex.
+ * @param email - The email address to validate
+ * @returns true if the email is valid
+ */
+export function isValidEmail(email: string): boolean {
+  return email.includes("@") && EMAIL_REGEX.test(email);
+}
+
+// =============================================================================
 // TIMING CONSTANTS
 // =============================================================================
 
@@ -110,6 +130,9 @@ export function isValidAccountType(value: string): value is AccountType {
  * Usage: import { EMAIL_CONSTANTS } from '@/lib/email-constants';
  */
 export const EMAIL_CONSTANTS = {
+  // Validation
+  EMAIL_REGEX,
+
   // Timing
   UNDO_DELAY_SECONDS,
   AUTO_SAVE_INTERVAL_MS,

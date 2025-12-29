@@ -3,14 +3,17 @@
  * Fetch-based API client with authentication headers, timeouts, retry logic, and request deduplication
  */
 
+import { API_TIMEOUT_DEFAULT, API_RETRY_DELAY_BASE } from './constants/timeout-constants';
+
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com').trim();
 
 export const getApiBaseUrl = () => API_URL;
 
 // Configuration
-const DEFAULT_TIMEOUT = 30000; // 30 seconds
+// SSoT: Timeout constants from timeout-constants.ts
+const DEFAULT_TIMEOUT = API_TIMEOUT_DEFAULT;
 const MAX_RETRIES = 3;
-const RETRY_DELAY_BASE = 1000; // 1 second, doubles with each retry
+const RETRY_DELAY_BASE = API_RETRY_DELAY_BASE;
 const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
 
 interface ApiError extends Error {

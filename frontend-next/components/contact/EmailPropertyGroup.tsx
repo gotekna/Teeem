@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { Plus, Star, Trash2, Mail, Check } from "lucide-react";
+import { EMAIL_REGEX } from "@/lib/email-constants";
 
 export interface ContactEmail {
   id?: number;
@@ -40,8 +41,8 @@ function generateTempId(): string {
  */
 function validateEmail(email: string): { isValid: boolean; error?: string } {
   if (!email || email.trim() === "") return { isValid: true };
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  // SSoT: Use EMAIL_REGEX from email-constants.ts
+  if (!EMAIL_REGEX.test(email)) {
     return { isValid: false, error: "Please enter a valid email address" };
   }
   return { isValid: true };

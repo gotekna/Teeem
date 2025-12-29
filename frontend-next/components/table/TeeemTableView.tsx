@@ -103,6 +103,7 @@ import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
 import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
 import { isVisibleSystemColumn } from "@/lib/constants/system-columns";
+import { TABLE_ROW_LIMIT } from "@/lib/constants/pagination-constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1119,8 +1120,9 @@ export default function TeeemTableView({
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
   const initialViewLoadedRef = useRef(false); // Prevent re-loading views after initial load
 
-  // Row rendering limit for performance (render 100 rows initially, load more on demand)
-  const INITIAL_ROW_LIMIT = 100;
+  // Row rendering limit for performance (render rows initially, load more on demand)
+  // SSoT: Uses TABLE_ROW_LIMIT from pagination-constants.ts
+  const INITIAL_ROW_LIMIT = TABLE_ROW_LIMIT;
   // rowLimit and showAllRows managed by atoms (SSoT)
   const [rowLimit, setRowLimit] = useAtom(rowLimitAtom);
   const [showAllRows, setShowAllRows] = useAtom(showAllRowsAtom);

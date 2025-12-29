@@ -1,3 +1,5 @@
+import { EMAIL_REGEX } from "./email-constants";
+
 /**
  * Table Cell Validation System
  *
@@ -58,10 +60,11 @@ export const ColumnValidators: Record<string, ValidationRule[]> = {
   multiple_lines_text: [],
 
   // Email - must be valid email format
+  // SSoT: Use EMAIL_REGEX from email-constants.ts
   email: [
     {
       type: 'regex',
-      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+      pattern: EMAIL_REGEX,
       message: 'Invalid email address',
     },
   ],

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { WAREHOUSE_PAGE_SIZE } from "@/lib/constants/pagination-constants";
 import {
   Table,
   TableBody,
@@ -257,7 +258,8 @@ export function DataWarehouseTab() {
   const [viewOffset, setViewOffset] = React.useState(0);
   const [companyName, setCompanyName] = React.useState<string | null>(null);
   const [microsoftOrgStats, setMicrosoftOrgStats] = React.useState<MicrosoftOrgStatsResponse | null>(null);
-  const PAGE_SIZE = 50;
+  // SSoT: Uses WAREHOUSE_PAGE_SIZE from pagination-constants.ts
+  const PAGE_SIZE = WAREHOUSE_PAGE_SIZE;
 
   // Load company name if filtering by company
   React.useEffect(() => {

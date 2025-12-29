@@ -2,6 +2,8 @@
  * Email utility functions for parsing and extracting email addresses
  */
 
+import { EMAIL_REGEX } from "./email-constants";
+
 /**
  * Parse email with optional display name
  * @param emailString - Email string in format "Name <email>" or "email"
@@ -111,7 +113,8 @@ export function normalizeEmail(email: string): string {
  * @returns True if email appears valid
  */
 export function isValidEmail(email: string): boolean {
-  return email.includes('@') && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  // SSoT: Use EMAIL_REGEX from email-constants.ts
+  return email.includes("@") && EMAIL_REGEX.test(email);
 }
 
 /**

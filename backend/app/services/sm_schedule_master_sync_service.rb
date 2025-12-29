@@ -5,7 +5,20 @@
 # SSoT: SmScheduleMaster is THE template definition, SmTask is THE job-level instance.
 # This service syncs from template -> task while preserving "job reality" (actual work progress).
 #
+# INTELLIGENT MATCHING (for unlinked tasks):
+# - 95%+ similarity: Auto-link without asking
+# - 65-95% similarity: User confirmation required (shown in analyze step)
+# - <65% similarity: Create new task
+#
 # Usage:
+#   # Analyze matches BEFORE syncing (for unlinked tasks)
+#   matches = SmScheduleMasterSyncService.analyze_matches_for_job(job, template)
+#   # Returns array of { template_row, matched_task, similarity, action: :auto_link | :confirm | :create }
+#
+#   # Apply confirmed links, then sync
+#   SmScheduleMasterSyncService.apply_links!(job, confirmed_links)
+#   results = SmScheduleMasterSyncService.sync_all_for_job(job, template, options)
+#
 #   # Single row sync
 #   result = SmScheduleMasterSyncService.new(job, template_row, options).sync!
 #
@@ -21,6 +34,10 @@
 #   { success: false, error: "message" }
 #
 class SmScheduleMasterSyncService
+  # Matching thresholds
+  AUTO_LINK_THRESHOLD = 0.95  # 95%+ = auto-link
+  CONFIRM_THRESHOLD = 0.65    # 65-95% = ask user
+
   attr_reader :job, :template_row, :options
 
   # Fields that are safe to sync from template (exist on BOTH SmScheduleMaster and SmTask)
@@ -57,6 +74,233 @@ class SmScheduleMasterSyncService
     supplier_confirm
     hold
   ].freeze
+
+  # ============================================================================
+  # INTELLIGENT MATCHING - Analyze unlinked tasks and suggest matches
+  # ============================================================================
+
+  # Analyze matches between template rows and unlinked job tasks
+  # Returns summary with matches organized by action required
+  #
+  # Returns:
+  # {
+  #   auto_link: [{ template_row_id, task_id, name, similarity }...],
+  #   needs_confirmation: [{ template_row_id, task_id, template_name, task_name, similarity }...],
+  #   will_create: [{ template_row_id, name }...],
+  #   already_linked: N,
+  #   unlinked_tasks: [{ task_id, name }...]  # Tasks with no match (orphans)
+  # }
+  def self.analyze_matches_for_job(job, template)
+    result = {
+      auto_link: [],
+      needs_confirmation: [],
+      will_create: [],
+      already_linked: 0,
+      unlinked_tasks: []
+    }
+
+    return result unless job.present? && template.present?
+
+    # Get active template rows
+    template_rows = template.sm_schedule_master_rows.where(is_active: true).order(:sequence_order)
+
+    # Get all unlinked tasks on the job (tasks without sm_schedule_master_id)
+    unlinked_tasks = job.sm_tasks.where(sm_schedule_master_id: nil).to_a
+
+    # Track which unlinked tasks have been matched
+    matched_task_ids = Set.new
+
+    template_rows.each do |row|
+      # Check if already linked
+      linked_task = job.sm_tasks.find_by(sm_schedule_master_id: row.id)
+      if linked_task.present?
+        result[:already_linked] += 1
+        next
+      end
+
+      # Find best matching unlinked task
+      best_match = find_best_match(row, unlinked_tasks, matched_task_ids)
+
+      if best_match.nil?
+        # No match found - will create new task
+        result[:will_create] << {
+          template_row_id: row.id,
+          task_number: row.task_number,
+          name: row.name
+        }
+      elsif best_match[:similarity] >= AUTO_LINK_THRESHOLD
+        # Auto-link (95%+ match)
+        result[:auto_link] << {
+          template_row_id: row.id,
+          task_id: best_match[:task].id,
+          name: row.name,
+          task_name: best_match[:task].name,
+          similarity: (best_match[:similarity] * 100).round(1)
+        }
+        matched_task_ids << best_match[:task].id
+      elsif best_match[:similarity] >= CONFIRM_THRESHOLD
+        # Needs user confirmation (65-95% match)
+        result[:needs_confirmation] << {
+          template_row_id: row.id,
+          task_id: best_match[:task].id,
+          template_name: row.name,
+          template_task_number: row.task_number,
+          task_name: best_match[:task].name,
+          task_task_number: best_match[:task].task_number,
+          similarity: (best_match[:similarity] * 100).round(1)
+        }
+        matched_task_ids << best_match[:task].id
+      else
+        # Low match - will create new task
+        result[:will_create] << {
+          template_row_id: row.id,
+          task_number: row.task_number,
+          name: row.name,
+          closest_match: {
+            task_id: best_match[:task].id,
+            name: best_match[:task].name,
+            similarity: (best_match[:similarity] * 100).round(1)
+          }
+        }
+      end
+    end
+
+    # Any unlinked tasks not matched are orphans
+    unlinked_tasks.each do |task|
+      next if matched_task_ids.include?(task.id)
+      result[:unlinked_tasks] << {
+        task_id: task.id,
+        task_number: task.task_number,
+        name: task.name
+      }
+    end
+
+    result
+  end
+
+  # Apply confirmed links - update tasks to link to template rows
+  # links is array of { template_row_id: X, task_id: Y }
+  def self.apply_links!(job, links, user: nil)
+    results = { linked: 0, errors: [] }
+
+    return results unless links.present?
+
+    links.each do |link|
+      task = job.sm_tasks.find_by(id: link[:task_id] || link["task_id"])
+      template_row_id = link[:template_row_id] || link["template_row_id"]
+
+      unless task
+        results[:errors] << "Task #{link[:task_id]} not found"
+        next
+      end
+
+      task.sm_schedule_master_id = template_row_id
+      task.updated_by = user if user
+      if task.save
+        results[:linked] += 1
+        Rails.logger.info "[SmScheduleMasterSyncService] Linked task #{task.id} (#{task.name}) to template row #{template_row_id}"
+      else
+        results[:errors] << "Failed to link task #{task.id}: #{task.errors.full_messages.join(', ')}"
+      end
+    end
+
+    results
+  end
+
+  # Find the best matching unlinked task for a template row
+  def self.find_best_match(template_row, unlinked_tasks, already_matched_ids)
+    return nil if unlinked_tasks.empty?
+
+    best_match = nil
+    best_similarity = 0
+
+    unlinked_tasks.each do |task|
+      next if already_matched_ids.include?(task.id)
+
+      # Calculate similarity score
+      similarity = calculate_similarity(template_row, task)
+
+      if similarity > best_similarity
+        best_similarity = similarity
+        best_match = { task: task, similarity: similarity }
+      end
+    end
+
+    best_match
+  end
+
+  # Calculate similarity score between template row and task
+  # Uses multiple factors: task_number match, name similarity
+  def self.calculate_similarity(template_row, task)
+    score = 0.0
+    weights = { task_number: 0.3, name: 0.7 }
+
+    # Task number match (exact match only, weighted 30%)
+    if template_row.task_number.present? && task.task_number.present?
+      if template_row.task_number.to_s == task.task_number.to_s
+        score += weights[:task_number]
+      end
+    end
+
+    # Name similarity (Levenshtein-based, weighted 70%)
+    if template_row.name.present? && task.name.present?
+      name_similarity = string_similarity(template_row.name, task.name)
+      score += weights[:name] * name_similarity
+    end
+
+    score
+  end
+
+  # Calculate string similarity using normalized Levenshtein distance
+  # Returns 0.0 to 1.0 (1.0 = identical)
+  def self.string_similarity(str1, str2)
+    return 1.0 if str1 == str2
+    return 0.0 if str1.blank? || str2.blank?
+
+    # Normalize strings: downcase, strip, remove extra spaces
+    s1 = str1.to_s.downcase.strip.gsub(/\s+/, ' ')
+    s2 = str2.to_s.downcase.strip.gsub(/\s+/, ' ')
+
+    return 1.0 if s1 == s2
+
+    # Calculate Levenshtein distance
+    distance = levenshtein_distance(s1, s2)
+    max_length = [s1.length, s2.length].max
+
+    # Normalize to 0-1 (1 = identical, 0 = completely different)
+    1.0 - (distance.to_f / max_length)
+  end
+
+  # Levenshtein distance algorithm (edit distance)
+  def self.levenshtein_distance(s1, s2)
+    m = s1.length
+    n = s2.length
+
+    # Create distance matrix
+    d = Array.new(m + 1) { Array.new(n + 1, 0) }
+
+    # Initialize first row/column
+    (0..m).each { |i| d[i][0] = i }
+    (0..n).each { |j| d[0][j] = j }
+
+    # Fill in the rest
+    (1..m).each do |i|
+      (1..n).each do |j|
+        cost = s1[i - 1] == s2[j - 1] ? 0 : 1
+        d[i][j] = [
+          d[i - 1][j] + 1,      # deletion
+          d[i][j - 1] + 1,      # insertion
+          d[i - 1][j - 1] + cost # substitution
+        ].min
+      end
+    end
+
+    d[m][n]
+  end
+
+  # ============================================================================
+  # COMPARISON AND SYNC
+  # ============================================================================
 
   # Compare template rows with job tasks - returns detailed comparison for UI
   # Returns array of comparisons, each with:

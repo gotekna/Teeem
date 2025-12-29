@@ -17,6 +17,7 @@
  */
 
 import type { TableColumn } from "../../types";
+import { EMAIL_REGEX } from "@/lib/email-constants";
 import {
   validateCell as validateCellNew,
   type ValidationResult,
@@ -52,9 +53,8 @@ export function validateEmail(value: unknown): string | null {
   if (value === null || value === undefined || value === "") return null;
 
   const email = String(value);
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  if (!emailRegex.test(email)) {
+  // SSoT: Use EMAIL_REGEX from email-constants.ts
+  if (!EMAIL_REGEX.test(email)) {
     return "Invalid email format";
   }
 

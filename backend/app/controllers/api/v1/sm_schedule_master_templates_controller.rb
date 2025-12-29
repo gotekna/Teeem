@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :copy, :import_rows ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :copy, :import_rows ]
 
       # GET /api/v1/sm_schedule_master_templates
       def index
@@ -304,6 +304,74 @@ module Api
           job_name: job.name,
           summary: summary,
           comparisons: comparisons
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          errors: [ "Job not found" ]
+        }, status: :not_found
+      end
+
+      # GET /api/v1/sm_schedule_master_templates/:id/analyze_matches
+      # Analyze potential matches between template rows and unlinked job tasks
+      # Uses intelligent fuzzy matching to suggest links
+      #
+      # Params:
+      #   job_id: ID of the job to analyze (required)
+      #
+      # Returns:
+      #   auto_link: Tasks that will be automatically linked (95%+ match)
+      #   needs_confirmation: Tasks that need user confirmation (65-95% match)
+      #   will_create: Template rows with no match (will create new tasks)
+      #   already_linked: Count of already linked tasks
+      #   unlinked_tasks: Job tasks with no match (orphans)
+      #
+      def analyze_matches
+        job = Job.find(params[:job_id])
+
+        analysis = SmScheduleMasterSyncService.analyze_matches_for_job(job, @template)
+
+        render json: {
+          success: true,
+          template_id: @template.id,
+          template_name: @template.name,
+          job_id: job.id,
+          job_name: job.name,
+          analysis: analysis,
+          summary: {
+            auto_link_count: analysis[:auto_link].count,
+            needs_confirmation_count: analysis[:needs_confirmation].count,
+            will_create_count: analysis[:will_create].count,
+            already_linked_count: analysis[:already_linked],
+            orphan_count: analysis[:unlinked_tasks].count
+          }
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          errors: [ "Job not found" ]
+        }, status: :not_found
+      end
+
+      # POST /api/v1/sm_schedule_master_templates/:id/apply_links
+      # Apply confirmed links between template rows and job tasks
+      # Call this before sync_to_job to link unlinked tasks first
+      #
+      # Params:
+      #   job_id: ID of the job (required)
+      #   links: Array of { template_row_id: X, task_id: Y } (required)
+      #
+      def apply_links
+        job = Job.find(params[:job_id])
+        links = params[:links] || []
+
+        result = SmScheduleMasterSyncService.apply_links!(job, links, user: current_user)
+
+        render json: {
+          success: true,
+          linked: result[:linked],
+          errors: result[:errors],
+          message: "Linked #{result[:linked]} tasks to template rows"
         }
       rescue ActiveRecord::RecordNotFound
         render json: {
