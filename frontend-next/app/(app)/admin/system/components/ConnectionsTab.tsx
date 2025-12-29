@@ -1662,14 +1662,16 @@ function DocumentMigration() {
 export function ConnectionsTab() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const subtabFromUrl = searchParams.get("subtab");
-  const activeTab = subtabFromUrl || "provider";
+  // Use connectionTab param to avoid conflict with parent's subtab param
+  const connectionTabFromUrl = searchParams.get("connectionTab");
+  const activeTab = connectionTabFromUrl || "provider";
 
   const handleTabChange = useCallback((tabId: string) => {
-    const currentTab = searchParams.get("tab") || "connections";
+    const currentTab = searchParams.get("tab") || "company";
+    const subtab = searchParams.get("subtab") || "connections";
     const url = tabId === "provider"
-      ? `/admin/system?tab=${currentTab}`
-      : `/admin/system?tab=${currentTab}&subtab=${tabId}`;
+      ? `/admin/system?tab=${currentTab}&subtab=${subtab}`
+      : `/admin/system?tab=${currentTab}&subtab=${subtab}&connectionTab=${tabId}`;
     router.push(url, { scroll: false });
   }, [router, searchParams]);
 
