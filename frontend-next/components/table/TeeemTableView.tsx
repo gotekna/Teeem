@@ -954,6 +954,7 @@ export default function TeeemTableView({
   onLoadAll,
   hasMore: serverHasMore = false,
   autoFetchRecords = false,
+  initialFilters,
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
@@ -1518,6 +1519,14 @@ export default function TeeemTableView({
   // Defensive: ensure cascadeFilters is always an array for .map/.length calls
   const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
   const [filterGroups, setFilterGroups] = useAtom(currentFilterGroupsAtom);
+
+  // Apply initialFilters when they change (SSoT: allows parent to set initial filters via prop)
+  const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters]);
+  useEffect(() => {
+    if (initialFilters && initialFilters.length > 0) {
+      setCascadeFilters(initialFilters);
+    }
+  }, [initialFiltersKey, setCascadeFilters]); // Only re-run when initialFilters changes (JSON stringified)
   const [interGroupLogic, setInterGroupLogic] = useAtom(currentInterGroupLogicAtom);
   // showFilters managed by atom (SSoT)
   const [showFilters, setShowFilters] = useAtom(showFiltersAtom);

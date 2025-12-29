@@ -744,7 +744,9 @@ export function ScheduleMasterTab() {
       await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${rowId}`, {
         row: { [field]: value },
       });
-      // Refresh the data
+      // SSoT: Refresh TeeemTableView (primary data display via Foundation API)
+      setDataViewRefreshKey(prev => prev + 1);
+      // Also refresh predecessor selector list (secondary use)
       loadDataViewRows(dataViewTemplateId);
       return { success: true };
     } catch (error) {
@@ -754,39 +756,40 @@ export function ScheduleMasterTab() {
   };
 
   // Handle row double-click - open edit sheet
+  // SSoT: Use row directly from TeeemTableView callback (Foundation API data)
+  // Don't lookup from dataViewRows which comes from custom endpoint with broken lookup expansion
   const handleDataViewRowDoubleClick = (row: Record<string, unknown>) => {
-    const fullRow = dataViewRows.find(r => r.id === row.id);
-    if (fullRow) {
-      // Reset auto-save state for fresh sheet
-      initialFormLoadRef.current = true;
-      setAutoSaveStatus('idle');
+    // Reset auto-save state for fresh sheet
+    initialFormLoadRef.current = true;
+    setAutoSaveStatus('idle');
 
-      setEditingRow(fullRow);
-      setEditRowForm({
-        name: fullRow.name,
-        description: fullRow.description,
-        duration_days: fullRow.duration_days,
-        sequence_order: fullRow.sequence_order,
-        // Extract IDs from lookup columns (backend may return objects like {id: 123, display: "..."})
-        trade: extractLookupId(fullRow.trade),
-        stage: extractLookupId(fullRow.stage),
-        assigned_role: extractLookupId(fullRow.assigned_role),
-        cost_centre: extractLookupId(fullRow.cost_centre),
-        header: extractLookupId(fullRow.header),  // Parent header row (self-reference lookup)
-        po_required: fullRow.po_required,
-        critical_po: fullRow.critical_po,
-        create_po_on_job_start: fullRow.create_po_on_job_start,
-        require_photo: fullRow.require_photo,
-        pass_fail_enabled: fullRow.pass_fail_enabled,
-        spawn_order_task: fullRow.spawn_order_task,
-        spawn_call_task: fullRow.spawn_call_task,
-        order_time_days: fullRow.order_time_days,
-        call_time_days: fullRow.call_time_days,
-        linked_task_ids: fullRow.linked_task_ids,
-        is_active: fullRow.is_active,
-      });
-      setShowEditSheet(true);
-    }
+    // Cast row from TeeemTableView - it has all the data with proper lookup expansion from Foundation API
+    const fullRow = row as unknown as SmScheduleMaster;
+    setEditingRow(fullRow);
+    setEditRowForm({
+      name: fullRow.name,
+      description: fullRow.description,
+      duration_days: fullRow.duration_days,
+      sequence_order: fullRow.sequence_order,
+      // Extract IDs from lookup columns (Foundation API returns {id: 123, display: "..."} format)
+      trade: extractLookupId(fullRow.trade),
+      stage: extractLookupId(fullRow.stage),
+      assigned_role: extractLookupId(fullRow.assigned_role),
+      cost_centre: extractLookupId(fullRow.cost_centre),
+      header: extractLookupId(fullRow.header),  // Parent header row (self-reference lookup)
+      po_required: fullRow.po_required,
+      critical_po: fullRow.critical_po,
+      create_po_on_job_start: fullRow.create_po_on_job_start,
+      require_photo: fullRow.require_photo,
+      pass_fail_enabled: fullRow.pass_fail_enabled,
+      spawn_order_task: fullRow.spawn_order_task,
+      spawn_call_task: fullRow.spawn_call_task,
+      order_time_days: fullRow.order_time_days,
+      call_time_days: fullRow.call_time_days,
+      linked_task_ids: fullRow.linked_task_ids,
+      is_active: fullRow.is_active,
+    });
+    setShowEditSheet(true);
   };
 
   // Save row from edit sheet (supports both manual and auto-save)
@@ -810,11 +813,16 @@ export function ScheduleMasterTab() {
         setAutoSaveStatus('saved');
         // Reset to idle after 2 seconds
         setTimeout(() => setAutoSaveStatus('idle'), 2000);
-        // Refresh data in background
+        // SSoT: Refresh TeeemTableView (primary data display via Foundation API)
+        setDataViewRefreshKey(prev => prev + 1);
+        // Also refresh predecessor selector list (secondary use - still uses custom endpoint)
         loadDataViewRows(dataViewTemplateId);
       } else {
         toast({ title: "Success", description: "Row updated" });
         setShowEditSheet(false);
+        // SSoT: Refresh TeeemTableView (primary data display via Foundation API)
+        setDataViewRefreshKey(prev => prev + 1);
+        // Also refresh predecessor selector list (secondary use)
         loadDataViewRows(dataViewTemplateId);
       }
     } catch (error) {
@@ -973,6 +981,8 @@ export function ScheduleMasterTab() {
         po_line_items: poLineItems,
       } : null);
       setEditRowForm(prev => ({ ...prev, create_po_on_job_start: true }));
+      // SSoT: Refresh TeeemTableView (primary data display via Foundation API)
+      setDataViewRefreshKey(prev => prev + 1);
       loadDataViewRows(dataViewTemplateId);
     } catch (error) {
       console.error("Failed to save auto-PO:", error);
@@ -1004,6 +1014,8 @@ export function ScheduleMasterTab() {
         po_line_items: [],
       } : null);
       setEditRowForm(prev => ({ ...prev, create_po_on_job_start: false }));
+      // SSoT: Refresh TeeemTableView (primary data display via Foundation API)
+      setDataViewRefreshKey(prev => prev + 1);
       loadDataViewRows(dataViewTemplateId);
     } catch (error) {
       console.error("Failed to clear auto-PO:", error);
@@ -1280,8 +1292,8 @@ export function ScheduleMasterTab() {
               }
               autoFetchRecords={!!dataViewTemplateId}
               initialFilters={dataViewTemplateId ? [
-                { column: "sm_template_ids", operator: "array_contains", value: String(dataViewTemplateId) },
-                ...(selectedTagFilter ? [{ column: "tags", operator: "contains", value: selectedTagFilter }] : [])
+                { id: "template", column: "sm_template_ids", operator: "array_contains" as const, value: String(dataViewTemplateId) },
+                ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter }] : [])
               ] : []}
               onRefresh={() => {
                 setDataViewRefreshKey(prev => prev + 1);

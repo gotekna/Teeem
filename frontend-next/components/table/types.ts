@@ -53,7 +53,7 @@ export interface CascadeFilter {
   id: string | number;
   column: string;
   value: string | number | boolean | null;
-  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "not_contains" | "starts_with" | "ends_with" | "is_empty" | "is_not_empty" | "between";
+  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "not_contains" | "starts_with" | "ends_with" | "is_empty" | "is_not_empty" | "between" | "array_contains";
   label?: string;
   groupId?: string;
 }
@@ -177,6 +177,7 @@ export interface TeeemTableViewProps {
   onLoadAll?: () => void; // Load all remaining records button callback
   hasMore?: boolean; // Whether there are more records to load from server
   autoFetchRecords?: boolean; // Enable auto-fetch from Foundation API (default: false). Only set true if NOT passing entries prop.
+  initialFilters?: CascadeFilter[]; // Initial cascade filters to apply (e.g., for template-specific views)
 
   // Data Health widget
   showDataHealth?: boolean;

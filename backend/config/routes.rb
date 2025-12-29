@@ -778,6 +778,27 @@ Rails.application.routes.draw do
           post :find_missing
         end
         post "abn/:contact_id/verify", to: "abn_verification#verify", as: :verify_abn
+
+        # Supplier Pricing Controller
+        # GET    /api/v1/contacts/supplier_pricing/:contact_id/categories  -> categories
+        # POST   /api/v1/contacts/supplier_pricing/:contact_id/copy_history -> copy_history
+        # DELETE /api/v1/contacts/supplier_pricing/:contact_id/categories  -> remove_categories
+        # POST   /api/v1/contacts/supplier_pricing/:contact_id/bulk_update -> bulk_update
+        # DELETE /api/v1/contacts/supplier_pricing/:contact_id/column      -> delete_column
+        scope "supplier_pricing/:contact_id", controller: "supplier_pricing" do
+          get :categories
+          post :copy_history
+          delete :categories, action: :remove_categories, as: :remove_categories
+          post :bulk_update
+          delete :column, action: :delete_column
+        end
+
+        # Merge Controller
+        # POST   /api/v1/contacts/merge              -> create (merge contacts)
+        # GET    /api/v1/contacts/merge/duplicates   -> duplicates (find duplicates)
+        resource :merge, only: [:create], controller: "merge" do
+          get :duplicates
+        end
       end
 
       # SMS webhooks (Twilio callbacks - not nested)
