@@ -283,7 +283,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
         foundationId="sm-tasks"
         autoFetchRecords={true}
         initialFilters={[
-          { id: "job-filter", column: "Construction", operator: "=", value: String(jobId) }
+          { id: "job-filter", column: "job_id", operator: "=", value: String(jobId) }
         ]}
         inheritViewsFrom="sm_schedule_master"
         tableName="Schedule Tasks"
