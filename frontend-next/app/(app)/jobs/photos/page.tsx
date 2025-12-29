@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
@@ -388,14 +387,17 @@ export default function JobPhotosPage() {
               const isExpanded = expandedSupervisors.has(supervisor);
               const jobs = data[supervisor];
               return (
-                <Collapsible key={supervisor} open={isExpanded} onOpenChange={() => toggleSupervisorExpanded(supervisor)}>
-                  <CollapsibleTrigger className="flex items-center gap-2 w-full py-1.5 px-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-left">
+                <div key={supervisor}>
+                  <button
+                    onClick={() => toggleSupervisorExpanded(supervisor)}
+                    className="flex items-center gap-2 w-full py-1.5 px-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-left"
+                  >
                     {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">{supervisor}</span>
                     <span className="text-xs text-muted-foreground">({jobs.length})</span>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
+                  </button>
+                  {isExpanded && (
                     <div className="ml-6 space-y-3 py-2">
                       {jobs.map((job) => (
                         <div key={job.job_id}>
@@ -438,8 +440,8 @@ export default function JobPhotosPage() {
                         </div>
                       ))}
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                  )}
+                </div>
               );
             })}
           </div>
