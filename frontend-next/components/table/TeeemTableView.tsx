@@ -723,6 +723,7 @@ export default function TeeemTableView({
     interGroupLogic,
     setInterGroupLogic,
     setBaseFilters,
+    setViewFilters,
     setUserFilters,
     addUserFilter,
     removeFilter,
@@ -1083,12 +1084,18 @@ export default function TeeemTableView({
   }, [entries, effectiveEntries, setSelectedRows]);
 
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
+  // CRITICAL FIX: Clear view filters to prevent cross-table pollution when multiple TeeemTableView
+  // instances exist on the same page (e.g., tabs). Since filter atoms are GLOBAL, view filters
+  // from one table would otherwise affect all tables.
   const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters]);
   useEffect(() => {
     if (initialFilters && initialFilters.length > 0) {
+      // Clear view filters first to prevent pollution from other tables
+      // Base filters are the defining context for this table instance
+      setViewFilters([]);
       setBaseFilters(initialFilters);
     }
-  }, [initialFiltersKey, setBaseFilters]); // Only re-run when initialFilters changes (JSON stringified)
+  }, [initialFiltersKey, setBaseFilters, setViewFilters]); // Only re-run when initialFilters changes (JSON stringified)
 
   // Backward compatibility alias
   const setCascadeFilters = setUserFilters;
