@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
+import { API_TIMEOUT_EMAIL_OFFLINE } from "@/lib/constants/timeout-constants";
 import {
   emailCache,
   isIndexedDBAvailable,
@@ -290,9 +291,10 @@ export function useOfflineEmails(
         }
       }
 
+      // SSoT: Uses API_TIMEOUT_EMAIL_OFFLINE from timeout-constants.ts
       const response = await api.get<SplitInboxAPIResponse>(
         url,
-        { timeout: 10000 }
+        { timeout: API_TIMEOUT_EMAIL_OFFLINE }
       );
 
       if (!mountedRef.current) return;

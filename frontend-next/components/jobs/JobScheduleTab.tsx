@@ -113,6 +113,58 @@ interface JobTemplate {
   name: string;
 }
 
+// Match analysis types (from analyze_matches endpoint)
+interface MatchAnalysis {
+  auto_link: Array<{
+    template_row_id: number;
+    task_id: number;
+    name: string;
+    task_name: string;
+    similarity: number;
+  }>;
+  needs_confirmation: Array<{
+    template_row_id: number;
+    task_id: number;
+    template_name: string;
+    template_task_number: number;
+    task_name: string;
+    task_task_number: number;
+    similarity: number;
+  }>;
+  will_create: Array<{
+    template_row_id: number;
+    task_number: number;
+    name: string;
+    closest_match?: {
+      task_id: number;
+      name: string;
+      similarity: number;
+    };
+  }>;
+  already_linked: number;
+  unlinked_tasks: Array<{
+    task_id: number;
+    task_number: number;
+    name: string;
+  }>;
+}
+
+interface AnalyzeResult {
+  success: boolean;
+  template_id: number;
+  template_name: string;
+  job_id: number;
+  job_name: string;
+  analysis: MatchAnalysis;
+  summary: {
+    auto_link_count: number;
+    needs_confirmation_count: number;
+    will_create_count: number;
+    already_linked_count: number;
+    orphan_count: number;
+  };
+}
+
 // SSoT: Columns come from Foundation API (ID: 218, slug: sm-tasks)
 // DO NOT hardcode columns here - TeeemTableView auto-fetches from Foundation
 // Global views are inherited from Schedule Master (foundation 426) - allows "PO Tasks Only" etc. to appear here
@@ -126,13 +178,17 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
 
   // Sync state
   const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [comparing, setComparing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
-  const [syncStep, setSyncStep] = useState<"compare" | "result">("compare");
+  const [syncStep, setSyncStep] = useState<"analyze" | "compare" | "result">("analyze");
   const [jobTemplate, setJobTemplate] = useState<JobTemplate | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+  // Track which matches user has confirmed (for 65-95% matches)
+  const [confirmedMatches, setConfirmedMatches] = useState<Set<number>>(new Set());
 
   // SSoT: Data fetching moved to TeeemTableView with autoFetchRecords
   // Trigger refresh by incrementing refreshKey after sync operations
@@ -169,11 +225,13 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
     }
   }, []);
 
-  // Open sync dialog - starts comparison immediately
+  // Open sync dialog - starts with analysis step
   const handleOpenSyncDialog = async () => {
     setSyncResult(null);
     setCompareResult(null);
-    setSyncStep("compare");
+    setAnalyzeResult(null);
+    setConfirmedMatches(new Set());
+    setSyncStep("analyze");
     setShowSyncDialog(true);
 
     // Load template if not loaded
@@ -181,7 +239,125 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
       await loadJobTemplate();
     }
 
-    // Start comparison
+    // Start analysis (intelligent matching)
+    handleAnalyzeMatches();
+  };
+
+  // Analyze matches between template and unlinked job tasks
+  const handleAnalyzeMatches = async () => {
+    let templateId = jobTemplate?.id;
+    if (!templateId) {
+      setLoadingTemplate(true);
+      try {
+        const response = await api.get<{
+          success: boolean;
+          sm_schedule_master_templates: Array<{ id: number; name: string; is_default: boolean }>
+        }>("/api/v1/sm_schedule_master_templates");
+
+        const templates = response.sm_schedule_master_templates || [];
+        const defaultTemplate = templates.find(t => t.is_default) || templates[0];
+
+        if (defaultTemplate) {
+          setJobTemplate({ id: defaultTemplate.id, name: defaultTemplate.name });
+          templateId = defaultTemplate.id;
+        }
+      } catch (err) {
+        console.error("Failed to load template:", err);
+        toast({
+          title: "Error",
+          description: "Failed to load schedule template",
+          variant: "destructive",
+        });
+        return;
+      } finally {
+        setLoadingTemplate(false);
+      }
+    }
+
+    if (!templateId) {
+      toast({
+        title: "No Template Found",
+        description: "No schedule master template is configured",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAnalyzing(true);
+    try {
+      const response = await api.get<AnalyzeResult>(
+        `/api/v1/sm_schedule_master_templates/${templateId}/analyze_matches?job_id=${jobId}`
+      );
+      if (response) {
+        setAnalyzeResult(response);
+        // Pre-select all matches for confirmation (user can deselect)
+        const allConfirmed = new Set(
+          response.analysis.needs_confirmation.map(m => m.task_id)
+        );
+        setConfirmedMatches(allConfirmed);
+      }
+    } catch (err) {
+      console.error("Failed to analyze:", err);
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to analyze matches",
+        variant: "destructive",
+      });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // Apply links and proceed to compare
+  const handleApplyLinksAndCompare = async () => {
+    if (!jobTemplate?.id || !analyzeResult) return;
+
+    // Build links to apply: auto_links + confirmed matches
+    const linksToApply = [
+      ...analyzeResult.analysis.auto_link.map(m => ({
+        template_row_id: m.template_row_id,
+        task_id: m.task_id
+      })),
+      ...analyzeResult.analysis.needs_confirmation
+        .filter(m => confirmedMatches.has(m.task_id))
+        .map(m => ({
+          template_row_id: m.template_row_id,
+          task_id: m.task_id
+        }))
+    ];
+
+    // Apply links if any
+    if (linksToApply.length > 0) {
+      setAnalyzing(true);
+      try {
+        await api.post(
+          `/api/v1/sm_schedule_master_templates/${jobTemplate.id}/apply_links`,
+          { job_id: parseInt(String(jobId)), links: linksToApply }
+        );
+        toast({
+          title: "Links Applied",
+          description: `Linked ${linksToApply.length} tasks to template rows`,
+        });
+      } catch (err) {
+        console.error("Failed to apply links:", err);
+        toast({
+          title: "Failed to Apply Links",
+          description: "Some links may not have been applied",
+          variant: "destructive",
+        });
+      } finally {
+        setAnalyzing(false);
+      }
+    }
+
+    // Proceed to compare step
+    setSyncStep("compare");
+    handleCompare();
+  };
+
+  // Skip directly to compare (if all tasks already linked or user wants to skip matching)
+  const handleSkipToCompare = () => {
+    setSyncStep("compare");
     handleCompare();
   };
 
@@ -313,21 +489,217 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
         enableExport={true}
       />
 
-      {/* Sync Dialog - Compare & Sync Flow */}
+      {/* Sync Dialog - Analyze, Compare & Sync Flow */}
       <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
-        <DialogContent className={syncStep === "compare" && compareResult ? "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" : "max-w-lg"}>
+        <DialogContent className={
+          (syncStep === "analyze" && analyzeResult && (analyzeResult.summary.needs_confirmation_count > 0 || analyzeResult.summary.auto_link_count > 0))
+            ? "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+            : syncStep === "compare" && compareResult
+              ? "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+              : "max-w-lg"
+        }>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5" />
+              {syncStep === "analyze" && <Link2 className="h-5 w-5" />}
+              {syncStep === "compare" && <RefreshCw className="h-5 w-5" />}
+              {syncStep === "result" && <Check className="h-5 w-5" />}
+              {syncStep === "analyze" && "Link Tasks to Template"}
               {syncStep === "compare" && "Sync Schedule Master to Job"}
               {syncStep === "result" && "Sync Complete"}
             </DialogTitle>
             <DialogDescription>
+              {syncStep === "analyze" && !analyzeResult && "Analyzing task matches..."}
+              {syncStep === "analyze" && analyzeResult && "Match existing job tasks to template rows before syncing."}
               {syncStep === "compare" && !compareResult && "Loading comparison..."}
               {syncStep === "compare" && compareResult && `Comparing ${compareResult.template_name} with job tasks. Tasks with job reality will be skipped.`}
               {syncStep === "result" && "Schedule Master has been synced to the job."}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Analyze Step - Intelligent Matching */}
+          {syncStep === "analyze" && (
+            <>
+              {(analyzing || loadingTemplate) && !analyzeResult && (
+                <div className="py-8 flex flex-col items-center gap-2">
+                  <Spinner size={32} className="text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    {loadingTemplate ? "Loading template..." : "Analyzing task matches..."}
+                  </p>
+                </div>
+              )}
+
+              {analyzeResult && (
+                <>
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-5 gap-2 py-2 shrink-0">
+                    <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center">
+                      <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                        {analyzeResult.summary.auto_link_count}
+                      </p>
+                      <p className="text-xs text-green-700 dark:text-green-300">Auto-Link</p>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-950 rounded-lg p-2 text-center">
+                      <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                        {analyzeResult.summary.needs_confirmation_count}
+                      </p>
+                      <p className="text-xs text-amber-700 dark:text-amber-300">Confirm</p>
+                    </div>
+                    <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-2 text-center">
+                      <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                        {analyzeResult.summary.will_create_count}
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">Create New</p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 text-center">
+                      <p className="text-lg font-bold text-gray-600 dark:text-gray-400">
+                        {analyzeResult.summary.already_linked_count}
+                      </p>
+                      <p className="text-xs text-gray-700 dark:text-gray-300">Linked</p>
+                    </div>
+                    <div className="bg-red-50 dark:bg-red-950 rounded-lg p-2 text-center">
+                      <p className="text-lg font-bold text-red-600 dark:text-red-400">
+                        {analyzeResult.summary.orphan_count}
+                      </p>
+                      <p className="text-xs text-red-700 dark:text-red-300">Orphans</p>
+                    </div>
+                  </div>
+
+                  {/* All Tasks Already Linked - Skip to Compare */}
+                  {analyzeResult.summary.auto_link_count === 0 &&
+                   analyzeResult.summary.needs_confirmation_count === 0 &&
+                   analyzeResult.summary.will_create_count === 0 && (
+                    <div className="py-4 text-center">
+                      <Check className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        All template rows are already linked to job tasks.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Matches Table */}
+                  {(analyzeResult.summary.auto_link_count > 0 || analyzeResult.summary.needs_confirmation_count > 0) && (
+                    <div className="flex-1 overflow-auto border rounded-lg min-h-0">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background z-10">
+                          <UITableRow>
+                            <TableHead className="w-[40px]"></TableHead>
+                            <TableHead>Template Row</TableHead>
+                            <TableHead>Job Task</TableHead>
+                            <TableHead className="w-[90px]">Match</TableHead>
+                            <TableHead className="w-[90px]">Action</TableHead>
+                          </UITableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {/* Auto-link matches (95%+) */}
+                          {analyzeResult.analysis.auto_link.map((match) => (
+                            <UITableRow
+                              key={`auto-${match.template_row_id}`}
+                              className="bg-green-50/50 dark:bg-green-950/30"
+                            >
+                              <TableCell>
+                                <Check className="h-4 w-4 text-green-600" />
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium text-sm">{match.name}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium text-sm">{match.task_name}</div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                  {match.similarity}%
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-xs text-green-600 dark:text-green-400">Auto-link</span>
+                              </TableCell>
+                            </UITableRow>
+                          ))}
+
+                          {/* Needs confirmation (65-95%) */}
+                          {analyzeResult.analysis.needs_confirmation.map((match) => (
+                            <UITableRow
+                              key={`confirm-${match.template_row_id}`}
+                              className="bg-amber-50/50 dark:bg-amber-950/30"
+                            >
+                              <TableCell>
+                                <Checkbox
+                                  checked={confirmedMatches.has(match.task_id)}
+                                  onCheckedChange={(checked) => {
+                                    setConfirmedMatches(prev => {
+                                      const next = new Set(prev);
+                                      if (checked) {
+                                        next.add(match.task_id);
+                                      } else {
+                                        next.delete(match.task_id);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium text-sm">{match.template_name}</div>
+                                <div className="text-xs text-muted-foreground">#{match.template_task_number}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium text-sm">{match.task_name}</div>
+                                <div className="text-xs text-muted-foreground">#{match.task_task_number}</div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                  {match.similarity}%
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Confirm
+                                </span>
+                              </TableCell>
+                            </UITableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {/* Will Create section */}
+                  {analyzeResult.summary.will_create_count > 0 && (
+                    <div className="text-sm text-muted-foreground py-2">
+                      <Plus className="h-4 w-4 inline mr-1" />
+                      {analyzeResult.summary.will_create_count} new tasks will be created
+                    </div>
+                  )}
+
+                  <DialogFooter className="shrink-0 pt-2">
+                    <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button variant="outline" onClick={handleSkipToCompare}>
+                      Skip Linking
+                    </Button>
+                    <Button
+                      onClick={handleApplyLinksAndCompare}
+                      disabled={analyzing}
+                    >
+                      {analyzing ? (
+                        <>
+                          <Spinner size={16} className="mr-2" />
+                          Applying...
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="h-4 w-4 mr-2" />
+                          Apply {analyzeResult.summary.auto_link_count + confirmedMatches.size} Links & Continue
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
+            </>
+          )}
 
           {/* Compare Step */}
           {syncStep === "compare" && (

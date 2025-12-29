@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { API_TIMEOUT_HEAVY_SYNC } from "@/lib/constants/timeout-constants";
 import {
   Table,
   TableBody,
@@ -572,8 +573,9 @@ export default function CorporateDashboardPage() {
         data?: SyncData;
         error?: string;
       }
-      // Use 2 minute timeout for syncing all companies (can take 30-60 seconds)
-      const response = await api.post<SyncResponse>('/api/v1/xero/sync_all_companies', undefined, { timeout: 120000 });
+      // Use longer timeout for syncing all companies (can take 30-60 seconds)
+      // SSoT: Uses API_TIMEOUT_HEAVY_SYNC from timeout-constants.ts
+      const response = await api.post<SyncResponse>('/api/v1/xero/sync_all_companies', undefined, { timeout: API_TIMEOUT_HEAVY_SYNC });
       if (response?.success && response?.data) {
         const data = response.data;
         alert(`Xero Sync Complete!\n\nTotal: ${data.total_companies} companies\nSuccessful: ${data.successful}\nFailed: ${data.failed}`);

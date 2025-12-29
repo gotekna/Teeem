@@ -6,6 +6,7 @@
  */
 
 import { api } from "@/lib/api";
+import { API_TIMEOUT_EMAIL_SYNC } from "@/lib/constants/timeout-constants";
 import {
   emailCache,
   isIndexedDBAvailable,
@@ -87,9 +88,10 @@ export async function syncSplitInbox(): Promise<SyncResult> {
 
   try {
     // Fetch from API
+    // SSoT: Uses API_TIMEOUT_EMAIL_SYNC from timeout-constants.ts
     const response = await api.get<SplitInboxAPIResponse>(
       "/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true",
-      { timeout: 15000 }
+      { timeout: API_TIMEOUT_EMAIL_SYNC }
     );
 
     const data = (response as SplitInboxAPIResponse).data;

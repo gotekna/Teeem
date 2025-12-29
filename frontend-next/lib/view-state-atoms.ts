@@ -21,6 +21,7 @@
 import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from '@/components/table/types';
+import { CACHE_TTL_VIEWS, CACHE_TTL_LOOKUPS } from './constants/cache-constants';
 
 // Import the actual atoms for use in applyViewAtom
 import {
@@ -177,7 +178,8 @@ export const viewsCacheAtom = atomWithStorage<Record<string | number, {
   timestamp: number;
 }>>('teeem_views_cache', {});
 
-export const VIEWS_CACHE_TTL = 60000; // 1 minute
+// SSoT: Uses CACHE_TTL_VIEWS from cache-constants.ts
+export const VIEWS_CACHE_TTL = CACHE_TTL_VIEWS;
 
 /**
  * Current foundation's views (loaded from API or cache)
@@ -603,10 +605,10 @@ interface LookupCacheEntry {
 }
 
 /**
- * TTL for lookup cache entries (5 minutes)
- * Lookups change less frequently than views, so longer TTL is appropriate
+ * TTL for lookup cache entries
+ * SSoT: Uses CACHE_TTL_LOOKUPS from cache-constants.ts
  */
-export const LOOKUP_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+export const LOOKUP_CACHE_TTL = CACHE_TTL_LOOKUPS;
 
 /**
  * Lookup cache with TTL

@@ -14,6 +14,8 @@
  * - Optional sessionStorage persistence for page refresh survival
  */
 
+import { CACHE_TTL_RECORDS, CACHE_TTL_SESSION } from './constants/cache-constants';
+
 interface CachedRecords {
   records: Record<string, unknown>[];
   totalCount: number | null;
@@ -25,11 +27,9 @@ interface CachedRecords {
 // Module-level cache - survives route changes
 const recordsCache = new Map<string | number, CachedRecords>();
 
-// Default TTL: 5 minutes (records can change, don't want stale data too long)
-const DEFAULT_TTL_MS = 5 * 60 * 1000;
-
-// Max age for sessionStorage: 30 minutes (longer since it's across refresh)
-const SESSION_STORAGE_TTL_MS = 30 * 60 * 1000;
+// SSoT: Cache TTLs from cache-constants.ts
+const DEFAULT_TTL_MS = CACHE_TTL_RECORDS;
+const SESSION_STORAGE_TTL_MS = CACHE_TTL_SESSION;
 
 // Session storage key prefix
 const STORAGE_PREFIX = 'teeem-records-cache-v1-';

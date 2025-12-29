@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { API_TIMEOUT_EMAIL_OFFLINE } from "@/lib/constants/timeout-constants";
 import {
   Star,
   Users,
@@ -119,11 +120,12 @@ interface CategoryEmailsResponse {
 
 // API Functions
 async function fetchSplitInbox(): Promise<SplitInboxData> {
-  // Use shorter timeout (10s) for split inbox - it should be fast
+  // Use shorter timeout for split inbox - it should be fast
   // If network is slow, we'll show cached/empty state rather than waiting 30s
+  // SSoT: Uses API_TIMEOUT_EMAIL_OFFLINE from timeout-constants.ts
   const response = await api.get<SplitInboxResponse>(
     "/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true",
-    { timeout: 10000 }
+    { timeout: API_TIMEOUT_EMAIL_OFFLINE }
   );
   return (response as SplitInboxResponse).data;
 }
@@ -141,10 +143,11 @@ async function fetchCategoryEmails(
     total_pages: number;
   };
 }> {
-  // Use shorter timeout (10s) for category emails
+  // Use shorter timeout for category emails
+  // SSoT: Uses API_TIMEOUT_EMAIL_OFFLINE from timeout-constants.ts
   const response = await api.get<CategoryEmailsResponse>(
     `/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true&category=${category}&page=${page}&per_page=${perPage}`,
-    { timeout: 10000 }
+    { timeout: API_TIMEOUT_EMAIL_OFFLINE }
   );
   return (response as CategoryEmailsResponse).data;
 }

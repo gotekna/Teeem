@@ -13,6 +13,7 @@
 
 import { atom, useSetAtom } from 'jotai';
 import { useEffect, useState } from 'react';
+import { CACHE_TTL_COLUMNS } from './constants/cache-constants';
 
 // ============================================================================
 // TYPES
@@ -40,10 +41,10 @@ interface ColumnsCacheEntry {
 // ============================================================================
 
 /**
- * TTL for columns cache (1 minute)
- * Columns change less frequently than data, but we want updates to appear quickly
+ * TTL for columns cache
+ * SSoT: Uses CACHE_TTL_COLUMNS from cache-constants.ts
  */
-export const COLUMNS_CACHE_TTL = 60000; // 1 minute
+export const COLUMNS_CACHE_TTL = CACHE_TTL_COLUMNS;
 
 /**
  * Columns cache with TTL

@@ -43,6 +43,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { API_TIMEOUT_FILE_UPLOAD } from "@/lib/constants/timeout-constants";
 import { uploadToSharePointDirect } from "@/lib/sharepoint-upload";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
@@ -365,7 +366,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         success: boolean;
         data?: { id: number };
         error?: string;
-      }>(`/api/v1/jobs/${jobId}/plan_uploads`, formData, { timeout: 60000 });
+      // SSoT: Uses API_TIMEOUT_FILE_UPLOAD from timeout-constants.ts
+      }>(`/api/v1/jobs/${jobId}/plan_uploads`, formData, { timeout: API_TIMEOUT_FILE_UPLOAD });
 
       if (result.success && result.data?.id) {
         // Show progress modal
