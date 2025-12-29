@@ -513,7 +513,7 @@ export default function ScheduleMasterPage() {
                       <SelectValue placeholder="Select supplier..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {suppliers.map((s) => (
+                      {suppliers.filter(s => s.id).map((s) => (
                         <SelectItem key={s.id} value={s.id.toString()}>
                           {s.name}
                         </SelectItem>
@@ -538,15 +538,15 @@ export default function ScheduleMasterPage() {
             <div className="space-y-2">
               <Label htmlFor="link-task">Link After Task (Optional)</Label>
               <Select
-                value={linkToTaskId?.toString() || ""}
-                onValueChange={(v) => setLinkToTaskId(v ? parseInt(v) : null)}
+                value={linkToTaskId?.toString() || "none"}
+                onValueChange={(v) => setLinkToTaskId(v === "none" ? null : parseInt(v))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select predecessor task..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
-                  {tasks.map((t) => (
+                  <SelectItem value="none">None</SelectItem>
+                  {tasks.filter(t => t.id).map((t) => (
                     <SelectItem key={t.id} value={t.id.toString()}>
                       {t.task_number}. {t.name}
                     </SelectItem>
