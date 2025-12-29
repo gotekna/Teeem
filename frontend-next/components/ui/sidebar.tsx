@@ -35,6 +35,7 @@ import {
 } from "./popover";
 import { Badge } from "./badge";
 import { api } from "@/lib/api";
+import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { useNavigation, useToggleNavCollapse, type NavigationItem, type NavigationChildItem } from "@/hooks/useNavigation";
 import { getIcon } from "@/lib/icon-map";
 
@@ -97,9 +98,9 @@ export function Sidebar() {
         }
 
         if (mostRecentTime) {
-          // Format in Brisbane timezone (Australia/Brisbane)
+          // SSoT: Uses COMPANY_TIMEZONE from timezone-utils.ts
           const brisbaneTime = mostRecentTime.toLocaleString('en-AU', {
-            timeZone: 'Australia/Brisbane',
+            timeZone: COMPANY_TIMEZONE,
             hour: 'numeric',
             minute: '2-digit',
             day: 'numeric',

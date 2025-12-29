@@ -47,6 +47,7 @@ import {
   Box,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { cn } from "@/lib/utils";
 
 // Import all tab components
@@ -192,7 +193,8 @@ function CompanyInfoTab() {
     logo_url: "",
     logo_mobile: "",
     logo_dark: "",
-    timezone: "Australia/Brisbane",
+    // SSoT: Uses COMPANY_TIMEZONE from timezone-utils.ts
+    timezone: COMPANY_TIMEZONE,
     working_days: {
       monday: true,
       tuesday: true,
@@ -463,8 +465,9 @@ function CompanyInfoTab() {
           <p className="text-sm text-muted-foreground">
             This timezone will be used for calculating working days, displaying dates, and scheduling tasks.
           </p>
+          {/* SSoT: Uses COMPANY_TIMEZONE from timezone-utils.ts */}
           <Select
-            value={settings.timezone || "Australia/Brisbane"}
+            value={settings.timezone || COMPANY_TIMEZONE}
             onValueChange={(value) => handleChange("timezone", value)}
           >
             <SelectTrigger>

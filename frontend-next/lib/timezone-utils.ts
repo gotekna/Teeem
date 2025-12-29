@@ -1,5 +1,18 @@
-// Timezone utilities - Brisbane timezone
-const BRISBANE_TZ = 'Australia/Brisbane';
+/**
+ * Timezone Constants - Single Source of Truth (SSoT)
+ *
+ * All timezone-related constants should be imported from this file.
+ * This prevents hardcoded timezone strings scattered across the codebase.
+ *
+ * Usage:
+ *   import { COMPANY_TIMEZONE } from '@/lib/timezone-utils';
+ */
+
+// SSoT: Company timezone - used throughout the app for date/time operations
+export const COMPANY_TIMEZONE = 'Australia/Brisbane';
+
+// Legacy alias (for backwards compatibility)
+const BRISBANE_TZ = COMPANY_TIMEZONE;
 
 export function getCompanyTimezone(): string {
   return BRISBANE_TZ;

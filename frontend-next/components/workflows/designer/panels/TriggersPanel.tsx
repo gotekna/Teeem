@@ -42,6 +42,7 @@ import {
   FileEdit,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { toast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -531,8 +532,9 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
                 </div>
                 <div className="space-y-2">
                   <Label>Timezone</Label>
+                  {/* SSoT: Uses COMPANY_TIMEZONE from timezone-utils.ts */}
                   <Input
-                    value={(formData.config.timezone as string) || "Australia/Brisbane"}
+                    value={(formData.config.timezone as string) || COMPANY_TIMEZONE}
                     onChange={(e) => updateConfig("timezone", e.target.value)}
                   />
                 </div>

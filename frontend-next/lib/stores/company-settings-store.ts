@@ -6,6 +6,7 @@
  */
 
 import { api } from '@/lib/api';
+import { COMPANY_TIMEZONE } from '@/lib/timezone-utils';
 
 interface CompanySettings {
   timezone: string;
@@ -13,9 +14,9 @@ interface CompanySettings {
   company_name: string | null;
 }
 
-// Default fallback
+// SSoT: Uses COMPANY_TIMEZONE from timezone-utils.ts
 const DEFAULT_SETTINGS: CompanySettings = {
-  timezone: 'Australia/Brisbane',
+  timezone: COMPANY_TIMEZONE,
   working_days: {
     monday: true,
     tuesday: true,

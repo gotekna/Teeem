@@ -12,6 +12,8 @@
 // Types
 // ============================================================================
 
+import { COMPANY_TIMEZONE } from '@/lib/timezone-utils';
+
 export interface Holiday {
   date: Date;
   name: string;
@@ -31,11 +33,12 @@ export interface WorkingDaysConfig {
 // Default Configuration
 // ============================================================================
 
+// SSoT: Uses COMPANY_TIMEZONE from timezone-utils.ts
 const DEFAULT_CONFIG: WorkingDaysConfig = {
   // Default: Monday to Friday
   workingDays: [1, 2, 3, 4, 5],
   holidays: [],
-  timezone: 'Australia/Brisbane',
+  timezone: COMPANY_TIMEZONE,
 };
 
 // ============================================================================

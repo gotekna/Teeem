@@ -21,6 +21,7 @@ import {
   Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { UnlinkedContactsSheet } from "./UnlinkedContactsSheet";
 
 // Rate limit types
@@ -340,10 +341,11 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
     if (diffMins < 60) return `in ${diffMins} min`;
 
     // Show time in Brisbane format
+    // SSoT: Uses COMPANY_TIMEZONE from timezone-utils.ts
     return date.toLocaleString("en-AU", {
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "Australia/Brisbane",
+      timeZone: COMPANY_TIMEZONE,
     }) + " AEST";
   };
 

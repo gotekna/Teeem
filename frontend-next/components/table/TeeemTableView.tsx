@@ -4877,9 +4877,9 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* ULTRA Solution: Active filters indicator - only show USER filters, not base/contextual filters */}
+      {/* ULTRA Solution: Active filters indicator - only show when Column Filters is enabled */}
       {/* Base filters (e.g., job scope) are applied but hidden from UI since they're contextual */}
-      {hasUserFilters ? (
+      {showColumnFilters && hasUserFilters ? (
         <div className="flex items-center gap-2 flex-wrap px-4">
           <span className="text-[11px] text-muted-foreground">Active filters:</span>
           {/* Only render user-clearable filters (not base/locked filters) */}
