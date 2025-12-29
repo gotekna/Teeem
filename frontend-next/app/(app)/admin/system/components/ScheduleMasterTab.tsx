@@ -157,7 +157,7 @@ interface SmScheduleMaster {
   stage_name?: string;  // SSoT: Resolved from Foundation SM Stages by backend
   assigned_role?: string | null;
   cost_centre?: string;
-  header?: string | null;  // Parent header row ID (self-reference lookup)
+  header?: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
   is_active?: boolean;
   tags?: string[];
   po_required: boolean;
@@ -2275,7 +2275,14 @@ export function ScheduleMasterTab() {
                   <Label className="text-xs">Parent Header</Label>
                   <ComboboxDropdown
                     items={availableHeaderRows.map(h => ({ id: String(h.id), label: h.name }))}
-                    selectedItem={editRowForm.header ? { id: editRowForm.header, label: availableHeaderRows.find(h => String(h.id) === editRowForm.header)?.name || extractLookupDisplay(editingRow?.header) || editRowForm.header } : undefined}
+                    selectedItem={(() => {
+                      const headerId = extractLookupId(editRowForm.header);
+                      if (!headerId || headerId === 'Header') return undefined;  // Skip if "Header" marker
+                      const headerName = availableHeaderRows.find(h => String(h.id) === headerId)?.name
+                        || extractLookupDisplay(editingRow?.header)
+                        || headerId;
+                      return { id: headerId, label: headerName };
+                    })()}
                     onSelect={(item) => setEditRowForm({ ...editRowForm, header: item.id })}
                     placeholder="Select header..."
                     emptyResults="No header rows found"

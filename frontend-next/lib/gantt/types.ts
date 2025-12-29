@@ -117,7 +117,7 @@ export interface SmScheduleMaster {
   linked_po_task_name: string | null;
   supplier_confirm: boolean;
   finance_approved: boolean;
-  header: string | null;
+  header: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
   // Multi-template support
   sm_template_ids: number[];
   // Manual positioning (held dates)

@@ -225,7 +225,13 @@ module Api
         stage_value = row.stage.present? ? { id: row.stage.to_i, display: stages_map[row.stage.to_i] || row.stage } : nil
         role_value = row.assigned_role.present? ? { id: row.assigned_role.to_i, display: roles_map[row.assigned_role.to_i] || row.assigned_role } : nil
         cost_centre_value = row.cost_centre.present? ? { id: row.cost_centre.to_i, display: cost_centres_map[row.cost_centre.to_i] || row.cost_centre } : nil
-        header_value = row.header.present? ? { id: row.header.to_i, display: header_map[row.header.to_i] || row.header } : nil
+        # Header has dual meaning: "Header" string = this row IS a header, numeric ID = parent reference
+        # Keep "Header" as string for backward compatibility with GanttCanvasView
+        header_value = if row.header == "Header"
+          "Header"  # This row IS a header - keep as string
+        elsif row.header.present?
+          { id: row.header.to_i, display: header_map[row.header.to_i] || row.header }  # Parent lookup
+        end
 
         {
           id: row.id,
