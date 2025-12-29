@@ -223,12 +223,13 @@ module Api
 
         # Build visibility map for po_required logic
         # A task is invisible if po_required=true AND no PO is linked
+        # SSoT: Check PO link via has_linked_po? (PurchaseOrder.sm_task_id)
         invisible_task_ids = Set.new
         task_by_id = {}
         tasks.each do |task|
           task_by_id[task.id] = task
           po_required = task.po_required || false
-          has_po = task.purchase_order_id.present?
+          has_po = task.has_linked_po?
           invisible_task_ids.add(task.id) if po_required && !has_po
         end
 

@@ -259,7 +259,8 @@ class SmScheduleMasterSyncService
       confirm: task.confirm,
       supplier_confirm: task.supplier_confirm,
       hold: task.hold,
-      purchase_order_id: task.purchase_order_id
+      # SSoT: PO link is via PurchaseOrder.sm_task_id (Option B)
+      linked_purchase_order_id: task.linked_purchase_order&.id
     }
   end
 

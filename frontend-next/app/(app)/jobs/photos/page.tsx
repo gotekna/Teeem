@@ -423,13 +423,13 @@ export default function JobPhotosPage() {
                               {job.job_type} · {job.job_status} · {job.deposit ? "Deposit" : "No Dep"} · Start: {formatShortDate(job.start_date)} · PC: {formatShortDate(job.pc_date)}
                             </span>
                           </div>
-                          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
+                          <div className="flex gap-2 overflow-x-auto pb-2">
                             {job.photos.map((photo, idx) => {
                               const isOld = photo.days_old !== null && photo.days_old > 3;
                               return (
                                 <div
                                   key={photo.id}
-                                  className="relative cursor-pointer aspect-square"
+                                  className="relative cursor-pointer flex-shrink-0 w-32 h-32"
                                   onClick={() => handlePhotoExpand(job.photos, idx)}
                                 >
                                   <div

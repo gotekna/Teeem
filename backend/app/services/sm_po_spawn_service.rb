@@ -130,8 +130,8 @@ class SmPoSpawnService
       trade: task.trade,
       stage: task.stage,
       supplier_id: task.supplier_id,
-      # Link to parent task's PO
-      purchase_order_id: task.purchase_order_id,
+      # Note: Spawned Order/Call tasks are NOT linked to PO
+      # SSoT: Only the parent task has the PO link via PurchaseOrder.sm_task_id
       # Audit
       created_by: user,
       updated_by: user,
