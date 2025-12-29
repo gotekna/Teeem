@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 
 interface PreviewData {
   file_name: string;
@@ -126,7 +126,7 @@ export default function ImportPage() {
       formData.append("file", file);
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/imports/preview`,
+        `${getApiBaseUrl()}/api/v1/imports/preview`,
         {
           method: "POST",
           headers: {

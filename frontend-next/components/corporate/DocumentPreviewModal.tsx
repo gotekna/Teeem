@@ -20,7 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import {
   FileText,
   ExternalLink,
@@ -2096,7 +2096,7 @@ export default function DocumentPreviewModal({
               {isEditingPdf && fileType === "pdf" && document.id ? (
                 // PDF Editor Mode - use /content endpoint to bypass CORS
                 <PDFEditor
-                  url={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/company_documents/${document.id}/content`}
+                  url={`${getApiBaseUrl()}/api/v1/company_documents/${document.id}/content`}
                   fileName={document.file_name || "document.pdf"}
                   onSave={async (pdfBytes, fileName) => {
                     try {
@@ -2149,7 +2149,7 @@ export default function DocumentPreviewModal({
                 // For PDFs, always use the /content endpoint to bypass CORS
                 // SharePoint embed URLs don't work with PDF.js due to CORS restrictions
                 <PDFViewer
-                  url={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/company_documents/${document.id}/content`}
+                  url={`${getApiBaseUrl()}/api/v1/company_documents/${document.id}/content`}
                   className="flex-1"
                   showThumbnails={false}
                   fallbackUrl={document.file_url}

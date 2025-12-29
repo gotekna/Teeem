@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { createConsumer, Subscription } from "@rails/actioncable";
 import type { EmailListItem, EmailUserState } from "@/lib/email-types";
+import { getApiBaseUrl } from "@/lib/api";
 
 // Singleton ActionCable consumer to prevent multiple connections
 let globalConsumer: ReturnType<typeof createConsumer> | null = null;
@@ -369,7 +370,8 @@ export function useEmailWebSocket(
  * Includes auth token as query param for iOS Safari/mobile support
  */
 function getWebSocketUrl(): string {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  // SSoT: Use getApiBaseUrl from @/lib/api
+  const apiUrl = getApiBaseUrl();
   const url = new URL(apiUrl);
 
   // Convert http to ws, https to wss

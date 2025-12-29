@@ -54,7 +54,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { uploadToSharePointDirect, type UploadProgress } from "@/lib/sharepoint-upload";
 
 interface OrgStatus {
@@ -277,7 +277,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     // IMPORTANT: Always use proxy URL for main image because SharePoint direct URLs
     // fail due to CORS when used in <img> tags. The lightbox fetches via api.getBlob()
     // with proper auth to bypass this.
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+    const apiBase = getApiBaseUrl();
     const proxyUrl = `${apiBase}/api/v1/organization_onedrive/download?file_id=${item.id}&preview=true`;
     // Use Graph API thumbnail URL if available (publicly accessible, no auth required)
     const thumbnailUrl = item.thumbnail_url || proxyUrl;

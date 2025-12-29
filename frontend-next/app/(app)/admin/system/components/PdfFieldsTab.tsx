@@ -38,7 +38,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
@@ -395,7 +395,7 @@ export function PdfFieldsTab() {
         return null;
       });
 
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const backendUrl = getApiBaseUrl();
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
       // Build URL - blank template or filled preview

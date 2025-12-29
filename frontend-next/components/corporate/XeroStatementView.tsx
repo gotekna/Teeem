@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -374,7 +374,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
       }
 
       // Create a link to download the PDF
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      const baseUrl = getApiBaseUrl();
       const url = `${baseUrl}/api/v1/warehouse_bank_transactions/download_report?${params.toString()}`;
 
       // Fetch with auth token

@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 
 // Types
 interface PricebookItem {
@@ -395,7 +395,7 @@ export function ColourSelectionBuilder({ jobId, jobTypeId }: ColourSelectionBuil
 
   // Export PDF
   const handleExportPdf = () => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    const baseUrl = getApiBaseUrl();
     window.open(`${baseUrl}/api/v1/jobs/${jobId}/colour_selections/generate_pdf?download=true`, "_blank");
   };
 

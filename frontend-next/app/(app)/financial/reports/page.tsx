@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 
 // Types
 interface BalanceSheet {
@@ -171,7 +171,7 @@ export default function FinancialReportsPage() {
       }
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ""}${url}?${new URLSearchParams(params)}`,
+        `${getApiBaseUrl()}${url}?${new URLSearchParams(params)}`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
