@@ -110,10 +110,10 @@ module Api
 
         ActiveRecord::Base.transaction do
           if @purchase_order.save
-            # Link SmTask to this PO if provided (SmTask is THE ONE - SSoT)
+            # SSoT: Link PO to task via sm_task_id (Option B - single column)
             if schedule_task_id.present?
               sm_task = SmTask.find(schedule_task_id)
-              sm_task.update!(purchase_order_id: @purchase_order.id)
+              @purchase_order.update!(sm_task_id: sm_task.id)
 
               # Spawn Order/Call tasks if configured on the task
               spawn_result = SmPoSpawnService.new(sm_task, user: current_user).spawn!
@@ -145,17 +145,14 @@ module Api
         ActiveRecord::Base.transaction do
           # Update the PO
           if @purchase_order.update(purchase_order_params.except(:schedule_task_id))
-            # Handle SmTask assignment changes (SmTask is THE ONE - SSoT)
+            # SSoT: Handle task link changes via sm_task_id (Option B - single column)
             if schedule_task_id.present?
-              # Unlink any existing tasks from this PO
-              SmTask.where(purchase_order_id: @purchase_order.id).update_all(purchase_order_id: nil)
-
               # Link the new task to this PO
               sm_task = SmTask.find(schedule_task_id)
-              sm_task.update!(purchase_order_id: @purchase_order.id)
+              @purchase_order.update!(sm_task_id: sm_task.id)
             elsif params[:purchase_order].key?(:schedule_task_id) && schedule_task_id.nil?
-              # Explicitly setting to nil - unlink all tasks
-              SmTask.where(purchase_order_id: @purchase_order.id).update_all(purchase_order_id: nil)
+              # Explicitly setting to nil - unlink task
+              @purchase_order.update!(sm_task_id: nil)
             end
 
             render json: @purchase_order.as_json(include: :line_items)

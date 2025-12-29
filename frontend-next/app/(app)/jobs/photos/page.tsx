@@ -236,6 +236,8 @@ export default function JobPhotosPage() {
         }
         setData(filtered);
         setTotalJobs(Object.values(filtered).flat().length);
+        // Expand all supervisors by default
+        setExpandedSupervisors(new Set(Object.keys(filtered)));
       } else {
         setError("Failed to load photos");
       }
@@ -252,7 +254,7 @@ export default function JobPhotosPage() {
   }, [loadPhotos]);
 
   const handlePhotoClick = (jobId: number) => {
-    router.push(`/jobs/${jobId}?tab=photos`);
+    router.push(`/jobs/${jobId}?tab=site-photos`);
   };
 
   const handlePhotoExpand = (photos: Photo[], index: number) => {

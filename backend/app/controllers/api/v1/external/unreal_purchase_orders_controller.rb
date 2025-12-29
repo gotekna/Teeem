@@ -93,8 +93,8 @@ module Api
             )
 
             if purchase_order.save
-              # Link the task to this PO (SSoT: SmTask.purchase_order_id is THE link)
-              sm_task.update!(purchase_order_id: purchase_order.id)
+              # SSoT: Link PO to task via sm_task_id (Option B - single column)
+              purchase_order.update!(sm_task_id: sm_task.id)
 
               Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} linked to SmTask #{sm_task.id}"
 

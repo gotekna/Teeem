@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_29_072854) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_29_092102) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8124,7 +8124,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_072854) do
     t.datetime "hold_released_at", precision: nil
     t.bigint "hold_released_by_id"
     t.text "hold_release_reason"
-    t.bigint "purchase_order_id"
     t.bigint "assigned_user_id"
     t.bigint "supplier_id"
     t.string "trade", limit: 100
@@ -8182,7 +8181,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_072854) do
     t.index ["job_id", "task_number"], name: "index_sm_tasks_on_job_id_and_task_number", unique: true
     t.index ["job_id"], name: "index_sm_tasks_on_job_id"
     t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
-    t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
     t.index ["recurring_task_definition_id"], name: "index_sm_tasks_on_recurring_task_definition_id"
     t.index ["required_by"], name: "index_sm_tasks_on_required_by"
     t.index ["saas_customer_id"], name: "index_sm_tasks_on_saas_customer_id"
@@ -10170,7 +10168,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_072854) do
   add_foreign_key "sm_task_photos", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
-  add_foreign_key "sm_tasks", "purchase_orders", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_recurring_task_definitions", column: "recurring_task_definition_id"
   add_foreign_key "sm_tasks", "sm_schedule_master"

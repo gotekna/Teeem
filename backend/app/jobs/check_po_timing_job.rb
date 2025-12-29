@@ -6,9 +6,13 @@ class CheckPoTimingJob < ApplicationJob
   def perform(job_id)
     job = Job.find(job_id)
 
-    # NEW: Use SmTask (SSoT) instead of ProjectTask
-    # SmTask is directly associated with Job via construction_id
-    tasks = job.sm_tasks.includes(:purchase_order).where.not(purchase_order_id: nil)
+    # SSoT: Find tasks with linked POs via PurchaseOrder.sm_task_id (Option B)
+    # Get all task IDs that have a PO pointing to them
+    task_ids_with_po = PurchaseOrder.where(job_id: job_id)
+                                     .where.not(sm_task_id: nil)
+                                     .pluck(:sm_task_id)
+
+    tasks = job.sm_tasks.where(id: task_ids_with_po)
 
     # Find tasks with late materials
     late_tasks = tasks.select { |task| task.materials_status == "delayed" }
@@ -18,7 +22,8 @@ class CheckPoTimingJob < ApplicationJob
       Rails.logger.warn("[PO Timing] Found #{late_tasks.count} tasks with delayed materials for #{job.title}")
 
       late_tasks.each do |task|
-        po = task.purchase_order
+        po = task.linked_purchase_order
+        next unless po
         days_late = (po.required_date - task.start_date).to_i
 
         Rails.logger.warn(
@@ -43,11 +48,12 @@ class CheckPoTimingJob < ApplicationJob
       tasks_with_pos: tasks.count,
       late_tasks_count: late_tasks.count,
       late_tasks: late_tasks.map do |task|
+        po = task.linked_purchase_order
         {
           task_id: task.id,
           task_name: task.name,
-          po_number: task.purchase_order.purchase_order_number,
-          days_late: (task.purchase_order.required_date - task.start_date).to_i
+          po_number: po&.purchase_order_number,
+          days_late: po && task.start_date ? (po.required_date - task.start_date).to_i : 0
         }
       end
     }
