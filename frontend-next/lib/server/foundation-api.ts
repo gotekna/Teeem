@@ -8,6 +8,7 @@
 
 import { cookies } from 'next/headers';
 import { getApiBaseUrl } from '@/lib/api';
+import { isHiddenSystemColumn, isVisibleSystemColumn } from '@/lib/constants/system-columns';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -63,9 +64,8 @@ interface FoundationData {
   error: string | null;
 }
 
-// System columns that are auto-generated (visible but not editable)
+// SSoT: System columns defined in @/lib/constants/system-columns.ts
 // Per GOLD_STANDARD_TABLE.md: System columns MUST be visible with yellow highlight
-const SYSTEM_COLUMNS = ['id', 'created_at', 'updated_at', 'deleted_at'];
 
 /**
  * Get auth token from cookies for server-side requests
@@ -175,8 +175,11 @@ function transformColumns(foundation: Foundation): TableColumn[] {
   ];
 
   foundation.columns.forEach((col: ApiColumn) => {
-    // Check if this is a system column (visible but not editable)
-    const isSystemColumn = SYSTEM_COLUMNS.includes(col.column_name);
+    // Skip hidden system columns (e.g., deleted_at)
+    if (isHiddenSystemColumn(col.column_name)) return;
+
+    // Check if this is a visible system column (id, created_at, updated_at)
+    const isSystemCol = isVisibleSystemColumn(col.column_name);
 
     tableColumns.push({
       id: col.id,
@@ -191,9 +194,9 @@ function transformColumns(foundation: Foundation): TableColumn[] {
       choices: col.available_choices,
       lookup_foundation_id: col.lookup_foundation_id,
       lookup_display_column: col.lookup_display_column,
-      // System columns are visible but not editable (per GOLD_STANDARD_TABLE.md)
-      system: isSystemColumn,
-      editable: !isSystemColumn,
+      // SSoT: System columns are visible but not editable (GOLD_STANDARD_TABLE.md)
+      system: isSystemCol,
+      editable: !isSystemCol,
     });
   });
 

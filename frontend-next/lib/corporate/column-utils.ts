@@ -6,6 +6,13 @@
  */
 
 import type { TableColumn } from "@/components/table/types";
+import {
+  SYSTEM_DISPLAY_COLUMNS as _SYSTEM_DISPLAY_COLUMNS,
+  SYSTEM_GENERATED_TYPES as _SYSTEM_GENERATED_TYPES,
+  SYSTEM_HIDDEN_COLUMNS,
+  isSystemGeneratedType,
+  isVisibleSystemColumn,
+} from "@/lib/constants/system-columns";
 
 // =============================================================================
 // Types
@@ -86,8 +93,8 @@ export const COLUMN_TYPE_DEFAULTS: Record<string, ColumnTypeDefault> = {
  * See SYSTEM_DISPLAY_COLUMNS below.
  */
 const HIDDEN_COLUMNS = [
-  // Truly internal - never show
-  'deleted_at',
+  // SSoT: System hidden columns from shared constants
+  ...SYSTEM_HIDDEN_COLUMNS,
   // Legacy TED columns
   'sys_type_id', 'deleted', 'drive_id', 'folder_id',
   'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
@@ -97,19 +104,20 @@ const HIDDEN_COLUMNS = [
 /**
  * System columns that ARE in the column list but hidden by DEFAULT.
  * Users can toggle these on via the column selector.
+ * SSoT: @/lib/constants/system-columns.ts
  */
-export const SYSTEM_DISPLAY_COLUMNS = ['id', 'created_at', 'updated_at'];
+// Cast to readonly string[] to allow .includes() with string parameters
+export const SYSTEM_DISPLAY_COLUMNS: readonly string[] = _SYSTEM_DISPLAY_COLUMNS;
 
 // NOTE: We no longer hide _id columns. If a column is in a Foundation, it should be visible.
 // If it shouldn't be visible, it shouldn't be in the Foundation at all.
 
 /**
  * System-generated column types that users cannot edit.
+ * SSoT: @/lib/constants/system-columns.ts
  */
-export const SYSTEM_GENERATED_TYPES = [
-  'computed', 'formula', 'auto_number', 'created_time', 'modified_time',
-  'created_by', 'modified_by', 'rollup', 'count'
-];
+// Cast to readonly string[] to allow .includes() with string parameters
+export const SYSTEM_GENERATED_TYPES: readonly string[] = _SYSTEM_GENERATED_TYPES;
 
 // =============================================================================
 // Functions
@@ -181,8 +189,8 @@ export function convertColumnsToTEEEMFormat(
     }
 
     // Check if this is a system-generated column (read-only)
-    const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(col.column_name) ||
-                           SYSTEM_GENERATED_TYPES.includes(col.column_type);
+    const isSystemColumn = isVisibleSystemColumn(col.column_name) ||
+                           isSystemGeneratedType(col.column_type);
 
     // Resolve foundation_id: prefer column's value, fall back to passed ID (only if numeric)
     const resolvedFoundationId = col.foundation_id ?? (typeof foundationId === 'number' ? foundationId : undefined);

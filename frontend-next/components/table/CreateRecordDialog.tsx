@@ -42,6 +42,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import type { TableColumn } from "./types";
+import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
 
 interface CreateRecordDialogProps {
   open: boolean;
@@ -53,21 +54,8 @@ interface CreateRecordDialogProps {
 }
 
 // Columns to exclude from the form (system-managed or UI-only)
-const EXCLUDED_COLUMNS = ["id", "created_at", "updated_at", "actions", "select"];
-
-// Column types that are system-generated/computed (user cannot manually enter)
-const SYSTEM_GENERATED_TYPES = [
-  "computed",
-  "formula",
-  "auto_number",
-  "created_time",
-  "modified_time",
-  "created_by",
-  "modified_by",
-  "rollup",
-  "count",
-  "lookup", // Lookups are derived from relationships
-];
+// SSoT: Uses SYSTEM_VISIBLE_COLUMNS + UI-specific columns
+const EXCLUDED_COLUMNS = [...SYSTEM_VISIBLE_COLUMNS, "actions", "select"];
 
 // Sortable field item for drag and drop
 interface SortableFieldItemProps {
@@ -174,7 +162,7 @@ export function CreateRecordDialog({
       .filter((col) => !EXCLUDED_COLUMNS.includes(col.key))
       .filter((col) => !col.system)
       .filter((col) => col.editable !== false)
-      .filter((col) => !SYSTEM_GENERATED_TYPES.includes(col.column_type || ""))
+      .filter((col) => !isSystemGeneratedType(col.column_type || ""))
       .filter((col) => col.label);
   }, [columns]);
 

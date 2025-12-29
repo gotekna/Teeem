@@ -6,25 +6,20 @@
  */
 
 import { TableColumn } from "../types";
+import {
+  SYSTEM_GENERATED_TYPES as _SYSTEM_GENERATED_TYPES,
+  SYSTEM_VISIBLE_COLUMNS,
+} from "@/lib/constants/system-columns";
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS (SSoT: Re-exported from @/lib/constants/system-columns)
 // ============================================================================
 
 /**
  * Column types that are system-generated/computed (user cannot manually enter)
+ * SSoT: @/lib/constants/system-columns.ts
  */
-export const SYSTEM_GENERATED_TYPES = [
-  "computed",
-  "formula",
-  "auto_number",
-  "created_time",
-  "modified_time",
-  "created_by",
-  "modified_by",
-  "rollup",
-  "count",
-];
+export const SYSTEM_GENERATED_TYPES = _SYSTEM_GENERATED_TYPES;
 
 /**
  * Background color for system-generated columns
@@ -33,8 +28,9 @@ export const SYSTEM_COLUMN_BG = "#fee2e2"; // red-100
 
 /**
  * Non-editable column keys
+ * SSoT: @/lib/constants/system-columns.ts (SYSTEM_VISIBLE_COLUMNS)
  */
-export const NON_EDITABLE_COLUMNS = ["id", "created_at", "updated_at"];
+export const NON_EDITABLE_COLUMNS = SYSTEM_VISIBLE_COLUMNS;
 
 /**
  * Default columns for generic tables
@@ -74,9 +70,9 @@ export function isSystemGeneratedColumn(column: TableColumn): boolean {
   return (
     column.editable === false ||
     column.system === true ||
-    NON_EDITABLE_COLUMNS.includes(column.key) ||
-    NON_EDITABLE_COLUMNS.includes(column.key?.toLowerCase()) ||
-    SYSTEM_GENERATED_TYPES.includes(column.column_type || "")
+    (NON_EDITABLE_COLUMNS as readonly string[]).includes(column.key) ||
+    (NON_EDITABLE_COLUMNS as readonly string[]).includes(column.key?.toLowerCase()) ||
+    (SYSTEM_GENERATED_TYPES as readonly string[]).includes(column.column_type || "")
   );
 }
 

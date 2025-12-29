@@ -21,20 +21,11 @@ import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
-// Available folders/tabs
-const FOLDER_OPTIONS = [
-  "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
-  "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
-  "LOANS", "MINUTES", "REGISTRY", "TRUST"
-];
-
-// Scope options - determines if document type applies to companies, jobs, or both
-const SCOPE_OPTIONS = [
-  { value: "company", label: "Company", description: "Corporate documents" },
-  { value: "job", label: "Job", description: "Construction/job documents" },
-  { value: "both", label: "Both", description: "Used for both" }
-];
+// Re-export for local use (SSoT: @/lib/constants/document-types.ts)
+const FOLDER_OPTIONS = DOCUMENT_FOLDER_OPTIONS;
+const SCOPE_OPTIONS = DOCUMENT_TYPE_SCOPES;
 
 // Build column definitions for document types table
 const buildDocumentTypeColumns = (): TableColumn[] => [

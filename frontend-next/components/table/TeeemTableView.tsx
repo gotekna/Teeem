@@ -103,6 +103,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
 import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
+import { isVisibleSystemColumn } from "@/lib/constants/system-columns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -264,6 +265,19 @@ import {
   DEFAULT_COLUMNS,
   FILTER_OPERATOR_LABELS,
 } from "./utils/table-utils";
+
+// Data processing utilities (Phase 2.5 refactoring)
+import {
+  evaluateFilter,
+  applyFilters,
+  applySearch,
+  applySorting,
+  buildGroupedEntries,
+  getAllGroupKeys as getAllGroupKeysUtil,
+  getVisibleRowIdsFromGroups,
+  getGroupDisplayValue,
+  type SearchMode as DataSearchMode,
+} from "./utils/table-data-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
 
 // Jotai atoms for centralized state management (SSoT)
@@ -962,7 +976,7 @@ export default function TeeemTableView({
         if (!(k in updates)) {
           // System display columns (id, created_at, updated_at) are hidden by default
           // but can be shown via column selector
-          updates[k] = !SYSTEM_DISPLAY_COLUMNS.includes(k);
+          updates[k] = !isVisibleSystemColumn(k);
         }
       });
       return updates;
@@ -1223,21 +1237,7 @@ export default function TeeemTableView({
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
 
-  // Drag-to-select state (using refs to avoid re-renders during mouse tracking)
-  const dragStateRef = useRef<{
-    isDragging: boolean;
-    startRowId: number | string | null;
-    startRowIndex: number | null;
-    currentRowId?: number | string; // Track the end of the drag range
-    startX: number;
-    startY: number;
-  } | null>(null);
-
-  // Drag range state for visual feedback (triggers re-renders to show highlight)
-  const [dragRange, setDragRange] = useState<{
-    startId: number | string;
-    endId: number | string;
-  } | null>(null);
+  // Drag-to-select state is now managed by useTableDragSelect hook
 
   // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -1888,21 +1888,9 @@ export default function TeeemTableView({
     });
   }, [setCollapsedGroups, serverCountMap, lazyLoadedGroups, loadGroupRecords]);
 
-  // Collect all group keys for expand/collapse all
-  const getAllGroupKeys = useCallback((
-    groups: Record<string, { rows: unknown[]; subgroups?: Record<string, unknown> }>,
-    parentKey: string = ""
-  ): string[] => {
-    const keys: string[] = [];
-    for (const [groupKey, group] of Object.entries(groups)) {
-      const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
-      keys.push(fullKey);
-      if (group.subgroups && typeof group.subgroups === 'object') {
-        keys.push(...getAllGroupKeys(group.subgroups as typeof groups, fullKey));
-      }
-    }
-    return keys;
-  }, []);
+  // NOTE: getAllGroupKeys is now imported as getAllGroupKeysUtil from utils/table-data-utils.ts
+  // Create a wrapper for backwards compatibility with dependent code
+  const getAllGroupKeys = getAllGroupKeysUtil;
 
   // Fetch lookup options for a column (uses module-level cache)
   const fetchLookupOptions = useCallback(async (column: TableColumn) => {
@@ -2534,67 +2522,11 @@ export default function TeeemTableView({
   // FILTERING & SORTING
   // ============================================================================
 
-  // Extract display value from lookup objects (e.g., { id: 1, name: "House" } -> "House")
-  // Memoized outside evaluateFilter for performance
-  const getFilterDisplayValue = useCallback((val: unknown): unknown => {
-    if (typeof val === 'object' && val !== null) {
-      const obj = val as { display?: string; name?: string; id?: number };
-      return obj.display || obj.name || obj.id;
-    }
-    return val;
-  }, []);
+  // NOTE: evaluateFilter and getFilterDisplayValue are now imported from utils/table-data-utils.ts
 
-  // Evaluate a single filter against an entry
-  const evaluateFilter = useCallback(
-    (entry: TableRowType, filter: CascadeFilter): boolean => {
-      const rawValue = entry[filter.column];
-      const filterValue = filter.value;
-      const value = getFilterDisplayValue(rawValue);
-
-      switch (filter.operator) {
-        case "=":
-          return value == filterValue;
-        case "!=":
-          return value != filterValue;
-        case ">":
-          return Number(value) > Number(filterValue);
-        case "<":
-          return Number(value) < Number(filterValue);
-        case ">=":
-          return Number(value) >= Number(filterValue);
-        case "<=":
-          return Number(value) <= Number(filterValue);
-        case "contains":
-          return String(value ?? "")
-            .toLowerCase()
-            .includes(String(filterValue).toLowerCase());
-        case "not_contains":
-          return !String(value ?? "")
-            .toLowerCase()
-            .includes(String(filterValue).toLowerCase());
-        case "starts_with":
-          return String(value ?? "")
-            .toLowerCase()
-            .startsWith(String(filterValue).toLowerCase());
-        case "ends_with":
-          return String(value ?? "")
-            .toLowerCase()
-            .endsWith(String(filterValue).toLowerCase());
-        case "is_empty":
-          return value == null || value === "";
-        case "is_not_empty":
-          return value != null && value !== "";
-        default:
-          return true;
-      }
-    },
-    [getFilterDisplayValue]
-  );
-
-  // Filter and sort entries
+  // Filter and sort entries using extracted utility functions
   // IMPORTANT: Use effectiveEntries (not raw entries) to support auto-fetch mode
   const filteredAndSortedEntries = useMemo(() => {
-    const startTime = performance.now();
     let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
@@ -2634,47 +2566,13 @@ export default function TeeemTableView({
         });
       }
 
-      result = result.filter((entry) => {
-        const matches = COLUMNS.some((col) => {
-          if (col.key === "select" || col.key === "actions") return false;
-          // If not "search all columns", only search columns marked as searchable
-          if (!searchAllColumns && !searchableColumns[col.key]) return false;
-          const value = entry[col.key];
-          if (value == null) return false;
-
-          // Apply search based on current search mode
-          const strValue = String(value).toLowerCase();
-          const searchLower = search.toLowerCase();
-          let matched = false;
-
-          switch (currentSearchMode) {
-            case "contains":
-              matched = strValue.includes(searchLower);
-              break;
-            case "exact":
-              matched = strValue === searchLower;
-              break;
-            case "starts_with":
-              matched = strValue.startsWith(searchLower);
-              break;
-            case "fuzzy":
-              matched = fuzzyMatch(search, String(value));
-              break;
-            case "regex":
-              try {
-                const regex = new RegExp(search, "i");
-                matched = regex.test(strValue);
-              } catch {
-                matched = strValue.includes(searchLower);
-              }
-              break;
-            default:
-              matched = strValue.includes(searchLower);
-          }
-
-          return matched;
-        });
-        return matches;
+      // Use extracted utility function for search
+      result = applySearch(result, {
+        search,
+        searchMode: currentSearchMode as DataSearchMode,
+        columns: COLUMNS,
+        searchableColumns,
+        searchAllColumns,
       });
 
       // DEBUG: Log after filtering
@@ -2689,101 +2587,16 @@ export default function TeeemTableView({
     // the backend applies both filters + search in a single SQL query
     const skipClientFilters = onServerSearch && search;
     if (safeFilters.length > 0 && !skipClientFilters) {
-      // Pre-compute filter groups ONCE outside the row loop (performance optimization)
-      const filtersByGroup = safeFilters.reduce((acc, filter) => {
-        const groupId = filter.groupId || "default";
-        if (!acc[groupId]) acc[groupId] = [];
-        acc[groupId].push(filter);
-        return acc;
-      }, {} as Record<string, CascadeFilter[]>);
-
-      // Pre-compute group logic map for O(1) lookup
-      const groupLogicMap = new Map(filterGroups.map(g => [g.id, g.logic]));
-      const groupEntries = Object.entries(filtersByGroup);
-
-      result = result.filter((entry) => {
-        // Evaluate each group
-        const groupResults = groupEntries.map(
-          ([groupId, filters]) => {
-            const logic = groupLogicMap.get(groupId) || "AND";
-
-            if (logic === "AND") {
-              return filters.every((filter) => evaluateFilter(entry, filter));
-            } else {
-              return filters.some((filter) => evaluateFilter(entry, filter));
-            }
-          }
-        );
-
-        // Combine group results
-        if (interGroupLogic === "AND") {
-          return groupResults.every(Boolean);
-        } else {
-          return groupResults.some(Boolean);
-        }
-      });
+      // Use extracted utility function for filters
+      result = applyFilters(result, safeFilters, filterGroups, interGroupLogic);
     }
 
-    // Apply sorting
+    // Apply sorting using extracted utility function
     if (sortColumns.length > 0) {
-      result.sort((a, b) => {
-        for (const { column, dir, customOrder } of sortColumns) {
-          const aVal = a[column];
-          const bVal = b[column];
-
-          if (aVal == null && bVal == null) continue;
-          if (aVal == null) return dir === "asc" ? 1 : -1;
-          if (bVal == null) return dir === "asc" ? -1 : 1;
-
-          // Get display values (handle lookup objects)
-          const getDisplayVal = (val: unknown): string => {
-            if (typeof val === 'object' && val !== null) {
-              const obj = val as { display?: string; name?: string; id?: number };
-              return obj.display || obj.name || String(obj.id || '');
-            }
-            return String(val);
-          };
-
-          const aDisplay = getDisplayVal(aVal);
-          const bDisplay = getDisplayVal(bVal);
-
-          let comparison = 0;
-
-          if (dir === "custom" && customOrder && customOrder.length > 0) {
-            // Custom sort order - use position in customOrder array
-            const aIndex = customOrder.indexOf(aDisplay);
-            const bIndex = customOrder.indexOf(bDisplay);
-            // Items not in custom order go to the end
-            const aPos = aIndex === -1 ? customOrder.length : aIndex;
-            const bPos = bIndex === -1 ? customOrder.length : bIndex;
-            comparison = aPos - bPos;
-          } else {
-            // Check if column is an Australian identifier type that needs numeric sorting
-            const columnMeta = COLUMNS.find(c => c.key === column);
-            const australianIdTypes = ['abn', 'acn', 'bsb', 'tfn', 'postcode'];
-
-            if (columnMeta && australianIdTypes.includes(columnMeta.column_type || '')) {
-              // Strip non-digits and compare numerically for Australian identifiers
-              const aNum = parseInt(String(aVal).replace(/\D/g, ''), 10);
-              const bNum = parseInt(String(bVal).replace(/\D/g, ''), 10);
-              comparison = aNum - bNum;
-            } else if (typeof aVal === "number" && typeof bVal === "number") {
-              comparison = aVal - bVal;
-            } else {
-              comparison = aDisplay.localeCompare(bDisplay);
-            }
-          }
-
-          if (comparison !== 0) {
-            return dir === "desc" ? -comparison : comparison;
-          }
-        }
-        return 0;
-      });
+      result = applySorting(result, sortColumns, COLUMNS);
     }
 
     return result;
-
   }, [
     effectiveEntries,
     search,
@@ -2797,7 +2610,6 @@ export default function TeeemTableView({
     filterGroups,
     interGroupLogic,
     sortColumns,
-    evaluateFilter,
     pendingDeleteIds,
   ]);
 
@@ -2877,234 +2689,30 @@ export default function TeeemTableView({
     setShowAllRows(false);
   }, [cascadeFilters, sortColumns, search, INITIAL_ROW_LIMIT]);
 
-  // Drag-to-select handlers (must be after filteredAndSortedEntries)
-  const handleSelectMouseDown = useCallback((rowId: number | string, rowIndex: number, e: React.MouseEvent) => {
-    // Don't start drag immediately - wait to see if mouse moves
-    // This allows single clicks to work normally
-    dragStateRef.current = {
-      isDragging: false, // Will become true only if mouse moves
-      startRowId: rowId,
-      startRowIndex: rowIndex,
-      currentRowId: rowId,
-      startX: e.clientX,
-      startY: e.clientY,
-    };
-  }, []);
+  // Drag-to-select handlers are now provided by useTableDragSelect hook
+  // (called after getVisibleRowIds is defined below)
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragStateRef.current) return;
-
-    // If not yet dragging, check if mouse has moved enough to start
-    if (!dragStateRef.current.isDragging) {
-      const deltaX = Math.abs(e.clientX - dragStateRef.current.startX);
-      const deltaY = Math.abs(e.clientY - dragStateRef.current.startY);
-      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-      // Start dragging if moved more than 5 pixels
-      if (distance > 5) {
-        dragStateRef.current.isDragging = true;
-        // Initialize drag range with start row
-        if (dragStateRef.current.startRowId !== null) {
-          setDragRange({
-            startId: dragStateRef.current.startRowId,
-            endId: dragStateRef.current.startRowId,
-          });
-        }
-      }
-      return;
-    }
-
-    // During drag, find which row the mouse is over using elementFromPoint
-    const element = document.elementFromPoint(e.clientX, e.clientY);
-    if (!element) return;
-
-    // Find the closest TR element
-    const row = element.closest('tr[data-row-id]');
-    if (row) {
-      const rowId = row.getAttribute('data-row-id');
-      if (rowId) {
-        const parsedId = isNaN(Number(rowId)) ? rowId : Number(rowId);
-        dragStateRef.current.currentRowId = parsedId;
-        // Update drag range for visual feedback
-        if (dragStateRef.current.startRowId !== null) {
-          setDragRange({
-            startId: dragStateRef.current.startRowId,
-            endId: parsedId,
-          });
-        }
-      }
-    }
-  }, []);
-
-  // Store reference to the actual handler that will be set up later
-  const handleRowMouseEnterRef = useRef<((rowId: number | string, rowIndex: number) => void) | null>(null);
-
-  const handleRowMouseEnter = useCallback((rowId: number | string, rowIndex: number) => {
-    if (handleRowMouseEnterRef.current) {
-      handleRowMouseEnterRef.current(rowId, rowIndex);
-    }
-  }, []);
-
-  // Store getVisibleRowIds function in a ref so handleMouseUp can access it
-  const getVisibleRowIdsRef = useRef<(() => (number | string)[]) | null>(null);
-
-  const handleMouseUp = useCallback(() => {
-    // Clear drag range visual feedback
-    setDragRange(null);
-
-    if (!dragStateRef.current?.isDragging) {
-      dragStateRef.current = null;
-      return;
-    }
-
-    // Process the drag selection now that drag is complete
-    const { startRowId, currentRowId } = dragStateRef.current;
-
-    if (startRowId && currentRowId && getVisibleRowIdsRef.current) {
-      const visibleRowIds = getVisibleRowIdsRef.current();
-      const startIndex = visibleRowIds.indexOf(startRowId);
-      const endIndex = visibleRowIds.indexOf(currentRowId);
-
-      if (startIndex !== -1 && endIndex !== -1) {
-        // Select ALL rows in the range
-        const minIndex = Math.min(startIndex, endIndex);
-        const maxIndex = Math.max(startIndex, endIndex);
-        const rowsInRange = visibleRowIds.slice(minIndex, maxIndex + 1);
-
-        setSelectedRows((prev) => {
-          const next = new Set(prev);
-          rowsInRange.forEach((id) => next.add(id));
-          return next;
-        });
-      }
-    }
-
-    dragStateRef.current = null;
-  }, []);
-
-  // Attach global mouse listeners for drag
-  useEffect(() => {
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [handleMouseMove, handleMouseUp]);
-
-  // Helper to extract display value from a cell (handles objects with display/name properties)
-  const getDisplayValue = useCallback((value: unknown): string => {
-    if (value === null || value === undefined) return "No Value";
-    // Handle arrays - join as comma-separated string
-    if (Array.isArray(value)) {
-      if (value.length === 0) return "—";
-      return value.map(item => String(item)).join(", ");
-    }
-    if (typeof value === "object") {
-      const obj = value as Record<string, unknown>;
-      return String(obj.display || obj.display_value || obj.name || obj.id || "No Value");
-    }
-    return String(value);
-  }, []);
-
-  // Nested group structure type
-  type NestedGroup = {
-    rows: TableRowType[];
-    subgroups?: Record<string, NestedGroup>;
-  };
+  // NOTE: getGroupDisplayValue is now imported from utils/table-data-utils.ts
 
   // Group entries hierarchically if grouping is enabled (supports nested group columns)
   // Groups are sorted by customOrder if available for the group column
-  const groupedEntries = useMemo((): Record<string, NestedGroup> | null => {
-    if (groupByColumns.length === 0) {
-      return null;
-    }
-
-    // Helper to get customOrder for a column from sortColumns
-    const getCustomOrderForColumn = (columnName: string): string[] | undefined => {
-      const sortConfig = sortColumns.find(s => s.column === columnName);
-      return sortConfig?.customOrder;
-    };
-
-    // Helper to sort group keys by customOrder
-    const sortGroupKeys = (keys: string[], customOrder: string[] | undefined): string[] => {
-      if (!customOrder || customOrder.length === 0) {
-        return keys; // No custom order, keep insertion order
-      }
-      return [...keys].sort((a, b) => {
-        const aIndex = customOrder.indexOf(a);
-        const bIndex = customOrder.indexOf(b);
-        // Items not in customOrder go to the end
-        const aPos = aIndex === -1 ? customOrder.length + keys.indexOf(a) : aIndex;
-        const bPos = bIndex === -1 ? customOrder.length + keys.indexOf(b) : bIndex;
-        return aPos - bPos;
-      });
-    };
-
-    const buildNestedGroups = (
-      entries: TableRowType[],
-      columns: string[],
-      depth: number = 0
-    ): Record<string, NestedGroup> => {
-      if (columns.length === 0 || depth >= columns.length) {
-        return {};
-      }
-
-      const currentCol = columns[depth];
-      const unsortedGroups: Record<string, NestedGroup> = {};
-
-      for (const entry of entries) {
-        const groupKey = getDisplayValue(entry[currentCol]);
-        if (!unsortedGroups[groupKey]) {
-          unsortedGroups[groupKey] = { rows: [] };
-        }
-        unsortedGroups[groupKey].rows.push(entry);
-      }
-
-      // Sort group keys by customOrder if available for this column
-      const customOrder = getCustomOrderForColumn(currentCol);
-      const sortedKeys = sortGroupKeys(Object.keys(unsortedGroups), customOrder);
-
-      // Rebuild groups object with sorted keys (maintains order)
-      const groups: Record<string, NestedGroup> = {};
-      for (const key of sortedKeys) {
-        groups[key] = unsortedGroups[key];
-      }
-
-      // If there are more columns, recursively build subgroups
-      if (depth < columns.length - 1) {
-        for (const [key, group] of Object.entries(groups)) {
-          group.subgroups = buildNestedGroups(group.rows, columns, depth + 1);
-        }
-      }
-
-      return groups;
-    };
-
-    const result = buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
-
-    // IMPORTANT: Merge in server groups that aren't in loaded data
-    // This ensures ALL groups appear in the UI, even if their records haven't been loaded yet
-    // Only applies to first-level grouping (depth 0)
-    // SKIP when searching - server counts don't include search term, so only show client-filtered results
-    if (serverGroupCounts.length > 0 && groupByColumns.length > 0 && !search) {
-      for (const serverGroup of serverGroupCounts) {
-        const key = serverGroup.key === null ? "(Empty)" : String(serverGroup.key);
-        if (!result[key]) {
-          // Add empty group placeholder - rows will be lazy-loaded when expanded
-          result[key] = { rows: [] };
-        }
-      }
-    }
-
-    return result;
-  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue, sortColumns, serverGroupCounts, search]);
+  // Uses buildGroupedEntries utility function from table-data-utils.ts
+  const groupedEntries = useMemo(() => {
+    return buildGroupedEntries(
+      filteredAndSortedEntries,
+      groupByColumns,
+      sortColumns,
+      serverGroupCounts,
+      search
+    );
+  }, [filteredAndSortedEntries, groupByColumns, sortColumns, serverGroupCounts, search]);
 
   // Expand/collapse all group handlers (must be after groupedEntries)
+  // Uses getAllGroupKeysUtil from table-data-utils.ts
   const expandAllGroups = useCallback(() => {
     if (groupedEntries && collapsedGroups.size > 0) {
-      // Get all group keys
-      const allKeys = getAllGroupKeys(groupedEntries);
+      // Get all group keys using utility function
+      const allKeys = getAllGroupKeysUtil(groupedEntries);
       const firstKey = allKeys[0];
 
       // Expand first group immediately for instant feedback
@@ -3120,16 +2728,14 @@ export default function TeeemTableView({
       // Already expanded, just clear
       setCollapsedGroups(new Set());
     }
-     
-  }, [groupedEntries, collapsedGroups, getAllGroupKeys]);
+  }, [groupedEntries, collapsedGroups]);
 
   const collapseAllGroups = useCallback(() => {
     if (groupedEntries) {
-      const allKeys = getAllGroupKeys(groupedEntries);
+      const allKeys = getAllGroupKeysUtil(groupedEntries);
       setCollapsedGroups(new Set(allKeys));
     }
-
-  }, [groupedEntries, getAllGroupKeys]);
+  }, [groupedEntries]);
 
   // Auto-expand all groups when searching
   // This ensures users can see matching results without manually expanding
@@ -3147,62 +2753,25 @@ export default function TeeemTableView({
   }, [search, groupedEntries, collapsedGroups.size, setCollapsedGroups]);
 
   // Helper to get visible (non-collapsed) row IDs in grouped tables
+  // Uses getVisibleRowIdsFromGroups utility from table-data-utils.ts
   const getVisibleRowIds = useCallback(() => {
-    const visibleRowIds: (number | string)[] = [];
-
     if (groupedEntries) {
-      const collectVisibleRows = (
-        groups: GroupedEntries,
-        parentKey: string = ""
-      ) => {
-        Object.entries(groups).forEach(([groupKey, group]) => {
-          const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
-          const isCollapsed = collapsedGroups.has(fullKey);
-
-          if (!isCollapsed) {
-            if (group.subgroups && Object.keys(group.subgroups).length > 0) {
-              collectVisibleRows(group.subgroups, fullKey);
-            } else {
-              visibleRowIds.push(...group.rows.map(r => r.id));
-            }
-          }
-        });
-      };
-      collectVisibleRows(groupedEntries);
+      return getVisibleRowIdsFromGroups(groupedEntries, collapsedGroups);
     } else {
-      visibleRowIds.push(...filteredAndSortedEntries.map(r => r.id));
+      return filteredAndSortedEntries.map(r => r.id);
     }
-
-    return visibleRowIds;
   }, [groupedEntries, collapsedGroups, filteredAndSortedEntries]);
 
-  // Helper to check if a row is in the current drag range (for visual highlighting)
-  const isRowInDragRange = useCallback((rowId: number | string): boolean => {
-    if (!dragRange) return false;
-    const visibleRowIds = getVisibleRowIds();
-    const startIndex = visibleRowIds.indexOf(dragRange.startId);
-    const endIndex = visibleRowIds.indexOf(dragRange.endId);
-    const rowIndex = visibleRowIds.indexOf(rowId);
-    if (startIndex === -1 || endIndex === -1 || rowIndex === -1) return false;
-    const minIndex = Math.min(startIndex, endIndex);
-    const maxIndex = Math.max(startIndex, endIndex);
-    return rowIndex >= minIndex && rowIndex <= maxIndex;
-  }, [dragRange, getVisibleRowIds]);
-
-  // Set up the drag-to-select handlers now that getVisibleRowIds is available
-  useEffect(() => {
-    // Store the getVisibleRowIds function so handleMouseUp can access it
-    getVisibleRowIdsRef.current = getVisibleRowIds;
-
-    // Set up the mouse enter handler
-    handleRowMouseEnterRef.current = (rowId: number | string, _rowIndex: number) => {
-      if (!dragStateRef.current?.isDragging) return;
-
-      // Just store the current row ID - don't update selection state yet
-      // This prevents multiple expensive re-renders during drag
-      dragStateRef.current.currentRowId = rowId;
-    };
-  }, [getVisibleRowIds]);
+  // Drag-to-select functionality (using extracted hook)
+  const {
+    dragRange,
+    handleSelectMouseDown,
+    handleRowMouseEnter,
+    isRowInDragRange,
+  } = useTableDragSelect({
+    getVisibleRowIds,
+    setSelectedRows,
+  });
 
   // Auto-expand all groups when searching/filtering
   useEffect(() => {
@@ -3233,7 +2802,7 @@ export default function TeeemTableView({
       .filter((key) => {
         if (!isVisibilityInitialized) {
           // Not initialized yet - show all except system columns
-          return !SYSTEM_DISPLAY_COLUMNS.includes(key);
+          return !isVisibleSystemColumn(key);
         }
         return visibleColumns[key] === true;
       })

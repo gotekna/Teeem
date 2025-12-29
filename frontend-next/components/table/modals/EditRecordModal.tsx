@@ -38,25 +38,14 @@ import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { RecordFormField, type ColumnDefinition } from './RecordFormRenderer';
 import type { TableColumn, TableRow } from '../types';
+import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
 
 // Alias for consistency
 type TableRowType = TableRow;
 
 // Columns to exclude from the form (system-managed or UI-only)
-const EXCLUDED_COLUMNS = ["id", "created_at", "updated_at", "actions", "select"];
-
-// Column types that are system-generated/computed (user cannot edit)
-const SYSTEM_GENERATED_TYPES = [
-  "computed",
-  "formula",
-  "auto_number",
-  "created_time",
-  "modified_time",
-  "created_by",
-  "modified_by",
-  "rollup",
-  "count",
-];
+// SSoT: Uses SYSTEM_VISIBLE_COLUMNS + UI-specific columns
+const EXCLUDED_COLUMNS = [...SYSTEM_VISIBLE_COLUMNS, "actions", "select"];
 
 // Sortable field item for drag and drop
 interface SortableFieldItemProps {
@@ -185,7 +174,7 @@ export function EditRecordModal({
       // Exclude system columns
       if (EXCLUDED_COLUMNS.includes(col.key)) return false;
       // Exclude system-generated types
-      if (col.column_type && SYSTEM_GENERATED_TYPES.includes(col.column_type)) return false;
+      if (col.column_type && isSystemGeneratedType(col.column_type)) return false;
       return true;
     });
   }, [columns]);

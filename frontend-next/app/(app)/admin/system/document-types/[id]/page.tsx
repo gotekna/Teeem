@@ -42,21 +42,11 @@ import {
   getShortToLongMap,
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
+import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
-// Available folders/tabs
-const FOLDER_OPTIONS = [
-  "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
-  "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
-  "LOANS", "MINUTES", "REGISTRY", "TRUST"
-];
-
-// Scope options - SSoT: "contacts" is the canonical scope (replaces legacy "people")
-const SCOPE_OPTIONS = [
-  { value: "company", label: "Company", description: "Corporate documents" },
-  { value: "job", label: "Job", description: "Construction/job documents" },
-  { value: "contacts", label: "Contacts", description: "Contact documents (licenses, insurance, etc.)" },
-  { value: "both", label: "Both", description: "Used for both" }
-];
+// Re-export for local use (SSoT: @/lib/constants/document-types.ts)
+const FOLDER_OPTIONS = DOCUMENT_FOLDER_OPTIONS;
+const SCOPE_OPTIONS = DOCUMENT_TYPE_SCOPES;
 
 // Common file extensions for documents
 const FILE_EXTENSION_OPTIONS = [
