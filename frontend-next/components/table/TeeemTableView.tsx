@@ -4455,25 +4455,6 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* Fullscreen header with close button */}
-      {isFullscreen && (
-        <div className="flex items-center justify-between px-2 pb-2 border-b shrink-0">
-          <div className="flex items-center gap-2">
-            <Expand className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{tableName}</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsFullscreen(false)}
-            className="h-8 gap-1.5"
-          >
-            <X className="h-4 w-4" />
-            Close
-          </Button>
-        </div>
-      )}
-
       {/* Data Health Widget - shown when button clicked or showDataHealth prop is true */}
       {(healthPanelOpen || showDataHealth) && effectiveFoundationId && (
         <div className={cn("px-4", debugGrid && "border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-950/20 relative")}>
