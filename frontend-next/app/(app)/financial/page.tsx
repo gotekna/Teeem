@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useCallback } from "react";
-import { useUrlState } from "@/hooks/useUrlState";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1522,23 +1522,48 @@ function ReportsTab() {
 // ============================================================================
 
 export default function FinancialPage() {
-  // SSoT: URL state managed by useUrlState hook
-  const [urlState, setUrlState] = useUrlState({
-    company: null as string | null,  // null = "all"
-    tab: null as string | null,      // null = "dashboard"
-  });
-  const activeTab = urlState.tab || "dashboard";
-  const selectedCompany = urlState.company || "all";
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // SSoT: Parse path segments for state
+  // Pattern: /financial/[tab]/company/[companyId]
+  const pathSegments = React.useMemo(() => {
+    const parts = pathname.replace("/financial", "").split("/").filter(Boolean);
+    const KNOWN_TABS = ["dashboard", "bank", "aged", "cashflow", "bas", "reports"];
+
+    // Find tab (first segment if it's a known tab)
+    const tab = KNOWN_TABS.includes(parts[0]) ? parts[0] : "dashboard";
+
+    // Find company ID (after "company" segment)
+    const companyIndex = parts.indexOf("company");
+    const company = companyIndex >= 0 && parts[companyIndex + 1]
+      ? parts[companyIndex + 1]
+      : "all";
+
+    return { tab, company };
+  }, [pathname]);
+
+  const activeTab = pathSegments.tab;
+  const selectedCompany = pathSegments.company;
 
   const handleTabChange = useCallback((tabId: string) => {
-    // Clear subtab when changing main tabs by setting tab only
-    setUrlState({ tab: tabId === "dashboard" ? null : tabId });
-  }, [setUrlState]);
+    // Build new path with tab and preserve company filter
+    let path = `/financial/${tabId === "dashboard" ? "" : tabId}`;
+    if (selectedCompany !== "all") {
+      path += `/company/${selectedCompany}`;
+    }
+    router.push(path, { scroll: false });
+  }, [router, selectedCompany]);
 
   // URL is SSoT for company selection (enables shareable links)
   const handleCompanyChange = useCallback((newCompanyId: string) => {
-    setUrlState({ company: newCompanyId === "all" ? null : newCompanyId });
-  }, [setUrlState]);
+    const tabPath = activeTab === "dashboard" ? "" : activeTab;
+    if (newCompanyId === "all") {
+      router.push(`/financial/${tabPath}`, { scroll: false });
+    } else {
+      router.push(`/financial/${tabPath}/company/${newCompanyId}`, { scroll: false });
+    }
+  }, [router, activeTab]);
 
   // State
   const [loading, setLoading] = React.useState(true);
