@@ -1231,7 +1231,9 @@ module Api
           supplier_name: task.supplier&.name,
           # po_required visibility - invisible tasks are skipped in dependencies
           po_required: po_required,
-          is_visible: is_visible
+          is_visible: is_visible,
+          # SSoT: Include predecessor_ids for frontend dependency display
+          predecessor_ids: task.predecessor_ids || []
         }
 
         # Include PO details when linked (One Entity concept)

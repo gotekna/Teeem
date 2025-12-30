@@ -59,6 +59,8 @@ interface SmTask {
   progress_percentage: number;
   locked: boolean;
   dependencies?: string[];
+  // SSoT: predecessor_ids from backend (jsonb column)
+  predecessor_ids?: Array<{ id: number; type?: string; lag?: number }>;
   // Supplier and PO fields (from ?for=gantt response)
   supplier_id?: number | null;
   supplier_name?: string | null;
@@ -290,6 +292,11 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
     purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
     poRequired: task.po_required ?? false,
+    // SSoT: rowData contains predecessor_ids for sidebar dependency display
+    rowData: {
+      task_number: task.task_number,
+      predecessor_ids: task.predecessor_ids || [],
+    },
   };
 }
 
