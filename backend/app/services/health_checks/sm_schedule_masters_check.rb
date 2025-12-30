@@ -98,6 +98,29 @@ module HealthChecks
       )
     end
 
+    # Headers should be clean - no duration, trade, stage, assigned_role, cost_centre, or parent header
+    def check_dirty_headers
+      rows = SmScheduleMaster.active
+                             .where(header_gantt: "Header")
+                             .where(<<~SQL)
+                               (duration_days IS NOT NULL AND duration_days > 0)
+                               OR trade IS NOT NULL
+                               OR stage IS NOT NULL
+                               OR assigned_role IS NOT NULL
+                               OR cost_centre IS NOT NULL
+                             SQL
+                             .select(:id, :name, :task_number, :sequence_order)
+
+      build_result(
+        name: "Headers With Data",
+        description: "Header rows should be clean (no duration, trade, stage, assigned_role, cost_centre). These headers have data that should be cleared.",
+        severity: :warning,
+        items: rows,
+        icon: "exclamation-triangle",
+        action_path: "/schedule-master"
+      )
+    end
+
     protected
 
     def format_items(items)
