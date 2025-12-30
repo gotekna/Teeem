@@ -85,11 +85,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       `}</style>
 
       {/* Main Content - below header, beside sidebar */}
-      {/* pt-12 = 48px for header, add BREADCRUMB_BAR_HEIGHT when trail exists */}
+      {/* pt-12 = 48px for header, add BREADCRUMB_BAR_HEIGHT when trail exists (except fullscreen) */}
       {/* Always reserve breadcrumb space to prevent CLS - bar visibility handled via CSS */}
       <main
         className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-all duration-300 ease-in-out`}
-        style={{ paddingTop: hasTrail ? 48 + BREADCRUMB_BAR_HEIGHT : 48 }}
+        style={{ paddingTop: (hasTrail && !shouldHideSidebar) ? 48 + BREADCRUMB_BAR_HEIGHT : 48 }}
       >
         <div className={`h-full overflow-auto ${contentClassName}`}>
           {children}
@@ -101,8 +101,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <FloatingHelpButton />
       </div>
 
-      {/* Breadcrumb Trail - floating overlay below header */}
-      <BreadcrumbTrail />
+      {/* Breadcrumb Trail - floating overlay below header (hidden in fullscreen) */}
+      {!shouldHideSidebar && <BreadcrumbTrail />}
     </div>
   );
 }

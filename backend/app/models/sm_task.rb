@@ -176,6 +176,8 @@ class SmTask < ApplicationRecord
 
   # Callbacks
   before_validation :set_task_number, on: :create
+  before_validation :snap_start_date_to_working_day, if: -> { start_date_changed? }
+  before_validation :snap_end_date_to_working_day, if: -> { end_date_changed? && !start_date_changed? && !duration_days_changed? }
   before_validation :calculate_end_date, if: -> { start_date_changed? || duration_days_changed? }
   before_save :clear_spawn_tasks_if_not_po
 
@@ -401,6 +403,34 @@ class SmTask < ApplicationRecord
       self.spawn_call_task = false
       self.order_time_days = nil
       self.call_time_days = nil
+    end
+  end
+
+  # Snap start_date to the next working day if it falls on a weekend or holiday
+  def snap_start_date_to_working_day
+    return unless start_date.present?
+
+    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    snapped = calendar.next_working_day(start_date)
+
+    if snapped != start_date
+      Rails.logger.info "[SmTask] Snapped start_date from #{start_date} to #{snapped} (holiday/weekend)"
+      self.start_date = snapped
+    end
+  end
+
+  # Snap end_date to the next working day if set directly (e.g., resize)
+  def snap_end_date_to_working_day
+    return unless end_date.present?
+
+    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    snapped = calendar.next_working_day(end_date)
+
+    if snapped != end_date
+      Rails.logger.info "[SmTask] Snapped end_date from #{end_date} to #{snapped} (holiday/weekend)"
+      self.end_date = snapped
+      # Recalculate duration based on snapped dates
+      self.duration_days = calendar.working_days_between(start_date, snapped)
     end
   end
 

@@ -1345,6 +1345,44 @@ export default function TeeemTableView({
     setGroupLoadingState(new Set());
   }, [groupByColumn, filtersKey, search]);
 
+  // Build lookup display map from loaded records for ALL grouping columns
+  // This handles nested groups where server only fetches display values for the first column
+  // Extract display values from lookup objects in the actual data (e.g., { id: 7, name: "Active Job" })
+  const lookupDisplayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (groupByColumns.length === 0) return map;
+
+    // Extract display values from all loaded entries for all grouping columns
+    const allEntries = [...entries, ...Array.from(lazyLoadedGroups.values()).flat()];
+    for (const entry of allEntries) {
+      for (const col of groupByColumns) {
+        const value = entry[col];
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          const obj = value as Record<string, unknown>;
+          if (obj.id !== undefined) {
+            const key = String(obj.id);
+            // Use display value from object (display > display_value > name > id)
+            const display = String(obj.display || obj.display_value || obj.name || obj.id);
+            if (!map.has(key)) {
+              map.set(key, display);
+            }
+          }
+        }
+      }
+    }
+    return map;
+  }, [entries, groupByColumns, lazyLoadedGroups]);
+
+  // Combined display map: prefer server values, fall back to values from loaded data
+  const combinedDisplayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    // Add lookup values from loaded data first
+    lookupDisplayMap.forEach((value, key) => map.set(key, value));
+    // Override with server values (more authoritative for first-level groups)
+    serverDisplayMap.forEach((value, key) => map.set(key, value));
+    return map;
+  }, [serverDisplayMap, lookupDisplayMap]);
+
   // Display options managed by atoms
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
   const totalsColumns = useAtomValue(currentTotalsColumnsAtom); // Which columns show totals (empty = all)
@@ -3861,7 +3899,7 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {serverDisplayMap.get(groupKey) || groupKey}
+                {combinedDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
@@ -4126,7 +4164,7 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {serverDisplayMap.get(groupKey) || groupKey}
+                {combinedDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})

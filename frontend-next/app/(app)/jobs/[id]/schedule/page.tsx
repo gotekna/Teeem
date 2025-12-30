@@ -28,7 +28,8 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2 } from "lucide-react";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
@@ -268,6 +269,7 @@ export default function SchedulePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { setMode } = useLayoutMode();
 
   // Check if Gantt should auto-open from URL param
   const shouldOpenGantt = searchParams.get('gantt') === 'true';
@@ -282,10 +284,23 @@ export default function SchedulePage() {
   const [loading, setLoading] = React.useState(true);
   const [refreshKey, setRefreshKey] = React.useState(0);
 
-  // Gantt state
+  // Gantt state - fullscreen mode when opened from /schedule/gantt
+  const [ganttFullscreen, setGanttFullscreen] = React.useState(false);
   const [ganttOpen, setGanttOpen] = React.useState(false);
   const [ganttTasks, setGanttTasks] = React.useState<SmTask[]>([]);
   const [loadingGantt, setLoadingGantt] = React.useState(false);
+
+  // Set fullscreen layout mode when Gantt is fullscreen
+  React.useEffect(() => {
+    if (ganttFullscreen) {
+      setMode("fullscreen");
+    }
+    return () => {
+      if (ganttFullscreen) {
+        setMode("padded");
+      }
+    };
+  }, [ganttFullscreen, setMode]);
 
   // Sync state
   const [showSyncDialog, setShowSyncDialog] = React.useState(false);
@@ -358,13 +373,22 @@ export default function SchedulePage() {
     }
   }, [jobId, toast]);
 
-  // Auto-open Gantt when path is /schedule/gantt or ?gantt=true is in URL
+  // Auto-open Gantt in fullscreen when path is /schedule/gantt or ?gantt=true is in URL
   React.useEffect(() => {
     const shouldOpen = shouldOpenGantt || activeView === 'gantt';
-    if (shouldOpen && !loading && job && !ganttOpen) {
+    if (shouldOpen && !loading && job && !ganttFullscreen) {
+      setGanttFullscreen(true);
       handleOpenGantt();
     }
-  }, [shouldOpenGantt, activeView, loading, job, ganttOpen, handleOpenGantt]);
+  }, [shouldOpenGantt, activeView, loading, job, ganttFullscreen, handleOpenGantt]);
+
+  // Close fullscreen Gantt
+  const handleCloseFullscreenGantt = React.useCallback(() => {
+    setGanttFullscreen(false);
+    setGanttOpen(false);
+    // Navigate back to schedule table
+    router.push(`/jobs/${jobId}/schedule`);
+  }, [router, jobId]);
 
   // Convert tasks to Canvas Gantt format
   const ganttTasksFormatted = React.useMemo(() => {
@@ -746,6 +770,48 @@ export default function SchedulePage() {
               ))}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fullscreen Gantt View
+  if (ganttFullscreen) {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Fullscreen Header */}
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-background shrink-0">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="h-5 w-5 text-muted-foreground" />
+            <span className="font-medium">{job?.name || "Loading..."}</span>
+            <span className="text-muted-foreground text-sm">Gantt Schedule</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleCloseFullscreenGantt}>
+            <Minimize2 className="h-4 w-4 mr-2" />
+            Exit Fullscreen
+          </Button>
+        </div>
+        {/* Gantt View - fills remaining space */}
+        <div className="flex-1">
+          {loadingGantt ? (
+            <div className="flex items-center justify-center h-full">
+              <Spinner />
+            </div>
+          ) : ganttTasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <BarChart3 className="h-12 w-12 mb-2" />
+              <p>No tasks found for this job</p>
+            </div>
+          ) : (
+            <GanttCanvasView
+              staticTasks={ganttTasksFormatted}
+              staticDependencies={ganttDependencies}
+              showToolbar={true}
+              onTaskDrag={handleTaskDrag}
+              className="h-full"
+              jobId={Number(jobId)}
+            />
+          )}
         </div>
       </div>
     );
