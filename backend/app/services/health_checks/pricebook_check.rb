@@ -44,7 +44,7 @@ module HealthChecks
                           .where.not(default_supplier_id: nil)
                           .left_joins(:price_histories)
                           .where(price_histories: { id: nil })
-                          .select("pricebook.id, pricebook.item_code, pricebook.item_name")
+                          .select("pricebooks.id, pricebooks.item_code, pricebooks.item_name")
 
       build_result(
         name: "Items Without Price History",
@@ -169,12 +169,12 @@ module HealthChecks
 
       Contact.where(id: supplier_ids).find_each do |supplier|
         # Get categories this supplier has priced
-        # Note: PricebookItem table is named 'pricebook' not 'pricebook_items'
+        # Note: PricebookItem table is named 'pricebooks'
         priced_items = PriceHistory.joins(:pricebook_item)
                                    .where(supplier_id: supplier.id)
-                                   .where(pricebook: { is_active: true })
+                                   .where(pricebooks: { is_active: true })
                                    .distinct
-                                   .pluck("pricebook.category", "pricebook.id")
+                                   .pluck("pricebooks.category", "pricebooks.id")
 
         priced_by_category = priced_items.group_by(&:first)
 

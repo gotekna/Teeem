@@ -874,7 +874,7 @@ class SmScheduleMasterSyncService
         max_lead_time = PriceHistory
           .where(id: price_history_ids)
           .joins(:pricebook_item)
-          .maximum("pricebook.lead_time_days")
+          .maximum("pricebooks.lead_time_days")
 
         return max_lead_time if max_lead_time.present?
       end
@@ -907,7 +907,7 @@ class SmScheduleMasterSyncService
         max_call_time = PriceHistory
           .where(id: price_history_ids)
           .joins(:pricebook_item)
-          .maximum("pricebook.call_time_days")
+          .maximum("pricebooks.call_time_days")
 
         return max_call_time if max_call_time.present?
       end

@@ -118,9 +118,9 @@ module Api
               .order(order_clause)
 
             # Filter by categories if provided
-            # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
+            # Note: PricebookItem uses table_name = 'pricebooks'
             if categories_param.present? && categories_param.is_a?(Array) && categories_param.any?
-              source_price_histories = source_price_histories.where(pricebook: { category: categories_param })
+              source_price_histories = source_price_histories.where(pricebooks: { category: categories_param })
             end
 
             source_price_histories.each do |selected_price_history|
@@ -219,10 +219,10 @@ module Api
             end
 
             # Delete all price histories for this supplier in the selected categories
-            # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
+            # Note: PricebookItem uses table_name = 'pricebooks'
             price_histories_to_delete = PriceHistory.joins(:pricebook_item)
               .where(supplier_id: @contact.id)
-              .where(pricebook: { category: categories_param })
+              .where(pricebooks: { category: categories_param })
 
             deleted_price_histories_count = price_histories_to_delete.count
             price_histories_to_delete.delete_all

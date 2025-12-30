@@ -276,7 +276,7 @@ module Api
         items_with_price_history = PriceHistory
           .where(supplier_id: supplier_id)
           .joins(:pricebook_item)
-          .where(pricebook: { category: category, is_active: true })
+          .where(pricebooks: { category: category, is_active: true })
           .pluck(:pricebook_item_id)
           .uniq
 
@@ -311,9 +311,9 @@ module Api
           categories = PriceHistory
             .joins(:pricebook_item)
             .where(supplier_id: supplier_id)
-            .where(pricebook: { is_active: true })
+            .where(pricebooks: { is_active: true })
             .distinct
-            .pluck("pricebook.category")
+            .pluck("pricebooks.category")
             .compact
 
           categories.each do |category|
@@ -324,9 +324,9 @@ module Api
             supplier_items = PriceHistory
               .joins(:pricebook_item)
               .where(supplier_id: supplier_id)
-              .where(pricebook: { category: category, is_active: true })
+              .where(pricebooks: { category: category, is_active: true })
               .distinct
-              .count("pricebook.id")
+              .count("pricebooks.id")
 
             # If supplier has some but not all items, flag it
             if supplier_items > 0 && supplier_items < total_items

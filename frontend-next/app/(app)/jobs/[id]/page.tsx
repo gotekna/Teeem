@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -644,7 +644,6 @@ export default function JobDetailPage() {
   useSetLayoutMode("full-height");
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const pathname = usePathname();
   const jobId = params.id as string;
 
@@ -712,16 +711,30 @@ export default function JobDetailPage() {
   const [linkingXero, setLinkingXero] = React.useState(false);
 
   // Get tab from URL - URL is SSoT for tab state (back button support)
-  // Uses 2-level URL structure: ?tab=parent&subtab=child for hierarchical tabs
-  const tabFromUrl = searchParams.get("tab");
-  const subtabFromUrl = searchParams.get("subtab");
+  // Uses path-based structure: /jobs/{id}/{parent}/{child} for hierarchical tabs
+  // Parse: /jobs/123/photo/site → { parent: "photo", child: "site" }
+  const pathSegments = React.useMemo(() => {
+    // Remove /jobs/{id} prefix and split remaining path
+    const parts = pathname.replace(/^\/jobs\/[^/]+/, "").split("/").filter(Boolean);
+    // Skip "edit" as it's handled separately
+    if (parts[0] === "edit") {
+      return { parent: null, child: null };
+    }
+    return {
+      parent: parts[0] || null,
+      child: parts[1] || null,
+    };
+  }, [pathname]);
+
+  const tabFromUrl = pathSegments.parent;
+  const subtabFromUrl = pathSegments.child;
 
   // Auto-redirect to default tab if no tab in URL (ensures URL reflects state for back button)
   React.useEffect(() => {
     if (!tabFromUrl && !tabsLoading && visibleJobTabs.length > 0) {
       const defaultTab = userDefaultTab || "overview";
       // Use replace to not add to history stack (user just opened the page)
-      router.replace(`/jobs/${jobId}?tab=${defaultTab}`, { scroll: false });
+      router.replace(`/jobs/${jobId}/${defaultTab}`, { scroll: false });
     }
   }, [tabFromUrl, tabsLoading, visibleJobTabs.length, userDefaultTab, jobId, router]);
 
@@ -831,41 +844,33 @@ export default function JobDetailPage() {
   }, [visibleJobTabs]);
 
   // Update URL when tab changes - URL is SSoT
+  // Uses path-based structure: /jobs/{id}/{parent}/{child}
   const handleTabChange = React.useCallback((newTab: string) => {
-    const params = new URLSearchParams();
-
     // SSoT: Handle composite keys (parent__child) from HierarchicalTabsList
     // This is the ONLY reliable way to identify which parent a child belongs to
     // when multiple parents have children with the same tab_key (e.g., "site")
     if (newTab.includes("__")) {
       const [parent, child] = newTab.split("__");
-      params.set("tab", parent);
-      params.set("subtab", child);
+      router.push(`/jobs/${jobId}/${parent}/${child}`, { scroll: false });
     } else if (isParentTab(newTab)) {
-      // Clicked a parent tab with children - set parent and auto-select first child
+      // Clicked a parent tab with children - auto-select first child
       const firstChild = findFirstChildTab(newTab);
-      params.set("tab", newTab);
       if (firstChild) {
-        params.set("subtab", firstChild);
+        router.push(`/jobs/${jobId}/${newTab}/${firstChild}`, { scroll: false });
+      } else {
+        router.push(`/jobs/${jobId}/${newTab}`, { scroll: false });
       }
     } else {
       // Check if clicked tab is a child of some parent
       const parentOfClickedTab = findParentOfTab(newTab);
       if (parentOfClickedTab) {
-        // Clicked a child tab - set both parent and subtab
-        params.set("tab", parentOfClickedTab);
-        params.set("subtab", newTab);
+        // Clicked a child tab - include parent in path
+        router.push(`/jobs/${jobId}/${parentOfClickedTab}/${newTab}`, { scroll: false });
       } else {
         // Clicked a standalone tab (no children, not a child)
-        params.set("tab", newTab);
+        router.push(`/jobs/${jobId}/${newTab}`, { scroll: false });
       }
     }
-
-    // Clean URL for default tab without subtab
-    const newUrl = params.toString()
-      ? `/jobs/${jobId}?${params.toString()}`
-      : `/jobs/${jobId}`;
-    router.push(newUrl, { scroll: false });
   }, [jobId, router, findParentOfTab, isParentTab, findFirstChildTab]);
 
   const loadJob = React.useCallback(async () => {
@@ -1175,7 +1180,7 @@ export default function JobDetailPage() {
                       <span key={o.contact_id}>
                         {idx > 0 && " & "}
                         <Link
-                          href={`/contacts/${o.contact_id}?returnTo=${encodeURIComponent(`/jobs/${jobId}?tab=${activeParentTab}${activeChildTab ? `&subtab=${activeChildTab}` : ''}`)}`}
+                          href={`/contacts/${o.contact_id}?returnTo=${encodeURIComponent(`/jobs/${jobId}/${activeParentTab}${activeChildTab ? `/${activeChildTab}` : ''}`)}`}
                           className="font-medium text-primary hover:underline"
                         >
                           {o.contact.display_name}

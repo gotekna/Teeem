@@ -118,17 +118,24 @@ export function proxy(request: NextRequest) {
   }
 
   // === Job Detail Routes ===
-  // NOTE: Job detail tabs are handled via query params in the main page.tsx
-  // Only redirect for ?edit=true (standalone edit page), not for ?tab=xxx
-  // The main /jobs/[id]/page.tsx handles tab switching internally via ?tab= params
+  // Redirect old query params to path-based URLs:
+  // - /jobs/123?tab=photo&subtab=site → /jobs/123/photo/site
+  // - /jobs/123?edit=true → /jobs/123/edit
   const jobMatch = pathname.match(/^\/jobs\/(\d+)$/);
   if (jobMatch) {
+    const tab = searchParams.get("tab");
+    const subtab = searchParams.get("subtab");
     const edit = searchParams.get("edit");
 
     if (edit === "true") {
       redirectPath = `${pathname}/edit`;
+    } else if (tab) {
+      let path = `${pathname}/${tab}`;
+      if (subtab) {
+        path += `/${subtab}`;
+      }
+      redirectPath = path;
     }
-    // Don't redirect ?tab= - the main page.tsx handles tabs internally
   }
 
   // === Corporate Company Routes ===
