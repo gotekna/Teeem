@@ -332,9 +332,45 @@ class SmScheduleMasterSyncService
     comparisons
   end
 
+  # Sync Foundation column types from SmScheduleMaster to SmTask
+  # SSoT: SmScheduleMaster foundation defines the column types, SmTask should match
+  def self.sync_foundation_column_types!
+    master_f = Foundation.find_by(slug: 'sm_schedule_masters') || Foundation.find_by(model_class: 'SmScheduleMaster')
+    task_f = Foundation.find_by(slug: 'sm_tasks') || Foundation.find_by(model_class: 'SmTask')
+
+    return { synced: 0 } unless master_f && task_f
+
+    master_cols = master_f.columns.index_by(&:column_name)
+    task_cols = task_f.columns.index_by(&:column_name)
+    common = master_cols.keys & task_cols.keys
+    synced = 0
+
+    common.each do |col_name|
+      m = master_cols[col_name]
+      t = task_cols[col_name]
+
+      # Sync lookup config if master has it configured
+      if m.lookup_foundation_slug.present? && m.lookup_foundation_slug != t.lookup_foundation_slug
+        t.update!(
+          column_type: m.column_type,
+          lookup_foundation_id: m.lookup_foundation_id,
+          lookup_foundation_slug: m.lookup_foundation_slug,
+          lookup_display_column: m.lookup_display_column
+        )
+        synced += 1
+        Rails.logger.info "[SmScheduleMasterSyncService] Synced column type for #{col_name}: #{m.column_type} -> #{m.lookup_foundation_slug}"
+      end
+    end
+
+    { synced: synced }
+  end
+
   # Bulk sync all template rows to tasks for a job
   # Returns summary: { created: N, updated: N, skipped: N, unchanged: N, errors: [] }
   def self.sync_all_for_job(job, template, options = {})
+    # Ensure Foundation column types are in sync first
+    sync_foundation_column_types!
+
     results = {
       created: 0,
       updated: 0,
