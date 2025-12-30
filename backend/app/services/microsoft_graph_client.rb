@@ -1021,10 +1021,31 @@ class MicrosoftGraphClient
     return unless @credential.token_expired?
 
     Rails.logger.info "Token expired, refreshing..."
-    refresh_token!
+
+    # App credentials use client_credentials flow (no refresh token needed)
+    if @credential.credential_type == "app"
+      refresh_app_token!
+    else
+      # Delegated credentials use refresh_token flow
+      refresh_token!
+    end
   rescue ActiveRecord::Encryption::Errors::Decryption => e
     Rails.logger.error "[MicrosoftGraph] Token decryption failed: #{e.message}"
     raise AuthenticationError, "SharePoint credentials expired. Please reconnect SharePoint in Admin > System > Connections."
+  end
+
+  # Refresh app credentials using client_credentials flow
+  def refresh_app_token!
+    Rails.logger.info "[MicrosoftGraph] Refreshing app credential using client_credentials flow..."
+
+    token_data = self.class.authenticate_as_application
+
+    @credential.update!(
+      access_token: token_data[:access_token],
+      token_expires_at: token_data[:expires_at]
+    )
+
+    Rails.logger.info "[MicrosoftGraph] App credential refreshed, expires at #{token_data[:expires_at]}"
   end
 
   # Check if error indicates dead token (SSoT: delegates to MicrosoftTokenManager)
