@@ -71,6 +71,7 @@ import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
 import { JobScheduleTab } from "@/components/jobs/JobScheduleTab";
 import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
+import { RevitTab } from "@/components/jobs/RevitTab";
 import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
 import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
 import { Spinner } from "@/components/ui/spinner";
@@ -98,6 +99,8 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "rain-log": RainLogTab,
   "documents": JobDocumentsTab,
   "coms": JobCommunicationsTab,
+  "revit": RevitTab,
+  "revit-dwg": RevitTab,
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)

@@ -246,16 +246,15 @@ export function EntityTabsConfig({
     group: "overview",           // Active tab group
     tab: null as string | null,  // Tab being edited (tab_key slug)
     action: null as string | null, // "edit" | "create" | null
-    expanded: [] as string[],    // Expanded tab keys (slugs)
-    docExpanded: [] as string[], // Expanded doc type tab keys
     config: null as string | null, // Config panel name (e.g., "plan-categories")
   });
 
+  // Local state for expanded items - URL state doesn't work well with catch-all routes
+  const [expandedItems, setExpandedItemsState] = React.useState<Set<string>>(new Set());
+  const [expandedDocTypes, setExpandedDocTypesState] = React.useState<Set<string>>(new Set());
+
   // Derive values from URL state
   const activeGroup = urlState.group;
-  // Use Set<string> for tab_keys instead of Set<number> for IDs
-  const expandedItems = React.useMemo(() => new Set(urlState.expanded), [urlState.expanded]);
-  const expandedDocTypes = React.useMemo(() => new Set(urlState.docExpanded), [urlState.docExpanded]);
   const isDialogOpen = urlState.action === "create" || urlState.action === "edit";
   const isCreateMode = urlState.action === "create";
 
@@ -293,23 +292,19 @@ export function EntityTabsConfig({
   // Use tab_key (slug) for expanded state - Set<string> instead of Set<number>
   const setExpandedItems = React.useCallback((updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
     if (typeof updater === "function") {
-      const newSet = updater(expandedItems);
-      console.log('[EntityTabsConfig] setExpandedItems calling setUrlState with:', Array.from(newSet));
-      setUrlState({ expanded: Array.from(newSet) });
+      setExpandedItemsState((prev) => updater(prev));
     } else {
-      console.log('[EntityTabsConfig] setExpandedItems (direct) calling setUrlState with:', Array.from(updater));
-      setUrlState({ expanded: Array.from(updater) });
+      setExpandedItemsState(updater);
     }
-  }, [setUrlState, expandedItems]);
+  }, []);
 
   const setExpandedDocTypes = React.useCallback((updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
     if (typeof updater === "function") {
-      const newSet = updater(expandedDocTypes);
-      setUrlState({ docExpanded: Array.from(newSet) });
+      setExpandedDocTypesState((prev) => updater(prev));
     } else {
-      setUrlState({ docExpanded: Array.from(updater) });
+      setExpandedDocTypesState(updater);
     }
-  }, [setUrlState, expandedDocTypes]);
+  }, []);
 
   // Use tab_key (slug) instead of numeric ID
   const setEditingTab = React.useCallback((tab: EntityTab | null) => {
@@ -432,17 +427,13 @@ export function EntityTabsConfig({
 
   // Toggle item expansion - uses tab_key (slug) instead of numeric ID
   const toggleExpanded = (tabKey: string) => {
-    console.log('[EntityTabsConfig] toggleExpanded called with:', tabKey);
     setExpandedItems((prev) => {
       const next = new Set(prev);
       if (next.has(tabKey)) {
         next.delete(tabKey);
-        console.log('[EntityTabsConfig] Collapsing:', tabKey);
       } else {
         next.add(tabKey);
-        console.log('[EntityTabsConfig] Expanding:', tabKey);
       }
-      console.log('[EntityTabsConfig] New expanded set:', Array.from(next));
       return next;
     });
   };
@@ -867,9 +858,6 @@ export function EntityTabsConfig({
         )}
       >
         <div className="flex items-center gap-2 flex-1 py-1 px-2">
-          {/* Drag handle */}
-          <DragHandle />
-
           {/* Expand/collapse button for items with children */}
           {hasChildren ? (
             <Button
@@ -878,7 +866,6 @@ export function EntityTabsConfig({
               className="h-6 w-6 shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
-                console.log('[EntityTabsConfig] Chevron clicked for tab:', tab.tab_key, 'current expandedItems:', Array.from(expandedItems));
                 toggleExpanded(tab.tab_key);
               }}
             >

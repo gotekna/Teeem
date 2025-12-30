@@ -72,11 +72,63 @@ class SmTask < ApplicationRecord
   # Recurring task support
   belongs_to :recurring_task_definition, class_name: "SmRecurringTaskDefinition", optional: true
 
-  # Dependencies (separate table per Rule 9.25)
+  # Dependencies (SSoT: predecessor_ids jsonb column, matching SmScheduleMaster)
+  # Legacy table-based associations kept for backwards compatibility (deprecated)
   has_many :predecessor_dependencies, class_name: "SmDependency", foreign_key: :successor_task_id, dependent: :destroy
   has_many :successor_dependencies, class_name: "SmDependency", foreign_key: :predecessor_task_id, dependent: :destroy
-  has_many :predecessors, through: :predecessor_dependencies, source: :predecessor_task
-  has_many :successors, through: :successor_dependencies, source: :successor_task
+  # NOTE: Renamed to _via_table to avoid conflict with predecessor_ids jsonb column
+  has_many :predecessors_via_table, through: :predecessor_dependencies, source: :predecessor_task
+  has_many :successors_via_table, through: :successor_dependencies, source: :successor_task
+
+  # Backwards compatibility aliases - these return table-based predecessors
+  # TODO: Update callers to use predecessor_ids jsonb column instead
+  def predecessors
+    predecessors_via_table
+  end
+
+  def successors
+    successors_via_table
+  end
+
+  # SSoT: predecessor_ids jsonb column (synced from SmScheduleMaster)
+  # Format: [{id: task_number, lag: 0, type: "FS"}, ...]
+  # NOTE: We explicitly define predecessor_ids reader/writer to use the jsonb column
+  # because Rails would otherwise generate these for has_many associations
+  def predecessor_ids
+    read_attribute(:predecessor_ids) || []
+  end
+
+  def predecessor_ids=(value)
+    write_attribute(:predecessor_ids, value || [])
+  end
+
+  def predecessor_task_numbers
+    predecessor_ids
+  end
+
+  # Format predecessors as "2FS+3, 5SS" etc (matching SmScheduleMaster format)
+  def predecessor_display
+    return "None" if predecessor_task_numbers.empty?
+    predecessor_task_numbers.map { |pred| format_predecessor(pred) }.compact.join(", ")
+  end
+
+  private
+
+  def format_predecessor(pred_data)
+    return nil unless pred_data.is_a?(Hash)
+
+    task_id = pred_data["id"] || pred_data[:id]
+    return nil unless task_id
+
+    dep_type = pred_data["type"] || pred_data[:type] || "FS"
+    lag = pred_data["lag"] || pred_data[:lag] || 0
+
+    result = "#{task_id}#{dep_type}"
+    result += "+#{lag}" if lag.to_i > 0
+    result
+  end
+
+  public
 
   # Logs
   has_many :rollover_logs, class_name: "SmRolloverLog", foreign_key: :task_id, dependent: :destroy
