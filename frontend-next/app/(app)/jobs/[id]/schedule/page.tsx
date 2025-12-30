@@ -295,7 +295,12 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     // SSoT: rowData contains predecessor_ids for sidebar dependency display
     rowData: {
       task_number: task.task_number,
-      predecessor_ids: task.predecessor_ids || [],
+      // Map to ApiPredecessor format - default type to 'FS' (Finish-to-Start) and lag to 0
+      predecessor_ids: (task.predecessor_ids || []).map(p => ({
+        id: p.id,
+        type: (p.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
+        lag: p.lag ?? 0,
+      })),
     },
   };
 }
