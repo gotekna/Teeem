@@ -93,20 +93,9 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   // Calculate container height
   const containerHeight = Math.min(rows.length * ROW_HEIGHT, MAX_CONTAINER_HEIGHT);
 
-  // Debug: log row count
-  console.log(`[VirtualizedGroupTable] fullKey=${fullKey} rows=${rows.length} containerHeight=${containerHeight}`);
-
-  // If no rows, show empty state
+  // If no rows, don't render anything (group header still shows count)
   if (rows.length === 0) {
-    return (
-      <div
-        key={`data-${fullKey}`}
-        className="mb-4 text-muted-foreground text-sm p-4"
-        style={{ marginLeft: `${(depth + 1) * 24}px` }}
-      >
-        No records in this group
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -191,6 +180,12 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                 {visibleColumnsInOrder.map((column, colIndex) => {
                   const isSystemGen = isSystemGeneratedColumn(column);
 
+                  // Get cell value for title tooltip (shows full value on hover)
+                  const cellValue = row[column.key];
+                  const titleText = cellValue != null && typeof cellValue !== 'object'
+                    ? String(cellValue)
+                    : undefined;
+
                   return (
                     <div
                       key={`${column.key}-${colIndex}`}
@@ -206,6 +201,7 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                             backgroundColor: SYSTEM_COLUMN_BG,
                           }),
                       }}
+                      title={titleText}
                       onClick={(e) => {
                         if (column.key === "select") {
                           e.stopPropagation();

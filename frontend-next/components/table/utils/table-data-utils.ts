@@ -425,7 +425,13 @@ export function getGroupDisplayValue(value: unknown): string {
   }
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
-    return String(obj.display || obj.display_value || obj.name || obj.id || "No Value");
+    // IMPORTANT: For lookup objects, use ID as key to match server group counts
+    // The display name is shown via serverDisplayMap in the UI
+    // This ensures groups from data match groups from server (both keyed by ID)
+    if (obj.id !== undefined) {
+      return String(obj.id);
+    }
+    return String(obj.display || obj.display_value || obj.name || "No Value");
   }
   return String(value);
 }
