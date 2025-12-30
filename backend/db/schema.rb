@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_030909) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_040031) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8218,7 +8218,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_030909) do
     t.index ["is_ticket"], name: "index_sm_tasks_on_is_ticket"
     t.index ["job_id", "status", "start_date"], name: "idx_tasks_job_status_start"
     t.index ["job_id", "status"], name: "idx_tasks_job_status"
-    t.index ["job_id", "task_number"], name: "index_sm_tasks_on_job_id_and_task_number", unique: true
     t.index ["job_id"], name: "index_sm_tasks_on_job_id"
     t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
     t.index ["recurring_task_definition_id"], name: "index_sm_tasks_on_recurring_task_definition_id"
