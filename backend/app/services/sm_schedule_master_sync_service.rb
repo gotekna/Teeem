@@ -5,6 +5,26 @@
 # SSoT: SmScheduleMaster is THE template definition, SmTask is THE job-level instance.
 # This service syncs from template -> task while preserving "job reality" (actual work progress).
 #
+# BLACKLIST APPROACH:
+# Uses PROTECTED_FIELDS (blacklist) instead of whitelist. All common columns between
+# SmScheduleMaster and SmTask are synced EXCEPT protected fields. This means:
+# - New columns added to both models are automatically synced
+# - Protected fields (gantt dates, status, confirmations, holds) are never overwritten
+#
+# PROTECTED (never synced - represents job reality):
+# - Schedule: start_date, end_date, duration_days, predecessor_ids, sequence_order
+# - Progress: status, started_at, completed_at
+# - Confirmations: confirm, supplier_confirm, confirmed_at, supplier_confirmed_at
+# - Holds: hold, hold_at, hold_date, hold_reason_id, etc.
+# - System: id, created_at, updated_at, task_number, job_id
+#
+# SYNCED (template metadata):
+# - Core: name, description, trade, stage, assigned_role
+# - Requirements: require_photo, po_required, critical_po, checklist_id
+# - Timing: order_time_days, call_time_days
+# - Automation: spawn_* fields, pass_fail_enabled
+# - References: documentation_category_ids, linked_task_ids
+#
 # INTELLIGENT MATCHING (for unlinked tasks):
 # - 95%+ similarity: Auto-link without asking
 # - 65-95% similarity: User confirmation required (shown in analyze step)
@@ -40,40 +60,67 @@ class SmScheduleMasterSyncService
 
   attr_reader :job, :template_row, :options
 
-  # Fields that are safe to sync from template (exist on BOTH SmScheduleMaster and SmTask)
-  # These don't affect schedule or represent actual work progress
-  SAFE_SYNC_FIELDS = %i[
-    name
-    description
-    trade
-    stage
-    checklist_id
-    require_photo
-    po_required
-    critical_po
-    order_time_days
-    call_time_days
-    documentation_category_ids
-    linked_task_ids
-    spawn_scan_task_id
-    spawn_scan_lag_days
-    spawn_order_task
-    spawn_call_task
-    pass_fail_enabled
-    assigned_role
-  ].freeze
-
-  # Fields that affect schedule - NEVER sync these automatically
-  SCHEDULE_FIELDS = %i[
+  # BLACKLIST approach: Protect "job reality" fields, sync everything else
+  # This ensures new columns are synced by default
+  #
+  # Protected fields represent actual work done on the job:
+  # - Schedule dates and duration (gantt positions)
+  # - Status and progress (work started/completed)
+  # - Confirmations (commitments made)
+  # - Holds (job-specific blocks)
+  # - System/identity fields
+  PROTECTED_FIELDS = %i[
+    id
+    created_at
+    updated_at
+    created_by_id
+    updated_by_id
+    sm_schedule_master_id
+    job_id
+    construction_id
+    saas_customer_id
+    task_number
+    sequence_order
     start_date
     end_date
     duration_days
     predecessor_ids
     status
+    started_at
+    completed_at
     confirm
+    confirmed_at
+    confirm_requested_at
+    confirm_status
+    require_confirm
     supplier_confirm
+    supplier_confirmed_at
+    supplier_confirmed_by_id
+    supplier_id
     hold
+    hold_at
+    hold_date
+    hold_reason_id
+    hold_release_reason
+    hold_released_at
+    hold_released_by_id
+    hold_started_at
+    hold_started_by_id
+    is_hold_task
   ].freeze
+
+  # Dynamically calculate syncable fields (all common fields minus protected)
+  def self.syncable_fields
+    @syncable_fields ||= begin
+      master_cols = SmScheduleMaster.column_names.map(&:to_sym)
+      task_cols = SmTask.column_names.map(&:to_sym)
+      common = master_cols & task_cols
+      common - PROTECTED_FIELDS
+    end
+  end
+
+  # Legacy alias for backwards compatibility
+  SAFE_SYNC_FIELDS = nil # Use syncable_fields method instead
 
   # ============================================================================
   # INTELLIGENT MATCHING - Analyze unlinked tasks and suggest matches
@@ -511,7 +558,7 @@ class SmScheduleMasterSyncService
   def calculate_differences(task)
     differences = {}
 
-    SAFE_SYNC_FIELDS.each do |field|
+    self.class.syncable_fields.each do |field|
       next unless template_row.respond_to?(field) && task.respond_to?(field)
 
       template_value = template_row.send(field)
@@ -588,7 +635,7 @@ class SmScheduleMasterSyncService
   def update_existing_task(task)
     changes = {}
 
-    SAFE_SYNC_FIELDS.each do |field|
+    self.class.syncable_fields.each do |field|
       next unless template_row.respond_to?(field) && task.respond_to?(field)
       next unless task.respond_to?("#{field}=")
 
