@@ -37,7 +37,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 
 interface SuburbSearchResult {
@@ -176,7 +176,22 @@ interface EmailProposal {
 export default function NewJobPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const proposalId = searchParams.get("from_proposal");
+
+  // Parse status from path: /jobs/new/status/enquiry → "enquiry"
+  // Also supports legacy ?status= query param for backward compatibility
+  const statusFromPath = React.useMemo(() => {
+    const parts = pathname.replace("/jobs/new", "").split("/").filter(Boolean);
+    if (parts[0] === "status" && parts[1]) {
+      return parts[1]; // e.g., "enquiry"
+    }
+    // Legacy query param support
+    const queryStatus = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("status")
+      : null;
+    return queryStatus?.toLowerCase() || null;
+  }, [pathname]);
 
   const [loading, setLoading] = React.useState(false);
   const [loadingLookups, setLoadingLookups] = React.useState(true);
@@ -257,9 +272,19 @@ export default function NewJobPage() {
           setFormData(prev => ({ ...prev, job_type_id: typesData.job_types[0].id.toString() }));
         }
         if (statusesData?.job_statuses && statusesData.job_statuses.length > 0) {
-          // Default to "Enquiry" if it exists
-          const enquiryStatus = statusesData.job_statuses.find(s => s.name === "Enquiry");
-          const defaultStatus = enquiryStatus || statusesData.job_statuses[0];
+          // Use status from path if provided, otherwise default to "Enquiry"
+          let matchedStatus = null;
+          if (statusFromPath) {
+            // Case-insensitive match for path-based status
+            matchedStatus = statusesData.job_statuses.find(
+              s => s.name.toLowerCase() === statusFromPath.toLowerCase()
+            );
+          }
+          if (!matchedStatus) {
+            // Default to "Enquiry" if no path status or no match found
+            matchedStatus = statusesData.job_statuses.find(s => s.name === "Enquiry");
+          }
+          const defaultStatus = matchedStatus || statusesData.job_statuses[0];
           setFormData(prev => ({ ...prev, job_status_id: defaultStatus.id.toString() }));
         }
       } catch (error) {
@@ -270,7 +295,7 @@ export default function NewJobPage() {
     };
 
     loadLookupData();
-  }, []);
+  }, [statusFromPath]);
 
   // Load contacts on mount
   React.useEffect(() => {

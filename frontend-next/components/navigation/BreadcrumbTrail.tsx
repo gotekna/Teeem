@@ -4,11 +4,11 @@
  * Breadcrumb Trail Floating Overlay
  *
  * Shows navigation path as clickable breadcrumbs.
- * Position: Below HeaderBar (top-12), z-45
+ * Position: Below HeaderBar (top-12), respects sidebar width
  *
  * Features:
  * - Slide in/out animation
- * - Pin button to keep visible
+ * - Pin button to keep visible and push content down
  * - Hover zone to reveal when unpinned
  * - Horizontal scroll for overflow
  * - Dark mode support
@@ -38,6 +38,8 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSidebar } from "@/contexts/SidebarContext";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import {
   breadcrumbTrailAtom,
   breadcrumbPinnedAtom,
@@ -75,16 +77,27 @@ function getIconComponent(iconName?: string): React.ElementType | null {
   return ICON_MAP[iconName] || null;
 }
 
+/**
+ * Height of the breadcrumb bar in pixels
+ * Used for layout calculations when pinned
+ */
+export const BREADCRUMB_BAR_HEIGHT = 36;
+
 export function BreadcrumbTrail() {
   const trail = useAtomValue(breadcrumbTrailAtom);
   const [isPinned, setIsPinned] = useAtom(breadcrumbPinnedAtom);
   const [isVisible, setIsVisible] = useAtom(breadcrumbVisibleAtom);
   const router = useRouter();
+  const { sidebarWidth } = useSidebar();
+  const { shouldHideSidebar } = useLayoutMode();
 
   // Don't render if trail is empty or only has one item
   if (trail.length <= 1) return null;
 
   const shouldShow = isPinned || isVisible;
+
+  // Calculate left offset based on sidebar
+  const leftOffset = shouldHideSidebar ? 0 : sidebarWidth;
 
   /**
    * Navigate to a breadcrumb item
@@ -99,9 +112,10 @@ export function BreadcrumbTrail() {
   return (
     <>
       {/* Hover trigger zone - invisible strip at top when not pinned */}
-      {!isPinned && !isVisible && (
+      {!isPinned && !isVisible && trail.length > 1 && (
         <div
-          className="fixed top-12 left-0 right-0 h-3 z-[45] bg-transparent cursor-pointer"
+          className="fixed top-12 right-0 h-3 z-[45] bg-transparent cursor-pointer hidden md:block"
+          style={{ left: leftOffset }}
           onMouseEnter={() => setIsVisible(true)}
         />
       )}
@@ -109,19 +123,20 @@ export function BreadcrumbTrail() {
       {/* Breadcrumb bar */}
       <div
         className={cn(
-          // Position: Below HeaderBar (h-12 = 48px)
-          "fixed top-12 left-0 right-0 z-[45]",
+          // Position: Below HeaderBar (h-12 = 48px), respects sidebar
+          "fixed top-12 right-0 z-[45] hidden md:block",
           // Slide animation
           "transition-all duration-200 ease-in-out",
           shouldShow
             ? "translate-y-0 opacity-100"
             : "-translate-y-full opacity-0 pointer-events-none"
         )}
+        style={{ left: leftOffset }}
         onMouseEnter={() => !isPinned && setIsVisible(true)}
         onMouseLeave={() => !isPinned && setIsVisible(false)}
       >
         <div className="bg-background/95 backdrop-blur-sm border-b shadow-sm">
-          <div className="max-w-full px-4 py-1.5 flex items-center justify-between">
+          <div className="px-4 py-1.5 flex items-center justify-between">
             {/* Breadcrumb items */}
             <nav className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide min-w-0 flex-1 pr-2">
               {trail.map((item, index) => {

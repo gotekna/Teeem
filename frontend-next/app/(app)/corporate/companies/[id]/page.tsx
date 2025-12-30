@@ -401,7 +401,7 @@ export default function CompanyDetailPage() {
             {healthScore && (
               <button
                 onClick={() => {
-                  router.push(`/corporate/companies/${companyId}?tab=overview&subtab=health`, { scroll: false });
+                  router.push(`/corporate/companies/${companyId}/overview/health`, { scroll: false });
                 }}
                 className={cn(
                   "flex items-center gap-1 px-3 py-1.5 rounded-md bg-muted",

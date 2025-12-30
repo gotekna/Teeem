@@ -323,7 +323,7 @@ export default function ComplianceCalendarPage() {
                         {day.items.slice(0, 3).map((item, i) => (
                           <div
                             key={i}
-                            onClick={() => router.push(`/corporate/companies/${item.company_id}?tab=compliance`)}
+                            onClick={() => router.push(`/corporate/companies/${item.company_id}/compliance`)}
                             className={cn(
                               "text-xs p-1 rounded cursor-pointer truncate",
                               item.is_overdue
@@ -375,7 +375,7 @@ export default function ComplianceCalendarPage() {
                   calendarData?.items?.map((item) => (
                     <TableRow
                       key={item.id}
-                      onClick={() => router.push(`/corporate/companies/${item.company_id}?tab=compliance`)}
+                      onClick={() => router.push(`/corporate/companies/${item.company_id}/compliance`)}
                       className="hover:bg-muted/50 cursor-pointer"
                     >
                       <TableCell className="px-4 py-3 whitespace-nowrap">
@@ -443,7 +443,7 @@ export default function ComplianceCalendarPage() {
             <Card key={companyId}>
               <CardContent className="p-4">
                 <div
-                  onClick={() => router.push(`/corporate/companies/${companyId}?tab=compliance`)}
+                  onClick={() => router.push(`/corporate/companies/${companyId}/compliance`)}
                   className="flex items-center justify-between mb-3 cursor-pointer hover:text-primary"
                 >
                   <div className="flex items-center gap-2">

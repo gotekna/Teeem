@@ -632,7 +632,7 @@ function ExtractEmployeesContent() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => router.push("/admin/system?tab=contact-types")}
+              onClick={() => router.push("/admin/system/contact-types")}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back

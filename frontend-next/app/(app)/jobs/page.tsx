@@ -32,7 +32,7 @@ export default function JobsPage() {
   }, [router]);
 
   const handleEdit = useCallback((row: TableRow) => {
-    router.push(`/jobs/${row.id}?edit=true`);
+    router.push(`/jobs/${row.id}/edit`);
   }, [router]);
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -645,6 +645,7 @@ export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const jobId = params.id as string;
 
   const [job, setJob] = React.useState<Job | null>(null);
@@ -942,6 +943,35 @@ export default function JobDetailPage() {
       loadXeroTrackingOptions();
     }
   }, [jobId, loadJob, loadXeroTrackingOptions]);
+
+  // SSoT: Auto-start editing when /edit is in path (e.g., from jobs list page)
+  // Also supports legacy ?edit=true query param for backward compatibility
+  React.useEffect(() => {
+    const isEditPath = pathname.endsWith("/edit");
+    const hasEditQueryParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("edit") === "true";
+
+    if ((isEditPath || hasEditQueryParam) && job && !loading && !isEditing) {
+      // Populate form and start editing
+      setEditForm({
+        name: job.name,
+        contract_value: job.contract_value,
+        certifier_job_no: job.certifier_job_no,
+        start_date: job.start_date,
+        location: job.location,
+        job_type_id: job.job_type?.id || job.job_type_id,
+        job_status_id: job.job_status?.id || job.job_status_id,
+        job_stage_id: job.job_stage?.id || job.job_stage_id,
+      });
+      setIsEditing(true);
+      // Load dropdown data for editing
+      if (jobTypes.length === 0) {
+        loadLookupData();
+      }
+      // Clean up URL by removing /edit or ?edit=true
+      const cleanPath = pathname.replace(/\/edit$/, "");
+      window.history.replaceState({}, "", cleanPath);
+    }
+  }, [pathname, job, loading, isEditing, jobTypes.length, loadLookupData]);
 
   // Start editing - populate form with current values and load lookup data
   const startEditing = async () => {

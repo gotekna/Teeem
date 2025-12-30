@@ -171,7 +171,7 @@ export default function LeadsPage() {
 
   const handleNewEnquiry = () => {
     // Navigate to new job form with Enquiry status pre-selected
-    router.push("/jobs/new?status=Enquiry");
+    router.push("/jobs/new/status/enquiry");
   };
 
   const formatCurrency = (value: number | string) => {

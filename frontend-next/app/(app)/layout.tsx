@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useAtomValue } from "jotai";
 import { Sidebar } from "@/components/ui/sidebar";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
@@ -10,7 +11,8 @@ import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { LayoutModeProvider, useLayoutMode } from "@/contexts/LayoutModeContext";
 import { BreadcrumbProvider } from "@/contexts/BreadcrumbContext";
-import { BreadcrumbTrail } from "@/components/navigation/BreadcrumbTrail";
+import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/BreadcrumbTrail";
+import { breadcrumbPinnedAtom, breadcrumbTrailAtom } from "@/lib/breadcrumb-atoms";
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 
@@ -21,6 +23,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const vitalsInitialized = useRef(false);
+
+  // Breadcrumb state for content push-down when pinned
+  const isPinned = useAtomValue(breadcrumbPinnedAtom);
+  const trail = useAtomValue(breadcrumbTrailAtom);
+  const shouldShowBreadcrumbSpace = isPinned && trail.length > 1;
 
   // Initialize Performance Observatory Web Vitals collection
   useEffect(() => {
@@ -72,7 +79,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       `}</style>
 
       {/* Main Content - below header, beside sidebar */}
-      <main className={`sidebar-content-area pt-12 h-screen overflow-hidden ${containerClassName} transition-all duration-300 ease-in-out`}>
+      {/* pt-12 = 48px for header, add BREADCRUMB_BAR_HEIGHT when pinned */}
+      <main
+        className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-all duration-300 ease-in-out`}
+        style={{ paddingTop: shouldShowBreadcrumbSpace ? 48 + BREADCRUMB_BAR_HEIGHT : 48 }}
+      >
         <div className={`h-full overflow-auto ${contentClassName}`}>
           {children}
         </div>

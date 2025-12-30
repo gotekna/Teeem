@@ -1319,8 +1319,8 @@ export default function CorporateDashboardPage() {
         <CardContent className="p-6">
           <h3 className="text-base font-medium mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <QuickAction label="Manage Groups" icon={Building2} href="/admin/system?tab=company&subtab=groups" color="indigo" />
-            <QuickAction label="Manage Companies" icon={Plus} href="/admin/system?tab=company&subtab=companies" color="blue" />
+            <QuickAction label="Manage Groups" icon={Building2} href="/admin/system/company/groups" color="indigo" />
+            <QuickAction label="Manage Companies" icon={Plus} href="/admin/system/company/companies" color="blue" />
             <QuickAction label="Add Asset" icon={Package} href="/corporate/assets/new" />
             <QuickAction label="View Directors" icon={Users} href="/corporate/directors" />
             <QuickAction label="Compliance Calendar" icon={Calendar} href="/corporate/compliance-calendar" />
@@ -1381,7 +1381,7 @@ export default function CorporateDashboardPage() {
                   Manage company groups to organize related entities
                 </CardDescription>
               </div>
-              <Button variant="outline" onClick={() => router.push("/admin/system?tab=company&subtab=groups")}>
+              <Button variant="outline" onClick={() => router.push("/admin/system/company/groups")}>
                 <Settings className="h-4 w-4 mr-2" />
                 Manage in Admin
               </Button>
@@ -1560,7 +1560,7 @@ export default function CorporateDashboardPage() {
             enableSchemaEditor={true}
             hideUpdateViewButton={true}
             leftActions={
-              <Button variant="outline" onClick={() => router.push("/admin/system?tab=company&subtab=companies")}>
+              <Button variant="outline" onClick={() => router.push("/admin/system/company/companies")}>
                 <Settings className="h-4 w-4 mr-2" />
                 Manage in Admin
               </Button>

@@ -504,7 +504,7 @@ export default function DocumentTypeDetailPage() {
         description: "Failed to load document type",
         variant: "destructive",
       });
-      router.push("/admin/system?tab=document-types");
+      router.push("/admin/system/document-types");
     } finally {
       setLoading(false);
     }
@@ -588,7 +588,7 @@ export default function DocumentTypeDetailPage() {
         title: "Success",
         description: "Document type deleted successfully",
       });
-      router.push("/admin/system?tab=document-types");
+      router.push("/admin/system/document-types");
     } catch (error: any) {
       console.error("Failed to delete document type:", error);
       const errorMessage = error?.errors?.[0] || "Failed to delete document type";
@@ -1017,7 +1017,7 @@ export default function DocumentTypeDetailPage() {
       {/* Header - Fixed at top */}
       <div className="flex items-start justify-between p-2 shrink-0">
         <div className="flex items-start gap-4">
-          <BackButton fallbackHref="/admin/system?tab=document-types" />
+          <BackButton fallbackHref="/admin/system/document-types" />
           {/* Previous/Next navigation - filtered by scope (hidden for new) */}
           {!isNew && (
             <div className="flex items-center gap-1">
@@ -2059,7 +2059,7 @@ export default function DocumentTypeDetailPage() {
 
       {/* Save reminder at bottom */}
       <div className="flex justify-end gap-2 pb-8">
-        <Button variant="outline" onClick={() => router.push("/admin/system?tab=document-types")}>
+        <Button variant="outline" onClick={() => router.push("/admin/system/document-types")}>
           Cancel
         </Button>
         <Button onClick={handleSave} disabled={saving} size="lg">
