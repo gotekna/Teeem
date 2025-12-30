@@ -46,6 +46,7 @@ module Api
       end
 
       # GET /api/v1/jobs/:job_id/sm_tasks (nested under job)
+      # SSoT: Use ?for=gantt to get filtered tasks with dependency rewiring
       # Performance: includes sm_task_attachments to avoid N+1
       def job_index
         @tasks = @job.sm_tasks.ordered.includes(
@@ -58,6 +59,12 @@ module Api
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
         @tasks = @tasks.active if params[:active_only] == "true"
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
+
+        # SSoT: Gantt mode - apply po_required filtering + dependency rewiring
+        # This consolidates the old /gantt_data endpoint into one SSoT endpoint
+        if params[:for] == "gantt"
+          return render_gantt_data(@tasks)
+        end
 
         render json: {
           success: true,
@@ -234,44 +241,15 @@ module Api
       end
 
       # GET /api/v1/constructions/:job_id/sm_tasks/gantt_data
+      # DEPRECATED: Use GET /api/v1/jobs/:job_id/sm_tasks?for=gantt instead (SSoT)
       def gantt_data
         tasks = @job.sm_tasks.ordered.includes(
           :hold_reason, :predecessor_dependencies, :successor_dependencies,
           :supplier, purchase_order: :supplier
         )
 
-        # Build visibility map for po_required logic
-        # A task is invisible if po_required=true AND no PO is linked
-        # SSoT: Check PO link via has_linked_po? (PurchaseOrder.sm_task_id)
-        invisible_task_ids = Set.new
-        task_by_id = {}
-        tasks.each do |task|
-          task_by_id[task.id] = task
-          po_required = task.po_required || false
-          has_po = task.has_linked_po?
-          invisible_task_ids.add(task.id) if po_required && !has_po
-        end
-
-        # Rewire dependencies to skip invisible tasks
-        # If A → B → C and B is invisible, create A → C with combined lag
-        rewired_dependencies = rewire_dependencies_around_invisible(tasks, invisible_task_ids, task_by_id)
-
-        # Filter out invisible tasks from the task list
-        visible_tasks = tasks.reject { |t| invisible_task_ids.include?(t.id) }
-
-        render json: {
-          success: true,
-          gantt_data: {
-            tasks: visible_tasks.map { |task| task_to_gantt_format(task) },
-            dependencies: rewired_dependencies
-          },
-          meta: {
-            construction_id: @job.id,
-            task_count: visible_tasks.count,
-            invisible_count: invisible_task_ids.size,
-            settings: SmSetting.instance.slice(:rollover_time, :rollover_timezone, :rollover_enabled)
-          }
-        }
+        # SSoT: Use shared render_gantt_data helper
+        render_gantt_data(tasks)
       end
 
       # PATCH /api/v1/sm_tasks/:id
@@ -1371,6 +1349,43 @@ module Api
         end
 
         result
+      end
+
+      # SSoT: Render gantt data with po_required filtering + dependency rewiring
+      # Used by job_index?for=gantt and gantt_data endpoints
+      def render_gantt_data(tasks)
+        # Build visibility map for po_required logic
+        # A task is invisible if po_required=true AND no PO is linked
+        # SSoT: Check PO link via has_linked_po? (PurchaseOrder.sm_task_id)
+        invisible_task_ids = Set.new
+        task_by_id = {}
+        tasks.each do |task|
+          task_by_id[task.id] = task
+          po_required = task.po_required || false
+          has_po = task.has_linked_po?
+          invisible_task_ids.add(task.id) if po_required && !has_po
+        end
+
+        # Rewire dependencies to skip invisible tasks
+        # If A → B → C and B is invisible, create A → C with combined lag
+        rewired_dependencies = rewire_dependencies_around_invisible(tasks, invisible_task_ids, task_by_id)
+
+        # Filter out invisible tasks from the task list
+        visible_tasks = tasks.reject { |t| invisible_task_ids.include?(t.id) }
+
+        render json: {
+          success: true,
+          gantt_data: {
+            tasks: visible_tasks.map { |task| task_to_gantt_format(task) },
+            dependencies: rewired_dependencies
+          },
+          meta: {
+            construction_id: @job.id,
+            task_count: visible_tasks.count,
+            invisible_count: invisible_task_ids.size,
+            settings: SmSetting.instance.slice(:rollover_time, :rollover_timezone, :rollover_enabled)
+          }
+        }
       end
     end
   end

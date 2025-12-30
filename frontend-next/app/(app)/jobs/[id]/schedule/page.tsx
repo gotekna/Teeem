@@ -66,6 +66,18 @@ interface SmTasksResponse {
   sm_tasks: SmTask[];
 }
 
+// SSoT: Gantt data response from ?for=gantt
+interface GanttDataResponse {
+  success: boolean;
+  gantt_data: {
+    tasks: SmTask[];
+    dependencies: Array<{ source: number; target: number; type: string; lag: number }>;
+  };
+  meta: {
+    invisible_count: number;
+  };
+}
+
 // Sync types
 interface SyncResult {
   success: boolean;
@@ -358,13 +370,14 @@ export default function SchedulePage() {
     }
   }, [triggerRefresh]);
 
-  // Open Gantt - fetch tasks and show sheet
+  // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
     setGanttOpen(true);
     setLoadingGantt(true);
     try {
-      const tasksData = await api.get<SmTasksResponse>(`/api/v1/jobs/${jobId}/sm_tasks`);
-      setGanttTasks(tasksData.sm_tasks || []);
+      // SSoT: Use ?for=gantt to get filtered tasks (po_required without PO = invisible)
+      const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
+      setGanttTasks(response.gantt_data?.tasks || []);
     } catch (error) {
       console.error("Failed to fetch tasks for Gantt:", error);
       toast({ title: "Error", description: "Failed to load Gantt data", variant: "destructive" });
@@ -433,8 +446,9 @@ export default function SchedulePage() {
       });
     } catch (error) {
       console.error("Failed to update task:", error);
-      const tasksData = await api.get<SmTasksResponse>(`/api/v1/jobs/${jobId}/sm_tasks`);
-      setGanttTasks(tasksData.sm_tasks || []);
+      // SSoT: Refetch with ?for=gantt to get filtered tasks
+      const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
+      setGanttTasks(response.gantt_data?.tasks || []);
     }
   };
 
