@@ -363,10 +363,8 @@ export default function SchedulePage() {
     const shouldOpen = shouldOpenGantt || activeView === 'gantt';
     if (shouldOpen && !loading && job && !ganttOpen) {
       handleOpenGantt();
-      // Clear the gantt path/param to show table view underneath
-      router.replace(`/jobs/${jobId}/schedule`, { scroll: false });
     }
-  }, [shouldOpenGantt, activeView, loading, job, ganttOpen, handleOpenGantt, router, jobId]);
+  }, [shouldOpenGantt, activeView, loading, job, ganttOpen, handleOpenGantt]);
 
   // Convert tasks to Canvas Gantt format
   const ganttTasksFormatted = React.useMemo(() => {
