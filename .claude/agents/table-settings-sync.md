@@ -1,5 +1,5 @@
 ---
-name: Gold Std Table Integration
+name: Table Settings Sync
 description: |
   ╔═══════════════════════════════════════════════════════════╗
   ║  Table Detection:       Current table identified    [PASS]║

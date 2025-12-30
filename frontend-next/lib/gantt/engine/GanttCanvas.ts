@@ -842,6 +842,58 @@ export class GanttCanvas {
     this.recalculateCriticalPath();
   }
 
+  // ============================================================================
+  // SSoT: Dependency Helpers (derive predecessor/successor info from dependencies array)
+  // These replace direct access to task.predecessorIds which is being deprecated
+  // ============================================================================
+
+  /**
+   * Get predecessor task IDs for a given task (derived from dependencies array)
+   * SSoT: Use this instead of task.predecessorIds
+   */
+  getPredecessorIds(taskId: string): string[] {
+    return this.state.dependencies
+      .filter(d => d.toId === taskId)
+      .map(d => d.fromId);
+  }
+
+  /**
+   * Get successor task IDs for a given task
+   */
+  getSuccessorIds(taskId: string): string[] {
+    return this.state.dependencies
+      .filter(d => d.fromId === taskId)
+      .map(d => d.toId);
+  }
+
+  /**
+   * Check if a task has any predecessors
+   */
+  hasPredecessors(taskId: string): boolean {
+    return this.state.dependencies.some(d => d.toId === taskId);
+  }
+
+  /**
+   * Check if a task has any successors
+   */
+  hasSuccessors(taskId: string): boolean {
+    return this.state.dependencies.some(d => d.fromId === taskId);
+  }
+
+  /**
+   * Get predecessor count for a task
+   */
+  getPredecessorCount(taskId: string): number {
+    return this.state.dependencies.filter(d => d.toId === taskId).length;
+  }
+
+  /**
+   * Get successor count for a task
+   */
+  getSuccessorCount(taskId: string): number {
+    return this.state.dependencies.filter(d => d.fromId === taskId).length;
+  }
+
   /**
    * Set dark mode
    */

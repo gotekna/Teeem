@@ -1353,38 +1353,22 @@ module Api
 
       # SSoT: Render gantt data with po_required filtering + dependency rewiring
       # Used by job_index?for=gantt and gantt_data endpoints
+      # Uses GanttDataService for unified format (all dependencies use row.id, not task_number)
       def render_gantt_data(tasks)
-        # Build visibility map for po_required logic
-        # A task is invisible if po_required=true AND no PO is linked
-        # SSoT: Check PO link via has_linked_po? (PurchaseOrder.sm_task_id)
-        invisible_task_ids = Set.new
-        task_by_id = {}
-        tasks.each do |task|
-          task_by_id[task.id] = task
-          po_required = task.po_required || false
-          has_po = task.has_linked_po?
-          invisible_task_ids.add(task.id) if po_required && !has_po
-        end
-
-        # Rewire dependencies to skip invisible tasks
-        # If A → B → C and B is invisible, create A → C with combined lag
-        rewired_dependencies = rewire_dependencies_around_invisible(tasks, invisible_task_ids, task_by_id)
-
-        # Filter out invisible tasks from the task list
-        visible_tasks = tasks.reject { |t| invisible_task_ids.include?(t.id) }
+        # Use GanttDataService for SSoT conversion of task_number -> row.id
+        service = GanttDataService.new(tasks, filter_invisible: true)
+        result = service.build_response
 
         render json: {
           success: true,
           gantt_data: {
-            tasks: visible_tasks.map { |task| task_to_gantt_format(task) },
-            dependencies: rewired_dependencies
+            tasks: result[:tasks],
+            dependencies: result[:dependencies]
           },
-          meta: {
+          meta: result[:meta].merge(
             construction_id: @job.id,
-            task_count: visible_tasks.count,
-            invisible_count: invisible_task_ids.size,
             settings: SmSetting.instance.slice(:rollover_time, :rollover_timezone, :rollover_enabled)
-          }
+          )
         }
       end
     end

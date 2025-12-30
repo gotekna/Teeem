@@ -1,4 +1,25 @@
-# SSoT Model Auditor Agent
+---
+name: Method Auditor
+description: |
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  Model Analysis:          All priority models scanned [PASS]║
+  ║  Column Validation:       Method calls verified     [PASS]║
+  ║  Association Check:       Relations verified        [PASS]║
+  ║  NoMethodError Prevention: Time bombs detected      [PASS]║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Focus: Prevent NoMethodError crashes before deploy       ║
+  ║  SSoT: Rails models and their actual methods              ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Est. Tokens:           ~4,000                            ║
+  ╚═══════════════════════════════════════════════════════════╝
+model: sonnet
+color: orange
+type: diagnostic
+category: validation
+author: Robert
+---
+
+# Method Auditor Agent
 
 **The definitive tool for finding and fixing NoMethodError time bombs in Rails.**
 

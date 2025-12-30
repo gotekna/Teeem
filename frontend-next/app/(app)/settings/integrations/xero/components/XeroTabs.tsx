@@ -528,6 +528,62 @@ export function XeroContactSync() {
 
   // Custom cell renderer for special columns
   const customCellRenderer = React.useCallback((entry: TableRowType, columnKey: string) => {
+    // CONTACT column - clickable link to contact page (only if linked)
+    if (columnKey === "display_name") {
+      const contactId = entry.contact_id as number | null;
+      const displayName = entry.display_name as string | null;
+
+      // If no linked contact, show placeholder
+      if (!contactId || !displayName) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+
+      return (
+        <button
+          className="text-left hover:underline text-primary font-medium"
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push(`/contacts/${contactId}`);
+          }}
+        >
+          {displayName}
+        </button>
+      );
+    }
+
+    // XERO NAME column - clickable to open link management sheet
+    if (columnKey === "xero_name") {
+      const hasXeroName = entry.xero_name && (entry.xero_name as string) !== "";
+      return (
+        <button
+          className={cn(
+            "text-left w-full",
+            hasXeroName
+              ? "hover:underline text-blue-600 dark:text-blue-400"
+              : "text-muted-foreground cursor-default"
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (hasXeroName) {
+              setSelectedRow({
+                xeroName: entry.xero_name as string,
+                xeroId: entry.xero_id as string | null,
+                xeroTenantName: entry.xero_tenant_name as string | null,
+                xeroLinkId: entry.id as number,  // id is now xero_link_id in the view
+                currentContactId: entry.contact_id as number | null,
+                currentContactName: entry.display_name as string | null,
+                synced: entry.synced as boolean,
+                matchConfidence: entry.match_confidence as number | null,
+              });
+              setShowLinkSheet(true);
+            }
+          }}
+        >
+          {hasXeroName ? (entry.xero_name as string) : "—"}
+        </button>
+      );
+    }
+
     // Synced icon (for "synced" column)
     if (columnKey === "synced") {
       return entry.synced ? (
@@ -605,7 +661,7 @@ export function XeroContactSync() {
     }
 
     return null; // Use default rendering
-  }, []);
+  }, [router]);
 
   // Handle row click to navigate to contact
   const handleRowClick = React.useCallback((row: TableRowType) => {
@@ -645,6 +701,26 @@ export function XeroContactSync() {
           }
         />
       </div>
+
+      {/* Xero Link Management Sheet */}
+      {selectedRow && (
+        <XeroLinkToContactSheet
+          isOpen={showLinkSheet}
+          onClose={() => {
+            setShowLinkSheet(false);
+            setSelectedRow(null);
+          }}
+          xeroName={selectedRow.xeroName}
+          xeroId={selectedRow.xeroId}
+          xeroTenantName={selectedRow.xeroTenantName}
+          xeroLinkId={selectedRow.xeroLinkId}
+          currentContactId={selectedRow.currentContactId}
+          currentContactName={selectedRow.currentContactName}
+          synced={selectedRow.synced}
+          matchConfidence={selectedRow.matchConfidence}
+          onLinkChanged={() => setRefreshKey((prev) => prev + 1)}
+        />
+      )}
     </div>
   );
 }

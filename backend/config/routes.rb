@@ -1465,6 +1465,7 @@ Rails.application.routes.draw do
           post :delete_orphans   # Delete orphan tasks (unlinked job tasks)
           post :copy             # Copy entire template (versioned)
           post :import_rows      # Import rows from another template
+          get :gantt_data        # SSoT: Gantt-formatted data with row.id dependencies
         end
         collection do
           get :default

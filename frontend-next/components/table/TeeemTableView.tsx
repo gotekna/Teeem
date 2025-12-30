@@ -5558,7 +5558,11 @@ export default function TeeemTableView({
           onAutoFitChange={setAutoFitColumns}
           onShowTotalsChange={setShowTotals}
           onStickyActionsChange={setStickyActions}
-          onRefresh={onRefresh}
+          onRefresh={() => {
+            // Refresh both internal (autoFetch) and external (parent callback)
+            triggerAutoRefresh();
+            onRefresh?.();
+          }}
           rows={entries as Record<string, unknown>[]}
           currentColumnWidths={columnWidths}
           activeViewId={activeViewId}

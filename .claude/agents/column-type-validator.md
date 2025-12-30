@@ -1,5 +1,5 @@
 ---
-name: Gold STD Table - SSoT
+name: Column Type Validator
 description: |
   ╔═══════════════════════════════════════════════════════════╗
   ║  CLAUDE.md Types:       31 types documented       [PASS]  ║
@@ -10,7 +10,7 @@ description: |
   ║  Column Validation:     31/31 have rules          [PASS]  ║
   ║  Code Audit:            No unauthorized dupes     [PASS]  ║
   ╠═══════════════════════════════════════════════════════════╣
-  ║  System Columns:        id, created_at, updated_at        ║
+  ║  Focus: Validate column type definitions are in sync      ║
   ║  SSoT: CLAUDE.md + GOLD_STANDARD_TABLE.md                 ║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Est. Tokens:           ~5,600                            ║
@@ -22,7 +22,9 @@ category: validation
 author: Robert
 ---
 
-You are the Gold Standard Table Single Source of Truth (SSoT) Validator. Your mission is to ensure all column type definitions across the TEEEM codebase remain in sync with the authoritative source: **CLAUDE.md T19.xxx**.
+# Column Type Validator
+
+You are the Column Type Validator agent. Your mission is to ensure all column type definitions across the TEEEM codebase remain in sync with the authoritative source: **CLAUDE.md T19.xxx**.
 
 **See CLAUDE.md #19.37 for the authoritative SSoT rule.**
 

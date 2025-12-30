@@ -36,7 +36,6 @@ import {
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useDebouncedCallback } from "use-debounce";
 
 interface Contact {
   id: number;
@@ -91,43 +90,58 @@ export function XeroLinkToContactSheet({
     }
   }, [isOpen]);
 
-  // Debounced search for TEEEM contacts
-  const debouncedSearch = useDebouncedCallback(async (query: string) => {
-    if (!query.trim()) {
+  // Debounce timer ref
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Search for TEEEM contacts with debounce
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearch(value);
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!value.trim()) {
       setSearchResults([]);
       setSearching(false);
       return;
     }
 
     setSearching(true);
-    try {
-      const response = await api.get<{
-        success: boolean;
-        data: { records: Contact[] };
-      }>(`/api/v1/contacts?q=${encodeURIComponent(query)}&per_page=10`);
 
-      if (response?.success && response?.data?.records) {
-        // Filter out the currently linked contact
-        const filtered = response.data.records.filter(
-          (c) => c.id !== currentContactId
-        );
-        setSearchResults(filtered);
+    // Debounce the API call
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: { records: Contact[] };
+        }>(`/api/v1/contacts?q=${encodeURIComponent(value)}&per_page=10`);
+
+        if (response?.success && response?.data?.records) {
+          // Filter out the currently linked contact
+          const filtered = response.data.records.filter(
+            (c) => c.id !== currentContactId
+          );
+          setSearchResults(filtered);
+        }
+      } catch (error) {
+        console.error("Search failed:", error);
+      } finally {
+        setSearching(false);
       }
-    } catch (error) {
-      console.error("Search failed:", error);
-    } finally {
-      setSearching(false);
-    }
-  }, 300);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearch(value);
-    if (value.trim()) {
-      setSearching(true);
-    }
-    debouncedSearch(value);
+    }, 300);
   };
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Link Xero contact to a TEEEM contact
   const handleLinkToContact = async (contactId: number) => {

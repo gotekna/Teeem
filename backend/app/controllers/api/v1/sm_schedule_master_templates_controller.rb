@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows, :gantt_data ]
 
       # GET /api/v1/sm_schedule_master_templates
       # Params: include_inactive=true to include inactive templates
@@ -25,6 +25,27 @@ module Api
         render json: {
           success: true,
           sm_schedule_master_template: template_json(@template, include_rows: true)
+        }
+      end
+
+      # GET /api/v1/sm_schedule_master_templates/:id/gantt_data
+      # SSoT: Returns Gantt-formatted data with dependencies converted to row.id format
+      # This is THE SINGLE place that converts task_number references to row.id
+      def gantt_data
+        records = @template.sm_schedule_masters.ordered.includes(:supplier)
+        service = GanttDataService.new(records)
+        result = service.build_response
+
+        render json: {
+          success: true,
+          gantt_data: {
+            tasks: result[:tasks],
+            dependencies: result[:dependencies]
+          },
+          meta: result[:meta].merge(
+            template_id: @template.id,
+            template_name: @template.name
+          )
         }
       end
 
