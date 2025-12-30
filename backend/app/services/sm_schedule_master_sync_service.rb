@@ -845,8 +845,8 @@ class SmScheduleMasterSyncService
       template_value = self.class.normalize_lookup_value(field.to_s, raw_template_value, is_from_template: true)
       task_value = task.send(field)
 
-      # Only update if template has a value and it differs
-      if template_value.present? && template_value != task_value
+      # Master is SSoT - update if values differ (including nil overwriting values)
+      if template_value != task_value
         changes[field] = { from: task_value, to: template_value }
         task.send("#{field}=", template_value)
       end
