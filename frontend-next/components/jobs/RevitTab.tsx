@@ -16,7 +16,10 @@ import {
   ExternalLink,
   RefreshCw,
   FolderOpen,
+  Upload,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface SharePointItem {
@@ -112,6 +115,13 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
     currentFolderId: null,
   });
 
+  // Drag & drop state
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState<{ current: number; total: number } | null>(null);
+  const dragCounterRef = React.useRef(0);
+  const [revitFolderId, setRevitFolderId] = React.useState<string | null>(null);
+
   // Load folder contents
   const loadFolderContents = React.useCallback(
     async (folderName: string = "Revit", folderId?: string) => {
@@ -146,9 +156,14 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
           a.name.localeCompare(b.name)
         );
 
-        // Get Revit folder URL from found_folders (check both web_url and webUrl)
+        // Get Revit folder URL and ID from found_folders (check both web_url and webUrl)
         const revitFolder = response.found_folders?.[0];
-        const revitFolderUrl = revitFolder?.web_url || revitFolder?.webUrl || response.job_folder_web_url;
+        const revitFolderUrl = revitFolder?.web_url || (revitFolder as any)?.webUrl || response.job_folder_web_url;
+
+        // Store the folder ID for uploads
+        if (revitFolder?.id) {
+          setRevitFolderId(revitFolder.id);
+        }
 
         setBrowseState((prev) => ({
           ...prev,
@@ -202,6 +217,124 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
     }
   };
 
+  // Drag & drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    if (!revitFolderId) {
+      toast.error("Revit folder not found. Cannot upload files.");
+      return;
+    }
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    // Filter for CAD-related files (optional - can remove to allow any files)
+    const allowedExtensions = [
+      "rvt", "rfa", "rte", // Revit
+      "dwg", "dxf", // AutoCAD
+      "skp", // SketchUp
+      "udatasmith", "datasmith", // Datasmith
+      "fbx", "obj", "3ds", // 3D formats
+      "pdf", // PDFs
+      "jpg", "jpeg", "png", "gif", "bmp", // Images
+    ];
+
+    const validFiles = files.filter((file) => {
+      const ext = file.name.toLowerCase().split(".").pop() || "";
+      return allowedExtensions.includes(ext);
+    });
+
+    if (validFiles.length === 0) {
+      toast.error("No valid CAD files found. Supported: RVT, DWG, Datasmith, SKP, PDF, images");
+      return;
+    }
+
+    if (validFiles.length !== files.length) {
+      toast.warning(`Skipped ${files.length - validFiles.length} unsupported file(s)`);
+    }
+
+    await uploadFiles(validFiles);
+  };
+
+  // Upload files to SharePoint
+  const uploadFiles = async (files: File[]) => {
+    if (!revitFolderId) return;
+
+    setIsUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadProgress({ current: i + 1, total: files.length });
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("job_id", jobId.toString());
+        formData.append("folder_id", revitFolderId);
+
+        await api.postFormData("/api/v1/organization_onedrive/upload", formData);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to upload ${file.name}:`, err);
+        errorCount++;
+      }
+    }
+
+    setIsUploading(false);
+    setUploadProgress(null);
+
+    if (successCount > 0) {
+      toast.success(`Uploaded ${successCount} file${successCount !== 1 ? "s" : ""}`);
+      // Refresh to show new files
+      loadFolderContents("Revit");
+    }
+
+    if (errorCount > 0) {
+      toast.error(`Failed to upload ${errorCount} file${errorCount !== 1 ? "s" : ""}`);
+    }
+  };
+
+  // Handle manual file input
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      uploadFiles(Array.from(files));
+    }
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  };
+
   if (loading) {
     return (
       <Card>
@@ -230,8 +363,50 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
   const hasItems =
     browseState.subfolders.length > 0 || browseState.items.length > 0;
 
+  // Hidden file input ref
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   return (
-    <Card>
+    <Card
+      className={cn("relative", isDragging && "ring-2 ring-primary ring-offset-2")}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-primary/10 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg border-2 border-dashed border-primary">
+          <div className="text-center">
+            <Upload className="h-12 w-12 mx-auto mb-2 text-primary" />
+            <p className="text-lg font-medium text-primary">Drop files here</p>
+            <p className="text-sm text-muted-foreground">RVT, DWG, Datasmith, SKP, PDF</p>
+          </div>
+        </div>
+      )}
+
+      {/* Upload progress overlay */}
+      {isUploading && uploadProgress && (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+          <div className="text-center">
+            <Spinner size={32} className="mx-auto mb-2" />
+            <p className="text-lg font-medium">
+              Uploading {uploadProgress.current} of {uploadProgress.total}...
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden file input for manual upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        accept=".rvt,.rfa,.rte,.dwg,.dxf,.skp,.udatasmith,.datasmith,.fbx,.obj,.3ds,.pdf,.jpg,.jpeg,.png,.gif,.bmp"
+        onChange={handleFileInputChange}
+      />
+
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
@@ -245,7 +420,16 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!revitFolderId || isUploading}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isUploading}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -287,12 +471,20 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
         </div>
 
         {!hasItems ? (
-          <div className="py-12 text-center text-muted-foreground">
-            <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No files found in the Revit folder.</p>
-            <p className="text-sm mt-2">
-              Upload files to SharePoint to see them here.
+          <div className="py-12 text-center text-muted-foreground border-2 border-dashed rounded-lg">
+            <Upload className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="font-medium">No files in the Revit folder yet</p>
+            <p className="text-sm mt-2 mb-4">
+              Drag & drop CAD files here, or click Upload
             </p>
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!revitFolderId || isUploading}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Files
+            </Button>
           </div>
         ) : (
           <div className="border rounded-lg overflow-hidden">

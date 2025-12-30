@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_125650) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_131402) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2779,6 +2779,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_125650) do
     t.string "display_mode", default: "both", null: false
     t.boolean "hidden_by_default", default: false, null: false
     t.string "sharepoint_folder_id"
+    t.boolean "is_cad_category"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"
