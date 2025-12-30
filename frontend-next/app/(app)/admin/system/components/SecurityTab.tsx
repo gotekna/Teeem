@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useUrlSubTabs } from "@/hooks/useUrlTabs";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -890,9 +890,17 @@ function GroupsManagementTab() {
 }
 
 // Main Security Tab Component
-export function SecurityTab() {
-  // SSoT: URL subtab state managed by useUrlSubTabs hook
-  const [securityTab, handleTabChange] = useUrlSubTabs("users", "securityTab");
+interface SecurityTabProps {
+  innertab?: string;
+}
+
+export function SecurityTab({ innertab }: SecurityTabProps) {
+  const router = useRouter();
+  const securityTab = innertab || "users";
+
+  const handleTabChange = React.useCallback((tab: string) => {
+    router.push(`/admin/system/company/security/${tab}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-6">

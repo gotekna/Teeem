@@ -8,7 +8,7 @@ import { DocumentTypesTab } from "./DocumentTypesTab";
 import { SharePointTab } from "./SharePointTab";
 import { Building2, Users, Briefcase, ArrowLeft, FileText, Settings, Contact2 } from "lucide-react";
 import { api } from "@/lib/api";
-import useUrlTabs from "@/hooks/useUrlTabs";
+import { useRouter } from "next/navigation";
 
 /**
  * EntityConfigurationTab - SSoT for ALL tab configuration
@@ -24,6 +24,7 @@ import useUrlTabs from "@/hooks/useUrlTabs";
  */
 interface EntityConfigurationTabProps {
   onClose?: () => void;  // Called when user exits fullscreen
+  scope?: string;  // Path-based scope
 }
 
 const scopes = [
@@ -78,9 +79,13 @@ const scopes = [
   },
 ] as const;
 
-export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps) {
-  // SSoT: Scope synced to URL for back button support
-  const [activeScope, setActiveScope] = useUrlTabs("corporate_entity", "scope");
+export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTabProps) {
+  const router = useRouter();
+  const activeScope = scope || "corporate_entity";
+
+  const setActiveScope = React.useCallback((newScope: string) => {
+    router.push(`/admin/system/entity-config/${newScope}`, { scroll: false });
+  }, [router]);
   const [scopeCounts, setScopeCounts] = React.useState<Record<string, number>>({});
 
   // Fetch document type counts per scope

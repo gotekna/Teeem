@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -129,10 +128,18 @@ const MOCK_BRANCHES: GitBranchInfo[] = [
   { name: "jake", current: false, lastCommit: "557ba494", behind: 2, ahead: 0 },
 ];
 
-export function DeveloperToolsTab() {
-  const [activeTab, setActiveTab] = useUrlTabs("tables", "dev-tab");
+interface DeveloperToolsTabProps {
+  subtab?: string;
+}
+
+export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const activeTab = subtab || "tables";
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/admin/system/developer-tools/${tab}`, { scroll: false });
+  }, [router]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [tables, setTables] = React.useState<TableInfo[]>([]);

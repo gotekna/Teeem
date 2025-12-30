@@ -192,8 +192,7 @@ export default function SystemAdminCatchAllPage({
         return <NavigationTab />;
 
       case "entity-config":
-        // EntityConfigurationTab handles its own scope routing
-        return <EntityConfigurationTab />;
+        return <EntityConfigurationTab scope={subtab} />;
 
       case "schedule-master":
         // ScheduleMasterTab handles its own subtab/view routing internally

@@ -374,6 +374,47 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Design System Routes ===
+  if (pathname === "/design-system") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/design-system/${tab}`;
+    }
+  }
+
+  // === Admin System Inner Tab Routes ===
+  // GoldStandardTab (/admin/system/components?gold-tab=xxx)
+  if (pathname === "/admin/system/components") {
+    const goldTab = searchParams.get("gold-tab");
+    if (goldTab) {
+      redirectPath = `/admin/system/components/${goldTab}`;
+    }
+  }
+
+  // DeveloperToolsTab (/admin/system/developer-tools?dev-tab=xxx)
+  if (pathname === "/admin/system/developer-tools") {
+    const devTab = searchParams.get("dev-tab");
+    if (devTab) {
+      redirectPath = `/admin/system/developer-tools/${devTab}`;
+    }
+  }
+
+  // SecurityTab (/admin/system/company/security?securityTab=xxx)
+  if (pathname === "/admin/system/company/security") {
+    const securityTab = searchParams.get("securityTab");
+    if (securityTab) {
+      redirectPath = `/admin/system/company/security/${securityTab}`;
+    }
+  }
+
+  // EntityConfigurationTab (/admin/system/entity-config?scope=xxx)
+  if (pathname === "/admin/system/entity-config") {
+    const scope = searchParams.get("scope");
+    if (scope) {
+      redirectPath = `/admin/system/entity-config/${scope}`;
+    }
+  }
+
   // Perform redirect if we have a new path
   if (redirectPath) {
     const url = request.nextUrl.clone();
