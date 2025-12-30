@@ -5,6 +5,8 @@
 # Uses Breadth-First Search (BFS) to detect cycles before creating dependencies.
 # Prevents infinite cascade loops.
 #
+# SSoT: Uses predecessor_ids jsonb column on SmTask (not SmDependency table)
+#
 # See GANTT_ARCHITECTURE_PLAN.md Section 6.1 (Architecture Review)
 #
 class SmDependencyGraphService
@@ -27,7 +29,14 @@ class SmDependencyGraphService
     return true if from_task_id == to_task_id
 
     visited = Set.new
-    queue = [ from_task_id ]
+    queue = [from_task_id]
+
+    # Build task lookup for job
+    from_task = SmTask.find_by(id: from_task_id)
+    return false unless from_task&.job_id
+
+    task_lookup = construction.sm_tasks.index_by(&:id)
+    task_by_number = construction.sm_tasks.index_by(&:task_number)
 
     while queue.any?
       current_id = queue.shift
@@ -35,10 +44,13 @@ class SmDependencyGraphService
 
       visited.add(current_id)
 
-      # Get all successors of current task
-      successor_ids = SmDependency
-        .where(predecessor_task_id: current_id, active: true)
-        .pluck(:successor_task_id)
+      # Get all successors of current task (tasks that have current in predecessor_ids)
+      current_task = task_lookup[current_id]
+      next unless current_task
+
+      successor_ids = construction.sm_tasks
+        .where("predecessor_ids @> ?", [{ id: current_task.task_number }].to_json)
+        .pluck(:id)
 
       return true if successor_ids.include?(to_task_id)
 
@@ -52,7 +64,10 @@ class SmDependencyGraphService
   def affected_tasks(task_id, direction: :downstream)
     visited = Set.new
     result = []
-    queue = [ task_id ]
+    queue = [task_id]
+
+    task_lookup = construction.sm_tasks.index_by(&:id)
+    task_by_number = construction.sm_tasks.index_by(&:task_number)
 
     while queue.any?
       current_id = queue.shift
@@ -62,15 +77,21 @@ class SmDependencyGraphService
       visited.add(current_id)
       result << current_id
 
+      current_task = task_lookup[current_id]
+      next unless current_task
+
       # Get next level based on direction
       next_ids = if direction == :downstream
-        SmDependency
-          .where(predecessor_task_id: current_id, active: true)
-          .pluck(:successor_task_id)
+        # Find tasks that have current_task in their predecessor_ids
+        construction.sm_tasks
+          .where("predecessor_ids @> ?", [{ id: current_task.task_number }].to_json)
+          .pluck(:id)
       else
-        SmDependency
-          .where(successor_task_id: current_id, active: true)
-          .pluck(:predecessor_task_id)
+        # Find predecessor tasks from predecessor_ids
+        current_task.predecessor_ids.filter_map do |pred_data|
+          pred_task_number = (pred_data["id"] || pred_data[:id]).to_i
+          task_by_number[pred_task_number]&.id
+        end
       end
 
       queue.concat(next_ids - visited.to_a)
@@ -82,26 +103,31 @@ class SmDependencyGraphService
   # Topological sort of all tasks in construction
   # Returns tasks in order where predecessors come before successors
   def topological_sort
-    # Build adjacency list
-    tasks = construction.sm_tasks.pluck(:id)
-    dependencies = SmDependency
-      .joins(:predecessor_task, :successor_task)
-      .where(active: true)
-      .where(predecessor_task: { construction_id: construction.id })
-      .pluck(:predecessor_task_id, :successor_task_id)
+    # Build adjacency list from predecessor_ids jsonb
+    tasks = construction.sm_tasks.to_a
+    task_by_number = tasks.index_by(&:task_number)
 
     in_degree = Hash.new(0)
     adjacency = Hash.new { |h, k| h[k] = [] }
 
-    tasks.each { |t| in_degree[t] = 0 }
+    tasks.each { |t| in_degree[t.id] = 0 }
 
-    dependencies.each do |pred, succ|
-      adjacency[pred] << succ
-      in_degree[succ] += 1
+    # Build graph from predecessor_ids on each task
+    tasks.each do |task|
+      next if task.predecessor_ids.blank?
+
+      task.predecessor_ids.each do |pred_data|
+        pred_task_number = (pred_data["id"] || pred_data[:id]).to_i
+        predecessor = task_by_number[pred_task_number]
+        next unless predecessor
+
+        adjacency[predecessor.id] << task.id
+        in_degree[task.id] += 1
+      end
     end
 
     # Kahn's algorithm
-    queue = tasks.select { |t| in_degree[t] == 0 }
+    queue = tasks.select { |t| in_degree[t.id] == 0 }.map(&:id)
     result = []
 
     while queue.any?
@@ -133,7 +159,7 @@ class SmDependencyGraphService
   # Find all dependency paths between two tasks
   def find_paths(from_task_id, to_task_id, max_paths: 10)
     paths = []
-    current_path = [ from_task_id ]
+    current_path = [from_task_id]
 
     dfs_paths(from_task_id, to_task_id, current_path, paths, max_paths)
     paths
@@ -156,9 +182,13 @@ class SmDependencyGraphService
       return
     end
 
-    successor_ids = SmDependency
-      .where(predecessor_task_id: current, active: true)
-      .pluck(:successor_task_id)
+    current_task = SmTask.find_by(id: current)
+    return unless current_task
+
+    # Find successors (tasks that have current_task in their predecessor_ids)
+    successor_ids = construction.sm_tasks
+      .where("predecessor_ids @> ?", [{ id: current_task.task_number }].to_json)
+      .pluck(:id)
 
     successor_ids.each do |succ|
       next if path.include?(succ) # Avoid cycles in path finding
@@ -185,14 +215,19 @@ class SmDependencyGraphService
       lock_type: task.lock_type
     }
 
+    task_by_number = construction.sm_tasks.index_by(&:task_number)
+
     next_ids = if direction == :downstream
-      SmDependency
-        .where(predecessor_task_id: task_id, active: true)
-        .pluck(:successor_task_id)
+      # Find tasks that have this task in their predecessor_ids
+      construction.sm_tasks
+        .where("predecessor_ids @> ?", [{ id: task.task_number }].to_json)
+        .pluck(:id)
     else
-      SmDependency
-        .where(successor_task_id: task_id, active: true)
-        .pluck(:predecessor_task_id)
+      # Find predecessor tasks
+      task.predecessor_ids.filter_map do |pred_data|
+        pred_task_number = (pred_data["id"] || pred_data[:id]).to_i
+        task_by_number[pred_task_number]&.id
+      end
     end
 
     next_ids.each do |next_id|

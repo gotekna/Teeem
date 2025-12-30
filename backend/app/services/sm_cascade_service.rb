@@ -204,24 +204,10 @@ class SmCascadeService
   end
 
   def find_cross_job_successors(date_delta)
-    # Find dependencies that cross job boundaries
-    SmDependency.where(predecessor_task_id: task.id, active: true)
-                .joins(:successor_task)
-                .where.not(sm_tasks: { construction_id: construction.id })
-                .map do |dep|
-      successor = dep.successor_task
-      {
-        id: successor.id,
-        task_number: successor.task_number,
-        name: successor.name,
-        construction_id: successor.construction_id,
-        construction_title: successor.construction.title,
-        dependency_type: dep.dependency_type,
-        lag_days: dep.lag_days,
-        locked: locked?(successor),
-        lock_type: get_lock_type(successor)
-      }
-    end
+    # SSoT: Cross-job dependencies not supported with jsonb predecessor_ids
+    # (predecessor_ids uses task_number which is job-scoped)
+    # Return empty array - cross-job dependencies would need different storage
+    []
   end
 
   def direct_successors
