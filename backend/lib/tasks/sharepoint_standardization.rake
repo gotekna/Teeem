@@ -73,30 +73,42 @@ namespace :sharepoint do
     puts "Jobs folder ID: #{jobs_folder_id}"
     puts ""
 
-    # Get all children of the jobs folder
-    puts "Fetching all job folders from SharePoint..."
-    all_folders = []
-    url = "/drives/#{drive_id}/items/#{jobs_folder_id}/children?$filter=folder ne null&$select=id,name,folder"
-
-    loop do
-      response = client.get(url)
-      all_folders.concat(response["value"] || [])
-      url = response["@odata.nextLink"]&.sub("https://graph.microsoft.com/v1.0", "")
-      break unless url
+    # Helper to fetch all items from a folder (handles pagination)
+    fetch_folder_items = lambda do |folder_id|
+      items = []
+      url = "/drives/#{drive_id}/items/#{folder_id}/children?$filter=folder ne null&$select=id,name,folder"
+      loop do
+        response = client.get(url)
+        items.concat(response["value"] || [])
+        url = response["@odata.nextLink"]&.sub("https://graph.microsoft.com/v1.0", "")
+        break unless url
+      end
+      items
     end
 
-    puts "Found #{all_folders.count} folders in SharePoint"
-    puts ""
-
-    # Build lookup by folder name prefix (job ID)
+    # Search for job folders (recursively up to 2 levels deep)
+    puts "Fetching all job folders from SharePoint (including subfolders)..."
     folder_lookup = {}
-    all_folders.each do |folder|
-      # Extract job ID from folder name (e.g., "045 - 146 Balmoral Road" -> 45)
-      if folder["name"] =~ /^(\d{3})\s*-/
-        job_id = $1.to_i
-        folder_lookup[job_id] = folder
+
+    search_for_jobs = lambda do |folder_id, depth = 0, path = ""|
+      items = fetch_folder_items.call(folder_id)
+      items.each do |folder|
+        name = folder["name"]
+        # Check if this is a job folder
+        if name =~ /^(\d{3})\s*-/
+          job_id = $1.to_i
+          folder_lookup[job_id] = folder.merge("path" => path)
+        elsif depth < 2
+          # Recurse into subfolders (but not into job folders)
+          search_for_jobs.call(folder["id"], depth + 1, "#{path}#{name}/")
+        end
       end
     end
+
+    search_for_jobs.call(jobs_folder_id)
+
+    puts "Found #{folder_lookup.count} job folders in SharePoint"
+    puts ""
 
     # Update jobs
     updated = 0
@@ -109,7 +121,8 @@ namespace :sharepoint do
       folder = folder_lookup[job.id]
       if folder
         job.update_column(:sharepoint_folder_id, folder["id"])
-        puts "✅ Job #{job.id}: #{folder['name']} -> #{folder['id']}"
+        path_info = folder["path"].present? ? " (in #{folder['path']})" : ""
+        puts "✅ Job #{job.id}: #{folder['name']}#{path_info}"
         updated += 1
       else
         puts "⚠️  Job #{job.id}: No matching folder found"
