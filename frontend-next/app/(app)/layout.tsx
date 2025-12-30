@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAtomValue } from "jotai";
 import { Sidebar } from "@/components/ui/sidebar";
@@ -12,7 +12,7 @@ import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { LayoutModeProvider, useLayoutMode } from "@/contexts/LayoutModeContext";
 import { BreadcrumbProvider } from "@/contexts/BreadcrumbContext";
 import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/BreadcrumbTrail";
-import { breadcrumbPinnedAtom, breadcrumbTrailAtom } from "@/lib/breadcrumb-atoms";
+import { breadcrumbPinnedAtom, breadcrumbTrailAtom, breadcrumbVisibleAtom } from "@/lib/breadcrumb-atoms";
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 
@@ -24,10 +24,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const vitalsInitialized = useRef(false);
 
-  // Breadcrumb state for content push-down when pinned
+  // Breadcrumb state for content push-down
   const isPinned = useAtomValue(breadcrumbPinnedAtom);
+  const isVisible = useAtomValue(breadcrumbVisibleAtom);
   const trail = useAtomValue(breadcrumbTrailAtom);
-  const shouldShowBreadcrumbSpace = isPinned && trail.length > 1;
+  // Push content down when breadcrumb is showing (pinned or hover)
+  const hasTrail = trail.length >= 1;
+  const hasHistory = trail.length > 1;
+  const shouldShowBreadcrumbSpace = hasTrail && (isPinned || (isVisible && hasHistory));
 
   // Initialize Performance Observatory Web Vitals collection
   useEffect(() => {
@@ -105,9 +109,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <ViewModeProvider>
         <LayoutModeProvider>
-          <BreadcrumbProvider>
-            <AppLayoutContent>{children}</AppLayoutContent>
-          </BreadcrumbProvider>
+          <Suspense fallback={null}>
+            <BreadcrumbProvider>
+              <AppLayoutContent>{children}</AppLayoutContent>
+            </BreadcrumbProvider>
+          </Suspense>
         </LayoutModeProvider>
       </ViewModeProvider>
     </SidebarProvider>
