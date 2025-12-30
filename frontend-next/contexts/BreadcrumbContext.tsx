@@ -30,7 +30,7 @@ import {
   MAX_TRAIL_LENGTH,
   type BreadcrumbItem,
 } from "@/lib/breadcrumb-atoms";
-import { resolveDisplayName, resolveIcon, isSameRoute } from "@/lib/breadcrumb-utils";
+import { resolveDisplayName, resolveIcon, isSameRoute, isDefaultView } from "@/lib/breadcrumb-utils";
 
 interface BreadcrumbContextType {
   /** Set a custom display name for the current page */
@@ -111,9 +111,14 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
     if (fullPath === previousPathRef.current) return;
     previousPathRef.current = fullPath;
 
-    // If resetting, add this as the first item of new trail
+    // If resetting, add this as the first item of new trail (unless it's a default view)
     if (isResettingRef.current) {
       isResettingRef.current = false;
+      // Don't add default views as the first item - they're implicit
+      if (isDefaultView(pathname)) {
+        setTrail([]);
+        return;
+      }
       const newItem: BreadcrumbItem = {
         id: generateBreadcrumbId(pathname),
         pathname,
@@ -140,6 +145,12 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
           displayName: resolveDisplayName(pathname, searchParams),
         };
         return truncated;
+      }
+
+      // Skip default views - they're implicit and clutter the breadcrumb
+      // e.g., /jobs/123/overview (overview is default), /jobs/123/schedule/setup (setup is default)
+      if (isDefaultView(pathname)) {
+        return prev;
       }
 
       // New navigation - add to trail (tabs stack)

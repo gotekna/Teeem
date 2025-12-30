@@ -152,6 +152,29 @@ const PAGES_WITH_DEFAULT_TAB: Record<string, string> = {
 };
 
 /**
+ * Default tabs for entity detail pages
+ * When navigating to these, don't add to breadcrumb (they're implicit)
+ * Key: entity type, Value: default tab name
+ */
+const ENTITY_DEFAULT_TABS: Record<string, string> = {
+  jobs: "overview",
+  contacts: "overview",
+  leads: "overview",
+  purchase_orders: "overview",
+  estimates: "overview",
+  companies: "overview",
+};
+
+/**
+ * Default child views for nested paths
+ * Key: parent path pattern, Value: default child segment
+ * e.g., /jobs/123/schedule defaults to /jobs/123/schedule/setup
+ */
+const DEFAULT_CHILD_VIEWS: Record<string, string> = {
+  "schedule": "setup",  // /jobs/*/schedule/setup is default
+};
+
+/**
  * Resolve a display name for a pathname
  *
  * @param pathname - URL pathname (e.g., "/jobs/123")
@@ -277,4 +300,42 @@ export function isSiblingTab(path1: string, path2: string): boolean {
   const parent2 = segments2.slice(0, -1).join('/');
 
   return parent1 === parent2;
+}
+
+/**
+ * Check if a pathname is a default view that should be skipped in breadcrumb
+ * Default views are implicit - no need to clutter the trail
+ *
+ * Examples:
+ * - /jobs/123/overview -> true (overview is default for jobs)
+ * - /jobs/123/schedule/setup -> true (setup is default for schedule)
+ * - /jobs/123/plans -> false (not a default)
+ */
+export function isDefaultView(pathname: string): boolean {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length < 3) return false;
+
+  const lastSegment = segments[segments.length - 1];
+
+  // Check for entity/id/tab pattern where tab is default
+  // e.g., /jobs/123/overview
+  if (segments.length === 3 && /^\d+$/.test(segments[1])) {
+    const entityType = segments[0];
+    const defaultTab = ENTITY_DEFAULT_TABS[entityType];
+    if (defaultTab && lastSegment === defaultTab) {
+      return true;
+    }
+  }
+
+  // Check for nested default views
+  // e.g., /jobs/123/schedule/setup where setup is default for schedule
+  if (segments.length >= 4) {
+    const parentSegment = segments[segments.length - 2];
+    const defaultChild = DEFAULT_CHILD_VIEWS[parentSegment];
+    if (defaultChild && lastSegment === defaultChild) {
+      return true;
+    }
+  }
+
+  return false;
 }
