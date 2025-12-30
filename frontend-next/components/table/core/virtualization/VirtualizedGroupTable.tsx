@@ -209,7 +209,7 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                     <div
                       key={`${column.key}-${colIndex}`}
                       className={cn(
-                        "flex items-center px-2 whitespace-nowrap",
+                        "flex items-center px-2 whitespace-nowrap overflow-hidden",
                         column.key === "select" && "justify-center px-0",
                         column.key === "actions" && "justify-end"
                       )}
