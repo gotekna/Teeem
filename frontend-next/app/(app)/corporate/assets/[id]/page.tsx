@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -241,18 +241,26 @@ interface AssetExpense {
 export default function AssetDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const assetId = params.id as string;
 
-  // URL is SSoT for tab state (back button support)
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "details";
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = React.useMemo(() => {
+    const basePath = `/corporate/assets/${assetId}`;
+    const pathSuffix = pathname.replace(basePath, "");
+    const parts = pathSuffix.split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname, assetId]);
+
+  // Redirect to default tab if no tab in URL
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace(`/corporate/assets/${assetId}/details`, { scroll: false });
+    }
+  }, [activeTab, router, assetId]);
 
   const handleTabChange = React.useCallback((tabId: string) => {
-    const url = tabId === "details"
-      ? `/corporate/assets/${assetId}`
-      : `/corporate/assets/${assetId}?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/corporate/assets/${assetId}/${tabId}`, { scroll: false });
   }, [assetId, router]);
 
   const [asset, setAsset] = React.useState<Asset | null>(null);

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,16 +87,30 @@ export default function CompanyDetailPage() {
   useSetLayoutMode("full-height");
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const companyId = params.id as string;
 
   const [loading, setLoading] = React.useState(true);
   const [company, setCompany] = React.useState<Company | null>(null);
+
   // URL is SSoT for tab state (back button support)
-  const tabFromUrl = searchParams.get("tab");
-  const subtabFromUrl = searchParams.get("subtab");
-  const activeTab = tabFromUrl || "overview";
-  const overviewSubTab = subtabFromUrl || "info";
+  // Parse path: /corporate/companies/123/overview/info → { tab: "overview", subtab: "info" }
+  const { activeTab, overviewSubTab } = React.useMemo(() => {
+    const basePath = `/corporate/companies/${companyId}`;
+    const pathSuffix = pathname.replace(basePath, "");
+    const parts = pathSuffix.split("/").filter(Boolean);
+    return {
+      activeTab: parts[0] || null,
+      overviewSubTab: parts[0] === "overview" ? (parts[1] || "info") : "info",
+    };
+  }, [pathname, companyId]);
+
+  // Redirect to default tab if no tab in URL
+  React.useEffect(() => {
+    if (activeTab === null && !loading) {
+      router.replace(`/corporate/companies/${companyId}/overview/info`, { scroll: false });
+    }
+  }, [activeTab, loading, router, companyId]);
 
   // Company edit sheet state
   const [isEditSheetOpen, setIsEditSheetOpen] = React.useState(false);
@@ -297,28 +311,23 @@ export default function CompanyDetailPage() {
     // SSoT: Xero tabs now rendered via XeroTabRenderer (Phase 5)
   }, [loadCompany, loadDocumentCounts, loadHealthScore]);
 
-  // Tab change handlers - URL is SSoT
-  const handleTabChange = (tabId: string) => {
+  // Tab change handlers - URL is SSoT (path-based navigation)
+  const handleTabChange = React.useCallback((tabId: string) => {
     // Redirect Data tab to data warehouse page with company filter
     if (tabId === "data-main") {
       router.push(`/data-warehouse?company_id=${companyId}`);
       return;
     }
-    // Reset subtab when switching main tabs
+    // For overview, default to info subtab
     const url = tabId === "overview"
-      ? `/corporate/companies/${companyId}`
-      : `/corporate/companies/${companyId}?tab=${tabId}`;
+      ? `/corporate/companies/${companyId}/overview/info`
+      : `/corporate/companies/${companyId}/${tabId}`;
     router.push(url, { scroll: false });
-  };
+  }, [router, companyId]);
 
-  const handleSubTabChange = (subTabId: string) => {
-    const params = new URLSearchParams();
-    params.set("tab", "overview");
-    if (subTabId !== "info") {
-      params.set("subtab", subTabId);
-    }
-    router.push(`/corporate/companies/${companyId}?${params.toString()}`, { scroll: false });
-  };
+  const handleSubTabChange = React.useCallback((subTabId: string) => {
+    router.push(`/corporate/companies/${companyId}/overview/${subTabId}`, { scroll: false });
+  }, [router, companyId]);
 
   if (loading) {
     return (
