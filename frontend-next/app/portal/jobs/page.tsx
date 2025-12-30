@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import useUrlTabs from "@/hooks/useUrlTabs";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import {
@@ -43,9 +43,28 @@ interface JobsData {
 type TabKey = keyof JobsData;
 
 export default function PortalJobs() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab navigation
+  const activeTabRaw = useMemo(() => {
+    const parts = pathname.replace("/portal/jobs", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (activeTabRaw === null) {
+      router.replace("/portal/jobs/upcoming", { scroll: false });
+    }
+  }, [activeTabRaw, router]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/portal/jobs/${tab}`, { scroll: false });
+  }, [router]);
+
+  const activeTab = (activeTabRaw || "upcoming") as TabKey;
+
   const [loading, setLoading] = useState(true);
-  // SSoT: Tab synced to URL for back button support
-  const [activeTab, setActiveTab] = useUrlTabs("upcoming") as [TabKey, (tab: string) => void];
   const [jobs, setJobs] = useState<JobsData>({
     upcoming: [],
     in_progress: [],

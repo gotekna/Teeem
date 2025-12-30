@@ -253,3 +253,27 @@ function humanizeSegment(segment: string): string {
 export function isSameRoute(path1: string, path2: string): boolean {
   return path1.split('?')[0] === path2.split('?')[0];
 }
+
+/**
+ * Check if two pathnames are sibling tabs (same parent entity, different tab)
+ * e.g., /jobs/123/overview and /jobs/123/plans are siblings
+ * Used to replace tab in breadcrumb instead of adding new item
+ */
+export function isSiblingTab(path1: string, path2: string): boolean {
+  const segments1 = path1.split('/').filter(Boolean);
+  const segments2 = path2.split('/').filter(Boolean);
+
+  // Both need at least 3 segments: entity/id/tab (e.g., jobs/123/plans)
+  if (segments1.length < 3 || segments2.length < 3) return false;
+
+  // Check if it's an entity/id/tab pattern (second-to-last is numeric)
+  const hasNumericId1 = /^\d+$/.test(segments1[segments1.length - 2]);
+  const hasNumericId2 = /^\d+$/.test(segments2[segments2.length - 2]);
+  if (!hasNumericId1 || !hasNumericId2) return false;
+
+  // Compare parent paths (everything except last segment/tab)
+  const parent1 = segments1.slice(0, -1).join('/');
+  const parent2 = segments2.slice(0, -1).join('/');
+
+  return parent1 === parent2;
+}

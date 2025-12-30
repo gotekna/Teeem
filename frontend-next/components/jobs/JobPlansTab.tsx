@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, DragEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -127,6 +128,7 @@ interface JobPlansTabProps {
 
 export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const { toast } = useToast();
+  const router = useRouter();
 
   // Plans tab ALWAYS runs in fullscreen mode to maximize plan viewing area
   // This hides the parent tabs and gives full screen real estate for plans
@@ -1127,17 +1129,17 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       {/* Header bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
           <span className="font-medium">{jobTitle}</span>
           <Badge variant="secondary">Plans</Badge>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/jobs/${jobId}/overview`)}
+        >
+          <X className="h-4 w-4 mr-1" />
+          Close
+        </Button>
       </div>
 
       {/* Main content - full remaining height */}

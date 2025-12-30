@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import {
   DollarSign,
   TrendingUp,
@@ -85,8 +84,24 @@ interface Ticket {
 export default function SaasCustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const customerId = params.id as string;
-  const [activeTab, setActiveTab] = useUrlTabs("billing");
+
+  // Path-based tab navigation
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace(`/admin/saas-customers/${customerId}`, "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname, customerId]);
+
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace(`/admin/saas-customers/${customerId}/billing`, { scroll: false });
+    }
+  }, [activeTab, router, customerId]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/admin/saas-customers/${customerId}/${tab}`, { scroll: false });
+  }, [router, customerId]);
 
   const [customer, setCustomer] = useState<SaasCustomer | null>(null);
   const [profitability, setProfitability] = useState<ProfitabilityData | null>(null);
@@ -335,7 +350,7 @@ export default function SaasCustomerDetailPage() {
       )}
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab || "billing"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="billing">Billing History</TabsTrigger>
           <TabsTrigger value="tickets">

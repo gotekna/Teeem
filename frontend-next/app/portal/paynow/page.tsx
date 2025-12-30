@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import axios from "axios";
 import {
   BanknotesIcon,
@@ -68,10 +68,28 @@ interface Tab {
 }
 
 export default function PortalPayNow() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab navigation
+  const activeTabRaw = useMemo(() => {
+    const parts = pathname.replace("/portal/paynow", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (activeTabRaw === null) {
+      router.replace("/portal/paynow/pending", { scroll: false });
+    }
+  }, [activeTabRaw, router]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/portal/paynow/${tab}`, { scroll: false });
+  }, [router]);
+
+  const activeTab = (activeTabRaw || "pending") as keyof Requests;
+
   const [loading, setLoading] = useState(true);
-  // SSoT: URL tab state managed by useUrlTabs hook
-  const [activeTabRaw, setActiveTab] = useUrlTabs("pending");
-  const activeTab = activeTabRaw as keyof Requests;
   const [requests, setRequests] = useState<Requests>({
     pending: [],
     approved: [],

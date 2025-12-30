@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import useUrlTabs from "@/hooks/useUrlTabs";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import {
@@ -47,9 +47,28 @@ interface QuotesData {
 type TabKey = keyof QuotesData;
 
 export default function PortalQuotes() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab navigation
+  const activeTabRaw = useMemo(() => {
+    const parts = pathname.replace("/portal/quotes", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (activeTabRaw === null) {
+      router.replace("/portal/quotes/pending", { scroll: false });
+    }
+  }, [activeTabRaw, router]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/portal/quotes/${tab}`, { scroll: false });
+  }, [router]);
+
+  const activeTab = (activeTabRaw || "pending") as TabKey;
+
   const [loading, setLoading] = useState(true);
-  // SSoT: Tab synced to URL for back button support
-  const [activeTab, setActiveTab] = useUrlTabs("pending") as [TabKey, (tab: string) => void];
   const [quotes, setQuotes] = useState<QuotesData>({
     pending: [],
     submitted: [],

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import useUrlTabs from "@/hooks/useUrlTabs";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import {
@@ -53,9 +53,28 @@ interface InvoicesData {
 type TabKey = "all" | "pending" | "synced" | "paid" | "failed";
 
 export default function PortalInvoices() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab navigation
+  const activeTabRaw = useMemo(() => {
+    const parts = pathname.replace("/portal/invoices", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (activeTabRaw === null) {
+      router.replace("/portal/invoices/all", { scroll: false });
+    }
+  }, [activeTabRaw, router]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/portal/invoices/${tab}`, { scroll: false });
+  }, [router]);
+
+  const activeTab = (activeTabRaw || "all") as TabKey;
+
   const [loading, setLoading] = useState(true);
-  // SSoT: Tab synced to URL for back button support
-  const [activeTab, setActiveTab] = useUrlTabs("all") as [TabKey, (tab: string) => void];
   const [invoices, setInvoices] = useState<InvoicesData>({
     pending: [],
     synced: [],
