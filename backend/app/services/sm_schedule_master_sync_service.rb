@@ -603,12 +603,61 @@ class SmScheduleMasterSyncService
       end
     end
 
+    # SSoT: Sync predecessor_ids after all tasks exist (requires remapping)
+    sync_predecessor_ids_for_job(job, template)
+
     Rails.logger.info "[SmScheduleMasterSyncService] Bulk sync for job #{job.id}: " \
       "created=#{results[:created]}, updated=#{results[:updated]}, " \
       "skipped=#{results[:skipped]}, unchanged=#{results[:unchanged]}, " \
       "errors=#{results[:errors].count}"
 
     results
+  end
+
+  # SSoT: Sync predecessor_ids from templates to tasks with proper task_number remapping
+  # Template predecessor_ids reference template task_numbers, but SmTask needs SmTask task_numbers
+  def self.sync_predecessor_ids_for_job(job, template)
+    return unless job.present? && template.present?
+
+    # Build mapping: template task_number → SmTask task_number
+    template_to_task_number = {}
+    job.sm_tasks.where.not(sm_schedule_master_id: nil).includes(:sm_schedule_master).find_each do |task|
+      next unless task.sm_schedule_master
+      template_to_task_number[task.sm_schedule_master.task_number] = task.task_number
+    end
+
+    return if template_to_task_number.empty?
+
+    updated_count = 0
+
+    # Update each task's predecessor_ids with remapped task_numbers
+    job.sm_tasks.where.not(sm_schedule_master_id: nil).includes(:sm_schedule_master).find_each do |task|
+      template_row = task.sm_schedule_master
+      next unless template_row
+      next if template_row.predecessor_ids.blank?
+
+      # Remap template task_numbers to actual SmTask task_numbers
+      new_predecessor_ids = template_row.predecessor_ids.filter_map do |pred|
+        template_task_num = (pred["id"] || pred[:id]).to_i
+        actual_task_num = template_to_task_number[template_task_num]
+        next unless actual_task_num
+
+        {
+          "id" => actual_task_num,
+          "type" => pred["type"] || pred[:type] || "FS",
+          "lag" => (pred["lag"] || pred[:lag] || 0).to_i
+        }
+      end
+
+      # Only update if changed
+      if task.predecessor_ids != new_predecessor_ids
+        task.update_column(:predecessor_ids, new_predecessor_ids)
+        updated_count += 1
+      end
+    end
+
+    Rails.logger.info "[SmScheduleMasterSyncService] Synced predecessor_ids for #{updated_count} tasks on job #{job.id}"
+    updated_count
   end
 
   def initialize(job, template_row, options = {})
