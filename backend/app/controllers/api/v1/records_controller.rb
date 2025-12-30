@@ -897,14 +897,14 @@ module Api
               elsif parsed_values.any? && column.lookup_foundation.present?
                 # Values are IDs - look up display values
                 lookup_model = column.lookup_foundation.dynamic_model
-                display_col = column.lookup_display_column || "name"
                 related_records = lookup_model.where(id: parsed_values).index_by(&:id)
 
+                # SSoT: Use DisplayValueResolver for consistent display value resolution
                 json[column.column_name] = parsed_values.map do |lookup_id|
                   related = related_records[lookup_id.to_i]
                   {
                     id: lookup_id,
-                    display_value: related ? related.send(display_col).to_s : "[Deleted ##{lookup_id}]"
+                    display_value: related ? DisplayValueResolver.resolve_lookup(related, column) : "[Deleted ##{lookup_id}]"
                   }
                 end
               else
@@ -944,10 +944,10 @@ module Api
               end
 
               if related_record
-                display_col = column.lookup_display_column || "name"
+                # SSoT: Use DisplayValueResolver for consistent display value resolution
                 json[column.column_name] = {
                   id: related_record.id,  # Always use the actual record ID
-                  display: related_record.send(display_col).to_s
+                  display: DisplayValueResolver.resolve_lookup(related_record, column)
                 }
               else
                 json[column.column_name] = { id: numeric_id || 0, display: "[Deleted]" }
@@ -1024,9 +1024,10 @@ module Api
                 related_record = column.lookup_foundation.dynamic_model.find_by(id: value)
               end
 
+              # SSoT: Use DisplayValueResolver for consistent display value resolution
               json[column.column_name] = {
                 id: lookup_id,
-                display: related_record ? related_record.send(column.lookup_display_column).to_s : "[Deleted]"
+                display: related_record ? DisplayValueResolver.resolve_lookup(related_record, column) : "[Deleted]"
               }
             rescue => e
               Rails.logger.error "Error loading lookup value for #{column.column_name}: #{e.message}"
@@ -1052,14 +1053,14 @@ module Api
               elsif parsed_values.any? && column.lookup_foundation.present?
                 # Values are IDs - look up display values from the lookup table
                 lookup_model = column.lookup_foundation.dynamic_model
-                display_col = column.lookup_display_column || "name"
                 related_records = lookup_model.where(id: parsed_values).index_by(&:id)
 
+                # SSoT: Use DisplayValueResolver for consistent display value resolution
                 json[column.column_name] = parsed_values.map do |lookup_id|
                   related = related_records[lookup_id.to_i]
                   {
                     id: lookup_id,
-                    display_value: related ? related.send(display_col).to_s : "[Deleted ##{lookup_id}]"
+                    display_value: related ? DisplayValueResolver.resolve_lookup(related, column) : "[Deleted ##{lookup_id}]"
                   }
                 end
               else

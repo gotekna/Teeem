@@ -120,6 +120,28 @@ clearCachedRecords(foundationId);  // BEFORE triggerAutoRefresh()
 
 **Rule:** Clear cache BEFORE refresh to ensure fresh data. Stale cache = stale UI.
 
+## 🔴 SSoT - Display Value Resolution
+
+**SSoT:** `DisplayValueResolver` service (backend/app/services/display_value_resolver.rb)
+
+| Need | SSoT | NOT This |
+|------|------|----------|
+| Lookup display value | `DisplayValueResolver.resolve_lookup(record, column)` | `record.send(column.lookup_display_column)` |
+| Batch lookup values | `DisplayValueResolver.resolve_lookup_batch(records, column)` | Manual iteration with direct access |
+| Column convenience | `column.display_value_for(record)` | Direct `lookup_display_column` access |
+
+**Fallback Chain (SSoT):**
+```
+lookup_display_column → display_name → name → title → subject → "#{class} ##{id}"
+```
+
+**Frontend:**
+- Groups API returns `display_values_map` for ALL grouping columns
+- Frontend uses server values (SSoT) with local fallback for edge cases
+- Key format: `"column_name:id"` (e.g., `"job_status_id:1"`) to avoid ID collisions
+
+**Rule:** NEVER access `lookup_display_column` directly. Always use DisplayValueResolver.
+
 ## 🔴 CRITICAL: Ultrathink Design Philosophy
 
 **Take a deep breath. We're not here to write code. We're here to make a dent in the universe.**

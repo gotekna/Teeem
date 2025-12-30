@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_123345) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_124316) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7791,30 +7791,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_123345) do
     t.index ["sm_task_id"], name: "index_sm_comments_on_sm_task_id"
   end
 
-  create_table "sm_dependencies", force: :cascade do |t|
-    t.integer "predecessor_task_id", null: false
-    t.integer "successor_task_id", null: false
-    t.string "dependency_type", limit: 255, null: false
-    t.integer "lag_days", default: 0, null: false
-    t.boolean "active", default: true, null: false
-    t.datetime "deleted_at", precision: nil
-    t.boolean "deleted_by_rollover", default: false
-    t.string "deleted_reason", limit: 255
-    t.integer "created_by_id"
-    t.integer "deleted_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["active"], name: "index_sm_dependencies_on_active"
-    t.index ["created_by_id"], name: "index_sm_dependencies_on_created_by_id"
-    t.index ["deleted_by_id"], name: "index_sm_dependencies_on_deleted_by_id"
-    t.index ["predecessor_task_id", "successor_task_id"], name: "idx_sm_deps_unique_active", unique: true, where: "(active = true)"
-    t.index ["predecessor_task_id"], name: "idx_sm_deps_predecessor_active", where: "(active = true)"
-    t.index ["predecessor_task_id"], name: "index_sm_dependencies_on_predecessor_task_id"
-    t.index ["successor_task_id"], name: "idx_sm_deps_successor_active", where: "(active = true)"
-    t.index ["successor_task_id"], name: "index_sm_dependencies_on_successor_task_id"
-    t.check_constraint "predecessor_task_id <> successor_task_id", name: "no_self_dependency"
-  end
-
   create_table "sm_hold_logs", force: :cascade do |t|
     t.integer "job_id", null: false
     t.integer "hold_task_id", null: false
@@ -10199,10 +10175,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_123345) do
   add_foreign_key "sm_comments", "sm_resources", column: "resource_id"
   add_foreign_key "sm_comments", "sm_tasks"
   add_foreign_key "sm_comments", "users", column: "author_id"
-  add_foreign_key "sm_dependencies", "sm_tasks", column: "predecessor_task_id", on_delete: :cascade
-  add_foreign_key "sm_dependencies", "sm_tasks", column: "successor_task_id", on_delete: :cascade
-  add_foreign_key "sm_dependencies", "users", column: "created_by_id", on_delete: :nullify
-  add_foreign_key "sm_dependencies", "users", column: "deleted_by_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_hold_logs", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "sm_tasks", column: "hold_task_id", on_delete: :cascade

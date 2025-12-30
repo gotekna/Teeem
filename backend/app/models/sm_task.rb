@@ -72,24 +72,6 @@ class SmTask < ApplicationRecord
   # Recurring task support
   belongs_to :recurring_task_definition, class_name: "SmRecurringTaskDefinition", optional: true
 
-  # Dependencies (SSoT: predecessor_ids jsonb column, matching SmScheduleMaster)
-  # Legacy table-based associations kept for backwards compatibility (deprecated)
-  has_many :predecessor_dependencies, class_name: "SmDependency", foreign_key: :successor_task_id, dependent: :destroy
-  has_many :successor_dependencies, class_name: "SmDependency", foreign_key: :predecessor_task_id, dependent: :destroy
-  # NOTE: Renamed to _via_table to avoid conflict with predecessor_ids jsonb column
-  has_many :predecessors_via_table, through: :predecessor_dependencies, source: :predecessor_task
-  has_many :successors_via_table, through: :successor_dependencies, source: :successor_task
-
-  # Backwards compatibility aliases - these return table-based predecessors
-  # TODO: Update callers to use predecessor_ids jsonb column instead
-  def predecessors
-    predecessors_via_table
-  end
-
-  def successors
-    successors_via_table
-  end
-
   # SSoT: predecessor_ids jsonb column (synced from SmScheduleMaster)
   # Format: [{id: task_number, lag: 0, type: "FS"}, ...]
   # NOTE: We explicitly define predecessor_ids reader/writer to use the jsonb column
@@ -102,14 +84,30 @@ class SmTask < ApplicationRecord
     write_attribute(:predecessor_ids, value || [])
   end
 
-  def predecessor_task_numbers
-    predecessor_ids
+  # Get predecessor task_numbers from jsonb
+  def predecessor_task_numbers_array
+    predecessor_ids.map { |p| (p["id"] || p[:id]).to_i }.compact
+  end
+
+  # Get actual predecessor SmTask records (looks up by task_number on same job)
+  def predecessors
+    return SmTask.none if predecessor_ids.empty? || job_id.nil?
+    task_numbers = predecessor_task_numbers_array
+    return SmTask.none if task_numbers.empty?
+    SmTask.where(job_id: job_id, task_number: task_numbers)
+  end
+
+  # Get actual successor SmTask records (tasks that have this task in their predecessor_ids)
+  def successors
+    return SmTask.none if job_id.nil?
+    SmTask.where(job_id: job_id)
+          .where("predecessor_ids @> ?", [{ id: task_number }].to_json)
   end
 
   # Format predecessors as "2FS+3, 5SS" etc (matching SmScheduleMaster format)
   def predecessor_display
-    return "None" if predecessor_task_numbers.empty?
-    predecessor_task_numbers.map { |pred| format_predecessor(pred) }.compact.join(", ")
+    return "None" if predecessor_ids.empty?
+    predecessor_ids.map { |pred| format_predecessor(pred) }.compact.join(", ")
   end
 
   private
@@ -390,13 +388,45 @@ class SmTask < ApplicationRecord
     is_hold_task? && status_not_started?
   end
 
-  # Get active dependencies
+  # Dependency accessors - now based on predecessor_ids jsonb column
+  # Returns array of OpenStruct objects for backwards compatibility with old table-based code
   def active_predecessor_dependencies
-    predecessor_dependencies.where(active: true)
+    return [] if predecessor_ids.empty? || job_id.nil?
+
+    predecessor_ids.map do |pred_data|
+      task_number = pred_data["id"] || pred_data[:id]
+      predecessor_task = SmTask.find_by(job_id: job_id, task_number: task_number)
+      next unless predecessor_task
+
+      OpenStruct.new(
+        predecessor_task: predecessor_task,
+        successor_task: self,
+        dependency_type: pred_data["type"] || pred_data[:type] || "FS",
+        lag_days: pred_data["lag"] || pred_data[:lag] || 0,
+        active: true
+      )
+    end.compact
   end
 
   def active_successor_dependencies
-    successor_dependencies.where(active: true)
+    return [] if job_id.nil?
+
+    # Find all tasks on this job that have this task in their predecessor_ids
+    SmTask.where(job_id: job_id)
+          .where("predecessor_ids @> ?", [{ id: task_number }].to_json)
+          .map do |successor_task|
+      # Find this task's entry in successor's predecessor_ids
+      pred_data = successor_task.predecessor_ids.find { |p| (p["id"] || p[:id]).to_i == task_number }
+      next unless pred_data
+
+      OpenStruct.new(
+        predecessor_task: self,
+        successor_task: successor_task,
+        dependency_type: pred_data["type"] || pred_data[:type] || "FS",
+        lag_days: pred_data["lag"] || pred_data[:lag] || 0,
+        active: true
+      )
+    end.compact
   end
 
   # Documentation categories helper

@@ -445,4 +445,16 @@ class Column < ApplicationRecord
 
     Rails.logger.info "[Column] Removed column '#{column_name}' from #{views.count} saved views for foundation #{foundation_id}"
   end
+
+  # ============================================
+  # SSoT: Display Value Resolution
+  # ============================================
+  # Use this method instead of directly accessing lookup_display_column
+  # This delegates to DisplayValueResolver which has the canonical fallback chain
+  #
+  # @param record [ActiveRecord::Base] The lookup record to display
+  # @return [String] The display value
+  def display_value_for(record)
+    DisplayValueResolver.resolve_lookup(record, self)
+  end
 end

@@ -245,7 +245,13 @@ module Api
       #   filters: optional cascade filters (JSON string)
       # Returns accurate counts directly from SQL GROUP BY (not limited by pagination)
       def groups
-        group_by_column = params[:group_by]
+        # Support both single column and array: ?group_by=col OR ?group_by[]=col1&group_by[]=col2
+        group_by_columns = if params[:group_by].is_a?(Array)
+          params[:group_by].compact
+        else
+          [params[:group_by]].compact
+        end
+        group_by_column = group_by_columns.first  # Primary column for grouping (backward compatible)
 
         # Validate group_by parameter
         if group_by_column.blank?
@@ -255,12 +261,13 @@ module Api
           }, status: :bad_request
         end
 
-        # Validate that column exists
+        # Validate that all columns exist
         valid_columns = @foundation.columns.pluck(:column_name)
-        unless valid_columns.include?(group_by_column)
+        invalid_columns = group_by_columns - valid_columns
+        if invalid_columns.any?
           return render json: {
             success: false,
-            error: "Invalid column: #{group_by_column}"
+            error: "Invalid column(s): #{invalid_columns.join(', ')}"
           }, status: :bad_request
         end
 
@@ -376,45 +383,37 @@ module Api
             .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
             .order(Arel.sql("COUNT(*) DESC"))
 
-          # Check if group_by column is a lookup - need to resolve display values
-          group_column = @foundation.columns.find_by(column_name: group_by_column)
-          is_lookup = group_column&.column_type == "lookup" && group_column&.lookup_foundation.present?
+          # SSoT: Build display_values_map for ALL grouping columns using DisplayValueResolver
+          # This provides display values for nested group levels (not just the primary)
+          display_values_map = {}
+          group_by_columns.each do |col_name|
+            col_def = @foundation.columns.find_by(column_name: col_name)
+            next unless col_def&.column_type == "lookup" && col_def&.lookup_foundation.present?
 
-          # Pre-fetch lookup values if this is a lookup column (avoid N+1)
-          lookup_cache = {}
-          if is_lookup
-            lookup_ids = groups_result.map(&:group_key).compact.map(&:to_i).uniq
-            if lookup_ids.any?
-              lookup_model = group_column.lookup_foundation.dynamic_model
-              display_col = group_column.lookup_display_column || "name"
-
-              # Check if display_col is an actual database column or a computed attribute
-              # Computed columns (like full_name) need to be resolved via the model, not SQL
-              if lookup_model.column_names.include?(display_col)
-                # Real database column - use efficient pluck
-                lookup_cache = lookup_model.where(id: lookup_ids).pluck(:id, display_col.to_sym).to_h
-              else
-                # Computed column (e.g., full_name) - load records and call the method
-                # Fall back to 'name' column if the computed method doesn't exist
-                lookup_model.where(id: lookup_ids).each do |record|
-                  lookup_cache[record.id] = if record.respond_to?(display_col)
-                    record.send(display_col)
-                  elsif record.respond_to?(:name)
-                    record.name
-                  else
-                    record.id.to_s
-                  end
-                end
-              end
+            # Collect unique IDs from all records (for nested levels, we need to query the data)
+            if col_name == group_by_column
+              # Primary grouping column - IDs come from groups_result
+              lookup_ids = groups_result.map(&:group_key).compact.map(&:to_i).uniq
+            else
+              # Nested grouping column - need to get IDs from the actual data
+              lookup_ids = query.distinct.pluck(col_name).compact.map(&:to_i).uniq
             end
+
+            next if lookup_ids.empty?
+
+            # Use DisplayValueResolver SSoT for batch resolution
+            lookup_model = col_def.lookup_foundation.dynamic_model
+            records = lookup_model.where(id: lookup_ids)
+            display_values_map[col_name] = DisplayValueResolver.resolve_lookup_batch(records, col_def)
           end
 
-          # Transform results (resolve lookup display values)
+          # Transform results (resolve lookup display values for primary column)
+          # Use display_values_map for consistency with nested levels
           groups = groups_result.map do |row|
             display_value = if row.group_key.nil?
               "(Empty)"
-            elsif is_lookup && lookup_cache[row.group_key.to_i]
-              lookup_cache[row.group_key.to_i]
+            elsif display_values_map.dig(group_by_column, row.group_key.to_i)
+              display_values_map.dig(group_by_column, row.group_key.to_i)
             else
               row.group_key.to_s
             end
@@ -435,6 +434,8 @@ module Api
             total_groups: groups.length,
             total_records: total_records,
             group_by_column: group_by_column,
+            group_by_columns: group_by_columns,  # NEW: All requested columns
+            display_values_map: display_values_map,  # NEW: SSoT display values for all columns
             foundation_id: @foundation.id
           }
         rescue => e

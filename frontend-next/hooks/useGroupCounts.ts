@@ -13,6 +13,12 @@ export interface GroupCount {
 }
 
 /**
+ * SSoT: Display values map keyed by column name, then by ID
+ * Format: { "job_status_id": { 1: "Enquiry", 2: "Pre Contract" }, "job_type_id": { 1: "House", 2: "Kitchen" } }
+ */
+export type DisplayValuesMap = Record<string, Record<number, string>>;
+
+/**
  * Cascade filter format (matches backend expectations)
  */
 interface CascadeFilter {
@@ -34,6 +40,8 @@ interface GroupsApiResponse {
   total_groups: number;
   total_records: number;
   group_by_column: string;
+  group_by_columns?: string[];  // NEW: All requested columns
+  display_values_map?: DisplayValuesMap;  // NEW: SSoT display values for all columns
   foundation_id: number;
   error?: string;
 }
@@ -46,6 +54,8 @@ export interface UseGroupCountsReturn {
   groups: GroupCount[];
   /** Total number of records across all groups */
   totalRecords: number;
+  /** SSoT: Display values for ALL grouping columns, keyed by column:id */
+  displayValuesMap: DisplayValuesMap;
   /** Whether data is currently loading */
   loading: boolean;
   /** Error message if fetch failed */
@@ -67,19 +77,25 @@ export interface UseGroupCountsReturn {
  * - Fast (SQL aggregation, not JS iteration)
  * - Memory efficient (only counts, not full records)
  *
+ * SSoT: Returns display_values_map for ALL grouping columns from server.
+ * This eliminates frontend display value extraction and key collision issues.
+ *
  * @param foundationId - The foundation ID (numeric or slug string)
- * @param groupByColumn - Column name to group by
+ * @param groupByColumn - Column name to group by (for counts)
  * @param filters - Optional cascade filters to apply
  * @param enabled - Whether to enable fetching (default: true when groupByColumn is set)
+ * @param allGroupByColumns - Optional array of ALL grouping columns to get display values for
  */
 export function useGroupCounts(
   foundationId: number | string | null | undefined,
   groupByColumn: string | null | undefined,
   filters?: CascadeFilter[],
-  enabled: boolean = true
+  enabled: boolean = true,
+  allGroupByColumns?: string[]
 ): UseGroupCountsReturn {
   const [groups, setGroups] = useState<GroupCount[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [displayValuesMap, setDisplayValuesMap] = useState<DisplayValuesMap>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
@@ -89,15 +105,18 @@ export function useGroupCounts(
 
   // Serialize filters for dependency comparison
   const filtersKey = filters ? JSON.stringify(filters) : "";
+  // Serialize allGroupByColumns for dependency comparison
+  const allColumnsKey = allGroupByColumns ? JSON.stringify(allGroupByColumns) : "";
 
   const fetchGroupCounts = useCallback(async () => {
-    console.log('[useGroupCounts] fetchGroupCounts called:', { enabled, foundationId, groupByColumn });
+    console.log('[useGroupCounts] fetchGroupCounts called:', { enabled, foundationId, groupByColumn, allGroupByColumns });
 
     // Don't fetch if disabled or missing required params
     if (!enabled || !foundationId || !groupByColumn) {
       console.log('[useGroupCounts] Skipping - disabled or missing params');
       setGroups([]);
       setTotalRecords(0);
+      setDisplayValuesMap({});
       setError(null);
       return;
     }
@@ -114,8 +133,13 @@ export function useGroupCounts(
     setError(null);
 
     try {
+      // Build params - pass ALL grouping columns so server returns display_values_map for each
+      const columnsToFetch = allGroupByColumns && allGroupByColumns.length > 0
+        ? allGroupByColumns
+        : [groupByColumn];
+
       const params: Record<string, string> = {
-        group_by: groupByColumn,
+        group_by: columnsToFetch.join(','),  // Backend accepts comma-separated or array
       };
 
       // Add filters if present
@@ -141,8 +165,11 @@ export function useGroupCounts(
             displayValue: g.display_value,
           }));
           console.log('[useGroupCounts] Setting groups:', mappedGroups.length, 'items');
+          console.log('[useGroupCounts] display_values_map:', response.display_values_map);
           setGroups(mappedGroups);
           setTotalRecords(response.total_records);
+          // SSoT: Store server-provided display values for ALL grouping columns
+          setDisplayValuesMap(response.display_values_map || {});
           setHasFetched(true);
         } else {
           console.log('[useGroupCounts] API returned error:', response.error);
@@ -164,7 +191,7 @@ export function useGroupCounts(
         setLoading(false);
       }
     }
-  }, [foundationId, groupByColumn, filtersKey, enabled]);
+  }, [foundationId, groupByColumn, filtersKey, enabled, allColumnsKey]);
 
   // Fetch on mount and when dependencies change
   useEffect(() => {
@@ -181,6 +208,7 @@ export function useGroupCounts(
   return {
     groups,
     totalRecords,
+    displayValuesMap,  // SSoT: Server-provided display values for ALL grouping columns
     loading,
     error,
     refetch: fetchGroupCounts,

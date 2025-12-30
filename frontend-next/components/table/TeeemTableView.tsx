@@ -1309,13 +1309,15 @@ export default function TeeemTableView({
   const {
     groups: serverGroupCounts,
     totalRecords: serverTotalRecords,
+    displayValuesMap: serverDisplayValuesMap,  // SSoT: Server provides display values for ALL grouping columns
     loading: groupCountsLoading,
     hasFetched: groupCountsHasFetched,
   } = useGroupCounts(
     effectiveFoundationId,
     validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
-    groupByColumns.length > 0 && !!validGroupByColumnForApi // enabled when grouping is active AND column is valid
+    groupByColumns.length > 0 && !!validGroupByColumnForApi, // enabled when grouping is active AND column is valid
+    groupByColumns // Pass ALL grouping columns so server returns display values for each
   );
 
   // Build a map of group key -> server count for quick lookup
@@ -1328,28 +1330,42 @@ export default function TeeemTableView({
     return map;
   }, [serverGroupCounts]);
 
-  // Build a map of column:key -> display value for lookup columns
-  // The server's /groups endpoint returns displayValue for lookup columns (e.g., "SITE COSTS" instead of "621")
-  // Key format: "column_name:id" to avoid collisions between different lookup columns
+  // SSoT: Build display map from server's display_values_map for ALL grouping columns
+  // Format: { "job_status_id": { 1: "Enquiry" }, "job_type_id": { 1: "House" } }
+  // Convert to Map<string, string> with key format "column_name:id"
   const serverDisplayMap = useMemo(() => {
     const map = new Map<string, string>();
-    // Server counts are for the first groupByColumn only
+
+    // Add display values from server's display_values_map (SSoT for ALL columns)
+    if (serverDisplayValuesMap) {
+      for (const [colName, idMap] of Object.entries(serverDisplayValuesMap)) {
+        for (const [id, display] of Object.entries(idMap)) {
+          map.set(`${colName}:${id}`, display);
+        }
+      }
+    }
+
+    // Also add display values from serverGroupCounts for first column (backward compat)
     const serverCol = groupByColumns[0];
     for (const group of serverGroupCounts) {
       const idKey = group.key === null ? "(Empty)" : String(group.key);
-      // Use displayValue from server if available, otherwise fall back to key
       const display = group.displayValue || idKey;
-      // Store with column prefix to avoid collisions with other columns
       if (serverCol) {
-        map.set(`${serverCol}:${idKey}`, display);
+        // Only add if not already present from display_values_map
+        const key = `${serverCol}:${idKey}`;
+        if (!map.has(key)) {
+          map.set(key, display);
+        }
       }
       // Also store without prefix for backward compatibility
-      map.set(idKey, display);
+      if (!map.has(idKey)) {
+        map.set(idKey, display);
+      }
     }
-    // Debug: Log serverGroupCounts to check if displayValue is populated
-    console.log('[TeeemTableView] serverGroupCounts:', serverGroupCounts.length, 'items', serverGroupCounts.slice(0, 3));
+
+    console.log('[TeeemTableView] serverDisplayMap from SSoT:', map.size, 'entries', Object.keys(serverDisplayValuesMap || {}));
     return map;
-  }, [serverGroupCounts, groupByColumns]);
+  }, [serverGroupCounts, groupByColumns, serverDisplayValuesMap]);
 
   // Lazy loading state for groups - fetch all records when expanding
   // Tracks which groups are currently being loaded from server
@@ -1365,9 +1381,9 @@ export default function TeeemTableView({
     setGroupLoadingState(new Set());
   }, [groupByColumn, filtersKey, search]);
 
-  // Build lookup display map from loaded records for ALL grouping columns
-  // This handles nested groups where server only fetches display values for the first column
-  // Extract display values from lookup objects in the actual data (e.g., { id: 7, name: "Active Job" })
+  // FALLBACK ONLY: Extract display values from loaded records for columns NOT covered by server
+  // With SSoT fix, server now provides display_values_map for ALL grouping columns
+  // This is kept as fallback for edge cases (e.g., text columns, computed columns)
   // Key format: "column_name:id" to avoid collisions between different lookup columns
   const lookupDisplayMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1396,12 +1412,12 @@ export default function TeeemTableView({
     return map;
   }, [entries, groupByColumns, lazyLoadedGroups]);
 
-  // Combined display map: prefer server values, fall back to values from loaded data
+  // SSoT: Combined display map - server values are authoritative, fallback to loaded data
   const combinedDisplayMap = useMemo(() => {
     const map = new Map<string, string>();
-    // Add lookup values from loaded data first
+    // Add lookup values from loaded data first (fallback)
     lookupDisplayMap.forEach((value, key) => map.set(key, value));
-    // Override with server values (more authoritative for first-level groups)
+    // Override with server values (SSoT - authoritative for ALL lookup columns)
     serverDisplayMap.forEach((value, key) => map.set(key, value));
     return map;
   }, [serverDisplayMap, lookupDisplayMap]);

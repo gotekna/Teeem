@@ -992,18 +992,36 @@ module Api
         begin
           client = MicrosoftGraphClient.new(credential)
 
-          # Find the job folder
-          job_folder = client.find_job_folder(job)
+          # SSoT: Use stored sharepoint_folder_id first, fall back to find_job_folder
+          job_folder_id = job.sharepoint_folder_id
+          job_folder_url = nil
 
-          unless job_folder
-            return render json: {
-              error: "Job folder not found",
-              job_folder_exists: false
-            }, status: :not_found
+          if job_folder_id.present?
+            # Use stored folder ID directly (faster, more reliable)
+            begin
+              folder_info = client.get_item(job_folder_id)
+              job_folder_url = folder_info["webUrl"]
+            rescue => e
+              Rails.logger.warn "[SharePoint] Stored folder ID invalid for job #{job.id}: #{e.message}"
+              job_folder_id = nil
+            end
+          end
+
+          # Fall back to find_job_folder if no stored ID
+          unless job_folder_id
+            job_folder = client.find_job_folder(job)
+            unless job_folder
+              return render json: {
+                error: "Job folder not found",
+                job_folder_exists: false
+              }, status: :not_found
+            end
+            job_folder_id = job_folder["id"]
+            job_folder_url = job_folder["webUrl"]
           end
 
           # Get all items in the job folder
-          job_items = client.list_folder_items(job_folder["id"])
+          job_items = client.list_folder_items(job_folder_id)
           job_folders = job_items["value"]&.select { |item| item["folder"] } || []
 
           # Find the target folders by name
@@ -1039,8 +1057,8 @@ module Api
             total_count: files_only.length,
             found_folders: found_folders,
             requested_folders: folder_names,
-            job_folder_id: job_folder["id"],
-            job_folder_web_url: job_folder["webUrl"]
+            job_folder_id: job_folder_id,
+            job_folder_web_url: job_folder_url
           }
 
           # Cache for 5 minutes
