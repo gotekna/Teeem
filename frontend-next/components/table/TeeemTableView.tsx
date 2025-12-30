@@ -749,6 +749,10 @@ export default function TeeemTableView({
   // Initialized empty, updated by effect after search atom is declared
   const searchRef = useRef<string>('');
 
+  // SSR: Track if initial records have been applied (one-time only)
+  // Prevents re-application on prop changes that would wipe load-more data
+  const hasAppliedInitialRecordsRef = useRef(false);
+
   // ULTRA Solution: Filter state managed by sourced atoms
   // Must be declared before autoFetch effects that depend on baseFilters
   const {
@@ -779,15 +783,24 @@ export default function TeeemTableView({
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
   // CRITICAL: Include filters in API call - backend needs to know about base filters
   useEffect(() => {
-    // SSR: Skip client fetch if server provided records
-    // Note: Only skip on initial load (autoFetchRefreshKey === 0)
-    // After updates/deletes, we still need to re-fetch
-    // IMPORTANT: Don't overwrite client-side search results with SSR initial records
-    const hasActiveSearch = searchRef.current;
-    if (initialRecords && initialRecords.length > 0 && autoFetchRefreshKey === 0 && !hasActiveSearch) {
-      setAutoFetchedRecords(initialRecords);
-      setHasMore(initialHasMore ?? true);
-      return;
+    // SSR: Apply server-provided records ONE TIME ONLY on initial load
+    // - Use ref to prevent re-application on prop changes (which would wipe load-more data)
+    // - Check for persisted search (URL, prop, session) to avoid overwriting search results
+    // - Only apply when autoFetchRefreshKey === 0 (not after updates/deletes)
+    if (!hasAppliedInitialRecordsRef.current && initialRecords && initialRecords.length > 0 && autoFetchRefreshKey === 0) {
+      // Check for any persisted search that should take precedence over SSR data
+      const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
+      const sessionSearchParam = cachedState?.search;
+      const hasPersistedSearch = urlSearchParam || initialSearch || sessionSearchParam || searchRef.current;
+
+      if (!hasPersistedSearch) {
+        setAutoFetchedRecords(initialRecords);
+        setHasMore(initialHasMore ?? true);
+        hasAppliedInitialRecordsRef.current = true;
+        return;
+      }
+      // Mark as applied even if we skipped (search will fetch its own data)
+      hasAppliedInitialRecordsRef.current = true;
     }
 
     if (!useAutoFetch) return;
@@ -834,7 +847,10 @@ export default function TeeemTableView({
     };
 
     fetchInitialRecords();
-  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey, initialRecords, initialHasMore]);
+    // SSR props (initialRecords, initialHasMore) intentionally excluded from deps
+    // They're applied one-time via hasAppliedInitialRecordsRef, not on prop changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey]);
 
   // Auto-load more records in background after initial render
   // ULTRA Solution: Include base filters to ensure consistent data loading
@@ -1071,7 +1087,10 @@ export default function TeeemTableView({
   }, [search, setSearchAtom, onSearchChange, cacheSearch, persistSearchToUrl, router]);
 
   // Keep searchRef in sync for use in auto-fetch refresh effect (defined before search atom)
-  searchRef.current = search;
+  // CRITICAL: Use useEffect instead of render body to ensure other effects see the updated value
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
 
   // Initialize search from URL, prop, session storage, or persisted atom on mount
   // Priority: URL param > initialSearch prop > session storage > atom value (from SPA navigation)
