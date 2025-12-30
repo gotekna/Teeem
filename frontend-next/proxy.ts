@@ -325,6 +325,55 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Admin Site Presence Routes ===
+  if (pathname === "/admin/site-presence") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/admin/site-presence/${tab}`;
+    }
+  }
+
+  // === Admin SaaS Customer Detail Routes ===
+  const saasCustomerMatch = pathname.match(/^\/admin\/saas-customers\/(\d+)$/);
+  if (saasCustomerMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
+  // === Portal Jobs Routes ===
+  if (pathname === "/portal/jobs") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/portal/jobs/${tab}`;
+    }
+  }
+
+  // === Portal PayNow Routes ===
+  if (pathname === "/portal/paynow") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/portal/paynow/${tab}`;
+    }
+  }
+
+  // === Portal Quotes Routes ===
+  if (pathname === "/portal/quotes") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/portal/quotes/${tab}`;
+    }
+  }
+
+  // === Portal Invoices Routes ===
+  if (pathname === "/portal/invoices") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/portal/invoices/${tab}`;
+    }
+  }
+
   // Perform redirect if we have a new path
   if (redirectPath) {
     const url = request.nextUrl.clone();

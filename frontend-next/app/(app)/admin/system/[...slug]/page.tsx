@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Suspense } from "react";
+import { Suspense, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
@@ -155,10 +155,12 @@ function CompanySettingsContent({ subtab }: { subtab: string }) {
 export default function SystemAdminCatchAllPage({
   params,
 }: {
-  params: { slug: string[] };
+  params: Promise<{ slug: string[] }>;
 }) {
+  // Unwrap params Promise for Next.js 16
+  const { slug } = use(params);
   // slug = ["company"] or ["company", "info"] or ["schedule-master", "data-view", "live"]
-  const [tab, subtab, extra] = params.slug;
+  const [tab, subtab, extra] = slug || [];
 
   // Get CSS class for tab content
   const getContentClass = () => {

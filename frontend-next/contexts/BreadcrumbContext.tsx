@@ -142,26 +142,7 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
         return truncated;
       }
 
-      // Check if switching between sibling tabs (same entity, different tab)
-      // e.g., /jobs/123/overview → /jobs/123/plans should REPLACE, not add
-      if (prev.length > 0) {
-        const lastItem = prev[prev.length - 1];
-        if (isSiblingTab(lastItem.pathname, pathname)) {
-          // Replace last item with new tab
-          const updated = [...prev];
-          updated[updated.length - 1] = {
-            id: generateBreadcrumbId(pathname),
-            pathname,
-            searchParams: searchParams?.toString(),
-            displayName: resolveDisplayName(pathname, searchParams),
-            icon: resolveIcon(pathname),
-            timestamp: Date.now(),
-          };
-          return updated;
-        }
-      }
-
-      // New navigation - add to trail
+      // New navigation - add to trail (tabs stack)
       const newItem: BreadcrumbItem = {
         id: generateBreadcrumbId(pathname),
         pathname,
