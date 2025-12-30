@@ -882,25 +882,117 @@ export default function SchedulePage() {
 
               {compareResult && (
                 <>
-                  <div className="grid grid-cols-4 gap-3 py-2 shrink-0">
-                    <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center">
+                  <div className="grid grid-cols-5 gap-2 py-2 shrink-0">
+                    <div
+                      className={`rounded-lg p-2 text-center cursor-pointer transition-all ${
+                        compareFilter === "will_create"
+                          ? "bg-green-200 dark:bg-green-900 ring-2 ring-green-500"
+                          : "bg-green-50 dark:bg-green-950 hover:bg-green-100 dark:hover:bg-green-900"
+                      }`}
+                      onClick={() => setCompareFilter(compareFilter === "will_create" ? "all" : "will_create")}
+                    >
                       <p className="text-xl font-bold text-green-600 dark:text-green-400">{compareResult.summary.will_create}</p>
                       <p className="text-xs text-green-700 dark:text-green-300">Will Create</p>
                     </div>
-                    <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-2 text-center">
+                    <div
+                      className={`rounded-lg p-2 text-center cursor-pointer transition-all ${
+                        compareFilter === "will_update"
+                          ? "bg-blue-200 dark:bg-blue-900 ring-2 ring-blue-500"
+                          : "bg-blue-50 dark:bg-blue-950 hover:bg-blue-100 dark:hover:bg-blue-900"
+                      }`}
+                      onClick={() => setCompareFilter(compareFilter === "will_update" ? "all" : "will_update")}
+                    >
                       <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{compareResult.summary.will_update}</p>
                       <p className="text-xs text-blue-700 dark:text-blue-300">Will Update</p>
                     </div>
-                    <div className="bg-amber-50 dark:bg-amber-950 rounded-lg p-2 text-center">
+                    <div
+                      className={`rounded-lg p-2 text-center cursor-pointer transition-all ${
+                        compareFilter === "will_skip"
+                          ? "bg-amber-200 dark:bg-amber-900 ring-2 ring-amber-500"
+                          : "bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900"
+                      }`}
+                      onClick={() => setCompareFilter(compareFilter === "will_skip" ? "all" : "will_skip")}
+                    >
                       <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{compareResult.summary.will_skip}</p>
                       <p className="text-xs text-amber-700 dark:text-amber-300">Will Skip</p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 text-center">
+                    <div
+                      className={`rounded-lg p-2 text-center cursor-pointer transition-all ${
+                        compareFilter === "unchanged"
+                          ? "bg-gray-200 dark:bg-gray-700 ring-2 ring-gray-500"
+                          : "bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      }`}
+                      onClick={() => setCompareFilter(compareFilter === "unchanged" ? "all" : "unchanged")}
+                    >
                       <p className="text-xl font-bold text-gray-600 dark:text-gray-400">{compareResult.summary.unchanged}</p>
                       <p className="text-xs text-gray-700 dark:text-gray-300">Unchanged</p>
                     </div>
+                    <div
+                      className={`rounded-lg p-2 text-center cursor-pointer transition-all ${
+                        compareFilter === "unlinked"
+                          ? "bg-red-200 dark:bg-red-900 ring-2 ring-red-500"
+                          : "bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:hover:bg-red-900"
+                      }`}
+                      onClick={() => setCompareFilter(compareFilter === "unlinked" ? "all" : "unlinked")}
+                    >
+                      <p className="text-xl font-bold text-red-600 dark:text-red-400">{compareResult.summary.unlinked || 0}</p>
+                      <p className="text-xs text-red-700 dark:text-red-300">Unlinked</p>
+                    </div>
                   </div>
 
+                  {compareFilter !== "all" && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground pb-2">
+                      <span>Filtering by: <strong>{compareFilter.replace("_", " ")}</strong></span>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setCompareFilter("all")}>
+                        Clear filter
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Show unlinked tasks table when filtered */}
+                  {compareFilter === "unlinked" && compareResult.unlinked_tasks && compareResult.unlinked_tasks.length > 0 && (
+                    <div className="flex-1 overflow-auto border rounded-lg min-h-0">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background z-10">
+                          <UITableRow>
+                            <TableHead className="w-[50px]">#</TableHead>
+                            <TableHead>Task Name</TableHead>
+                            <TableHead className="w-[100px]">Status</TableHead>
+                            <TableHead>Info</TableHead>
+                          </UITableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {compareResult.unlinked_tasks.map((task) => (
+                            <UITableRow key={task.task_id} className="bg-red-50/50 dark:bg-red-950/30">
+                              <TableCell className="font-mono text-muted-foreground text-sm">{task.task_number}</TableCell>
+                              <TableCell><div className="font-medium text-sm">{task.name}</div></TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+                                  Unlinked
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-xs text-muted-foreground">
+                                  {task.status}
+                                  {task.started_at && " • Started"}
+                                  {task.completed_at && " • Done"}
+                                </span>
+                              </TableCell>
+                            </UITableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {compareFilter === "unlinked" && (!compareResult.unlinked_tasks || compareResult.unlinked_tasks.length === 0) && (
+                    <div className="py-8 text-center text-muted-foreground">
+                      <p>No unlinked tasks</p>
+                    </div>
+                  )}
+
+                  {/* Show comparisons table when not filtering unlinked */}
+                  {compareFilter !== "unlinked" && (
                   <div className="flex-1 overflow-auto border rounded-lg min-h-0">
                     <Table>
                       <TableHeader className="sticky top-0 bg-background z-10">
@@ -913,7 +1005,9 @@ export default function SchedulePage() {
                         </UITableRow>
                       </TableHeader>
                       <TableBody>
-                        {compareResult.comparisons.map((comp) => (
+                        {compareResult.comparisons
+                          .filter((comp) => compareFilter === "all" || comp.status === compareFilter)
+                          .map((comp) => (
                           <UITableRow
                             key={comp.template_row.id}
                             className={
@@ -985,6 +1079,7 @@ export default function SchedulePage() {
                       </TableBody>
                     </Table>
                   </div>
+                  )}
 
                   <DialogFooter className="shrink-0 pt-2">
                     <Button variant="outline" onClick={() => setShowSyncDialog(false)}>Cancel</Button>
