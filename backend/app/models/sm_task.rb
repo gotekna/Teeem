@@ -406,6 +406,11 @@ class SmTask < ApplicationRecord
 
   def calculate_end_date
     return unless start_date.present? && duration_days.present?
+    # For 0-duration tasks (milestones), end_date = start_date
+    if duration_days == 0
+      self.end_date = start_date
+      return
+    end
     # Use WorkingDaysCalculator to respect working days (M-F by default)
     calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
     self.end_date = calendar.add_working_days(start_date, duration_days - 1)
