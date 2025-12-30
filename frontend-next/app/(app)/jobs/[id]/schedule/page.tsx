@@ -799,6 +799,18 @@ export default function SchedulePage() {
             <BarChart3 className="h-5 w-5 text-muted-foreground" />
             <span className="font-medium">{job?.name || "Loading..."}</span>
             <span className="text-muted-foreground text-sm">Gantt Schedule</span>
+            {/* Quick Links - Plans, PO, Site */}
+            <div className="flex items-center gap-1 ml-2">
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/plans`, '_blank')}>
+                Plans
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
+                PO
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
+                Site
+              </Button>
+            </div>
           </div>
           <Button variant="ghost" size="sm" onClick={handleCloseFullscreenGantt}>
             <Minimize2 className="h-4 w-4 mr-2" />
