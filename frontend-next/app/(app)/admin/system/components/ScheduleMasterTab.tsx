@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useUrlState } from "@/hooks/useUrlState";
+import { usePathname, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
