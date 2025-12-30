@@ -6,8 +6,13 @@ module Api
       before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows ]
 
       # GET /api/v1/sm_schedule_master_templates
+      # Params: include_inactive=true to include inactive templates
       def index
-        @templates = SmScheduleMasterTemplate.active.ordered
+        @templates = if params[:include_inactive].present?
+          SmScheduleMasterTemplate.ordered
+        else
+          SmScheduleMasterTemplate.active.ordered
+        end
 
         render json: {
           success: true,

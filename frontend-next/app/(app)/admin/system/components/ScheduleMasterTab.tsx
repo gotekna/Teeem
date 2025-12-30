@@ -247,36 +247,46 @@ const COLUMN_STATUS_KEY = "sm_column_status";
 
 export function ScheduleMasterTab() {
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
 
-  // SSoT: URL state managed by useUrlState hook
-  const [urlState, setUrlState] = useUrlState({
-    subtab: null as string | null,  // null = default "schedule-templates"
-    view: null as string | null,     // Foundation view filter
-    table: null as string | null,    // Lookup table selection
-  });
+  // SSoT: Parse path segments for state
+  // Pattern: /admin/system/schedule-master/[subtab]/[view-or-table]
+  const pathSegments = React.useMemo(() => {
+    const parts = pathname.replace("/admin/system/schedule-master", "").split("/").filter(Boolean);
+    return {
+      subtab: parts[0] || null,  // e.g., "data-view", "tables"
+      extra: parts[1] || null,   // e.g., "live" (view) or "sm_resources" (table)
+    };
+  }, [pathname]);
 
   // URL is SSoT for tab state (back button support)
-  const activeTab: SubTab = VALID_SUBTABS.includes(urlState.subtab as SubTab)
-    ? (urlState.subtab as SubTab)
+  const activeTab: SubTab = VALID_SUBTABS.includes(pathSegments.subtab as SubTab)
+    ? (pathSegments.subtab as SubTab)
     : "schedule-templates";
 
-  // URL view param (Foundation view filter)
-  const viewSlug = urlState.view || undefined;
+  // URL view param (Foundation view filter) - only for data-view tab
+  const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;
 
   // Clear view filter from URL
   const handleViewClear = React.useCallback(() => {
-    setUrlState({ view: null });
-  }, [setUrlState]);
+    router.push("/admin/system/schedule-master/data-view", { scroll: false });
+  }, [router]);
 
   // Update URL when tab changes
   const handleTabChange = React.useCallback((value: string) => {
     const newTab = value as SubTab;
-    setUrlState({ subtab: newTab === "schedule-templates" ? null : newTab });
-  }, [setUrlState]);
+    if (newTab === "schedule-templates") {
+      router.push("/admin/system/schedule-master", { scroll: false });
+    } else {
+      router.push(`/admin/system/schedule-master/${newTab}`, { scroll: false });
+    }
+  }, [router]);
 
   // Schedule Templates state
   const [templates, setTemplates] = React.useState<SmScheduleMasterTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [showInactive, setShowInactive] = React.useState(false);
   const [expandedTemplate, setExpandedTemplate] = React.useState<number | null>(null);
   const [showDialog, setShowDialog] = React.useState(false);
   const [editingTemplate, setEditingTemplate] = React.useState<SmScheduleMasterTemplate | null>(null);
@@ -346,14 +356,19 @@ export function ScheduleMasterTab() {
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
 
   // URL is SSoT for table selection (enables shareable links)
-  const selectedLookupTable: LookupTableId = LOOKUP_TABLES.some(t => t.id === urlState.table)
-    ? (urlState.table as LookupTableId)
+  // In "tables" subtab, pathSegments.extra contains the table id
+  const selectedLookupTable: LookupTableId = activeTab === "tables" && LOOKUP_TABLES.some(t => t.id === pathSegments.extra)
+    ? (pathSegments.extra as LookupTableId)
     : "sm_trades";
 
   // Update URL when table changes
   const handleTableChange = React.useCallback((tableId: LookupTableId) => {
-    setUrlState({ table: tableId === "sm_trades" ? null : tableId });
-  }, [setUrlState]);
+    if (tableId === "sm_trades") {
+      router.push("/admin/system/schedule-master/tables", { scroll: false });
+    } else {
+      router.push(`/admin/system/schedule-master/tables/${tableId}`, { scroll: false });
+    }
+  }, [router]);
 
   const [lookupTableRefreshKey, setLookupTableRefreshKey] = React.useState(0);
 
@@ -418,7 +433,8 @@ export function ScheduleMasterTab() {
     loadRoles();
     loadCostCentres();
     loadHeaderRows();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInactive]);
 
   // Load job EntityTabs for photo storage dropdown
   const loadJobEntityTabs = async () => {
@@ -577,7 +593,10 @@ export function ScheduleMasterTab() {
 
   const loadTemplates = async () => {
     try {
-      const data = await api.get<{ success: boolean; sm_schedule_master_templates: SmScheduleMasterTemplate[] }>("/api/v1/sm_schedule_master_templates");
+      const url = showInactive
+        ? "/api/v1/sm_schedule_master_templates?include_inactive=true"
+        : "/api/v1/sm_schedule_master_templates";
+      const data = await api.get<{ success: boolean; sm_schedule_master_templates: SmScheduleMasterTemplate[] }>(url);
       const loadedTemplates = data?.sm_schedule_master_templates || [];
       setTemplates(loadedTemplates);
 
@@ -1117,10 +1136,22 @@ export function ScheduleMasterTab() {
                 Create and manage schedule templates for different job types.
               </p>
             </div>
-            <Button onClick={handleOpenAddDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Template
-            </Button>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-inactive"
+                  checked={showInactive}
+                  onCheckedChange={setShowInactive}
+                />
+                <Label htmlFor="show-inactive" className="text-sm text-muted-foreground cursor-pointer">
+                  Show inactive
+                </Label>
+              </div>
+              <Button onClick={handleOpenAddDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Template
+              </Button>
+            </div>
           </div>
 
               {templates.length === 0 ? (
@@ -1153,7 +1184,14 @@ export function ScheduleMasterTab() {
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         )}
                         <div>
-                          <CardTitle className="text-base">{template.name}</CardTitle>
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-base">{template.name}</CardTitle>
+                            {!template.is_active && (
+                              <Badge variant="outline" className="text-muted-foreground bg-muted">
+                                Inactive
+                              </Badge>
+                            )}
+                          </div>
                           {template.description && (
                             <CardDescription className="mt-1">{template.description}</CardDescription>
                           )}
