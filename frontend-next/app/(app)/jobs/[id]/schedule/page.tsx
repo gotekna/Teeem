@@ -35,6 +35,7 @@ import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
 import type { GanttTask } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { parseISO } from "date-fns";
 
 interface Job {
@@ -670,10 +671,57 @@ export default function SchedulePage() {
     }
   };
 
+  // SSoT: Show skeleton layout during loading to prevent flash/CLS
+  // The skeleton matches the actual page structure so there's no jarring layout shift
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
+      <div className="flex flex-col h-full -mt-4">
+        {/* Skeleton header - matches actual layout */}
+        <div className="flex items-center justify-between pb-1 shrink-0">
+          <div className="flex items-center gap-2">
+            <BackButton fallbackHref="/jobs" />
+            <Skeleton className="h-5 w-40" />
+            <div className="flex items-center gap-1 ml-2">
+              <Skeleton className="h-7 w-14" />
+              <Skeleton className="h-7 w-10" />
+              <Skeleton className="h-7 w-12" />
+            </div>
+          </div>
+        </div>
+        {/* Table skeleton - TeeemTableView will show its own loading but we show structure */}
+        <div className="flex-1 -mx-4">
+          <div className="h-full flex flex-col">
+            {/* Toolbar skeleton */}
+            <div className="flex items-center justify-between p-2 border-b">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-32" />
+                <Skeleton className="h-8 w-36" />
+                <Skeleton className="h-8 w-28" />
+              </div>
+              <Skeleton className="h-8 w-24" />
+            </div>
+            {/* Table header skeleton */}
+            <div className="flex items-center gap-4 p-2 border-b bg-muted/30">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            {/* Table rows skeleton */}
+            <div className="flex-1 space-y-2 p-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-8 w-16" />
+                  <Skeleton className="h-8 w-48" />
+                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-8 w-20" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

@@ -3,7 +3,6 @@
 /**
  * VirtualizedGroupTable - Virtualized table for grouped views
  *
- * Extracted from TeeemTableView.tsx as part of Phase 2 refactoring.
  * Uses @tanstack/react-virtual for efficient rendering of large datasets
  * within grouped table sections.
  */
@@ -15,6 +14,8 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableHead,
+  TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import { SelectCheckbox } from "../cell-components";
@@ -42,12 +43,12 @@ export interface VirtualizedGroupTableProps {
   isEditMode: boolean;
 }
 
-// Row height constant (matches h-7 = 1.75rem = 28px)
-const ROW_HEIGHT = 28;
-// Max container height (limits visible rows before scrolling)
-const MAX_CONTAINER_HEIGHT = 500;
-// Extra rows rendered above/below viewport for smooth scrolling
-const OVERSCAN_COUNT = 5;
+// Row height constant
+const ROW_HEIGHT = 32;
+// Max container height before scrolling
+const MAX_CONTAINER_HEIGHT = 400;
+// Extra rows rendered above/below viewport
+const OVERSCAN_COUNT = 3;
 
 export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   fullKey,
@@ -67,7 +68,6 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   onRowClick,
   onRowDoubleClick,
   renderCellValue,
-  renderTableHeader,
   isEditMode,
 }: VirtualizedGroupTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -79,20 +79,35 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
     overscan: OVERSCAN_COUNT,
   });
 
-  // Calculate total width for proper column sizing
+  // Calculate total width
   const totalWidth = visibleColumnsInOrder.reduce(
     (sum, col) => sum + (columnWidths[col.key] || 100),
     0
   );
 
-  // Generate colgroup for consistent column widths
-  const colGroup = (
-    <colgroup>
-      {visibleColumnsInOrder.map((col) => (
-        <col key={col.key} style={{ width: columnWidths[col.key] || 100 }} />
-      ))}
-    </colgroup>
-  );
+  // Build CSS grid template from column widths
+  const gridTemplate = visibleColumnsInOrder
+    .map((col) => `${columnWidths[col.key] || 100}px`)
+    .join(" ");
+
+  // Calculate container height
+  const containerHeight = Math.min(rows.length * ROW_HEIGHT, MAX_CONTAINER_HEIGHT);
+
+  // Debug: log row count
+  console.log(`[VirtualizedGroupTable] fullKey=${fullKey} rows=${rows.length} containerHeight=${containerHeight}`);
+
+  // If no rows, show empty state
+  if (rows.length === 0) {
+    return (
+      <div
+        key={`data-${fullKey}`}
+        className="mb-4 text-muted-foreground text-sm p-4"
+        style={{ marginLeft: `${(depth + 1) * 24}px` }}
+      >
+        No records in this group
+      </div>
+    );
+  }
 
   return (
     <div
@@ -100,128 +115,126 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
       className="mb-4 overflow-x-auto"
       style={{ marginLeft: `${(depth + 1) * 24}px`, marginRight: "16px" }}
     >
-      <Table className="border-t border-b" style={{ tableLayout: "fixed", width: totalWidth, minWidth: "100%" }}>
-        {colGroup}
-        {renderTableHeader()}
-        <TableBody>
-          <tr>
-            <td colSpan={visibleColumnsInOrder.length} style={{ padding: 0 }}>
-              <div
-                ref={parentRef}
-                style={{
-                  height: `${Math.min(rows.length * ROW_HEIGHT, MAX_CONTAINER_HEIGHT)}px`,
-                  overflow: "auto",
-                  position: "relative",
-                }}
-              >
-                <div
-                  style={{
-                    height: `${rowVirtualizer.getTotalSize()}px`,
-                    width: totalWidth,
-                    position: "relative",
-                  }}
-                >
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const row = rows[virtualRow.index];
-                    const rowIndex = virtualRow.index;
-                    const globalIndex = rowIdToGlobalIndex.get(row.id) ?? rowIndex;
+      {/* Header using CSS Grid */}
+      <div
+        className="grid bg-muted/50 border-t border-b text-xs font-medium"
+        style={{
+          gridTemplateColumns: gridTemplate,
+          width: totalWidth,
+          minWidth: "100%",
+        }}
+      >
+        {visibleColumnsInOrder.map((column) => (
+          <div
+            key={column.key}
+            className={cn(
+              "px-2 py-2 text-left whitespace-nowrap overflow-hidden",
+              column.key === "select" && "text-center px-0"
+            )}
+          >
+            {column.key === "select" ? "" : column.label?.toUpperCase()}
+          </div>
+        ))}
+      </div>
 
-                    return (
-                      <div
-                        key={virtualRow.key}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                      >
-                        <table style={{ width: totalWidth, tableLayout: "fixed" }}>
-                          {colGroup}
-                          <tbody>
-                            <TableRow
-                              data-row-id={row.id}
-                              className={cn(
-                                selectedRows.has(row.id) && "bg-muted/50",
-                                isRowInDragRange(row.id) &&
-                                  !selectedRows.has(row.id) &&
-                                  "bg-blue-100 dark:bg-blue-900/30",
-                                "hover:bg-muted/30 cursor-pointer"
-                              )}
-                              onClick={() => {
-                                console.log(
-                                  "🟣 TeeemTableView row clicked, isEditMode:",
-                                  isEditMode,
-                                  "hasOnRowClick:",
-                                  !!onRowClick
-                                );
-                                if (!isEditMode && onRowClick) {
-                                  console.log("🟣 Calling onRowClick with row:", row.id);
-                                  onRowClick(row);
-                                }
-                              }}
-                              onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
-                              onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
-                            >
-                              {visibleColumnsInOrder.map((column, colIndex) => {
-                                const stickyStyles = getStickyColumnStyles(column.key, false);
-                                const isSystemGen = isSystemGeneratedColumn(column);
-                                return (
-                                  <TableCell
-                                    key={`${column.key}-${colIndex}`}
-                                    style={{
-                                      width: columnWidths[column.key],
-                                      minWidth: columnWidths[column.key],
-                                      ...stickyStyles,
-                                      ...(isSystemGen &&
-                                        column.key !== "select" &&
-                                        column.key !== "actions" && {
-                                          backgroundColor: SYSTEM_COLUMN_BG,
-                                        }),
-                                    }}
-                                    className={cn(
-                                      "text-left", // Ensure left alignment for all cells
-                                      column.key === "select" && "!border-r-0 !p-0 !h-full text-center",
-                                      column.key === "actions" && "!border-l-0"
-                                    )}
-                                    onClick={(e) => {
-                                      if (column.key === "select") {
-                                        e.stopPropagation();
-                                      }
-                                    }}
-                                  >
-                                    {column.key === "select" ? (
-                                      <div
-                                        data-column="select"
-                                        onMouseDown={(e) =>
-                                          handleSelectMouseDown(row.id, globalIndex, e)
-                                        }
-                                      >
-                                        <SelectCheckbox
-                                          checked={selectedRows.has(row.id)}
-                                          onCheckedChange={getToggleCallback(row.id)}
-                                        />
-                                      </div>
-                                    ) : (
-                                      renderCellValue(row, column)
-                                    )}
-                                  </TableCell>
-                                );
-                              })}
-                            </TableRow>
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })}
-                </div>
+      {/* Virtualized rows container */}
+      <div
+        ref={parentRef}
+        style={{
+          height: containerHeight,
+          overflow: "auto",
+          width: totalWidth,
+          minWidth: "100%",
+        }}
+      >
+        <div
+          style={{
+            height: rowVirtualizer.getTotalSize(),
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            const rowIndex = virtualRow.index;
+            const globalIndex = rowIdToGlobalIndex.get(row.id) ?? rowIndex;
+
+            return (
+              <div
+                key={virtualRow.key}
+                data-row-id={row.id}
+                className={cn(
+                  "grid border-b border-border/30 text-sm",
+                  selectedRows.has(row.id) && "bg-muted/50",
+                  isRowInDragRange(row.id) &&
+                    !selectedRows.has(row.id) &&
+                    "bg-blue-100 dark:bg-blue-900/30",
+                  "hover:bg-muted/30 cursor-pointer"
+                )}
+                style={{
+                  gridTemplateColumns: gridTemplate,
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: virtualRow.size,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+                onClick={() => {
+                  if (!isEditMode && onRowClick) {
+                    onRowClick(row);
+                  }
+                }}
+                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
+                onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
+              >
+                {visibleColumnsInOrder.map((column, colIndex) => {
+                  const isSystemGen = isSystemGeneratedColumn(column);
+
+                  return (
+                    <div
+                      key={`${column.key}-${colIndex}`}
+                      className={cn(
+                        "flex items-center px-2 overflow-hidden text-ellipsis whitespace-nowrap",
+                        column.key === "select" && "justify-center px-0",
+                        column.key === "actions" && "justify-end"
+                      )}
+                      style={{
+                        ...(isSystemGen &&
+                          column.key !== "select" &&
+                          column.key !== "actions" && {
+                            backgroundColor: SYSTEM_COLUMN_BG,
+                          }),
+                      }}
+                      onClick={(e) => {
+                        if (column.key === "select") {
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      {column.key === "select" ? (
+                        <div
+                          data-column="select"
+                          onMouseDown={(e) =>
+                            handleSelectMouseDown(row.id, globalIndex, e)
+                          }
+                        >
+                          <SelectCheckbox
+                            checked={selectedRows.has(row.id)}
+                            onCheckedChange={getToggleCallback(row.id)}
+                          />
+                        </div>
+                      ) : (
+                        renderCellValue(row, column)
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </td>
-          </tr>
-        </TableBody>
-      </Table>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 });

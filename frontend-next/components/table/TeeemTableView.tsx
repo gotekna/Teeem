@@ -782,7 +782,9 @@ export default function TeeemTableView({
     // SSR: Skip client fetch if server provided records
     // Note: Only skip on initial load (autoFetchRefreshKey === 0)
     // After updates/deletes, we still need to re-fetch
-    if (initialRecords && initialRecords.length > 0 && autoFetchRefreshKey === 0) {
+    // IMPORTANT: Don't overwrite client-side search results with SSR initial records
+    const hasActiveSearch = searchRef.current;
+    if (initialRecords && initialRecords.length > 0 && autoFetchRefreshKey === 0 && !hasActiveSearch) {
       setAutoFetchedRecords(initialRecords);
       setHasMore(initialHasMore ?? true);
       return;
@@ -797,16 +799,18 @@ export default function TeeemTableView({
     }
 
     const fetchInitialRecords = async () => {
+      // IMPORTANT: Skip initial fetch if there's an active search term
+      // The search handler (handleAutoFetchSearch) is responsible for fetching when searching
+      // This prevents overwriting search results with non-search results
+      const currentSearch = searchRef.current;
+      if (currentSearch) {
+        return;
+      }
+
       setIsLoadingMore(true);
       try {
-        // SSoT FIX: Include search term in refresh to maintain filter state
-        // Use ref to get current search value (avoids stale closure since search not in deps)
-        const currentSearch = searchRef.current;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { limit: 100 };
-        if (currentSearch) {
-          params.search = currentSearch;
-        }
         // ULTRA Solution: Include base filters in API call
         // These are immutable filters from initialFilters prop (e.g., template filter)
         if (baseFilters.length > 0) {
@@ -834,11 +838,20 @@ export default function TeeemTableView({
 
   // Auto-load more records in background after initial render
   // ULTRA Solution: Include base filters to ensure consistent data loading
+  // IMPORTANT: Skip load-more when there's an active search - search results are complete
   useEffect(() => {
-    if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0) return;
+    // Skip load-more when:
+    // 1. Not in auto-fetch mode
+    // 2. No more records to load
+    // 3. Already loading
+    // 4. No records yet (initial state)
+    // 5. There's an active search term (search results are complete, don't overwrite)
+    //    Use searchRef.current since search atom is declared later in the component
+    if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0 || searchRef.current) return;
 
     const timer = setTimeout(async () => {
-      if (!hasMore || isLoadingMore) return;
+      // Re-check conditions inside timeout (state may have changed)
+      if (!hasMore || isLoadingMore || searchRef.current) return;
 
       const lastRecord = autoFetchedRecords[autoFetchedRecords.length - 1];
       const cursor = lastRecord?.id;
@@ -873,18 +886,30 @@ export default function TeeemTableView({
 
   // Server-side search for auto-fetch mode
   // Supports all search modes: contains (default), exact, starts_with, fuzzy, regex
+  // IMPORTANT: Include cascade filters (e.g., entity_type=person for grouped views)
   const handleAutoFetchSearch = useCallback(async (searchTerm: string, mode?: SearchMode) => {
     if (!useAutoFetch) return;
 
     setIsSearching(true);
     try {
-      const params: Record<string, string | number> = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const params: Record<string, any> = {
         search: searchTerm,
         limit: 100,
       };
       // Pass search mode to backend if specified (backend defaults to 'contains')
       if (mode) {
         params.search_mode = mode;
+      }
+      // Include cascade filters in search (e.g., entity_type=person for By Company view)
+      // Combine base filters (immutable) with cascade filters (view + user filters)
+      const allFilters = [...baseFilters, ...cascadeFilters];
+      if (allFilters.length > 0) {
+        params.filters = JSON.stringify(allFilters.map(f => ({
+          column: f.column,
+          operator: f.operator,
+          value: f.value,
+        })));
       }
       const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
         `/api/v1/foundations/${effectiveFoundationId}/records`,
@@ -897,7 +922,7 @@ export default function TeeemTableView({
     } finally {
       setIsSearching(false);
     }
-  }, [useAutoFetch, effectiveFoundationId]);
+  }, [useAutoFetch, effectiveFoundationId, baseFilters, cascadeFilters]);
 
   // Use Foundation columns when available (SSoT), otherwise fall back to props
   // Merge with extraColumns if provided (for dynamic/computed columns like company presence)
@@ -2816,34 +2841,9 @@ export default function TeeemTableView({
     // When effectiveOnServerSearch exists, server already filtered with SQL ILIKE
     const hasServerSearch = !!effectiveOnServerSearch;
 
-    // DEBUG: Log search state
-    if (search) {
-      console.log('[TeeemTableView Search Debug]', {
-        search,
-        hasServerSearch,
-        effectiveOnServerSearch: !!effectiveOnServerSearch,
-        searchAllColumns,
-        searchableColumnsKeys: Object.keys(searchableColumns),
-        resultCount: result.length,
-        columnsCount: COLUMNS.length,
-        firstEntry: result[0] ? Object.keys(result[0]).slice(0, 5) : 'no entries'
-      });
-    }
 
     if (search && !hasServerSearch) {
-      // DEBUG: Check first entry's name field
-      if (result.length > 0) {
-        const firstEntry = result[0];
-        console.log('[TeeemTableView Search] First entry fields:', {
-          name: firstEntry.name,
-          id: firstEntry.id,
-          allKeys: Object.keys(firstEntry).slice(0, 10),
-          nameInSearchable: searchableColumns['name'],
-          columnsWithName: COLUMNS.filter(c => c.key === 'name').map(c => ({ key: c.key, label: c.label }))
-        });
-      }
-
-      // Use extracted utility function for search
+      // Use extracted utility function for client-side search
       result = applySearch(result, {
         search,
         searchMode: currentSearchMode as DataSearchMode,
@@ -2851,18 +2851,13 @@ export default function TeeemTableView({
         searchableColumns,
         searchAllColumns,
       });
-
-      // DEBUG: Log after filtering
-      console.log('[TeeemTableView Search Result]', {
-        filteredCount: result.length,
-        search
-      });
     }
 
     // Apply cascade filters (skip if server search is active - SSoT: backend handles filtering)
-    // When server search is active (onServerSearch exists AND search term present),
+    // When server search is active (effectiveOnServerSearch exists AND search term present),
     // the backend applies both filters + search in a single SQL query
-    const skipClientFilters = onServerSearch && search;
+    // IMPORTANT: Use effectiveOnServerSearch (not onServerSearch prop) to handle auto-fetch mode
+    const skipClientFilters = effectiveOnServerSearch && search;
     if (safeFilters.length > 0 && !skipClientFilters) {
       // Use extracted utility function for filters
       result = applyFilters(result, safeFilters, filterGroups, interGroupLogic);
