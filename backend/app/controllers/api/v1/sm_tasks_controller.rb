@@ -10,7 +10,8 @@ module Api
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
         :attachments, :add_attachment, :remove_attachment,
-        :follow, :unfollow, :followers
+        :follow, :unfollow, :followers,
+        :compare_to_template, :sync_from_template
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
@@ -739,7 +740,166 @@ module Api
         }
       end
 
+      # GET /api/v1/sm_tasks/:id/compare_to_template
+      # Compare a task to its linked template row
+      def compare_to_template
+        template_row = @task.sm_schedule_master
+
+        unless template_row
+          render json: {
+            success: true,
+            comparison: {
+              task: task_comparison_json(@task),
+              template_row: nil,
+              differences: {},
+              can_sync: false,
+              skip_reason: "Not linked to template"
+            }
+          }
+          return
+        end
+
+        # Calculate differences using sync service logic
+        differences = calculate_row_differences(@task, template_row)
+
+        # Check if task can be synced
+        can_sync = !task_has_job_reality?(@task)
+        skip_reason = can_sync ? nil : build_skip_reason(@task)
+
+        render json: {
+          success: true,
+          comparison: {
+            task: task_comparison_json(@task),
+            template_row: template_row_comparison_json(template_row),
+            differences: differences,
+            can_sync: can_sync,
+            skip_reason: skip_reason
+          }
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/sync_from_template
+      # Sync a single task from its linked template row
+      def sync_from_template
+        template_row = @task.sm_schedule_master
+
+        unless template_row
+          render json: {
+            success: false,
+            error: "Task is not linked to a template row"
+          }, status: :unprocessable_entity
+          return
+        end
+
+        # Check if task can be synced
+        if task_has_job_reality?(@task)
+          render json: {
+            success: false,
+            error: "Task has job-level changes (#{build_skip_reason(@task)}) and cannot be synced"
+          }, status: :unprocessable_entity
+          return
+        end
+
+        # Use the sync service to sync this single row
+        job = @task.job
+        result = SmScheduleMasterSyncService.new(job, template_row, user: current_user).sync!
+
+        if result[:success]
+          render json: {
+            success: true,
+            message: result[:message] || "Task synced from template",
+            action: result[:action],
+            changes: result[:changes] || {}
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
       private
+
+      # Helper methods for compare_to_template
+      def task_comparison_json(task)
+        {
+          id: task.id,
+          task_number: task.task_number,
+          name: task.name,
+          description: task.description,
+          duration_days: task.duration_days,
+          trade: task.trade,
+          stage: task.stage,
+          status: task.status,
+          require_photo: task.require_photo,
+          po_required: task.po_required,
+          critical_po: task.critical_po,
+          order_time_days: task.order_time_days,
+          call_time_days: task.call_time_days,
+          checklist_id: task.checklist_id,
+          sm_schedule_master_id: task.sm_schedule_master_id
+        }
+      end
+
+      def template_row_comparison_json(row)
+        {
+          id: row.id,
+          task_number: row.task_number,
+          name: row.name,
+          description: row.description,
+          duration_days: row.duration_days,
+          trade: row.trade,
+          stage: row.stage,
+          require_photo: row.require_photo,
+          po_required: row.po_required,
+          critical_po: row.critical_po,
+          order_time_days: row.order_time_days,
+          call_time_days: row.call_time_days,
+          checklist_id: row.checklist_id
+        }
+      end
+
+      def calculate_row_differences(task, template_row)
+        differences = {}
+        syncable_fields = SmScheduleMasterSyncService.syncable_fields
+
+        syncable_fields.each do |field|
+          next unless template_row.respond_to?(field) && task.respond_to?(field)
+
+          template_value = template_row.send(field)
+          task_value = task.send(field)
+
+          # Only show difference if template has a value and it differs
+          if template_value.present? && template_value != task_value
+            differences[field.to_s] = {
+              template: template_value,
+              task: task_value
+            }
+          end
+        end
+
+        differences
+      end
+
+      def task_has_job_reality?(task)
+        task.status.in?(%w[started completed]) ||
+          task.started_at.present? ||
+          task.completed_at.present? ||
+          task.supplier_confirm == true ||
+          task.confirm == true ||
+          task.hold == true
+      end
+
+      def build_skip_reason(task)
+        reasons = []
+        reasons << "completed" if task.status == "completed" || task.completed_at.present?
+        reasons << "started" if task.status == "started" || task.started_at.present?
+        reasons << "supplier confirmed" if task.supplier_confirm == true
+        reasons << "confirmation locked" if task.confirm == true
+        reasons << "on hold" if task.hold == true
+        reasons.join(", ")
+      end
 
       def set_job
         @job = Job.find(params[:job_id])

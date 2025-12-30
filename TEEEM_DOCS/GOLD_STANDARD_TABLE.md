@@ -233,6 +233,101 @@ Some tables display data where users cannot add, edit, or delete records. Use th
 
 ---
 
+## TeeemTableView Migration Checklist
+
+**CRITICAL:** Before converting ANY existing table to TeeemTableView, verify ALL features are preserved:
+
+### Pre-Migration Audit
+
+| Check | How to Verify | TeeemTableView Feature |
+|-------|---------------|------------------------|
+| **Grouped sections?** | Does table have collapsible groups (e.g., "Active" / "Flagged")? | `initialGroupByColumn="column_name"` |
+| **Custom cell colors/badges?** | Are there color-coded cells, badges, or icons? | `customCellRenderer` prop |
+| **Row click actions?** | Does clicking a row navigate somewhere or trigger action? | `onRowClick`, `onRowDoubleClick` |
+| **Row action buttons?** | View/Edit/Delete buttons in each row? | `onView`, `onEdit`, `onDelete` |
+| **Stats cards above?** | Summary cards or stats above the table? | Keep them - TeeemTableView doesn't replace these |
+| **Filter dropdowns?** | Custom filter UI (dropdowns, date pickers)? | `leftActions` prop |
+| **Bulk actions?** | Select multiple rows and perform action? | `onBulkDelete`, `onBulkEdit`, `customBulkActions` |
+| **Computed fields?** | Are there calculated/derived columns? | Add to `entries` transform before passing |
+
+### Grouping Pattern
+
+For tables with collapsible sections:
+
+```tsx
+// 1. Add computed group field to entries
+const tableEntries = useMemo(() => {
+  return data.map(item => ({
+    ...item,
+    contact_group: item.isFlagged ? "Flagged" : "Active",
+  }));
+}, [data]);
+
+// 2. Add hidden column for grouping
+const columns = [
+  { key: "contact_group", label: "Group", defaultHidden: true },
+  // ... other columns
+];
+
+// 3. Set initial grouping
+<TeeemTableView
+  entries={tableEntries}
+  columns={columns}
+  initialGroupByColumn="contact_group"
+/>
+```
+
+### Custom Cell Rendering Pattern
+
+For badges, icons, color-coded values:
+
+```tsx
+const customCellRenderer = useCallback((entry: TableRow, columnKey: string) => {
+  // Return custom JSX for specific columns
+  if (columnKey === "status") {
+    return <Badge variant={entry.status === "active" ? "success" : "warning"}>{entry.status}</Badge>;
+  }
+  if (columnKey === "is_linked") {
+    return entry.is_linked ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted" />;
+  }
+  return null; // Return null to use default rendering
+}, []);
+
+<TeeemTableView customCellRenderer={customCellRenderer} />
+```
+
+### Migration Verification
+
+After migration, verify:
+- [ ] All original features work (grouping, colors, actions)
+- [ ] Row click behavior matches original
+- [ ] Stats/summary cards still display
+- [ ] Filter UI is accessible via `leftActions`
+- [ ] No features were silently dropped
+
+---
+
+## TeeemTableView Advanced Props Reference
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `initialGroupByColumn` | `string` | Column key to group by on initial load |
+| `customCellRenderer` | `(row, columnKey) => ReactNode \| null` | Custom cell rendering for badges, icons, colors |
+| `leftActions` | `ReactNode` | Custom filter UI in toolbar (dropdowns, etc.) |
+| `customBulkActions` | `(selectedIds, clearSelection) => ReactNode` | Custom bulk action buttons |
+| `onRowClick` | `(row) => void` | Click handler for row |
+| `onRowDoubleClick` | `(row) => void` | Double-click handler for row |
+| `onView` | `(row) => void` | View action in row menu |
+| `onEdit` | `(row) => void` | Edit action in row menu |
+| `onDelete` | `(row) => void` | Delete action in row menu |
+| `onBulkDelete` | `(ids) => void` | Bulk delete selected rows |
+| `onBulkEdit` | `(ids) => void` | Bulk edit selected rows |
+| `viewOnly` | `boolean` | Disable all editing actions |
+| `disableSavedViews` | `boolean` | Hide saved views functionality |
+| `showHeader` | `boolean` | Show/hide built-in header (default: true) |
+
+---
+
 ## Sticky Columns (Horizontal Scroll)
 
 When scrolling horizontally, certain columns stay frozen at the left edge:
@@ -437,6 +532,7 @@ When saving a view, these settings are persisted:
 
 | Date | Change |
 |------|--------|
+| 2025-12-30 | Added Migration Checklist and Advanced Props Reference for preventing feature loss during table conversions |
 | 2025-12-16 | SSoT: TeeemTableView now handles header/count internally (showHeader prop). Pages no longer implement custom headers. |
 | 2025-12-16 | Added Sticky Columns, View Persistence, Page Container Pattern, group header no-wrap |
 | 2024-12-03 | Created as SSoT, documented all 31 column types |

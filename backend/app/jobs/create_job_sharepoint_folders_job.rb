@@ -45,7 +45,12 @@ class CreateJobSharepointFoldersJob < ApplicationJob
 
       if existing_folder
         Rails.logger.info "[DocumentProvider] Folder already exists for job #{job_id}"
-        job.update_column(:sharepoint_folder_status, "completed")
+        # Store folder ID if not already stored (backfill existing jobs)
+        folder_id = existing_folder["id"] || existing_folder[:id]
+        job.update_columns(
+          sharepoint_folder_status: "completed",
+          sharepoint_folder_id: folder_id
+        )
         return
       end
 
@@ -53,8 +58,13 @@ class CreateJobSharepointFoldersJob < ApplicationJob
       # Create folder structure for this job
       job_folder = @document_provider.create_job_folder_structure(job)
 
-      Rails.logger.info "[DocumentProvider] Successfully created folders for job #{job_id}: #{job_folder[:path] || job_folder['webUrl']}"
-      job.update_column(:sharepoint_folder_status, "completed")
+      # Store the folder ID for stable lookups (SSoT: prevents data loss on folder rename)
+      folder_id = job_folder["id"] || job_folder[:id]
+      Rails.logger.info "[DocumentProvider] Successfully created folders for job #{job_id}: #{job_folder[:path] || job_folder['webUrl']} (ID: #{folder_id})"
+      job.update_columns(
+        sharepoint_folder_status: "completed",
+        sharepoint_folder_id: folder_id
+      )
 
       # Mark credential as synced (if applicable)
       @document_provider.credential.mark_synced! if @document_provider.credential.respond_to?(:mark_synced!)

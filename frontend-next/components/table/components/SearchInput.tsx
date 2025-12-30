@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useCallback, useEffect, useState, memo } from "react";
+import React, { useCallback, useEffect, useState, memo } from "react";
 import {
   Search,
   X,
@@ -59,8 +59,6 @@ export const SearchInput = memo(function SearchInput({
   onSearchModeChange,
   showModeSelector = true,
 }: SearchInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
   // Track local input value for controlled input
   const [localValue, setLocalValue] = useState(value);
   const [localMode, setLocalMode] = useState<SearchMode>(searchMode);
@@ -75,51 +73,40 @@ export const SearchInput = memo(function SearchInput({
     setLocalMode(searchMode);
   }, [searchMode]);
 
+  // Only update local state on change - search fires on Enter
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newValue = e.target.value;
-      setLocalValue(newValue);
-
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-
-      debounceRef.current = setTimeout(() => {
-        onSearch(newValue, localMode);
-      }, 300);
+      setLocalValue(e.target.value);
     },
-    [onSearch, localMode]
+    []
   );
 
+  // Search on Enter key press
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        onSearch(localValue, localMode);
+      }
+    },
+    [localValue, localMode, onSearch]
+  );
+
+  // Clear search immediately (resets results)
   const handleClear = useCallback(() => {
     setLocalValue("");
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
     onSearch("", localMode);
   }, [onSearch, localMode]);
 
+  // Mode change triggers immediate search if there's a value
   const handleModeChange = useCallback((mode: SearchMode) => {
     setLocalMode(mode);
     onSearchModeChange?.(mode);
 
     // Re-trigger search with new mode if there's a value
     if (localValue) {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-      // Immediate search on mode change
       onSearch(localValue, mode);
     }
   }, [localValue, onSearch, onSearchModeChange]);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
 
   const currentMode = SEARCH_MODES.find(m => m.id === localMode) || SEARCH_MODES[0];
 
@@ -132,15 +119,15 @@ export const SearchInput = memo(function SearchInput({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         )}
         <Input
-          ref={inputRef}
           type="text"
           value={localValue}
           onChange={handleChange}
+          onKeyDown={handleKeyDown}
           placeholder={
-            hasServerSearch ? "Search all records..." : "Search across all fields..."
+            hasServerSearch ? "Search all records... (press Enter)" : "Search... (press Enter)"
           }
           className="pl-9 pr-9"
-          aria-label="Search table"
+          aria-label="Search table - press Enter to search"
           aria-busy={serverSearchLoading}
           aria-describedby={localValue ? "search-clear-hint" : undefined}
         />

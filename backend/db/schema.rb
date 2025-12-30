@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_012131) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_030909) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2776,6 +2776,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_012131) do
     t.boolean "is_photo_category", default: false, null: false
     t.string "display_mode", default: "both", null: false
     t.boolean "hidden_by_default", default: false, null: false
+    t.string "sharepoint_folder_id"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"
@@ -2784,6 +2785,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_012131) do
     t.index ["scope", "tab_group"], name: "index_entity_tabs_on_scope_and_tab_group"
     t.index ["scope", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
     t.index ["scope"], name: "index_entity_tabs_on_scope"
+    t.index ["sharepoint_folder_id"], name: "index_entity_tabs_on_sharepoint_folder_id"
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
@@ -6111,6 +6113,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_012131) do
     t.integer "plans_count", default: 0, null: false
     t.integer "on_issue_plans_count", default: 0, null: false
     t.datetime "template_applied_at"
+    t.string "sharepoint_folder_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6122,6 +6125,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_012131) do
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["postcode"], name: "index_jobs_on_postcode"
     t.index ["searchable"], name: "idx_jobs_searchable_gin", using: :gin
+    t.index ["sharepoint_folder_id"], name: "index_jobs_on_sharepoint_folder_id"
     t.index ["sharepoint_folder_status"], name: "index_jobs_on_sharepoint_folder_status"
     t.index ["suburb"], name: "index_jobs_on_suburb"
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"

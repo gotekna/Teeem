@@ -171,6 +171,8 @@ export interface TeeemTableViewProps {
   initialSearch?: string;
   /** Callback when search changes (for URL sync) */
   onSearchChange?: (term: string) => void;
+  /** Auto-persist search to URL query params (default: true). Set to false for embedded tables. */
+  persistSearchToUrl?: boolean;
   onViewApiParamsChange?: (params: Record<string, unknown> | null) => void;
   loadingMore?: boolean;
   onLoadMore?: () => void; // Infinite scroll callback when user reaches bottom

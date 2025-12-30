@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3 } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
@@ -202,6 +202,45 @@ interface AnalyzeResult {
   };
 }
 
+// Row-level comparison for edit drawer
+interface RowComparison {
+  task: {
+    id: number;
+    task_number: number;
+    name: string;
+    description: string | null;
+    duration_days: number;
+    trade: string | null;
+    stage: string | null;
+    status: string;
+    require_photo: boolean;
+    po_required: boolean;
+    critical_po: boolean;
+    order_time_days: number | null;
+    call_time_days: number | null;
+    checklist_id: number | null;
+    sm_schedule_master_id: number | null;
+  };
+  template_row: {
+    id: number;
+    task_number: number;
+    name: string;
+    description: string | null;
+    duration_days: number;
+    trade: string | null;
+    stage: string | null;
+    require_photo: boolean;
+    po_required: boolean;
+    critical_po: boolean;
+    order_time_days: number | null;
+    call_time_days: number | null;
+    checklist_id: number | null;
+  } | null;
+  differences: Record<string, { template: unknown; task: unknown }>;
+  can_sync: boolean;
+  skip_reason: string | null;
+}
+
 function mapTaskToGanttTask(task: SmTask): GanttTask {
   const statusMap: Record<string, GanttTask["status"]> = {
     not_started: "not-started",
@@ -257,6 +296,13 @@ export default function SchedulePage() {
   const [confirmedMatches, setConfirmedMatches] = React.useState<Set<number>>(new Set());
   const [orphansToDelete, setOrphansToDelete] = React.useState<Set<number>>(new Set());
   const [compareFilter, setCompareFilter] = React.useState<"all" | "will_create" | "will_update" | "will_skip" | "unchanged" | "unlinked">("all");
+
+  // Row edit drawer state
+  const [editDrawerOpen, setEditDrawerOpen] = React.useState(false);
+  const [selectedRow, setSelectedRow] = React.useState<Record<string, unknown> | null>(null);
+  const [rowComparison, setRowComparison] = React.useState<RowComparison | null>(null);
+  const [loadingRowComparison, setLoadingRowComparison] = React.useState(false);
+  const [syncingRow, setSyncingRow] = React.useState(false);
 
   React.useEffect(() => {
     const fetchJob = async () => {
@@ -567,6 +613,63 @@ export default function SchedulePage() {
     }
   };
 
+  // Row edit drawer handlers
+  const handleRowDoubleClick = async (row: Record<string, unknown>) => {
+    setSelectedRow(row);
+    setRowComparison(null);
+    setEditDrawerOpen(true);
+
+    // Fetch comparison if task is linked to a template
+    const taskId = row.id as number;
+    const smScheduleMasterId = row.sm_schedule_master_id as number | null;
+
+    if (smScheduleMasterId) {
+      setLoadingRowComparison(true);
+      try {
+        const response = await api.get<{ success: boolean; comparison: RowComparison }>(
+          `/api/v1/sm_tasks/${taskId}/compare_to_template`
+        );
+        if (response?.comparison) {
+          setRowComparison(response.comparison);
+        }
+      } catch (err) {
+        console.error("Failed to fetch row comparison:", err);
+      } finally {
+        setLoadingRowComparison(false);
+      }
+    }
+  };
+
+  const handleSyncRow = async () => {
+    if (!selectedRow || !rowComparison?.template_row) return;
+
+    setSyncingRow(true);
+    try {
+      const response = await api.post<{ success: boolean; message: string; changes: Record<string, unknown> }>(
+        `/api/v1/sm_tasks/${selectedRow.id}/sync_from_template`
+      );
+      if (response?.success) {
+        toast({
+          title: "Row Synced",
+          description: response.message || "Task updated from template",
+        });
+        // Refresh comparison
+        const compResponse = await api.get<{ success: boolean; comparison: RowComparison }>(
+          `/api/v1/sm_tasks/${selectedRow.id}/compare_to_template`
+        );
+        if (compResponse?.comparison) {
+          setRowComparison(compResponse.comparison);
+        }
+        triggerRefresh();
+      }
+    } catch (err) {
+      console.error("Failed to sync row:", err);
+      toast({ title: "Sync Failed", description: "Failed to sync task from template", variant: "destructive" });
+    } finally {
+      setSyncingRow(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -637,6 +740,7 @@ export default function SchedulePage() {
           }
           enableExport={true}
           onRefresh={triggerRefresh}
+          onRowDoubleClick={handleRowDoubleClick}
         />
       </div>
 
@@ -1172,6 +1276,151 @@ export default function SchedulePage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Row Edit Drawer */}
+      <Sheet open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
+        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
+          <SheetHeader className="pb-4 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              <span className="font-mono text-muted-foreground">#{selectedRow?.task_number as number}</span>
+              {String(selectedRow?.name || "")}
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="py-4 space-y-4">
+            {/* Template link status */}
+            {selectedRow && (
+              <div className="flex items-center gap-2 text-sm">
+                {selectedRow.sm_schedule_master_id ? (
+                  <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                    <Link2 className="h-3 w-3 mr-1" />
+                    Linked to Template
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Not Linked to Template
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Loading comparison */}
+            {loadingRowComparison && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Spinner size={16} />
+                Loading template comparison...
+              </div>
+            )}
+
+            {/* Comparison table */}
+            {rowComparison?.template_row && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">Template Comparison</h4>
+                  {rowComparison.can_sync ? (
+                    <Button
+                      size="sm"
+                      onClick={handleSyncRow}
+                      disabled={syncingRow || Object.keys(rowComparison.differences).length === 0}
+                    >
+                      {syncingRow ? (
+                        <><Spinner size={14} className="mr-2" />Syncing...</>
+                      ) : Object.keys(rowComparison.differences).length === 0 ? (
+                        <><Check className="h-4 w-4 mr-2" />In Sync</>
+                      ) : (
+                        <><RefreshCw className="h-4 w-4 mr-2" />Sync {Object.keys(rowComparison.differences).length} Changes</>
+                      )}
+                    </Button>
+                  ) : (
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                      {rowComparison.skip_reason || "Cannot sync"}
+                    </Badge>
+                  )}
+                </div>
+
+                {Object.keys(rowComparison.differences).length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <UITableRow>
+                          <TableHead className="w-[120px]">Field</TableHead>
+                          <TableHead>Current Task</TableHead>
+                          <TableHead className="w-[40px]"></TableHead>
+                          <TableHead>Template</TableHead>
+                        </UITableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Object.entries(rowComparison.differences).map(([field, diff]) => (
+                          <UITableRow key={field}>
+                            <TableCell className="font-medium text-sm">{field}</TableCell>
+                            <TableCell className="text-sm text-red-600 dark:text-red-400">
+                              {String(diff.task ?? "-")}
+                            </TableCell>
+                            <TableCell>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            </TableCell>
+                            <TableCell className="text-sm text-green-600 dark:text-green-400">
+                              {String(diff.template ?? "-")}
+                            </TableCell>
+                          </UITableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-sm text-muted-foreground bg-green-50 dark:bg-green-950 rounded-lg">
+                    <Check className="h-5 w-5 text-green-500 mx-auto mb-1" />
+                    Task is in sync with template
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No template link */}
+            {selectedRow && !selectedRow.sm_schedule_master_id && !loadingRowComparison && (
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+                <p>This task is not linked to a template row.</p>
+                <p className="mt-1">Use "Sync from Master" to link tasks to templates.</p>
+              </div>
+            )}
+
+            {/* Task details summary */}
+            {selectedRow && (
+              <div className="space-y-3 pt-4 border-t">
+                <h4 className="text-sm font-medium">Task Details</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="ml-2 font-medium">{selectedRow.status as string}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Trade:</span>
+                    <span className="ml-2 font-medium">{(selectedRow.trade as string) || "-"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Stage:</span>
+                    <span className="ml-2 font-medium">{(selectedRow.stage as string) || "-"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Duration:</span>
+                    <span className="ml-2 font-medium">{selectedRow.duration_days as number} days</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">PO Required:</span>
+                    <span className="ml-2 font-medium">{selectedRow.po_required ? "Yes" : "No"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Photo Required:</span>
+                    <span className="ml-2 font-medium">{selectedRow.require_photo ? "Yes" : "No"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

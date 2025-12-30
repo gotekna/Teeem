@@ -35,6 +35,7 @@ type FilterStatus = "all" | "synced" | "not-synced" | "errors";
 
 // Gold Standard Table columns for Xero sync contacts
 const XERO_SYNC_COLUMNS: TableColumn[] = [
+  { key: "contact_group", label: "Group", defaultHidden: true }, // For grouping - hidden from display
   { key: "display_name", label: "Contact", width: 200, sortable: true, filterable: true },
   { key: "xero_name", label: "Xero Name", width: 180, sortable: true, filterable: true },
   { key: "match_percent", label: "Match", width: 70, sortable: true, dataAlign: "center", headerAlign: "center" },
@@ -596,10 +597,16 @@ export function XeroContactSync() {
       // Calculate match percent
       const matchPercent = calculateSimilarity(c.display_name, c.xero_name);
 
+      // Determine group: flagged contacts are price_only or person-with-company
+      const isPriceOnly = c.entity_type === "price_only";
+      const isPersonWithCompany = c.entity_type === "person" && c.primary_company_id != null;
+      const contactGroup = (isPriceOnly || isPersonWithCompany) ? "⚠️ Flagged" : "Active";
+
       return {
         ...c,
         role,
         match_percent: matchPercent,
+        contact_group: contactGroup,
         sync_status_display: c.has_error ? "Error" : (c.sync_status ? "synced" : "-"),
       };
     });
@@ -819,6 +826,7 @@ export function XeroContactSync() {
           entries={tableEntries}
           columns={XERO_SYNC_COLUMNS}
           tableName="Xero Contacts"
+          initialGroupByColumn="contact_group"
           onRowClick={handleRowClick}
           customCellRenderer={customCellRenderer}
           onRefresh={loadContacts}

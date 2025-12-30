@@ -467,6 +467,7 @@ export default function TeeemTableView({
   onSearchModeChange,
   initialSearch,
   onSearchChange,
+  persistSearchToUrl = true,
   onViewApiParamsChange,
   loadingMore = false,
   onLoadMore,
@@ -997,24 +998,47 @@ export default function TeeemTableView({
   // Search mode for client-side filtering
   const [currentSearchMode, setCurrentSearchMode] = useState<SearchMode>(propSearchMode || "contains");
 
-  // Wrap setSearch to also call onSearchChange callback (for URL sync)
+  // Wrap setSearch to also call onSearchChange callback and update URL (for URL sync)
   const setSearch = useCallback((value: string | ((prev: string) => string)) => {
     const newValue = typeof value === 'function' ? value(search) : value;
     setSearchAtom(newValue);
     onSearchChange?.(newValue);
-  }, [search, setSearchAtom, onSearchChange]);
+
+    // Auto-persist search to URL if enabled
+    if (persistSearchToUrl) {
+      const params = new URLSearchParams(window.location.search);
+      if (newValue) {
+        params.set('search', newValue);
+      } else {
+        params.delete('search');
+      }
+      const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [search, setSearchAtom, onSearchChange, persistSearchToUrl, router]);
 
   // Keep searchRef in sync for use in auto-fetch refresh effect (defined before search atom)
   searchRef.current = search;
 
-  // Initialize search from prop on mount (for URL-synced search)
+  // Initialize search from URL or prop on mount
+  // Priority: URL param > initialSearch prop > empty
   const hasInitializedSearchRef = useRef(false);
   useEffect(() => {
-    if (initialSearch && !hasInitializedSearchRef.current) {
+    if (hasInitializedSearchRef.current) return;
+
+    // Check URL for search param first (if persistSearchToUrl is enabled)
+    const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
+    const searchToApply = urlSearchParam || initialSearch;
+
+    if (searchToApply) {
       hasInitializedSearchRef.current = true;
-      setSearchAtom(initialSearch);
+      setSearchAtom(searchToApply);
+      // Trigger server search with initial value
+      if (effectiveOnServerSearch) {
+        effectiveOnServerSearch(searchToApply, propSearchMode);
+      }
     }
-  }, [initialSearch, setSearchAtom]);
+  }, [initialSearch, persistSearchToUrl, searchParams, setSearchAtom, effectiveOnServerSearch, propSearchMode]);
 
   // Re-trigger server search on mount if there's a persisted search term
   // This handles browser back navigation where atom state is preserved but data isn't

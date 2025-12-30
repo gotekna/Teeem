@@ -70,11 +70,39 @@ class JobDocumentSyncJob < ApplicationJob
   def sync_single_job(job)
     Rails.logger.info("[JobDocumentSync] Syncing job #{job.id}: #{job.title}")
 
-    # Find the job's SharePoint folder
-    job_folder = @client.find_job_folder(job)
-    unless job_folder
-      Rails.logger.warn("[JobDocumentSync] No SharePoint folder found for job #{job.id}")
-      return
+    # SSoT: Use stored folder ID if available (stable, survives renames)
+    # Fall back to name search if no ID stored (legacy jobs)
+    job_folder = nil
+    folder_id = job.sharepoint_folder_id
+
+    if folder_id.present?
+      # Use stored folder ID for direct lookup (faster, more reliable)
+      begin
+        job_folder = @client.get("/drives/#{@drive_id}/items/#{folder_id}")
+        Rails.logger.info("[JobDocumentSync] Found folder by stored ID for job #{job.id}")
+      rescue MicrosoftGraphClient::APIError => e
+        if e.message.include?("itemNotFound")
+          Rails.logger.warn("[JobDocumentSync] Stored folder ID invalid for job #{job.id}, falling back to search")
+          job.update_column(:sharepoint_folder_id, nil)  # Clear invalid ID
+          folder_id = nil
+        else
+          raise
+        end
+      end
+    end
+
+    # Fall back to name search if no stored ID
+    if job_folder.nil?
+      job_folder = @client.find_job_folder(job)
+      unless job_folder
+        Rails.logger.warn("[JobDocumentSync] No SharePoint folder found for job #{job.id}")
+        return
+      end
+      # Backfill: Store the folder ID for next time
+      if job_folder["id"].present? && job.sharepoint_folder_id.blank?
+        job.update_column(:sharepoint_folder_id, job_folder["id"])
+        Rails.logger.info("[JobDocumentSync] Backfilled folder ID for job #{job.id}")
+      end
     end
 
     # Get all files recursively from the job folder
@@ -102,6 +130,19 @@ class JobDocumentSyncJob < ApplicationJob
   def sync_file_to_database(job, file)
     job_doc = JobDocument.find_or_initialize_by(sharepoint_item_id: file[:id])
     is_new = job_doc.new_record?
+
+    # Detect if file was renamed in SharePoint (name changed but ID is the same)
+    # Preserve original_file_name for audit trail
+    if !is_new && job_doc.file_name != file[:name]
+      Rails.logger.info("[JobDocumentSync] Detected rename: #{job_doc.file_name} → #{file[:name]}")
+      # Store original name if not already set
+      job_doc.original_file_name ||= job_doc.file_name
+    end
+
+    # For new files, set original_file_name to current name
+    if is_new
+      job_doc.original_file_name = file[:name]
+    end
 
     job_doc.assign_attributes(
       job: job,

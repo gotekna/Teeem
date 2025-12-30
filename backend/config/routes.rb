@@ -1406,6 +1406,9 @@ Rails.application.routes.draw do
           post :follow
           delete :unfollow
           get :followers
+          # Row-level template sync
+          get :compare_to_template
+          post :sync_from_template
         end
 
         # Dependencies (nested under sm_tasks)
