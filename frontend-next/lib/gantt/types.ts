@@ -150,6 +150,15 @@ export interface SmScheduleMasterTemplate {
 // ============================================================================
 
 /**
+ * Minimal rowData for job tasks (SmTask-based Gantt)
+ * Used when displaying job schedule vs template schedule
+ */
+export interface JobTaskRowData {
+  task_number: number;
+  predecessor_ids?: ApiPredecessor[];
+}
+
+/**
  * Task for canvas rendering
  * Simplified from SmScheduleMaster with computed dates
  */
@@ -172,7 +181,8 @@ export interface GanttTask {
   // Shape determines visual rendering (default: 'task')
   shape?: TaskShape;
   // Original row reference for full data access
-  rowData?: SmScheduleMaster;
+  // SmScheduleMaster for template Gantt, JobTaskRowData for job tasks
+  rowData?: SmScheduleMaster | JobTaskRowData;
 }
 
 /**
