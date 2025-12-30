@@ -29,6 +29,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
 
 // Types
 type FilterStatus = "all" | "synced" | "not-synced" | "errors";
@@ -462,6 +463,18 @@ interface XeroDataStats {
   last_sync_at: string | null;
 }
 
+// Type for selected row data for the link sheet
+interface SelectedRowForLinkSheet {
+  xeroName: string;
+  xeroId: string | null;
+  xeroTenantName: string | null;
+  xeroLinkId: number | null;
+  currentContactId: number | null;
+  currentContactName: string | null;
+  synced: boolean;
+  matchConfidence: number | null;
+}
+
 // Contact Sync Component - Gold Standard Foundation-backed table
 export function XeroContactSync() {
   const router = useRouter();
@@ -469,6 +482,10 @@ export function XeroContactSync() {
   const [syncing, setSyncing] = React.useState(false);
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [filterStatus, setFilterStatus] = React.useState<FilterStatus>("all");
+
+  // State for Xero link management sheet
+  const [showLinkSheet, setShowLinkSheet] = React.useState(false);
+  const [selectedRow, setSelectedRow] = React.useState<SelectedRowForLinkSheet | null>(null);
 
   // Handle sync button
   const handleSync = async () => {

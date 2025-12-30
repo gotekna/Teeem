@@ -746,10 +746,11 @@ export default function JobDetailPage() {
   React.useEffect(() => {
     if (!tabFromUrl && !tabsLoading && visibleJobTabs.length > 0) {
       const defaultTab = userDefaultTab || "overview";
-      // Use replace to not add to history stack (user just opened the page)
-      router.replace(`/jobs/${jobId}/${defaultTab}`, { scroll: false });
+      // Use history.replaceState to update URL without triggering React re-render
+      // This prevents the double flash that occurred with router.replace
+      window.history.replaceState(null, "", `/jobs/${jobId}/${defaultTab}`);
     }
-  }, [tabFromUrl, tabsLoading, visibleJobTabs.length, userDefaultTab, jobId, router]);
+  }, [tabFromUrl, tabsLoading, visibleJobTabs.length, userDefaultTab, jobId]);
 
   // Helper: find first enabled child of a parent tab
   const findFirstChildTab = React.useCallback((tabKey: string): string | null => {

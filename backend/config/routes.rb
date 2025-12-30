@@ -1360,6 +1360,9 @@ Rails.application.routes.draw do
 
       # Agent Definitions (Chapter 20)
       resources :agent_definitions, param: :agent_id do
+        collection do
+          post :sync
+        end
         member do
           post :record_run
         end
