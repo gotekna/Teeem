@@ -156,6 +156,9 @@ export interface SmScheduleMasterTemplate {
 export interface JobTaskRowData {
   task_number: number;
   predecessor_ids?: ApiPredecessor[];
+  // Lock status fields (used by dependency editor)
+  confirm?: boolean;
+  supplier_confirm?: boolean;
 }
 
 /**

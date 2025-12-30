@@ -292,7 +292,7 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
     purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
     poRequired: task.po_required ?? false,
-    // SSoT: rowData contains predecessor_ids for sidebar dependency display
+    // SSoT: rowData contains predecessor_ids and lock status for sidebar/dependency editor
     rowData: {
       task_number: task.task_number,
       // Map to ApiPredecessor format - default type to 'FS' (Finish-to-Start) and lag to 0
@@ -301,6 +301,9 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
         type: (p.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
         lag: p.lag ?? 0,
       })),
+      // Lock status for dependency editor
+      confirm: task.confirm ?? false,
+      supplier_confirm: task.supplier_confirm ?? false,
     },
   };
 }
