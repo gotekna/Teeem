@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { SharePointTab } from "./SharePointTab";
-import { Building2, Users, Briefcase, ArrowLeft, FileText, Settings, Contact2 } from "lucide-react";
+import { Building2, Users, Briefcase, X, FileText, Settings, Contact2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 

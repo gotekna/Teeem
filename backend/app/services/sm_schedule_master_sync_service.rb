@@ -66,7 +66,6 @@ class SmScheduleMasterSyncService
     updated_by_id
     sm_schedule_master_id
     job_id
-    construction_id
     saas_customer_id
   ].freeze
 

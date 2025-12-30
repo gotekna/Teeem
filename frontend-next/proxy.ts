@@ -536,6 +536,13 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // EntityConfigurationTab with scope in path - strip any query params (e.g., ?view=tabs)
+  const entityConfigMatch = pathname.match(/^\/admin\/system\/entity-config\/([^/]+)$/);
+  if (entityConfigMatch && searchParams.toString()) {
+    // Redirect to clean URL without query params
+    redirectPath = pathname;
+  }
+
   // === Dynamic Foundation Slug Routes ===
   // Catch-all for single-segment paths with ?tab= (e.g., /contacts?tab=schema → /contacts/schema)
   // Only match paths that are single segments and have a tab param
