@@ -508,6 +508,17 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Dynamic Foundation Slug Routes ===
+  // Catch-all for single-segment paths with ?tab= (e.g., /contacts?tab=schema → /contacts/schema)
+  // Only match paths that are single segments and have a tab param
+  const singleSegmentMatch = pathname.match(/^\/([a-z][a-z0-9_-]*)$/i);
+  if (singleSegmentMatch && !redirectPath) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
   // Perform redirect if we have a new path
   if (redirectPath) {
     const url = request.nextUrl.clone();

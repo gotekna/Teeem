@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense, useCallback } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, Suspense, useCallback, useMemo } from "react";
 import { TeeemTableView, SchemaTab, ConnectionsTab, CreateRecordDialog } from "@/components/table";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
@@ -42,14 +42,25 @@ function ErrorDisplay({ error, slug }: { error: Error; slug: string }) {
 
 function TablePageContent() {
   const params = useParams();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
 
   const rawSlug = params.slug as string;
-  const tab = searchParams.get("tab");
 
   // Strip any legacy suffix if present (for backwards compatibility)
   const cleanSlug = stripUrlSuffix(rawSlug);
+
+  // URL is SSoT for tab state (path-based navigation)
+  // Parse: /contacts/schema → tab = "schema"
+  const tab = useMemo(() => {
+    const parts = pathname.replace(`/${cleanSlug}`, "").split("/").filter(Boolean);
+    // Only return tab if it's a known tab name (not a record ID)
+    const potentialTab = parts[0];
+    if (potentialTab && ["data", "schema", "connections"].includes(potentialTab)) {
+      return potentialTab;
+    }
+    return null;
+  }, [pathname, cleanSlug]);
 
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -90,7 +101,7 @@ function TablePageContent() {
   // Redirect legacy URLs with suffix to clean URLs
   useEffect(() => {
     if (rawSlug && rawSlug.includes("_GOD_LOVES_YOU_")) {
-      router.replace(`/${cleanSlug}${tab ? `?tab=${tab}` : ''}`);
+      router.replace(`/${cleanSlug}${tab ? `/${tab}` : ''}`);
     }
   }, [rawSlug, cleanSlug, tab, router]);
 
@@ -98,9 +109,9 @@ function TablePageContent() {
   const tableName = foundation?.name || cleanSlug;
 
   // Handle tab changes - update URL (activeTab is now derived from URL)
-  const handleTabChange = (newTab: string) => {
-    router.replace(`/${cleanSlug}?tab=${newTab}`, { scroll: false });
-  };
+  const handleTabChange = useCallback((newTab: string) => {
+    router.push(`/${cleanSlug}/${newTab}`, { scroll: false });
+  }, [router, cleanSlug]);
 
   // Handle inline row update - must be before early returns (hooks rule)
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {

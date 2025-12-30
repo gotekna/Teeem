@@ -270,12 +270,25 @@ module Api
 
         comparisons = SmScheduleMasterSyncService.compare_for_job(job, @template)
 
+        # Find unlinked tasks (orphans - tasks with no template link)
+        unlinked_tasks = job.sm_tasks.where(sm_schedule_master_id: nil).map do |task|
+          {
+            task_id: task.id,
+            task_number: task.task_number,
+            name: task.name,
+            status: task.status,
+            started_at: task.started_at,
+            completed_at: task.completed_at
+          }
+        end
+
         # Calculate summary counts
         summary = {
           will_create: comparisons.count { |c| c[:status] == "will_create" },
           will_update: comparisons.count { |c| c[:status] == "will_update" },
           will_skip: comparisons.count { |c| c[:status] == "will_skip" },
           unchanged: comparisons.count { |c| c[:status] == "unchanged" },
+          unlinked: unlinked_tasks.count,
           total: comparisons.count
         }
 
@@ -286,7 +299,8 @@ module Api
           job_id: job.id,
           job_name: job.name,
           summary: summary,
-          comparisons: comparisons
+          comparisons: comparisons,
+          unlinked_tasks: unlinked_tasks
         }
       rescue ActiveRecord::RecordNotFound
         render json: {

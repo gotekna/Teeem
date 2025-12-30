@@ -570,14 +570,17 @@ class XeroContactSyncService
   def sync_matched_contact(teeem_contact, xero_contact, link = nil)
     Rails.logger.info("Syncing matched contact: TEEEM ##{teeem_contact.id} <-> Xero #{xero_contact['Name']}")
 
+    # Always update link's external_name first (for name comparison feature)
+    # This happens regardless of whether the contact update succeeds
+    if link && xero_contact["Name"].present?
+      link.update_column(:external_name, xero_contact["Name"])
+    end
+
     # Update TEEEM with Xero data
     update_teeem_from_xero(teeem_contact, xero_contact, link)
 
-    # Update link with Xero name and sync status
-    if link
-      link.update!(external_name: xero_contact["Name"]) if xero_contact["Name"].present?
-      link.mark_synced!
-    end
+    # Update link sync status
+    link&.mark_synced!
   end
 
   def update_teeem_from_xero(teeem_contact, xero_contact, link = nil)

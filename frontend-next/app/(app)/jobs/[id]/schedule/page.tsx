@@ -240,6 +240,7 @@ export default function SchedulePage() {
   const [loadingTemplate, setLoadingTemplate] = React.useState(false);
   const [confirmedMatches, setConfirmedMatches] = React.useState<Set<number>>(new Set());
   const [orphansToDelete, setOrphansToDelete] = React.useState<Set<number>>(new Set());
+  const [compareFilter, setCompareFilter] = React.useState<"all" | "will_create" | "will_update" | "will_skip" | "unchanged">("all");
 
   React.useEffect(() => {
     const fetchJob = async () => {
@@ -354,6 +355,7 @@ export default function SchedulePage() {
     setAnalyzeResult(null);
     setConfirmedMatches(new Set());
     setOrphansToDelete(new Set());
+    setCompareFilter("all");
     setSyncStep("analyze");
     setShowSyncDialog(true);
 
