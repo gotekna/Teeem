@@ -114,13 +114,17 @@ class SmScheduleMasterSyncService
     # Get all unlinked tasks on the job (tasks without sm_schedule_master_id)
     unlinked_tasks = job.sm_tasks.where(sm_schedule_master_id: nil).to_a
 
+    # Performance: Pre-load all linked template IDs to avoid N+1 queries
+    # Before: 1 query per template row (O(n) queries)
+    # After: 1 query total (O(1) queries)
+    linked_template_ids = Set.new(job.sm_tasks.where.not(sm_schedule_master_id: nil).pluck(:sm_schedule_master_id))
+
     # Track which unlinked tasks have been matched
     matched_task_ids = Set.new
 
     template_rows.each do |row|
-      # Check if already linked
-      linked_task = job.sm_tasks.find_by(sm_schedule_master_id: row.id)
-      if linked_task.present?
+      # Check if already linked (using pre-loaded set instead of per-row query)
+      if linked_template_ids.include?(row.id)
         result[:already_linked] += 1
         next
       end

@@ -352,69 +352,75 @@ class Api::V1::EmailWarehouseController < ApplicationController
   # GET /api/v1/email_warehouse/unread_counts
   # Get unread email counts for the sidebar badge
   def unread_counts
-    # Get emails user has access to (same logic as index my_emails)
-    emails = EmailWarehouse.all
-    user_imap_credentials = current_user.imap_credentials
-    user_imap_ids = user_imap_credentials.pluck(:id)
+    begin
+      # Get emails user has access to (same logic as index my_emails)
+      emails = EmailWarehouse.all
+      user_imap_credentials = current_user.imap_credentials
+      user_imap_ids = user_imap_credentials.pluck(:id)
 
-    # Build list of all email accounts user has access to
-    all_accounts = []
+      # Build list of all email accounts user has access to
+      all_accounts = []
 
-    # IMAP accounts
-    user_imap_credentials.each do |cred|
-      all_accounts << cred.email_address if cred.email_address.present?
-    end
-
-    # Get MS365 org credentials the user has mailbox access to
-    ms365_cred_ids = []
-    ms365_mailbox_emails = []
-    MicrosoftCredential.app_credentials.connected.each do |org_cred|
-      user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
-      if user_mailboxes.any?
-        ms365_cred_ids << org_cred.id
-        ms365_mailbox_emails.concat(user_mailboxes)
-        all_accounts.concat(user_mailboxes)
+      # IMAP accounts
+      user_imap_credentials.each do |cred|
+        all_accounts << cred.email_address if cred.email_address.present?
       end
+
+      # Get MS365 org credentials the user has mailbox access to
+      ms365_cred_ids = []
+      ms365_mailbox_emails = []
+      MicrosoftCredential.app_credentials.connected.each do |org_cred|
+        user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
+        if user_mailboxes.any?
+          ms365_cred_ids << org_cred.id
+          ms365_mailbox_emails.concat(user_mailboxes)
+          all_accounts.concat(user_mailboxes)
+        end
+      end
+
+      conditions = []
+      bind_values = []
+
+      # IMAP accounts
+      if user_imap_ids.any?
+        conditions << "(source_type = 'imap' AND imap_credential_id IN (?))"
+        bind_values << user_imap_ids
+      end
+
+      # MS365 org mailboxes
+      if ms365_cred_ids.any?
+        conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
+        bind_values << ms365_cred_ids
+        bind_values << ms365_mailbox_emails
+      end
+
+      if conditions.any?
+        emails = emails.where(conditions.join(" OR "), *bind_values)
+      else
+        # No accounts connected
+        return render json: { total: 0, by_account: [] }
+      end
+
+      # Filter to unread only
+      unread_emails = emails.where(is_read: false)
+
+      # Get counts by mailbox/account
+      unread_by_account = unread_emails.group(:mailbox_owner_email).count
+
+      # Build result including all accounts (even with 0 unread)
+      by_account = all_accounts.uniq.map do |email|
+        { email: email, count: unread_by_account[email] || 0 }
+      end.sort_by { |a| [ -a[:count], a[:email] ] }
+
+      render json: {
+        total: unread_emails.count,
+        by_account: by_account
+      }
+    rescue StandardError => e
+      # Graceful fallback - sidebar badge should not crash the page
+      Rails.logger.error "[EmailWarehouse#unread_counts] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+      render json: { total: 0, by_account: [] }
     end
-
-    conditions = []
-    bind_values = []
-
-    # IMAP accounts
-    if user_imap_ids.any?
-      conditions << "(source_type = 'imap' AND imap_credential_id IN (?))"
-      bind_values << user_imap_ids
-    end
-
-    # MS365 org mailboxes
-    if ms365_cred_ids.any?
-      conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
-      bind_values << ms365_cred_ids
-      bind_values << ms365_mailbox_emails
-    end
-
-    if conditions.any?
-      emails = emails.where(conditions.join(" OR "), *bind_values)
-    else
-      # No accounts connected
-      return render json: { total: 0, by_account: [] }
-    end
-
-    # Filter to unread only
-    unread_emails = emails.where(is_read: false)
-
-    # Get counts by mailbox/account
-    unread_by_account = unread_emails.group(:mailbox_owner_email).count
-
-    # Build result including all accounts (even with 0 unread)
-    by_account = all_accounts.uniq.map do |email|
-      { email: email, count: unread_by_account[email] || 0 }
-    end.sort_by { |a| [ -a[:count], a[:email] ] }
-
-    render json: {
-      total: unread_emails.count,
-      by_account: by_account
-    }
   end
 
   # GET /api/v1/email_warehouse/spam

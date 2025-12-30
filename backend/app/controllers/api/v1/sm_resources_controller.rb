@@ -15,16 +15,28 @@ module Api
         # Filter by active status
         @resources = @resources.active if params[:active_only] == "true"
 
+        # Performance: Consolidate 5 COUNT queries into 1 GROUP BY query
+        # Before: 5 separate queries (total, active, people, equipment, materials)
+        # After: 1 query with GROUP BY resource_type, is_active
+        counts_by_type_and_status = SmResource.group(:resource_type, :is_active).count
+
+        # Compute totals from grouped counts
+        total_count = counts_by_type_and_status.values.sum
+        active_count = counts_by_type_and_status.select { |k, _| k[1] == true }.values.sum
+        people_count = counts_by_type_and_status.select { |k, _| k[0] == "people" }.values.sum
+        equipment_count = counts_by_type_and_status.select { |k, _| k[0] == "equipment" }.values.sum
+        materials_count = counts_by_type_and_status.select { |k, _| k[0] == "materials" }.values.sum
+
         render json: {
           success: true,
           resources: @resources.map { |r| resource_to_json(r) },
           meta: {
-            total_count: SmResource.count,
-            active_count: SmResource.active.count,
+            total_count: total_count,
+            active_count: active_count,
             by_type: {
-              people: SmResource.people.count,
-              equipment: SmResource.equipment.count,
-              materials: SmResource.materials.count
+              people: people_count,
+              equipment: equipment_count,
+              materials: materials_count
             }
           }
         }
