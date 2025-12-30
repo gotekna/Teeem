@@ -635,6 +635,25 @@ export class Renderer {
       if (task.id === hoveredTaskId) {
         this.drawConnectorDots(startX, startX + taskWidth, barY, barHeight);
       }
+
+      // Draw supplier name and PO # to the right of the task bar
+      const rightLabelX = startX + taskWidth + 8;
+      const rightLabels: string[] = [];
+      if (task.supplierName) {
+        rightLabels.push(task.supplierName);
+      }
+      if (task.purchaseOrderNumber) {
+        rightLabels.push(`PO#${task.purchaseOrderNumber}`);
+      }
+      if (rightLabels.length > 0) {
+        this.ctx.fillStyle = this.config.darkMode
+          ? 'rgba(156, 163, 175, 0.9)'  // gray-400 with opacity
+          : 'rgba(107, 114, 128, 0.9)'; // gray-500 with opacity
+        this.ctx.font = '10px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(rightLabels.join(' | '), rightLabelX, barY + barHeight / 2);
+      }
     }
   }
 

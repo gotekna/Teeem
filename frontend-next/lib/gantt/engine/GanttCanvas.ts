@@ -80,6 +80,9 @@ export interface GanttTask {
   brokenPredecessorIds?: string[];
   supplierId?: number;
   supplierName?: string;
+  /** PO fields for display to the right of task bars */
+  purchaseOrderId?: number;
+  purchaseOrderNumber?: string;
   /** Task shape for visual differentiation (order/call tasks show as diamonds, photo tasks show camera icon) */
   shape?: 'task' | 'milestone' | 'order' | 'call' | 'photo';
   /** Hold state for paused tasks */
