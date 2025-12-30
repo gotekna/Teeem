@@ -86,21 +86,22 @@ class SmCascadeService
       end
 
       # 3. Process tasks to break (break dependency, task stays in place)
+      # SSoT: Remove predecessor from successor's predecessor_ids jsonb
       cascade_params[:tasks_to_break]&.each do |task_id|
-        dep = SmDependency.find_by(
-          successor_task_id: task_id,
-          predecessor_task_id: task.id,
-          active: true
-        )
-
-        if dep
-          dep.update!(
-            active: false,
-            deleted_at: Time.current,
-            deleted_reason: "cascade_conflict",
-            deleted_by_id: cascade_params[:user_id]
+        successor = SmTask.find(task_id)
+        updated_preds = successor.predecessor_ids.reject do |p|
+          (p["id"] || p[:id]).to_i == task.task_number
+        end
+        if updated_preds.length != successor.predecessor_ids.length
+          successor.update!(
+            predecessor_ids: updated_preds,
+            updated_by_id: cascade_params[:user_id]
           )
-          results[:broken_dependencies] << dep
+          results[:broken_dependencies] << {
+            predecessor_task_id: task.id,
+            successor_task_id: task_id,
+            reason: "cascade_conflict"
+          }
         end
       end
 

@@ -245,9 +245,14 @@ module Api
       #   filters: optional cascade filters (JSON string)
       # Returns accurate counts directly from SQL GROUP BY (not limited by pagination)
       def groups
-        # Support both single column and array: ?group_by=col OR ?group_by[]=col1&group_by[]=col2
+        # Support multiple formats:
+        #   ?group_by=col (single)
+        #   ?group_by=col1,col2 (comma-separated)
+        #   ?group_by[]=col1&group_by[]=col2 (array)
         group_by_columns = if params[:group_by].is_a?(Array)
           params[:group_by].compact
+        elsif params[:group_by].is_a?(String) && params[:group_by].include?(",")
+          params[:group_by].split(",").map(&:strip).compact
         else
           [params[:group_by]].compact
         end
