@@ -845,6 +845,7 @@ export default function JobDetailPage() {
 
   // Update URL when tab changes - URL is SSoT
   // Uses path-based structure: /jobs/{id}/{parent}/{child}
+  // Exception: "schedule" tab stays inline (doesn't navigate to /schedule page)
   const handleTabChange = React.useCallback((newTab: string) => {
     // SSoT: Handle composite keys (parent__child) from HierarchicalTabsList
     // This is the ONLY reliable way to identify which parent a child belongs to
@@ -867,8 +868,14 @@ export default function JobDetailPage() {
         // Clicked a child tab - include parent in path
         router.push(`/jobs/${jobId}/${parentOfClickedTab}/${newTab}`, { scroll: false });
       } else {
-        // Clicked a standalone tab (no children, not a child)
-        router.push(`/jobs/${jobId}/${newTab}`, { scroll: false });
+        // Schedule tab: use query param to stay inline (table view)
+        // The dedicated /schedule page shows Gantt and is accessed via "Open Schedule" button
+        if (newTab === "schedule") {
+          router.push(`/jobs/${jobId}?tab=schedule`, { scroll: false });
+        } else {
+          // Clicked a standalone tab (no children, not a child)
+          router.push(`/jobs/${jobId}/${newTab}`, { scroll: false });
+        }
       }
     }
   }, [jobId, router, findParentOfTab, isParentTab, findFirstChildTab]);
