@@ -133,7 +133,7 @@ export default function MicrosoftIntegrationPage() {
   const [connectingOrg, setConnectingOrg] = React.useState<string | null>(null);
 
   // Check if user is admin
-  const isAdmin = user?.permissions?.includes("admin") || user?.role?.toLowerCase() === "admin";
+  const isAdmin = user?.permissions?.includes("admin") || (typeof user?.role === "string" && user.role.toLowerCase() === "admin");
 
   // Check for callback params
   React.useEffect(() => {
