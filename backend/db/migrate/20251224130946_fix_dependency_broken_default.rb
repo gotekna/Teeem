@@ -4,7 +4,7 @@ class FixDependencyBrokenDefault < ActiveRecord::Migration[8.0]
     change_column_default :sm_template_rows, :dependency_broken, false
 
     # Update existing NULL values to false
-    SmTemplateRow.where(dependency_broken: nil).update_all(dependency_broken: false)
+    execute "UPDATE sm_template_rows SET dependency_broken = false WHERE dependency_broken IS NULL"
   end
 
   def down
