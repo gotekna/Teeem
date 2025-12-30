@@ -274,6 +274,7 @@ module Api
           :uses_custom_path,  # SSoT: Template inheritance flag
           :sharepoint_path_type,  # SSoT: "corporate" or "contacts" for contact tabs
           :is_photo_category,  # SSoT: Explicit photo gallery flag
+          :is_cad_category,  # SSoT: Explicit CAD/Revit file viewer flag
           :display_mode,  # SSoT: How tab renders (icon_only, text_only, both)
           :hidden_by_default,  # SSoT: Tab hidden in overflow menu by default
           entity_filters: [],

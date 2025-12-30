@@ -47,6 +47,7 @@ export interface EntityTab {
   children: EntityTab[];
   document_types: EntityTabDocumentType[];
   is_photo_category: boolean;
+  is_cad_category: boolean;
 }
 
 export interface EntityTabDocumentType {
@@ -91,6 +92,7 @@ export interface EntityTabCreateParams {
   sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
   document_type_ids?: number[];  // SSoT: Link document types to this tab
   is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
+  is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
 }
@@ -112,6 +114,7 @@ export interface EntityTabUpdateParams {
   sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
   document_type_ids?: number[];  // SSoT: Link document types to this tab
   is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
+  is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
 }

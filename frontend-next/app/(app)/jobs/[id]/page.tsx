@@ -1465,6 +1465,18 @@ export default function JobDetailPage() {
           // SSoT: Use compositeKey for children to prevent collision with same-named parent tabs
           const tabValue = tab.compositeKey || tab.tab_key;
 
+          // SSoT: CAD category tabs render RevitTab for Revit/DWG/Datasmith files
+          if (tab.is_cad_category) {
+            return (
+              <TabsContent key={tabValue} value={tabValue} className="mt-4">
+                <RevitTab
+                  jobId={job.id}
+                  jobTitle={job.name}
+                />
+              </TabsContent>
+            );
+          }
+
           // Document/Photo tabs use JobDocumentsTab with initialCategory
           // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
           // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
