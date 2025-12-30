@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -2310,8 +2310,17 @@ function SetupTableDemo() {
   );
 }
 
-export function GoldStandardTab() {
-  const [activeTab, setActiveTab] = useUrlTabs("table", "gold-tab");
+interface GoldStandardTabProps {
+  subtab?: string;
+}
+
+export function GoldStandardTab({ subtab }: GoldStandardTabProps) {
+  const router = useRouter();
+  const activeTab = subtab || "table";
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/admin/system/components/${tab}`, { scroll: false });
+  }, [router]);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">

@@ -76,7 +76,7 @@ function PlaceholderTab({
 }
 
 // Company Settings with subtab navigation
-function CompanySettingsContent({ subtab }: { subtab: string }) {
+function CompanySettingsContent({ subtab, extra }: { subtab: string; extra?: string }) {
   const router = useRouter();
 
   const handleSubtabChange = (value: string) => {
@@ -114,7 +114,7 @@ function CompanySettingsContent({ subtab }: { subtab: string }) {
             <CompanyInfoTab />
           </TabsContent>
           <TabsContent value="security">
-            <SecurityTab />
+            <SecurityTab innertab={extra} />
           </TabsContent>
           <TabsContent value="permissions">
             <PermissionsTab />
@@ -174,7 +174,7 @@ export default function SystemAdminCatchAllPage({
   const renderContent = () => {
     switch (tab) {
       case "company":
-        return <CompanySettingsContent subtab={subtab || "info"} />;
+        return <CompanySettingsContent subtab={subtab || "info"} extra={extra} />;
 
       case "brand-guidelines":
         return <BrandGuidelinesTab />;
@@ -183,10 +183,10 @@ export default function SystemAdminCatchAllPage({
         return <ContactTypesTab />;
 
       case "components":
-        return <GoldStandardTab />;
+        return <GoldStandardTab subtab={subtab} />;
 
       case "developer-tools":
-        return <DeveloperToolsTab />;
+        return <DeveloperToolsTab subtab={subtab} />;
 
       case "navigation":
         return <NavigationTab />;

@@ -201,10 +201,14 @@ export function resolveDisplayName(
 
   // 4. Check for path-based tab pattern (e.g., /jobs/123/plans)
   // Pattern: /entity/id/tab where second-to-last segment is numeric ID
+  // Returns "Job #123 › Plans" to include entity context
   if (segments.length >= 3 && /^\d+$/.test(segments[segments.length - 2])) {
+    const entityId = segments[segments.length - 2];
+    const entityType = segments[segments.length - 3];
     const tabKey = lastSegment;
+    const entityLabel = ENTITY_LABELS[entityType] || humanizeSegment(entityType);
     const tabName = TAB_DISPLAY_NAMES[tabKey] || humanizeSegment(tabKey);
-    return tabName;
+    return `${entityLabel} #${entityId} › ${tabName}`;
   }
 
   // 5. Humanize last segment as fallback

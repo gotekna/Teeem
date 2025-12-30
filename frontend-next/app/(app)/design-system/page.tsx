@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { usePathname, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -208,7 +208,24 @@ function StatsCardDemo() {
 }
 
 export default function DesignSystemPage() {
-  const [activeTab, setActiveTab] = useUrlTabs("kanban");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab navigation
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/design-system", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/design-system/kanban", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/design-system/${tab}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-8 pb-12">
@@ -221,7 +238,7 @@ export default function DesignSystemPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab || "kanban"} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="kanban">Kanban & Pipeline</TabsTrigger>
           <TabsTrigger value="cards">Cards & Stats</TabsTrigger>
