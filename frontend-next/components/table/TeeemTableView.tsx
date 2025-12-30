@@ -1328,20 +1328,28 @@ export default function TeeemTableView({
     return map;
   }, [serverGroupCounts]);
 
-  // Build a map of group key -> display value for lookup columns
+  // Build a map of column:key -> display value for lookup columns
   // The server's /groups endpoint returns displayValue for lookup columns (e.g., "SITE COSTS" instead of "621")
+  // Key format: "column_name:id" to avoid collisions between different lookup columns
   const serverDisplayMap = useMemo(() => {
     const map = new Map<string, string>();
+    // Server counts are for the first groupByColumn only
+    const serverCol = groupByColumns[0];
     for (const group of serverGroupCounts) {
-      const key = group.key === null ? "(Empty)" : String(group.key);
+      const idKey = group.key === null ? "(Empty)" : String(group.key);
       // Use displayValue from server if available, otherwise fall back to key
-      const display = group.displayValue || key;
-      map.set(key, display);
+      const display = group.displayValue || idKey;
+      // Store with column prefix to avoid collisions with other columns
+      if (serverCol) {
+        map.set(`${serverCol}:${idKey}`, display);
+      }
+      // Also store without prefix for backward compatibility
+      map.set(idKey, display);
     }
     // Debug: Log serverGroupCounts to check if displayValue is populated
     console.log('[TeeemTableView] serverGroupCounts:', serverGroupCounts.length, 'items', serverGroupCounts.slice(0, 3));
     return map;
-  }, [serverGroupCounts]);
+  }, [serverGroupCounts, groupByColumns]);
 
   // Lazy loading state for groups - fetch all records when expanding
   // Tracks which groups are currently being loaded from server
@@ -1360,6 +1368,7 @@ export default function TeeemTableView({
   // Build lookup display map from loaded records for ALL grouping columns
   // This handles nested groups where server only fetches display values for the first column
   // Extract display values from lookup objects in the actual data (e.g., { id: 7, name: "Active Job" })
+  // Key format: "column_name:id" to avoid collisions between different lookup columns
   const lookupDisplayMap = useMemo(() => {
     const map = new Map<string, string>();
     if (groupByColumns.length === 0) return map;
@@ -1372,11 +1381,13 @@ export default function TeeemTableView({
         if (value && typeof value === 'object' && !Array.isArray(value)) {
           const obj = value as Record<string, unknown>;
           if (obj.id !== undefined) {
-            const key = String(obj.id);
+            const idKey = String(obj.id);
             // Use display value from object (display > display_value > name > id)
             const display = String(obj.display || obj.display_value || obj.name || obj.id);
-            if (!map.has(key)) {
-              map.set(key, display);
+            // Store with column prefix to avoid collisions between different lookup columns
+            const columnKey = `${col}:${idKey}`;
+            if (!map.has(columnKey)) {
+              map.set(columnKey, display);
             }
           }
         }
@@ -3911,7 +3922,7 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {combinedDisplayMap.get(groupKey) || groupKey}
+                {combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
@@ -4176,7 +4187,7 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {combinedDisplayMap.get(groupKey) || groupKey}
+                {combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
