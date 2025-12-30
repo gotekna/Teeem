@@ -57,14 +57,16 @@ module HealthChecks
     end
 
     # Schedule master rows missing trade assignment
+    # EXCLUDES headers (allow_header = true) - they don't need trade
     def check_missing_trade
       rows = SmScheduleMaster.active
                              .where(trade: nil)
+                             .where(allow_header: [false, nil])
                              .select(:id, :name, :task_number, :sequence_order)
 
       build_result(
         name: "Missing Trade",
-        description: "Template rows without a trade assignment. This affects task scheduling and supplier assignment.",
+        description: "Template rows without a trade assignment (excludes headers). This affects task scheduling and supplier assignment.",
         severity: :warning,
         items: rows,
         icon: "wrench-screwdriver",
@@ -73,14 +75,16 @@ module HealthChecks
     end
 
     # Schedule master rows missing stage assignment
+    # EXCLUDES headers (allow_header = true) - they don't need stage
     def check_missing_stage
       rows = SmScheduleMaster.active
                              .where(stage: nil)
+                             .where(allow_header: [false, nil])
                              .select(:id, :name, :task_number, :sequence_order)
 
       build_result(
         name: "Missing Stage",
-        description: "Template rows without a stage assignment. This affects Gantt chart grouping.",
+        description: "Template rows without a stage assignment (excludes headers). This affects Gantt chart grouping.",
         severity: :info,
         items: rows,
         icon: "queue-list",
@@ -128,7 +132,7 @@ module HealthChecks
                                 OR header_gantt IS NOT NULL
                               SQL
                               .update_all(
-                                duration_days: nil,
+                                duration_days: 0,  # NOT NULL constraint - use 0 for headers
                                 trade: nil,
                                 stage: nil,
                                 assigned_role: nil,

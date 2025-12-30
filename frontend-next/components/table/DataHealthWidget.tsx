@@ -307,20 +307,21 @@ export function DataHealthWidget({
           {/* Expanded Details */}
           <AccordionContent>
           <div className="border-t divide-y">
-            {allChecks.map((check) => {
+            {allChecks.map((check, checkIndex) => {
               const color = check.count > 0 ? getSeverityColor(check.severity) : "green";
-              const isExpanded = expandedCheck === check.id;
+              const checkKey = check.check_name || check.name || `check-${checkIndex}`;
+              const isExpanded = expandedCheck === checkKey;
               const hasItems = check.count > 0;
 
               return (
-                <div key={check.id}>
+                <div key={checkKey}>
                   {/* Check Row */}
                   <div
                     className={cn(
                       "px-4 py-3 flex items-center justify-between",
                       hasItems && "cursor-pointer hover:bg-muted/50"
                     )}
-                    onClick={() => hasItems && toggleCheckExpansion(check.id)}
+                    onClick={() => hasItems && toggleCheckExpansion(checkKey)}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {hasItems ? (

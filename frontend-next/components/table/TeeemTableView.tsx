@@ -2272,6 +2272,28 @@ export default function TeeemTableView({
     setValidationErrors({});
   }, []);
 
+  // Default handler for health issue click - opens row for editing
+  const handleHealthIssueClick = useCallback((item: { id: number | string; display?: string }, _check: unknown) => {
+    // Find the row in effectiveEntries
+    const row = effectiveEntries.find(e => e.id === item.id);
+    if (row) {
+      // If onRowDoubleClick is provided (parent wants to handle it), use that
+      if (onRowDoubleClick) {
+        onRowDoubleClick(row);
+      } else {
+        // Otherwise start inline editing
+        startEditing(row);
+      }
+    } else {
+      // Row not in current view - could be filtered out or paginated
+      // Show toast with guidance
+      toast({
+        title: "Row not in current view",
+        description: `Row "${item.display || item.id}" may be filtered out. Clear filters to find it.`,
+      });
+    }
+  }, [effectiveEntries, onRowDoubleClick, startEditing, toast]);
+
   // Validate a cell and update validation errors state
   const handleCellBlur = useCallback((rowId: number | string, columnKey: string, value: unknown, columnType?: string) => {
     // Use imported validateCell from CellValidation.tsx (SSoT)
@@ -4508,7 +4530,7 @@ export default function TeeemTableView({
             foundationId={effectiveFoundationId}
             compact={!healthPanelOpen}
             forceShow={healthPanelOpen}
-            onIssueClick={onDataHealthIssueClick}
+            onIssueClick={onDataHealthIssueClick || handleHealthIssueClick}
             onDataChanged={onRefresh}
           />
         </div>
