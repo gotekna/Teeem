@@ -54,7 +54,14 @@ namespace :sharepoint do
     end
 
     client = MicrosoftGraphClient.new(credential)
-    drive_id = client.get_sharepoint_drive_id
+    drive_id = credential.drive_id
+
+    unless drive_id
+      puts "❌ No drive_id on SharePoint credential"
+      exit 1
+    end
+
+    puts "Drive ID: #{drive_id}"
 
     # Get jobs path from settings
     jobs_path = CorporateCompanySetting.sharepoint_full_path(:jobs)
@@ -132,13 +139,19 @@ namespace :sharepoint do
     end
 
     client = MicrosoftGraphClient.new(credential)
+    drive_id = credential.drive_id
+
+    unless drive_id
+      puts "❌ No drive_id on SharePoint credential"
+      exit 1
+    end
 
     mismatched = []
 
     Job.where.not(sharepoint_folder_id: [nil, ""]).find_each do |job|
       # Get current folder name from SharePoint
       begin
-        folder = client.get("/drives/#{client.get_sharepoint_drive_id}/items/#{job.sharepoint_folder_id}")
+        folder = client.get("/drives/#{drive_id}/items/#{job.sharepoint_folder_id}")
         current_name = folder["name"]
 
         # Calculate expected name
