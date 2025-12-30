@@ -1141,12 +1141,19 @@ export default function TeeemTableView({
   // CRITICAL FIX: Clear view/user filters when foundation changes to prevent cross-table pollution
   // Since filter atoms are GLOBAL, filters from one foundation would otherwise affect all tables.
   // This must run BEFORE loading views for the new foundation.
+  // ALSO clear on initial mount (prevFoundationRef.current === null) to prevent stale filters
+  // from previous navigation sessions from affecting this table.
   const prevFoundationRef = useRef<string | number | null>(null);
   useEffect(() => {
-    if (effectiveFoundationId && prevFoundationRef.current !== null && prevFoundationRef.current !== effectiveFoundationId) {
-      // Foundation changed - clear all non-base filters to start fresh
-      setViewFilters([]);
-      clearAllUserFilters();
+    if (effectiveFoundationId) {
+      const isInitialMount = prevFoundationRef.current === null;
+      const isFoundationChange = prevFoundationRef.current !== null && prevFoundationRef.current !== effectiveFoundationId;
+
+      if (isInitialMount || isFoundationChange) {
+        // Clear all non-base filters to start fresh
+        setViewFilters([]);
+        clearAllUserFilters();
+      }
     }
     prevFoundationRef.current = effectiveFoundationId;
   }, [effectiveFoundationId, setViewFilters, clearAllUserFilters]);

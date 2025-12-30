@@ -45,6 +45,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import TeeemTableView from "@/components/table/TeeemTableView";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -150,29 +151,58 @@ export default function ScheduleMasterPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<string>("all");
 
+  // Lazy loading: track which tabs have loaded their data
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set());
+
+  // Load overview data on mount (jobs for progress display)
   useEffect(() => {
-    const loadData = async () => {
+    const loadOverviewData = async () => {
       setLoading(true);
       try {
-        const [jobsRes, tasksRes, resourcesRes] = await Promise.all([
-          api.get<{ jobs: Job[] }>("/api/v1/jobs"),
-          api.get<{ tasks: Task[] }>("/api/v1/sm_tasks"),
-          api.get<{ resources: Resource[] }>("/api/v1/sm_resources"),
-        ]);
+        // Only load jobs for overview - tasks are now in TeeemTableView
+        const jobsRes = await api.get<{ jobs: Job[] }>("/api/v1/jobs");
         setJobs(jobsRes.jobs || []);
-        setTasks(tasksRes.tasks || []);
-        setResources(resourcesRes.resources || []);
       } catch (error) {
-        console.error("Failed to load schedule data:", error);
+        console.error("Failed to load overview data:", error);
         setJobs(getMockJobs());
-        setTasks(getMockTasks());
-        setResources(getMockResources());
-        setTemplates(getMockTemplates());
       }
       setLoading(false);
+      setLoadedTabs(new Set(["overview"]));
     };
-    loadData();
+    loadOverviewData();
   }, []);
+
+  // Lazy load data when tab changes
+  useEffect(() => {
+    const loadTabData = async () => {
+      if (loadedTabs.has(activeTab)) return;
+
+      try {
+        if (activeTab === "resources" && resources.length === 0) {
+          const resourcesRes = await api.get<{ resources: Resource[] }>("/api/v1/sm_resources");
+          setResources(resourcesRes.resources || []);
+        } else if (activeTab === "critical" && tasks.length === 0) {
+          // Critical path needs tasks data
+          const tasksRes = await api.get<{ tasks: Task[] }>("/api/v1/sm_tasks");
+          setTasks(tasksRes.tasks || []);
+        } else if (activeTab === "templates" && templates.length === 0) {
+          // Load templates when tab is visited
+          setTemplates(getMockTemplates());
+        }
+      } catch (error) {
+        console.error(`Failed to load ${activeTab} data:`, error);
+        if (activeTab === "resources") setResources(getMockResources());
+        if (activeTab === "critical") setTasks(getMockTasks());
+        if (activeTab === "templates") setTemplates(getMockTemplates());
+      }
+
+      setLoadedTabs(prev => new Set([...prev, activeTab]));
+    };
+
+    if (activeTab && !loading) {
+      loadTabData();
+    }
+  }, [activeTab, loadedTabs, loading, resources.length, tasks.length, templates.length]);
 
   const stats: DashboardStats = {
     total_jobs: jobs.length,
@@ -190,14 +220,7 @@ export default function ScheduleMasterPage() {
     }).length,
   };
 
-  const filteredTasks = tasks.filter((task) => {
-    const matchesSearch =
-      task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.job_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesJob = selectedJob === "all" || task.job_id.toString() === selectedJob;
-    return matchesSearch && matchesJob;
-  });
-
+  // Note: Task filtering is now handled by TeeemTableView in the Tasks tab
   const criticalTasks = tasks.filter((t) => t.is_critical_path && t.status !== "completed");
   const blockedTasks = tasks.filter((t) => t.status === "blocked");
 
@@ -436,60 +459,14 @@ export default function ScheduleMasterPage() {
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                {filteredTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-secondary/50"
-                  >
-                    <div className="flex items-center gap-4">
-                      <Badge className={taskStatusColors[task.status]}>
-                        {task.status.replace("_", " ")}
-                      </Badge>
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          {task.name}
-                          {task.is_critical_path && (
-                            <Badge variant="destructive" className="text-xs">
-                              Critical
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {task.job_name} • {task.trade}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <div className="text-sm">
-                          {new Date(task.start_date).toLocaleDateString()} →{" "}
-                          {new Date(task.end_date).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {task.duration_days} days
-                        </div>
-                      </div>
-                      {task.assigned_to && (
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs">
-                            {task.assigned_to
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <Progress value={task.progress} className="w-20 h-2" />
-                      <span className="text-sm font-mono w-10">{task.progress}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* TeeemTableView handles its own loading, pagination, and virtualization */}
+          <div className="flex flex-col h-[calc(100vh-280px)] -mx-4">
+            <TeeemTableView
+              foundationId="sm-tasks"
+              autoFetchRecords
+              showHeader={false}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="resources" className="mt-4">

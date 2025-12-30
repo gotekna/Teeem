@@ -412,6 +412,23 @@ export const applyViewAtom = atom(
       source: 'view' as const,
       locked: false,
     }));
+
+    // For "grouped" view type (By Company), auto-add entity_type = "person" filter
+    // This ensures only people are shown, grouped under their company
+    if (view.view_type === 'grouped') {
+      const hasEntityTypeFilter = sourcedFilters.some(f => f.column === 'entity_type');
+      if (!hasEntityTypeFilter) {
+        sourcedFilters.push({
+          id: `grouped_entity_filter_${Date.now()}`,
+          column: 'entity_type',
+          operator: '=' as const,
+          value: 'person',
+          source: 'view' as const,
+          locked: true, // Lock this filter so users can't accidentally remove it
+        });
+      }
+    }
+
     set(_viewFiltersAtom, sourcedFilters);
     set(_filterGroupsAtom, filterGroups);
     set(_interGroupLogicAtom, interGroupLogic);
@@ -450,9 +467,9 @@ export const applyViewAtom = atom(
     // When view_type is "grouped", enable panel mode for relationship grouping
     if (view.view_type === 'grouped') {
       set(groupViewModeAtom, 'panel');
-      // If no groupByColumn is set, default to "linked_company" for contacts
+      // If no groupByColumn is set, default to "primary_company_id" for contacts
       if (!view.groupByColumns?.length && !view.groupByColumn) {
-        set(currentGroupByColumnsAtom, ['linked_company']);
+        set(currentGroupByColumnsAtom, ['primary_company_id']);
       }
     } else {
       // Reset to inline mode for table/relational views
