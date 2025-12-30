@@ -50,24 +50,23 @@ export default function SettingsLayout({
       </div>
 
       {/* Tab Navigation */}
-      <TabsList>
-        {SETTINGS_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = currentTab === tab.id;
-          return (
-            <TabsTrigger
-              key={tab.id}
-              value={tab.id}
-              onClick={() => handleTabChange(tab.id)}
-              data-state={isActive ? "active" : "inactive"}
-              className="gap-2"
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </TabsTrigger>
-          );
-        })}
-      </TabsList>
+      <Tabs value={currentTab} onValueChange={handleTabChange}>
+        <TabsList>
+          {SETTINGS_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                className="gap-2"
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </Tabs>
 
       {/* Content */}
       <div>{children}</div>

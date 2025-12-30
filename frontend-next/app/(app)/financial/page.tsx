@@ -849,15 +849,12 @@ function AgedReportsTab({
   payablesContacts: AgedContact[];
   selectedCompany: string;
 }) {
-  // SSoT: URL subtab state managed by useUrlState hook
-  const [urlState, setUrlState] = useUrlState({
-    subtab: null as string | null,  // null = "receivables"
-  });
-  const activeTab = urlState.subtab || "receivables";
+  // Simple React state for subtab (not in URL - internal navigation)
+  const [activeTab, setActiveTab] = React.useState("receivables");
 
   const handleTabChange = useCallback((tabId: string) => {
-    setUrlState({ subtab: tabId === "receivables" ? null : tabId });
-  }, [setUrlState]);
+    setActiveTab(tabId);
+  }, []);
 
   const [selectedPayables, setSelectedPayables] = React.useState<Set<number>>(new Set());
   const [processingPayment, setProcessingPayment] = React.useState(false);
