@@ -95,10 +95,24 @@ class SmRolloverJob < ApplicationJob
 
   private
 
-  # Find NOT STARTED tasks that are past their start date
+  # Find NOT STARTED tasks that need to be rolled forward
+  # This includes:
+  # 1. Tasks past their start date (start_date < today)
+  # 2. Tasks scheduled for today if today is a non-working day (holiday/weekend)
   def find_past_due_not_started_tasks(today)
+    # If today is not a working day, also include tasks scheduled for today
+    if @calendar.working_day?(today)
+      # Normal day - only get tasks that are past due
+      date_condition = "start_date < ?"
+      date_value = today
+    else
+      # Holiday/weekend - get tasks scheduled for today OR past due
+      date_condition = "start_date <= ?"
+      date_value = today
+    end
+
     scope = SmTask.where(status: "not_started")
-                  .where("start_date < ?", today)
+                  .where(date_condition, date_value)
                   .where(is_hold_task: false)  # Don't roll over hold tasks
                   .includes(:job)
                   .order(:job_id, :start_date)
