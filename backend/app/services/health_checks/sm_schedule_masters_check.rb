@@ -23,17 +23,21 @@ module HealthChecks
 
     # Schedule master rows missing duration_days
     # This is CRITICAL because sync fails when duration is nil
-    # EXCLUDES headers - they don't need duration
+    # EXCLUDES headers - they don't need duration:
+    #   - Rows with header_gantt = "Header" (self-declared headers)
+    #   - Rows referenced by other rows as parent (implicit headers)
     def check_missing_duration
-      # Get IDs of all header rows (rows referenced by other rows' header_gantt)
-      header_ids = SmScheduleMaster.active
-                                   .where(header_gantt: "Header")
-                                   .pluck(:id)
+      # Find IDs of rows being used as parent headers by other rows
+      parent_header_ids = SmScheduleMaster.active
+                                          .where.not(header_gantt: [nil, "", "Header"])
+                                          .pluck(:header_gantt)
+                                          .map(&:to_i)
+                                          .uniq
 
       rows = SmScheduleMaster.active
                              .where("duration_days IS NULL OR duration_days = 0")
-                             .where.not(id: header_ids)
-                             .where.not(header_gantt: "Header")
+                             .where("header_gantt IS NULL OR header_gantt != ?", "Header")
+                             .where.not(id: parent_header_ids)
                              .select(:id, :name, :task_number, :sequence_order, :header_gantt)
 
       build_result(
