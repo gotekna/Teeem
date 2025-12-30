@@ -201,6 +201,13 @@ export interface TeeemTableViewProps {
 
   // Header display
   showHeader?: boolean; // Show built-in header with tableName and record count (default: true)
+
+  // SSR Props - Server-side rendered initial data for fast LCP
+  // When provided, TeeemTableView skips client-side fetch and renders immediately
+  initialColumns?: TableColumn[]; // Pre-fetched columns from server
+  initialRecords?: TableRow[]; // Pre-fetched records from server (first 20-50 for fast LCP)
+  initialTotalCount?: number; // Total record count from server
+  initialHasMore?: boolean; // Whether more records available for load-more
 }
 
 // Column visibility state

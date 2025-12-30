@@ -1,0 +1,140 @@
+"use client";
+
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useUrlState } from "@/hooks/useUrlState";
+import { Button } from "@/components/ui/button";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { TablePage } from "@/components/ui/page-wrappers";
+import { Plus } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { api } from "@/lib/api";
+import { slugifyPricebookCode } from "@/lib/url-utils";
+import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
+import type { TableRow, TableColumn } from "@/components/table/types";
+
+interface PricebookPageClientProps {
+  // SSR data from server component
+  initialColumns: TableColumn[];
+  initialRecords: TableRow[];
+  initialHasMore: boolean;
+}
+
+/**
+ * Pricebook Page Client Component
+ *
+ * Receives SSR data from server component for fast LCP.
+ * TeeemTableView renders immediately without waiting for client fetch.
+ */
+export default function PricebookPageClient({
+  initialColumns,
+  initialRecords,
+  initialHasMore,
+}: PricebookPageClientProps) {
+  const router = useRouter();
+
+  // SSoT: Drawer state managed by useUrlState hook
+  const [urlState, setUrlState] = useUrlState({
+    itemId: null as string | null,
+  });
+
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Read URL params to open drawer on mount/URL change
+  useEffect(() => {
+    if (urlState.itemId) {
+      const id = parseInt(urlState.itemId, 10);
+      if (!isNaN(id)) {
+        setSelectedItemId(id);
+        setDrawerOpen(true);
+      }
+    } else {
+      setDrawerOpen(false);
+      setSelectedItemId(null);
+    }
+  }, [urlState.itemId]);
+
+  // Handle drawer open change - sync to URL
+  const handleDrawerOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setUrlState({ itemId: null });
+    }
+  }, [setUrlState]);
+
+  // Handle row double-click - open drawer via URL
+  const handleRowDoubleClick = useCallback((row: TableRow) => {
+    setUrlState({ itemId: String(row.id) });
+  }, [setUrlState]);
+
+  // Handle row click - navigate to detail page
+  const handleRowClick = useCallback((row: TableRow) => {
+    const item = row as { id: number; item_code?: string };
+    if (item.item_code) {
+      const slug = slugifyPricebookCode(item.item_code);
+      router.push(`/pricebook/${slug}`);
+    } else {
+      router.push(`/pricebook/${item.id}`);
+    }
+  }, [router]);
+
+  // Handle inline row update
+  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/foundations/pricebook-items/records/${rowId}`, {
+        record: { [field]: value }
+      });
+      setRefreshKey(k => k + 1);
+    } catch (error) {
+      console.error("Failed to update pricebook item:", error);
+      throw error;
+    }
+  }, []);
+
+  // Handle refresh (e.g., after drawer update)
+  const handleRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1);
+  }, []);
+
+  // Left actions - Back button + Add Item button
+  const leftActions = (
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
+      <Button variant="default" size="sm" onClick={() => router.push('/pricebook/new')}>
+        <Plus className="h-4 w-4 mr-2" />
+        Add Item
+      </Button>
+    </div>
+  );
+
+  return (
+    <TablePage>
+      <TeeemTableView
+        key={refreshKey}
+        foundationId="pricebook-items"
+        tableName="Pricebook"
+        enableExport
+        enableImport
+        onRefresh={handleRefresh}
+        onRowClick={handleRowClick}
+        onRowDoubleClick={handleRowDoubleClick}
+        onRowUpdate={handleRowUpdate}
+        leftActions={leftActions}
+        // SSR Props - data pre-fetched on server for fast LCP
+        initialColumns={initialColumns}
+        initialRecords={initialRecords}
+        initialHasMore={initialHasMore}
+        // After refresh, autoFetchRecords takes over
+        autoFetchRecords
+      />
+
+      {/* Pricebook Detail Drawer */}
+      <PricebookDetailDrawer
+        itemId={selectedItemId}
+        open={drawerOpen}
+        onOpenChange={handleDrawerOpenChange}
+      />
+    </TablePage>
+  );
+}

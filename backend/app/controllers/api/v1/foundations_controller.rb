@@ -334,7 +334,25 @@ module Api
             if lookup_ids.any?
               lookup_model = group_column.lookup_foundation.dynamic_model
               display_col = group_column.lookup_display_column || "name"
-              lookup_cache = lookup_model.where(id: lookup_ids).pluck(:id, display_col.to_sym).to_h
+
+              # Check if display_col is an actual database column or a computed attribute
+              # Computed columns (like full_name) need to be resolved via the model, not SQL
+              if lookup_model.column_names.include?(display_col)
+                # Real database column - use efficient pluck
+                lookup_cache = lookup_model.where(id: lookup_ids).pluck(:id, display_col.to_sym).to_h
+              else
+                # Computed column (e.g., full_name) - load records and call the method
+                # Fall back to 'name' column if the computed method doesn't exist
+                lookup_model.where(id: lookup_ids).each do |record|
+                  lookup_cache[record.id] = if record.respond_to?(display_col)
+                    record.send(display_col)
+                  elsif record.respond_to?(:name)
+                    record.name
+                  else
+                    record.id.to_s
+                  end
+                end
+              end
             end
           end
 

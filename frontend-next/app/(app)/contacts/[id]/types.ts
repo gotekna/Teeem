@@ -323,6 +323,7 @@ export interface Contact {
   email: string | null;
   mobile_phone: string | null;
   office_phone: string | null;
+  direct_line: string | null;
   website: string | null;
   abn: string | null;
   acn: string | null;

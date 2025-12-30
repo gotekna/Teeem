@@ -471,6 +471,34 @@ export const applyViewAtom = atom(
       if (!view.groupByColumns?.length && !view.groupByColumn) {
         set(currentGroupByColumnsAtom, ['primary_company_id']);
       }
+      // If no column order/visibility is set for grouped view, use a sensible default for contacts
+      // This puts display name, role, and contact info columns first for better readability
+      if (!view.columnOrder || view.columnOrder.length === 0) {
+        const defaultGroupedColumnOrder = [
+          'select',
+          'display_name',  // Full name (first + last)
+          'roles',
+          'mobile_phone',
+          'email',
+          'office_phone',
+          'address',
+          'actions'
+        ];
+        set(currentColumnOrderAtom, defaultGroupedColumnOrder);
+
+        // Also set these columns as visible
+        const defaultVisibleColumns: Record<string, boolean> = {
+          'select': true,
+          'display_name': true,
+          'roles': true,
+          'mobile_phone': true,
+          'email': true,
+          'office_phone': true,
+          'address': true,
+          'actions': true,
+        };
+        set(currentVisibleColumnsAtom, defaultVisibleColumns);
+      }
     } else {
       // Reset to inline mode for table/relational views
       set(groupViewModeAtom, 'inline');

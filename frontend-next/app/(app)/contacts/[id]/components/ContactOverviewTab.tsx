@@ -680,6 +680,43 @@ export function ContactOverviewTab({
                 onSave={savePhones}
               />
 
+              {/* Direct Line - dedicated field for person's direct phone number */}
+              <PropertyRow
+                label="Direct Line"
+                value={contact.direct_line}
+                onSave={(value) => saveField("direct_line", value)}
+                placeholder="Direct phone number"
+              />
+
+              {/* Company Phones - show when person has a linked company */}
+              {contact.primary_company?.contact_phones && contact.primary_company.contact_phones.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-dashed">
+                  <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    {contact.primary_company.name} Phones
+                  </div>
+                  <div className="space-y-1">
+                    {contact.primary_company.contact_phones.map((phone, idx) => (
+                      <div key={phone.id || idx} className="flex items-center gap-2 text-sm py-1">
+                        <span className="text-muted-foreground capitalize text-xs w-14">
+                          {phone.phone_type}
+                        </span>
+                        <a
+                          href={`tel:${phone.phone_number}`}
+                          className="text-foreground hover:underline"
+                        >
+                          {phone.phone_number}
+                        </a>
+                        {phone.is_primary && (
+                          <Badge variant="secondary" className="text-[9px] h-4 px-1">
+                            Primary
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Website only for companies/trusts */}
               {!isPerson && (
                 <>

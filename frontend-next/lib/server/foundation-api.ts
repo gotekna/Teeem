@@ -204,6 +204,93 @@ function transformColumns(foundation: Foundation): TableColumn[] {
 }
 
 /**
+ * Fetch foundation data optimized for SSR/LCP
+ *
+ * This is the preferred function for Server Components.
+ * Fetches foundation metadata and records in parallel with minimal payload.
+ *
+ * @param slug - Foundation slug (e.g., "contacts", "jobs")
+ * @param options - Optional configuration
+ * @param options.limit - Number of records to fetch (default: 20 for fast LCP)
+ */
+export async function fetchFoundationForSSR(
+  slug: string,
+  options?: { limit?: number }
+): Promise<FoundationData> {
+  const limit = options?.limit ?? 20; // Only 20 rows for fast LCP
+  const token = await getAuthToken();
+
+  if (!token) {
+    return {
+      foundation: null,
+      columns: [],
+      records: [],
+      totalCount: null,
+      hasMore: false,
+      error: 'Not authenticated',
+    };
+  }
+
+  try {
+    // Parallel fetch for columns and records (faster than sequential)
+    const [foundationRes, recordsRes] = await Promise.all([
+      fetch(`${API_BASE_URL}/api/v1/foundations/${slug}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      }),
+      fetch(`${API_BASE_URL}/api/v1/foundations/${slug}/records?limit=${limit}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      }),
+    ]);
+
+    if (!foundationRes.ok) {
+      throw new Error(`Failed to fetch foundation: ${foundationRes.status}`);
+    }
+    if (!recordsRes.ok) {
+      throw new Error(`Failed to fetch records: ${recordsRes.status}`);
+    }
+
+    const [foundationData, recordsData] = await Promise.all([
+      foundationRes.json(),
+      recordsRes.json(),
+    ]);
+
+    const foundation = foundationData.foundation as Foundation;
+    const records = (recordsData.records || []) as TableRow[];
+    const totalCount = recordsData.total_count ?? recordsData.pagination?.total_count ?? null;
+    const hasMore = recordsData.has_more ?? (records.length === limit);
+
+    const columns = transformColumns(foundation);
+
+    return {
+      foundation,
+      columns,
+      records,
+      totalCount,
+      hasMore,
+      error: null,
+    };
+  } catch (err) {
+    console.error('[SSR] Failed to fetch foundation data:', err);
+    return {
+      foundation: null,
+      columns: [],
+      records: [],
+      totalCount: null,
+      hasMore: false,
+      error: err instanceof Error ? err.message : 'Failed to load data',
+    };
+  }
+}
+
+/**
  * Get default column width based on column name and type
  */
 function getDefaultWidth(columnName: string, columnType: string): number {

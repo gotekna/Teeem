@@ -79,13 +79,29 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
     overscan: OVERSCAN_COUNT,
   });
 
+  // Calculate total width for proper column sizing
+  const totalWidth = visibleColumnsInOrder.reduce(
+    (sum, col) => sum + (columnWidths[col.key] || 100),
+    0
+  );
+
+  // Generate colgroup for consistent column widths
+  const colGroup = (
+    <colgroup>
+      {visibleColumnsInOrder.map((col) => (
+        <col key={col.key} style={{ width: columnWidths[col.key] || 100 }} />
+      ))}
+    </colgroup>
+  );
+
   return (
     <div
       key={`data-${fullKey}`}
-      className="mb-4"
+      className="mb-4 overflow-x-auto"
       style={{ marginLeft: `${(depth + 1) * 24}px`, marginRight: "16px" }}
     >
-      <Table className="w-full border-t border-b" style={{ tableLayout: "auto" }}>
+      <Table className="border-t border-b" style={{ tableLayout: "fixed", width: totalWidth, minWidth: "100%" }}>
+        {colGroup}
         {renderTableHeader()}
         <TableBody>
           <tr>
@@ -101,7 +117,7 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                 <div
                   style={{
                     height: `${rowVirtualizer.getTotalSize()}px`,
-                    width: "100%",
+                    width: totalWidth,
                     position: "relative",
                   }}
                 >
@@ -122,7 +138,8 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                           transform: `translateY(${virtualRow.start}px)`,
                         }}
                       >
-                        <table style={{ width: "100%", tableLayout: "auto" }}>
+                        <table style={{ width: totalWidth, tableLayout: "fixed" }}>
+                          {colGroup}
                           <tbody>
                             <TableRow
                               data-row-id={row.id}
@@ -165,7 +182,8 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                                         }),
                                     }}
                                     className={cn(
-                                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                                      "text-left", // Ensure left alignment for all cells
+                                      column.key === "select" && "!border-r-0 !p-0 !h-full text-center",
                                       column.key === "actions" && "!border-l-0"
                                     )}
                                     onClick={(e) => {

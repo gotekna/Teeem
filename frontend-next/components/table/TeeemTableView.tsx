@@ -488,6 +488,11 @@ export default function TeeemTableView({
   stats,
   category,
   showHeader = true,
+  // SSR Props - Server-side rendered initial data for fast LCP
+  initialColumns,
+  initialRecords,
+  initialTotalCount,
+  initialHasMore,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -642,6 +647,13 @@ export default function TeeemTableView({
 
   // Auto-fetch columns when effectiveFoundationId is set
   useEffect(() => {
+    // SSR: Skip client fetch if server provided columns
+    if (initialColumns && initialColumns.length > 0) {
+      setFoundationColumns(initialColumns);
+      setColumnsLoading(false);
+      return;
+    }
+
     if (!effectiveFoundationId) {
       setFoundationColumns(null);
       setResolvedFoundation(null);
@@ -731,7 +743,7 @@ export default function TeeemTableView({
     };
 
     fetchColumns();
-  }, [effectiveFoundationId, columns]);
+  }, [effectiveFoundationId, columns, initialColumns]);
 
   // Ref to hold current search value for use in auto-fetch refresh effect
   // Initialized empty, updated by effect after search atom is declared
@@ -767,6 +779,15 @@ export default function TeeemTableView({
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
   // CRITICAL: Include filters in API call - backend needs to know about base filters
   useEffect(() => {
+    // SSR: Skip client fetch if server provided records
+    // Note: Only skip on initial load (autoFetchRefreshKey === 0)
+    // After updates/deletes, we still need to re-fetch
+    if (initialRecords && initialRecords.length > 0 && autoFetchRefreshKey === 0) {
+      setAutoFetchedRecords(initialRecords);
+      setHasMore(initialHasMore ?? true);
+      return;
+    }
+
     if (!useAutoFetch) return;
 
     // ULTRA Solution: Wait for base filters to be set if initialFilters is provided
@@ -809,7 +830,7 @@ export default function TeeemTableView({
     };
 
     fetchInitialRecords();
-  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey]);
+  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey, initialRecords, initialHasMore]);
 
   // Auto-load more records in background after initial render
   // ULTRA Solution: Include base filters to ensure consistent data loading
@@ -3762,101 +3783,98 @@ export default function TeeemTableView({
       // Don't show if all data is already loaded via main Load All button
       const hasPartialData = !allDataLoaded && serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
-      // Group header
+      // Check if we're currently loading this group's data
+      const isLoadingGroup = depth === 0 && groupLoadingState.has(groupKey);
+      // Use lazy-loaded records if available, otherwise use current records
+      const effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
+        ? lazyLoadedGroups.get(groupKey) || group.rows
+        : group.rows;
+
+      // Render entire group (header + content) as a single unit
       result.push(
-        <div
-          key={`nav-${fullKey}`}
-          className="cursor-pointer hover:opacity-80 py-2 px-4 border rounded-md mb-2"
-          style={{
-            paddingLeft: `${16 + depth * 24}px`,
-            backgroundColor: `rgba(242, 241, 239, ${Math.max(0.15, 0.95 - depth * 0.30)})` // Brand secondary #F2F1EF: dramatic contrast between levels
-          }}
-          onClick={() => toggleGroupCollapse(fullKey)}
-        >
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            {isLoadingThisGroup ? (
-              <Spinner size={16} className="shrink-0" />
-            ) : isCollapsed ? (
-              <ChevronRight className="h-4 w-4 shrink-0" />
-            ) : (
-              <ChevronDown className="h-4 w-4 shrink-0" />
-            )}
-            <span className="font-bold text-[13px]">
-              {serverDisplayMap.get(groupKey) || groupKey}
-            </span>
-            <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
-              ({rowCount})
-              {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
-              {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
-            </span>
-            {hasPartialData && !isLoadingThisGroup && (
-              <button
-                type="button"
-                className="text-xs text-primary hover:text-primary/80 underline ml-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  loadGroupRecords(groupKey);
-                }}
-              >
-                Load All
-              </button>
-            )}
+        <div key={`group-${fullKey}`} className="group-container">
+          {/* Group header */}
+          <div
+            className="cursor-pointer hover:opacity-80 py-2 px-4 border rounded-md"
+            style={{
+              paddingLeft: `${16 + depth * 24}px`,
+              backgroundColor: `rgba(242, 241, 239, ${Math.max(0.15, 0.95 - depth * 0.30)})` // Brand secondary #F2F1EF: dramatic contrast between levels
+            }}
+            onClick={() => toggleGroupCollapse(fullKey)}
+          >
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              {isLoadingThisGroup ? (
+                <Spinner size={16} className="shrink-0" />
+              ) : isCollapsed ? (
+                <ChevronRight className="h-4 w-4 shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 shrink-0" />
+              )}
+              <span className="font-bold text-[13px]">
+                {serverDisplayMap.get(groupKey) || groupKey}
+              </span>
+              <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
+                ({rowCount})
+                {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
+                {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
+              </span>
+              {hasPartialData && !isLoadingThisGroup && (
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:text-primary/80 underline ml-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    loadGroupRecords(groupKey);
+                  }}
+                >
+                  Load All
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Group content (only when expanded) */}
+          {!isCollapsed && (
+            <div className="mt-1">
+              {isLoadingGroup ? (
+                <div
+                  className="flex items-center justify-center py-8 text-muted-foreground"
+                  style={{ marginLeft: `${16 + depth * 24}px` }}
+                >
+                  <Spinner size={20} className="mr-2" />
+                  <span>Loading {serverCount ? serverCount.toLocaleString() : ''} records...</span>
+                </div>
+              ) : hasSubgroups ? (
+                <div className="space-y-4 mt-2">
+                  {renderGroupNavigation(group.subgroups as typeof groups, depth + 1, fullKey)}
+                </div>
+              ) : (
+                <VirtualizedGroupTable
+                  fullKey={fullKey}
+                  depth={depth}
+                  rows={effectiveRows}
+                  selectedRows={selectedRows}
+                  visibleColumnsInOrder={visibleColumnsInOrder}
+                  columnWidths={columnWidths}
+                  rowIdToGlobalIndex={rowIdToGlobalIndex}
+                  getStickyColumnStyles={getStickyColumnStyles}
+                  isSystemGeneratedColumn={isSystemGeneratedColumn}
+                  SYSTEM_COLUMN_BG={SYSTEM_COLUMN_BG}
+                  getToggleCallback={getToggleCallback}
+                  handleSelectMouseDown={handleSelectMouseDown}
+                  handleRowMouseEnter={handleRowMouseEnter}
+                  isRowInDragRange={isRowInDragRange}
+                  onRowClick={onRowClick}
+                  onRowDoubleClick={onRowDoubleClick}
+                  renderCellValue={renderCellValue}
+                  renderTableHeader={renderTableHeader}
+                  isEditMode={isEditMode}
+                />
+              )}
+            </div>
+          )}
         </div>
       );
-
-      // If not collapsed, render content
-      if (!isCollapsed) {
-        // Check if we're currently loading this group's data
-        const isLoadingGroup = depth === 0 && groupLoadingState.has(groupKey);
-        // Use lazy-loaded records if available, otherwise use current records
-        const effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
-          ? lazyLoadedGroups.get(groupKey) || group.rows
-          : group.rows;
-
-        if (isLoadingGroup) {
-          // Show loading indicator while fetching group records
-          result.push(
-            <div
-              key={`loading-${fullKey}`}
-              className="flex items-center justify-center py-8 text-muted-foreground"
-              style={{ marginLeft: `${16 + depth * 24}px` }}
-            >
-              <Spinner size={20} className="mr-2" />
-              <span>Loading {serverCount ? serverCount.toLocaleString() : ''} records...</span>
-            </div>
-          );
-        } else if (hasSubgroups) {
-          // Render subgroups recursively
-          result.push(...renderGroupNavigation(group.subgroups as typeof groups, depth + 1, fullKey));
-        } else {
-          // Render data table for this group's rows with virtualization
-          result.push(
-            <VirtualizedGroupTable
-              key={`data-${fullKey}`}
-              fullKey={fullKey}
-              depth={depth}
-              rows={effectiveRows}
-              selectedRows={selectedRows}
-              visibleColumnsInOrder={visibleColumnsInOrder}
-              columnWidths={columnWidths}
-              rowIdToGlobalIndex={rowIdToGlobalIndex}
-              getStickyColumnStyles={getStickyColumnStyles}
-              isSystemGeneratedColumn={isSystemGeneratedColumn}
-              SYSTEM_COLUMN_BG={SYSTEM_COLUMN_BG}
-              getToggleCallback={getToggleCallback}
-              handleSelectMouseDown={handleSelectMouseDown}
-              handleRowMouseEnter={handleRowMouseEnter}
-              isRowInDragRange={isRowInDragRange}
-              onRowClick={onRowClick}
-              onRowDoubleClick={onRowDoubleClick}
-              renderCellValue={renderCellValue}
-              renderTableHeader={renderTableHeader}
-              isEditMode={isEditMode}
-            />
-          );
-        }
-      }
     });
 
     return result;
@@ -4220,7 +4238,7 @@ export default function TeeemTableView({
           </Table>
         ) : (
           /* Panel mode - Groups with nested data tables inside each expanded group */
-          <div className="space-y-0">
+          <div className="space-y-4">
             {renderGroupNavigation(groupedEntries)}
           </div>
         )}

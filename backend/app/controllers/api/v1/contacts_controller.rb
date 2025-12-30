@@ -1312,6 +1312,7 @@ module Api
           :email,
           :mobile_phone,
           :office_phone,
+          :direct_line,
           :fax_phone,
           :website,
           :tax_number,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_042501) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_055443) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1547,6 +1547,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_042501) do
     t.decimal "total_network_fees", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_commissions_earned", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_commissions_paid", precision: 12, scale: 2, default: "0.0"
+    t.string "direct_line"
     t.index "lower((email)::text)", name: "idx_contacts_lower_email"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
