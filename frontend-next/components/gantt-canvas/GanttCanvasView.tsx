@@ -177,6 +177,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
   { id: 'duration', label: 'Duration', shortLabel: 'Days', width: 50, visible: true, align: 'center' },
   { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
+  { id: 'poNumber', label: 'PO #', width: 70, visible: true, align: 'left' },
   { id: 'role', label: 'Role', width: 90, visible: true, align: 'left' },
   { id: 'startDate', label: 'Start Date', shortLabel: 'Start', width: 80, visible: false, align: 'left' },
   { id: 'endDate', label: 'End Date', shortLabel: 'End', width: 80, visible: false, align: 'left' },
@@ -2719,6 +2720,12 @@ export function GanttCanvasView({
                         return (
                           <div className="truncate px-1 text-muted-foreground" title={task.supplierName || ''}>
                             {task.supplierName || '-'}
+                          </div>
+                        );
+                      case 'poNumber':
+                        return (
+                          <div className="truncate px-1 text-muted-foreground" title={task.purchaseOrderNumber || ''}>
+                            {task.purchaseOrderNumber || '-'}
                           </div>
                         );
                       case 'role':

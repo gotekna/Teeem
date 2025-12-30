@@ -59,6 +59,18 @@ interface SmTask {
   progress_percentage: number;
   locked: boolean;
   dependencies?: string[];
+  // Supplier and PO fields (from ?for=gantt response)
+  supplier_id?: number | null;
+  supplier_name?: string | null;
+  purchase_order_id?: number | null;
+  purchase_order?: {
+    id: number;
+    po_number: string;
+    status: string;
+    total: number;
+    supplier_name: string | null;
+    required_date: string | null;
+  } | null;
 }
 
 interface SmTasksResponse {
@@ -271,6 +283,11 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     progress: task.progress_percentage || 0,
     locked: task.locked ? "manuallyPositioned" : undefined,
     predecessorIds: task.dependencies || [],
+    // Supplier and PO fields for sidebar display
+    supplierId: task.supplier_id ?? undefined,
+    supplierName: task.supplier_name ?? undefined,
+    purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
+    purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
   };
 }
 
@@ -301,6 +318,7 @@ export default function SchedulePage() {
   const [ganttOpen, setGanttOpen] = React.useState(false);
   const [ganttTasks, setGanttTasks] = React.useState<SmTask[]>([]);
   const [loadingGantt, setLoadingGantt] = React.useState(false);
+  const [selectedGanttTask, setSelectedGanttTask] = React.useState<GanttTask | null>(null);
 
   // Set fullscreen layout mode when Gantt is fullscreen
   React.useEffect(() => {
@@ -804,8 +822,21 @@ export default function SchedulePage() {
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/plans`, '_blank')}>
                 Plans
               </Button>
-              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
-                PO
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  // If a task with a PO is selected, open that specific PO
+                  if (selectedGanttTask?.purchaseOrderId) {
+                    window.open(`/jobs/${jobId}/purchase-orders/${selectedGanttTask.purchaseOrderId}`, '_blank');
+                  } else {
+                    // Otherwise open all POs for this job
+                    window.open(`/jobs/${jobId}/purchase-orders`, '_blank');
+                  }
+                }}
+              >
+                PO{selectedGanttTask?.purchaseOrderNumber ? ` #${selectedGanttTask.purchaseOrderNumber}` : ''}
               </Button>
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
                 Site
@@ -834,6 +865,7 @@ export default function SchedulePage() {
               staticDependencies={ganttDependencies}
               showToolbar={true}
               onTaskDrag={handleTaskDrag}
+              onTaskClick={setSelectedGanttTask}
               className="h-full"
               jobId={Number(jobId)}
             />
@@ -927,6 +959,7 @@ export default function SchedulePage() {
                 staticDependencies={ganttDependencies}
                 showToolbar={true}
                 onTaskDrag={handleTaskDrag}
+                onTaskClick={setSelectedGanttTask}
                 className="h-full"
                 jobId={Number(jobId)}
               />

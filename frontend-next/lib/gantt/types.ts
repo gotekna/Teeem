@@ -164,6 +164,9 @@ export interface GanttTask {
   predecessorIds?: string[];
   supplierId?: number;
   supplierName?: string;
+  // PO fields for Gantt sidebar display
+  purchaseOrderId?: number;
+  purchaseOrderNumber?: string;
   // Shape determines visual rendering (default: 'task')
   shape?: TaskShape;
   // Original row reference for full data access
