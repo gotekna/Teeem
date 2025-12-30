@@ -328,7 +328,7 @@ export default function JobPhotosPage() {
   }, [loadPhotos]);
 
   const handlePhotoClick = (jobId: number) => {
-    router.push(`/jobs/${jobId}?tab=site-photos`);
+    router.push(`/jobs/${jobId}/photo/site`);
   };
 
   const handlePhotoExpand = (photos: Photo[], index: number) => {

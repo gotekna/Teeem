@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
@@ -224,8 +224,15 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
 export default function SchedulePage() {
   const params = useParams();
   const jobId = params.id as string;
+  const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
+
+  // Parse view from path: /jobs/123/schedule/setup → "setup"
+  const activeView = React.useMemo(() => {
+    const parts = pathname.replace(`/jobs/${jobId}/schedule`, "").split("/").filter(Boolean);
+    return parts[0] || "table";
+  }, [pathname, jobId]);
 
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -605,7 +612,7 @@ export default function SchedulePage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.push(`/admin/system?tab=schedule-master`)}
+                onClick={() => router.push(`/admin/system/schedule-master`)}
               >
                 <Calendar className="h-4 w-4 mr-2" />
                 Schedule Master

@@ -868,14 +868,8 @@ export default function JobDetailPage() {
         // Clicked a child tab - include parent in path
         router.push(`/jobs/${jobId}/${parentOfClickedTab}/${newTab}`, { scroll: false });
       } else {
-        // Schedule tab: use query param to stay inline (table view)
-        // The dedicated /schedule page shows Gantt and is accessed via "Open Schedule" button
-        if (newTab === "schedule") {
-          router.push(`/jobs/${jobId}?tab=schedule`, { scroll: false });
-        } else {
-          // Clicked a standalone tab (no children, not a child)
-          router.push(`/jobs/${jobId}/${newTab}`, { scroll: false });
-        }
+        // Clicked a standalone tab (no children, not a child)
+        router.push(`/jobs/${jobId}/${newTab}`, { scroll: false });
       }
     }
   }, [jobId, router, findParentOfTab, isParentTab, findFirstChildTab]);

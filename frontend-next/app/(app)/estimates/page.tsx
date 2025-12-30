@@ -32,7 +32,7 @@ export default function EstimatesPage() {
   const handleRowClick = useCallback((row: TableRow) => {
     const jobId = row.job_id || (row.job as { id?: number })?.id;
     if (jobId) {
-      router.push(`/jobs/${jobId}?tab=estimates`);
+      router.push(`/jobs/${jobId}/estimates`);
     }
   }, [router]);
 

@@ -382,6 +382,15 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Job Schedule Routes ===
+  const jobScheduleMatch = pathname.match(/^\/jobs\/(\d+)\/schedule$/);
+  if (jobScheduleMatch) {
+    const view = searchParams.get("view");
+    if (view) {
+      redirectPath = `${pathname}/${view}`;
+    }
+  }
+
   // === Job Setup Routes ===
   const jobSetupMatch = pathname.match(/^\/jobs\/(\d+)\/setup$/);
   if (jobSetupMatch) {
