@@ -146,12 +146,15 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
           a.name.localeCompare(b.name)
         );
 
+        // Get Revit folder URL from found_folders (check both web_url and webUrl)
+        const revitFolder = response.found_folders?.[0];
+        const revitFolderUrl = revitFolder?.web_url || revitFolder?.webUrl || response.job_folder_web_url;
+
         setBrowseState((prev) => ({
           ...prev,
           items: sortedFiles,
           subfolders: sortedSubfolders,
-          rootFolderUrl:
-            response.found_folders?.[0]?.web_url || response.job_folder_web_url,
+          rootFolderUrl: revitFolderUrl,
         }));
       } catch (err) {
         console.error("Failed to load folder contents:", err);

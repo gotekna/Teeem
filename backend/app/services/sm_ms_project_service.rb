@@ -153,10 +153,10 @@ class SmMsProjectService
               xml.OutlineLevel task.outline_level || 1
               xml.WBS task.wbs_code if task.wbs_code.present?
 
-              # Predecessor links
-              task.predecessor_dependencies.each do |dep|
+              # Predecessor links (SSoT: using predecessor_ids jsonb)
+              task.active_predecessor_dependencies.each do |dep|
                 xml.PredecessorLink do
-                  xml.PredecessorUID dep.predecessor_task_id
+                  xml.PredecessorUID dep.predecessor_task&.id
                   xml.Type reverse_map_link_type(dep.dependency_type)
                   xml.LinkLag format_duration(dep.lag_days || 0)
                   xml.LagFormat 7

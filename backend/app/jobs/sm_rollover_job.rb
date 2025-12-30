@@ -257,7 +257,8 @@ class SmRolloverJob < ApplicationJob
     cascaded = 0
 
     # Find successor tasks that should cascade
-    task.active_successor_dependencies.includes(:successor_task).find_each do |dep|
+    # SSoT: active_successor_dependencies returns OpenStruct array (no .includes needed)
+    task.active_successor_dependencies.each do |dep|
       successor = dep.successor_task
       next unless successor.present?
       next unless successor.status_not_started?

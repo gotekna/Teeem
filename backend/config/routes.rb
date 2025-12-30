@@ -1424,15 +1424,8 @@ Rails.application.routes.draw do
           post :sync_from_template
         end
 
-        # Dependencies (nested under sm_tasks)
-        resources :dependencies, controller: "sm_dependencies", only: [ :index, :create ]
-      end
-
-      # SM Dependencies (non-nested routes)
-      resources :sm_dependencies, only: [ :show, :update, :destroy ] do
-        member do
-          post :restore
-        end
+        # Dependencies - SSoT: Now managed via predecessor_ids jsonb on SmTask
+        # REMOVED: sm_dependencies routes - dependencies stored in SmTask.predecessor_ids
       end
 
       # SM Hold Reasons (admin)

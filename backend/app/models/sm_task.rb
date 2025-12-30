@@ -399,6 +399,10 @@ class SmTask < ApplicationRecord
       next unless predecessor_task
 
       OpenStruct.new(
+        # Backwards compat: generate synthetic ID from task IDs
+        id: "#{predecessor_task.id}_#{self.id}",
+        predecessor_task_id: predecessor_task.id,
+        successor_task_id: self.id,
         predecessor_task: predecessor_task,
         successor_task: self,
         dependency_type: pred_data["type"] || pred_data[:type] || "FS",
@@ -420,6 +424,10 @@ class SmTask < ApplicationRecord
       next unless pred_data
 
       OpenStruct.new(
+        # Backwards compat: generate synthetic ID from task IDs
+        id: "#{self.id}_#{successor_task.id}",
+        predecessor_task_id: self.id,
+        successor_task_id: successor_task.id,
         predecessor_task: self,
         successor_task: successor_task,
         dependency_type: pred_data["type"] || pred_data[:type] || "FS",

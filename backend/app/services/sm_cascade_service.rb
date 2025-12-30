@@ -224,7 +224,8 @@ class SmCascadeService
   end
 
   def direct_successors
-    @direct_successors ||= task.active_successor_dependencies.includes(:successor_task).map do |dep|
+    # SSoT: active_successor_dependencies now returns OpenStruct array (no .includes needed)
+    @direct_successors ||= task.active_successor_dependencies.map do |dep|
       { task: dep.successor_task, dependency: dep }
     end
   end
@@ -260,7 +261,8 @@ class SmCascadeService
 
   def calculate_successor_dates(successor)
     # Get all active predecessor dependencies for this successor
-    deps = successor.active_predecessor_dependencies.includes(:predecessor_task)
+    # SSoT: active_predecessor_dependencies returns OpenStruct array (no .includes needed)
+    deps = successor.active_predecessor_dependencies
 
     # Calculate the earliest valid start based on all predecessors
     earliest_start = deps.map do |dep|
@@ -317,15 +319,16 @@ class SmCascadeService
   end
 
   def count_nested_successors(task)
-    SmDependency.where(predecessor_task_id: task.id, active: true).count
+    # SSoT: Using jsonb-based successor lookup
+    task.active_successor_dependencies.count
   end
 
   def find_nested_locked_summary(task)
     # Get immediate successors that are also locked
-    SmDependency.where(predecessor_task_id: task.id, active: true)
-                .includes(:successor_task)
-                .select { |dep| locked?(dep.successor_task) }
-                .map do |dep|
+    # SSoT: Using jsonb-based successor lookup
+    task.active_successor_dependencies
+        .select { |dep| locked?(dep.successor_task) }
+        .map do |dep|
       {
         id: dep.successor_task.id,
         name: dep.successor_task.name,
@@ -335,7 +338,8 @@ class SmCascadeService
   end
 
   def cascade_unlocked_successors(task, results, user_id)
-    task.active_successor_dependencies.includes(:successor_task).each do |dep|
+    # SSoT: active_successor_dependencies returns OpenStruct array (no .includes needed)
+    task.active_successor_dependencies.each do |dep|
       successor = dep.successor_task
       next if locked?(successor)
       next if results[:updated_tasks].include?(successor)
@@ -354,17 +358,17 @@ class SmCascadeService
   end
 
   def cascade_unlocked_successors_rollover(task, results)
-    task.active_successor_dependencies.includes(:successor_task).each do |dep|
+    # SSoT: active_successor_dependencies returns OpenStruct array (no .includes needed)
+    task.active_successor_dependencies.each do |dep|
       successor = dep.successor_task
 
       if locked?(successor)
         # Break dependency for locked successors during rollover
-        dep.update!(
-          active: false,
-          deleted_at: Time.current,
-          deleted_reason: "rollover",
-          deleted_by_rollover: true
-        )
+        # SSoT: Remove predecessor from successor's predecessor_ids jsonb
+        updated_preds = successor.predecessor_ids.reject do |p|
+          (p["id"] || p[:id]).to_i == task.task_number
+        end
+        successor.update!(predecessor_ids: updated_preds)
         results[:deleted_dependencies] << {
           id: dep.id,
           predecessor_id: dep.predecessor_task_id,

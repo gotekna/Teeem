@@ -204,7 +204,8 @@ class SmScheduleMasterTemplateCopyService
   end
 
   def calculate_earliest_start(task)
-    predecessor_deps = SmDependency.where(successor_task_id: task.id, active: true).includes(:predecessor_task)
+    # SSoT: Using jsonb-based predecessor lookup
+    predecessor_deps = task.active_predecessor_dependencies
 
     if predecessor_deps.empty?
       return start_date

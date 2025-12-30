@@ -242,8 +242,7 @@ module Api
       # DEPRECATED: Use GET /api/v1/jobs/:job_id/sm_tasks?for=gantt instead (SSoT)
       def gantt_data
         tasks = @job.sm_tasks.ordered.includes(
-          :hold_reason, :predecessor_dependencies, :successor_dependencies,
-          :supplier, purchase_order: :supplier
+          :hold_reason, :supplier, purchase_order: :supplier
         )
 
         # SSoT: Use shared render_gantt_data helper
@@ -1123,8 +1122,9 @@ module Api
         json[:assigned_role] = task.assigned_role
         json[:is_overdue] = task.status != "completed" && task.end_date.present? && task.end_date < Date.current
         json[:days_until_due] = task.end_date.present? ? (task.end_date - Date.current).to_i : nil
-        json[:predecessor_count] = task.predecessor_dependencies.count
-        json[:successor_count] = task.successor_dependencies.count
+        # SSoT: Using jsonb-based methods (predecessor_ids column)
+        json[:predecessor_count] = task.active_predecessor_dependencies.count
+        json[:successor_count] = task.active_successor_dependencies.count
 
         json
       end
