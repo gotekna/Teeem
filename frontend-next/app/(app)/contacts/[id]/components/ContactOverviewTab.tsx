@@ -586,7 +586,7 @@ export function ContactOverviewTab({
                 <PropertyRow
                   label="ABN"
                   value={contact.abn}
-                  onSave={(value) => saveField("abn", value)}
+                  onSave={(value) => saveField("abn", value === "" ? null : value)}
                   format={formatABN}
                   validate={validateABN}
                   placeholder="00 000 000 000"
@@ -597,7 +597,7 @@ export function ContactOverviewTab({
                   <PropertyRow
                     label="ACN"
                     value={contact.acn}
-                    onSave={(value) => saveField("acn", value)}
+                    onSave={(value) => saveField("acn", value === "" ? null : value)}
                     format={formatACN}
                     validate={validateACN}
                     placeholder="000 000 000"

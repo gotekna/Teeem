@@ -307,7 +307,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Workflow Tasks */}
           <Link prefetch={false}
-            href="/tasks?tab=workflow"
+            href="/tasks/workflow"
             className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title={workflowTaskCount > 0 ? `${workflowTaskCount} pending workflow task${workflowTaskCount !== 1 ? 's' : ''}` : 'Workflow Tasks'}
           >

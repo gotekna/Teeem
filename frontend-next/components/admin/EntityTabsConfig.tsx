@@ -336,6 +336,17 @@ export function EntityTabsConfig({
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
   const [newEntityType, setNewEntityType] = React.useState("");
 
+  // SSoT: Track original display_name to detect changes for folder rename prompt
+  const [originalDisplayName, setOriginalDisplayName] = React.useState<string | null>(null);
+
+  // SSoT: Folder rename confirmation dialog state
+  const [folderRenameDialog, setFolderRenameDialog] = React.useState<{
+    open: boolean;
+    oldName: string;
+    newName: string;
+    tabId: number;
+  } | null>(null);
+
   // All document types for linking (SSoT)
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; display_name?: string }>>([]);
 
@@ -512,6 +523,9 @@ export function EntityTabsConfig({
     // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
     const folderPath = tab.sharepoint_folder_path || "";
 
+    // SSoT: Store original display_name for folder rename detection
+    setOriginalDisplayName(tab.display_name);
+
     setFormData({
       display_name: tab.display_name,
       display_code: tab.display_code || "",
@@ -545,6 +559,10 @@ export function EntityTabsConfig({
     setSaving(true);
     try {
       if (editingTab) {
+        // SSoT: Detect display_name change for folder rename prompt
+        const displayNameChanged = originalDisplayName && formData.display_name !== originalDisplayName;
+        const hasSharePointFolder = editingTab.has_sharepoint_folder || formData.has_sharepoint_folder;
+
         // Update existing
         const updateParams: EntityTabUpdateParams = {
           display_name: formData.display_name,
@@ -569,6 +587,22 @@ export function EntityTabsConfig({
         await updateTab(editingTab.id, updateParams);
         // Refetch used icons after update (icon may have changed)
         refetchUsedIcons();
+
+        // SSoT: Show folder rename confirmation if display_name changed and has SharePoint folder
+        if (displayNameChanged && hasSharePointFolder) {
+          setFolderRenameDialog({
+            open: true,
+            oldName: originalDisplayName,
+            newName: formData.display_name || "",
+            tabId: editingTab.id,
+          });
+          toast.success("Tab updated - SharePoint folder rename queued");
+        } else {
+          toast.success("Tab updated");
+        }
+        setDialogOpen(false);
+        setOriginalDisplayName(null);
+        return;
       } else {
         // Create new
         const createParams: EntityTabCreateParams = {
@@ -591,9 +625,9 @@ export function EntityTabsConfig({
         await createTab(createParams);
         // Refetch used icons after create (new icon added)
         refetchUsedIcons();
+        toast.success("Tab created");
+        setDialogOpen(false);
       }
-      toast.success(editingTab ? "Tab updated" : "Tab created");
-      setDialogOpen(false);
     } catch (err: any) {
       console.error("Failed to save tab:", err);
       toast.error(err?.message || "Failed to save tab");
@@ -1808,6 +1842,46 @@ export function EntityTabsConfig({
             >
               {saving && <Spinner size={16} className="mr-2" />}
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SSoT: Folder Rename Notification Dialog */}
+      <Dialog
+        open={folderRenameDialog?.open || false}
+        onOpenChange={(open) => !open && setFolderRenameDialog(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>SharePoint Folder Rename Queued</DialogTitle>
+            <DialogDescription className="space-y-3 pt-2">
+              <p>
+                The tab name was changed from{" "}
+                <span className="font-semibold text-foreground">
+                  &quot;{folderRenameDialog?.oldName}&quot;
+                </span>{" "}
+                to{" "}
+                <span className="font-semibold text-foreground">
+                  &quot;{folderRenameDialog?.newName}&quot;
+                </span>.
+              </p>
+              <p className="text-sm">
+                A background job has been queued to rename the corresponding SharePoint folder.
+                This will update the folder name across all linked entities.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
+                <FolderOpen className="h-4 w-4" />
+                <span>Folder rename typically completes within a few seconds.</span>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="default"
+              onClick={() => setFolderRenameDialog(null)}
+            >
+              Got it
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -260,6 +260,23 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Corporate Company Detail ===
+  const corporateCompanyMatch = pathname.match(/^\/corporate\/companies\/(\d+)$/);
+  if (corporateCompanyMatch) {
+    const tab = searchParams.get("tab") || searchParams.get("subtab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
+  // === Tasks Routes ===
+  if (pathname === "/tasks") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/tasks/${tab}`;
+    }
+  }
+
   // === Job Creation with Status ===
   if (pathname === "/jobs/new") {
     const status = searchParams.get("status");

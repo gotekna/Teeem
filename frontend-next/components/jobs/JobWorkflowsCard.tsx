@@ -206,7 +206,7 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
                 </div>
                 <div className="flex items-center gap-2">
                   {getStatusBadge(instance.status)}
-                  <Link href="/tasks?tab=workflow">
+                  <Link href="/tasks/workflow">
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                       <ChevronRight className="h-4 w-4" />
                     </Button>

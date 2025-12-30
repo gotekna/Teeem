@@ -160,12 +160,16 @@ export const PropertyRow = memo(function PropertyRow({
     setSaving(true);
     setError(null);
     try {
+      // Pass empty string - the parent's onSave should handle converting to null if needed
       await onSave("");
       setDraft("");
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to clear");
+      const message = err instanceof Error ? err.message : "Failed to clear";
+      setError(message);
+      // Show toast for visibility
+      console.error("[PropertyRow.handleClear] Error:", err);
     } finally {
       setSaving(false);
     }

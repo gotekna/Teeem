@@ -328,7 +328,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                             {/* View Button */}
                             <button
                               onClick={() => {
-                                window.location.href = `/corporate/companies/${connection.company_id}?tab=xero`;
+                                window.location.href = `/corporate/companies/${connection.company_id}/xero`;
                                 onClose();
                               }}
                               className="whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"

@@ -200,7 +200,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
 
   const handleRowClick = (row: TableRow) => {
     // Navigate to Schedule Master (SSoT) with task filter
-    router.push(`/admin/system?tab=schedule-master`);
+    router.push(`/admin/system/schedule-master`);
   };
 
   // Load job's default template
@@ -522,7 +522,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/admin/system?tab=schedule-master`)}
+              onClick={() => router.push(`/admin/system/schedule-master`)}
             >
               <Calendar className="h-4 w-4 mr-2" />
               Schedule Master

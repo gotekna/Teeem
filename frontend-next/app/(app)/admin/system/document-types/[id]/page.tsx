@@ -31,6 +31,14 @@ import {
   Copy,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -148,6 +156,15 @@ export default function DocumentTypeDetailPage() {
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
+
+  // SSoT: Naming format change confirmation dialog state
+  const [renameConfirmDialog, setRenameConfirmDialog] = React.useState<{
+    open: boolean;
+    oldFormat: string;
+    newFormat: string;
+    affectedCount: number;
+  } | null>(null);
+  const [renaming, setRenaming] = React.useState(false);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -541,17 +558,41 @@ export default function DocumentTypeDetailPage() {
         }
       } else {
         // Update existing document type
-        const response = await api.patch<{ success: boolean; data: DocumentType }>(`/api/v1/document_types/${documentTypeId}`, {
+        const response = await api.patch<{
+          success: boolean;
+          data: DocumentType;
+          naming_format_change?: {
+            old_format: string;
+            new_format: string;
+            affected_documents_count: number;
+            message: string;
+          };
+        }>(`/api/v1/document_types/${documentTypeId}`, {
           document_type: documentType
         });
         // Refresh local state with saved data from server
         if (response?.data) {
           setDocumentType(response.data);
         }
-        toast({
-          title: "Success",
-          description: "Document type saved successfully",
-        });
+
+        // SSoT: Check if naming format changed and prompt for document rename
+        if (response?.naming_format_change && response.naming_format_change.affected_documents_count > 0) {
+          setRenameConfirmDialog({
+            open: true,
+            oldFormat: response.naming_format_change.old_format || "",
+            newFormat: response.naming_format_change.new_format || "",
+            affectedCount: response.naming_format_change.affected_documents_count,
+          });
+          toast({
+            title: "Document type saved",
+            description: response.naming_format_change.message,
+          });
+        } else {
+          toast({
+            title: "Success",
+            description: "Document type saved successfully",
+          });
+        }
       }
     } catch (error: unknown) {
       console.error("Failed to save document type:", error);
@@ -986,6 +1027,48 @@ export default function DocumentTypeDetailPage() {
     const currentValue = documentType[field] || "";
     const newValue = currentValue + (currentValue ? " " : "") + placeholder;
     updateField(field, newValue);
+  };
+
+  // SSoT: Handle batch rename of documents after naming format change
+  const handleBatchRename = async () => {
+    if (!documentType?.id) return;
+
+    setRenaming(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: {
+          executed: boolean;
+          stats: {
+            total: number;
+            success: number;
+            failed: number;
+            skipped: number;
+          };
+        };
+      }>("/api/v1/document_standardization/execute", {
+        document_type_id: documentType.id,
+        scope: documentType.scope === "job" ? "job" : "corporate",
+      });
+
+      if (response?.success) {
+        const stats = response.data.stats;
+        toast({
+          title: "Documents renamed",
+          description: `${stats.success} documents renamed successfully${stats.failed > 0 ? `, ${stats.failed} failed` : ""}${stats.skipped > 0 ? `, ${stats.skipped} skipped` : ""}`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to batch rename documents:", error);
+      toast({
+        title: "Rename failed",
+        description: "Failed to rename documents. Check console for details.",
+        variant: "destructive",
+      });
+    } finally {
+      setRenaming(false);
+      setRenameConfirmDialog(null);
+    }
   };
 
   // Add blank text token
@@ -2078,6 +2161,69 @@ export default function DocumentTypeDetailPage() {
       </div>
       </div>
       {/* End scroll area */}
+
+      {/* SSoT: Naming format change confirmation dialog */}
+      <Dialog
+        open={renameConfirmDialog?.open || false}
+        onOpenChange={(open) => !open && setRenameConfirmDialog(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename Existing Documents?</DialogTitle>
+            <DialogDescription className="space-y-3 pt-2">
+              <p>
+                The file naming format has been changed. There are{" "}
+                <span className="font-semibold text-foreground">
+                  {renameConfirmDialog?.affectedCount || 0}
+                </span>{" "}
+                existing documents that don&apos;t match the new format.
+              </p>
+              {renameConfirmDialog?.oldFormat && (
+                <div className="text-xs space-y-1">
+                  <div className="flex gap-2">
+                    <span className="text-muted-foreground">Old:</span>
+                    <code className="font-mono bg-muted px-1 rounded">
+                      {renameConfirmDialog.oldFormat}
+                    </code>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-muted-foreground">New:</span>
+                    <code className="font-mono bg-muted px-1 rounded">
+                      {renameConfirmDialog?.newFormat}
+                    </code>
+                  </div>
+                </div>
+              )}
+              <p className="text-sm">
+                Would you like to rename them in SharePoint to match the new naming convention?
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setRenameConfirmDialog(null)}
+              disabled={renaming}
+            >
+              Skip for Now
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleBatchRename}
+              disabled={renaming}
+            >
+              {renaming ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Renaming...
+                </>
+              ) : (
+                `Rename ${renameConfirmDialog?.affectedCount || 0} Documents`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

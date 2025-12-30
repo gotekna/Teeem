@@ -1285,8 +1285,8 @@ export default function CorporateDashboardPage() {
   // ===== STAT CARDS CONFIG =====
 
   const statCards: StatCardProps[] = [
-    { name: "Total Companies", value: stats.totalCompanies, icon: Building2, href: "/corporate?tab=companies" },
-    { name: "Active Companies", value: stats.activeCompanies, icon: CheckCircle2, href: "/corporate?tab=companies" },
+    { name: "Total Companies", value: stats.totalCompanies, icon: Building2, href: "/corporate/companies" },
+    { name: "Active Companies", value: stats.activeCompanies, icon: CheckCircle2, href: "/corporate/companies" },
     { name: "Total Assets", value: stats.totalAssets, icon: Package, href: "/corporate/assets" },
     { name: "Compliance Due", value: stats.complianceDueSoon, icon: Clock, href: "/corporate/compliance-calendar", alert: stats.complianceDueSoon > 0 },
   ];

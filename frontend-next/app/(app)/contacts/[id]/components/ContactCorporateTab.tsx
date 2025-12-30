@@ -487,7 +487,7 @@ function BankAccountsTable({ contact }: { contact: Contact }) {
           <Landmark className="h-5 w-5 text-emerald-600" />
           Company Bank Accounts ({contact.linked_company.bank_accounts.length})
           <Link
-            href={`/corporate/companies/${contact.linked_company.id}?subtab=bank-accounts`}
+            href={`/corporate/companies/${contact.linked_company.id}/bank-accounts`}
             className="ml-auto text-xs text-primary hover:underline flex items-center gap-1"
           >
             Edit in Corporate <ExternalLink className="h-3 w-3" />

@@ -1188,6 +1188,16 @@ export default function TeeemTableView({
   // groupViewMode managed by atom (SSoT)
   const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
 
+  // Initialize groupByColumns from initialGroupByColumn prop on mount
+  // Only runs once and only if atom is empty (doesn't override saved views)
+  const initialGroupByRef = useRef(false);
+  useEffect(() => {
+    if (!initialGroupByRef.current && initialGroupByColumn && groupByColumns.length === 0) {
+      initialGroupByRef.current = true;
+      setGroupByColumns([initialGroupByColumn]);
+    }
+  }, [initialGroupByColumn, groupByColumns.length, setGroupByColumns]);
+
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
   // effectiveColumns comes from Foundation API which only has database columns
@@ -4825,7 +4835,7 @@ export default function TeeemTableView({
                     </Button>
                   </div>
                   <DropdownMenuItem
-                    onClick={() => window.open(`/admin/system?tab=gold-standard&foundation=${effectiveFoundationId}`, '_blank')}
+                    onClick={() => window.open(`/admin/system/components/${effectiveFoundationId}`, '_blank')}
                     className="flex items-center gap-2"
                   >
                     <Settings className="h-4 w-4" />
