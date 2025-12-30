@@ -250,6 +250,81 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Meetings Routes ===
+  if (pathname === "/meetings") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/meetings/${tab}`;
+    }
+  }
+
+  // === Training Routes ===
+  if (pathname === "/training") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/training/${tab}`;
+    }
+  }
+
+  // === Workflows Routes ===
+  if (pathname === "/workflows") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/workflows/${tab}`;
+    }
+  }
+
+  // === Cases Routes ===
+  if (pathname === "/cases") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/cases/${tab}`;
+    }
+  }
+
+  // === System Health Routes ===
+  if (pathname === "/system-health") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/system-health/${tab}`;
+    }
+  }
+
+  // === Financial Transactions Routes ===
+  if (pathname === "/financial/transactions") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/financial/transactions/${tab}`;
+    }
+  }
+
+  // === Recipe Detail Routes ===
+  const recipeMatch = pathname.match(/^\/recipes\/(\d+)$/);
+  if (recipeMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
+  // === Job Analytics Routes ===
+  const jobAnalyticsMatch = pathname.match(/^\/jobs\/(\d+)\/analytics$/);
+  if (jobAnalyticsMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
+  // === Job Setup Routes ===
+  const jobSetupMatch = pathname.match(/^\/jobs\/(\d+)\/setup$/);
+  if (jobSetupMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
   // Perform redirect if we have a new path
   if (redirectPath) {
     const url = request.nextUrl.clone();

@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,8 +63,25 @@ interface CaseTypes {
 
 export default function CasesPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useUrlTabs("cases");
+
+  // Path-based tab: /cases/cases, /cases/proposals
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/cases", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/cases/cases", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/cases/${tab}`, { scroll: false });
+  }, [router]);
   const [loading, setLoading] = React.useState(true);
   const [cases, setCases] = React.useState<CaseItem[]>([]);
   const [types, setTypes] = React.useState<CaseTypes | null>(null);
@@ -249,7 +265,7 @@ export default function CasesPage() {
       </div>
 
       {/* Tabs for Cases and Proposals */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab || "cases"} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="cases" className="flex items-center gap-2">
             <Briefcase className="h-4 w-4" />

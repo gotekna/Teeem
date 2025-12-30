@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,8 +51,25 @@ interface Recipe {
 export default function RecipeDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const recipeId = params.id as string;
-  const [activeTab, setActiveTab] = useUrlTabs("details");
+
+  // Path-based tab: /recipes/123/details, /recipes/123/items, /recipes/123/versions
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace(`/recipes/${recipeId}`, "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname, recipeId]);
+
+  // Redirect to default tab if none specified
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace(`/recipes/${recipeId}/details`, { scroll: false });
+    }
+  }, [activeTab, router, recipeId]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/recipes/${recipeId}/${tab}`, { scroll: false });
+  }, [router, recipeId]);
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -202,7 +218,7 @@ export default function RecipeDetailPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab || "details"} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="items">

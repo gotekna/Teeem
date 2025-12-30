@@ -88,6 +88,8 @@ interface SyncStatusPerContact {
 interface ContactSyncItem {
   id: number;
   display_name: string;
+  xero_name: string | null;  // Name from Xero for comparison
+  xero_tenant_name: string | null;  // Which Xero company this is synced to
   email: string | null;
   contact_type: string;
   entity_type: string | null;
@@ -815,6 +817,48 @@ function SyncStatusCell({ syncStatus, hasError }: { syncStatus: SyncStatusPerCon
   );
 }
 
+// Calculate string similarity using Levenshtein distance
+function calculateSimilarity(str1: string | null, str2: string | null): number | null {
+  if (!str1 || !str2) return null;
+
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
+
+  if (s1 === s2) return 100;
+
+  const len1 = s1.length;
+  const len2 = s2.length;
+
+  if (len1 === 0 || len2 === 0) return 0;
+
+  // Create distance matrix
+  const matrix: number[][] = [];
+  for (let i = 0; i <= len1; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= len2; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Fill in the matrix
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,      // deletion
+        matrix[i][j - 1] + 1,      // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+
+  const distance = matrix[len1][len2];
+  const maxLen = Math.max(len1, len2);
+  const similarity = ((maxLen - distance) / maxLen) * 100;
+
+  return Math.round(similarity);
+}
+
 // Helper to get role display
 function getRoleDisplay(contact: ContactSyncItem): { text: string; color: string } {
   const isCustomer = contact.is_customer;
@@ -843,7 +887,16 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
     return "text-red-600";
   };
 
+  const getMatchColor = (percent: number | null) => {
+    if (percent === null) return "text-muted-foreground";
+    if (percent === 100) return "text-green-600";
+    if (percent >= 90) return "text-green-500";
+    if (percent >= 70) return "text-amber-600";
+    return "text-red-600";
+  };
+
   const role = getRoleDisplay(contact);
+  const matchPercent = calculateSimilarity(contact.display_name, contact.xero_name);
 
   return (
     <TableRow
@@ -861,6 +914,33 @@ function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: (
           <div className="text-xs text-muted-foreground truncate max-w-[180px]">
             {contact.primary_company_name}
           </div>
+        )}
+      </TableCell>
+      <TableCell className="py-2">
+        {contact.xero_name ? (
+          <div className="truncate max-w-[180px] text-sm" title={contact.xero_name}>
+            {contact.xero_name}
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
+        )}
+      </TableCell>
+      <TableCell className="text-center py-2">
+        {matchPercent !== null ? (
+          <span className={cn("font-medium text-sm", getMatchColor(matchPercent))}>
+            {matchPercent}%
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
+        )}
+      </TableCell>
+      <TableCell className="py-2">
+        {contact.xero_tenant_name ? (
+          <span className="text-xs text-muted-foreground truncate max-w-[120px] block" title={contact.xero_tenant_name}>
+            {contact.xero_tenant_name}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
         )}
       </TableCell>
       <TableCell className="py-2">
@@ -971,6 +1051,9 @@ function ContactsGroupedTable({
     <TableHeader className="sticky top-0 bg-background z-10">
       <TableRow>
         <TableHead>Contact</TableHead>
+        <TableHead>Xero Name</TableHead>
+        <TableHead className="text-center w-14">Match</TableHead>
+        <TableHead>Xero Org</TableHead>
         <TableHead>Type</TableHead>
         <TableHead className="text-center w-12">Linked</TableHead>
         <TableHead className="w-20">Role</TableHead>

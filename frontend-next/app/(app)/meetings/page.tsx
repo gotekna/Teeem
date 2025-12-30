@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +61,25 @@ function getMeetingDateLabel(dateStr: string): string {
 
 export default function MeetingsPage() {
   useSetLayoutMode("full-height");
-  const [activeTab, setActiveTab] = useUrlTabs("upcoming");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab: /meetings/upcoming, /meetings/past
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/meetings", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/meetings/upcoming", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/meetings/${tab}`, { scroll: false });
+  }, [router]);
   const [meetings, setMeetings] = React.useState<Meeting[]>([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -121,7 +139,7 @@ export default function MeetingsPage() {
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab || "upcoming"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
           <TabsTrigger value="past">Past</TabsTrigger>

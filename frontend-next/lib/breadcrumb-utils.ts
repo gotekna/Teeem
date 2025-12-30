@@ -127,6 +127,28 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "settings": "Settings",
   "permissions": "Permissions",
   "integrations": "Integrations",
+  "plans": "Plans",
+  "whs": "WHS",
+  "contract": "Contract",
+  "budget": "Budget",
+  "claims": "Claims",
+  "profit": "Profit",
+  "people": "People",
+  "purchase-orders": "Purchase Orders",
+  "estimates": "Estimates",
+  "boq": "BOQ",
+  "coms": "Communications",
+  "rain-log": "Rain Log",
+  "site-presence": "Site Presence",
+  "colours": "Colours",
+  "specifications": "Specifications",
+};
+
+/**
+ * Pages that have tabs - show default tab when no tab param
+ */
+const PAGES_WITH_DEFAULT_TAB: Record<string, string> = {
+  "/dashboard": "Overview",
 };
 
 /**
@@ -140,15 +162,17 @@ export function resolveDisplayName(
   pathname: string,
   searchParams?: URLSearchParams | null
 ): string {
-  // Get tab from query params
+  // Get tab from query params, or use default tab for known pages
   const tab = searchParams?.get('tab');
+  const defaultTab = PAGES_WITH_DEFAULT_TAB[pathname];
+  const effectiveTab = tab || defaultTab;
 
   // 1. Check exact match in known routes
   if (ROUTE_DISPLAY_NAMES[pathname]) {
     const baseName = ROUTE_DISPLAY_NAMES[pathname];
-    // If there's a tab, append it
-    if (tab) {
-      const tabName = TAB_DISPLAY_NAMES[tab] || humanizeSegment(tab);
+    // If there's a tab (explicit or default), append it
+    if (effectiveTab) {
+      const tabName = TAB_DISPLAY_NAMES[effectiveTab] || humanizeSegment(effectiveTab);
       return `${baseName} › ${tabName}`;
     }
     return baseName;
@@ -168,17 +192,25 @@ export function resolveDisplayName(
     const label = ENTITY_LABELS[entityType] || humanizeSegment(entityType);
     const baseName = `${label} #${lastSegment}`;
     // If there's a tab, append it
-    if (tab) {
-      const tabName = TAB_DISPLAY_NAMES[tab] || humanizeSegment(tab);
+    if (effectiveTab) {
+      const tabName = TAB_DISPLAY_NAMES[effectiveTab] || humanizeSegment(effectiveTab);
       return `${baseName} › ${tabName}`;
     }
     return baseName;
   }
 
-  // 4. Humanize last segment as fallback
+  // 4. Check for path-based tab pattern (e.g., /jobs/123/plans)
+  // Pattern: /entity/id/tab where second-to-last segment is numeric ID
+  if (segments.length >= 3 && /^\d+$/.test(segments[segments.length - 2])) {
+    const tabKey = lastSegment;
+    const tabName = TAB_DISPLAY_NAMES[tabKey] || humanizeSegment(tabKey);
+    return tabName;
+  }
+
+  // 5. Humanize last segment as fallback
   const baseName = humanizeSegment(lastSegment);
-  if (tab) {
-    const tabName = TAB_DISPLAY_NAMES[tab] || humanizeSegment(tab);
+  if (effectiveTab) {
+    const tabName = TAB_DISPLAY_NAMES[effectiveTab] || humanizeSegment(effectiveTab);
     return `${baseName} › ${tabName}`;
   }
   return baseName;

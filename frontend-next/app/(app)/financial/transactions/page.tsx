@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useUrlState } from "@/hooks/useUrlState";
 import { PlusIcon, BanknotesIcon, CreditCardIcon } from "@heroicons/react/24/outline";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -49,7 +49,25 @@ interface Summary {
 }
 
 export default function FinancialTransactionsPage() {
-  const [activeTab, setActiveTab] = useUrlTabs("xero");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab: /financial/transactions/xero, /financial/transactions/internal
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/financial/transactions", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/financial/transactions/xero", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/financial/transactions/${tab}`, { scroll: false });
+  }, [router]);
 
   // SSoT: Modal state managed by useUrlState hook
   const [urlState, setUrlState, clearUrlState] = useUrlState({
@@ -254,7 +272,7 @@ export default function FinancialTransactionsPage() {
 
   return (
     <TablePage>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+      <Tabs value={activeTab || "xero"} onValueChange={setActiveTab} className="flex flex-col h-full">
         <div className="px-4 shrink-0">
           <TabsList className="mb-4">
             <TabsTrigger value="xero">Xero Bank Transactions</TabsTrigger>

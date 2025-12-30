@@ -833,6 +833,8 @@ module Api
             {
               id: contact.id,
               display_name: contact.display_name,
+              xero_name: xero_link&.external_name,  # Name from Xero for comparison
+              xero_tenant_name: xero_link&.tenant_name,  # Which Xero company this is synced to
               email: contact.email,
               contact_type: contact.entity_type,
               entity_type: contact.entity_type,

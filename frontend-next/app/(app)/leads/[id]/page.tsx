@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,8 +37,25 @@ import {
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const leadId = params.id as string;
-  const [activeTab, setActiveTab] = useUrlTabs("overview");
+
+  // Path-based tab: /leads/123/overview, /leads/123/documents
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace(`/leads/${leadId}`, "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname, leadId]);
+
+  // Redirect to default tab if none specified
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace(`/leads/${leadId}/overview`, { scroll: false });
+    }
+  }, [activeTab, router, leadId]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/leads/${leadId}/${tab}`, { scroll: false });
+  }, [router, leadId]);
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -231,7 +247,7 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab || "overview"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="contracts">Contracts</TabsTrigger>

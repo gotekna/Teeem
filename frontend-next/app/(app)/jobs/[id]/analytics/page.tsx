@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, ElementType } from "react";
-import { useParams } from "next/navigation";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useState, useEffect, ElementType, useMemo, useCallback } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   ChartBarIcon,
   CpuChipIcon,
@@ -70,9 +69,26 @@ interface TabConfig {
 
 export default function SmAnalyticsPage() {
   const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const constructionId = params.id as string;
-  // SSoT: URL tab state managed by useUrlTabs hook
-  const [activeTab, setTab] = useUrlTabs("overview");
+
+  // Path-based tab: /jobs/123/analytics/overview, /jobs/123/analytics/evm
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace(`/jobs/${constructionId}/analytics`, "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname, constructionId]);
+
+  // Redirect to default tab if none specified
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace(`/jobs/${constructionId}/analytics/overview`, { scroll: false });
+    }
+  }, [activeTab, router, constructionId]);
+
+  const setTab = useCallback((tab: string) => {
+    router.push(`/jobs/${constructionId}/analytics/${tab}`, { scroll: false });
+  }, [router, constructionId]);
 
   const [construction, setConstruction] = useState<Construction | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useUrlTabs } from '@/hooks/useUrlTabs';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,7 +66,25 @@ interface BpmnProcess {
 }
 
 export default function WorkflowsDashboardPage() {
-  const [activeTab, setActiveTab] = useUrlTabs("tasks");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab: /workflows/tasks, /workflows/instances, /workflows/processes
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/workflows", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/workflows/tasks", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/workflows/${tab}`, { scroll: false });
+  }, [router]);
   const [stats, setStats] = useState<WorkflowStats>({
     active_instances: 0,
     pending_tasks: 0,
@@ -195,7 +213,7 @@ export default function WorkflowsDashboardPage() {
       </div>
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab || "tasks"} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="tasks" className="gap-2">
             <ListTodo className="h-4 w-4" />

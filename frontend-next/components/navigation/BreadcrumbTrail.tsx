@@ -115,7 +115,7 @@ export function BreadcrumbTrail() {
       {/* Hover trigger zone - invisible strip at top when not pinned */}
       {!isPinned && !isVisible && (
         <div
-          className="fixed top-12 right-0 h-3 z-[45] bg-transparent cursor-pointer hidden md:block"
+          className="fixed top-12 right-0 h-3 z-[110] bg-transparent cursor-pointer hidden md:block"
           style={{ left: leftOffset }}
           onMouseEnter={() => setIsVisible(true)}
         />
@@ -125,7 +125,8 @@ export function BreadcrumbTrail() {
       <div
         className={cn(
           // Position: Below HeaderBar (h-12 = 48px), respects sidebar
-          "fixed top-12 right-0 z-[45] hidden md:block",
+          // z-[110] to appear above fullscreen tabs like Plans (z-[100])
+          "fixed top-12 right-0 z-[110] hidden md:block",
           // Slide animation
           "transition-all duration-200 ease-in-out",
           shouldShow

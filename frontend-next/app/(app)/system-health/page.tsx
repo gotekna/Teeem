@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { usePathname, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -180,8 +180,25 @@ function getHealthBg(score: number): string {
 }
 
 export default function SystemHealthPage() {
-  // SSoT: URL tab state managed by useUrlTabs hook
-  const [activeTab, handleTabChange] = useUrlTabs("health");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab: /system-health/health, /system-health/performance
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/system-health", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/system-health/health", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const handleTabChange = React.useCallback((tab: string) => {
+    router.push(`/system-health/${tab}`, { scroll: false });
+  }, [router]);
 
   const [healthData, setHealthData] = React.useState<UnifiedHealthApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -445,7 +462,7 @@ export default function SystemHealthPage() {
       </div>
 
       {/* Tabs - URL controlled for proper back button support */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+      <Tabs value={activeTab || "health"} onValueChange={handleTabChange} className="space-y-6">
         <TabsList>
           <TabsTrigger value="health" className="gap-2">
             <Heart className="h-4 w-4" />

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   Cog6ToothIcon,
   PauseIcon,
@@ -667,7 +667,27 @@ function WorkingDaysTab() {
 // ============================================
 
 export default function SmSetupPage() {
-  const [activeTab, setActiveTab] = useUrlTabs("hold-reasons");
+  const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const jobId = params.id as string;
+
+  // Path-based tab: /jobs/123/setup/hold-reasons, /jobs/123/setup/settings
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace(`/jobs/${jobId}/setup`, "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname, jobId]);
+
+  // Redirect to default tab if none specified
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace(`/jobs/${jobId}/setup/hold-reasons`, { scroll: false });
+    }
+  }, [activeTab, router, jobId]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/jobs/${jobId}/setup/${tab}`, { scroll: false });
+  }, [router, jobId]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/30">
@@ -684,7 +704,7 @@ export default function SmSetupPage() {
           </div>
 
           {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab || "hold-reasons"} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="hold-reasons" className="gap-2">
                 <PauseIcon className="h-4 w-4" />

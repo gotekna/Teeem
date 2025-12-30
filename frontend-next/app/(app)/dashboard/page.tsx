@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
@@ -42,18 +42,22 @@ export default function DashboardPage() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Path-based tab: /dashboard → overview, /dashboard/competitor → competitor
+  // Path-based tab: /dashboard/overview, /dashboard/competitor
+  // URL always shows current tab for clarity
   const activeTab = useMemo(() => {
     const parts = pathname.replace("/dashboard", "").split("/").filter(Boolean);
-    return parts[0] || "overview";
+    return parts[0] || null; // null means no tab in URL yet
   }, [pathname]);
 
-  const setActiveTab = useCallback((tab: string) => {
-    if (tab === "overview") {
-      router.push("/dashboard", { scroll: false });
-    } else {
-      router.push(`/dashboard/${tab}`, { scroll: false });
+  // Redirect to default tab if none specified
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/dashboard/overview", { scroll: false });
     }
+  }, [activeTab, router]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/dashboard/${tab}`, { scroll: false });
   }, [router]);
 
   const [stats] = useState<DashboardStats>({
@@ -109,7 +113,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab || "overview"} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" />

@@ -547,7 +547,8 @@ class XeroContactSyncService
       sync_error: nil,
       match_type: match_type,
       match_confidence: match_confidence,
-      needs_review: needs_review
+      needs_review: needs_review,
+      external_name: xero_contact["Name"]  # Store Xero's name for comparison
     )
 
     if link.new_record?
