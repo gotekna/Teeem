@@ -317,6 +317,9 @@ export function GanttCanvasView({
   // Filter to show only grouped tasks (headers + their children)
   const [showOnlyGrouped, setShowOnlyGrouped] = React.useState(false);
 
+  // Name search filter
+  const [nameSearch, setNameSearch] = React.useState('');
+
   // Confirm/Supplier Confirm dialog state
   const [confirmDialog, setConfirmDialog] = React.useState<{
     isOpen: boolean;
@@ -424,6 +427,11 @@ export function GanttCanvasView({
   // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
   const visibleTasks = React.useMemo(() => {
     return tasks.filter(task => {
+      // Name search filter
+      if (nameSearch && !task.name.toLowerCase().includes(nameSearch.toLowerCase())) {
+        return false;
+      }
+
       const row = rows.find(r => String(r.id) === task.id);
       if (!row) return true;
 
@@ -437,7 +445,7 @@ export function GanttCanvasView({
 
       return true;
     });
-  }, [tasks, rows, showOnlyGrouped, viewSlug]);
+  }, [tasks, rows, showOnlyGrouped, viewSlug, nameSearch]);
 
   // Check if a row is a header (header_gantt === 'Header')
   const isHeaderRow = React.useCallback((row: SmScheduleMaster | undefined) => {
@@ -2555,6 +2563,29 @@ export function GanttCanvasView({
                 </div>
               </SortableContext>
             </DndContext>
+
+            {/* Search Row */}
+            <div
+              className="flex items-center border-b bg-muted/30 px-2"
+              style={{ height: 28, minHeight: 28 }}
+            >
+              {visibleColumns.map((col) => (
+                <div
+                  key={col.id}
+                  style={{ width: col.width, minWidth: col.width, flexShrink: 0 }}
+                >
+                  {col.id === 'name' ? (
+                    <Input
+                      type="text"
+                      placeholder="Search..."
+                      value={nameSearch}
+                      onChange={(e) => setNameSearch(e.target.value)}
+                      className="h-5 text-xs px-2 bg-background"
+                    />
+                  ) : null}
+                </div>
+              ))}
+            </div>
 
             {/* Sidebar Rows */}
             <div
