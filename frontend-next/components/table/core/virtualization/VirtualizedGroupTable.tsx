@@ -79,9 +79,20 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
     overscan: OVERSCAN_COUNT,
   });
 
+  // Calculate minimum width for a column based on header label
+  // ~8px per character + 24px padding
+  const getMinWidthForLabel = (label: string | undefined) => {
+    if (!label) return 80;
+    return Math.max(80, label.length * 8 + 24);
+  };
+
   // Calculate total width
   const totalWidth = visibleColumnsInOrder.reduce(
-    (sum, col) => sum + (columnWidths[col.key] || 100),
+    (sum, col) => {
+      const configuredWidth = columnWidths[col.key] || 100;
+      const minLabelWidth = getMinWidthForLabel(col.label);
+      return sum + Math.max(configuredWidth, minLabelWidth);
+    },
     0
   );
 
@@ -89,7 +100,9 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   // Last column uses minmax to fill available space (no truncation if there's room)
   const gridTemplate = visibleColumnsInOrder
     .map((col, index) => {
-      const width = columnWidths[col.key] || 100;
+      const configuredWidth = columnWidths[col.key] || 100;
+      const minLabelWidth = getMinWidthForLabel(col.label);
+      const width = Math.max(configuredWidth, minLabelWidth);
       // Last column expands to fill remaining space with minimum 200px
       if (index === visibleColumnsInOrder.length - 1) {
         return `minmax(${Math.max(width, 200)}px, 1fr)`;
