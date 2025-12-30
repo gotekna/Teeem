@@ -1905,6 +1905,43 @@ module Api
         render json: { error: "Job not found" }, status: :not_found
       end
 
+      # POST /api/v1/organization_onedrive/bulk_categorize_job_documents
+      # Bulk categorize documents for a job based on folder paths matching EntityTabs
+      # Used for client onboarding to automatically assign document types
+      # Params:
+      #   - job_id: Required - Job ID to categorize
+      #   - dry_run: Optional (default: false) - If true, preview only without saving
+      # Returns:
+      #   - success, stats (total, categorized, skipped, failed), details
+      def bulk_categorize_job_documents
+        job_id = params[:job_id]
+        dry_run = params[:dry_run].to_s == 'true'
+
+        unless job_id.present?
+          return render json: { error: "job_id is required" }, status: :bad_request
+        end
+
+        job = Job.find(job_id)
+
+        service = BulkDocumentCategorizationService.new(job, dry_run: dry_run, user: current_user)
+        result = service.categorize_all
+
+        render json: {
+          success: true,
+          job_id: job.id,
+          job_title: job.title,
+          dry_run: result[:dry_run],
+          stats: result[:stats],
+          details: result[:details].first(100),  # Limit for response size
+          full_details_count: result[:details].size
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: "Job not found" }, status: :not_found
+      rescue => e
+        Rails.logger.error("[BulkCategorize] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # GET /api/v1/organization_onedrive/documents_needing_review
       # List documents with AI suggestions pending review
       # Params:

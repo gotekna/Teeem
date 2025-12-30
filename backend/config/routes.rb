@@ -2117,6 +2117,7 @@ Rails.application.routes.draw do
 
       # AI document analysis endpoints
       post "organization_onedrive/analyze_job_documents", to: "organization_sharepoint#analyze_job_documents"
+      post "organization_onedrive/bulk_categorize_job_documents", to: "organization_sharepoint#bulk_categorize_job_documents"
       get "organization_onedrive/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
       post "organization_onedrive/approve_document_rename", to: "organization_sharepoint#approve_document_rename"
       post "organization_onedrive/bulk_approve_renames", to: "organization_sharepoint#bulk_approve_renames"

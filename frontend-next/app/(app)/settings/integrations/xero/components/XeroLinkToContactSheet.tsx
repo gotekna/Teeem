@@ -82,13 +82,21 @@ export function XeroLinkToContactSheet({
   const [unlinking, setUnlinking] = React.useState(false);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = React.useState(false);
 
-  // Reset state when sheet opens
+  // Track current link locally so we can update after unlink
+  const [localContactId, setLocalContactId] = React.useState<number | null>(currentContactId);
+  const [localContactName, setLocalContactName] = React.useState<string | null>(currentContactName);
+  const [localSynced, setLocalSynced] = React.useState(synced);
+
+  // Reset state when sheet opens with new data
   React.useEffect(() => {
     if (isOpen) {
       setSearch("");
       setSearchResults([]);
+      setLocalContactId(currentContactId);
+      setLocalContactName(currentContactName);
+      setLocalSynced(synced);
     }
-  }, [isOpen]);
+  }, [isOpen, currentContactId, currentContactName, synced]);
 
   // Debounce timer ref
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -153,9 +161,9 @@ export function XeroLinkToContactSheet({
     setLinking(true);
     try {
       // If already linked, we need to transfer the link
-      if (currentContactId && xeroLinkId) {
+      if (localContactId && xeroLinkId) {
         const response = await api.post<{ success: boolean }>(
-          `/api/v1/contacts/${currentContactId}/xero_links/${xeroLinkId}/transfer`,
+          `/api/v1/contacts/${localContactId}/xero_links/${xeroLinkId}/transfer`,
           { target_contact_id: contactId }
         );
         if (response?.success) {
@@ -164,7 +172,7 @@ export function XeroLinkToContactSheet({
           onClose();
         }
       } else {
-        // Create new link
+        // Create new link (either fresh or after unlink)
         const response = await api.post<{ success: boolean }>(
           `/api/v1/xero/link_unlinked_contact`,
           {
@@ -186,9 +194,9 @@ export function XeroLinkToContactSheet({
     }
   };
 
-  // Unlink the Xero contact
+  // Unlink the Xero contact - stays open so user can link to another
   const handleUnlink = async () => {
-    if (!currentContactId || !xeroLinkId) {
+    if (!localContactId || !xeroLinkId) {
       toast.error("No link to remove");
       return;
     }
@@ -196,12 +204,16 @@ export function XeroLinkToContactSheet({
     setUnlinking(true);
     try {
       const response = await api.delete<{ success: boolean }>(
-        `/api/v1/contacts/${currentContactId}/xero_links/${xeroLinkId}`
+        `/api/v1/contacts/${localContactId}/xero_links/${xeroLinkId}`
       );
       if (response?.success) {
-        toast.success("Unlinked successfully");
+        toast.success("Unlinked - now search for a contact to link to");
+        // Clear local state but keep sheet open
+        setLocalContactId(null);
+        setLocalContactName(null);
+        setLocalSynced(false);
         onLinkChanged();
-        onClose();
+        // DON'T close - let user link to another contact
       }
     } catch (error) {
       console.error("Unlink failed:", error);
@@ -248,7 +260,7 @@ export function XeroLinkToContactSheet({
             </div>
 
             {/* Current Link */}
-            {synced && currentContactName && (
+            {localSynced && localContactName && (
               <div className="p-4 border-b bg-green-50 dark:bg-green-950/30">
                 <div className="text-xs font-semibold text-green-700 dark:text-green-300 mb-2">
                   Currently Linked To
@@ -259,7 +271,7 @@ export function XeroLinkToContactSheet({
                       <User className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
                     <div>
-                      <div className="font-semibold">{currentContactName}</div>
+                      <div className="font-semibold">{localContactName}</div>
                       {matchConfidence !== null && (
                         <div className="text-xs text-muted-foreground">
                           Match confidence: {matchConfidence}%
@@ -288,7 +300,7 @@ export function XeroLinkToContactSheet({
             {/* Search Section */}
             <div className="p-4 border-b">
               <div className="text-xs font-semibold text-muted-foreground mb-2">
-                {synced ? "Change Link To" : "Link To TEEEM Contact"}
+                {localSynced ? "Change Link To" : "Link To TEEEM Contact"}
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -346,7 +358,7 @@ export function XeroLinkToContactSheet({
                       >
                         {linking ? (
                           <Spinner size={14} />
-                        ) : synced ? (
+                        ) : localSynced ? (
                           <>
                             <ArrowRightLeft className="h-4 w-4 mr-1" />
                             Transfer
@@ -381,8 +393,8 @@ export function XeroLinkToContactSheet({
           <AlertDialogHeader>
             <AlertDialogTitle>Unlink Xero Contact?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the link between "{xeroName}" and "{currentContactName}".
-              The Xero contact will appear as unlinked.
+              This will remove the link between "{xeroName}" and "{localContactName}".
+              You can then link to a different TEEEM contact.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

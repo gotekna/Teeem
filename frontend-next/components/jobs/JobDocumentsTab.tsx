@@ -208,6 +208,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [analyzingDocs, setAnalyzingDocs] = useState(false);
   const [approvingDoc, setApprovingDoc] = useState<number | null>(null);
 
+  // Bulk categorization state (for client onboarding)
+  const [bulkCategorizing, setBulkCategorizing] = useState(false);
+  const [categorizeResult, setCategorizeResult] = useState<{
+    dry_run: boolean;
+    stats: { total: number; categorized: number; skipped: number; failed: number };
+    details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string }>;
+  } | null>(null);
+  const [showCategorizeSummary, setShowCategorizeSummary] = useState(false);
+
   // Photo upload state
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -1196,6 +1205,41 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     }
   };
 
+  // Bulk categorize documents based on folder paths (for client onboarding)
+  const handleBulkCategorize = async (dryRun: boolean = false) => {
+    try {
+      setBulkCategorizing(true);
+      setCategorizeResult(null);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        dry_run: boolean;
+        stats: { total: number; categorized: number; skipped: number; failed: number };
+        details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string }>;
+      }>(`/api/v1/organization_onedrive/bulk_categorize_job_documents`, {
+        job_id: jobId,
+        dry_run: dryRun,
+      });
+
+      if (response?.success) {
+        setCategorizeResult(response);
+        setShowCategorizeSummary(true);
+
+        if (!dryRun && response.stats.categorized > 0) {
+          setMessage({ type: "success", text: `Categorized ${response.stats.categorized} documents` });
+          // Refresh file list to show updated data
+          setTimeout(loadAllFiles, 1000);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to bulk categorize documents:", err);
+      setError("Failed to categorize documents");
+    } finally {
+      setBulkCategorizing(false);
+    }
+  };
+
   // Load all files when switching to the All Files tab or when viewing photo categories
   // Use a ref to prevent duplicate in-flight requests
   const loadAllFilesInFlightRef = useRef(false);
@@ -1934,6 +1978,45 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           </div>
         )}
 
+        {/* Bulk Categorization Card (for client onboarding) */}
+        {aiStats && aiStats.unanalyzed > 0 && (
+          <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    Bulk Categorize
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    Assign document types to {aiStats.unanalyzed} files based on folder structure
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkCategorize(true)}
+                    disabled={bulkCategorizing}
+                  >
+                    {bulkCategorizing ? <Spinner className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                    Preview
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleBulkCategorize(false)}
+                    disabled={bulkCategorizing}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    {bulkCategorizing ? <Spinner className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                    Categorize All
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Suggested Renames Section */}
         {filesWithSuggestions.length > 0 && (
           <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20">
@@ -2427,6 +2510,152 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           onClick={() => setShowPhotoOptions(false)}
         />
       )}
+
+      {/* Bulk Categorization Summary Dialog */}
+      <Dialog open={showCategorizeSummary} onOpenChange={setShowCategorizeSummary}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              {categorizeResult?.dry_run ? "Categorization Preview" : "Categorization Complete"}
+            </DialogTitle>
+            <DialogDescription>
+              {categorizeResult?.dry_run
+                ? "Preview of documents that would be categorized based on folder structure"
+                : "Documents have been categorized based on folder structure"
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          {categorizeResult && (
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {/* Stats Summary */}
+              <div className="grid grid-cols-4 gap-3">
+                <Card className="bg-muted/50">
+                  <CardContent className="p-3 text-center">
+                    <div className="text-xl font-bold">{categorizeResult.stats.total}</div>
+                    <div className="text-xs text-muted-foreground">Total</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800">
+                  <CardContent className="p-3 text-center">
+                    <div className="text-xl font-bold text-green-600">{categorizeResult.stats.categorized}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {categorizeResult.dry_run ? "Would Categorize" : "Categorized"}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800">
+                  <CardContent className="p-3 text-center">
+                    <div className="text-xl font-bold text-yellow-600">{categorizeResult.stats.skipped}</div>
+                    <div className="text-xs text-muted-foreground">Skipped</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
+                  <CardContent className="p-3 text-center">
+                    <div className="text-xl font-bold text-red-600">{categorizeResult.stats.failed}</div>
+                    <div className="text-xs text-muted-foreground">Failed</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sample Details */}
+              {categorizeResult.details.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-2 text-sm">
+                    Sample Results ({Math.min(categorizeResult.details.length, 20)} of {categorizeResult.details.length})
+                  </h4>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[300px]">File</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Document Type</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {categorizeResult.details.slice(0, 20).map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-mono text-xs">
+                              <div className="truncate max-w-[280px]" title={item.file_name}>
+                                {item.file_name}
+                              </div>
+                              {item.folder_path && (
+                                <div className="text-muted-foreground truncate max-w-[280px]" title={item.folder_path}>
+                                  {item.folder_path}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  item.status === "categorized" || item.status === "would_categorize"
+                                    ? "default"
+                                    : item.status === "skipped"
+                                    ? "secondary"
+                                    : "destructive"
+                                }
+                                className={
+                                  item.status === "categorized" || item.status === "would_categorize"
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                                    : ""
+                                }
+                              >
+                                {item.status === "would_categorize" ? "match" : item.status}
+                              </Badge>
+                              {item.reason && (
+                                <span className="ml-2 text-xs text-muted-foreground">({item.reason})</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {item.document_type ? (
+                                <div>
+                                  <div className="font-medium">{item.document_type}</div>
+                                  {item.entity_tab && (
+                                    <div className="text-xs text-muted-foreground">{item.entity_tab}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            {categorizeResult?.dry_run ? (
+              <>
+                <Button variant="outline" onClick={() => setShowCategorizeSummary(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowCategorizeSummary(false);
+                    handleBulkCategorize(false);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  disabled={categorizeResult.stats.categorized === 0}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Categorize {categorizeResult.stats.categorized} Files
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setShowCategorizeSummary(false)}>
+                Done
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
