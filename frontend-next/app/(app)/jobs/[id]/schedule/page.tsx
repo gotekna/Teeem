@@ -448,10 +448,10 @@ export default function SchedulePage() {
           `/api/v1/sm_schedule_master_templates/${jobTemplate.id}/delete_orphans`,
           { job_id: parseInt(String(jobId)), task_ids: orphanIds }
         );
-        if (deleteResponse?.deleted > 0) {
+        if (deleteResponse && deleteResponse.deleted > 0) {
           toast({ title: "Orphans Deleted", description: deleteResponse.message });
         }
-        if (deleteResponse?.errors?.length > 0) {
+        if (deleteResponse?.errors && deleteResponse.errors.length > 0) {
           toast({
             title: "Some Tasks Skipped",
             description: `${deleteResponse.deleted} deleted, ${deleteResponse.errors.length} skipped`,
