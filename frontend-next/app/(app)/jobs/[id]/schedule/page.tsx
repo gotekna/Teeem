@@ -345,14 +345,15 @@ export default function SchedulePage() {
     }
   }, [jobId, toast]);
 
-  // Auto-open Gantt when ?gantt=true is in URL
+  // Auto-open Gantt when path is /schedule/gantt or ?gantt=true is in URL
   React.useEffect(() => {
-    if (shouldOpenGantt && !loading && job) {
+    const shouldOpen = shouldOpenGantt || activeView === 'gantt';
+    if (shouldOpen && !loading && job && !ganttOpen) {
       handleOpenGantt();
-      // Clear the query param to avoid re-opening on refresh
+      // Clear the gantt path/param to show table view underneath
       router.replace(`/jobs/${jobId}/schedule`, { scroll: false });
     }
-  }, [shouldOpenGantt, loading, job, handleOpenGantt, router, jobId]);
+  }, [shouldOpenGantt, activeView, loading, job, ganttOpen, handleOpenGantt, router, jobId]);
 
   // Convert tasks to Canvas Gantt format
   const ganttTasksFormatted = React.useMemo(() => {
