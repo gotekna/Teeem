@@ -2843,6 +2843,8 @@ export function GanttCanvasView({
                         // Select the task and scroll Gantt horizontally to show the bar
                         // The sidebar row is already visible since user clicked it
                         setSelectedTaskId(task.id);
+                        // Call external onTaskClick handler (for PO button etc)
+                        onTaskClick?.(task);
                         // Scroll horizontally to the task bar, but keep Y position unchanged
                         // This shows the task bar in view without moving sidebar rows
                         if (ganttRef.current) {
