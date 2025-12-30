@@ -153,6 +153,24 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Corporate Asset Routes ===
+  const assetMatch = pathname.match(/^\/corporate\/assets\/(\d+)$/);
+  if (assetMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
+  // === Case Detail Routes ===
+  const caseMatch = pathname.match(/^\/cases\/(\d+)$/);
+  if (caseMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
   // === Lead Detail Routes ===
   const leadMatch = pathname.match(/^\/leads\/(\d+)$/);
   if (leadMatch) {

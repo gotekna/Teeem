@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -225,19 +225,27 @@ interface CaseEmail {
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { toast } = useToast();
   const caseId = params.id as string;
 
-  // URL is SSoT for tab state (back button support)
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "overview";
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = React.useMemo(() => {
+    const basePath = `/cases/${caseId}`;
+    const pathSuffix = pathname.replace(basePath, "");
+    const parts = pathSuffix.split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname, caseId]);
+
+  // Redirect to default tab if no tab in URL
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace(`/cases/${caseId}/overview`, { scroll: false });
+    }
+  }, [activeTab, router, caseId]);
 
   const handleTabChange = React.useCallback((tabId: string) => {
-    const url = tabId === "overview"
-      ? `/cases/${caseId}`
-      : `/cases/${caseId}?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/cases/${caseId}/${tabId}`, { scroll: false });
   }, [caseId, router]);
 
   const [loading, setLoading] = React.useState(true);
