@@ -2538,7 +2538,7 @@ export function GanttCanvasView({
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Table - always shows Name column, toggles other columns */}
         <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 280, maxWidth: showSidebar ? 600 : 300 }}>
-            {/* Sidebar Header - Draggable Columns */}
+            {/* Sidebar Header - Draggable Columns with Search in Name column */}
             <DndContext
               sensors={columnDragSensors}
               collisionDetection={closestCenter}
@@ -2549,43 +2549,38 @@ export function GanttCanvasView({
                 strategy={horizontalListSortingStrategy}
               >
                 <div
-                  className="flex items-center border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
+                  className="flex items-stretch border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
                   style={{ height: 50, minHeight: 50 }}
                 >
                   {visibleColumns.map((col) => (
-                    <SortableColumnHeader
-                      key={col.id}
-                      column={col}
-                      resizingColumn={resizingColumn}
-                      onResizeStart={handleResizeStart}
-                    />
+                    col.id === 'name' ? (
+                      // Name column with search input stacked below label
+                      <div
+                        key={col.id}
+                        className="flex flex-col justify-center px-1 relative group"
+                        style={{ width: col.width, minWidth: col.width, flexShrink: 0 }}
+                      >
+                        <span className="truncate mb-1">{col.label}</span>
+                        <Input
+                          type="text"
+                          placeholder="Search..."
+                          value={nameSearch}
+                          onChange={(e) => setNameSearch(e.target.value)}
+                          className="h-5 text-xs px-2 bg-background"
+                        />
+                      </div>
+                    ) : (
+                      <SortableColumnHeader
+                        key={col.id}
+                        column={col}
+                        resizingColumn={resizingColumn}
+                        onResizeStart={handleResizeStart}
+                      />
+                    )
                   ))}
                 </div>
               </SortableContext>
             </DndContext>
-
-            {/* Search Row */}
-            <div
-              className="flex items-center border-b bg-muted/30 px-2"
-              style={{ height: 28, minHeight: 28 }}
-            >
-              {visibleColumns.map((col) => (
-                <div
-                  key={col.id}
-                  style={{ width: col.width, minWidth: col.width, flexShrink: 0 }}
-                >
-                  {col.id === 'name' ? (
-                    <Input
-                      type="text"
-                      placeholder="Search..."
-                      value={nameSearch}
-                      onChange={(e) => setNameSearch(e.target.value)}
-                      className="h-5 text-xs px-2 bg-background"
-                    />
-                  ) : null}
-                </div>
-              ))}
-            </div>
 
             {/* Sidebar Rows */}
             <div
