@@ -69,7 +69,7 @@ export interface SavedView {
   id: number | string;
   slug?: string; // URL-friendly identifier (auto-generated from name)
   name: string;
-  view_type?: "table" | "relational"; // Display mode: table grid or relational network graph
+  view_type?: "table" | "relational" | "grouped"; // Display mode: table grid, relational network graph, or grouped by relationship
   filters?: CascadeFilter[];
   filterGroups?: FilterGroup[];
   interGroupLogic?: "AND" | "OR";
@@ -156,6 +156,10 @@ export interface TeeemTableViewProps {
   initialGroupByColumn?: string | null;
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
   inheritViewsFrom?: number | string | (number | string)[]; // Include global views from related foundations (e.g., SM Tasks inherits from Schedule Master)
+
+  // Company/Role Search Mode - Group by relationship column
+  groupByRelationship?: string; // Column key for relationship grouping (e.g., "linked_company")
+  relationshipDisplayFields?: string[]; // Fields to show for nested items (e.g., ["name", "role", "phone", "email"])
 
   // Server-side operations
   // Note: Second parameter can be:

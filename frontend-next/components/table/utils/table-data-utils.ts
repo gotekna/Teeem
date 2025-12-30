@@ -232,6 +232,29 @@ interface SearchOptions {
 }
 
 /**
+ * Extract searchable text from a cell value
+ * Handles lookup objects by extracting display_value, display, name, etc.
+ */
+function getSearchableText(value: unknown): string {
+  if (value == null) return "";
+
+  // Handle lookup objects (from expanded relationships like linked_company)
+  if (typeof value === "object" && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    // Try common display fields in priority order
+    const displayValue = obj.display_value || obj.display || obj.name || obj.label || obj.id;
+    return String(displayValue ?? "");
+  }
+
+  // Handle arrays (multi-select lookups)
+  if (Array.isArray(value)) {
+    return value.map((item) => getSearchableText(item)).join(" ");
+  }
+
+  return String(value);
+}
+
+/**
  * Apply search to entries (client-side filtering)
  *
  * Supports multiple search modes:
@@ -259,7 +282,10 @@ export function applySearch(entries: TableRow[], options: SearchOptions): TableR
       const value = entry[col.key];
       if (value == null) return false;
 
-      const strValue = String(value).toLowerCase();
+      // Use helper to extract searchable text from lookup objects
+      const strValue = getSearchableText(value).toLowerCase();
+      if (!strValue) return false;
+
       const searchLower = search.toLowerCase();
 
       switch (searchMode) {
@@ -270,7 +296,7 @@ export function applySearch(entries: TableRow[], options: SearchOptions): TableR
         case "starts_with":
           return strValue.startsWith(searchLower);
         case "fuzzy":
-          return fuzzyMatch(search, String(value));
+          return fuzzyMatch(search, getSearchableText(value));
         case "regex":
           try {
             const regex = new RegExp(search, "i");

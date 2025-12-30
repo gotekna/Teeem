@@ -25,12 +25,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const vitalsInitialized = useRef(false);
 
   // Breadcrumb state for content push-down
+  // Note: We always read these atoms even if not used directly, to keep subscriptions consistent
   const isPinned = useAtomValue(breadcrumbPinnedAtom);
   const isVisible = useAtomValue(breadcrumbVisibleAtom);
   const trail = useAtomValue(breadcrumbTrailAtom);
-  // Push content down when breadcrumb is showing (pinned or hover)
+  // Always reserve space when trail exists to prevent CLS (layout shift)
+  // The breadcrumb bar itself handles visibility via opacity/transform
   const hasTrail = trail.length >= 1;
-  const shouldShowBreadcrumbSpace = hasTrail && (isPinned || isVisible);
+  // Keeping this for backwards compatibility but no longer used for layout
+  const _shouldShowBreadcrumbSpace = hasTrail && (isPinned || isVisible);
 
   // Initialize Performance Observatory Web Vitals collection
   useEffect(() => {
@@ -82,10 +85,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       `}</style>
 
       {/* Main Content - below header, beside sidebar */}
-      {/* pt-12 = 48px for header, add BREADCRUMB_BAR_HEIGHT when pinned */}
+      {/* pt-12 = 48px for header, add BREADCRUMB_BAR_HEIGHT when trail exists */}
+      {/* Always reserve breadcrumb space to prevent CLS - bar visibility handled via CSS */}
       <main
         className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-all duration-300 ease-in-out`}
-        style={{ paddingTop: shouldShowBreadcrumbSpace ? 48 + BREADCRUMB_BAR_HEIGHT : 48 }}
+        style={{ paddingTop: hasTrail ? 48 + BREADCRUMB_BAR_HEIGHT : 48 }}
       >
         <div className={`h-full overflow-auto ${contentClassName}`}>
           {children}

@@ -463,6 +463,8 @@ export default function TeeemTableView({
   initialGroupByColumn = null,
   onLoadViewReady,
   inheritViewsFrom,
+  groupByRelationship,
+  relationshipDisplayFields = ["name", "role", "phone", "email"],
   onServerSearch,
   serverSearchLoading = false,
   searchMode: propSearchMode,
@@ -1199,6 +1201,17 @@ export default function TeeemTableView({
       setGroupByColumns([initialGroupByColumn]);
     }
   }, [initialGroupByColumn, groupByColumns.length, setGroupByColumns]);
+
+  // Company/Role Search Mode: Initialize grouping when groupByRelationship is set
+  // This enables the hierarchical display (e.g., contacts grouped under companies)
+  const relationshipGroupInitRef = useRef(false);
+  useEffect(() => {
+    if (!relationshipGroupInitRef.current && groupByRelationship && groupByColumns.length === 0) {
+      relationshipGroupInitRef.current = true;
+      setGroupByColumns([groupByRelationship]);
+      setGroupViewMode("panel"); // Use panel mode for relationship grouping
+    }
+  }, [groupByRelationship, groupByColumns.length, setGroupByColumns, setGroupViewMode]);
 
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
