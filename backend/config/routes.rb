@@ -34,6 +34,19 @@ Rails.application.routes.draw do
         end
       end
 
+      # Document Standardization (Admin: batch rename documents to match naming conventions)
+      # SSoT: DocumentType.naming_format defines the naming pattern
+      resources :document_standardization, only: [] do
+        collection do
+          get :preview   # GET /api/v1/document_standardization/preview - preview what would change
+          post :execute  # POST /api/v1/document_standardization/execute - batch rename documents
+          get :stats     # GET /api/v1/document_standardization/stats - statistics
+        end
+        member do
+          post :rename   # POST /api/v1/document_standardization/:id/rename - rename single doc
+        end
+      end
+
       # AI Processing Pipeline (Admin: configure OCR/AI settings per service)
       # Dashboard: /admin/system/ai-processing
       resources :ai_processing, only: [] do

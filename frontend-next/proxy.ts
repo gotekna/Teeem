@@ -509,11 +509,13 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // EntityConfigurationTab (/admin/system/entity-config?scope=xxx)
+  // EntityConfigurationTab (/admin/system/entity-config?scope=xxx or ?group=xxx)
   if (pathname === "/admin/system/entity-config") {
-    const scope = searchParams.get("scope");
+    const scope = searchParams.get("scope") || searchParams.get("group");
     if (scope) {
-      redirectPath = `/admin/system/entity-config/${scope}`;
+      // Map legacy "documents" to "document_types"
+      const mappedScope = scope === "documents" ? "document_types" : scope;
+      redirectPath = `/admin/system/entity-config/${mappedScope}`;
     }
   }
 

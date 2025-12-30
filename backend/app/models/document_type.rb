@@ -58,6 +58,11 @@ class DocumentType < ApplicationRecord
   after_save :regenerate_document_display_names, if: :saved_change_to_display_name?
   # Sync pending entity_tab_ids after create (deferred from entity_tab_ids= setter)
   after_create :sync_pending_entity_tab_ids
+  # Track naming format changes for standardization prompts
+  after_save :track_naming_format_change, if: :saved_change_to_file_name?
+
+  # Attribute to track naming format change details (used by API response)
+  attr_accessor :naming_format_change_info
 
   # Validations
   # Name must be unique within each scope (company, job, people, both)
@@ -378,5 +383,32 @@ class DocumentType < ApplicationRecord
 
     sync_entity_tab_ids(@pending_entity_tab_ids)
     @pending_entity_tab_ids = nil
+  end
+
+  # Track naming format changes for standardization prompts
+  # Sets naming_format_change_info attribute with affected document count
+  def track_naming_format_change
+    old_format, new_format = saved_change_to_file_name
+    return if old_format == new_format
+
+    # Count documents of this type that would be affected by the format change
+    affected_count = documents_needing_standardization_count
+
+    self.naming_format_change_info = {
+      old_format: old_format,
+      new_format: new_format,
+      affected_documents_count: affected_count,
+      message: affected_count > 0 ?
+        "#{affected_count} documents may need to be renamed to match the new naming format." :
+        "No existing documents to rename."
+    }
+
+    Rails.logger.info("[DocumentType] Naming format changed for '#{name}': #{affected_count} documents affected")
+  end
+
+  # Count documents that would need renaming with the new format
+  # (those that don't already match what the new format would generate)
+  def documents_needing_standardization_count
+    job_documents.where(document_type_id: id).count
   end
 end

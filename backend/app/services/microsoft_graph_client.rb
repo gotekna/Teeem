@@ -711,6 +711,18 @@ class MicrosoftGraphClient
     )
   end
 
+  # Rename a folder in SharePoint/OneDrive
+  # @param folder_id [String] The Microsoft Graph item ID of the folder
+  # @param new_name [String] The new folder name
+  # @return [Hash] The updated folder item from Graph API
+  def rename_folder(folder_id, new_name)
+    Rails.logger.info("[MicrosoftGraphClient] Renaming folder #{folder_id} to '#{new_name}'")
+    patch(
+      "#{drive_path}/items/#{folder_id}",
+      { name: new_name }
+    )
+  end
+
   # Upload file content to a folder (accepts raw content or file object)
   def upload_file_content(parent_folder_id, filename, content)
     # SSoT: Use centralized SharePoint filename sanitization

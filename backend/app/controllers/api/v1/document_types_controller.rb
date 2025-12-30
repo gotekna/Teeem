@@ -79,10 +79,18 @@ module Api
       # PATCH/PUT /api/v1/document_types/:id
       def update
         if @document_type.update(document_type_params)
-          render json: {
+          response_data = {
             success: true,
             data: serialize_document_type(@document_type)
           }
+
+          # Include naming format change info if the format was changed
+          # This allows the frontend to prompt the user to rename existing documents
+          if @document_type.naming_format_change_info.present?
+            response_data[:naming_format_change] = @document_type.naming_format_change_info
+          end
+
+          render json: response_data
         else
           render json: {
             success: false,

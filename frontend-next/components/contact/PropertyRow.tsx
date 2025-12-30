@@ -47,6 +47,8 @@ export interface PropertyRowProps {
   className?: string;
   /** Label width class (default: w-40) */
   labelWidth?: string;
+  /** If true, shows a clear button when value exists */
+  clearable?: boolean;
 }
 
 /**
@@ -79,6 +81,7 @@ export const PropertyRow = memo(function PropertyRow({
   externalLink = false,
   className,
   labelWidth = "w-40",
+  clearable = false,
 }: PropertyRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<string>(String(value ?? ""));
@@ -151,6 +154,22 @@ export const PropertyRow = memo(function PropertyRow({
     setIsEditing(false);
     setError(null);
   }, [value]);
+
+  const handleClear = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering edit mode
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave("");
+      setDraft("");
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear");
+    } finally {
+      setSaving(false);
+    }
+  }, [onSave]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -324,7 +343,24 @@ export const PropertyRow = memo(function PropertyRow({
             <p className="text-[11px] text-[#878787] mt-0.5">{hint}</p>
           )}
         </div>
-        {!readonly && (
+        {/* Clear button - shows when clearable and has value */}
+        {!readonly && clearable && displayValue && (
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={saving}
+            className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 shrink-0 ml-1 mt-0.5 transition-opacity"
+            title="Clear value"
+          >
+            {saving ? (
+              <Spinner className="h-4 w-4" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
+          </button>
+        )}
+        {/* Pencil icon - shows when not clearable, or clearable but no value */}
+        {!readonly && (!clearable || !displayValue) && (
           <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 ml-2 mt-0.5" />
         )}
       </div>

@@ -493,8 +493,9 @@ class EntityTab < ApplicationRecord
 
   # SSoT: When display_name changes, enqueue job to sync SharePoint folders and job_documents
   # This ensures physical folders and database records match the tab configuration
+  # Works for ALL scopes: job, corporate_entity, people, contact (unified folder rename system)
   def enqueue_folder_rename_if_needed
-    return unless scope == 'job' && has_sharepoint_folder
+    return unless has_sharepoint_folder
     return unless saved_change_to_display_name?
 
     old_name, new_name = saved_change_to_display_name

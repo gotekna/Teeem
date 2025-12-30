@@ -590,6 +590,7 @@ export function ContactOverviewTab({
                   format={formatABN}
                   validate={validateABN}
                   placeholder="00 000 000 000"
+                  clearable
                 />
                 {/* ACN only for companies/trusts */}
                 {!isPerson && (
@@ -600,6 +601,7 @@ export function ContactOverviewTab({
                     format={formatACN}
                     validate={validateACN}
                     placeholder="000 000 000"
+                    clearable
                   />
                 )}
                 <PropertyRow

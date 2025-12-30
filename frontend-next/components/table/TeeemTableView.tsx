@@ -998,11 +998,14 @@ export default function TeeemTableView({
   // Search mode for client-side filtering
   const [currentSearchMode, setCurrentSearchMode] = useState<SearchMode>(propSearchMode || "contains");
 
-  // Wrap setSearch to also call onSearchChange callback and update URL (for URL sync)
+  // Wrap setSearch to also call onSearchChange callback, update URL, and save to session storage
   const setSearch = useCallback((value: string | ((prev: string) => string)) => {
     const newValue = typeof value === 'function' ? value(search) : value;
     setSearchAtom(newValue);
     onSearchChange?.(newValue);
+
+    // Save to session storage (for breadcrumb navigation fallback)
+    cacheSearch(newValue);
 
     // Auto-persist search to URL if enabled
     if (persistSearchToUrl) {
@@ -1015,41 +1018,44 @@ export default function TeeemTableView({
       const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
       router.replace(newUrl, { scroll: false });
     }
-  }, [search, setSearchAtom, onSearchChange, persistSearchToUrl, router]);
+  }, [search, setSearchAtom, onSearchChange, cacheSearch, persistSearchToUrl, router]);
 
   // Keep searchRef in sync for use in auto-fetch refresh effect (defined before search atom)
   searchRef.current = search;
 
-  // Initialize search from URL or prop on mount
-  // Priority: URL param > initialSearch prop > empty
+  // Initialize search from URL, prop, session storage, or persisted atom on mount
+  // Priority: URL param > initialSearch prop > session storage > atom value (from SPA navigation)
   const hasInitializedSearchRef = useRef(false);
   useEffect(() => {
     if (hasInitializedSearchRef.current) return;
+    hasInitializedSearchRef.current = true;
 
     // Check URL for search param first (if persistSearchToUrl is enabled)
     const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
-    const searchToApply = urlSearchParam || initialSearch;
+    // Session storage fallback (for breadcrumb navigation)
+    const sessionSearchParam = cachedState?.search;
+    // Priority: URL > prop > session storage > current atom value (from SPA navigation memory)
+    const searchToApply = urlSearchParam || initialSearch || sessionSearchParam || search;
 
     if (searchToApply) {
-      hasInitializedSearchRef.current = true;
-      setSearchAtom(searchToApply);
-      // Trigger server search with initial value
+      // Set atom if different from current value
+      if (searchToApply !== search) {
+        setSearchAtom(searchToApply);
+      }
+      // Update URL if we restored from session storage (sync URL with restored search)
+      if (!urlSearchParam && sessionSearchParam && persistSearchToUrl) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('search', searchToApply);
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        router.replace(newUrl, { scroll: false });
+      }
+      // Always trigger server search to restore filtered results
       if (effectiveOnServerSearch) {
         effectiveOnServerSearch(searchToApply, propSearchMode);
       }
     }
-  }, [initialSearch, persistSearchToUrl, searchParams, setSearchAtom, effectiveOnServerSearch, propSearchMode]);
-
-  // Re-trigger server search on mount if there's a persisted search term
-  // This handles browser back navigation where atom state is preserved but data isn't
-  const hasRestoredSearchRef = useRef(false);
-  useEffect(() => {
-    if (search && effectiveOnServerSearch && !hasRestoredSearchRef.current) {
-      hasRestoredSearchRef.current = true;
-      // Re-execute the search to restore filtered results
-      effectiveOnServerSearch(search, propSearchMode);
-    }
-  }, [search, effectiveOnServerSearch, propSearchMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheInitialized]); // Re-run when session storage becomes available
 
   // View-related state now managed by Jotai atoms (SSoT)
   const [sortColumns, setSortColumns] = useAtom(currentSortColumnsAtom);
