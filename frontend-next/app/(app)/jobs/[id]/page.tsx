@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+// useSetLayoutMode moved to layout.tsx to prevent double flash
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -654,7 +654,7 @@ function AddressDetailsCard({
 }
 
 export default function JobDetailPage() {
-  useSetLayoutMode("full-height");
+  // Layout mode is now set in layout.tsx to prevent double flash on navigation
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();

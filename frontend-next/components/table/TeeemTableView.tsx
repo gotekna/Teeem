@@ -1218,10 +1218,13 @@ export default function TeeemTableView({
         // Clear all non-base filters to start fresh
         setViewFilters([]);
         clearAllUserFilters();
+        // Also reset filterGroups to prevent cross-table pollution
+        // filterGroups is stored separately from cascadeFilters and must be reset explicitly
+        setFilterGroups([{ id: "default", logic: "AND" }]);
       }
     }
     prevFoundationRef.current = effectiveFoundationId;
-  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters]);
+  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters, setFilterGroups]);
 
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
   // Also clear view filters to prevent pollution from other tables with initialFilters

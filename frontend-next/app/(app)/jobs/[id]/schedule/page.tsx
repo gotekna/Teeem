@@ -337,6 +337,7 @@ export default function SchedulePage() {
   const [ganttFullscreen, setGanttFullscreen] = React.useState(false);
   const [ganttOpen, setGanttOpen] = React.useState(false);
   const [ganttTasks, setGanttTasks] = React.useState<SmTask[]>([]);
+  const [ganttApiDeps, setGanttApiDeps] = React.useState<Array<{ source: number; target: number; type: string; lag: number }>>([]);
   const [loadingGantt, setLoadingGantt] = React.useState(false);
   const [selectedGanttTask, setSelectedGanttTask] = React.useState<GanttTask | null>(null);
 
@@ -416,6 +417,7 @@ export default function SchedulePage() {
       // SSoT: Use ?for=gantt to get filtered tasks (po_required without PO = invisible)
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       setGanttTasks(response.gantt_data?.tasks || []);
+      setGanttApiDeps(response.gantt_data?.dependencies || []);
     } catch (error) {
       console.error("Failed to fetch tasks for Gantt:", error);
       toast({ title: "Error", description: "Failed to load Gantt data", variant: "destructive" });
@@ -446,16 +448,16 @@ export default function SchedulePage() {
     return ganttTasks.map(mapTaskToGanttTask);
   }, [ganttTasks]);
 
-  // Build dependencies
+  // Build dependencies from API data
+  // SSoT: gantt_data.dependencies from API contains { source, target, type, lag }
+  // where source/target are task.id values (not task_number)
   const ganttDependencies = React.useMemo(() => {
-    const deps: Array<{ fromId: string; toId: string; type?: string }> = [];
-    ganttTasks.forEach((task) => {
-      (task.dependencies || []).forEach((depId) => {
-        deps.push({ fromId: depId, toId: String(task.id), type: "FS" });
-      });
-    });
-    return deps;
-  }, [ganttTasks]);
+    return ganttApiDeps.map(dep => ({
+      fromId: String(dep.source),
+      toId: String(dep.target),
+      type: dep.type || "FS",
+    }));
+  }, [ganttApiDeps]);
 
   // Handle task drag in Gantt
   const handleTaskDrag = async (task: GanttTask, newStartDate: Date) => {
@@ -487,6 +489,7 @@ export default function SchedulePage() {
       // SSoT: Refetch with ?for=gantt to get filtered tasks
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       setGanttTasks(response.gantt_data?.tasks || []);
+      setGanttApiDeps(response.gantt_data?.dependencies || []);
     }
   };
 
