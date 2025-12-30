@@ -60,6 +60,8 @@ class Column < ApplicationRecord
       bank_account
       postcode
       tfn
+      time
+      uuid
     ]
   }
 
@@ -111,7 +113,9 @@ class Column < ApplicationRecord
     "bsb" => :string,  # Bank State Branch
     "bank_account" => :string,  # Bank Account Number
     "postcode" => :string,  # Australian Postcode (4 digits)
-    "tfn" => :string  # Tax File Number
+    "tfn" => :string,  # Tax File Number
+    "time" => :time,  # Time of day (HH:MM:SS)
+    "uuid" => :uuid  # Universally Unique Identifier
   }.freeze
 
   # Map column types to SQL types with proper limits
@@ -151,7 +155,9 @@ class Column < ApplicationRecord
     "bsb" => "VARCHAR(7)",
     "bank_account" => "VARCHAR(9)",
     "postcode" => "VARCHAR(4)",
-    "tfn" => "VARCHAR(11)"
+    "tfn" => "VARCHAR(11)",
+    "time" => "TIME",
+    "uuid" => "UUID"
   }.freeze
 
   def db_type
