@@ -85,11 +85,12 @@ interface SmTasksResponse {
 }
 
 // SSoT: Gantt data response from ?for=gantt
+// Backend GanttDataService returns { id, fromId, toId, type, lag } format
 interface GanttDataResponse {
   success: boolean;
   gantt_data: {
     tasks: SmTask[];
-    dependencies: Array<{ source: number; target: number; type: string; lag: number }>;
+    dependencies: Array<{ id: string; fromId: string; toId: string; type: string; lag: number }>;
   };
   meta: {
     invisible_count: number;
@@ -337,7 +338,8 @@ export default function SchedulePage() {
   const [ganttFullscreen, setGanttFullscreen] = React.useState(false);
   const [ganttOpen, setGanttOpen] = React.useState(false);
   const [ganttTasks, setGanttTasks] = React.useState<SmTask[]>([]);
-  const [ganttApiDeps, setGanttApiDeps] = React.useState<Array<{ source: number; target: number; type: string; lag: number }>>([]);
+  // SSoT: Backend GanttDataService returns { id, fromId, toId, type, lag } format
+  const [ganttApiDeps, setGanttApiDeps] = React.useState<Array<{ id: string; fromId: string; toId: string; type: string; lag: number }>>([]);
   const [loadingGantt, setLoadingGantt] = React.useState(false);
   const [selectedGanttTask, setSelectedGanttTask] = React.useState<GanttTask | null>(null);
 
@@ -449,13 +451,15 @@ export default function SchedulePage() {
   }, [ganttTasks]);
 
   // Build dependencies from API data
-  // SSoT: gantt_data.dependencies from API contains { source, target, type, lag }
-  // where source/target are task.id values (not task_number)
+  // SSoT: Backend GanttDataService returns { id, fromId, toId, type, lag } format
+  // where fromId/toId are task.id values (not task_number)
   const ganttDependencies = React.useMemo(() => {
     return ganttApiDeps.map(dep => ({
-      fromId: String(dep.source),
-      toId: String(dep.target),
+      id: dep.id,
+      fromId: dep.fromId,
+      toId: dep.toId,
       type: dep.type || "FS",
+      lag: dep.lag || 0,
     }));
   }, [ganttApiDeps]);
 
