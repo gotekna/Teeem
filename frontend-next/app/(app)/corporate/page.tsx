@@ -1466,7 +1466,7 @@ export default function CorporateDashboardPage() {
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              router.push(`/financial?company=${company.id}`);
+                                              router.push(`/financial/company/${company.id}`);
                                             }}
                                             className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
                                             title="Open Financial Dashboard"

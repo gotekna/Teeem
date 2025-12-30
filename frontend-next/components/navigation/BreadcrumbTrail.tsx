@@ -91,9 +91,10 @@ export function BreadcrumbTrail() {
   const { sidebarWidth } = useSidebar();
   const { shouldHideSidebar } = useLayoutMode();
 
-  // Don't render if trail is empty or only has one item
-  if (trail.length <= 1) return null;
+  // Don't render if trail is empty
+  if (trail.length === 0) return null;
 
+  // Show when pinned or when visible via hover
   const shouldShow = isPinned || isVisible;
 
   // Calculate left offset based on sidebar
@@ -112,7 +113,7 @@ export function BreadcrumbTrail() {
   return (
     <>
       {/* Hover trigger zone - invisible strip at top when not pinned */}
-      {!isPinned && !isVisible && trail.length > 1 && (
+      {!isPinned && !isVisible && (
         <div
           className="fixed top-12 right-0 h-3 z-[45] bg-transparent cursor-pointer hidden md:block"
           style={{ left: leftOffset }}

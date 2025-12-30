@@ -34,7 +34,7 @@ class PricebookItem < ApplicationRecord
     # 1. The default supplier (default_supplier_id)
     # 2. OR appears in the price history (price_histories.supplier_id)
     left_joins(:price_histories)
-      .where("pricebook.default_supplier_id = :supplier_id OR price_histories.supplier_id = :supplier_id",
+      .where("pricebooks.default_supplier_id = :supplier_id OR price_histories.supplier_id = :supplier_id",
              supplier_id: supplier_id)
       .distinct
   }
@@ -87,9 +87,9 @@ class PricebookItem < ApplicationRecord
     # Note: Using distinct is important because left_joins can create duplicates if multiple suppliers match
     left_joins(:supplier)
       .where(
-        "pricebook.searchable_text @@ plainto_tsquery('english', :query) " \
-        "OR pricebook.item_code ILIKE :like_query " \
-        "OR pricebook.item_name ILIKE :like_query " \
+        "pricebooks.searchable_text @@ plainto_tsquery('english', :query) " \
+        "OR pricebooks.item_code ILIKE :like_query " \
+        "OR pricebooks.item_name ILIKE :like_query " \
         "OR contacts.display_name ILIKE :like_query",
         query: query,
         like_query: "%#{sanitized_query}%"

@@ -100,13 +100,13 @@ module Api
           case params[:type]
           when "suppliers"
             # Suppliers: contacts who have purchase orders, pricebook entries, price histories, or bills
-            # Note: purchase_orders, pricebook, price_histories use supplier_id foreign key
+            # Note: purchase_orders, pricebooks, price_histories use supplier_id foreign key
             supplier_ids = Contact
               .joins("LEFT JOIN purchase_orders ON purchase_orders.supplier_id = contacts.id")
-              .joins("LEFT JOIN pricebook ON pricebook.supplier_id = contacts.id")
+              .joins("LEFT JOIN pricebooks ON pricebooks.supplier_id = contacts.id")
               .joins("LEFT JOIN price_histories ON price_histories.supplier_id = contacts.id")
               .joins("LEFT JOIN external_invoices ON external_invoices.contact_id = contacts.id AND external_invoices.invoice_type = 'ACCPAY'")
-              .where("purchase_orders.id IS NOT NULL OR pricebook.id IS NOT NULL OR price_histories.id IS NOT NULL OR external_invoices.id IS NOT NULL")
+              .where("purchase_orders.id IS NOT NULL OR pricebooks.id IS NOT NULL OR price_histories.id IS NOT NULL OR external_invoices.id IS NOT NULL")
               .distinct
               .pluck(:id)
             @contacts = @contacts.where(id: supplier_ids)
@@ -359,11 +359,11 @@ module Api
         if @contact.is_supplier?
           # Get items where this contact is the supplier OR default_supplier OR has provided a quote (in price_histories)
           # Optimized to use a single query with LEFT JOIN instead of 3 separate queries
-          # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
+          # Note: PricebookItem uses table_name = 'pricebooks'
           all_items = PricebookItem
             .left_joins(:price_histories)
             .where(
-              "pricebook.supplier_id = ? OR pricebook.default_supplier_id = ? OR price_histories.supplier_id = ?",
+              "pricebooks.supplier_id = ? OR pricebooks.default_supplier_id = ? OR price_histories.supplier_id = ?",
               @contact.id, @contact.id, @contact.id
             )
             .includes(:price_histories)

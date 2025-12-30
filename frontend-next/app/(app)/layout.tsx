@@ -30,8 +30,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const trail = useAtomValue(breadcrumbTrailAtom);
   // Push content down when breadcrumb is showing (pinned or hover)
   const hasTrail = trail.length >= 1;
-  const hasHistory = trail.length > 1;
-  const shouldShowBreadcrumbSpace = hasTrail && (isPinned || (isVisible && hasHistory));
+  const shouldShowBreadcrumbSpace = hasTrail && (isPinned || isVisible);
 
   // Initialize Performance Observatory Web Vitals collection
   useEffect(() => {

@@ -646,7 +646,7 @@ export function BrandGuidelinesTab() {
                 </div>
               </div>
               <Link
-                href="/admin/system?tab=components"
+                href="/admin/system/components"
                 className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline font-medium"
               >
                 View demo
@@ -778,7 +778,7 @@ export function BrandGuidelinesTab() {
             </div>
             <div className="mt-4 pt-4 border-t">
               <Link
-                href="/admin/system?tab=components"
+                href="/admin/system/components"
                 className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
               >
                 See all column types in action
