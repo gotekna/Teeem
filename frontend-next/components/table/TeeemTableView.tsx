@@ -2273,9 +2273,24 @@ export default function TeeemTableView({
   }, []);
 
   // Default handler for health issue click - opens row for editing
-  const handleHealthIssueClick = useCallback((item: { id: number | string; display?: string }, _check: unknown) => {
-    // Find the row in effectiveEntries
-    const row = effectiveEntries.find(e => e.id === item.id);
+  const handleHealthIssueClick = useCallback(async (item: { id: number | string; display?: string }, _check: unknown) => {
+    // Find the row in effectiveEntries first (fastest path)
+    let row = effectiveEntries.find(e => e.id === item.id);
+
+    // If row not in current view (filtered out), fetch it from API
+    if (!row && effectiveFoundationId) {
+      try {
+        const response = await api.get<{ record: TableRowType }>(
+          `/api/v1/foundations/${effectiveFoundationId}/records/${item.id}`
+        );
+        if (response?.record) {
+          row = response.record;
+        }
+      } catch (error) {
+        console.warn("Failed to fetch row for editing:", error);
+      }
+    }
+
     if (row) {
       // If onRowDoubleClick is provided (parent wants to handle it), use that
       if (onRowDoubleClick) {
@@ -2285,14 +2300,13 @@ export default function TeeemTableView({
         startEditing(row);
       }
     } else {
-      // Row not in current view - could be filtered out or paginated
-      // Show toast with guidance
+      // Row really not found - show toast
       toast({
-        title: "Row not in current view",
-        description: `Row "${item.display || item.id}" may be filtered out. Clear filters to find it.`,
+        title: "Row not found",
+        description: `Could not load row "${item.display || item.id}" for editing.`,
       });
     }
-  }, [effectiveEntries, onRowDoubleClick, startEditing, toast]);
+  }, [effectiveEntries, effectiveFoundationId, onRowDoubleClick, startEditing, toast]);
 
   // Validate a cell and update validation errors state
   const handleCellBlur = useCallback((rowId: number | string, columnKey: string, value: unknown, columnType?: string) => {

@@ -85,7 +85,7 @@ export function DataHealthWidget({
   const [error, setError] = useState<string | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [expanded, setExpanded] = useState(!compact);
-  const [expandedCheck, setExpandedCheck] = useState<number | null>(null);
+  const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
 
   // Update expanded state when compact prop changes
   useEffect(() => {
@@ -140,8 +140,8 @@ export function DataHealthWidget({
   };
 
   // Toggle check expansion
-  const toggleCheckExpansion = (checkId: number) => {
-    setExpandedCheck(expandedCheck === checkId ? null : checkId);
+  const toggleCheckExpansion = (checkKey: string) => {
+    setExpandedCheck(expandedCheck === checkKey ? null : checkKey);
   };
 
   // Handle item click
