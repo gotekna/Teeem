@@ -216,6 +216,28 @@ module Api
                   Rails.logger.info "[BOOL_FILTER] Converted to: #{value.inspect}"
                 end
 
+                # Resolve lookup display values to IDs
+                # If filtering a lookup column with a string value (display name), find the corresponding ID
+                # This handles saved views or filters that store display values instead of IDs
+                if col_def&.column_type == "lookup" && col_def&.lookup_foundation.present? && value.is_a?(String) && !value.match?(/\A\d+\z/)
+                  lookup_model = col_def.lookup_foundation.dynamic_model
+                  display_col = col_def.lookup_display_column || "name"
+
+                  # Try to find the lookup record by display value (case-insensitive)
+                  if lookup_model.column_names.include?(display_col)
+                    # Real database column - search directly
+                    lookup_record = lookup_model.find_by("LOWER(#{display_col}) = ?", value.downcase)
+                    value = lookup_record&.id
+                  else
+                    # Computed column (e.g., full_name) - need to iterate
+                    lookup_record = lookup_model.all.find { |r| r.respond_to?(display_col) && r.send(display_col)&.downcase == value.downcase }
+                    value = lookup_record&.id
+                  end
+
+                  # Skip this filter if we couldn't resolve the display value to an ID
+                  next nil if value.nil?
+                end
+
                 case operator
                 when "=", "equals"
                   Rails.logger.info "[BOOL_FILTER] Building WHERE #{column} = #{value.inspect}"

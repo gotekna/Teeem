@@ -39,7 +39,7 @@ import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/col
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
 // SSoT: Use slug for Foundation lookup - numeric IDs differ per environment
-const DOCUMENT_TYPES_FOUNDATION_SLUG = "document-types";
+const DOCUMENT_TYPES_FOUNDATION_SLUG = "document_types";
 
 // SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
