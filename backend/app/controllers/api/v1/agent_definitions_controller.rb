@@ -191,7 +191,9 @@ module Api
           updated_at: agent.updated_at,
           created_at: agent.created_at,
           status_emoji: agent.status_emoji,
-          success_rate: agent.success_rate
+          success_rate: agent.success_rate,
+          health_status: agent.health_status,
+          days_since_last_run: agent.days_since_last_run
         }
       end
 
@@ -227,6 +229,7 @@ module Api
           model: frontmatter["model"] || "sonnet",
           category: "agent",
           command: filename,
+          source_path: ".claude/agents/#{filename}.md",
           active: true
         }
       end
@@ -247,6 +250,7 @@ module Api
           model: "sonnet",
           category: "command",
           command: "/#{filename}",
+          source_path: ".claude/commands/#{filename}.md",
           active: true
         }
       end
@@ -266,6 +270,7 @@ module Api
           model: "sonnet",
           category: "skill",
           command: "/#{skill_name}",
+          source_path: ".claude/skills/#{skill_name}/SKILL.md",
           active: true
         }
       end
@@ -285,7 +290,10 @@ module Api
           model: data[:model],
           category: data[:category],
           active: data[:active],
-          metadata: (agent.metadata || {}).merge("command" => data[:command])
+          metadata: (agent.metadata || {}).merge(
+            "command" => data[:command],
+            "source_path" => data[:source_path]
+          )
         )
         agent.save!
         agent

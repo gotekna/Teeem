@@ -1,5 +1,5 @@
 ---
-name: UI/UX Compliance Auditor
+name: Frontend Auditor
 description: |
   ╔═══════════════════════════════════════════════════════════╗
   ║  UI/UX Standards:           CLAUDE.md compliant     [PASS]║
@@ -19,9 +19,9 @@ category: validation
 author: Jake
 ---
 
-# UI/UX Compliance Auditor Agent
+# Frontend Auditor
 
-**Agent ID:** ui-compliance-auditor
+**Agent ID:** frontend-auditor
 **Type:** Specialized Diagnostic Agent (diagnostic)
 **Focus:** Complete UI/UX Standards Compliance (Chapter 19 & 20)
 **Priority:** 80

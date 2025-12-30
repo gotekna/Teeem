@@ -1767,11 +1767,12 @@ export class GanttCanvas {
 
     // Check predecessor constraints
     const task = this.state.tasks.find(t => t.id === taskId);
-    if (task && task.predecessorIds) {
+    const predecessorIds = this.getPredecessorIds(taskId);
+    if (task && predecessorIds.length > 0) {
       const proposed = new Date(proposedStartDate);
       proposed.setHours(0, 0, 0, 0);
 
-      for (const predId of task.predecessorIds) {
+      for (const predId of predecessorIds) {
         const predecessor = this.state.tasks.find(t => t.id === predId);
         if (!predecessor) continue;
 
@@ -4082,11 +4083,10 @@ export class GanttCanvas {
       d => d.fromId !== taskId && d.toId !== taskId
     );
 
-    // Update predecessor lists on other tasks
+    // SSoT: Dependencies array is updated above
+    // getPredecessorIds() derives from dependencies, so no need to update task.predecessorIds
+    // Keep brokenPredecessorIds cleanup for UI purposes
     this.state.tasks.forEach(t => {
-      if (t.predecessorIds) {
-        t.predecessorIds = t.predecessorIds.filter(id => id !== taskId);
-      }
       if (t.brokenPredecessorIds) {
         t.brokenPredecessorIds = t.brokenPredecessorIds.filter(id => id !== taskId);
       }
@@ -4492,9 +4492,10 @@ export class GanttCanvas {
 
   /**
    * Find tasks with no predecessors (starting tasks)
+   * SSoT: Uses dependencies array via helper method
    */
   findStartingTasks(): GanttTask[] {
-    return this.state.tasks.filter(t => !t.predecessorIds || t.predecessorIds.length === 0);
+    return this.state.tasks.filter(t => !this.hasPredecessors(t.id));
   }
 
   /**
@@ -4912,9 +4913,10 @@ export class GanttCanvas {
     let count = 0;
 
     // Sort by dependencies (process tasks with no/fewer predecessors first)
+    // SSoT: Use helper methods to derive predecessor count from dependencies array
     const sorted = [...this.state.tasks].sort((a, b) => {
-      const aPreds = a.predecessorIds?.length || 0;
-      const bPreds = b.predecessorIds?.length || 0;
+      const aPreds = this.getPredecessorCount(a.id);
+      const bPreds = this.getPredecessorCount(b.id);
       return aPreds - bPreds;
     });
 
@@ -5995,7 +5997,7 @@ export class GanttCanvas {
    * Show drag tooltip
    */
   showDragTooltip(task: GanttTask, x: number, y: number, newStartDate: Date): void {
-    const predecessors = task.predecessorIds?.length || 0;
+    const predecessors = this.getPredecessorCount(task.id);
     const successors = this.getSuccessors(task.id).length;
     const duration = this.getTaskDuration(task.id);
 
@@ -10270,13 +10272,11 @@ export class GanttCanvas {
 
       this.criticalPathTaskIds.add(taskId);
 
-      // Find predecessors
-      const task = this.state.tasks.find(t => t.id === taskId);
-      if (task?.predecessorIds) {
-        task.predecessorIds.forEach(predId => {
-          if (!visited.has(predId)) queue.push(predId);
-        });
-      }
+      // Find predecessors (SSoT: derive from dependencies array)
+      const predIds = this.getPredecessorIds(taskId);
+      predIds.forEach(predId => {
+        if (!visited.has(predId)) queue.push(predId);
+      });
     }
   }
 
@@ -10651,8 +10651,8 @@ export class GanttCanvas {
       if (currentId !== taskId) chain.push(currentId);
 
       if (direction === 'predecessors') {
-        const task = this.state.tasks.find(t => t.id ===currentId);
-        if (task?.predecessorIds) queue.push(...task.predecessorIds);
+        // SSoT: Derive from dependencies array
+        queue.push(...this.getPredecessorIds(currentId));
       } else {
         const successors = this.state.dependencies
           .filter(d => d.fromId === currentId)
@@ -11888,7 +11888,7 @@ export class GanttCanvas {
   // FEATURE 126-135: DEPENDENCY CALCULATION ENGINE
   // =========================================================================
   // Note: calculateEarliestStart and getTaskDuration already exist in the class.
-  // These methods use predecessorIds (not dependencies array) per GanttTask interface.
+  // SSoT: These methods now use dependencies array via helper methods (getPredecessorIds, etc.)
 
   // =========================================================================
   // FEATURE 136: AUTO-REMOVE CIRCULAR DEPENDENCIES ON SAVE
@@ -11975,11 +11975,10 @@ export class GanttCanvas {
 
       chain.push(id);
 
-      // Use predecessorIds (GanttTask interface)
-      if (task.predecessorIds) {
-        for (const predId of task.predecessorIds) {
-          traverse(predId);
-        }
+      // SSoT: Derive predecessors from dependencies array
+      const predIds = this.getPredecessorIds(id);
+      for (const predId of predIds) {
+        traverse(predId);
       }
     };
 
@@ -11995,14 +11994,15 @@ export class GanttCanvas {
     if (visited.has(taskId)) return [];
     visited.add(taskId);
 
-    const task = this.state.tasks.find(t => t.id === taskId);
-    if (!task || !task.predecessorIds || task.predecessorIds.length === 0) {
+    // SSoT: Derive from dependencies array
+    const predIds = this.getPredecessorIds(taskId);
+    if (predIds.length === 0) {
       return [taskId];
     }
 
     let longestSubPath: string[] = [];
 
-    for (const predId of task.predecessorIds) {
+    for (const predId of predIds) {
       const subPath = this.findLongestPathByPredecessors(predId, new Set(visited));
       if (subPath.length > longestSubPath.length) {
         longestSubPath = subPath;
@@ -12040,10 +12040,11 @@ export class GanttCanvas {
       };
     }
 
-    // Check predecessor constraints using predecessorIds (GanttTask interface)
+    // Check predecessor constraints using dependencies (SSoT)
     const earliestStart = this.calculateEarliestStart(taskId);
     if (earliestStart && newStartDate < earliestStart) {
-      const blockingPredId = task.predecessorIds?.find(predId => {
+      const predecessorIds = this.getPredecessorIds(taskId);
+      const blockingPredId = predecessorIds.find(predId => {
         const pred = this.state.tasks.find(t => t.id === predId);
         return pred && pred.endDate > newStartDate;
       });
@@ -12117,7 +12118,7 @@ export class GanttCanvas {
       id: `copy-${Date.now()}`, // Generate new unique ID
       startDate: newStartDate,
       endDate: new Date(newStartDate.getTime() + duration),
-      predecessorIds: [], // Don't copy dependencies
+      // Note: Dependencies are NOT copied - new task has no predecessors
     };
 
     this.state.tasks.push(copiedTask);
@@ -12487,7 +12488,7 @@ export class GanttCanvas {
     progress: number;
     status: string;
     locked: string | undefined;
-    predecessorIds: string[];
+    predecessorIds: string[];  // Derived from dependencies (SSoT)
     rowIndex: number;
   }> {
     return this.state.tasks.map((task, index) => ({
@@ -12499,7 +12500,7 @@ export class GanttCanvas {
       progress: task.progress || 0,
       status: task.status || 'not-started',
       locked: task.locked,
-      predecessorIds: task.predecessorIds || [],
+      predecessorIds: this.getPredecessorIds(task.id),  // SSoT: derive from dependencies
       rowIndex: index,
     }));
   }

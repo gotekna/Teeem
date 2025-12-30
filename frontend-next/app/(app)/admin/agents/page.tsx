@@ -58,6 +58,8 @@ interface AgentDefinition {
   created_at: string;
   status_emoji: string;
   success_rate: number;
+  health_status: "healthy" | "warning" | "broken" | "deprecated";
+  days_since_last_run: number | null;
 }
 
 interface Stats {
@@ -169,6 +171,40 @@ export default function AdminAgentsPage() {
       <Badge variant={variant} className={className}>
         {icon}
         {category}
+      </Badge>
+    );
+  };
+
+  const getHealthBadge = (health: AgentDefinition["health_status"]) => {
+    const config: Record<
+      AgentDefinition["health_status"],
+      { variant: "default" | "secondary" | "outline" | "destructive"; className?: string; label: string }
+    > = {
+      healthy: {
+        variant: "outline",
+        className: "border-green-500 text-green-600 dark:text-green-400",
+        label: "Healthy",
+      },
+      warning: {
+        variant: "outline",
+        className: "border-yellow-500 text-yellow-600 dark:text-yellow-400",
+        label: "Stale",
+      },
+      broken: {
+        variant: "destructive",
+        className: "",
+        label: "Broken",
+      },
+      deprecated: {
+        variant: "secondary",
+        className: "opacity-50",
+        label: "Deprecated",
+      },
+    };
+    const { variant, className, label } = config[health] || config.warning;
+    return (
+      <Badge variant={variant} className={className}>
+        {label}
       </Badge>
     );
   };
@@ -315,6 +351,7 @@ export default function AdminAgentsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Health</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Command</TableHead>
                   <TableHead>Last Updated</TableHead>
@@ -327,7 +364,7 @@ export default function AdminAgentsPage() {
                 {agents.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="text-center py-8 text-muted-foreground"
                     >
                       No agents found. Click "Sync from Files" to import agents.
@@ -340,6 +377,7 @@ export default function AdminAgentsPage() {
                         <span className="mr-1">{agent.status_emoji}</span>
                         {agent.name}
                       </TableCell>
+                      <TableCell>{getHealthBadge(agent.health_status)}</TableCell>
                       <TableCell>{getCategoryBadge(agent.category)}</TableCell>
                       <TableCell>
                         <TooltipProvider>

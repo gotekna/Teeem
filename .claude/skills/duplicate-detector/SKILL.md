@@ -1,9 +1,11 @@
 ---
-name: ssot-auditor
-description: Detects duplicate implementations and SSoT violations. Use before any code change that adds new logic, config, or constants.
+name: duplicate-detector
+description: Detects duplicate implementations, SSoT violations, and banned patterns. Use before any code change that adds new logic, config, or constants.
 ---
 
-# SSoT Auditor
+# Duplicate Detector
+
+**Note:** This skill focuses on finding duplicated code patterns and SSoT violations. For Rails method validation (NoMethodError prevention), see the `method-auditor` agent.
 
 ## When Claude Should Use This
 - Adding a new constant or config value

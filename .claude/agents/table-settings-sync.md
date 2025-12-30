@@ -23,6 +23,8 @@ category: validation
 author: Robert
 ---
 
+# Table Settings Sync
+
 Compares the current table to Gold Standard and updates all settings to match the defined template.
 
 ## Purpose

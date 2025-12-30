@@ -665,7 +665,11 @@ export function XeroContactSync() {
 
   // Handle row click to navigate to contact
   const handleRowClick = React.useCallback((row: TableRowType) => {
-    router.push(`/contacts/${row.id}`);
+    // Only navigate if there's a linked TEEEM contact
+    const contactId = row.contact_id as number | null;
+    if (contactId) {
+      router.push(`/contacts/${contactId}`);
+    }
   }, [router]);
 
   return (

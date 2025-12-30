@@ -88,4 +88,43 @@ class AgentDefinition < ApplicationRecord
     else "⚡"
     end
   end
+
+  # Health status for admin display
+  # Returns: healthy, warning, broken, deprecated
+  def health_status
+    return "deprecated" unless active?
+    return "broken" unless file_exists?
+    return "warning" if stale?
+
+    "healthy"
+  end
+
+  # Check if the agent's source file exists
+  def file_exists?
+    path = source_path
+    return true if path.blank?
+
+    project_root = Rails.root.parent
+    full_path = project_root.join(path)
+    File.exist?(full_path)
+  end
+
+  # Get source path from metadata
+  def source_path
+    metadata&.dig("source_path")
+  end
+
+  # Check if agent hasn't been run in 30+ days
+  def stale?
+    return true if last_run_at.nil? && total_runs.zero?
+
+    last_run_at.present? && last_run_at < 30.days.ago
+  end
+
+  # Days since last run
+  def days_since_last_run
+    return nil if last_run_at.nil?
+
+    ((Time.current - last_run_at) / 1.day).to_i
+  end
 end
