@@ -6,14 +6,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableColumn, TableRow as TableRowType } from "@/components/table/types";
 import {
   Select,
   SelectContent,
@@ -23,12 +17,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   Check,
   X,
   RefreshCw,
@@ -36,18 +24,29 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   Users,
-  Filter,
-  ChevronDown,
-  ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { useUrlState } from "@/hooks/useUrlState";
 
 // Types
 type FilterStatus = "all" | "synced" | "not-synced" | "errors";
+
+// Gold Standard Table columns for Xero sync contacts
+const XERO_SYNC_COLUMNS: TableColumn[] = [
+  { key: "display_name", label: "Contact", width: 200, sortable: true, filterable: true },
+  { key: "xero_name", label: "Xero Name", width: 180, sortable: true, filterable: true },
+  { key: "match_percent", label: "Match", width: 70, sortable: true, dataAlign: "center", headerAlign: "center" },
+  { key: "xero_tenant_name", label: "Xero Org", width: 120, sortable: true, filterable: true },
+  { key: "entity_type", label: "Type", width: 90, sortable: true, filterable: true },
+  { key: "xero_id", label: "Linked", width: 70, dataAlign: "center", headerAlign: "center" },
+  { key: "role", label: "Role", width: 90, sortable: true, filterable: true },
+  { key: "invoices_count", label: "Inv", width: 60, sortable: true, dataAlign: "center", headerAlign: "center" },
+  { key: "bills_count", label: "Bills", width: 60, sortable: true, dataAlign: "center", headerAlign: "center" },
+  { key: "pdf_sync_percent", label: "PDF", width: 60, sortable: true, dataAlign: "center", headerAlign: "center" },
+  { key: "sync_status_display", label: "Sync Status", width: 140 },
+];
 
 interface FieldMapping {
   field: string;
@@ -480,6 +479,7 @@ interface XeroDataStats {
 
 // Contact Sync Component
 export function XeroContactSync() {
+  const router = useRouter();
   const { toast } = useToast();
   const [syncing, setSyncing] = React.useState(false);
   const [lastSync, setLastSync] = React.useState<{
@@ -568,6 +568,7 @@ export function XeroContactSync() {
     }
   };
 
+  // Filter contacts based on status
   const filteredContacts = React.useMemo(() => {
     switch (filterStatus) {
       case "synced":
@@ -581,6 +582,128 @@ export function XeroContactSync() {
     }
   }, [contacts, filterStatus]);
 
+  // Transform contacts for TeeemTableView with computed fields
+  const tableEntries = React.useMemo(() => {
+    return filteredContacts.map(c => {
+      // Calculate role
+      const isCustomer = c.is_customer;
+      const isSupplier = c.is_supplier;
+      let role = "-";
+      if (isCustomer && isSupplier) role = "Both";
+      else if (isCustomer) role = "Customer";
+      else if (isSupplier) role = "Supplier";
+
+      // Calculate match percent
+      const matchPercent = calculateSimilarity(c.display_name, c.xero_name);
+
+      return {
+        ...c,
+        role,
+        match_percent: matchPercent,
+        sync_status_display: c.has_error ? "Error" : (c.sync_status ? "synced" : "-"),
+      };
+    });
+  }, [filteredContacts]);
+
+  // Custom cell renderer for special columns
+  const customCellRenderer = React.useCallback((entry: TableRowType, columnKey: string) => {
+    const contact = entry as unknown as ContactSyncItem & { role: string; match_percent: number | null };
+
+    // Match % with color coding
+    if (columnKey === "match_percent") {
+      const percent = contact.match_percent;
+      if (percent === null) return <span className="text-muted-foreground">-</span>;
+      const color = percent === 100 ? "text-green-600" :
+                   percent >= 90 ? "text-green-500" :
+                   percent >= 70 ? "text-amber-600" : "text-red-600";
+      return <span className={cn("font-medium", color)}>{percent}%</span>;
+    }
+
+    // Entity type badge
+    if (columnKey === "entity_type") {
+      const isPriceOnly = contact.entity_type === "price_only";
+      return (
+        <Badge variant="outline" className={cn("text-xs", isPriceOnly && "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30")}>
+          {contact.entity_type || "?"}
+        </Badge>
+      );
+    }
+
+    // Linked icon
+    if (columnKey === "xero_id") {
+      return contact.xero_id ? (
+        <Check className="h-4 w-4 text-green-600 mx-auto" />
+      ) : (
+        <X className="h-4 w-4 text-muted-foreground mx-auto" />
+      );
+    }
+
+    // Role badge
+    if (columnKey === "role") {
+      if (contact.role === "-") return <span className="text-muted-foreground">-</span>;
+      const colors: Record<string, string> = {
+        "Both": "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/30",
+        "Customer": "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30",
+        "Supplier": "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30",
+      };
+      return (
+        <Badge variant="outline" className={cn("text-xs", colors[contact.role])}>
+          {contact.role}
+        </Badge>
+      );
+    }
+
+    // Invoices count
+    if (columnKey === "invoices_count") {
+      return contact.invoices_count > 0 ? (
+        <span className="font-medium">{contact.invoices_count}</span>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      );
+    }
+
+    // Bills count
+    if (columnKey === "bills_count") {
+      return contact.bills_count > 0 ? (
+        <span className="font-medium">{contact.bills_count}</span>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      );
+    }
+
+    // PDF sync percent with color coding
+    if (columnKey === "pdf_sync_percent") {
+      const percent = contact.pdf_sync_percent;
+      if (percent === null) return <span className="text-muted-foreground">-</span>;
+      const color = percent === 100 ? "text-green-600" :
+                   percent >= 50 ? "text-amber-600" : "text-red-600";
+      return <span className={cn("font-medium", color)}>{percent}%</span>;
+    }
+
+    // Sync status
+    if (columnKey === "sync_status_display") {
+      if (contact.has_error) {
+        return (
+          <div className="flex items-center gap-1 text-red-600">
+            <AlertTriangle className="h-3 w-3" />
+            <span className="text-xs font-medium">Error</span>
+          </div>
+        );
+      }
+      if (contact.sync_status) {
+        return <SyncStatusCell syncStatus={contact.sync_status} hasError={false} />;
+      }
+      return <span className="text-muted-foreground text-xs">-</span>;
+    }
+
+    return null; // Use default rendering
+  }, []);
+
+  // Handle row click to navigate to contact
+  const handleRowClick = React.useCallback((row: TableRowType) => {
+    router.push(`/contacts/${row.id}`);
+  }, [router]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -590,125 +713,132 @@ export function XeroContactSync() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Sync Stats Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Contact Sync
-              </CardTitle>
-              <CardDescription>
-                View all contacts and their Xero sync status
-              </CardDescription>
-            </div>
-            <Button onClick={handleSync} disabled={syncing}>
-              <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
-              {syncing ? "Syncing..." : "Sync Now"}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="text-sm text-muted-foreground">Total Contacts</div>
-              <div className="text-2xl font-bold">{totalContacts}</div>
-            </div>
-            <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-lg">
-              <div className="text-sm text-muted-foreground">Synced</div>
-              <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                {syncedCount}
-              </div>
-            </div>
-            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
-              <div className="text-sm text-muted-foreground">Not Synced</div>
-              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                {totalContacts - syncedCount}
-              </div>
-            </div>
-            <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-lg">
-              <div className="text-sm text-muted-foreground">Errors</div>
-              <div className="text-2xl font-bold text-red-700 dark:text-red-400">
-                {errorCount}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Xero Data Stats Card */}
-      {xeroDataStats && (
+    <div className="flex flex-col h-full">
+      {/* Stats Cards */}
+      <div className="space-y-4 mb-4">
+        {/* Sync Stats Card */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <ArrowRightLeft className="h-5 w-5" />
-              Xero Data Synced
-            </CardTitle>
-            <CardDescription>
-              Financial data synced from Xero for these contacts
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-4 mb-4">
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
-                <div className="text-sm text-muted-foreground">Sales Invoices</div>
-                <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                  {xeroDataStats.sales_invoices.count.toLocaleString()}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  ${xeroDataStats.sales_invoices.total.toLocaleString()}
-                </div>
+          <CardHeader className="py-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Contact Sync
+                </CardTitle>
               </div>
-              <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
-                <div className="text-sm text-muted-foreground">Bills</div>
-                <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-                  {xeroDataStats.bills.count.toLocaleString()}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  ${xeroDataStats.bills.total.toLocaleString()}
-                </div>
-              </div>
-              <div className="p-4 bg-cyan-50 dark:bg-cyan-900/10 rounded-lg">
-                <div className="text-sm text-muted-foreground">Quotes</div>
-                <div className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">
-                  {xeroDataStats.quotes.count.toLocaleString()}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  ${xeroDataStats.quotes.total.toLocaleString()}
-                </div>
-              </div>
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
-                <div className="text-sm text-muted-foreground">Unpaid</div>
-                <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                  {xeroDataStats.unpaid_count.toLocaleString()}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  invoices &amp; bills
-                </div>
-              </div>
+              <Button onClick={handleSync} disabled={syncing} size="sm">
+                <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
+                {syncing ? "Syncing..." : "Sync Now"}
+              </Button>
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="text-xs text-muted-foreground">Credit Notes</div>
-                <div className="text-lg font-semibold">{xeroDataStats.credit_notes}</div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <div className="text-xs text-muted-foreground">Total Contacts</div>
+                <div className="text-xl font-bold">{totalContacts}</div>
               </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="text-xs text-muted-foreground">Contacts with Data</div>
-                <div className="text-lg font-semibold">{xeroDataStats.contacts_with_data}</div>
+              <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-lg">
+                <div className="text-xs text-muted-foreground">Synced</div>
+                <div className="text-xl font-bold text-green-700 dark:text-green-400">
+                  {syncedCount}
+                </div>
               </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="text-xs text-muted-foreground">Synced Today</div>
-                <div className="text-lg font-semibold">{xeroDataStats.synced_today}</div>
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
+                <div className="text-xs text-muted-foreground">Not Synced</div>
+                <div className="text-xl font-bold text-amber-700 dark:text-amber-400">
+                  {totalContacts - syncedCount}
+                </div>
+              </div>
+              <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-lg">
+                <div className="text-xs text-muted-foreground">Errors</div>
+                <div className="text-xl font-bold text-red-700 dark:text-red-400">
+                  {errorCount}
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Contacts Table Card */}
-      <ContactsGroupedTable contacts={filteredContacts} filterStatus={filterStatus} setFilterStatus={setFilterStatus} />
+        {/* Xero Data Stats Card */}
+        {xeroDataStats && (
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ArrowRightLeft className="h-5 w-5" />
+                Xero Data Synced
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-7 gap-3">
+                <div className="p-2 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
+                  <div className="text-xs text-muted-foreground">Sales Invoices</div>
+                  <div className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                    {xeroDataStats.sales_invoices.count.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-2 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
+                  <div className="text-xs text-muted-foreground">Bills</div>
+                  <div className="text-lg font-bold text-purple-700 dark:text-purple-400">
+                    {xeroDataStats.bills.count.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-2 bg-cyan-50 dark:bg-cyan-900/10 rounded-lg">
+                  <div className="text-xs text-muted-foreground">Quotes</div>
+                  <div className="text-lg font-bold text-cyan-700 dark:text-cyan-400">
+                    {xeroDataStats.quotes.count.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-2 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
+                  <div className="text-xs text-muted-foreground">Unpaid</div>
+                  <div className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                    {xeroDataStats.unpaid_count.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-2 bg-muted/50 rounded-lg">
+                  <div className="text-xs text-muted-foreground">Credit Notes</div>
+                  <div className="text-lg font-semibold">{xeroDataStats.credit_notes}</div>
+                </div>
+                <div className="p-2 bg-muted/50 rounded-lg">
+                  <div className="text-xs text-muted-foreground">With Data</div>
+                  <div className="text-lg font-semibold">{xeroDataStats.contacts_with_data}</div>
+                </div>
+                <div className="p-2 bg-muted/50 rounded-lg">
+                  <div className="text-xs text-muted-foreground">Synced Today</div>
+                  <div className="text-lg font-semibold">{xeroDataStats.synced_today}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Gold Standard Table */}
+      <div className="flex-1 -mx-4">
+        <TeeemTableView
+          entries={tableEntries}
+          columns={XERO_SYNC_COLUMNS}
+          tableName="Xero Contacts"
+          onRowClick={handleRowClick}
+          customCellRenderer={customCellRenderer}
+          onRefresh={loadContacts}
+          viewOnly={true}
+          disableSavedViews={true}
+          leftActions={
+            <Select value={filterStatus} onValueChange={(value: FilterStatus) => setFilterStatus(value)}>
+              <SelectTrigger className="w-[140px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Contacts</SelectItem>
+                <SelectItem value="synced">Synced Only</SelectItem>
+                <SelectItem value="not-synced">Not Synced</SelectItem>
+                <SelectItem value="errors">With Errors</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+      </div>
     </div>
   );
 }
@@ -742,29 +872,6 @@ function formatRelativeTime(dateString: string | null): { text: string; isRecent
   }
 
   return { text, isRecent, isOld };
-}
-
-// Helper to format last sync date compactly (legacy, for backwards compatibility)
-function formatLastSync(dateString: string | null): string {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const time = date.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
-
-  if (diffDays === 0) {
-    // Today - show time only
-    return time;
-  } else if (diffDays === 1) {
-    return `Yest ${time}`;
-  } else if (diffDays < 7) {
-    return `${diffDays}d ${time}`;
-  } else {
-    // Show date and time
-    const dateStr = date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
-    return `${dateStr} ${time}`;
-  }
 }
 
 // SSoT: Compact 3-type sync status display (C:5m I:6d P:-)
@@ -857,326 +964,4 @@ function calculateSimilarity(str1: string | null, str2: string | null): number |
   const similarity = ((maxLen - distance) / maxLen) * 100;
 
   return Math.round(similarity);
-}
-
-// Helper to get role display
-function getRoleDisplay(contact: ContactSyncItem): { text: string; color: string } {
-  const isCustomer = contact.is_customer;
-  const isSupplier = contact.is_supplier;
-
-  if (isCustomer && isSupplier) {
-    return { text: "Both", color: "bg-purple-100 text-purple-700 border-purple-300" };
-  } else if (isCustomer) {
-    return { text: "Customer", color: "bg-blue-100 text-blue-700 border-blue-300" };
-  } else if (isSupplier) {
-    return { text: "Supplier", color: "bg-orange-100 text-orange-700 border-orange-300" };
-  }
-  return { text: "-", color: "" };
-}
-
-// Helper component for rendering contact rows
-function ContactRow({ contact, onClick }: { contact: ContactSyncItem; onClick: () => void }) {
-  const isPriceOnly = contact.entity_type === "price_only";
-  const isPersonWithCompany = contact.entity_type === "person" && contact.primary_company_id != null;
-  const shouldHighlight = isPriceOnly || isPersonWithCompany;
-
-  const getPdfSyncColor = (percent: number | null) => {
-    if (percent === null) return "";
-    if (percent === 100) return "text-green-600";
-    if (percent >= 50) return "text-amber-600";
-    return "text-red-600";
-  };
-
-  const getMatchColor = (percent: number | null) => {
-    if (percent === null) return "text-muted-foreground";
-    if (percent === 100) return "text-green-600";
-    if (percent >= 90) return "text-green-500";
-    if (percent >= 70) return "text-amber-600";
-    return "text-red-600";
-  };
-
-  const role = getRoleDisplay(contact);
-  const matchPercent = calculateSimilarity(contact.display_name, contact.xero_name);
-
-  return (
-    <TableRow
-      className={cn(
-        "cursor-pointer hover:bg-muted/50 transition-colors",
-        shouldHighlight ? "bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30" : ""
-      )}
-      onClick={onClick}
-    >
-      <TableCell className="font-medium py-2">
-        <div className="truncate max-w-[180px]" title={contact.display_name}>
-          {contact.display_name}
-        </div>
-        {contact.primary_company_name && (
-          <div className="text-xs text-muted-foreground truncate max-w-[180px]">
-            {contact.primary_company_name}
-          </div>
-        )}
-      </TableCell>
-      <TableCell className="py-2">
-        {contact.xero_name ? (
-          <div className="truncate max-w-[180px] text-sm" title={contact.xero_name}>
-            {contact.xero_name}
-          </div>
-        ) : (
-          <span className="text-muted-foreground text-xs">-</span>
-        )}
-      </TableCell>
-      <TableCell className="text-center py-2">
-        {matchPercent !== null ? (
-          <span className={cn("font-medium text-sm", getMatchColor(matchPercent))}>
-            {matchPercent}%
-          </span>
-        ) : (
-          <span className="text-muted-foreground text-xs">-</span>
-        )}
-      </TableCell>
-      <TableCell className="py-2">
-        {contact.xero_tenant_name ? (
-          <span className="text-xs text-muted-foreground truncate max-w-[120px] block" title={contact.xero_tenant_name}>
-            {contact.xero_tenant_name}
-          </span>
-        ) : (
-          <span className="text-muted-foreground text-xs">-</span>
-        )}
-      </TableCell>
-      <TableCell className="py-2">
-        <Badge variant="outline" className={cn("text-xs", isPriceOnly ? "bg-red-100 text-red-700 border-red-300" : "")}>
-          {contact.entity_type || "?"}
-        </Badge>
-      </TableCell>
-      <TableCell className="text-center py-2">
-        {contact.xero_id ? (
-          <Check className="h-4 w-4 text-green-600 mx-auto" />
-        ) : (
-          <X className="h-4 w-4 text-muted-foreground mx-auto" />
-        )}
-      </TableCell>
-      <TableCell className="py-2">
-        {role.text !== "-" ? (
-          <Badge variant="outline" className={cn("text-xs", role.color)}>
-            {role.text}
-          </Badge>
-        ) : (
-          <span className="text-muted-foreground text-xs">-</span>
-        )}
-      </TableCell>
-      <TableCell className="text-center text-sm py-2">
-        {contact.invoices_count > 0 ? (
-          <span className="font-medium">{contact.invoices_count}</span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
-      </TableCell>
-      <TableCell className="text-center text-sm py-2">
-        {contact.bills_count > 0 ? (
-          <span className="font-medium">{contact.bills_count}</span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
-      </TableCell>
-      <TableCell className="text-center text-sm py-2">
-        {contact.pdf_sync_percent !== null ? (
-          <span className={cn("font-medium", getPdfSyncColor(contact.pdf_sync_percent))}>
-            {contact.pdf_sync_percent}%
-          </span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
-      </TableCell>
-      <TableCell className="py-2">
-        {contact.sync_status ? (
-          <SyncStatusCell syncStatus={contact.sync_status} hasError={contact.has_error} />
-        ) : (
-          <span className="text-xs text-muted-foreground">{formatLastSync(contact.last_synced_at)}</span>
-        )}
-      </TableCell>
-    </TableRow>
-  );
-}
-
-// Grouped table with collapsible sections
-function ContactsGroupedTable({
-  contacts,
-  filterStatus,
-  setFilterStatus,
-}: {
-  contacts: ContactSyncItem[];
-  filterStatus: FilterStatus;
-  setFilterStatus: React.Dispatch<React.SetStateAction<FilterStatus>>;
-}) {
-  const router = useRouter();
-
-  // URL state for accordion expanded state (back button works, bookmarkable)
-  const [urlState, setUrlState] = useUrlState({
-    accordions: ["normal", "flagged"] as string[], // Both open by default
-  });
-  const normalOpen = urlState.accordions.includes("normal");
-  const flaggedOpen = urlState.accordions.includes("flagged");
-
-  const toggleAccordion = (section: "normal" | "flagged") => {
-    const current = urlState.accordions;
-    if (current.includes(section)) {
-      setUrlState({ accordions: current.filter(s => s !== section) });
-    } else {
-      setUrlState({ accordions: [...current, section] });
-    }
-  };
-
-  // Split contacts into normal and flagged (price_only or person with company)
-  const normalContacts = contacts
-    .filter((c) => {
-      const isPriceOnly = c.entity_type === "price_only";
-      const isPersonWithCompany = c.entity_type === "person" && c.primary_company_id != null;
-      return !isPriceOnly && !isPersonWithCompany;
-    })
-    .sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
-
-  const flaggedContacts = contacts
-    .filter((c) => {
-      const isPriceOnly = c.entity_type === "price_only";
-      const isPersonWithCompany = c.entity_type === "person" && c.primary_company_id != null;
-      return isPriceOnly || isPersonWithCompany;
-    })
-    .sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
-
-  const handleContactClick = (contactId: number) => {
-    router.push(`/contacts/${contactId}`);
-  };
-
-  const TableHeaders = () => (
-    <TableHeader className="sticky top-0 bg-background z-10">
-      <TableRow>
-        <TableHead>Contact</TableHead>
-        <TableHead>Xero Name</TableHead>
-        <TableHead className="text-center w-14">Match</TableHead>
-        <TableHead>Xero Org</TableHead>
-        <TableHead>Type</TableHead>
-        <TableHead className="text-center w-12">Linked</TableHead>
-        <TableHead className="w-20">Role</TableHead>
-        <TableHead className="text-center w-12">Inv</TableHead>
-        <TableHead className="text-center w-12">Bills</TableHead>
-        <TableHead className="text-center w-12">PDF</TableHead>
-        <TableHead>Sync Status</TableHead>
-      </TableRow>
-    </TableHeader>
-  );
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">All Contacts</CardTitle>
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
-              <SelectTrigger className="w-[160px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Contacts</SelectItem>
-                <SelectItem value="synced">Synced Only</SelectItem>
-                <SelectItem value="not-synced">Not Synced</SelectItem>
-                <SelectItem value="errors">With Errors</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {contacts.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No contacts found
-          </div>
-        ) : (
-          <div className="max-h-[700px] overflow-y-auto">
-            {/* Normal Contacts Group */}
-            {normalContacts.length > 0 && (
-              <Accordion
-                type="single"
-                collapsible
-                value={normalOpen ? "normal" : ""}
-                onValueChange={() => toggleAccordion("normal")}
-              >
-                <AccordionItem value="normal" className="border-none">
-                  <AccordionTrigger
-                    className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors hover:no-underline [&>svg]:hidden"
-                  >
-                    {normalOpen ? (
-                      <ChevronDown className="h-5 w-5" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5" />
-                    )}
-                    <span className="font-medium">Active Contacts</span>
-                    <Badge variant="secondary" className="ml-2">
-                      {normalContacts.length}
-                    </Badge>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <Table>
-                      <TableHeaders />
-                      <TableBody>
-                        {normalContacts.map((contact) => (
-                          <ContactRow
-                            key={contact.id}
-                            contact={contact}
-                            onClick={() => handleContactClick(contact.id)}
-                          />
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            )}
-
-            {/* Flagged Contacts Group (Price Only + Person with Company) */}
-            {flaggedContacts.length > 0 && (
-              <Accordion
-                type="single"
-                collapsible
-                value={flaggedOpen ? "flagged" : ""}
-                onValueChange={() => toggleAccordion("flagged")}
-              >
-                <AccordionItem value="flagged" className="border-none">
-                  <AccordionTrigger
-                    className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors hover:no-underline [&>svg]:hidden"
-                  >
-                    {flaggedOpen ? (
-                      <ChevronDown className="h-5 w-5 text-red-600" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5 text-red-600" />
-                    )}
-                    <span className="font-medium text-red-700 dark:text-red-400">
-                      Flagged Contacts (Price Only / Person with Company)
-                    </span>
-                    <Badge variant="outline" className="ml-2 bg-red-100 text-red-700 border-red-300">
-                      {flaggedContacts.length}
-                    </Badge>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <Table>
-                      <TableHeaders />
-                      <TableBody>
-                        {flaggedContacts.map((contact) => (
-                          <ContactRow
-                            key={contact.id}
-                            contact={contact}
-                            onClick={() => handleContactClick(contact.id)}
-                          />
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 }
