@@ -139,7 +139,7 @@ class Column < ApplicationRecord
     "action_buttons" => "VARCHAR(255)",
     "boolean" => "BOOLEAN",
     "choice" => "VARCHAR(50)",
-    "lookup" => "VARCHAR(255)",
+    "lookup" => "INTEGER",  # Lookups store IDs (foreign keys to other foundations)
     "multiple_lookups" => "TEXT",
     "user" => "INTEGER",
     "computed" => "VIRTUAL/COMPUTED",

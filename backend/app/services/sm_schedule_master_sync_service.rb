@@ -334,20 +334,58 @@ class SmScheduleMasterSyncService
 
   # Sync Foundation column types from SmScheduleMaster to SmTask
   # SSoT: SmScheduleMaster foundation defines the column types, SmTask should match
+  # Self-healing: Automatically detects and fixes column type mismatches
   def self.sync_foundation_column_types!
     master_f = Foundation.find_by(slug: 'sm_schedule_masters') || Foundation.find_by(model_class: 'SmScheduleMaster')
     task_f = Foundation.find_by(slug: 'sm_tasks') || Foundation.find_by(model_class: 'SmTask')
 
-    return { synced: 0 } unless master_f && task_f
+    return { synced: 0, columns_migrated: [] } unless master_f && task_f
 
+    synced = 0
+    columns_migrated = []
+
+    # Get actual database column info
+    master_db_cols = SmScheduleMaster.columns.index_by(&:name)
+    task_db_cols = SmTask.columns.index_by(&:name)
+
+    # Get Foundation metadata
     master_cols = master_f.columns.index_by(&:column_name)
     task_cols = task_f.columns.index_by(&:column_name)
     common = master_cols.keys & task_cols.keys
-    synced = 0
 
     common.each do |col_name|
       m = master_cols[col_name]
       t = task_cols[col_name]
+      m_db = master_db_cols[col_name]
+      t_db = task_db_cols[col_name]
+
+      next unless m_db && t_db
+
+      # Check if this is a lookup column that should be integer
+      is_lookup_column = m.column_type == 'lookup' || col_name.in?(%w[trade stage assigned_role])
+
+      # Check for database type mismatch and auto-migrate if needed
+      if m_db.type != t_db.type
+        Rails.logger.info "[SmScheduleMasterSyncService] Column type mismatch detected: #{col_name} - Master: #{m_db.type}, Task: #{t_db.type}"
+
+        if migrate_column_type!(col_name, m_db, t_db)
+          columns_migrated << col_name
+        end
+      # Also check if lookup column is string but should be integer
+      elsif is_lookup_column && m_db.type == :string
+        Rails.logger.info "[SmScheduleMasterSyncService] Lookup column #{col_name} is string, should be integer - migrating both tables"
+
+        if migrate_lookup_column_to_integer!(col_name)
+          columns_migrated << col_name
+        end
+      elsif is_lookup_column && t_db.type == :string && m_db.type == :integer
+        # Master is already integer, task needs migration
+        Rails.logger.info "[SmScheduleMasterSyncService] Task column #{col_name} is string, master is integer - migrating task table"
+
+        if migrate_column_type!(col_name, m_db, t_db)
+          columns_migrated << col_name
+        end
+      end
 
       # Sync lookup config if master has it configured
       if m.lookup_foundation_slug.present? && m.lookup_foundation_slug != t.lookup_foundation_slug
@@ -362,7 +400,162 @@ class SmScheduleMasterSyncService
       end
     end
 
-    { synced: synced }
+    if columns_migrated.any?
+      Rails.logger.info "[SmScheduleMasterSyncService] Auto-migrated columns: #{columns_migrated.join(', ')}"
+    end
+
+    { synced: synced, columns_migrated: columns_migrated }
+  end
+
+  # Auto-migrate a lookup column from string to integer in BOTH tables
+  # SmScheduleMaster may have IDs stored as strings ("3")
+  # SmTask may have names stored as strings ("accounts")
+  def self.migrate_lookup_column_to_integer!(col_name)
+    lookup_map = build_lookup_map_for_column(col_name)
+    if lookup_map.empty?
+      Rails.logger.warn "[SmScheduleMasterSyncService] No lookup map for #{col_name}, skipping migration"
+      return false
+    end
+
+    Rails.logger.info "[SmScheduleMasterSyncService] Migrating #{col_name} to integer in both tables..."
+
+    ActiveRecord::Base.transaction do
+      # Migrate SmScheduleMaster (has IDs stored as strings like "3")
+      migrate_table_column_to_integer!(:sm_schedule_masters, SmScheduleMaster, col_name, :id_as_string)
+
+      # Migrate SmTask (has names stored as strings like "accounts")
+      migrate_table_column_to_integer!(:sm_tasks, SmTask, col_name, :name_as_string, lookup_map)
+
+      Rails.logger.info "[SmScheduleMasterSyncService] Successfully migrated #{col_name} to integer in both tables"
+    end
+
+    true
+  rescue StandardError => e
+    Rails.logger.error "[SmScheduleMasterSyncService] Failed to migrate #{col_name}: #{e.message}"
+    Rails.logger.error e.backtrace.first(5).join("\n")
+    false
+  end
+
+  # Migrate a single table's column from string to integer
+  def self.migrate_table_column_to_integer!(table_name, model_class, col_name, value_type, lookup_map = nil)
+    return unless model_class.column_names.include?(col_name)
+    return unless model_class.columns.find { |c| c.name == col_name }&.type == :string
+
+    temp_col = "#{col_name}_new"
+
+    # Add temp integer column if not exists
+    unless ActiveRecord::Base.connection.column_exists?(table_name, temp_col)
+      ActiveRecord::Base.connection.add_column table_name, temp_col, :integer
+    end
+
+    # Convert values
+    model_class.distinct.pluck(col_name).compact.each do |string_value|
+      new_id = case value_type
+               when :id_as_string
+                 # Value is already an ID stored as string, just convert to int
+                 string_value.to_i if string_value.to_s.match?(/^\d+$/)
+               when :name_as_string
+                 # Value is a name, look up the ID
+                 lookup_map[string_value]
+               end
+
+      if new_id
+        model_class.where(col_name => string_value).update_all(temp_col => new_id)
+      end
+    end
+
+    # Swap columns
+    ActiveRecord::Base.connection.remove_column table_name, col_name
+    ActiveRecord::Base.connection.rename_column table_name, temp_col, col_name
+
+    # Reset column cache
+    model_class.reset_column_information
+
+    Rails.logger.info "[SmScheduleMasterSyncService] Migrated #{table_name}.#{col_name} to integer"
+  end
+
+  # Auto-migrate a column type from string to integer (for lookup fields)
+  # Converts existing string values to IDs using the lookup table
+  def self.migrate_column_type!(col_name, master_col, task_col)
+    # Only handle string → integer conversion for lookup fields
+    return false unless task_col.type == :string && master_col.type == :integer
+
+    lookup_map = build_lookup_map_for_column(col_name)
+    if lookup_map.empty?
+      Rails.logger.warn "[SmScheduleMasterSyncService] No lookup map for #{col_name}, skipping migration"
+      return false
+    end
+
+    Rails.logger.info "[SmScheduleMasterSyncService] Migrating #{col_name} from string to integer..."
+
+    ActiveRecord::Base.transaction do
+      # 1. Add temp integer column
+      temp_col = "#{col_name}_new"
+      unless ActiveRecord::Base.connection.column_exists?(:sm_tasks, temp_col)
+        ActiveRecord::Base.connection.add_column :sm_tasks, temp_col, :integer
+      end
+
+      # 2. Convert existing string values to IDs
+      converted_count = 0
+      unmatched_values = []
+
+      SmTask.distinct.pluck(col_name).compact.each do |string_value|
+        if lookup_map.key?(string_value)
+          SmTask.where(col_name => string_value).update_all(temp_col => lookup_map[string_value])
+          converted_count += SmTask.where(temp_col => lookup_map[string_value]).count
+        else
+          unmatched_values << string_value
+        end
+      end
+
+      if unmatched_values.any?
+        Rails.logger.warn "[SmScheduleMasterSyncService] #{col_name}: No matching ID for values: #{unmatched_values.join(', ')} - these will be NULL"
+      end
+
+      # 3. Drop old string column, rename temp to original
+      ActiveRecord::Base.connection.remove_column :sm_tasks, col_name
+      ActiveRecord::Base.connection.rename_column :sm_tasks, temp_col, col_name
+
+      # 4. Reset column info cache
+      SmTask.reset_column_information
+
+      Rails.logger.info "[SmScheduleMasterSyncService] Successfully migrated #{col_name}: converted #{converted_count} values"
+    end
+
+    true
+  rescue StandardError => e
+    Rails.logger.error "[SmScheduleMasterSyncService] Failed to migrate #{col_name}: #{e.message}"
+    Rails.logger.error e.backtrace.first(5).join("\n")
+    false
+  end
+
+  # Build a name → id lookup map for a column
+  def self.build_lookup_map_for_column(col_name)
+    foundation_slug = case col_name
+                      when 'trade' then 'sm_trades'
+                      when 'stage' then 'sm_stages'
+                      when 'assigned_role' then 'roles'
+                      else return {}
+                      end
+
+    foundation = Foundation.find_by(slug: foundation_slug)
+    return {} unless foundation
+
+    # Build name → id map
+    # For roles, use display_name or name
+    if col_name == 'assigned_role'
+      Role.all.each_with_object({}) { |r, h| h[r.name] = r.id; h[r.display_name] = r.id if r.display_name.present? }
+    else
+      ActiveRecord::Base.connection
+        .execute("SELECT id, name FROM #{foundation.database_table_name}")
+        .each_with_object({}) { |row, h| h[row['name']] = row['id'] }
+    end
+  end
+
+  # Normalize lookup values - now that all lookup columns are integers, this just passes through
+  # Kept for backwards compatibility in case there are edge cases
+  def self.normalize_lookup_value(col_name, value, is_from_template:)
+    value
   end
 
   # Bulk sync all template rows to tasks for a job
@@ -557,8 +750,11 @@ class SmScheduleMasterSyncService
     self.class.syncable_fields.each do |field|
       next unless template_row.respond_to?(field) && task.respond_to?(field)
 
-      template_value = template_row.send(field)
+      raw_template_value = template_row.send(field)
       task_value = task.send(field)
+
+      # Normalize lookup values where template stores ID and task stores name
+      template_value = self.class.normalize_lookup_value(field.to_s, raw_template_value, is_from_template: true)
 
       # Only show difference if template has a value and it differs
       if template_value.present? && template_value != task_value
@@ -635,15 +831,18 @@ class SmScheduleMasterSyncService
       next unless template_row.respond_to?(field) && task.respond_to?(field)
       next unless task.respond_to?("#{field}=")
 
-      # Special handling for calculated timing fields
-      template_value = case field
-                       when :order_time_days
-                         calculate_order_time_days
-                       when :call_time_days
-                         calculate_call_time_days
-                       else
-                         template_row.send(field)
-                       end
+      # Special handling for calculated timing fields and lookup normalization
+      raw_template_value = case field
+                           when :order_time_days
+                             calculate_order_time_days
+                           when :call_time_days
+                             calculate_call_time_days
+                           else
+                             template_row.send(field)
+                           end
+
+      # Normalize lookup values where template stores ID and task stores name
+      template_value = self.class.normalize_lookup_value(field.to_s, raw_template_value, is_from_template: true)
       task_value = task.send(field)
 
       # Only update if template has a value and it differs
@@ -694,6 +893,9 @@ class SmScheduleMasterSyncService
     # Generate unique name for duplicate tasks (e.g., "Req Bath 1", "Req Bath 2")
     task_name = generate_unique_task_name(template_row.name)
 
+    # Normalize assigned_role (template stores ID as string, task stores name)
+    normalized_assigned_role = self.class.normalize_lookup_value('assigned_role', template_row.assigned_role, is_from_template: true)
+
     task = SmTask.new(
       # Core identifiers
       construction_id: job.id,
@@ -707,6 +909,7 @@ class SmScheduleMasterSyncService
       duration_days: duration,
       trade: template_row.trade,
       stage: template_row.stage,
+      assigned_role: normalized_assigned_role,
       checklist_id: template_row.checklist_id,
 
       # Requirements (from template)
