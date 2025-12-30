@@ -573,8 +573,11 @@ class XeroContactSyncService
     # Update TEEEM with Xero data
     update_teeem_from_xero(teeem_contact, xero_contact, link)
 
-    # Update link sync status
-    link&.mark_synced!
+    # Update link with Xero name and sync status
+    if link
+      link.update!(external_name: xero_contact["Name"]) if xero_contact["Name"].present?
+      link.mark_synced!
+    end
   end
 
   def update_teeem_from_xero(teeem_contact, xero_contact, link = nil)
