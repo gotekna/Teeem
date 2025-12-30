@@ -1028,7 +1028,7 @@ export default function PricebookHealthPage() {
                                 </TableCell>
                                 <TableCell className="text-red-500 max-w-xs truncate">{error.error}</TableCell>
                                 <TableCell>
-                                  <Link href={`/contacts/${error.contact_id}?tab=xero`} className="text-primary hover:underline">
+                                  <Link href={`/contacts/${error.contact_id}/xero`} className="text-primary hover:underline">
                                     View Details
                                   </Link>
                                 </TableCell>

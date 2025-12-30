@@ -1667,13 +1667,11 @@ export function ConnectionsTab() {
   const activeTab = connectionTabFromUrl || "provider";
 
   const handleTabChange = useCallback((tabId: string) => {
-    const currentTab = searchParams.get("tab") || "company";
-    const subtab = searchParams.get("subtab") || "connections";
     const url = tabId === "provider"
-      ? `/admin/system?tab=${currentTab}&subtab=${subtab}`
-      : `/admin/system?tab=${currentTab}&subtab=${subtab}&connectionTab=${tabId}`;
+      ? `/admin/system/company/connections`
+      : `/admin/system/company/connections/${tabId}`;
     router.push(url, { scroll: false });
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <div className="space-y-4">

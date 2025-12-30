@@ -234,7 +234,7 @@ export default function HealthReportPage() {
                   <div
                     key={company.id}
                     className="px-4 py-4 hover:bg-muted/50 cursor-pointer"
-                    onClick={() => router.push(`/corporate/companies/${company.id}?subtab=health`)}
+                    onClick={() => router.push(`/corporate/companies/${company.id}/health`)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center min-w-0">

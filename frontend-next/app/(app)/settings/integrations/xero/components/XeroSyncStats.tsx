@@ -222,7 +222,7 @@ export function XeroSyncStats() {
             {global.pending_reviews.count > 0 && (
               <Button
                 variant="default"
-                onClick={() => router.push("/contacts?filter=pending_review")}
+                onClick={() => router.push("/contacts/filter/pending_review")}
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Review {global.pending_reviews.count} Pending Matches
@@ -386,7 +386,7 @@ export function XeroSyncStats() {
                 variant="outline"
                 size="sm"
                 className="border-amber-400 text-amber-800 hover:bg-amber-100"
-                onClick={() => router.push("/contacts?filter=pending_review")}
+                onClick={() => router.push("/contacts/filter/pending_review")}
               >
                 Review All
                 <ChevronRight className="h-4 w-4 ml-1" />

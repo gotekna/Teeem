@@ -105,7 +105,7 @@ export default function AsicLoginsPage() {
     const groupId = e.target.value;
     setSelectedGroup(groupId);
     if (groupId) {
-      router.push(`/corporate/asic-logins?company_group_id=${groupId}`);
+      router.push(`/corporate/asic-logins/group/${groupId}`);
     } else {
       router.push("/corporate/asic-logins");
     }

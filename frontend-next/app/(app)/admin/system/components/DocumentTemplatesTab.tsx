@@ -82,16 +82,16 @@ export function DocumentTemplatesTab() {
   const innerTab = searchParams.get("inner") || "documents";
 
   const handleTabChange = useCallback((tabId: string) => {
-    const currentTab = searchParams.get("tab") || "doc-templates";
+    const innerPath = innerTab !== "documents" ? `/inner/${innerTab}` : "";
     const url = tabId === "ssot"
-      ? `/admin/system?tab=${currentTab}${innerTab !== "documents" ? `&inner=${innerTab}` : ""}`
-      : `/admin/system?tab=${currentTab}&subtab=${tabId}${innerTab !== "documents" ? `&inner=${innerTab}` : ""}`;
+      ? `/admin/system/doc-templates${innerPath}`
+      : `/admin/system/doc-templates/${tabId}${innerPath}`;
     router.push(url, { scroll: false });
-  }, [router, searchParams, innerTab]);
+  }, [router, innerTab]);
 
   const handleInnerTabChange = (value: string) => {
-    const currentTab = searchParams.get("tab") || "doc-templates";
-    router.push(`/admin/system?tab=${currentTab}${subtabFromUrl ? `&subtab=${subtabFromUrl}` : ""}&inner=${value}`, { scroll: false });
+    const subtabPath = subtabFromUrl ? `/${subtabFromUrl}` : "";
+    router.push(`/admin/system/doc-templates${subtabPath}/inner/${value}`, { scroll: false });
   };
 
   const [ssotTemplates, setSsotTemplates] = React.useState<SsotTemplate[]>([]);

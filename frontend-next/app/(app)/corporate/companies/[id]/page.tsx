@@ -315,7 +315,7 @@ export default function CompanyDetailPage() {
   const handleTabChange = React.useCallback((tabId: string) => {
     // Redirect Data tab to data warehouse page with company filter
     if (tabId === "data-main") {
-      router.push(`/data-warehouse?company_id=${companyId}`);
+      router.push(`/data-warehouse/company/${companyId}`);
       return;
     }
     // For overview, default to info subtab

@@ -681,9 +681,9 @@ class SmScheduleMasterSyncService
   end
 
   def create_new_task
-    # Get next task number for this job
-    max_task_number = job.sm_tasks.maximum(:task_number) || 0
-    next_task_number = max_task_number + 1
+    # Use template's task_number (SSoT for task numbering)
+    # This ensures job tasks match the schedule master template structure
+    template_task_number = template_row.task_number
 
     # Get max sequence order for appending at end
     max_sequence = job.sm_tasks.maximum(:sequence_order) || 0
@@ -702,7 +702,7 @@ class SmScheduleMasterSyncService
       # Core identifiers
       construction_id: job.id,
       sm_schedule_master_id: template_row.id,
-      task_number: next_task_number,
+      task_number: template_task_number,
       sequence_order: next_sequence,
 
       # Core task info (from template)

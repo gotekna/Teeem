@@ -178,12 +178,11 @@ export function PlansTab() {
   const activeTab = subtabFromUrl || "categories";
 
   const handleTabChange = useCallback((tabId: string) => {
-    const currentTab = searchParams.get("tab") || "plans";
     const url = tabId === "categories"
-      ? `/admin/system?tab=${currentTab}`
-      : `/admin/system?tab=${currentTab}&subtab=${tabId}`;
+      ? `/admin/system/plans`
+      : `/admin/system/plans/${tabId}`;
     router.push(url, { scroll: false });
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <div className="space-y-6">

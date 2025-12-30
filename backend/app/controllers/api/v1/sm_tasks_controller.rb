@@ -766,29 +766,105 @@ module Api
 
       def sm_task_params
         params.require(:sm_task).permit(
+          # Core fields
           :name,
+          :task_number,
           :status,
+          :description,
+          :notes,
+          :color,
+          :stage,
+          :trade,
+
+          # Schedule
           :start_date,
           :end_date,
           :duration_days,
           :required_by,
-          :trade,
-          :description,
-          :notes,
-          :color,
+          :sequence_order,
+
+          # Progress
           :progress_percentage,
-          :confirm,
-          :supplier_confirm,
-          :hold,
-          :hold_date,
-          # NOTE: purchase_order_id removed - SSoT is PurchaseOrder.sm_task_id
+          :started_at,
+          :completed_at,
+
+          # Assignments
           :assigned_user_id,
           :assigned_role,
           :supplier_id,
           :parent_task_id,
-          :sequence_order,
-          :job_id,  # Allow setting job_id for standalone task creation
-          documentation_category_ids: []
+          :job_id,
+
+          # Confirmation
+          :confirm,
+          :confirm_requested_at,
+          :confirm_status,
+          :require_confirm,
+          :supplier_confirm,
+          :supplier_confirmed_at,
+          :supplier_confirmed_by_id,
+
+          # Hold
+          :hold,
+          :hold_date,
+          :hold_at,
+          :hold_reason_id,
+          :hold_release_reason,
+          :hold_released_at,
+          :hold_released_by_id,
+          :hold_started_at,
+          :hold_started_by_id,
+          :is_hold_task,
+
+          # Requirements (from template but overridable)
+          :require_photo,
+          :po_required,
+          :critical_po,
+          :checklist_id,
+          :pass_fail_enabled,
+          :passed,
+
+          # Timing
+          :order_time_days,
+          :call_time_days,
+          :order_reminder_sent,
+          :call_reminder_sent,
+
+          # Automation
+          :spawn_call_task,
+          :spawn_order_task,
+          :spawn_scan_lag_days,
+          :spawn_scan_task_id,
+
+          # Task types
+          :is_photo_task,
+          :is_ticket,
+          :ticket_category,
+          :ticket_priority,
+          :source_type,
+
+          # Portal
+          :customer_visible,
+          :submitted_via_portal,
+
+          # Recurring
+          :recurring_sequence,
+          :recurring_task_definition_id,
+
+          # SLA
+          :sla_first_response_at,
+          :sla_resolution_due_at,
+          :sla_response_due_at,
+
+          # Template link
+          :sm_schedule_master_id,
+
+          # Other
+          :searchable,
+
+          # Arrays
+          documentation_category_ids: [],
+          linked_task_ids: []
         )
       end
 

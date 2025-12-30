@@ -1238,7 +1238,7 @@ export default function CorporateDashboardPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push(`/contacts/${contact.contact_id}?edit=true`);
+                  router.push(`/contacts/${contact.contact_id}/edit`);
                 }}
                 className="text-amber-600 hover:text-amber-800 flex items-center gap-1"
                 title="Edit Contact"

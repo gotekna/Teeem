@@ -322,7 +322,7 @@ function GroupsSubTab() {
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href={`/corporate?tab=groups`}>
+                          <Link href="/corporate/groups">
                             <ExternalLink className="h-4 w-4 mr-2" />
                             View in Corporate
                           </Link>

@@ -288,7 +288,7 @@ export default function WorkflowsDashboardPage() {
                         {task.is_overdue && (
                           <Badge variant="destructive">Overdue</Badge>
                         )}
-                        <Link href={`/tasks?tab=workflow`}>
+                        <Link href="/tasks/workflow">
                           <Button size="sm">
                             Complete
                             <ChevronRight className="h-4 w-4 ml-1" />

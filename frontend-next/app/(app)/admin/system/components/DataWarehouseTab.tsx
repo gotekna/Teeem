@@ -239,12 +239,12 @@ export function DataWarehouseTab() {
   const activeTab = subtabFromUrl || "overview";
 
   const handleTabChange = useCallback((tabId: string) => {
-    const currentTab = searchParams.get("tab") || "data-warehouse";
+    const companyPath = companyId ? `/company/${companyId}` : "";
     const url = tabId === "overview"
-      ? `/admin/system?tab=${currentTab}${companyId ? `&company_id=${companyId}` : ""}`
-      : `/admin/system?tab=${currentTab}&subtab=${tabId}${companyId ? `&company_id=${companyId}` : ""}`;
+      ? `/admin/system/data-warehouse${companyPath}`
+      : `/admin/system/data-warehouse/${tabId}${companyPath}`;
     router.push(url, { scroll: false });
-  }, [router, searchParams, companyId]);
+  }, [router, companyId]);
 
   const [loading, setLoading] = React.useState(true);
   const [stats, setStats] = React.useState<OrgDataStats | null>(null);
@@ -284,7 +284,7 @@ export function DataWarehouseTab() {
   }, [companyId]);
 
   const clearCompanyFilter = () => {
-    router.push("/admin/system?tab=data-warehouse");
+    router.push("/admin/system/data-warehouse");
   };
 
   const loadStats = async () => {

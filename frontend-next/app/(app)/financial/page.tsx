@@ -557,7 +557,7 @@ function XeroSyncStatusCard({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Link href={`/corporate/companies/${companyId}?tab=xero`}>
+            <Link href={`/corporate/companies/${companyId}/xero`}>
               <Button variant="outline" size="sm">
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Manage Xero
