@@ -513,20 +513,17 @@ export function XeroContactSync() {
   };
 
   // Build initial filters based on filterStatus
-  // Always filter to show only rows with xero_name (Xero is SSoT)
+  // Show ALL Xero links so user can review and clean up unused ones
   const initialFilters = React.useMemo(() => {
-    // Base filter: only show rows where xero_name is not empty
-    const baseFilter = { id: "xero-name-filter", column: "xero_name", operator: "is_not_empty" as const, value: null };
-
     switch (filterStatus) {
       case "synced":
-        return [baseFilter, { id: "status-filter", column: "synced", operator: "=" as const, value: true }];
+        return [{ id: "status-filter", column: "synced", operator: "=" as const, value: true }];
       case "not-synced":
-        return [baseFilter, { id: "status-filter", column: "synced", operator: "=" as const, value: false }];
+        return [{ id: "status-filter", column: "synced", operator: "=" as const, value: false }];
       case "errors":
-        return [baseFilter, { id: "status-filter", column: "has_error", operator: "=" as const, value: true }];
+        return [{ id: "status-filter", column: "has_error", operator: "=" as const, value: true }];
       default:
-        return [baseFilter];
+        return [];
     }
   }, [filterStatus]);
 
