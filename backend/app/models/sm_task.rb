@@ -122,11 +122,11 @@ class SmTask < ApplicationRecord
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
-  validates :task_number, presence: true, uniqueness: { scope: :construction_id }
+  validates :task_number, presence: true  # Template task_number is SSoT - no uniqueness constraint
   validates :sequence_order, presence: true
   validates :start_date, presence: true
   validates :end_date, presence: true
-  validates :duration_days, presence: true, numericality: { only_integer: true, greater_than: 0 }
+  validates :duration_days, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :status, presence: true
   validate :end_date_after_start_date
 
