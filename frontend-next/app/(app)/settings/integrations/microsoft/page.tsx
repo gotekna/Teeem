@@ -35,6 +35,8 @@ import {
   Key,
   Activity,
   Heart,
+  Cloud,
+  Link,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
@@ -119,6 +121,182 @@ const AVAILABLE_ORGANIZATIONS = [
   { name: "Homes of Hope", description: "Homes of Hope Microsoft 365" },
   { name: "Love Your World", description: "Love Your World Microsoft 365" },
 ];
+
+// ============================================
+// SharePoint Delegated Connection Component
+// This creates an org-level delegated credential via OAuth
+// which bypasses Azure AD Conditional Access issues
+// ============================================
+function SharePointDelegatedConnection() {
+  const [status, setStatus] = React.useState<{
+    connected: boolean;
+    source?: string;
+    drive_name?: string;
+    connected_by?: { name?: string; email?: string };
+    token_expires_at?: string;
+    error?: string;
+  } | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [connecting, setConnecting] = React.useState(false);
+  const [disconnecting, setDisconnecting] = React.useState(false);
+
+  React.useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const loadStatus = async () => {
+    try {
+      const data = await api.get<typeof status>("/api/v1/organization_onedrive/status");
+      setStatus(data);
+    } catch (error) {
+      console.error("Failed to load SharePoint status:", error);
+      setStatus({ connected: false });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      const data = await api.get<{ auth_url: string }>("/api/v1/organization_onedrive/authorize");
+      window.location.href = data.auth_url;
+    } catch (error) {
+      console.error("Failed to get auth URL:", error);
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("Disconnect SharePoint delegated access?")) return;
+    setDisconnecting(true);
+    try {
+      await api.delete("/api/v1/organization_onedrive/disconnect");
+      setStatus({ connected: false });
+    } catch (error) {
+      console.error("Failed to disconnect:", error);
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="border-blue-200 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20">
+        <CardContent className="flex items-center justify-center h-24">
+          <Spinner size={24} className="text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const isDelegated = status?.source === "organization_credential" || status?.source === "microsoft_credential";
+
+  return (
+    <Card className="border-blue-200 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20">
+      <CardHeader className="py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+              <Cloud className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                SharePoint Delegated Access
+                <Badge variant="outline" className="text-xs font-normal bg-blue-100 dark:bg-blue-900">
+                  Recommended
+                </Badge>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                OAuth connection that bypasses Azure AD Conditional Access blocking
+              </CardDescription>
+            </div>
+          </div>
+          <Badge className={status?.connected && isDelegated
+            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+            : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"}>
+            {status?.connected && isDelegated ? (
+              <>
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Connected
+              </>
+            ) : (
+              <>
+                <XCircle className="h-3 w-3 mr-1" />
+                Not Connected
+              </>
+            )}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-4">
+        {status?.connected && isDelegated ? (
+          <>
+            <div className="p-3 bg-white dark:bg-gray-900 rounded-lg border">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Drive</p>
+                  <p className="font-medium">{status.drive_name || "SharePoint"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Connected By</p>
+                  <p className="font-medium">{status.connected_by?.name || status.connected_by?.email || "Unknown"}</p>
+                </div>
+                {status.token_expires_at && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Token Expires</p>
+                    <p className="font-medium">
+                      {new Date(status.token_expires_at).toLocaleString("en-AU", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={loadStatus}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleConnect} disabled={connecting}>
+                {connecting ? <Spinner size={16} className="mr-2" /> : <Link className="h-4 w-4 mr-2" />}
+                Reconnect
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
+                {disconnecting ? <Spinner size={16} className="mr-2" /> : <XCircle className="h-4 w-4 mr-2" />}
+                Disconnect
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-3">
+            <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950/50 dark:border-amber-800">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800 dark:text-amber-300">Why use this?</AlertTitle>
+              <AlertDescription className="text-amber-700 dark:text-amber-400 text-sm">
+                App credentials (below) are blocked by Azure AD Conditional Access from Heroku.
+                This OAuth flow creates a <strong>delegated credential</strong> from your trusted device
+                that can be refreshed from anywhere.
+              </AlertDescription>
+            </Alert>
+            <Button onClick={handleConnect} disabled={connecting} className="bg-blue-600 hover:bg-blue-700">
+              {connecting ? (
+                <Spinner size={16} className="mr-2" />
+              ) : (
+                <Cloud className="h-4 w-4 mr-2" />
+              )}
+              Connect SharePoint (OAuth)
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function MicrosoftIntegrationPage() {
   const router = useRouter();
@@ -397,6 +575,9 @@ export default function MicrosoftIntegrationPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
+      {/* SharePoint Delegated Connection - Bypasses CA blocking */}
+      <SharePointDelegatedConnection />
 
       {/* Organization Cards - Show each org as a separate card */}
       <div className="space-y-3">
