@@ -18,7 +18,8 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-[dialog-overlay-hide_100ms] data-[state=open]:animate-[dialog-overlay-show_100ms]",
+      // Start below header (top-12 = 48px) so header/breadcrumb stay accessible
+      "fixed top-12 left-0 right-0 bottom-0 z-50 bg-black/50 data-[state=closed]:animate-[dialog-overlay-hide_100ms] data-[state=open]:animate-[dialog-overlay-show_100ms]",
       className,
     )}
     {...props}
