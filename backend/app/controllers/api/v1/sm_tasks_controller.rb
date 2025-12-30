@@ -19,7 +19,6 @@ module Api
       def index
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :predecessor_dependencies, :successor_dependencies,
           sm_task_attachments: :attachable
         )
 
@@ -51,7 +50,6 @@ module Api
       def job_index
         @tasks = @job.sm_tasks.ordered.includes(
           :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :predecessor_dependencies, :successor_dependencies,
           sm_task_attachments: :attachable
         )
 
