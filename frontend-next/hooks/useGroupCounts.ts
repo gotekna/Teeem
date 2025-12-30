@@ -91,8 +91,11 @@ export function useGroupCounts(
   const filtersKey = filters ? JSON.stringify(filters) : "";
 
   const fetchGroupCounts = useCallback(async () => {
+    console.log('[useGroupCounts] fetchGroupCounts called:', { enabled, foundationId, groupByColumn });
+
     // Don't fetch if disabled or missing required params
     if (!enabled || !foundationId || !groupByColumn) {
+      console.log('[useGroupCounts] Skipping - disabled or missing params');
       setGroups([]);
       setTotalRecords(0);
       setError(null);
@@ -120,30 +123,38 @@ export function useGroupCounts(
         params.filters = JSON.stringify(filters);
       }
 
+      console.log('[useGroupCounts] Calling API:', `/api/v1/foundations/${foundationId}/groups`, params);
+
       const response = await api.get<GroupsApiResponse>(
         `/api/v1/foundations/${foundationId}/groups`,
         { params, signal: abortController.signal }
       );
 
+      console.log('[useGroupCounts] API response:', response);
+
       // Only update state if this request wasn't aborted
       if (!abortController.signal.aborted) {
         if (response.success) {
-          setGroups(
-            response.groups.map((g) => ({
-              key: g.key,
-              count: g.count,
-              displayValue: g.display_value,
-            }))
-          );
+          const mappedGroups = response.groups.map((g) => ({
+            key: g.key,
+            count: g.count,
+            displayValue: g.display_value,
+          }));
+          console.log('[useGroupCounts] Setting groups:', mappedGroups.length, 'items');
+          setGroups(mappedGroups);
           setTotalRecords(response.total_records);
           setHasFetched(true);
         } else {
+          console.log('[useGroupCounts] API returned error:', response.error);
           setError(response.error || "Failed to fetch group counts");
         }
+      } else {
+        console.log('[useGroupCounts] Request was aborted, not updating state');
       }
     } catch (err) {
       // Ignore abort errors
       if (err instanceof Error && err.name === "AbortError") {
+        console.log('[useGroupCounts] Request aborted');
         return;
       }
       console.error("[useGroupCounts] Failed to fetch:", err);
