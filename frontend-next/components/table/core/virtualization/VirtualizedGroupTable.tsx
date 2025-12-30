@@ -86,8 +86,16 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   );
 
   // Build CSS grid template from column widths
+  // Last column uses minmax to fill available space (no truncation if there's room)
   const gridTemplate = visibleColumnsInOrder
-    .map((col) => `${columnWidths[col.key] || 100}px`)
+    .map((col, index) => {
+      const width = columnWidths[col.key] || 100;
+      // Last column expands to fill remaining space with minimum 200px
+      if (index === visibleColumnsInOrder.length - 1) {
+        return `minmax(${Math.max(width, 200)}px, 1fr)`;
+      }
+      return `${width}px`;
+    })
     .join(" ");
 
   // Calculate container height
@@ -109,8 +117,7 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
         className="grid bg-muted/50 border-t border-b text-xs font-medium"
         style={{
           gridTemplateColumns: gridTemplate,
-          width: totalWidth,
-          minWidth: "100%",
+          minWidth: totalWidth,
         }}
       >
         {visibleColumnsInOrder.map((column) => (
@@ -132,8 +139,7 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
         style={{
           height: containerHeight,
           overflow: "auto",
-          width: totalWidth,
-          minWidth: "100%",
+          minWidth: totalWidth,
         }}
       >
         <div
@@ -190,7 +196,7 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                     <div
                       key={`${column.key}-${colIndex}`}
                       className={cn(
-                        "flex items-center px-2 overflow-hidden text-ellipsis whitespace-nowrap",
+                        "flex items-center px-2 whitespace-nowrap",
                         column.key === "select" && "justify-center px-0",
                         column.key === "actions" && "justify-end"
                       )}
