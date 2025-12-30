@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -235,11 +234,8 @@ function TabsDisplayCell({
 export function DocumentTypesTab() {
   const router = useRouter();
 
-  // SSoT: URL state managed by useUrlState hook
-  const [urlState, setUrlState] = useUrlState({
-    scope: null as string | null,  // null = "all"
-  });
-  const scopeFilter = (urlState.scope as "company" | "job" | "contacts" | "all") || "all";
+  // Local state for scope filter - URL state doesn't work with catch-all routes
+  const [scopeFilter, setScopeFilter] = React.useState<"company" | "job" | "contacts" | "all">("all");
 
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -269,8 +265,8 @@ export function DocumentTypesTab() {
 
   // Handle scope tab change
   const handleScopeChange = React.useCallback((value: string) => {
-    setUrlState({ scope: value === "all" ? null : value });
-  }, [setUrlState]);
+    setScopeFilter(value as "company" | "job" | "contacts" | "all");
+  }, []);
 
   React.useEffect(() => {
     fetchColumns();
@@ -548,18 +544,18 @@ export function DocumentTypesTab() {
       {/* Scope Filter Tabs */}
       <Tabs value={scopeFilter} onValueChange={handleScopeChange}>
         <TabsList className="grid w-full grid-cols-4 max-w-3xl">
-          <TabsTrigger value="all" className="gap-2">
+          <TabsTrigger value="all" onClick={() => handleScopeChange("all")} className="gap-2">
             All ({documentTypes.length})
           </TabsTrigger>
-          <TabsTrigger value="company" className="gap-2">
+          <TabsTrigger value="company" onClick={() => handleScopeChange("company")} className="gap-2">
             <Building2 className="h-4 w-4" />
             Company ({documentTypes.filter(dt => dt.scope === "company" || dt.scope === "both").length})
           </TabsTrigger>
-          <TabsTrigger value="job" className="gap-2">
+          <TabsTrigger value="job" onClick={() => handleScopeChange("job")} className="gap-2">
             <Briefcase className="h-4 w-4" />
             Job ({documentTypes.filter(dt => dt.scope === "job" || dt.scope === "both").length})
           </TabsTrigger>
-          <TabsTrigger value="contacts" className="gap-2">
+          <TabsTrigger value="contacts" onClick={() => handleScopeChange("contacts")} className="gap-2">
             <Users className="h-4 w-4" />
             Contacts ({documentTypes.filter(dt => dt.scope === "contacts" || dt.scope === "people").length})
           </TabsTrigger>
