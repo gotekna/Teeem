@@ -1202,17 +1202,6 @@ export default function TeeemTableView({
     }
   }, [initialGroupByColumn, groupByColumns.length, setGroupByColumns]);
 
-  // Company/Role Search Mode: Initialize grouping when groupByRelationship is set
-  // This enables the hierarchical display (e.g., contacts grouped under companies)
-  const relationshipGroupInitRef = useRef(false);
-  useEffect(() => {
-    if (!relationshipGroupInitRef.current && groupByRelationship && groupByColumns.length === 0) {
-      relationshipGroupInitRef.current = true;
-      setGroupByColumns([groupByRelationship]);
-      setGroupViewMode("panel"); // Use panel mode for relationship grouping
-    }
-  }, [groupByRelationship, groupByColumns.length, setGroupByColumns, setGroupViewMode]);
-
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
   // effectiveColumns comes from Foundation API which only has database columns
@@ -5222,12 +5211,12 @@ export default function TeeemTableView({
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
             showHeader
           />
-        ) : filteredAndSortedEntries.length === 0 && loadingMore ? (
-          /* Show loading state when searching but still loading records */
+        ) : filteredAndSortedEntries.length === 0 && effectiveLoadingMore ? (
+          /* Show loading state when initial records are loading */
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <Spinner size={32} className="mb-4" />
             <p className="text-sm font-medium">Loading records...</p>
-            <p className="text-xs mt-1">Searching through all {totalCount || 'available'} records</p>
+            <p className="text-xs mt-1">Fetching data...</p>
           </div>
         ) : filteredAndSortedEntries.length === 0 && search ? (
           /* Show no results message when search is active but no matches */

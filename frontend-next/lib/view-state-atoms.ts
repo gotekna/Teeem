@@ -29,6 +29,7 @@ import {
   filterGroupsAtom as _filterGroupsAtom,
   interGroupLogicAtom as _interGroupLogicAtom,
 } from './filter-atoms';
+import { groupViewModeAtom } from './table-atoms';
 
 // Re-export all filter atoms from the SSoT location
 export {
@@ -443,6 +444,19 @@ export const applyViewAtom = atom(
       set(currentGroupByColumnsAtom, view.groupByColumn ? [view.groupByColumn] : []);
     } else {
       set(currentGroupByColumnsAtom, []);
+    }
+
+    // Grouped view type (Company/Role search mode)
+    // When view_type is "grouped", enable panel mode for relationship grouping
+    if (view.view_type === 'grouped') {
+      set(groupViewModeAtom, 'panel');
+      // If no groupByColumn is set, default to "linked_company" for contacts
+      if (!view.groupByColumns?.length && !view.groupByColumn) {
+        set(currentGroupByColumnsAtom, ['linked_company']);
+      }
+    } else {
+      // Reset to inline mode for table/relational views
+      set(groupViewModeAtom, 'inline');
     }
 
     // Display options - check both direct property and columns object (API format varies)
