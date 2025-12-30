@@ -106,6 +106,30 @@ const ENTITY_LABELS: Record<string, string> = {
 };
 
 /**
+ * Known tab display names for better formatting
+ */
+const TAB_DISPLAY_NAMES: Record<string, string> = {
+  "overview": "Overview",
+  "competitor": "Competitor Comparison",
+  "details": "Details",
+  "photos": "Photos",
+  "documents": "Documents",
+  "notes": "Notes",
+  "activity": "Activity",
+  "history": "History",
+  "timeline": "Timeline",
+  "schedule": "Schedule",
+  "invoices": "Invoices",
+  "bills": "Bills",
+  "payments": "Payments",
+  "contacts": "Contacts",
+  "items": "Items",
+  "settings": "Settings",
+  "permissions": "Permissions",
+  "integrations": "Integrations",
+};
+
+/**
  * Resolve a display name for a pathname
  *
  * @param pathname - URL pathname (e.g., "/jobs/123")
@@ -116,9 +140,18 @@ export function resolveDisplayName(
   pathname: string,
   searchParams?: URLSearchParams | null
 ): string {
+  // Get tab from query params
+  const tab = searchParams?.get('tab');
+
   // 1. Check exact match in known routes
   if (ROUTE_DISPLAY_NAMES[pathname]) {
-    return ROUTE_DISPLAY_NAMES[pathname];
+    const baseName = ROUTE_DISPLAY_NAMES[pathname];
+    // If there's a tab, append it
+    if (tab) {
+      const tabName = TAB_DISPLAY_NAMES[tab] || humanizeSegment(tab);
+      return `${baseName} › ${tabName}`;
+    }
+    return baseName;
   }
 
   // 2. Parse path segments
@@ -133,20 +166,22 @@ export function resolveDisplayName(
     // It's a numeric ID - show entity type + ID
     const entityType = parentSegment || segments[0];
     const label = ENTITY_LABELS[entityType] || humanizeSegment(entityType);
-    return `${label} #${lastSegment}`;
-  }
-
-  // 4. Check for tab in URL (e.g., ?tab=overview)
-  const tab = searchParams?.get('tab');
-  if (tab) {
-    // Return humanized tab name if on a detail page with tab
-    if (segments.length >= 2 && /^\d+$/.test(segments[segments.length - 1])) {
-      return humanizeSegment(tab);
+    const baseName = `${label} #${lastSegment}`;
+    // If there's a tab, append it
+    if (tab) {
+      const tabName = TAB_DISPLAY_NAMES[tab] || humanizeSegment(tab);
+      return `${baseName} › ${tabName}`;
     }
+    return baseName;
   }
 
-  // 5. Humanize last segment as fallback
-  return humanizeSegment(lastSegment);
+  // 4. Humanize last segment as fallback
+  const baseName = humanizeSegment(lastSegment);
+  if (tab) {
+    const tabName = TAB_DISPLAY_NAMES[tab] || humanizeSegment(tab);
+    return `${baseName} › ${tabName}`;
+  }
+  return baseName;
 }
 
 /**

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,23 @@ interface DashboardStats {
 export default function DashboardPage() {
   useSetLayoutMode("full-height");
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useUrlTabs("overview");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab: /dashboard → overview, /dashboard/competitor → competitor
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/dashboard", "").split("/").filter(Boolean);
+    return parts[0] || "overview";
+  }, [pathname]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    if (tab === "overview") {
+      router.push("/dashboard", { scroll: false });
+    } else {
+      router.push(`/dashboard/${tab}`, { scroll: false });
+    }
+  }, [router]);
+
   const [stats] = useState<DashboardStats>({
     activeJobs: 12,
     pendingPOs: 8,

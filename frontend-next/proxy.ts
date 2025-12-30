@@ -202,6 +202,14 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Dashboard Routes ===
+  if (pathname === "/dashboard") {
+    const tab = searchParams.get("tab");
+    if (tab && tab !== "overview") {
+      redirectPath = `/dashboard/${tab}`;
+    }
+  }
+
   // === Documents ===
   if (pathname === "/documents") {
     const tab = searchParams.get("tab");

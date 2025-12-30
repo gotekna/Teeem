@@ -131,12 +131,13 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
       const existingIndex = prev.findIndex((item) => isSameRoute(item.pathname, pathname));
 
       if (existingIndex >= 0) {
-        // User went back - truncate trail to this point
-        // Update the item's search params if they changed
+        // Same page - update search params and display name (e.g., tab change)
         const truncated = prev.slice(0, existingIndex + 1);
         truncated[existingIndex] = {
           ...truncated[existingIndex],
           searchParams: searchParams?.toString(),
+          // Re-resolve display name to reflect tab changes
+          displayName: resolveDisplayName(pathname, searchParams),
         };
         return truncated;
       }
