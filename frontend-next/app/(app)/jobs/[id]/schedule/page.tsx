@@ -97,6 +97,7 @@ interface CompareResult {
     will_update: number;
     will_skip: number;
     unchanged: number;
+    unlinked: number;
     total: number;
   };
   comparisons: Array<{
@@ -134,6 +135,14 @@ interface CompareResult {
     status: "will_create" | "will_update" | "will_skip" | "unchanged";
     skip_reason: string | null;
     differences: Record<string, { template: unknown; task: unknown }>;
+  }>;
+  unlinked_tasks: Array<{
+    task_id: number;
+    task_number: number;
+    name: string;
+    status: string;
+    started_at: string | null;
+    completed_at: string | null;
   }>;
 }
 
@@ -240,7 +249,7 @@ export default function SchedulePage() {
   const [loadingTemplate, setLoadingTemplate] = React.useState(false);
   const [confirmedMatches, setConfirmedMatches] = React.useState<Set<number>>(new Set());
   const [orphansToDelete, setOrphansToDelete] = React.useState<Set<number>>(new Set());
-  const [compareFilter, setCompareFilter] = React.useState<"all" | "will_create" | "will_update" | "will_skip" | "unchanged">("all");
+  const [compareFilter, setCompareFilter] = React.useState<"all" | "will_create" | "will_update" | "will_skip" | "unchanged" | "unlinked">("all");
 
   React.useEffect(() => {
     const fetchJob = async () => {
