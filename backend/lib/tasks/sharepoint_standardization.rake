@@ -63,18 +63,13 @@ namespace :sharepoint do
 
     puts "Drive ID: #{drive_id}"
 
-    # Get jobs path from settings
-    jobs_path = CorporateCompanySetting.sharepoint_full_path(:jobs)
-    puts "Jobs path: #{jobs_path}"
-
-    # Get the jobs folder
-    jobs_folder = client.get_folder_by_path(jobs_path)
-    unless jobs_folder
-      puts "❌ Jobs folder not found at #{jobs_path}"
+    # Use the root_folder_id stored on the credential - this IS the TEEEM Jobs folder
+    jobs_folder_id = credential.root_folder_id
+    unless jobs_folder_id
+      puts "❌ No root_folder_id on SharePoint credential"
       exit 1
     end
 
-    jobs_folder_id = jobs_folder["id"]
     puts "Jobs folder ID: #{jobs_folder_id}"
     puts ""
 
