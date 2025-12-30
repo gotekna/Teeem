@@ -74,6 +74,9 @@ interface SmTask {
     supplier_name: string | null;
     required_date: string | null;
   } | null;
+  // Lock status fields for dependency editor
+  confirm?: boolean;
+  supplier_confirm?: boolean;
 }
 
 interface SmTasksResponse {
