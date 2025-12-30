@@ -89,8 +89,10 @@ module Api
             column_types = model.columns.each_with_object({}) { |c, h| h[c.name] = c.type }
 
             # Helper to get SQL-safe column reference with optional TEXT casting
+            # Must cast non-text types to TEXT for ILIKE to work
             get_column_sql = ->(col) {
-              if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
+              col_type = column_types[col]
+              if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime, :jsonb, :json].include?(col_type)
                 "CAST(#{conn.quote_column_name(col)} AS TEXT)"
               else
                 conn.quote_column_name(col)
