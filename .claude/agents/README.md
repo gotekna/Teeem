@@ -1,6 +1,6 @@
 # Claude Code Agents
 
-This directory contains 18 specialized agent definitions for the TEEEM project.
+This directory contains 17 specialized agent definitions for the TEEEM project.
 
 **Last Updated:** 2025-12-31
 
@@ -17,10 +17,9 @@ This directory contains 18 specialized agent definitions for the TEEEM project.
 | code-guardian | Code quality (SSoT, components) | - |
 | frontend-auditor | UI/UX compliance | - |
 | table-guardian | TeeemTableView compliance | - |
-| column-type-validator | Column type SSoT validation | - |
+| foundation-validator | Column types + schema sync | - |
 | table-settings-sync | Sync table settings to Gold Standard | - |
-| method-auditor | NoMethodError prevention | - |
-| foundation-sync | DB schema ↔ Foundation sync | - |
+| ssot-auditor | NoMethodError prevention | - |
 | data-warehouse-health | Data integrity checks | - |
 | performance-auditor | Frontend performance | - |
 | product-planner | Product strategy | - |
@@ -50,10 +49,9 @@ This directory contains 18 specialized agent definitions for the TEEEM project.
 - **data-warehouse-health** - Data integrity across all tables
 
 ### Validation Agents
-- **column-type-validator** - Column type definitions sync
+- **foundation-validator** - Column types + DB schema sync (combines column-type-validator + foundation-sync)
 - **table-settings-sync** - Table settings to Gold Standard
-- **method-auditor** - Rails method call validation (NoMethodError)
-- **foundation-sync** - DB schema ↔ Foundation metadata
+- **ssot-auditor** - Rails method call validation (NoMethodError)
 
 ### Utility Agents
 - **agent-creator** - Interactive agent creation workflow

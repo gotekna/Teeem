@@ -67,6 +67,9 @@ export interface HoldState {
   heldBy?: string;
 }
 
+/**
+ * Task for canvas rendering
+ */
 export interface GanttTask {
   id: string;
   name: string;
@@ -75,6 +78,7 @@ export interface GanttTask {
   progress?: number;
   status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold' | 'at-risk';
   locked?: 'supplierConfirmed' | 'started' | 'manuallyPositioned';
+  /** Predecessor task IDs (optional - used for dependency tracking) */
   predecessorIds?: string[];
   /** IDs of broken dependencies (predecessor moved/deleted but link preserved) */
   brokenPredecessorIds?: string[];
@@ -2652,7 +2656,8 @@ export class GanttCanvas {
       this.renderer.drawDragPreview(
         this.dragTask,
         this.dragCurrentDate,
-        this.state.tasks.indexOf(this.dragTask)
+        this.state.tasks.indexOf(this.dragTask),
+        this.getPredecessorCount(this.dragTask.id)  // SSoT: pass predecessor count
       );
     }
 
@@ -4149,8 +4154,8 @@ export class GanttCanvas {
       status: 'not-started',
       locked: undefined,
       holdState: undefined,
-      predecessorIds: undefined,
       brokenPredecessorIds: undefined,
+      // Note: Dependencies are NOT copied - new task has no predecessors (SSoT: dependencies array)
     };
 
     const originalIndex = this.state.tasks.indexOf(original);
@@ -5105,7 +5110,8 @@ export class GanttCanvas {
       const duration = this.getTaskDuration(task.id);
       const progress = task.progress || 0;
       const status = task.status || 'not-started';
-      const preds = task.predecessorIds?.join(', ') || '-';
+      const predecessorIds = this.getPredecessorIds(task.id);  // SSoT: derive from dependencies
+      const preds = predecessorIds.length > 0 ? predecessorIds.join(', ') : '-';
 
       html += `
         <tr>
@@ -12539,9 +12545,11 @@ export class GanttCanvas {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (!task) return null;
 
-    const predecessors = (task.predecessorIds || []).map(predId => {
-      const predTask = this.state.tasks.find(t => t.id === predId);
-      return predTask ? { task: predTask, type: 'FS', lag: 0 } : null;
+    // SSoT: Get predecessors from dependencies array
+    const predecessorDeps = this.state.dependencies.filter(d => d.toId === taskId);
+    const predecessors = predecessorDeps.map(dep => {
+      const predTask = this.state.tasks.find(t => t.id === dep.fromId);
+      return predTask ? { task: predTask, type: dep.type || 'FS', lag: dep.lag || 0 } : null;
     }).filter(Boolean) as Array<{ task: GanttTask; type: string; lag: number }>;
 
     // Available tasks exclude self and tasks that would create circular deps
@@ -12552,11 +12560,25 @@ export class GanttCanvas {
     return { task, predecessors, availableTasks };
   }
 
-  // Apply dependency changes from modal
+  // Apply dependency changes from modal - SSoT: update dependencies array
   applyDependencyChanges(taskId: string, predecessorIds: string[]): void {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (task) {
-      task.predecessorIds = predecessorIds;
+      // SSoT: Update dependencies array instead of task.predecessorIds
+      // Remove existing dependencies for this task
+      this.state.dependencies = this.state.dependencies.filter(d => d.toId !== taskId);
+
+      // Add new dependencies
+      for (const predId of predecessorIds) {
+        this.state.dependencies.push({
+          id: `${predId}-${taskId}`,
+          fromId: predId,
+          toId: taskId,
+          type: 'FS',
+          lag: 0
+        });
+      }
+
       this.dependencyEditorTaskId = null;
       this.markDirty();
     }
@@ -13017,8 +13039,10 @@ export class GanttCanvas {
   }
 
   private formatPredecessorsForExport(task: GanttTask): string {
-    if (!task.predecessorIds || task.predecessorIds.length === 0) return '';
-    return task.predecessorIds.map(predId => {
+    // SSoT: Get predecessors from dependencies array
+    const predecessorIds = this.getPredecessorIds(task.id);
+    if (predecessorIds.length === 0) return '';
+    return predecessorIds.map(predId => {
       const predTask = this.state.tasks.find(t => t.id === predId);
       if (!predTask) return predId;
       const index = this.state.tasks.indexOf(predTask);
@@ -13033,13 +13057,17 @@ export class GanttCanvas {
   }> {
     const errors: Array<{ row: number; message: string }> = [];
     const importedTasks: GanttTask[] = [];
+    const pendingDependencies: Array<{ taskId: string; predecessorIds: string[] }> = [];
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       try {
-        const task = this.parseExcelRow(row, i + 1);
-        if (task) {
-          importedTasks.push(task);
+        const result = this.parseExcelRow(row, i + 1);
+        if (result) {
+          importedTasks.push(result.task);
+          if (result.predecessorIds.length > 0) {
+            pendingDependencies.push({ taskId: result.task.id, predecessorIds: result.predecessorIds });
+          }
         }
       } catch (error) {
         errors.push({
@@ -13052,12 +13080,26 @@ export class GanttCanvas {
     // Add imported tasks
     this.createStateSnapshot();
     this.state.tasks.push(...importedTasks);
+
+    // SSoT: Create dependencies after tasks are added
+    for (const { taskId, predecessorIds } of pendingDependencies) {
+      for (const predId of predecessorIds) {
+        this.state.dependencies.push({
+          id: `${predId}-${taskId}`,
+          fromId: predId,
+          toId: taskId,
+          type: 'FS',
+          lag: 0
+        });
+      }
+    }
+
     this.markDirty();
 
     return { imported: importedTasks.length, errors };
   }
 
-  private parseExcelRow(row: Record<string, unknown>, rowNumber: number): GanttTask | null {
+  private parseExcelRow(row: Record<string, unknown>, rowNumber: number): { task: GanttTask; predecessorIds: string[] } | null {
     const name = row.name || row.Name || row.task_name || row['Task Name'];
     if (!name || typeof name !== 'string') {
       throw new Error(`Row ${rowNumber}: Missing task name`);
@@ -13096,18 +13138,19 @@ export class GanttCanvas {
       endDate = new Date(startDate.getTime() + durationDays * 86400000);
     }
 
-    // Parse predecessors
+    // Parse predecessors (SSoT: dependencies will be created separately)
     const predValue = row.predecessors || row.Predecessors || row.predecessor_ids;
     const predecessorIds = this.parsePredecessorString(predValue as string);
 
-    return {
+    const task: GanttTask = {
       id: (row.id as string) || `import-${Date.now()}-${rowNumber}`,
       name: name as string,
       startDate,
       endDate,
       progress: typeof row.progress === 'number' ? row.progress : 0,
-      predecessorIds,
     };
+
+    return { task, predecessorIds };
   }
 
   private parsePredecessorString(value: unknown): string[] {
@@ -13501,12 +13544,15 @@ export class GanttCanvas {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (!task) return [];
 
+    // SSoT: Check predecessors from dependencies array
+    const hasPredecessors = this.hasPredecessors(taskId);
+
     return [
       { id: 'edit', label: 'Edit Task', icon: 'pencil' },
       { id: 'duplicate', label: 'Duplicate', icon: 'copy' },
       { id: 'divider1', type: 'divider' },
       { id: 'add-predecessor', label: 'Add Predecessor', icon: 'link' },
-      { id: 'remove-predecessors', label: 'Remove Predecessors', icon: 'unlink', disabled: !task.predecessorIds?.length },
+      { id: 'remove-predecessors', label: 'Remove Predecessors', icon: 'unlink', disabled: !hasPredecessors },
       { id: 'divider2', type: 'divider' },
       { id: 'lock', label: task.locked ? 'Unlock Task' : 'Lock Task', icon: task.locked ? 'unlock' : 'lock' },
       { id: 'divider3', type: 'divider' },
@@ -14513,11 +14559,12 @@ ${this.getAutomatedTestResults()}
   }
 
   private testDependencyCalculation(): { passed: boolean; message: string } {
-    // Find a task with dependencies
-    const taskWithDeps = this.state.tasks.find(t => t.predecessorIds && t.predecessorIds.length > 0);
+    // SSoT: Find a task with dependencies from dependencies array
+    const taskWithDeps = this.state.tasks.find(t => this.hasPredecessors(t.id));
     if (!taskWithDeps) return { passed: true, message: 'No dependencies to test' };
 
-    const predecessorId = taskWithDeps.predecessorIds![0];
+    const predecessorIds = this.getPredecessorIds(taskWithDeps.id);
+    const predecessorId = predecessorIds[0];
     const predecessor = this.state.tasks.find(t => t.id === predecessorId);
     if (!predecessor) return { passed: false, message: 'Predecessor not found' };
 

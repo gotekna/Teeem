@@ -44,5 +44,5 @@ export type {
 export {
   convertRowToTask,
   convertRowsToTasks,
-  convertToDependencies,
+  // SSoT: convertToDependencies removed - backend GanttDataService is SSoT for dependency conversion
 } from "./types";

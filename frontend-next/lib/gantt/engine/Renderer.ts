@@ -843,7 +843,7 @@ export class Renderer {
   /**
    * Draw drag preview overlay
    */
-  drawDragPreview(task: GanttTask, newDate: Date, rowIndex: number): void {
+  drawDragPreview(task: GanttTask, newDate: Date, rowIndex: number, predecessorCount: number = 0): void {
     const { taskBarHeight, taskBarPadding } = this.config;
     const dayWidth = this.viewport.getDayWidth();
 
@@ -911,9 +911,9 @@ export class Renderer {
     lines.push(`📆 Was: ${originalDateStr}`);
     lines.push(`⏱️ Duration: ${durationDays}d`);
 
-    // Show predecessor warning if moving too early
-    if (task.predecessorIds && task.predecessorIds.length > 0) {
-      lines.push(`⬅️ Predecessors: ${task.predecessorIds.length}`);
+    // Show predecessor warning if moving too early (SSoT: count passed as parameter)
+    if (predecessorCount > 0) {
+      lines.push(`⬅️ Predecessors: ${predecessorCount}`);
     }
 
     const tooltipX = newStartX + taskWidth / 2;

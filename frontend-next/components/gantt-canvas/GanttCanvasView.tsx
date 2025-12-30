@@ -14,10 +14,10 @@ import { useTheme } from "next-themes";
 import { GanttCanvas } from "@/lib/gantt/engine/GanttCanvas";
 import {
   convertRowsToTasks,
-  convertToDependencies,
   countWorkingDays,
   type SmScheduleMaster,
   type GanttTask,
+  type GanttDependency,
   type TaskClickEvent,
   type TaskDragEvent,
   type SuccessorInfo,
@@ -117,8 +117,8 @@ interface GanttCanvasViewProps {
   jobId?: number;
   /** Static tasks - bypasses API, used for demos */
   staticTasks?: GanttTask[];
-  /** Static dependencies - used with staticTasks */
-  staticDependencies?: Array<{ fromId: string; toId: string; type?: string }>;
+  /** Static dependencies - used with staticTasks (from API's gantt_data.dependencies) */
+  staticDependencies?: Array<{ id?: string; fromId: string; toId: string; type?: string; lag?: number }>;
   /** Show toolbar */
   showToolbar?: boolean;
   /** Templates for selector dropdown */
@@ -297,6 +297,8 @@ export function GanttCanvasView({
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
   const [showDependencies, setShowDependencies] = React.useState(true);
+  // SSoT: Dependencies from backend gantt_data endpoint (for template mode)
+  const [templateDependencies, setTemplateDependencies] = React.useState<GanttDependency[]>([]);
 
   // Photo panel state (only available when jobId is provided)
   const [showPhotoPanel, setShowPhotoPanel] = React.useState(false);
@@ -806,16 +808,17 @@ export function GanttCanvasView({
   // Check for circular dependencies
   // Returns true if adding these predecessors to taskId would create a cycle
   const hasCircularDependency = React.useCallback((taskId: string, newPredecessorIds: string[]): boolean => {
+    // SSoT: Derive predecessors from dependencies (templateDependencies or staticDependencies)
+    const currentDeps = isStaticMode ? (staticDependencies || []) : templateDependencies;
+    const getPredecessorIds = (id: string): string[] => currentDeps.filter(d => d.toId === id).map(d => d.fromId);
+
     // Helper: Check if targetId is an ancestor of currentId
     const isAncestor = (targetId: string, currentId: string, visited: Set<string>): boolean => {
       if (currentId === targetId) return true; // Found the target in ancestor chain
       if (visited.has(currentId)) return false; // Already checked this branch
       visited.add(currentId);
 
-      const currentTask = tasks.find(t => t.id === currentId);
-      if (!currentTask) return false;
-
-      for (const predId of currentTask.predecessorIds || []) {
+      for (const predId of getPredecessorIds(currentId)) {
         if (isAncestor(targetId, predId, visited)) {
           return true;
         }
@@ -832,7 +835,7 @@ export function GanttCanvasView({
       }
     }
     return false;
-  }, [tasks]);
+  }, [templateDependencies, staticDependencies, isStaticMode]);
 
   // Load data from API (only when not using static mode)
   // NOTE: Defined early because saveDependencies, handleTaskResize and handleDurationSave depend on it
@@ -846,16 +849,24 @@ export function GanttCanvasView({
       }
       setError(null);
 
-      const response = await api.get<ApiResponse>(
-        `/api/v1/sm_schedule_master_templates/${templateId}/rows`
-      );
+      // Fetch both rows (for editing) and gantt_data (for dependencies) in parallel
+      const [rowsResponse, ganttResponse] = await Promise.all([
+        api.get<ApiResponse>(`/api/v1/sm_schedule_master_templates/${templateId}/rows`),
+        api.get<{ success: boolean; gantt_data: { tasks: unknown[]; dependencies: GanttDependency[] } }>(
+          `/api/v1/sm_schedule_master_templates/${templateId}/gantt_data`
+        ),
+      ]);
 
-      if (response.success && response.rows) {
+      if (rowsResponse.success && rowsResponse.rows) {
         // Backend returns rows sorted by sequence_order
-        // Scheduling is calculated client-side from predecessor_ids
-        setRows(response.rows);
+        setRows(rowsResponse.rows);
       } else {
         setError("Failed to load template rows");
+      }
+
+      // SSoT: Use dependencies from gantt_data endpoint (backend is SSoT for task_number -> row.id conversion)
+      if (ganttResponse.success && ganttResponse.gantt_data?.dependencies) {
+        setTemplateDependencies(ganttResponse.gantt_data.dependencies);
       }
     } catch (err) {
       console.error("Error loading Gantt data:", err);
@@ -1840,23 +1851,24 @@ export function GanttCanvasView({
     let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
 
     if (isStaticMode && staticTasks) {
-      // Static mode - use provided data directly
+      // Static mode - use provided data directly (dependencies come from API's gantt_data.dependencies)
       taskList = staticTasks;
       dependencies = (staticDependencies || []).map((d, i) => ({
-        id: `dep-${i}`,
+        id: d.id || `dep-${i}`,
         fromId: d.fromId,
         toId: d.toId,
         type: (d.type || "FS") as "FS" | "SS" | "FF" | "SF",
-        lag: 0,
+        lag: d.lag || 0,
       }));
     } else {
-      // API mode - convert rows to tasks
+      // Template mode - convert rows to tasks, use SSoT dependencies from gantt_data endpoint
       // Use company timezone for consistent date handling
       const today = getTodayInCompanyTimezone();
       const projectStartDate = new Date(today);
       // First task starts today
       taskList = convertRowsToTasks(rows, projectStartDate);
-      dependencies = convertToDependencies(rows);
+      // SSoT: Use dependencies from gantt_data endpoint (backend handles task_number -> row.id conversion)
+      dependencies = templateDependencies;
     }
 
     // Store tasks for sidebar
@@ -1920,7 +1932,7 @@ export function GanttCanvasView({
       gantt.destroy();
       ganttRef.current = null;
     };
-  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition, handleDependencyCreate]);
+  }, [rows, staticTasks, staticDependencies, templateDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition, handleDependencyCreate]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {

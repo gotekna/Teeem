@@ -164,6 +164,10 @@ export interface JobTaskRowData {
 /**
  * Task for canvas rendering
  * Simplified from SmScheduleMaster with computed dates
+ *
+ * NOTE: predecessorIds was removed in SSoT refactor.
+ * Dependency data now comes exclusively from GanttDependency[] array.
+ * Use canvas.getPredecessorIds(taskId) to derive predecessors from dependencies.
  */
 export interface GanttTask {
   id: string;
@@ -173,6 +177,7 @@ export interface GanttTask {
   progress?: number;
   status?: TaskStatus;
   locked?: LockType;
+  // predecessorIds - used for dependency tracking (optional for backwards compat)
   predecessorIds?: string[];
   supplierId?: number;
   supplierName?: string;
@@ -567,7 +572,7 @@ export function convertRowToTask(
     progress: 0,
     status: 'not-started',
     locked: undefined,
-    predecessorIds: row.predecessor_ids?.map((p) => String(p.id)) || [],
+    // SSoT: predecessorIds removed - dependencies come from GanttDependency[] array
     supplierId: row.supplier_id ?? undefined,
     supplierName: row.supplier_name ?? undefined,
     shape,
@@ -675,35 +680,6 @@ export function convertRowsToTasks(
   return tasks;
 }
 
-/**
- * Convert predecessor data to GanttDependencies
- */
-export function convertToDependencies(rows: SmScheduleMaster[]): GanttDependency[] {
-  const dependencies: GanttDependency[] = [];
-
-  // Build lookup: task_number -> row.id (for converting predecessor references)
-  const taskNumToRowId = new Map<number, number>();
-  for (const row of rows) {
-    taskNumToRowId.set(row.task_number, row.id);
-  }
-
-  for (const row of rows) {
-    if (!row.predecessor_ids) continue;
-
-    for (const pred of row.predecessor_ids) {
-      // pred.id is task_number, need to convert to row.id for matching task.id
-      const fromRowId = taskNumToRowId.get(pred.id);
-      if (!fromRowId) continue; // Skip if predecessor doesn't exist
-
-      dependencies.push({
-        id: `${fromRowId}-${row.id}`,
-        fromId: String(fromRowId),
-        toId: String(row.id),
-        type: pred.type || 'FS',
-        lag: pred.lag || 0,
-      });
-    }
-  }
-
-  return dependencies;
-}
+// SSoT: convertToDependencies was removed - backend GanttDataService is now the only place
+// that converts task_number to row.id. Dependencies come from API's gantt_data.dependencies.
+// See: backend/app/services/gantt_data_service.rb

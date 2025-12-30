@@ -288,7 +288,7 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     status: statusMap[task.status] || "not-started",
     progress: task.progress_percentage || 0,
     locked: task.locked ? "manuallyPositioned" : undefined,
-    predecessorIds: task.dependencies || [],
+    // SSoT: predecessorIds removed - dependencies come from gantt_data.dependencies array
     // Supplier and PO fields for sidebar display
     supplierId: task.supplier_id ?? undefined,
     supplierName: task.supplier_name ?? undefined,

@@ -186,6 +186,7 @@ export class ExportManager {
     } = options;
 
     const tasks = this.getTasks();
+    const dependencies = this.getDependencies ? this.getDependencies() : [];
     const formatDate = dateFormat === 'iso'
       ? (d: Date) => d.toISOString().split('T')[0]
       : (d: Date) => d.toLocaleDateString();
@@ -194,6 +195,8 @@ export class ExportManager {
 
     const rows = tasks.map(t => {
       const duration = Math.ceil((t.endDate.getTime() - t.startDate.getTime()) / (24 * 60 * 60 * 1000));
+      // SSoT: Derive predecessors from dependencies array
+      const predecessors = dependencies.filter(d => d.toId === t.id).map(d => d.fromId).join(';');
       return [
         t.id,
         `"${t.name.replace(/"/g, '""')}"`,
@@ -203,7 +206,7 @@ export class ExportManager {
         (t.progress || 0).toString(),
         t.status || 'not-started',
         t.locked || '',
-        (t.predecessorIds || []).join(';'),
+        predecessors,
       ].join(delimiter);
     });
 
@@ -252,7 +255,8 @@ export class ExportManager {
         progress: t.progress,
         status: t.status,
         locked: t.locked,
-        predecessorIds: t.predecessorIds,
+        // SSoT: Derive predecessors from dependencies array for export
+        predecessorIds: dependencies.filter(d => d.toId === t.id).map(d => d.fromId),
         supplierId: t.supplierId,
         supplierName: t.supplierName,
       })),

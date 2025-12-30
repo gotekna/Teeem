@@ -22,7 +22,7 @@
  * ```
  */
 
-import type { GanttTask } from '../GanttCanvas';
+import type { GanttTask, GanttDependency } from '../GanttCanvas';
 
 // ============================================================================
 // Types
@@ -76,6 +76,9 @@ export class FilterManager {
   // Tasks (injected)
   private tasks: GanttTask[] = [];
 
+  // Dependencies (SSoT for predecessor relationships)
+  private dependencies: GanttDependency[] = [];
+
   // Critical path task IDs (for criticalPathOnly filter)
   private criticalPathTaskIds: Set<string> = new Set();
 
@@ -94,6 +97,14 @@ export class FilterManager {
    */
   setTasks(tasks: GanttTask[]): void {
     this.tasks = tasks;
+    this.invalidateCache();
+  }
+
+  /**
+   * Set dependencies (SSoT for predecessor relationships)
+   */
+  setDependencies(dependencies: GanttDependency[]): void {
+    this.dependencies = dependencies;
     this.invalidateCache();
   }
 
@@ -313,9 +324,10 @@ export class FilterManager {
 
   /**
    * Get tasks with no predecessors (root tasks)
+   * SSoT: Derives predecessor info from dependencies array
    */
   getRootTasks(): GanttTask[] {
-    return this.tasks.filter(t => !t.predecessorIds || t.predecessorIds.length === 0);
+    return this.tasks.filter(t => !this.dependencies.some(d => d.toId === t.id));
   }
 
   /**
