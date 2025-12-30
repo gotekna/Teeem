@@ -38,6 +38,7 @@ import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { useNavigation, useToggleNavCollapse, type NavigationItem, type NavigationChildItem } from "@/hooks/useNavigation";
 import { getIcon } from "@/lib/icon-map";
+import { SIDEBAR_NAVIGATION_EVENT } from "@/contexts/BreadcrumbContext";
 
 export function Sidebar() {
   const { isExpanded, setIsExpanded } = useSidebar();
@@ -270,7 +271,13 @@ export function Sidebar() {
         key={item.href}
         href={item.href}
         prefetch={false}
-        onClick={() => !active && setLoadingHref(item.href)}
+        onClick={() => {
+          if (!active) {
+            setLoadingHref(item.href);
+            // Reset breadcrumb trail - starting new navigation flow
+            window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
+          }
+        }}
         className={cn(
           "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
           isChild && (isExpanded || mobile) && !isGrandchild && !hasChevron && "pl-10",
@@ -371,7 +378,13 @@ export function Sidebar() {
           <Link
             href={item.href}
             prefetch={false}
-            onClick={() => !active && setLoadingHref(item.href)}
+            onClick={() => {
+              if (!active) {
+                setLoadingHref(item.href);
+                // Reset breadcrumb trail - starting new navigation flow
+                window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
+              }
+            }}
             className={cn(
               "flex-1 flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
               active

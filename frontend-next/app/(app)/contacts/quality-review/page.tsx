@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -223,8 +223,13 @@ function ReviewCard({
 
 export default function ContactQualityReviewPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const filterParam = searchParams.get("filter");
+  const pathname = usePathname();
+
+  // Parse filter from path: /contacts/quality-review/abn_mismatch → "abn_mismatch"
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/contacts/quality-review", "").split("/").filter(Boolean);
+    return parts[0] || "all";
+  }, [pathname]);
 
   const [reviews, setReviews] = React.useState<QualityReview[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -235,10 +240,10 @@ export default function ContactQualityReviewPage() {
     by_status: Record<string, number>;
     total_count: number;
   } | null>(null);
-  const activeTab = filterParam || "all";
 
   const handleTabChange = React.useCallback((tabId: string) => {
-    const url = tabId === "all" ? "/contacts/quality-review" : `/contacts/quality-review?filter=${tabId}`;
+    // Path-based navigation: /contacts/quality-review, /contacts/quality-review/abn_mismatch
+    const url = tabId === "all" ? "/contacts/quality-review" : `/contacts/quality-review/${tabId}`;
     router.push(url, { scroll: false });
   }, [router]);
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,15 +89,24 @@ interface PipelineResponse {
 export default function LeadsPage() {
   useSetLayoutMode("full-height");
   const router = useRouter();
-  const searchParams = useSearchParams();
-  // URL is SSoT for tab state (back button support)
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "leads";
+  const pathname = usePathname();
+
+  // Parse tab from path: /leads/tab/pipeline → "pipeline", /leads → "leads"
+  // Uses /leads/tab/ prefix to avoid conflicts with /leads/[id] detail routes
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/leads", "").split("/").filter(Boolean);
+    // Path format: /leads/tab/{tabname}
+    if (parts[0] === "tab" && parts[1]) {
+      return parts[1];
+    }
+    return "leads";
+  }, [pathname]);
 
   const handleTabChange = useCallback((tabId: string) => {
+    // Path-based navigation: /leads, /leads/tab/pipeline, /leads/tab/email-proposals
     const url = tabId === "leads"
       ? "/leads"
-      : `/leads?tab=${tabId}`;
+      : `/leads/tab/${tabId}`;
     router.push(url, { scroll: false });
   }, [router]);
 

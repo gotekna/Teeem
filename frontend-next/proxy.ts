@@ -203,6 +203,22 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Portal Routes ===
+  if (pathname === "/portal") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/portal/${tab}`;
+    }
+  }
+
+  // === Corporate Routes ===
+  if (pathname === "/corporate") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/corporate/${tab}`;
+    }
+  }
+
   // === Corporate ASIC ===
   if (pathname === "/corporate/asic-logins") {
     const groupId = searchParams.get("company_group_id");

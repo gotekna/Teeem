@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,13 +28,18 @@ import { api } from "@/lib/api";
 // Foundation ID for Portal Users table
 
 export default function PortalPage() {
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "users";
+
+  // Parse tab from path: /portal/users → "users", /portal → "users"
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/portal", "").split("/").filter(Boolean);
+    return parts[0] || "users";
+  }, [pathname]);
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "users" ? "/portal" : `/portal?tab=${tabId}`;
+    // Path-based navigation: /portal/users, /portal/analytics
+    const url = tabId === "users" ? "/portal" : `/portal/${tabId}`;
     router.push(url, { scroll: false });
   }, [router]);
 

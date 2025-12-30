@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { useSetAtom } from "jotai";
 import Link from "next/link";
 import { resetAllFiltersAtom, foundationViewsAtom, activeViewIdAtom } from "@/lib/view-state-atoms";
@@ -198,10 +198,19 @@ function getValidRelationshipTypes(
 export default function ContactDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { toast } = useToast();
   const id = params.id as string;
   // Note: returnTo is now handled internally by BackButton component
+
+  // Parse tab and subtab from path: /contacts/123/overview/identity → { tab: "overview", subtab: "identity" }
+  const pathSegments = useMemo(() => {
+    const parts = pathname.replace(`/contacts/${id}`, "").split("/").filter(Boolean);
+    return {
+      tab: parts[0] || "overview",
+      subtab: parts[1] || null,
+    };
+  }, [pathname, id]);
 
   // SSoT: Entity types from API
   const { metadata: entityTypeMetadata } = useEntityTypes();
@@ -328,8 +337,9 @@ export default function ContactDetailPage() {
   const [newEmployeeLastName, setNewEmployeeLastName] = useState("");
   const [creatingEmployee, setCreatingEmployee] = useState(false);
 
-  const activeTab = searchParams.get("tab") || "overview";
-  const activeSubTab = searchParams.get("subtab") || "identity";
+  // SSoT: Tab state from path segments (not query params)
+  const activeTab = pathSegments.tab;
+  const activeSubTab = pathSegments.subtab || "identity";
 
   // Jotai atom setters for resetting view state when switching to emails tab
   // ULTRA Solution: Use action atoms for filter mutations
@@ -673,16 +683,19 @@ export default function ContactDetailPage() {
     fetchAllContacts();
   }, [editModalOpen, availableContacts.length, contact?.id]);
 
-  // SSoT: Auto-open edit modal when ?edit=true is in URL (e.g., from CG page)
+  // SSoT: Auto-open edit modal when /edit is in path (e.g., from CG page)
+  // Also supports legacy ?edit=true query param for backward compatibility
   useEffect(() => {
-    const editParam = searchParams.get("edit");
-    if (editParam === "true" && contact && !loading) {
+    const isEditPath = pathname.endsWith("/edit");
+    const hasEditQueryParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("edit") === "true";
+
+    if ((isEditPath || hasEditQueryParam) && contact && !loading) {
       setEditModalOpen(true);
-      // Remove the ?edit=true from URL to clean it up
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, "", newUrl);
+      // Clean up URL by removing /edit or ?edit=true
+      const cleanPath = pathname.replace(/\/edit$/, "");
+      window.history.replaceState({}, "", cleanPath);
     }
-  }, [searchParams, contact, loading]);
+  }, [pathname, contact, loading]);
 
   const loadContact = async () => {
     try {
@@ -1749,29 +1762,31 @@ export default function ContactDetailPage() {
       resetFiltersForEmailsTab();
     }
 
-    // Use current URL id, don't show ?tab= for default "overview" tab
+    // Path-based navigation: /contacts/123/overview, /contacts/123/financial, etc.
     const newUrl = value === "overview"
       ? `/contacts/${id}`
-      : `/contacts/${id}?tab=${value}`;
+      : `/contacts/${id}/${value}`;
     router.push(newUrl);
   };
 
   const handleCorporateSubTabChange = (value: string) => {
+    // Path-based: /contacts/123/corporate/identity, /contacts/123/corporate/summary
     const newUrl = value === "identity"
-      ? `/contacts/${id}?tab=corporate`
-      : `/contacts/${id}?tab=corporate&subtab=${value}`;
+      ? `/contacts/${id}/corporate`
+      : `/contacts/${id}/corporate/${value}`;
     router.push(newUrl);
   };
 
   const handleFinancialSubTabChange = (value: string) => {
+    // Path-based: /contacts/123/financial/bank, /contacts/123/financial/xero
     const newUrl = value === "bank"
-      ? `/contacts/${id}?tab=financial`
-      : `/contacts/${id}?tab=financial&subtab=${value}`;
+      ? `/contacts/${id}/financial`
+      : `/contacts/${id}/financial/${value}`;
     router.push(newUrl);
   };
 
-  // Get appropriate sub-tab based on active main tab
-  const activeFinancialSubTab = activeTab === "financial" ? (searchParams.get("subtab") || "bank") : "bank";
+  // Get appropriate sub-tab based on active main tab (now from path segments)
+  const activeFinancialSubTab = activeTab === "financial" ? (pathSegments.subtab || "bank") : "bank";
 
   if (loading) {
     return (

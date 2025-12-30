@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,8 +40,17 @@ interface Folder {
 
 export default function DocumentsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const activeTab = (searchParams.get("tab") as DocumentType) || "company";
+  const pathname = usePathname();
+
+  // Parse tab from path: /documents/job → "job", /documents → "company"
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/documents", "").split("/").filter(Boolean);
+    const tab = parts[0];
+    if (tab && Object.keys(DOCUMENT_TYPES).includes(tab)) {
+      return tab as DocumentType;
+    }
+    return "company";
+  }, [pathname]) as DocumentType;
 
   const [folders] = useState<Folder[]>([
     { id: "1", name: "Contracts", path: "/contracts", documents_count: 12 },
@@ -67,9 +76,10 @@ export default function DocumentsPage() {
     }
   }, [refresh, activeTab]);
 
-  // Handle tab change
+  // Handle tab change - path-based navigation
   const handleTabChange = useCallback((value: string) => {
-    router.push(`/documents?tab=${value}`);
+    const url = value === "company" ? "/documents" : `/documents/${value}`;
+    router.push(url);
   }, [router]);
 
   // Stats from records

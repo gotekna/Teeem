@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,16 +136,21 @@ function getCacheAgeColor(seconds: number | null): string {
 
 export default function XeroPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-  // URL is SSoT for tab state (back button support)
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "invoices";
+  // Parse tab from path: /xero/payments → "payments", /xero → "invoices"
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/xero", "").split("/").filter(Boolean);
+    // Skip "callback" path (OAuth callback uses query params)
+    if (parts[0] === "callback") return "invoices";
+    return parts[0] || "invoices";
+  }, [pathname]);
 
   const handleTabChange = useCallback((tabId: string) => {
+    // Path-based navigation: /xero, /xero/payments, /xero/reports
     const url = tabId === "invoices"
       ? "/xero"
-      : `/xero?tab=${tabId}`;
+      : `/xero/${tabId}`;
     router.push(url, { scroll: false });
   }, [router]);
 

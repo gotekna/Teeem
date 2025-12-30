@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { useUrlTabs } from "@/hooks/useUrlTabs";
+import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -484,9 +483,24 @@ function BeneficiariesTable() {
 export default function CorporateDashboardPage() {
   useSetLayoutMode("full-height");
   const router = useRouter();
+  const pathname = usePathname();
 
-  // SSoT: URL tab state managed by useUrlTabs hook
-  const [activeTab, handleTabChange] = useUrlTabs("groups");
+  // Parse tab from path: /corporate/structure → "structure", /corporate → "groups"
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/corporate", "").split("/").filter(Boolean);
+    // Skip "companies" and other sub-routes (they have their own pages)
+    const VALID_TABS = ["groups", "memberships", "people", "structure"];
+    if (parts[0] && VALID_TABS.includes(parts[0])) {
+      return parts[0];
+    }
+    return "groups";
+  }, [pathname]);
+
+  const handleTabChange = React.useCallback((tabId: string) => {
+    // Path-based navigation: /corporate, /corporate/structure, etc.
+    const url = tabId === "groups" ? "/corporate" : `/corporate/${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
 
   // Dashboard state
   const [loading, setLoading] = React.useState(true);

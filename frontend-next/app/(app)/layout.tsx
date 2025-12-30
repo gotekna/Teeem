@@ -9,6 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { LayoutModeProvider, useLayoutMode } from "@/contexts/LayoutModeContext";
+import { BreadcrumbProvider } from "@/contexts/BreadcrumbContext";
+import { BreadcrumbTrail } from "@/components/navigation/BreadcrumbTrail";
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 
@@ -80,6 +82,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <div className="hidden">
         <FloatingHelpButton />
       </div>
+
+      {/* Breadcrumb Trail - floating overlay below header */}
+      <BreadcrumbTrail />
     </div>
   );
 }
@@ -89,7 +94,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <ViewModeProvider>
         <LayoutModeProvider>
-          <AppLayoutContent>{children}</AppLayoutContent>
+          <BreadcrumbProvider>
+            <AppLayoutContent>{children}</AppLayoutContent>
+          </BreadcrumbProvider>
         </LayoutModeProvider>
       </ViewModeProvider>
     </SidebarProvider>
