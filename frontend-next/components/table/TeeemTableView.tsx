@@ -4835,7 +4835,7 @@ export default function TeeemTableView({
                     </Button>
                   </div>
                   <DropdownMenuItem
-                    onClick={() => window.open(`/admin/system/components/${effectiveFoundationId}`, '_blank')}
+                    onClick={() => window.open(`/admin/system/components`, '_blank')}
                     className="flex items-center gap-2"
                   >
                     <Settings className="h-4 w-4" />

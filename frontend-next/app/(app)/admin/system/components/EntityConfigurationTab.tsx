@@ -124,9 +124,18 @@ export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTa
     };
   }, []);
 
-  // Always render fullscreen
+  // Handle close - navigate back to admin system page
+  const handleClose = React.useCallback(() => {
+    if (onClose) {
+      onClose();
+    } else {
+      router.push("/admin/system");
+    }
+  }, [onClose, router]);
+
+  // Always render fullscreen - z-[120] to be above breadcrumb (z-110)
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="fixed inset-0 z-[120] bg-background flex flex-col">
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full">
         {/* Compact header with scope tabs inline */}
         <div className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-muted/30">
@@ -153,17 +162,15 @@ export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTa
               })}
             </TabsList>
           </div>
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-7 px-2 text-xs text-muted-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-              Back
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClose}
+            className="h-7 px-2 text-xs text-muted-foreground"
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            Close
+          </Button>
         </div>
 
         {/* Scope Content */}

@@ -1124,8 +1124,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   );
 
   // Plans always renders in fullscreen mode to maximize viewing area
+  // z-[120] to be above breadcrumb (z-110) - breadcrumb hidden on fullscreen pages
   return (
-    <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+    <div className="fixed inset-0 z-[120] bg-background flex flex-col">
       {/* Header bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
         <div className="flex items-center gap-3">
