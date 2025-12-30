@@ -194,6 +194,9 @@ class CreateXeroSyncContactsFoundation < ActiveRecord::Migration[7.1]
       Column.create!(col_attrs.merge(foundation_id: foundation.id))
     end
 
+    # Force the slug since the model callback generates it from database_table_name
+    Foundation.where(id: foundation.id).update_all(slug: "xero-sync-contacts")
+
     puts "Created Foundation ##{foundation.id} for XeroSyncContact with #{columns.size} columns"
   end
 
