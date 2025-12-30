@@ -2168,6 +2168,7 @@ Rails.application.routes.draw do
         end
         member do
           get :health  # GET /api/v1/foundations/:id/health - Health checks for this table
+          post :fix_health  # POST /api/v1/foundations/:id/fix_health - Auto-fix health issues
           get :schema  # GET /api/v1/foundations/:id/schema - Column schema for this table
           get :groups  # GET /api/v1/foundations/:id/groups - Server-side group counts by column
         end

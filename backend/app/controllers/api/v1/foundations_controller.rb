@@ -2,7 +2,7 @@ module Api
   module V1
     class FoundationsController < ApplicationController
       skip_before_action :authorize_request, only: [ :table_ids ]
-      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :schema, :groups ]
+      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :fix_health, :schema, :groups ]
 
       # GET /api/v1/foundations
       # Performance: Use include_counts=true to include record counts (adds 141 COUNT queries)
@@ -154,6 +154,37 @@ module Api
           table_name: @foundation.name,
           cached: false
         )
+      end
+
+      # POST /api/v1/foundations/:id/fix_health
+      # Apply auto-fix for health check issues
+      # Params: fix_type - the type of fix to apply (e.g., "clean_headers")
+      def fix_health
+        fix_type = params[:fix_type]
+
+        result = case fix_type
+        when "clean_headers"
+          if @foundation.slug == "sm-schedule-master"
+            HealthChecks::SmScheduleMastersCheck.fix_dirty_headers!
+          else
+            { error: "clean_headers fix not supported for this foundation" }
+          end
+        else
+          { error: "Unknown fix_type: #{fix_type}" }
+        end
+
+        if result[:error]
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        else
+          # Clear cache after fix
+          HealthCheckCache.where(foundation_id: @foundation.id).destroy_all
+
+          render json: {
+            success: true,
+            fixed: result[:fixed] || 0,
+            message: "Fixed #{result[:fixed] || 0} records"
+          }
+        end
       end
 
       # GET /api/v1/foundations/:id/schema

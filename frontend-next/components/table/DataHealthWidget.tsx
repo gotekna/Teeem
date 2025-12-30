@@ -44,6 +44,8 @@ interface HealthCheck {
   count: number;
   items?: HealthCheckItem[];
   action_path?: string;
+  auto_fixable?: boolean;
+  fix_type?: string;
 }
 
 /**
@@ -153,8 +155,11 @@ export function DataHealthWidget({
   const [fixingCheckName, setFixingCheckName] = useState<string | null>(null);
 
   // Check if a health check supports auto-fix
-  const isAutoFixable = (checkName?: string) => {
-    return checkName === "all_caps_names" || checkName === "all_lowercase_names";
+  const isAutoFixable = (check: HealthCheck) => {
+    // Backend-declared auto-fixable
+    if (check.auto_fixable) return true;
+    // Legacy contact name casing checks
+    return check.check_name === "all_caps_names" || check.check_name === "all_lowercase_names";
   };
 
   // Get fix type for auto-fix API
@@ -164,20 +169,28 @@ export function DataHealthWidget({
     return "all";
   };
 
-  // Handle auto-fix for name casing issues
+  // Handle auto-fix for health issues
   const handleAutoFix = async (check: HealthCheck) => {
     if (!check.items || check.items.length === 0) return;
-
-    const contactIds = check.items.map(item => item.id).filter(id => typeof id === "number");
-    if (contactIds.length === 0) return;
 
     setFixingCheckName(check.check_name || null);
 
     try {
-      await api.post("/api/v1/contacts/fix_name_casing", {
-        contact_ids: contactIds,
-        fix_type: getFixType(check.check_name),
-      });
+      // If check has fix_type from backend, use the foundation fix_health endpoint
+      if (check.fix_type && foundationId) {
+        await api.post(`/api/v1/foundations/${foundationId}/fix_health`, {
+          fix_type: check.fix_type,
+        });
+      } else {
+        // Legacy: contact name casing fixes
+        const contactIds = check.items.map(item => item.id).filter(id => typeof id === "number");
+        if (contactIds.length === 0) return;
+
+        await api.post("/api/v1/contacts/fix_name_casing", {
+          contact_ids: contactIds,
+          fix_type: getFixType(check.check_name),
+        });
+      }
 
       // Refresh health data after fix
       await loadHealthData();
@@ -356,8 +369,8 @@ export function DataHealthWidget({
                           >
                             {check.count} {check.count === 1 ? "issue" : "issues"}
                           </span>
-                          {/* Auto-fix button for name casing checks */}
-                          {isAutoFixable(check.check_name) && (
+                          {/* Auto-fix button for fixable checks */}
+                          {isAutoFixable(check) && (
                             <Button
                               size="sm"
                               variant="outline"

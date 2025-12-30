@@ -23,22 +23,12 @@ module HealthChecks
 
     # Schedule master rows missing duration_days
     # This is CRITICAL because sync fails when duration is nil
-    # EXCLUDES headers - they don't need duration:
-    #   - Rows with header_gantt = "Header" (self-declared headers)
-    #   - Rows referenced by other rows as parent (implicit headers)
+    # EXCLUDES headers (allow_header = true) - they don't need duration
     def check_missing_duration
-      # Find IDs of rows being used as parent headers by other rows
-      parent_header_ids = SmScheduleMaster.active
-                                          .where.not(header_gantt: [nil, "", "Header"])
-                                          .pluck(:header_gantt)
-                                          .map(&:to_i)
-                                          .uniq
-
       rows = SmScheduleMaster.active
                              .where("duration_days IS NULL OR duration_days = 0")
-                             .where("header_gantt IS NULL OR header_gantt != ?", "Header")
-                             .where.not(id: parent_header_ids)
-                             .select(:id, :name, :task_number, :sequence_order, :header_gantt)
+                             .where(allow_header: [false, nil])
+                             .select(:id, :name, :task_number, :sequence_order)
 
       build_result(
         name: "Missing Duration",
@@ -101,24 +91,51 @@ module HealthChecks
     # Headers should be clean - no duration, trade, stage, assigned_role, cost_centre, or parent header
     def check_dirty_headers
       rows = SmScheduleMaster.active
-                             .where(header_gantt: "Header")
+                             .where(allow_header: true)
                              .where(<<~SQL)
                                (duration_days IS NOT NULL AND duration_days > 0)
                                OR trade IS NOT NULL
                                OR stage IS NOT NULL
                                OR assigned_role IS NOT NULL
                                OR cost_centre IS NOT NULL
+                               OR header_gantt IS NOT NULL
                              SQL
                              .select(:id, :name, :task_number, :sequence_order)
 
       build_result(
         name: "Headers With Data",
-        description: "Header rows should be clean (no duration, trade, stage, assigned_role, cost_centre). These headers have data that should be cleared.",
+        check_name: "dirty_headers",
+        description: "Header rows should be clean (no duration, trade, stage, assigned_role, cost_centre, header_gantt). Click Fix All to clear.",
         severity: :warning,
         items: rows,
         icon: "exclamation-triangle",
-        action_path: "/schedule-master"
+        action_path: "/schedule-master",
+        auto_fixable: true,
+        fix_type: "clean_headers"
       )
+    end
+
+    # Class method to fix dirty headers
+    def self.fix_dirty_headers!
+      count = SmScheduleMaster.active
+                              .where(allow_header: true)
+                              .where(<<~SQL)
+                                (duration_days IS NOT NULL AND duration_days > 0)
+                                OR trade IS NOT NULL
+                                OR stage IS NOT NULL
+                                OR assigned_role IS NOT NULL
+                                OR cost_centre IS NOT NULL
+                                OR header_gantt IS NOT NULL
+                              SQL
+                              .update_all(
+                                duration_days: nil,
+                                trade: nil,
+                                stage: nil,
+                                assigned_role: nil,
+                                cost_centre: nil,
+                                header_gantt: nil
+                              )
+      { fixed: count }
     end
 
     protected
