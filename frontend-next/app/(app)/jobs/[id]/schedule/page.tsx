@@ -823,10 +823,11 @@ export default function SchedulePage() {
                 Plans
               </Button>
               <Button
-                variant="outline"
+                variant={selectedGanttTask?.purchaseOrderId ? "default" : "outline"}
                 size="sm"
                 className="h-7 px-2 text-xs"
                 onClick={() => {
+                  console.log('PO button clicked, selectedTask:', selectedGanttTask?.id, selectedGanttTask?.purchaseOrderId);
                   // If a task with a PO is selected, open that specific PO
                   if (selectedGanttTask?.purchaseOrderId) {
                     window.open(`/jobs/${jobId}/purchase-orders/${selectedGanttTask.purchaseOrderId}`, '_blank');
@@ -865,7 +866,10 @@ export default function SchedulePage() {
               staticDependencies={ganttDependencies}
               showToolbar={true}
               onTaskDrag={handleTaskDrag}
-              onTaskClick={setSelectedGanttTask}
+              onTaskClick={(task) => {
+                  console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
+                  setSelectedGanttTask(task);
+                }}
               className="h-full"
               jobId={Number(jobId)}
             />
@@ -959,7 +963,10 @@ export default function SchedulePage() {
                 staticDependencies={ganttDependencies}
                 showToolbar={true}
                 onTaskDrag={handleTaskDrag}
-                onTaskClick={setSelectedGanttTask}
+                onTaskClick={(task) => {
+                  console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
+                  setSelectedGanttTask(task);
+                }}
                 className="h-full"
                 jobId={Number(jobId)}
               />
