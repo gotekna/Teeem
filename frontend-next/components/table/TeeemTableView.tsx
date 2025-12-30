@@ -1328,6 +1328,11 @@ export default function TeeemTableView({
       const display = group.displayValue || key;
       map.set(key, display);
     }
+    // Debug: Log serverGroupCounts to check if displayValue is populated
+    if (serverGroupCounts.length > 0) {
+      console.log('[TeeemTableView] serverGroupCounts sample:', serverGroupCounts.slice(0, 3));
+      console.log('[TeeemTableView] serverDisplayMap sample:', Array.from(map.entries()).slice(0, 3));
+    }
     return map;
   }, [serverGroupCounts]);
 
