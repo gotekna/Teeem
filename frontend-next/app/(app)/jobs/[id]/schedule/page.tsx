@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
@@ -266,7 +266,11 @@ export default function SchedulePage() {
   const jobId = params.id as string;
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+
+  // Check if Gantt should auto-open from URL param
+  const shouldOpenGantt = searchParams.get('gantt') === 'true';
 
   // Parse view from path: /jobs/123/schedule/setup → "setup"
   const activeView = React.useMemo(() => {
@@ -327,7 +331,7 @@ export default function SchedulePage() {
   }, []);
 
   // Open Gantt - fetch tasks and show sheet
-  const handleOpenGantt = async () => {
+  const handleOpenGantt = React.useCallback(async () => {
     setGanttOpen(true);
     setLoadingGantt(true);
     try {
@@ -339,7 +343,16 @@ export default function SchedulePage() {
     } finally {
       setLoadingGantt(false);
     }
-  };
+  }, [jobId, toast]);
+
+  // Auto-open Gantt when ?gantt=true is in URL
+  React.useEffect(() => {
+    if (shouldOpenGantt && !loading && job) {
+      handleOpenGantt();
+      // Clear the query param to avoid re-opening on refresh
+      router.replace(`/jobs/${jobId}/schedule`, { scroll: false });
+    }
+  }, [shouldOpenGantt, loading, job, handleOpenGantt, router, jobId]);
 
   // Convert tasks to Canvas Gantt format
   const ganttTasksFormatted = React.useMemo(() => {
