@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -132,14 +132,24 @@ interface InstanceDetail extends WorkflowInstance {
 
 export default function BpmnProcessesPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { toast } = useToast();
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "processes";
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/workflows/processes", "").split("/").filter(Boolean);
+    return parts[0] || "processes";
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/workflows/processes/")) {
+      router.replace("/workflows/processes/processes", { scroll: false });
+    }
+  }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "processes" ? "/workflows/processes" : `/workflows/processes?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/workflows/processes/${tabId}`, { scroll: false });
   }, [router]);
 
   const [processes, setProcesses] = useState<BpmnProcessSummary[]>([]);

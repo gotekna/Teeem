@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -164,17 +164,23 @@ interface InsuranceAsset {
 
 export default function AssetReportsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-  // URL is SSoT for tab state (back button support)
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "summary";
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/corporate/assets/reports", "").split("/").filter(Boolean);
+    return parts[0] || "summary";
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  React.useEffect(() => {
+    if (!pathname.includes("/corporate/assets/reports/")) {
+      router.replace("/corporate/assets/reports/summary", { scroll: false });
+    }
+  }, [pathname, router]);
 
   const handleTabChange = React.useCallback((tabId: string) => {
-    const url = tabId === "summary"
-      ? "/corporate/assets/reports"
-      : `/corporate/assets/reports?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/corporate/assets/reports/${tabId}`, { scroll: false });
   }, [router]);
   const [loading, setLoading] = React.useState(true);
   const [companies, setCompanies] = React.useState<Company[]>([]);

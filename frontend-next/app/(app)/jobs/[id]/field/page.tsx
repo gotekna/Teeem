@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, ElementType } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useMemo, ElementType } from "react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CameraIcon,
   MapPinIcon,
@@ -206,21 +206,29 @@ function TabButton({ active, icon: Icon, label, badge, onClick }: TabButtonProps
 export default function SmFieldPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const constructionId = params.id as string;
   const resourceId = searchParams.get("resource");
 
-  // URL-synced tab state
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "tasks";
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const basePath = `/jobs/${constructionId}/field`;
+    const parts = pathname.replace(basePath, "").split("/").filter(Boolean);
+    return parts[0] || "tasks";
+  }, [pathname, constructionId]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes(`/jobs/${constructionId}/field/`)) {
+      router.replace(`/jobs/${constructionId}/field/tasks`, { scroll: false });
+    }
+  }, [pathname, router, constructionId]);
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "tasks"
-      ? `/jobs/${constructionId}/field`
-      : `/jobs/${constructionId}/field?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/jobs/${constructionId}/field/${tabId}`, { scroll: false });
   }, [constructionId, router]);
 
   // State

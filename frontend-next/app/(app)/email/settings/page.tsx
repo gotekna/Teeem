@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useCallback, useMemo, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BlacklistManager } from "@/components/emails/BlacklistManager";
@@ -10,14 +10,24 @@ import { Ban, Settings, Shield } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 
 export default function EmailSettingsPage() {
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "blacklist";
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/email/settings", "").split("/").filter(Boolean);
+    return parts[0] || "blacklist";
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/email/settings/")) {
+      router.replace("/email/settings/blacklist", { scroll: false });
+    }
+  }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "blacklist" ? "/email/settings" : `/email/settings?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/email/settings/${tabId}`, { scroll: false });
   }, [router]);
 
   return (

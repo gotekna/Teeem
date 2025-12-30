@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -215,14 +215,24 @@ export default function GlPage() {
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccounts | null>(null);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "companies";
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/financial/tas", "").split("/").filter(Boolean);
+    return parts[0] || "companies";
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/financial/tas/")) {
+      router.replace("/financial/tas/companies", { scroll: false });
+    }
+  }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "companies" ? "/financial/tas" : `/financial/tas?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/financial/tas/${tabId}`, { scroll: false });
   }, [router]);
 
   // Full sync progress modal state

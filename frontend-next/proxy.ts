@@ -316,6 +316,54 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  // === Financial Reports Routes ===
+  if (pathname === "/financial/reports") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/financial/reports/${tab}`;
+    }
+  }
+
+  // === Financial TAS Routes ===
+  if (pathname === "/financial/tas") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/financial/tas/${tab}`;
+    }
+  }
+
+  // === Email Settings Routes ===
+  if (pathname === "/email/settings") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/email/settings/${tab}`;
+    }
+  }
+
+  // === Corporate Asset Reports Routes ===
+  if (pathname === "/corporate/assets/reports") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/corporate/assets/reports/${tab}`;
+    }
+  }
+
+  // === Schedule Master Routes ===
+  if (pathname === "/schedule-master") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/schedule-master/${tab}`;
+    }
+  }
+
+  // === Workflows Processes Routes ===
+  if (pathname === "/workflows/processes") {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `/workflows/processes/${tab}`;
+    }
+  }
+
   // === Recipe Detail Routes ===
   const recipeMatch = pathname.match(/^\/recipes\/(\d+)$/);
   if (recipeMatch) {
@@ -337,6 +385,33 @@ export function proxy(request: NextRequest) {
   // === Job Setup Routes ===
   const jobSetupMatch = pathname.match(/^\/jobs\/(\d+)\/setup$/);
   if (jobSetupMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
+  // === Job Resources Routes ===
+  const jobResourcesMatch = pathname.match(/^\/jobs\/(\d+)\/resources$/);
+  if (jobResourcesMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
+  // === Job Dashboard Routes ===
+  const jobDashboardMatch = pathname.match(/^\/jobs\/(\d+)\/dashboard$/);
+  if (jobDashboardMatch) {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      redirectPath = `${pathname}/${tab}`;
+    }
+  }
+
+  // === Job Field Routes ===
+  const jobFieldMatch = pathname.match(/^\/jobs\/(\d+)\/field$/);
+  if (jobFieldMatch) {
     const tab = searchParams.get("tab");
     if (tab) {
       redirectPath = `${pathname}/${tab}`;

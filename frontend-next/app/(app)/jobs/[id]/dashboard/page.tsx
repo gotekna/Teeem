@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, ElementType } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useMemo, ElementType } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChartBarIcon,
@@ -216,18 +216,25 @@ function Alert({ type, message, resourceName }: AlertProps) {
 export default function SmDashboardPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const constructionId = params.id as string;
 
-  // URL-synced tab state
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "overview";
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const basePath = `/jobs/${constructionId}/dashboard`;
+    const parts = pathname.replace(basePath, "").split("/").filter(Boolean);
+    return parts[0] || "overview";
+  }, [pathname, constructionId]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes(`/jobs/${constructionId}/dashboard/`)) {
+      router.replace(`/jobs/${constructionId}/dashboard/overview`, { scroll: false });
+    }
+  }, [pathname, router, constructionId]);
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "overview"
-      ? `/jobs/${constructionId}/dashboard`
-      : `/jobs/${constructionId}/dashboard?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/jobs/${constructionId}/dashboard/${tabId}`, { scroll: false });
   }, [constructionId, router]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

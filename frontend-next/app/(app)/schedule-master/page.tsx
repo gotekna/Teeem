@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,14 +122,24 @@ const taskStatusColors: Record<string, string> = {
 };
 
 export default function ScheduleMasterPage() {
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "overview";
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/schedule-master", "").split("/").filter(Boolean);
+    return parts[0] || "overview";
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/schedule-master/")) {
+      router.replace("/schedule-master/overview", { scroll: false });
+    }
+  }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "overview" ? "/schedule-master" : `/schedule-master?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/schedule-master/${tabId}`, { scroll: false });
   }, [router]);
 
   const [jobs, setJobs] = useState<Job[]>([]);

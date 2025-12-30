@@ -423,7 +423,7 @@ class XeroContactSyncService
     # Priority 1: Exact ABN match (100% confidence, auto-link)
     if xero_tax.present?
       normalized_tax = normalize_tax_number(xero_tax)
-      existing_contact = Contact.find_by(tax_number: normalized_tax)
+      existing_contact = Contact.find_by(abn: normalized_tax)
       if existing_contact
         Rails.logger.info("Cross-tenant match by ABN: #{xero_name} -> #{existing_contact.display_name}")
         return {
@@ -715,8 +715,10 @@ class XeroContactSyncService
 
     # Xero-specific fields (always import)
     # Note: xero_contact_status is stored on the link (SSoT), not Contact
+    # Xero returns uppercase status (ACTIVE, ARCHIVED), convert to lowercase for validation
     if link && xero_contact["ContactStatus"].present?
-      link.update!(xero_contact_status: xero_contact["ContactStatus"])
+      status = xero_contact["ContactStatus"].downcase
+      link.update!(xero_contact_status: status) if ContactExternalLink::XERO_STATUSES.include?(status)
     end
     updates[:xero_contact_number] = xero_contact["ContactNumber"] if xero_contact["ContactNumber"].present?
     updates[:xero_account_number] = xero_contact["AccountNumber"] if xero_contact["AccountNumber"].present?

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 
 import { Button } from "@/components/ui/button";
@@ -54,14 +54,24 @@ const formatCurrency = (amount: number) => {
 
 export default function FinancialReportsPage() {
   const { toast } = useToast();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
-  const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl || "balance_sheet";
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/financial/reports", "").split("/").filter(Boolean);
+    return parts[0] || "balance_sheet";
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/financial/reports/")) {
+      router.replace("/financial/reports/balance_sheet", { scroll: false });
+    }
+  }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "balance_sheet" ? "/financial/reports" : `/financial/reports?tab=${tabId}`;
-    router.push(url, { scroll: false });
+    router.push(`/financial/reports/${tabId}`, { scroll: false });
   }, [router]);
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheet | null>(null);
   const [profitLoss, setProfitLoss] = useState<ProfitLoss | null>(null);
