@@ -46,6 +46,7 @@ import {
   breadcrumbVisibleAtom,
   type BreadcrumbItem,
 } from "@/lib/breadcrumb-atoms";
+import { tableFullscreenAtom } from "@/lib/table-atoms";
 
 /**
  * Icon mapping for dynamic icon rendering
@@ -87,12 +88,13 @@ export function BreadcrumbTrail() {
   const trail = useAtomValue(breadcrumbTrailAtom);
   const [isPinned, setIsPinned] = useAtom(breadcrumbPinnedAtom);
   const [isVisible, setIsVisible] = useAtom(breadcrumbVisibleAtom);
+  const isTableFullscreen = useAtomValue(tableFullscreenAtom);
   const router = useRouter();
   const { sidebarWidth } = useSidebar();
   const { shouldHideSidebar } = useLayoutMode();
 
-  // Don't render if trail is empty
-  if (trail.length === 0) return null;
+  // Don't render if trail is empty or table is in fullscreen mode
+  if (trail.length === 0 || isTableFullscreen) return null;
 
   // Show when pinned or when visible via hover
   const shouldShow = isPinned || isVisible;

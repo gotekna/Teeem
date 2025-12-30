@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_040031) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_30_042501) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1331,6 +1331,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_040031) do
     t.string "xero_contact_status", default: "active"
     t.datetime "last_verified_at"
     t.string "external_name"
+    t.index ["contact_id", "source", "created_at"], name: "idx_cel_contact_source_created"
     t.index ["contact_id", "source", "tenant_id"], name: "idx_contact_external_links_unique", unique: true
     t.index ["contact_id"], name: "index_contact_external_links_on_contact_id"
     t.index ["last_verified_at"], name: "index_contact_external_links_on_last_verified_at"

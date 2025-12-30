@@ -50,8 +50,7 @@ class CreateXeroSyncContactsFoundation < ActiveRecord::Migration[7.1]
       {
         name: "Type",
         column_name: "entity_type",
-        column_type: "choice",
-        available_choices: "person\ncompany\ntrust\nsole_trader\nprice_only",
+        column_type: "single_line_text",
         position: 4
       },
       {
@@ -65,8 +64,7 @@ class CreateXeroSyncContactsFoundation < ActiveRecord::Migration[7.1]
       {
         name: "Role",
         column_name: "contact_role",
-        column_type: "choice",
-        available_choices: "Customer\nSupplier\nBoth",
+        column_type: "single_line_text",
         position: 6
       },
       {
@@ -115,14 +113,12 @@ class CreateXeroSyncContactsFoundation < ActiveRecord::Migration[7.1]
         name: "Invoices Synced",
         column_name: "invoices_synced_at",
         column_type: "date_and_time",
-        visible: false,
         position: 13
       },
       {
         name: "PDFs Synced",
         column_name: "pdfs_synced_at",
         column_type: "date_and_time",
-        visible: false,
         position: 14
       },
       {
@@ -135,14 +131,12 @@ class CreateXeroSyncContactsFoundation < ActiveRecord::Migration[7.1]
         name: "Match Type",
         column_name: "match_type",
         column_type: "single_line_text",
-        visible: false,
         position: 16
       },
       {
         name: "Match Confidence",
         column_name: "match_confidence",
         column_type: "percentage",
-        visible: false,
         position: 17
       },
       {
@@ -150,56 +144,48 @@ class CreateXeroSyncContactsFoundation < ActiveRecord::Migration[7.1]
         column_name: "email",
         column_type: "email",
         searchable: true,
-        visible: false,
         position: 18
       },
       {
         name: "Xero ID",
         column_name: "xero_id",
         column_type: "single_line_text",
-        visible: false,
         position: 19
       },
       {
         name: "Sync Error",
         column_name: "sync_error",
         column_type: "multiple_lines_text",
-        visible: false,
         position: 20
       },
       {
         name: "Team Contact",
         column_name: "is_team_contact",
         column_type: "boolean",
-        visible: false,
         position: 21
       },
       {
         name: "Customer",
         column_name: "is_customer",
         column_type: "boolean",
-        visible: false,
         position: 22
       },
       {
         name: "Supplier",
         column_name: "is_supplier",
         column_type: "boolean",
-        visible: false,
         position: 23
       },
       {
         name: "Primary Company",
         column_name: "primary_company_name",
         column_type: "single_line_text",
-        visible: false,
         position: 24
       },
       {
         name: "PDFs Synced Count",
         column_name: "pdfs_synced",
         column_type: "whole_number",
-        visible: false,
         position: 25
       }
     ]

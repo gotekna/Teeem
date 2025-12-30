@@ -28,6 +28,13 @@ import { TABLE_ROW_LIMIT } from './constants/pagination-constants';
 export const tableEditModeAtom = atom<boolean>(false);
 
 /**
+ * Global fullscreen mode for tables
+ * When true, hides breadcrumbs and other overlays
+ * Set by TeeemTableView when entering fullscreen
+ */
+export const tableFullscreenAtom = atom<boolean>(false);
+
+/**
  * Currently focused cell (for keyboard navigation)
  * Tracks which cell has focus for Tab/Shift+Tab navigation
  */

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableColumn, TableRow as TableRowType } from "@/components/table/types";
+import type { TableRow as TableRowType } from "@/components/table/types";
 import {
   Select,
   SelectContent,
@@ -32,22 +32,6 @@ import { cn } from "@/lib/utils";
 
 // Types
 type FilterStatus = "all" | "synced" | "not-synced" | "errors";
-
-// Gold Standard Table columns for Xero sync contacts
-const XERO_SYNC_COLUMNS: TableColumn[] = [
-  { key: "contact_group", label: "Group", defaultHidden: true }, // For grouping - hidden from display
-  { key: "display_name", label: "Contact", width: 200, sortable: true, filterable: true },
-  { key: "xero_name", label: "Xero Name", width: 180, sortable: true, filterable: true },
-  { key: "match_percent", label: "Match", width: 70, sortable: true, dataAlign: "center", headerAlign: "center" },
-  { key: "xero_tenant_name", label: "Xero Org", width: 120, sortable: true, filterable: true },
-  { key: "entity_type", label: "Type", width: 90, sortable: true, filterable: true },
-  { key: "xero_id", label: "Linked", width: 70, dataAlign: "center", headerAlign: "center" },
-  { key: "role", label: "Role", width: 90, sortable: true, filterable: true },
-  { key: "invoices_count", label: "Inv", width: 60, sortable: true, dataAlign: "center", headerAlign: "center" },
-  { key: "bills_count", label: "Bills", width: 60, sortable: true, dataAlign: "center", headerAlign: "center" },
-  { key: "pdf_sync_percent", label: "PDF", width: 60, sortable: true, dataAlign: "center", headerAlign: "center" },
-  { key: "sync_status_display", label: "Sync Status", width: 140 },
-];
 
 interface FieldMapping {
   field: string;
@@ -478,84 +462,26 @@ interface XeroDataStats {
   last_sync_at: string | null;
 }
 
-// Contact Sync Component
+// Contact Sync Component - Gold Standard Foundation-backed table
 export function XeroContactSync() {
   const router = useRouter();
   const { toast } = useToast();
   const [syncing, setSyncing] = React.useState(false);
-  const [lastSync, setLastSync] = React.useState<{
-    synced_at: string;
-    contacts_created: number;
-    contacts_updated: number;
-    errors: string[];
-  } | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [contacts, setContacts] = React.useState<ContactSyncItem[]>([]);
-  const [totalContacts, setTotalContacts] = React.useState(0);
-  const [syncedCount, setSyncedCount] = React.useState(0);
-  const [errorCount, setErrorCount] = React.useState(0);
+  const [refreshKey, setRefreshKey] = React.useState(0);
   const [filterStatus, setFilterStatus] = React.useState<FilterStatus>("all");
-  const [xeroDataStats, setXeroDataStats] = React.useState<XeroDataStats | null>(null);
 
-  React.useEffect(() => {
-    loadSyncStatus();
-    loadContacts();
-  }, []);
-
-  const loadSyncStatus = async () => {
-    try {
-      const response = await api.get<{ success: boolean; data: typeof lastSync }>("/api/v1/xero/sync_status");
-      setLastSync(response.data);
-    } catch (error) {
-      console.error("Failed to load sync status:", error);
-    }
-  };
-
-  const loadContacts = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get<{
-        success: boolean;
-        contacts: ContactSyncItem[];
-        total: number;
-        synced_count: number;
-        error_count: number;
-        xero_data?: XeroDataStats;
-      }>("/api/v1/xero/contacts_sync_list");
-
-      if (response.success) {
-        setContacts(response.contacts);
-        setTotalContacts(response.total);
-        setSyncedCount(response.synced_count);
-        setErrorCount(response.error_count);
-        if (response.xero_data) {
-          setXeroDataStats(response.xero_data);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load contacts:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load contacts list",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Handle sync button
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const response = await api.post<{ success: boolean; data: typeof lastSync }>("/api/v1/xero/sync_contacts");
-      if (response?.data) {
-        setLastSync(response.data);
+      const response = await api.post<{ success: boolean; data: { contacts_created: number; contacts_updated: number } }>("/api/v1/xero/sync_contacts");
+      if (response?.success) {
         toast({
           title: "Success",
-          description: `Synced ${response.data.contacts_created + response.data.contacts_updated} contacts`,
+          description: `Synced ${(response.data?.contacts_created || 0) + (response.data?.contacts_updated || 0)} contacts`,
         });
-        // Reload contacts after sync
-        loadContacts();
+        // Trigger table refresh
+        setRefreshKey(prev => prev + 1);
       }
     } catch (error) {
       console.error("Sync failed:", error);
@@ -569,101 +495,62 @@ export function XeroContactSync() {
     }
   };
 
-  // Filter contacts based on status
-  const filteredContacts = React.useMemo(() => {
+  // Build initial filters based on filterStatus
+  const initialFilters = React.useMemo(() => {
     switch (filterStatus) {
       case "synced":
-        return contacts.filter(c => c.synced);
+        return [{ id: "status-filter", column: "synced", operator: "=" as const, value: true }];
       case "not-synced":
-        return contacts.filter(c => !c.synced);
+        return [{ id: "status-filter", column: "synced", operator: "=" as const, value: false }];
       case "errors":
-        return contacts.filter(c => c.has_error);
+        return [{ id: "status-filter", column: "has_error", operator: "=" as const, value: true }];
       default:
-        return contacts;
+        return [];
     }
-  }, [contacts, filterStatus]);
-
-  // Transform contacts for TeeemTableView with computed fields
-  const tableEntries = React.useMemo(() => {
-    return filteredContacts.map(c => {
-      // Calculate role
-      const isCustomer = c.is_customer;
-      const isSupplier = c.is_supplier;
-      let role = "-";
-      if (isCustomer && isSupplier) role = "Both";
-      else if (isCustomer) role = "Customer";
-      else if (isSupplier) role = "Supplier";
-
-      // Calculate match percent
-      const matchPercent = calculateSimilarity(c.display_name, c.xero_name);
-
-      // Determine group: flagged contacts are price_only or person-with-company
-      const isPriceOnly = c.entity_type === "price_only";
-      const isPersonWithCompany = c.entity_type === "person" && c.primary_company_id != null;
-      const contactGroup = (isPriceOnly || isPersonWithCompany) ? "⚠️ Flagged" : "Active";
-
-      return {
-        ...c,
-        role,
-        match_percent: matchPercent,
-        contact_group: contactGroup,
-        sync_status_display: c.has_error ? "Error" : (c.sync_status ? "synced" : "-"),
-      };
-    });
-  }, [filteredContacts]);
+  }, [filterStatus]);
 
   // Custom cell renderer for special columns
   const customCellRenderer = React.useCallback((entry: TableRowType, columnKey: string) => {
-    const contact = entry as unknown as ContactSyncItem & { role: string; match_percent: number | null };
-
-    // Match % with color coding
-    if (columnKey === "match_percent") {
-      const percent = contact.match_percent;
-      if (percent === null) return <span className="text-muted-foreground">-</span>;
-      const color = percent === 100 ? "text-green-600" :
-                   percent >= 90 ? "text-green-500" :
-                   percent >= 70 ? "text-amber-600" : "text-red-600";
-      return <span className={cn("font-medium", color)}>{percent}%</span>;
-    }
-
-    // Entity type badge
-    if (columnKey === "entity_type") {
-      const isPriceOnly = contact.entity_type === "price_only";
-      return (
-        <Badge variant="outline" className={cn("text-xs", isPriceOnly && "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30")}>
-          {contact.entity_type || "?"}
-        </Badge>
-      );
-    }
-
-    // Linked icon
-    if (columnKey === "xero_id") {
-      return contact.xero_id ? (
+    // Synced icon (for "synced" column)
+    if (columnKey === "synced") {
+      return entry.synced ? (
         <Check className="h-4 w-4 text-green-600 mx-auto" />
       ) : (
         <X className="h-4 w-4 text-muted-foreground mx-auto" />
       );
     }
 
+    // Entity type badge
+    if (columnKey === "entity_type") {
+      const isPriceOnly = entry.entity_type === "price_only";
+      return (
+        <Badge variant="outline" className={cn("text-xs", isPriceOnly && "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30")}>
+          {(entry.entity_type as string) || "?"}
+        </Badge>
+      );
+    }
+
     // Role badge
-    if (columnKey === "role") {
-      if (contact.role === "-") return <span className="text-muted-foreground">-</span>;
+    if (columnKey === "contact_role") {
+      const role = entry.contact_role as string | null;
+      if (!role) return <span className="text-muted-foreground">-</span>;
       const colors: Record<string, string> = {
         "Both": "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/30",
         "Customer": "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30",
         "Supplier": "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30",
       };
       return (
-        <Badge variant="outline" className={cn("text-xs", colors[contact.role])}>
-          {contact.role}
+        <Badge variant="outline" className={cn("text-xs", colors[role])}>
+          {role}
         </Badge>
       );
     }
 
     // Invoices count
     if (columnKey === "invoices_count") {
-      return contact.invoices_count > 0 ? (
-        <span className="font-medium">{contact.invoices_count}</span>
+      const count = entry.invoices_count as number;
+      return count > 0 ? (
+        <span className="font-medium">{count}</span>
       ) : (
         <span className="text-muted-foreground">-</span>
       );
@@ -671,8 +558,9 @@ export function XeroContactSync() {
 
     // Bills count
     if (columnKey === "bills_count") {
-      return contact.bills_count > 0 ? (
-        <span className="font-medium">{contact.bills_count}</span>
+      const count = entry.bills_count as number;
+      return count > 0 ? (
+        <span className="font-medium">{count}</span>
       ) : (
         <span className="text-muted-foreground">-</span>
       );
@@ -680,27 +568,23 @@ export function XeroContactSync() {
 
     // PDF sync percent with color coding
     if (columnKey === "pdf_sync_percent") {
-      const percent = contact.pdf_sync_percent;
-      if (percent === null) return <span className="text-muted-foreground">-</span>;
+      const percent = entry.pdf_sync_percent as number | null;
+      if (percent === null || percent === undefined) return <span className="text-muted-foreground">-</span>;
       const color = percent === 100 ? "text-green-600" :
                    percent >= 50 ? "text-amber-600" : "text-red-600";
       return <span className={cn("font-medium", color)}>{percent}%</span>;
     }
 
-    // Sync status
-    if (columnKey === "sync_status_display") {
-      if (contact.has_error) {
-        return (
-          <div className="flex items-center gap-1 text-red-600">
-            <AlertTriangle className="h-3 w-3" />
-            <span className="text-xs font-medium">Error</span>
-          </div>
-        );
-      }
-      if (contact.sync_status) {
-        return <SyncStatusCell syncStatus={contact.sync_status} hasError={false} />;
-      }
-      return <span className="text-muted-foreground text-xs">-</span>;
+    // Has error indicator
+    if (columnKey === "has_error") {
+      return entry.has_error ? (
+        <div className="flex items-center gap-1 text-red-600">
+          <AlertTriangle className="h-3 w-3" />
+          <span className="text-xs font-medium">Error</span>
+        </div>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      );
     }
 
     return null; // Use default rendering
@@ -711,139 +595,36 @@ export function XeroContactSync() {
     router.push(`/contacts/${row.id}`);
   }, [router]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full">
-      {/* Stats Cards */}
-      <div className="space-y-4 mb-4">
-        {/* Sync Stats Card */}
-        <Card>
-          <CardHeader className="py-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Contact Sync
-                </CardTitle>
-              </div>
+      {/* Gold Standard Table - Foundation backed */}
+      <div className="flex-1 -mx-4">
+        <TeeemTableView
+          key={refreshKey}
+          foundationId="xero-sync-contacts"
+          autoFetchRecords={true}
+          onRowClick={handleRowClick}
+          customCellRenderer={customCellRenderer}
+          initialFilters={initialFilters}
+          viewOnly={true}
+          leftActions={
+            <>
               <Button onClick={handleSync} disabled={syncing} size="sm">
                 <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
                 {syncing ? "Syncing..." : "Sync Now"}
               </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-4 gap-4">
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="text-xs text-muted-foreground">Total Contacts</div>
-                <div className="text-xl font-bold">{totalContacts}</div>
-              </div>
-              <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-lg">
-                <div className="text-xs text-muted-foreground">Synced</div>
-                <div className="text-xl font-bold text-green-700 dark:text-green-400">
-                  {syncedCount}
-                </div>
-              </div>
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
-                <div className="text-xs text-muted-foreground">Not Synced</div>
-                <div className="text-xl font-bold text-amber-700 dark:text-amber-400">
-                  {totalContacts - syncedCount}
-                </div>
-              </div>
-              <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-lg">
-                <div className="text-xs text-muted-foreground">Errors</div>
-                <div className="text-xl font-bold text-red-700 dark:text-red-400">
-                  {errorCount}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Xero Data Stats Card */}
-        {xeroDataStats && (
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ArrowRightLeft className="h-5 w-5" />
-                Xero Data Synced
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-7 gap-3">
-                <div className="p-2 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
-                  <div className="text-xs text-muted-foreground">Sales Invoices</div>
-                  <div className="text-lg font-bold text-blue-700 dark:text-blue-400">
-                    {xeroDataStats.sales_invoices.count.toLocaleString()}
-                  </div>
-                </div>
-                <div className="p-2 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
-                  <div className="text-xs text-muted-foreground">Bills</div>
-                  <div className="text-lg font-bold text-purple-700 dark:text-purple-400">
-                    {xeroDataStats.bills.count.toLocaleString()}
-                  </div>
-                </div>
-                <div className="p-2 bg-cyan-50 dark:bg-cyan-900/10 rounded-lg">
-                  <div className="text-xs text-muted-foreground">Quotes</div>
-                  <div className="text-lg font-bold text-cyan-700 dark:text-cyan-400">
-                    {xeroDataStats.quotes.count.toLocaleString()}
-                  </div>
-                </div>
-                <div className="p-2 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
-                  <div className="text-xs text-muted-foreground">Unpaid</div>
-                  <div className="text-lg font-bold text-amber-700 dark:text-amber-400">
-                    {xeroDataStats.unpaid_count.toLocaleString()}
-                  </div>
-                </div>
-                <div className="p-2 bg-muted/50 rounded-lg">
-                  <div className="text-xs text-muted-foreground">Credit Notes</div>
-                  <div className="text-lg font-semibold">{xeroDataStats.credit_notes}</div>
-                </div>
-                <div className="p-2 bg-muted/50 rounded-lg">
-                  <div className="text-xs text-muted-foreground">With Data</div>
-                  <div className="text-lg font-semibold">{xeroDataStats.contacts_with_data}</div>
-                </div>
-                <div className="p-2 bg-muted/50 rounded-lg">
-                  <div className="text-xs text-muted-foreground">Synced Today</div>
-                  <div className="text-lg font-semibold">{xeroDataStats.synced_today}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Gold Standard Table */}
-      <div className="flex-1 -mx-4">
-        <TeeemTableView
-          entries={tableEntries}
-          columns={XERO_SYNC_COLUMNS}
-          tableName="Xero Contacts"
-          initialGroupByColumn="contact_group"
-          onRowClick={handleRowClick}
-          customCellRenderer={customCellRenderer}
-          onRefresh={loadContacts}
-          viewOnly={true}
-          disableSavedViews={true}
-          leftActions={
-            <Select value={filterStatus} onValueChange={(value: FilterStatus) => setFilterStatus(value)}>
-              <SelectTrigger className="w-[140px] h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Contacts</SelectItem>
-                <SelectItem value="synced">Synced Only</SelectItem>
-                <SelectItem value="not-synced">Not Synced</SelectItem>
-                <SelectItem value="errors">With Errors</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={filterStatus} onValueChange={(value: FilterStatus) => setFilterStatus(value)}>
+                <SelectTrigger className="w-[140px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Contacts</SelectItem>
+                  <SelectItem value="synced">Synced Only</SelectItem>
+                  <SelectItem value="not-synced">Not Synced</SelectItem>
+                  <SelectItem value="errors">With Errors</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
           }
         />
       </div>

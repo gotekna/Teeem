@@ -369,6 +369,8 @@ import {
   exportFormatAtom,
   // Global views manager
   showGlobalViewsManagerAtom,
+  // Fullscreen mode
+  tableFullscreenAtom,
 } from '@/lib/table-atoms';
 
 // View state atoms (keep separate for now - already in use)
@@ -1390,7 +1392,14 @@ export default function TeeemTableView({
   const [isFindingAbns, setIsFindingAbns] = useState(false);
 
   // Fullscreen state (SSoT for table fullscreen - used via enableFullscreen prop)
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreen, setIsFullscreenLocal] = useState(false);
+  const setGlobalFullscreen = useSetAtom(tableFullscreenAtom);
+
+  // Wrapper to sync local and global fullscreen state
+  const setIsFullscreen = useCallback((value: boolean) => {
+    setIsFullscreenLocal(value);
+    setGlobalFullscreen(value);
+  }, [setGlobalFullscreen]);
 
   // Exit fullscreen on Escape key
   useEffect(() => {
@@ -1404,7 +1413,12 @@ export default function TeeemTableView({
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [isFullscreen]);
+  }, [isFullscreen, setIsFullscreen]);
+
+  // Clean up global fullscreen on unmount
+  useEffect(() => {
+    return () => setGlobalFullscreen(false);
+  }, [setGlobalFullscreen]);
 
   // Drag-to-select state is now managed by useTableDragSelect hook
 
@@ -4431,12 +4445,32 @@ export default function TeeemTableView({
       "flex flex-col h-full gap-2",
       debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative",
       // Fullscreen mode - SSoT for table fullscreen (enableFullscreen prop)
-      isFullscreen && "fixed inset-0 z-50 bg-background p-4"
+      // z-[120] to appear above breadcrumb (z-[110])
+      isFullscreen && "fixed inset-0 z-[120] bg-background p-4"
     )}>
       {/* DEBUG: Main Container Label */}
       {debugGrid && (
         <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
           [1] MAIN CONTAINER (BLUE) - flex flex-col h-full gap-2
+        </div>
+      )}
+
+      {/* Fullscreen header with close button */}
+      {isFullscreen && (
+        <div className="flex items-center justify-between px-2 pb-2 border-b shrink-0">
+          <div className="flex items-center gap-2">
+            <Expand className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">{tableName}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsFullscreen(false)}
+            className="h-8 gap-1.5"
+          >
+            <X className="h-4 w-4" />
+            Close
+          </Button>
         </div>
       )}
 
