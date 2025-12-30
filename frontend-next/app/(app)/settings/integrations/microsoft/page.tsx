@@ -132,8 +132,9 @@ export default function MicrosoftIntegrationPage() {
   // Track which org is currently being connected (null = none, string = org name)
   const [connectingOrg, setConnectingOrg] = React.useState<string | null>(null);
 
-  // Check if user is admin
-  const isAdmin = user?.permissions?.includes("admin") || (typeof user?.role === "string" && user.role.toLowerCase() === "admin");
+  // Check if user is admin (SSoT: backend returns role_names array, not role string)
+  const isAdmin = user?.permissions?.includes("admin") ||
+    (Array.isArray(user?.role_names) && user.role_names.some((r: string) => r.toLowerCase() === "admin"));
 
   // Check for callback params
   React.useEffect(() => {
