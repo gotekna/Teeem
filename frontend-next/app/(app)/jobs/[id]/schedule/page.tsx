@@ -63,6 +63,7 @@ interface SmTask {
   supplier_id?: number | null;
   supplier_name?: string | null;
   purchase_order_id?: number | null;
+  po_required?: boolean;
   purchase_order?: {
     id: number;
     po_number: string;
@@ -288,6 +289,7 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     supplierName: task.supplier_name ?? undefined,
     purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
     purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
+    poRequired: task.po_required ?? false,
   };
 }
 

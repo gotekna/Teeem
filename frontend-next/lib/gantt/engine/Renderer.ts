@@ -636,19 +636,21 @@ export class Renderer {
         this.drawConnectorDots(startX, startX + taskWidth, barY, barHeight);
       }
 
-      // Draw supplier name and PO # to the right of the task bar
-      const rightLabelX = startX + taskWidth + 8;
-      const supplierText = task.supplierName || 'No Supplier Selected';
-      const poText = task.purchaseOrderNumber || '';
-      const rightLabel = poText ? `${supplierText} | ${poText}` : supplierText;
+      // Draw supplier name and PO # to the right of the task bar (only for PO-required tasks)
+      if (task.poRequired) {
+        const rightLabelX = startX + taskWidth + 8;
+        const supplierText = task.supplierName || 'No Supplier Selected';
+        const poText = task.purchaseOrderNumber || '';
+        const rightLabel = poText ? `${supplierText} | ${poText}` : supplierText;
 
-      this.ctx.fillStyle = this.config.darkMode
-        ? 'rgba(156, 163, 175, 0.9)'  // gray-400 with opacity
-        : 'rgba(107, 114, 128, 0.9)'; // gray-500 with opacity
-      this.ctx.font = '10px Inter, system-ui, sans-serif';
-      this.ctx.textAlign = 'left';
-      this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(rightLabel, rightLabelX, barY + barHeight / 2);
+        this.ctx.fillStyle = this.config.darkMode
+          ? 'rgba(156, 163, 175, 0.9)'  // gray-400 with opacity
+          : 'rgba(107, 114, 128, 0.9)'; // gray-500 with opacity
+        this.ctx.font = '10px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(rightLabel, rightLabelX, barY + barHeight / 2);
+      }
     }
   }
 

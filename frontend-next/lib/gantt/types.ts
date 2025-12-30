@@ -167,6 +167,8 @@ export interface GanttTask {
   // PO fields for Gantt sidebar display
   purchaseOrderId?: number;
   purchaseOrderNumber?: string;
+  // Whether this task requires a PO (controls right-side label visibility)
+  poRequired?: boolean;
   // Shape determines visual rendering (default: 'task')
   shape?: TaskShape;
   // Original row reference for full data access

@@ -294,8 +294,10 @@ export function EntityTabsConfig({
   const setExpandedItems = React.useCallback((updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
     if (typeof updater === "function") {
       const newSet = updater(expandedItems);
+      console.log('[EntityTabsConfig] setExpandedItems calling setUrlState with:', Array.from(newSet));
       setUrlState({ expanded: Array.from(newSet) });
     } else {
+      console.log('[EntityTabsConfig] setExpandedItems (direct) calling setUrlState with:', Array.from(updater));
       setUrlState({ expanded: Array.from(updater) });
     }
   }, [setUrlState, expandedItems]);
@@ -430,13 +432,17 @@ export function EntityTabsConfig({
 
   // Toggle item expansion - uses tab_key (slug) instead of numeric ID
   const toggleExpanded = (tabKey: string) => {
+    console.log('[EntityTabsConfig] toggleExpanded called with:', tabKey);
     setExpandedItems((prev) => {
       const next = new Set(prev);
       if (next.has(tabKey)) {
         next.delete(tabKey);
+        console.log('[EntityTabsConfig] Collapsing:', tabKey);
       } else {
         next.add(tabKey);
+        console.log('[EntityTabsConfig] Expanding:', tabKey);
       }
+      console.log('[EntityTabsConfig] New expanded set:', Array.from(next));
       return next;
     });
   };
@@ -872,6 +878,7 @@ export function EntityTabsConfig({
               className="h-6 w-6 shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
+                console.log('[EntityTabsConfig] Chevron clicked for tab:', tab.tab_key, 'current expandedItems:', Array.from(expandedItems));
                 toggleExpanded(tab.tab_key);
               }}
             >
