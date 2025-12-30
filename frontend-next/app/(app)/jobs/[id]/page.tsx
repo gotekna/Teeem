@@ -78,6 +78,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { EntityTab } from "@/lib/types/entity-tabs";
 
+// =============================================================================
+// REQUEST DEDUPLICATION - Prevents duplicate API calls that cause screen flashing
+// =============================================================================
+// Module-level cache for in-flight job requests. If the same job is requested
+// while a fetch is in progress, reuse the existing promise instead of making
+// a duplicate request.
+// =============================================================================
+const jobRequestCache = new Map<string, Promise<Job>>();
+
 // SSoT: Job Tab Component Registry
 // Maps tab_key → component. When tabs are renamed in admin, they auto-work.
 // Special tabs (overview, whs, plans) have inline JSX and are excluded.
@@ -880,9 +889,24 @@ export default function JobDetailPage() {
 
   const loadJob = React.useCallback(async () => {
     try {
-      const data = await api.get<Job>(`/api/v1/jobs/${jobId}`);
+      // Deduplicate in-flight requests - if same job is already being fetched, reuse the promise
+      const cacheKey = `job-${jobId}`;
+      let requestPromise = jobRequestCache.get(cacheKey);
+
+      if (!requestPromise) {
+        requestPromise = api.get<Job>(`/api/v1/jobs/${jobId}`);
+        jobRequestCache.set(cacheKey, requestPromise);
+      }
+
+      const data = await requestPromise;
+
+      // Clean up cache after request completes
+      jobRequestCache.delete(cacheKey);
+
       setJob(data);
     } catch (error) {
+      // Clean up cache on error too
+      jobRequestCache.delete(`job-${jobId}`);
       console.error("Failed to fetch job:", error);
     } finally {
       setLoading(false);
