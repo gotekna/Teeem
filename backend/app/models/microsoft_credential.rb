@@ -387,21 +387,27 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # Test the connection by making a simple API call
+  # IMPORTANT: App credentials (client_credentials) cannot call /me - no user context
+  # Use different endpoints based on credential type
   def test_connection!
     if app_credential?
       return false unless fetch_app_token!
+      # App credentials: test with /organization endpoint (works without user context)
+      test_url = "https://graph.microsoft.com/v1.0/organization"
     else
       return false unless valid_access_token
+      # Delegated credentials: test with /me endpoint (requires user context)
+      test_url = "https://graph.microsoft.com/v1.0/me"
     end
 
-    response = HTTP.auth("Bearer #{access_token}")
-                   .get("https://graph.microsoft.com/v1.0/me")
+    response = HTTP.auth("Bearer #{access_token}").get(test_url)
 
     if response.status.success?
       update!(status: "connected", error_message: nil)
       true
     else
-      mark_error!("API test failed: #{response.status}")
+      error_body = response.body.to_s rescue ""
+      mark_error!("API test failed: #{response.status} - #{error_body.truncate(200)}")
       false
     end
   rescue StandardError => e
