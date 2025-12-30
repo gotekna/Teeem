@@ -1296,6 +1296,16 @@ export default function TeeemTableView({
   // This fetches GROUP BY counts from the database for the current groupByColumn
   // IMPORTANT: Pass safeFilters so group counts respect saved views and cascade filters
   // Use validGroupByColumnForApi to prevent API errors from computed columns
+
+  // Debug: Log why groups API might not be called
+  console.log('[TeeemTableView] Groups API params:', {
+    effectiveFoundationId,
+    groupByColumn,
+    validGroupByColumnForApi,
+    groupByColumnsLength: groupByColumns.length,
+    enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
+  });
+
   const {
     groups: serverGroupCounts,
     totalRecords: serverTotalRecords,
