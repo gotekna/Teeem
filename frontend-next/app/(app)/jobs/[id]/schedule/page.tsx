@@ -330,6 +330,19 @@ export default function SchedulePage() {
     setRefreshKey(k => k + 1);
   }, []);
 
+  // Handle inline row update (for Bulk Update button)
+  const handleRowUpdate = React.useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/foundations/sm-tasks/records/${rowId}`, {
+        record: { [field]: value }
+      });
+      triggerRefresh();
+    } catch (error) {
+      console.error("Failed to update task:", error);
+      throw error;
+    }
+  }, [triggerRefresh]);
+
   // Open Gantt - fetch tasks and show sheet
   const handleOpenGantt = React.useCallback(async () => {
     setGanttOpen(true);
@@ -802,6 +815,7 @@ export default function SchedulePage() {
           }
           enableExport={true}
           onRefresh={triggerRefresh}
+          onRowUpdate={handleRowUpdate}
           onRowDoubleClick={handleRowDoubleClick}
         />
       </div>

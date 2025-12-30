@@ -21,7 +21,8 @@ module HealthChecks
       'pricebook-items' => PricebookCheck,
       'corporate_companies' => CompaniesCheck,
       'company_documents' => DocumentsCheck,
-      'sm-schedule-master' => SmScheduleMastersCheck
+      'sm-schedule-master' => SmScheduleMastersCheck,
+      'sm-tasks' => SmScheduleMastersCheck  # Uses same health checks as schedule master
     }.freeze
 
     # Map table names to check services
