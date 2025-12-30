@@ -62,6 +62,7 @@ class Column < ApplicationRecord
       tfn
       time
       uuid
+      array_of_integers
     ]
   }
 
@@ -115,7 +116,8 @@ class Column < ApplicationRecord
     "postcode" => :string,  # Australian Postcode (4 digits)
     "tfn" => :string,  # Tax File Number
     "time" => :time,  # Time of day (HH:MM:SS)
-    "uuid" => :uuid  # Universally Unique Identifier
+    "uuid" => :uuid,  # Universally Unique Identifier
+    "array_of_integers" => :integer  # INTEGER[] array
   }.freeze
 
   # Map column types to SQL types with proper limits
@@ -157,7 +159,8 @@ class Column < ApplicationRecord
     "postcode" => "VARCHAR(4)",
     "tfn" => "VARCHAR(11)",
     "time" => "TIME",
-    "uuid" => "UUID"
+    "uuid" => "UUID",
+    "array_of_integers" => "INTEGER[]"
   }.freeze
 
   def db_type
