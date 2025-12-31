@@ -427,6 +427,23 @@ export function GanttCanvasView({
     return new Set(rows.filter(r => r.header_gantt === 'Header').map(r => r.id));
   }, [rows]);
 
+  // Helper to extract parent header ID from header_gantt field
+  // header_gantt can be: "Header" (this is a header), number (parent ID), { id, display } (parent lookup), or null
+  const getParentHeaderId = React.useCallback((row: SmScheduleMaster): number | null => {
+    if (row.header_gantt === 'Header' || row.header_gantt === null || row.header_gantt === undefined) {
+      return null;
+    }
+    if (typeof row.header_gantt === 'number') {
+      return row.header_gantt;
+    }
+    if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
+      return row.header_gantt.id;
+    }
+    // Handle string number (e.g., "123")
+    const parsed = parseInt(String(row.header_gantt), 10);
+    return isNaN(parsed) ? null : parsed;
+  }, []);
+
   // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
   const visibleTasks = React.useMemo(() => {
     return tasks.filter(task => {
@@ -438,6 +455,12 @@ export function GanttCanvasView({
       const row = rows.find(r => String(r.id) === task.id);
       if (!row) return true;
 
+      // If this task has a parent header that is collapsed, hide it
+      const parentHeaderId = getParentHeaderId(row);
+      if (parentHeaderId && collapsedHeaders.has(parentHeaderId)) {
+        return false;
+      }
+
       // If showOnlyGrouped is enabled OR viewSlug is 'header', only show headers
       if (showOnlyGrouped || viewSlug === 'header') {
         const isHeader = row.header_gantt === 'Header';
@@ -448,17 +471,17 @@ export function GanttCanvasView({
 
       return true;
     });
-  }, [tasks, rows, showOnlyGrouped, viewSlug, nameSearch]);
+  }, [tasks, rows, collapsedHeaders, showOnlyGrouped, viewSlug, nameSearch, getParentHeaderId]);
 
   // Check if a row is a header (header_gantt === 'Header')
   const isHeaderRow = React.useCallback((row: SmScheduleMaster | undefined) => {
     return row?.header_gantt === 'Header';
   }, []);
 
-  // Get child count for a header (hierarchy removed - returns 0)
-  const getChildCount = React.useCallback((_headerId: number) => {
-    return 0;
-  }, []);
+  // Get child count for a header (uses header_gantt to find children)
+  const getChildCount = React.useCallback((headerId: number) => {
+    return rows.filter(r => getParentHeaderId(r) === headerId).length;
+  }, [rows, getParentHeaderId]);
 
   // Fullscreen state - use external if provided, otherwise internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;

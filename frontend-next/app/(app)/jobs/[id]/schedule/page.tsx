@@ -79,7 +79,8 @@ interface SmTask {
   confirm?: boolean;
   supplier_confirm?: boolean;
   // Header info from linked sm_schedule_master
-  header_gantt?: string | null;
+  // "Header" = this IS a header, number = parent header ID
+  header_gantt?: string | number | null;
 }
 
 interface SmTasksResponse {
@@ -425,12 +426,14 @@ export default function SchedulePage() {
         const validateResult = await api.post<{ success: boolean; rolled_over: number; extended: number; cascaded: number }>(
           `/api/v1/jobs/${jobId}/sm_tasks/validate_dates`
         );
-        const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
-        if (fixCount > 0) {
-          toast({
-            title: "Schedule Updated",
-            description: `${fixCount} task(s) with past dates moved forward`,
-          });
+        if (validateResult) {
+          const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
+          if (fixCount > 0) {
+            toast({
+              title: "Schedule Updated",
+              description: `${fixCount} task(s) with past dates moved forward`,
+            });
+          }
         }
       } catch (validateError) {
         // Don't block loading if validation fails - just log it
@@ -518,7 +521,10 @@ export default function SchedulePage() {
       is_active: true,
       linked_po_task_id: null,
       linked_po_task_name: null,
-      header_gantt: task.header_gantt ?? null,  // SSoT: From linked sm_schedule_master via API
+      // SSoT: header_gantt from API - convert number to expected format
+      header_gantt: typeof task.header_gantt === 'number'
+        ? { id: task.header_gantt, display: '' }
+        : (task.header_gantt ?? null),
       sm_template_ids: [],
       hold: false,
       hold_date: null,

@@ -8213,6 +8213,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_31_213221) do
     t.integer "assigned_role"
     t.jsonb "predecessor_ids", default: []
     t.string "header_gantt"
+    t.boolean "create_po_on_job_start", default: false
+    t.boolean "has_subtasks", default: false
+    t.integer "subtask_count"
+    t.string "subtask_names", default: "{}"
+    t.string "tags", default: "{}"
+    t.string "color"
+    t.boolean "is_active", default: true
+    t.integer "linked_po_task_id"
+    t.string "cost_centre"
+    t.boolean "completed", default: false
+    t.date "previous_manual_start_date"
+    t.datetime "confirmed_at"
+    t.integer "po_supplier_id"
+    t.jsonb "po_line_items", default: "[]"
+    t.boolean "allow_header", default: false, null: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"
@@ -8884,7 +8899,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_31_213221) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", force: :cascade do |t|
+  create_table "versions", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

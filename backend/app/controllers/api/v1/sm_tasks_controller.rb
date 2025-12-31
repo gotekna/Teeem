@@ -47,9 +47,10 @@ module Api
       # GET /api/v1/jobs/:job_id/sm_tasks (nested under job)
       # SSoT: Use ?for=gantt to get filtered tasks with dependency rewiring
       # Performance: includes sm_task_attachments to avoid N+1
+      # SSoT: sm_schedule_master needed for header_gantt lookup in GanttDataService
       def job_index
         @tasks = @job.sm_tasks.ordered.includes(
-          :hold_reason, :purchase_order, :assigned_user, :supplier,
+          :hold_reason, :purchase_order, :assigned_user, :supplier, :sm_schedule_master,
           sm_task_attachments: :attachable
         )
 
@@ -242,7 +243,7 @@ module Api
       # DEPRECATED: Use GET /api/v1/jobs/:job_id/sm_tasks?for=gantt instead (SSoT)
       def gantt_data
         tasks = @job.sm_tasks.ordered.includes(
-          :hold_reason, :supplier, purchase_order: :supplier
+          :hold_reason, :supplier, :sm_schedule_master, purchase_order: :supplier
         )
 
         # SSoT: Use shared render_gantt_data helper
