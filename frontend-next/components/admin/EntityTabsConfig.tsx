@@ -258,6 +258,12 @@ export function EntityTabsConfig({
   const isDialogOpen = urlState.action === "create" || urlState.action === "edit";
   const isCreateMode = urlState.action === "create";
 
+  // Debug: Log URL state changes
+  React.useEffect(() => {
+    console.log('[EntityTabsConfig] URL state changed:', urlState);
+    console.log('[EntityTabsConfig] isDialogOpen:', isDialogOpen);
+  }, [urlState, isDialogOpen]);
+
   // Look up editingTab from tabs array using URL tab (tab_key slug)
   const editingTab = React.useMemo(() => {
     if (!urlState.tab || urlState.action !== "edit") return null;
@@ -308,7 +314,9 @@ export function EntityTabsConfig({
 
   // Use tab_key (slug) instead of numeric ID
   const setEditingTab = React.useCallback((tab: EntityTab | null) => {
+    console.log('[EntityTabsConfig] setEditingTab called with:', tab?.tab_key);
     if (tab) {
+      console.log('[EntityTabsConfig] Setting URL state: tab=', tab.tab_key, 'action=edit');
       setUrlState({ tab: tab.tab_key, action: "edit" });
     } else {
       setUrlState({ tab: null, action: null });
@@ -518,6 +526,7 @@ export function EntityTabsConfig({
   // Open edit dialog - always opens the edit dialog for tab settings
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: EntityTab) => {
+    console.log('[EntityTabsConfig] openEditDialog called for tab:', tab.tab_key);
     // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
     const folderPath = tab.sharepoint_folder_path || "";
 
