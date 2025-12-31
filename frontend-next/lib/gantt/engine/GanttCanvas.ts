@@ -844,6 +844,38 @@ export class GanttCanvas {
 
     // Recalculate critical path if enabled
     this.recalculateCriticalPath();
+
+    // Auto-detect broken dependencies (successor starts before predecessor finishes)
+    this.autoDetectBrokenDependencies();
+  }
+
+  /**
+   * Automatically detect and mark broken dependencies
+   * Called after tasks or dependencies are set
+   */
+  private autoDetectBrokenDependencies(): void {
+    // Clear existing broken dependency markers
+    this.state.tasks.forEach(task => {
+      task.brokenPredecessorIds = undefined;
+    });
+
+    // Run validation and mark broken dependencies
+    const broken = this.validateDependencies();
+    broken.forEach(({ taskId, brokenPredecessorId }) => {
+      const task = this.state.tasks.find(t => t.id === taskId);
+      if (task) {
+        if (!task.brokenPredecessorIds) {
+          task.brokenPredecessorIds = [];
+        }
+        if (!task.brokenPredecessorIds.includes(brokenPredecessorId)) {
+          task.brokenPredecessorIds.push(brokenPredecessorId);
+        }
+      }
+    });
+
+    if (broken.length > 0) {
+      this.markDirty();
+    }
   }
 
   // ============================================================================

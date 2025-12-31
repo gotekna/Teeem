@@ -296,7 +296,9 @@ class Contact < ApplicationRecord
   # Scopes
   scope :with_email, -> { where.not(email: [ nil, "" ]) }
   scope :with_phone, -> { where.not(mobile_phone: [ nil, "" ]).or(where.not(office_phone: [ nil, "" ])) }
-  scope :with_role, ->(role) { where("? = ANY(roles)", role) }
+  # Note: roles is TEXT storing JSON array like '["Employee"]', so use LIKE pattern
+  # The pattern matches the role surrounded by quotes to avoid partial matches
+  scope :with_role, ->(role) { where("roles LIKE ?", "%\"#{role}\"%") }
   scope :employees, -> { with_role("Employee") }
   scope :directors, -> { with_role("Director") }
   scope :sales, -> { with_role("sales") }

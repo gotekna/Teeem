@@ -1218,35 +1218,6 @@ export class Renderer {
         const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
         const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
 
-        // DEBUG: Log and draw dependency 8-9 in bright red
-        if (dep.id === '8-9') {
-          console.log('[Renderer] Dep 8-9 coords:', {
-            fromId: dep.fromId, toId: dep.toId, type: dep.type,
-            fromIndex: from.index, toIndex: to.index,
-            fromX, toX, fromY, toY,
-            fromTaskStart: from.task.startDate.toISOString(),
-            toTaskStart: to.task.startDate.toISOString(),
-          });
-          // Draw bright red debug line
-          this.ctx.save();
-          this.ctx.strokeStyle = '#FF0000';
-          this.ctx.lineWidth = 4;
-          this.ctx.beginPath();
-          this.ctx.moveTo(fromX, fromY);
-          this.ctx.lineTo(fromX, toY);
-          this.ctx.lineTo(toX, toY);
-          this.ctx.stroke();
-          // Red circles at endpoints
-          this.ctx.fillStyle = '#FF0000';
-          this.ctx.beginPath();
-          this.ctx.arc(fromX, fromY, 8, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.beginPath();
-          this.ctx.arc(toX, toY, 8, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.restore();
-        }
-
         // Check if this is a broken dependency
         const isBroken = brokenDepIds?.has(dep.id);
         if (isBroken) {
