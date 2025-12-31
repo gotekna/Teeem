@@ -274,6 +274,7 @@ class Contact < ApplicationRecord
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
   before_validation :auto_fix_website_url, prepend: true  # Auto-fix website URLs without protocol (MUST run before column type validation)
   before_validation :normalize_entity_type      # Convert "Person" → "person", "Sole Trader" → "sole_trader"
+  before_validation :migrate_name_on_entity_type_change  # Migrate names when entity type changes
   before_validation :auto_fix_name_casing       # Auto-fix ALL CAPS and lowercase names
   before_save :generate_display_name
   before_save :sync_company_name_or_trust
@@ -1275,6 +1276,42 @@ class Contact < ApplicationRecord
 
     # Convert to lowercase and replace spaces with underscores
     self.entity_type = entity_type.downcase.gsub(" ", "_")
+  end
+
+  # Migrate name fields when entity type changes
+  # company/trust → person: Move company_name_or_trust → first_name
+  # person → company/trust: Move display_name → company_name_or_trust
+  def migrate_name_on_entity_type_change
+    return unless entity_type_changed?
+    return if entity_type.blank?
+
+    old_type = entity_type_was
+    new_type = entity_type
+
+    # company/trust → person/sole_trader: Move company name to first name
+    if old_type.in?(%w[company trust]) && new_type.in?(%w[person sole_trader])
+      if first_name.blank?
+        # Use company_name_or_trust or fall back to display_name
+        name = company_name_or_trust.presence || display_name.presence
+        if name.present?
+          self.first_name = name
+          self.company_name_or_trust = nil
+        end
+      end
+    end
+
+    # person/sole_trader → company/trust: Move display name to company name
+    if old_type.in?(%w[person sole_trader]) && new_type.in?(%w[company trust])
+      if company_name_or_trust.blank?
+        # Use existing display_name or construct from first/last name
+        name = display_name.presence || [ first_name, last_name ].compact.join(" ")
+        if name.present?
+          self.company_name_or_trust = name
+          self.first_name = nil
+          self.last_name = nil
+        end
+      end
+    end
   end
 
   private

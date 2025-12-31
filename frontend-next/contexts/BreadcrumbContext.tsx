@@ -30,6 +30,7 @@ import {
   MAX_TRAIL_LENGTH,
   type BreadcrumbItem,
 } from "@/lib/breadcrumb-atoms";
+import { searchQueryAtom } from "@/lib/table-atoms";
 import { resolveDisplayName, resolveIcon, isSameRoute, isDefaultView } from "@/lib/breadcrumb-utils";
 
 interface BreadcrumbContextType {
@@ -54,6 +55,7 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const [trail, setTrail] = useAtom(breadcrumbTrailAtom);
   const setVisible = useSetAtom(breadcrumbVisibleAtom);
+  const setSearchQuery = useSetAtom(searchQueryAtom);
 
   // Track previous pathname to detect changes
   const previousPathRef = useRef<string | null>(null);
@@ -89,16 +91,17 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
 
   /**
    * Listen for sidebar navigation events
-   * Resets the trail when user clicks sidebar
+   * Resets the trail and table state when user clicks sidebar
    */
   useEffect(() => {
     const handleSidebarNav = () => {
       resetTrail();
+      setSearchQuery('');  // Clear table search on sidebar navigation
     };
 
     window.addEventListener(SIDEBAR_NAVIGATION_EVENT, handleSidebarNav);
     return () => window.removeEventListener(SIDEBAR_NAVIGATION_EVENT, handleSidebarNav);
-  }, [resetTrail]);
+  }, [resetTrail, setSearchQuery]);
 
   /**
    * Track navigation changes
