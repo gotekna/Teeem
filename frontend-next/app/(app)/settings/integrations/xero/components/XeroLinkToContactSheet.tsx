@@ -131,12 +131,12 @@ export function XeroLinkToContactSheet({
       try {
         const response = await api.get<{
           success: boolean;
-          data: { records: Contact[] };
-        }>(`/api/v1/contacts?q=${encodeURIComponent(value)}&per_page=10`);
+          contacts: Contact[];
+        }>(`/api/v1/contacts?search=${encodeURIComponent(value)}`);
 
-        if (response?.success && response?.data?.records) {
+        if (response?.success && response?.contacts) {
           // Filter out the currently linked contact
-          const filtered = response.data.records.filter(
+          const filtered = response.contacts.filter(
             (c) => c.id !== currentContactId
           );
           setSearchResults(filtered);
