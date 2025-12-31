@@ -34,8 +34,7 @@ import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
-import type { GanttTask, SmScheduleMaster } from "@/lib/gantt/types";
-import { convertRowsToTasks } from "@/lib/gantt/types";
+import type { GanttTask } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -79,6 +78,9 @@ interface SmTask {
   // Lock status fields for dependency editor
   confirm?: boolean;
   supplier_confirm?: boolean;
+  // Hold status fields
+  hold?: boolean;
+  hold_date?: string | null;
   // Header info from linked sm_schedule_master
   // "Header" = this IS a header, number = parent header ID
   header_gantt?: string | number | null;
@@ -473,103 +475,54 @@ export default function SchedulePage() {
     router.push(`/jobs/${jobId}/schedule`);
   }, [router, jobId]);
 
-  // Convert tasks to Canvas Gantt format with dependency-based scheduling
-  // Uses same convertRowsToTasks function as Schedule Master template
+  // Convert tasks to Canvas Gantt format
+  // SSoT: Use actual dates from database (set by SmRolloverJob)
+  // NOT recalculated - SmTasks have their own start_date/end_date columns
   const ganttTasksFormatted = React.useMemo(() => {
     if (ganttTasks.length === 0) return [];
 
-    // Adapt SmTask to SmScheduleMaster format for convertRowsToTasks
-    const adaptedRows: SmScheduleMaster[] = ganttTasks.map((task, index) => ({
-      id: task.id,
-      task_number: task.task_number,
-      name: task.name,
-      description: null,
-      sequence_order: index + 1, // Use array order as sequence
-      duration_days: task.duration_days || 1,
-      predecessor_ids: (task.predecessor_ids || []).map(p => ({
-        id: p.id,
-        type: (p.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
-        lag: p.lag ?? 0,
-      })),
-      predecessor_display: '',
-      predecessor_display_names: [],
-      trade: null,
-      stage: null,
-      cost_centre: null,
-      assigned_role: null,
-      supplier_id: task.supplier_id ?? null,
-      supplier_name: task.supplier_name ?? null,
-      checklist_id: null,
-      require_photo: false,
-      require_certificate: false,
-      confirm: task.confirm ?? false,
-      supplier_confirm: task.supplier_confirm ?? false,
-      finance_approved: false,
-      po_required: task.po_required ?? false,
-      critical_po: false,
-      create_po_on_job_start: false,
-      has_subtasks: false,
-      subtask_count: null,
-      subtask_names: null,
-      spawn_scan_task_id: null,
-      spawn_scan_lag_days: 0,
-      spawn_scan_task_name: null,
-      pass_fail_enabled: false,
-      order_time_days: null,
-      call_time_days: null,
-      documentation_category_ids: [],
-      linked_task_ids: [],
-      price_book_item_ids: [],
-      tags: [],
-      color: null,
-      is_active: true,
-      linked_po_task_id: null,
-      linked_po_task_name: null,
-      // SSoT: header_gantt from API - convert number to expected format
-      header_gantt: typeof task.header_gantt === 'number'
-        ? { id: task.header_gantt, display: '' }
-        : (task.header_gantt ?? null),
-      sm_template_ids: [],
-      hold: false,
-      hold_date: null,
-      is_completed: task.status === 'completed',
-      completed_at: null,
-      predecessor_ids_backup: null,
-      dependency_broken: null,
-      created_at: '',
-      updated_at: '',
-    }));
+    return ganttTasks.map(task => {
+      // Parse dates from API response (format: "YYYY-MM-DD")
+      const startDate = task.start_date ? parseISO(task.start_date) : new Date();
+      const endDate = task.end_date ? parseISO(task.end_date) : startDate;
 
-    // Use today as project start date (same as template mode)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Apply same scheduling logic as Schedule Master template
-    const scheduledTasks = convertRowsToTasks(adaptedRows, today);
-
-    // Merge scheduled dates with original task data for sidebar/PO info
-    return scheduledTasks.map(scheduled => {
-      const original = ganttTasks.find(t => String(t.id) === scheduled.id);
       return {
-        ...scheduled,
-        // Preserve original task info for sidebar
-        supplierId: original?.supplier_id ?? undefined,
-        supplierName: original?.supplier_name ?? undefined,
-        purchaseOrderId: original?.purchase_order?.id ?? original?.purchase_order_id ?? undefined,
-        purchaseOrderNumber: original?.purchase_order?.po_number ?? undefined,
-        poRequired: original?.po_required ?? false,
-        // SSoT: rowData for dependency editor
+        id: String(task.id),
+        name: task.name,
+        startDate,
+        endDate,
+        progress: task.progress_percentage || 0,
+        status: task.status === 'completed' ? 'completed' as const :
+                task.status === 'started' ? 'in-progress' as const : 'not-started' as const,
+        // SSoT: Convert boolean flags to LockType for Gantt
+        locked: task.supplier_confirm ? 'supplierConfirmed' as const :
+                task.confirm ? 'manuallyPositioned' as const : undefined,
+        supplierId: task.supplier_id ?? undefined,
+        supplierName: task.supplier_name ?? undefined,
+        purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
+        purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
+        poRequired: task.po_required ?? false,
+        // SSoT: rowData for dependency editor and header info
         rowData: {
-          task_number: original?.task_number ?? 0,
-          predecessor_ids: (original?.predecessor_ids || []).map(p => ({
+          id: task.id,
+          task_number: task.task_number,
+          name: task.name,
+          duration_days: task.duration_days || 1,
+          predecessor_ids: (task.predecessor_ids || []).map(p => ({
             id: p.id,
             type: (p.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
             lag: p.lag ?? 0,
           })),
-          confirm: original?.confirm ?? false,
-          supplier_confirm: original?.supplier_confirm ?? false,
+          confirm: task.confirm ?? false,
+          supplier_confirm: task.supplier_confirm ?? false,
+          header_gantt: task.header_gantt,
+          hold: task.hold ?? false,
+          hold_date: task.hold_date,
+          supplier_id: task.supplier_id,
+          supplier_name: task.supplier_name,
         },
-      };
+        shape: undefined, // Let Gantt decide based on duration
+      } as GanttTask;
     });
   }, [ganttTasks]);
 

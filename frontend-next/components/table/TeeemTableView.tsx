@@ -639,8 +639,10 @@ export default function TeeemTableView({
   // When foundationIdNumeric is set AND entries prop is empty/not provided,
   // TeeemTableView manages its own data fetching with cursor-based pagination
   // ============================================================================
-  const [autoFetchedRecords, setAutoFetchedRecords] = useState<TableRowType[]>([]);
-  const [hasMore, setHasMore] = useState(true);
+  // SSR: Initialize with server-provided records to prevent hydration mismatch
+  // This eliminates CLS by ensuring client state matches SSR-rendered content
+  const [autoFetchedRecords, setAutoFetchedRecords] = useState<TableRowType[]>(initialRecords || []);
+  const [hasMore, setHasMore] = useState(initialHasMore ?? true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   // Auto-refresh key: increment to trigger re-fetch when using autoFetchRecords
@@ -794,10 +796,10 @@ export default function TeeemTableView({
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
   // CRITICAL: Include filters in API call - backend needs to know about base filters
   useEffect(() => {
-    // SSR: Apply server-provided records ONE TIME ONLY on initial load
-    // - Use ref to prevent re-application on prop changes (which would wipe load-more data)
-    // - Check for persisted search (URL, prop, session) to avoid overwriting search results
-    // - Only apply when autoFetchRefreshKey === 0 (not after updates/deletes)
+    // SSR: Mark initial records as applied (state was already initialized with them)
+    // - Use ref to prevent re-fetch on mount when we already have SSR data
+    // - Check for persisted search (URL, prop, session) which should trigger a fresh fetch
+    // - Only consider this on initial load (autoFetchRefreshKey === 0)
     if (!hasAppliedInitialRecordsRef.current && initialRecords && initialRecords.length > 0 && autoFetchRefreshKey === 0) {
       // Check for any persisted search that should take precedence over SSR data
       const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
@@ -805,8 +807,7 @@ export default function TeeemTableView({
       const hasPersistedSearch = urlSearchParam || initialSearch || sessionSearchParam || searchRef.current;
 
       if (!hasPersistedSearch) {
-        setAutoFetchedRecords(initialRecords);
-        setHasMore(initialHasMore ?? true);
+        // SSR data is already in state (initialized in useState), just mark as applied
         hasAppliedInitialRecordsRef.current = true;
         return;
       }
