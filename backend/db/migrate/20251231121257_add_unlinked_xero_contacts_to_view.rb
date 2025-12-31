@@ -150,10 +150,9 @@ class AddUnlinkedXeroContactsToView < ActiveRecord::Migration[7.1]
 
       UNION ALL
 
-      -- Part 3: Xero contacts with invoices linked to TEEEM but NO ContactExternalLink
-      -- (e.g., Aspect Joinery - linked via invoice but missing the formal link record)
+      -- Part 3: Xero contacts from invoices with NO ContactExternalLink
+      -- Don't show TEEEM contact - it's unreliable (may be wrongly linked)
       SELECT
-        -- Generate a negative ID starting at -100000 to avoid collision
         -(100000 + ROW_NUMBER() OVER (ORDER BY missing_link.xero_contact_name))::integer AS id,
         NULL::integer AS xero_link_id,
         missing_link.external_contact_id AS xero_id,
@@ -161,31 +160,26 @@ class AddUnlinkedXeroContactsToView < ActiveRecord::Migration[7.1]
         missing_link.xero_tenant_id AS xero_tenant_id,
         xc2.tenant_name AS xero_tenant_name,
         false AS sync_enabled,
-        'Missing ContactExternalLink' AS sync_error,
+        NULL AS sync_error,
         NULL::timestamp AS contact_synced_at,
         NULL AS xero_contact_status,
         true AS needs_review,
         'invoice_only' AS match_type,
         NULL::numeric AS match_confidence,
-        missing_link.contact_id,
-        c2.display_name,
-        c2.email,
-        c2.entity_type,
-        COALESCE(c2.is_team_contact, false) AS is_team_contact,
-        c2.primary_company_id,
+        NULL::integer AS contact_id,
+        NULL AS display_name,
+        NULL AS email,
+        NULL AS entity_type,
+        false AS is_team_contact,
+        NULL::integer AS primary_company_id,
         missing_link.first_seen AS created_at,
         missing_link.last_seen AS updated_at,
         0 AS xero_link_count,
         false AS synced,
-        true AS has_error,
-        CASE
-          WHEN c2.roles LIKE '%customer%' AND c2.roles LIKE '%supplier%' THEN 'Both'
-          WHEN c2.roles LIKE '%customer%' THEN 'Customer'
-          WHEN c2.roles LIKE '%supplier%' THEN 'Supplier'
-          ELSE NULL
-        END AS contact_role,
-        COALESCE(c2.roles LIKE '%customer%', false) AS is_customer,
-        COALESCE(c2.roles LIKE '%supplier%', false) AS is_supplier,
+        false AS has_error,
+        NULL AS contact_role,
+        false AS is_customer,
+        false AS is_supplier,
         missing_link.invoices_count,
         missing_link.bills_count,
         missing_link.total_docs,
@@ -193,34 +187,29 @@ class AddUnlinkedXeroContactsToView < ActiveRecord::Migration[7.1]
         0 AS pdfs_synced,
         NULL::numeric AS pdf_sync_percent,
         NULL::timestamp AS pdfs_synced_at,
-        pc2.display_name AS primary_company_name
+        NULL AS primary_company_name
       FROM (
         SELECT
           contact_name AS xero_contact_name,
           external_contact_id,
           tenant_id AS xero_tenant_id,
-          contact_id,
           COUNT(*) FILTER (WHERE invoice_type = 'sales_invoice') AS invoices_count,
           COUNT(*) FILTER (WHERE invoice_type = 'bill') AS bills_count,
           COUNT(*) AS total_docs,
           MIN(created_at) AS first_seen,
           MAX(last_synced_at) AS last_seen
         FROM external_invoices
-        WHERE contact_id IS NOT NULL
-          AND external_contact_id IS NOT NULL
+        WHERE external_contact_id IS NOT NULL
           AND contact_name IS NOT NULL
           AND contact_name != ''
           AND contact_name != 'No Contact'
-          -- Only include Xero contacts that DON'T have a ContactExternalLink
           AND external_contact_id NOT IN (
             SELECT DISTINCT external_contact_id
             FROM contact_external_links
             WHERE source = 'xero' AND external_contact_id IS NOT NULL
           )
-        GROUP BY contact_name, external_contact_id, tenant_id, contact_id
+        GROUP BY contact_name, external_contact_id, tenant_id
       ) missing_link
-      LEFT JOIN contacts c2 ON c2.id = missing_link.contact_id
-      LEFT JOIN contacts pc2 ON pc2.id = c2.primary_company_id
       LEFT JOIN xero_credentials xc2 ON xc2.tenant_id = missing_link.xero_tenant_id;
     SQL
   end
