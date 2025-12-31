@@ -18,6 +18,12 @@ interface JobsPageClientProps {
   initialHasMore: boolean;
   // SSR view config - eliminates flash when loading grouped views
   initialView?: ViewData | null;
+  // SSR group counts - eliminates CLS when group counts load
+  initialGroupCounts?: {
+    groups: Array<{ key: string | null; count: number; displayValue: string }>;
+    totalRecords: number;
+    displayValuesMap: Record<string, Record<number, string>>;
+  } | null;
 }
 
 /**
@@ -36,6 +42,7 @@ export default function JobsPageClient({
   initialRecords,
   initialHasMore,
   initialView,
+  initialGroupCounts,
 }: JobsPageClientProps) {
   const router = useRouter();
 
@@ -80,6 +87,8 @@ export default function JobsPageClient({
         initialHasMore={initialHasMore}
         // SSR View - pre-fetched to eliminate flash on grouped views
         initialView={initialView}
+        // SSR Group Counts - pre-fetched to eliminate CLS on grouped views
+        initialGroupCounts={initialGroupCounts}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
       />

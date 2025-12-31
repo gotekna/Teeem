@@ -67,6 +67,15 @@ export interface UseGroupCountsReturn {
 }
 
 /**
+ * Initial data for SSR pre-loading group counts
+ */
+export interface GroupCountsInitialData {
+  groups: GroupCount[];
+  totalRecords: number;
+  displayValuesMap: DisplayValuesMap;
+}
+
+/**
  * Hook to fetch server-side group counts for a foundation
  *
  * This hook calls GET /api/v1/foundations/:id/groups?group_by=column
@@ -80,28 +89,39 @@ export interface UseGroupCountsReturn {
  * SSoT: Returns display_values_map for ALL grouping columns from server.
  * This eliminates frontend display value extraction and key collision issues.
  *
+ * SSR Pre-loading:
+ * When initialData is provided (from SSR), the hook uses it immediately
+ * without making an API call. This eliminates CLS from group counts loading.
+ *
  * @param foundationId - The foundation ID (numeric or slug string)
  * @param groupByColumn - Column name to group by (for counts)
  * @param filters - Optional cascade filters to apply
  * @param enabled - Whether to enable fetching (default: true when groupByColumn is set)
  * @param allGroupByColumns - Optional array of ALL grouping columns to get display values for
+ * @param initialData - Optional pre-fetched data from SSR (eliminates CLS)
  */
 export function useGroupCounts(
   foundationId: number | string | null | undefined,
   groupByColumn: string | null | undefined,
   filters?: CascadeFilter[],
   enabled: boolean = true,
-  allGroupByColumns?: string[]
+  allGroupByColumns?: string[],
+  initialData?: GroupCountsInitialData
 ): UseGroupCountsReturn {
-  const [groups, setGroups] = useState<GroupCount[]>([]);
-  const [totalRecords, setTotalRecords] = useState(0);
-  const [displayValuesMap, setDisplayValuesMap] = useState<DisplayValuesMap>({});
+  // SSR: Use initial data if provided to eliminate CLS
+  const [groups, setGroups] = useState<GroupCount[]>(initialData?.groups ?? []);
+  const [totalRecords, setTotalRecords] = useState(initialData?.totalRecords ?? 0);
+  const [displayValuesMap, setDisplayValuesMap] = useState<DisplayValuesMap>(initialData?.displayValuesMap ?? {});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasFetched, setHasFetched] = useState(false);
+  // If initial data provided, mark as already fetched
+  const [hasFetched, setHasFetched] = useState(!!initialData);
 
   // Track the current request to cancel stale ones
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // SSR: Track if we should skip initial fetch (when initialData is provided)
+  const skipInitialFetchRef = useRef(!!initialData);
 
   // Serialize filters for dependency comparison
   const filtersKey = filters ? JSON.stringify(filters) : "";
@@ -195,6 +215,13 @@ export function useGroupCounts(
 
   // Fetch on mount and when dependencies change
   useEffect(() => {
+    // SSR: Skip initial fetch if we have pre-loaded data
+    if (skipInitialFetchRef.current) {
+      console.log('[useGroupCounts] Skipping initial fetch - using SSR data');
+      skipInitialFetchRef.current = false; // Allow future refetches
+      return;
+    }
+
     fetchGroupCounts();
 
     // Cleanup: abort on unmount

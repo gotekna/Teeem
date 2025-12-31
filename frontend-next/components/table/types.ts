@@ -240,6 +240,15 @@ export interface TeeemTableViewProps {
     };
     sort_order?: Array<{ column: string; dir: 'asc' | 'desc' }>;
   } | null;
+
+  // SSR Group Counts - Pre-fetched group counts to eliminate CLS on grouped views
+  // When provided, TeeemTableView initializes with the group counts ready,
+  // preventing the layout shift when groupedEntries recalculates after API load
+  initialGroupCounts?: {
+    groups: Array<{ key: string | null; count: number; displayValue: string }>;
+    totalRecords: number;
+    displayValuesMap: Record<string, Record<number, string>>;
+  } | null;
 }
 
 // Column visibility state

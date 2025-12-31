@@ -207,10 +207,26 @@ function transformColumns(foundation: Foundation): TableColumn[] {
 export type { ViewData };
 
 /**
+ * SSR Group Count data for pre-loading
+ */
+export interface SSRGroupCount {
+  key: string | null;
+  count: number;
+  displayValue: string;
+}
+
+export interface SSRGroupCounts {
+  groups: SSRGroupCount[];
+  totalRecords: number;
+  displayValuesMap: Record<string, Record<number, string>>;
+}
+
+/**
  * Extended foundation data including optional view configuration
  */
 interface FoundationDataWithView extends FoundationData {
   view: ViewData | null;
+  groupCounts: SSRGroupCounts | null;
 }
 
 /**
@@ -242,6 +258,7 @@ export async function fetchFoundationForSSR(
       hasMore: false,
       error: 'Not authenticated',
       view: null,
+      groupCounts: null,
     };
   }
 
@@ -319,6 +336,46 @@ export async function fetchFoundationForSSR(
       }
     }
 
+    // SSR CLS Fix: Fetch group counts if view has grouping
+    // This eliminates CLS caused by groupedEntries recalculating when counts load
+    let groupCounts: SSRGroupCounts | null = null;
+    const groupByColumns = view?.group_by_columns || (view?.group_by_column ? [view.group_by_column] : []);
+
+    if (groupByColumns.length > 0 && foundation?.id) {
+      try {
+        const groupByParam = groupByColumns.join(',');
+        const groupsRes = await fetch(
+          `${API_BASE_URL}/api/v1/foundations/${foundation.id}/groups?group_by=${encodeURIComponent(groupByParam)}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            cache: 'no-store',
+          }
+        );
+
+        if (groupsRes.ok) {
+          const groupsData = await groupsRes.json();
+          if (groupsData.success && groupsData.groups) {
+            groupCounts = {
+              groups: groupsData.groups.map((g: { key: string | null; count: number; display_value: string }) => ({
+                key: g.key,
+                count: g.count,
+                displayValue: g.display_value,
+              })),
+              totalRecords: groupsData.total_records || 0,
+              displayValuesMap: groupsData.display_values_map || {},
+            };
+            console.log('[SSR] Pre-loaded group counts:', groupCounts.groups.length, 'groups');
+          }
+        }
+      } catch (groupErr) {
+        console.error('[SSR] Failed to fetch group counts (non-fatal):', groupErr);
+        // Continue without group counts - will load client-side
+      }
+    }
+
     return {
       foundation,
       columns,
@@ -327,6 +384,7 @@ export async function fetchFoundationForSSR(
       hasMore,
       error: null,
       view,
+      groupCounts,
     };
   } catch (err) {
     console.error('[SSR] Failed to fetch foundation data:', err);
@@ -338,6 +396,7 @@ export async function fetchFoundationForSSR(
       hasMore: false,
       error: err instanceof Error ? err.message : 'Failed to load data',
       view: null,
+      groupCounts: null,
     };
   }
 }

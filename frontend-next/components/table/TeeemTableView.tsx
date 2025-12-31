@@ -497,6 +497,8 @@ export default function TeeemTableView({
   initialHasMore,
   // SSR View - Pre-fetched view configuration to eliminate flash on grouped views
   initialView,
+  // SSR Group Counts - Pre-fetched group counts to eliminate CLS on grouped views
+  initialGroupCounts,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1367,6 +1369,16 @@ export default function TeeemTableView({
     enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
   });
 
+  // SSR: Convert initialGroupCounts to hook's expected format
+  const ssrGroupCountsData = useMemo(() => {
+    if (!initialGroupCounts) return undefined;
+    return {
+      groups: initialGroupCounts.groups,
+      totalRecords: initialGroupCounts.totalRecords,
+      displayValuesMap: initialGroupCounts.displayValuesMap,
+    };
+  }, [initialGroupCounts]);
+
   const {
     groups: serverGroupCounts,
     totalRecords: serverTotalRecords,
@@ -1378,7 +1390,8 @@ export default function TeeemTableView({
     validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
     groupByColumns.length > 0 && !!validGroupByColumnForApi, // enabled when grouping is active AND column is valid
-    groupByColumns // Pass ALL grouping columns so server returns display values for each
+    groupByColumns, // Pass ALL grouping columns so server returns display values for each
+    ssrGroupCountsData // SSR: Pre-fetched group counts to eliminate CLS
   );
 
   // Build a map of group key -> server count for quick lookup
@@ -2798,9 +2811,10 @@ export default function TeeemTableView({
 
   // Load view state helper - applies saved view configuration to current state
   // skipUrlUpdate: set to true when loading from URL to avoid redundant URL updates that can cause loops
+  // isUserAction: set to true when user explicitly clicks to change view (for URL updates in embedded context)
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
-    (view: SavedView, skipUrlUpdate = false) => {
+    (view: SavedView, skipUrlUpdate = false, isUserAction = false) => {
       // Apply view state atomically via Jotai atom
       // This replaces 100+ lines of individual setters with a single atomic update
       // groupByColumns and collapsedGroups are now managed by atoms (SSoT)
@@ -2810,7 +2824,7 @@ export default function TeeemTableView({
       setShowFilters(false);
 
       // URL handling based on context:
-      // - Embedded context: Parent owns URL, no direct URL updates
+      // - Embedded context: Parent owns URL, only notify on user actions
       // - Standalone context: Update query param directly
       // SSoT: isEmbeddedContext defined at component top
       if (view.id && !skipUrlUpdate && !isEmbeddedContext) {
@@ -2829,9 +2843,12 @@ export default function TeeemTableView({
         onViewApiParamsChange(null);
       }
 
-      // Notify parent of view change (for both contexts)
-      // Parent can use this to update path-based URL for embedded tables
-      onViewChange?.(view);
+      // Notify parent of view change ONLY for user actions
+      // This prevents URL auto-update on initial page load (confusing UX)
+      // Parent uses onViewChange to update path-based URL for embedded tables
+      if (isUserAction) {
+        onViewChange?.(view);
+      }
     },
     [applyView, onViewApiParamsChange, router, onViewChange, isEmbeddedContext]
   );
@@ -4658,12 +4675,10 @@ export default function TeeemTableView({
   // Get active view name
   const activeView = savedViews.find((v) => v.id === activeViewId);
 
-  // Notify parent when active view changes
-  React.useEffect(() => {
-    if (onViewChange) {
-      onViewChange(activeView || null);
-    }
-  }, [activeView, onViewChange]);
+  // NOTE: onViewChange is called from loadViewState when isUserAction=true
+  // This prevents URL auto-updates on initial page load (confusing UX)
+  // The effect that was here was removed because it fired on ANY activeView
+  // change, including initial load, causing redirect loops
 
   // ============================================================================
   // MAIN RENDER
@@ -5216,7 +5231,7 @@ export default function TeeemTableView({
                   key={view.id}
                   variant={activeViewId === view.id ? "default" : "outline"}
                   size="sm"
-                  onClick={() => loadViewState(view)}
+                  onClick={() => loadViewState(view, false, true)}
                   title={view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
                   className={cn(
                     "shrink-0 max-w-[140px]",
