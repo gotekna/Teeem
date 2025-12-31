@@ -28,7 +28,8 @@ class BulkDocumentCategorizationService
     load_entity_tabs
 
     # Get uncategorized documents (document_type_id IS NULL)
-    documents = @job.job_documents.where(document_type_id: nil).synced
+    # Note: Process ALL uncategorized docs, not just synced ones (folder_path available for all)
+    documents = @job.job_documents.where(document_type_id: nil)
     @stats[:total] = documents.count
 
     Rails.logger.info("[BulkCategorize] Starting categorization for Job #{@job.id}: #{@stats[:total]} documents, dry_run=#{@dry_run}")
