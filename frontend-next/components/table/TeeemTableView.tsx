@@ -494,6 +494,8 @@ export default function TeeemTableView({
   initialRecords,
   initialTotalCount,
   initialHasMore,
+  // SSR View - Pre-fetched view configuration to eliminate flash on grouped views
+  initialView,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1246,7 +1248,20 @@ export default function TeeemTableView({
   const [savedViews, setSavedViews] = useAtom(foundationViewsAtom);
   const [activeViewId, setActiveViewId] = useAtom(activeViewIdAtom);
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
-  const initialViewLoadedRef = useRef(false); // Prevent re-loading views after initial load
+  // SSR: Mark as loaded if we have initialView to prevent client-side reload
+  const initialViewLoadedRef = useRef(!!initialView); // Prevent re-loading views after initial load
+
+  // SSR FLASH FIX: Initialize activeViewId from initialView immediately
+  // This ensures the view selector shows the correct active view on first render
+  const ssrViewInitializedRef = useRef(false);
+  useEffect(() => {
+    if (ssrViewInitializedRef.current) return;
+    if (initialView?.id && !activeViewId) {
+      ssrViewInitializedRef.current = true;
+      console.log('[SSR] Setting activeViewId from initialView:', initialView.id);
+      setActiveViewId(initialView.id);
+    }
+  }, [initialView, activeViewId, setActiveViewId]);
 
   // Row rendering limit for performance (render rows initially, load more on demand)
   // SSoT: Uses TABLE_ROW_LIMIT from pagination-constants.ts
@@ -1257,8 +1272,23 @@ export default function TeeemTableView({
 
   // Group by state managed by atoms (SSoT)
   const [groupByColumns, setGroupByColumns] = useAtom(currentGroupByColumnsAtom);
-  // Derive groupByColumn from atom - NOT a separate state (SSoT compliance)
-  const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : (initialGroupByColumn || null);
+
+  // SSR FLASH FIX: Use initialView's grouping on first render BEFORE effects run
+  // This prevents the flash from flat table to grouped view during hydration
+  // Priority: atom value (if set) > SSR initialView > initialGroupByColumn prop
+  const effectiveGroupByColumns = useMemo(() => {
+    // If atom already has values (from a previous view load), use them
+    if (groupByColumns.length > 0) return groupByColumns;
+    // SSR: Use initialView's grouping for first render
+    if (initialView?.group_by_columns?.length) return initialView.group_by_columns;
+    if (initialView?.group_by_column) return [initialView.group_by_column];
+    // Fallback to prop
+    if (initialGroupByColumn) return [initialGroupByColumn];
+    return [];
+  }, [groupByColumns, initialView, initialGroupByColumn]);
+
+  // Derive groupByColumn from effective columns - NOT a separate state (SSoT compliance)
+  const groupByColumn = effectiveGroupByColumns.length > 0 ? effectiveGroupByColumns[0] : null;
   // Collapsed groups managed by atom (persists with saved views)
   const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedGroupsAtom);
   // Keep ref in sync for use in toggleSelectAll callback
@@ -1266,15 +1296,34 @@ export default function TeeemTableView({
   // groupViewMode managed by atom (SSoT)
   const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
 
-  // Initialize groupByColumns from initialGroupByColumn prop on mount
+  // Initialize groupByColumns from initialView (SSR) or initialGroupByColumn prop on mount
+  // Priority: SSR initialView > initialGroupByColumn prop
   // Only runs once and only if atom is empty (doesn't override saved views)
   const initialGroupByRef = useRef(false);
   useEffect(() => {
-    if (!initialGroupByRef.current && initialGroupByColumn && groupByColumns.length === 0) {
+    if (initialGroupByRef.current) return;
+
+    // Priority 1: SSR initialView - eliminates flash on grouped views
+    if (initialView?.group_by_columns?.length) {
+      initialGroupByRef.current = true;
+      console.log('[SSR] Applying initialView groupByColumns:', initialView.group_by_columns);
+      setGroupByColumns(initialView.group_by_columns);
+      return;
+    }
+    // Also check legacy group_by_column field
+    if (initialView?.group_by_column) {
+      initialGroupByRef.current = true;
+      console.log('[SSR] Applying initialView group_by_column:', initialView.group_by_column);
+      setGroupByColumns([initialView.group_by_column]);
+      return;
+    }
+
+    // Priority 2: initialGroupByColumn prop (fallback)
+    if (initialGroupByColumn && groupByColumns.length === 0) {
       initialGroupByRef.current = true;
       setGroupByColumns([initialGroupByColumn]);
     }
-  }, [initialGroupByColumn, groupByColumns.length, setGroupByColumns]);
+  }, [initialView, initialGroupByColumn, groupByColumns.length, setGroupByColumns]);
 
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
@@ -3115,15 +3164,16 @@ export default function TeeemTableView({
   // Group entries hierarchically if grouping is enabled (supports nested group columns)
   // Groups are sorted by customOrder if available for the group column
   // Uses buildGroupedEntries utility function from table-data-utils.ts
+  // NOTE: Uses effectiveGroupByColumns (includes SSR initialView) to prevent flash
   const groupedEntries = useMemo(() => {
     return buildGroupedEntries(
       filteredAndSortedEntries,
-      groupByColumns,
+      effectiveGroupByColumns, // SSR FIX: Use effective columns that include initialView
       sortColumns,
       serverGroupCounts,
       search
     );
-  }, [filteredAndSortedEntries, groupByColumns, sortColumns, serverGroupCounts, search]);
+  }, [filteredAndSortedEntries, effectiveGroupByColumns, sortColumns, serverGroupCounts, search]);
 
   // Keep ref in sync for use in toggleSelectAll callback
   groupedEntriesRef.current = groupedEntries;

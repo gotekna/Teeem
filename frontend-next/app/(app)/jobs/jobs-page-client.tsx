@@ -5,16 +5,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableRow, TableColumn } from "@/components/table/types";
+import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
 import { Plus } from "lucide-react";
+import type { ViewData } from "@/lib/server/foundation-api";
 
 interface JobsPageClientProps {
   // SSR data from server component
   initialColumns: TableColumn[];
   initialRecords: TableRow[];
   initialHasMore: boolean;
+  // SSR view config - eliminates flash when loading grouped views
+  initialView?: ViewData | null;
 }
 
 /**
@@ -22,11 +25,17 @@ interface JobsPageClientProps {
  *
  * Receives SSR data from server component for fast LCP.
  * TeeemTableView renders immediately without waiting for client fetch.
+ *
+ * SSR View Loading:
+ * When initialView is provided, TeeemTableView initializes with the view's
+ * grouping/filters applied immediately, eliminating the flash that occurs
+ * when switching from flat table to grouped view on hydration.
  */
 export default function JobsPageClient({
   initialColumns,
   initialRecords,
   initialHasMore,
+  initialView,
 }: JobsPageClientProps) {
   const router = useRouter();
 
@@ -69,6 +78,8 @@ export default function JobsPageClient({
         initialColumns={initialColumns}
         initialRecords={initialRecords}
         initialHasMore={initialHasMore}
+        // SSR View - pre-fetched to eliminate flash on grouped views
+        initialView={initialView}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
       />

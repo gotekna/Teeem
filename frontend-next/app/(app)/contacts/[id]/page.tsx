@@ -51,6 +51,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -1550,6 +1551,8 @@ export default function ContactDetailPage() {
       setHasChanges(false);
       // Signal that contacts list needs refresh when navigating back
       sessionStorage.setItem('contacts_needs_refresh', 'true');
+      // Clear Xero sync contacts cache so changes show when returning to that view
+      clearCachedRecords("xero-sync-contacts");
       loadContact();
       // Increment refresh key to force tab data reload (directorships, shareholdings, etc.)
       setRefreshKey(prev => prev + 1);

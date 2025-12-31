@@ -1388,6 +1388,7 @@ Rails.application.routes.draw do
             get :gantt_data
             post :copy_from_template
             post :import
+            post :validate_dates   # Safety net: Runs rollover for this job on page load (SSoT: SmRolloverJob)
             # Template upgrade endpoints (versioned architecture)
             get :upgrade_preview   # Preview changes before upgrading to new template version
             post :upgrade          # Execute upgrade to new template version

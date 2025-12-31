@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTasksController < ApplicationController
-      before_action :set_job, only: [ :job_index, :gantt_data, :copy_from_template, :import, :upgrade_preview, :upgrade ]
+      before_action :set_job, only: [ :job_index, :gantt_data, :copy_from_template, :import, :upgrade_preview, :upgrade, :validate_dates ]
       before_action :set_job_optional, only: [ :create ]
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
@@ -247,6 +247,21 @@ module Api
 
         # SSoT: Use shared render_gantt_data helper
         render_gantt_data(tasks)
+      end
+
+      # POST /api/v1/jobs/:job_id/sm_tasks/validate_dates
+      # Safety net: Runs rollover logic for this specific job on page load
+      # SSoT: Reuses SmRolloverJob logic (THE ONE rollover implementation)
+      def validate_dates
+        # SSoT: Use SmRolloverJob for this specific job
+        result = SmRolloverJob.perform_now(job_id: @job.id)
+
+        render json: {
+          success: true,
+          rolled_over: result[:rolled_over] || 0,
+          extended: result[:extended] || 0,
+          cascaded: result[:cascaded] || 0
+        }
       end
 
       # PATCH /api/v1/sm_tasks/:id

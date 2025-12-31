@@ -419,6 +419,24 @@ export default function SchedulePage() {
     setGanttOpen(true);
     setLoadingGantt(true);
     try {
+      // SSoT: Validate dates first (safety net - runs rollover for this job)
+      // Uses SmRolloverJob as THE ONE source of truth for rollover logic
+      try {
+        const validateResult = await api.post<{ success: boolean; rolled_over: number; extended: number; cascaded: number }>(
+          `/api/v1/jobs/${jobId}/sm_tasks/validate_dates`
+        );
+        const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
+        if (fixCount > 0) {
+          toast({
+            title: "Schedule Updated",
+            description: `${fixCount} task(s) with past dates moved forward`,
+          });
+        }
+      } catch (validateError) {
+        // Don't block loading if validation fails - just log it
+        console.warn("Failed to validate dates:", validateError);
+      }
+
       // SSoT: Use ?for=gantt to get filtered tasks (po_required without PO = invisible)
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       setGanttTasks(response.gantt_data?.tasks || []);

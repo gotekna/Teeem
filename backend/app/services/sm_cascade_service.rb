@@ -135,20 +135,6 @@ class SmCascadeService
     results
   end
 
-  # Execute cascade in rollover mode (automatic, no user confirmation)
-  def execute_rollover
-    results = {
-      updated_tasks: [],
-      deleted_dependencies: [],
-      supplier_confirms_cleared: 0
-    }
-
-    # Auto-cascade all unlocked successors
-    cascade_unlocked_successors_rollover(task, results)
-
-    results
-  end
-
   private
 
   def calculate_date_delta(new_start_date)
@@ -341,48 +327,6 @@ class SmCascadeService
 
       # Recursively cascade
       cascade_unlocked_successors(successor, results, user_id)
-    end
-  end
-
-  def cascade_unlocked_successors_rollover(task, results)
-    # SSoT: active_successor_dependencies returns OpenStruct array (no .includes needed)
-    task.active_successor_dependencies.each do |dep|
-      successor = dep.successor_task
-
-      if locked?(successor)
-        # Break dependency for locked successors during rollover
-        # SSoT: Remove predecessor from successor's predecessor_ids jsonb
-        updated_preds = successor.predecessor_ids.reject do |p|
-          (p["id"] || p[:id]).to_i == task.task_number
-        end
-        successor.update!(predecessor_ids: updated_preds)
-        results[:deleted_dependencies] << {
-          id: dep.id,
-          predecessor_id: dep.predecessor_task_id,
-          successor_id: dep.successor_task_id
-        }
-
-        # Clear supplier confirms during rollover
-        if successor.supplier_confirm?
-          successor.update!(
-            supplier_confirm: false,
-            confirm_status: "moved_after_confirm"
-          )
-          results[:supplier_confirms_cleared] += 1
-        end
-      else
-        next if results[:updated_tasks].include?(successor)
-
-        new_dates = calculate_successor_dates(successor)
-        successor.update!(
-          start_date: new_dates[:start_date],
-          end_date: new_dates[:end_date]
-        )
-        results[:updated_tasks] << successor
-
-        # Recursively cascade
-        cascade_unlocked_successors_rollover(successor, results)
-      end
     end
   end
 

@@ -208,6 +208,37 @@ export interface TeeemTableViewProps {
   initialRecords?: TableRow[]; // Pre-fetched records from server (first 20-50 for fast LCP)
   initialTotalCount?: number; // Total record count from server
   initialHasMore?: boolean; // Whether more records available for load-more
+
+  // SSR View - Pre-fetched view configuration to eliminate flash on grouped views
+  // When provided, TeeemTableView initializes with the view's grouping/filters
+  // applied immediately, preventing the flash from flat table to grouped view
+  initialView?: {
+    id: number;
+    name: string;
+    slug?: string;
+    group_by_columns?: string[];
+    group_by_column?: string;
+    filters?: {
+      cascadeFilters?: Array<{
+        id?: string;
+        column: string;
+        operator: string;
+        value: unknown;
+      }>;
+      filterGroups?: Array<{ id: string; logic: 'AND' | 'OR' }>;
+      interGroupLogic?: 'AND' | 'OR';
+    };
+    columns?: {
+      visible?: Record<string, boolean>;
+      order?: string[];
+      widths?: Record<string, number>;
+      autoFitColumns?: boolean;
+      smartFit?: boolean;
+      showTotals?: boolean;
+      stickyActions?: boolean;
+    };
+    sort_order?: Array<{ column: string; dir: 'asc' | 'desc' }>;
+  } | null;
 }
 
 // Column visibility state
