@@ -203,8 +203,10 @@ class GanttDataService
       supplier_name: record.try(:supplier)&.name || record.try(:po_supplier)&.name,
       purchase_order_id: record.respond_to?(:linked_purchase_order) ? record.linked_purchase_order&.id : nil,
       # Header/parent info
+      # SSoT: allow_header = true means this IS a header → return "Header"
+      # Otherwise, return the parent's task_number from header_gantt column
       # SmTask doesn't have header_gantt column - look it up from linked sm_schedule_master
-      header_gantt: record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt,
+      header_gantt: determine_header_gantt(record),
       parent_id: record.try(:parent_task_id),
       # Additional fields
       trade: record.try(:trade),
@@ -217,5 +219,21 @@ class GanttDataService
   def format_date(date)
     return nil unless date
     date.respond_to?(:strftime) ? date.strftime("%Y-%m-%d") : date.to_s
+  end
+
+  # SSoT: Determine header_gantt value for frontend
+  # Returns "Header" if this row IS a header (allow_header = true)
+  # Returns parent task_number if this row has a parent header
+  # Returns nil otherwise
+  def determine_header_gantt(record)
+    # Check allow_header on record itself or linked sm_schedule_master
+    is_header = record.try(:allow_header) || record.try(:sm_schedule_master)&.allow_header
+
+    if is_header
+      "Header"
+    else
+      # Return parent task_number from header_gantt column
+      record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt
+    end
   end
 end

@@ -2801,7 +2801,10 @@ export default function TeeemTableView({
 
       // URL update with slug (preferred) or numeric ID (fallback)
       // Using slug for: portability across environments, human-readable URLs
-      if (view.id && !skipUrlUpdate) {
+      // SKIP URL update for embedded tables (initialFilters = subtab/filtered view context)
+      // This matches the pattern at line ~2872 where skipUrlViewForEmbeddedContext prevents READING URL params
+      const isEmbeddedContext = initialFilters && initialFilters.length > 0;
+      if (view.id && !skipUrlUpdate && !isEmbeddedContext) {
         // SSoT: Read current URL params from window.location to avoid stale closure
         const currentParams = new URLSearchParams(window.location.search);
         const currentUrlView = currentParams.get('view');
@@ -2819,7 +2822,7 @@ export default function TeeemTableView({
         onViewApiParamsChange(null);
       }
     },
-    [applyView, onViewApiParamsChange, router]
+    [applyView, onViewApiParamsChange, router, initialFilters]
   );
 
   // Load saved views (simplified using atoms)
