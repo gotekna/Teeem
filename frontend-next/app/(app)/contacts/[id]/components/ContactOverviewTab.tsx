@@ -202,11 +202,13 @@ export function ContactOverviewTab({
   const addCompanyLink = useCallback(async (companyId: number) => {
     setSavingCompanyLink(true);
     try {
+      // Ensure role_ids are integers (API requires whole numbers)
+      const intRoleIds = selectedRoleIds.map(id => parseInt(String(id), 10)).filter(id => !isNaN(id));
       await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
         contact_relationship: {
           related_contact_id: companyId,
           relationship_type: "employee_of", // Always employee_of
-          role_ids: selectedRoleIds, // Multi-role support - array of ContactType IDs
+          role_ids: intRoleIds, // Multi-role support - array of ContactType IDs
         },
       });
 
@@ -245,9 +247,11 @@ export function ContactOverviewTab({
   const updateRelationshipRoles = useCallback(async (relationshipId: number, newRoleIds: number[]) => {
     setSavingCompanyLink(true);
     try {
+      // Ensure role_ids are integers (API requires whole numbers)
+      const intRoleIds = newRoleIds.map(id => parseInt(String(id), 10)).filter(id => !isNaN(id));
       await api.patch(`/api/v1/contacts/${contact.id}/relationships/${relationshipId}`, {
         contact_relationship: {
-          role_ids: newRoleIds,
+          role_ids: intRoleIds,
         },
       });
 

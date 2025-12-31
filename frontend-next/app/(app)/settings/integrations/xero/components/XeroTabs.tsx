@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +32,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
-import { selectedRowsAtom } from "@/lib/table-atoms";
+import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 import { clearCachedRecords } from "@/lib/records-cache";
 
 // Types
@@ -476,6 +476,7 @@ interface SelectedRowForLinkSheet {
   xeroLinkId: number | null;
   currentContactId: number | null;
   currentContactName: string | null;
+  currentEntityType: string | null;
   synced: boolean;
   matchConfidence: number | null;
 }
@@ -491,6 +492,7 @@ export function XeroContactSync() {
 
   // Access selected rows from the table atom
   const [selectedRows] = useAtom(selectedRowsAtom);
+  const clearSelection = useSetAtom(clearSelectionAtom);
 
   // State for Xero link management sheet
   const [showLinkSheet, setShowLinkSheet] = React.useState(false);
@@ -552,9 +554,9 @@ export function XeroContactSync() {
             variant: "default",
           });
         }
-        // Clear cache and trigger table refresh
-        clearCachedRecords("xero-sync-contacts");
-        setRefreshKey((prev) => prev + 1);
+        // Just clear selection - no need to refresh since local data didn't change
+        // (we only pushed TEEEM names TO Xero)
+        clearSelection();
       }
     } catch (error) {
       console.error("Push to Xero failed:", error);
@@ -630,6 +632,7 @@ export function XeroContactSync() {
                 xeroLinkId: entry.xero_link_id as number | null,  // null for unlinked contacts
                 currentContactId: entry.contact_id as number | null,
                 currentContactName: entry.display_name as string | null,
+                currentEntityType: entry.entity_type as string | null,
                 synced: entry.synced as boolean,
                 matchConfidence: entry.match_confidence as number | null,
               });
@@ -805,6 +808,7 @@ export function XeroContactSync() {
           xeroLinkId={selectedRow.xeroLinkId}
           currentContactId={selectedRow.currentContactId}
           currentContactName={selectedRow.currentContactName}
+          currentEntityType={selectedRow.currentEntityType}
           synced={selectedRow.synced}
           matchConfidence={selectedRow.matchConfidence}
           onLinkChanged={() => {

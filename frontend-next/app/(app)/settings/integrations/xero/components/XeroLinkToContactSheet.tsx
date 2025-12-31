@@ -58,6 +58,7 @@ interface XeroLinkToContactSheetProps {
   // Current TEEEM contact link (if any)
   currentContactId: number | null;
   currentContactName: string | null;
+  currentEntityType: string | null;
   synced: boolean;
   matchConfidence: number | null;
   // Callback
@@ -74,6 +75,7 @@ export function XeroLinkToContactSheet({
   xeroLinkId,
   currentContactId,
   currentContactName,
+  currentEntityType,
   synced,
   matchConfidence,
   onLinkChanged,
@@ -84,6 +86,7 @@ export function XeroLinkToContactSheet({
   const [linking, setLinking] = React.useState(false);
   const [unlinking, setUnlinking] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
+  const [creatingCompany, setCreatingCompany] = React.useState(false);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = React.useState(false);
 
   // Track current link locally so we can update after unlink
@@ -281,6 +284,84 @@ export function XeroLinkToContactSheet({
     }
   };
 
+  // Create company from Xero name and link current person as employee
+  const handleCreateCompanyAndLinkEmployee = async () => {
+    if (!xeroId || !xeroName || !localContactId) {
+      toast.error("Missing required info");
+      return;
+    }
+
+    setCreatingCompany(true);
+    try {
+      // 1. Create the company contact with the Xero name
+      const createResponse = await api.post<{
+        success: boolean;
+        data: { id: number; display_name: string };
+      }>("/api/v1/contacts", {
+        contact: {
+          display_name: xeroName,
+          company_name_or_trust: xeroName,
+          entity_type: "company",
+        },
+      });
+
+      if (!createResponse?.success || !createResponse?.data?.id) {
+        toast.error("Failed to create company");
+        return;
+      }
+
+      const newCompanyId = createResponse.data.id;
+
+      // 2. Link the Xero contact to the new company
+      const linkResponse = await api.post<{ success: boolean }>(
+        "/api/v1/xero/link_unlinked_contact",
+        {
+          xero_contact_id: xeroId,
+          xero_contact_name: xeroName,
+          tenant_id: xeroTenantId,
+          contact_id: newCompanyId,
+        }
+      );
+
+      if (!linkResponse?.success) {
+        toast.error("Company created but failed to link to Xero");
+        return;
+      }
+
+      // 3. Update the current person's primary_company_id to the new company
+      const updatePersonResponse = await api.patch<{ success: boolean }>(
+        `/api/v1/contacts/${localContactId}`,
+        {
+          contact: {
+            primary_company_id: newCompanyId,
+          },
+        }
+      );
+
+      if (updatePersonResponse?.success) {
+        toast.success(
+          `Created "${xeroName}" and linked ${localContactName} as employee`
+        );
+        onLinkChanged();
+        onClose();
+      } else {
+        toast.error("Company created but failed to link employee");
+      }
+    } catch (error) {
+      console.error("Create company and link employee failed:", error);
+      toast.error("Failed to create company");
+    } finally {
+      setCreatingCompany(false);
+    }
+  };
+
+  // Check if we should show the "Create Company" option
+  // Show when: current contact is a person AND Xero name is different (suggesting it's a company)
+  const showCreateCompanyOption =
+    localSynced &&
+    currentEntityType === "person" &&
+    localContactName !== xeroName;
+
   return (
     <>
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -370,6 +451,29 @@ export function XeroLinkToContactSheet({
                     Unlink
                   </Button>
                 </div>
+
+                {/* Create Company option - when person is linked to a company Xero contact */}
+                {showCreateCompanyOption && (
+                  <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
+                    <div className="text-xs text-muted-foreground mb-2">
+                      {localContactName} is a person but &quot;{xeroName}&quot; looks like a company
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCreateCompanyAndLinkEmployee}
+                      disabled={creatingCompany}
+                      className="w-full text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950"
+                    >
+                      {creatingCompany ? (
+                        <Spinner size={14} className="mr-2" />
+                      ) : (
+                        <Building2 className="h-4 w-4 mr-2" />
+                      )}
+                      Create &quot;{xeroName}&quot; &amp; Link {localContactName} as Employee
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
