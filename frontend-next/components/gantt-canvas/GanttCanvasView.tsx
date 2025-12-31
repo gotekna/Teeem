@@ -596,17 +596,17 @@ export function GanttCanvasView({
   const [depEditorSuccessorLinks, setDepEditorSuccessorLinks] = React.useState<PredecessorLink[]>([]);
 
   // Task items for combobox (memoized)
-  // Use visual row index (1-based) for user-friendly display
-  // This is what users see in the Gantt and expect when typing row numbers
+  // Use visual row index (1-based) for row number lookup
+  // Label shows just task name (row # is in separate column)
   const taskComboItems = React.useMemo((): ComboboxItem[] => {
     return tasks
       .filter(t => t.id !== depEditorTask?.id)
       .map(t => {
-        // Use visual row index (1-based) for display - this is what users expect
+        // Use visual row index (1-based) for lookup
         const visualRowIndex = tasks.findIndex(task => task.id === t.id) + 1;
         return {
           id: t.id,
-          label: `${visualRowIndex}. ${t.name}`,
+          label: t.name, // Just task name - row # shown in separate column
           visualRowIndex, // Store for lookup by row number
         };
       });

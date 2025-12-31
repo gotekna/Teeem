@@ -2411,6 +2411,226 @@ module Api
         end
       end
 
+      # POST /api/v1/xero/pull_contact_details
+      # Fetches Xero contact details and compares with TEEEM contact
+      # Returns differences for user review before applying
+      def pull_contact_details
+        xero_link_ids = params[:xero_link_ids]
+
+        unless xero_link_ids.present? && xero_link_ids.is_a?(Array)
+          return render json: { success: false, error: "xero_link_ids array is required" }, status: :bad_request
+        end
+
+        begin
+          xero_client = XeroApiClient.new
+          comparisons = []
+
+          xero_link_ids.each do |link_id|
+            link = ContactExternalLink.find_by(id: link_id)
+            next unless link
+
+            contact = link.contact
+            next unless contact
+
+            # Fetch Xero contact details
+            result = xero_client.get("Contacts/#{link.external_contact_id}", tenant_id: link.tenant_id)
+
+            unless result[:success] && result[:data].present?
+              comparisons << {
+                link_id: link_id,
+                contact_id: contact.id,
+                teeem_name: contact.display_name,
+                error: result[:error] || "Failed to fetch from Xero"
+              }
+              next
+            end
+
+            xero_contact = result[:data]["Contacts"]&.first
+            next unless xero_contact
+
+            # Compare fields and find differences
+            differences = []
+
+            # Name comparison
+            xero_name = xero_contact["Name"]
+            if xero_name.present? && xero_name != contact.display_name
+              differences << {
+                field: "name",
+                label: "Name",
+                teeem_value: contact.display_name,
+                xero_value: xero_name
+              }
+            end
+
+            # ABN/Tax Number comparison
+            xero_abn = xero_contact["TaxNumber"]
+            teeem_abn = contact.abn.presence || contact.tax_number.presence
+            if xero_abn.present? && xero_abn != teeem_abn
+              differences << {
+                field: "abn",
+                label: "ABN",
+                teeem_value: teeem_abn,
+                xero_value: xero_abn
+              }
+            end
+
+            # Email comparison (from Xero EmailAddress field)
+            xero_email = xero_contact["EmailAddress"]
+            if xero_email.present? && xero_email != contact.email
+              differences << {
+                field: "email",
+                label: "Email",
+                teeem_value: contact.email,
+                xero_value: xero_email
+              }
+            end
+
+            # Phone comparison
+            phones = xero_contact["Phones"] || []
+            xero_phone = phones.find { |p| p["PhoneType"] == "DEFAULT" }&.dig("PhoneNumber")
+            xero_mobile = phones.find { |p| p["PhoneType"] == "MOBILE" }&.dig("PhoneNumber")
+
+            if xero_phone.present? && xero_phone != contact.phone
+              differences << {
+                field: "phone",
+                label: "Phone",
+                teeem_value: contact.phone,
+                xero_value: xero_phone
+              }
+            end
+
+            if xero_mobile.present? && xero_mobile != contact.mobile
+              differences << {
+                field: "mobile",
+                label: "Mobile",
+                teeem_value: contact.mobile,
+                xero_value: xero_mobile
+              }
+            end
+
+            # Address comparison
+            addresses = xero_contact["Addresses"] || []
+            street_address = addresses.find { |a| a["AddressType"] == "STREET" }
+            if street_address.present?
+              xero_address = [
+                street_address["AddressLine1"],
+                street_address["AddressLine2"],
+                street_address["City"],
+                street_address["Region"],
+                street_address["PostalCode"]
+              ].compact.reject(&:blank?).join(", ")
+
+              teeem_address = contact.address.presence
+              if xero_address.present? && xero_address != teeem_address
+                differences << {
+                  field: "address",
+                  label: "Address",
+                  teeem_value: teeem_address,
+                  xero_value: xero_address,
+                  xero_address_parts: {
+                    line1: street_address["AddressLine1"],
+                    line2: street_address["AddressLine2"],
+                    city: street_address["City"],
+                    region: street_address["Region"],
+                    postal_code: street_address["PostalCode"],
+                    country: street_address["Country"]
+                  }
+                }
+              end
+            end
+
+            # Website comparison
+            xero_website = xero_contact["Website"]
+            if xero_website.present? && xero_website != contact.website
+              differences << {
+                field: "website",
+                label: "Website",
+                teeem_value: contact.website,
+                xero_value: xero_website
+              }
+            end
+
+            comparisons << {
+              link_id: link_id,
+              contact_id: contact.id,
+              teeem_name: contact.display_name,
+              xero_name: xero_name,
+              xero_id: link.external_contact_id,
+              has_differences: differences.any?,
+              differences: differences
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              total: comparisons.size,
+              with_differences: comparisons.count { |c| c[:has_differences] },
+              comparisons: comparisons
+            }
+          }
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("[Xero] pull_contact_details auth error: #{e.message}")
+          render json: { success: false, error: "Xero authentication failed: #{e.message}" }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("[Xero] pull_contact_details error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: { success: false, error: "Failed to pull contact details: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/apply_xero_updates
+      # Applies selected Xero field values to TEEEM contacts
+      def apply_xero_updates
+        updates = params[:updates]
+
+        unless updates.present? && updates.is_a?(Array)
+          return render json: { success: false, error: "updates array is required" }, status: :bad_request
+        end
+
+        begin
+          results = { success: 0, failed: 0, errors: [] }
+
+          updates.each do |update|
+            contact_id = update[:contact_id]
+            fields = update[:fields] || {}
+
+            contact = Contact.find_by(id: contact_id)
+            unless contact
+              results[:failed] += 1
+              results[:errors] << { contact_id: contact_id, error: "Contact not found" }
+              next
+            end
+
+            # Build attributes to update
+            attrs = {}
+            attrs[:display_name] = fields[:name] if fields[:name].present?
+            attrs[:abn] = fields[:abn] if fields[:abn].present?
+            attrs[:email] = fields[:email] if fields[:email].present?
+            attrs[:phone] = fields[:phone] if fields[:phone].present?
+            attrs[:mobile] = fields[:mobile] if fields[:mobile].present?
+            attrs[:website] = fields[:website] if fields[:website].present?
+            attrs[:address] = fields[:address] if fields[:address].present?
+
+            if attrs.present?
+              contact.update!(attrs)
+              results[:success] += 1
+              Rails.logger.info("[Xero] Applied Xero updates to contact #{contact_id}: #{attrs.keys.join(', ')}")
+            else
+              results[:success] += 1 # No changes needed
+            end
+          end
+
+          render json: {
+            success: true,
+            data: results
+          }
+        rescue StandardError => e
+          Rails.logger.error("[Xero] apply_xero_updates error: #{e.message}")
+          render json: { success: false, error: "Failed to apply updates: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/xero/sync_all_companies
       # Syncs all corporate companies with Xero connections
       # Used from the Corporate page to sync all 10 companies at once
