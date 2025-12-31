@@ -596,14 +596,17 @@ export function GanttCanvasView({
   const [depEditorSuccessorLinks, setDepEditorSuccessorLinks] = React.useState<PredecessorLink[]>([]);
 
   // Task items for combobox (memoized)
+  // SSoT: Use task_number (actual row identifier) not array index
   const taskComboItems = React.useMemo((): ComboboxItem[] => {
     return tasks
       .filter(t => t.id !== depEditorTask?.id)
       .map(t => {
-        const rowNum = tasks.findIndex(task => task.id === t.id) + 1;
+        // SSoT: Use task_number from rowData, fallback to array index if not available
+        const taskNumber = t.rowData?.task_number ?? (tasks.findIndex(task => task.id === t.id) + 1);
         return {
           id: t.id,
-          label: `${rowNum}. ${t.name}`,
+          label: `${taskNumber}. ${t.name}`,
+          taskNumber, // Store for lookup
         };
       });
   }, [tasks, depEditorTask]);
@@ -3074,25 +3077,24 @@ export function GanttCanvasView({
                 {depEditorLinks.map((link, index) => {
                   // SSoT: IDs are now consistent (all row.id strings from dependencies array)
                   const predecessorTask = tasks.find(t => t.id === link.predecessorId);
+                  // SSoT: Use task_number (actual row identifier) not array index
                   const predecessorRowNum = predecessorTask
-                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
+                    ? (predecessorTask.rowData?.task_number ?? tasks.findIndex(t => t.id === link.predecessorId) + 1)
                     : '';
 
                   return (
                     <div key={index} className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center">
-                      {/* Row # input */}
+                      {/* Row # input - SSoT: lookup by task_number */}
                       <Input
                         type="number"
                         min={1}
-                        max={tasks.length}
                         value={predecessorRowNum}
                         onChange={(e) => {
-                          const rowNum = parseInt(e.target.value, 10);
-                          if (rowNum >= 1 && rowNum <= tasks.length) {
-                            const task = tasks[rowNum - 1];
-                            if (task && task.id !== depEditorTask?.id) {
-                              updatePredecessorLink(index, { predecessorId: task.id });
-                            }
+                          const taskNum = parseInt(e.target.value, 10);
+                          // SSoT: Find task by task_number, not array index
+                          const task = tasks.find(t => t.rowData?.task_number === taskNum);
+                          if (task && task.id !== depEditorTask?.id) {
+                            updatePredecessorLink(index, { predecessorId: task.id });
                           } else if (!e.target.value) {
                             updatePredecessorLink(index, { predecessorId: '' });
                           }
@@ -3145,32 +3147,29 @@ export function GanttCanvasView({
                   );
                 })}
 
-                {/* Empty row to add new predecessor */}
+                {/* Empty row to add new predecessor - SSoT: lookup by task_number */}
                 <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
                   <Input
                     type="number"
                     min={1}
-                    max={tasks.length}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
-                        if (rowNum >= 1 && rowNum <= tasks.length) {
-                          const task = tasks[rowNum - 1];
-                          if (task && task.id !== depEditorTask?.id) {
-                            setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                            (e.target as HTMLInputElement).value = '';
-                          }
+                        const taskNum = parseInt((e.target as HTMLInputElement).value, 10);
+                        // SSoT: Find task by task_number, not array index
+                        const task = tasks.find(t => t.rowData?.task_number === taskNum);
+                        if (task && task.id !== depEditorTask?.id) {
+                          setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                          (e.target as HTMLInputElement).value = '';
                         }
                       }
                     }}
                     onBlur={(e) => {
-                      const rowNum = parseInt(e.target.value, 10);
-                      if (rowNum >= 1 && rowNum <= tasks.length) {
-                        const task = tasks[rowNum - 1];
-                        if (task && task.id !== depEditorTask?.id) {
-                          setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                          e.target.value = '';
-                        }
+                      const taskNum = parseInt(e.target.value, 10);
+                      // SSoT: Find task by task_number, not array index
+                      const task = tasks.find(t => t.rowData?.task_number === taskNum);
+                      if (task && task.id !== depEditorTask?.id) {
+                        setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                        e.target.value = '';
                       }
                     }}
                     className="h-8 text-center"
@@ -3216,25 +3215,24 @@ export function GanttCanvasView({
                 {depEditorSuccessorLinks.map((link, index) => {
                   // SSoT: IDs are now consistent (all row.id strings from dependencies array)
                   const successorTask = tasks.find(t => t.id === link.predecessorId);
+                  // SSoT: Use task_number (actual row identifier) not array index
                   const successorRowNum = successorTask
-                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
+                    ? (successorTask.rowData?.task_number ?? tasks.findIndex(t => t.id === link.predecessorId) + 1)
                     : '';
 
                   return (
                     <div key={index} className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center">
-                      {/* Row # input */}
+                      {/* Row # input - SSoT: lookup by task_number */}
                       <Input
                         type="number"
                         min={1}
-                        max={tasks.length}
                         value={successorRowNum}
                         onChange={(e) => {
-                          const rowNum = parseInt(e.target.value, 10);
-                          if (rowNum >= 1 && rowNum <= tasks.length) {
-                            const task = tasks[rowNum - 1];
-                            if (task && task.id !== depEditorTask?.id) {
-                              updateSuccessorLink(index, { predecessorId: task.id });
-                            }
+                          const taskNum = parseInt(e.target.value, 10);
+                          // SSoT: Find task by task_number, not array index
+                          const task = tasks.find(t => t.rowData?.task_number === taskNum);
+                          if (task && task.id !== depEditorTask?.id) {
+                            updateSuccessorLink(index, { predecessorId: task.id });
                           } else if (!e.target.value) {
                             updateSuccessorLink(index, { predecessorId: '' });
                           }
@@ -3287,32 +3285,29 @@ export function GanttCanvasView({
                   );
                 })}
 
-                {/* Empty row to add new successor */}
+                {/* Empty row to add new successor - SSoT: lookup by task_number */}
                 <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
                   <Input
                     type="number"
                     min={1}
-                    max={tasks.length}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
-                        if (rowNum >= 1 && rowNum <= tasks.length) {
-                          const task = tasks[rowNum - 1];
-                          if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
-                            setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                            (e.target as HTMLInputElement).value = '';
-                          }
+                        const taskNum = parseInt((e.target as HTMLInputElement).value, 10);
+                        // SSoT: Find task by task_number, not array index
+                        const task = tasks.find(t => t.rowData?.task_number === taskNum);
+                        if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
+                          setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                          (e.target as HTMLInputElement).value = '';
                         }
                       }
                     }}
                     onBlur={(e) => {
-                      const rowNum = parseInt(e.target.value, 10);
-                      if (rowNum >= 1 && rowNum <= tasks.length) {
-                        const task = tasks[rowNum - 1];
-                        if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
-                          setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                          e.target.value = '';
-                        }
+                      const taskNum = parseInt(e.target.value, 10);
+                      // SSoT: Find task by task_number, not array index
+                      const task = tasks.find(t => t.rowData?.task_number === taskNum);
+                      if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
+                        setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                        e.target.value = '';
                       }
                     }}
                     className="h-8 text-center"
