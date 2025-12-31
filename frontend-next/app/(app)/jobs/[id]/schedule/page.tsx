@@ -449,8 +449,16 @@ export default function SchedulePage() {
 
       // SSoT: Use ?for=gantt to get filtered tasks (po_required without PO = invisible)
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
-      setGanttTasks(response.gantt_data?.tasks || []);
-      setGanttApiDeps(response.gantt_data?.dependencies || []);
+      const tasks = response.gantt_data?.tasks || [];
+      const deps = response.gantt_data?.dependencies || [];
+      console.log('[Gantt Debug] API response:', {
+        tasksCount: tasks.length,
+        depsCount: deps.length,
+        sampleTaskIds: tasks.slice(0, 5).map(t => ({ id: t.id, type: typeof t.id })),
+        sampleDeps: deps.slice(0, 5).map(d => ({ fromId: d.fromId, toId: d.toId, fromType: typeof d.fromId, toType: typeof d.toId })),
+      });
+      setGanttTasks(tasks);
+      setGanttApiDeps(deps);
     } catch (error) {
       console.error("Failed to fetch tasks for Gantt:", error);
       toast({ title: "Error", description: "Failed to load Gantt data", variant: "destructive" });
@@ -481,7 +489,7 @@ export default function SchedulePage() {
   const ganttTasksFormatted = React.useMemo(() => {
     if (ganttTasks.length === 0) return [];
 
-    return ganttTasks.map(task => {
+    const formatted = ganttTasks.map(task => {
       // Parse dates from API response (format: "YYYY-MM-DD")
       const startDate = task.start_date ? parseISO(task.start_date) : new Date();
       const endDate = task.end_date ? parseISO(task.end_date) : startDate;
@@ -524,19 +532,23 @@ export default function SchedulePage() {
         shape: undefined, // Let Gantt decide based on duration
       } as GanttTask;
     });
+    console.log('[Gantt Debug] ganttTasksFormatted:', formatted.length, 'sample IDs:', formatted.slice(0, 5).map(t => t.id));
+    return formatted;
   }, [ganttTasks]);
 
   // Build dependencies from API data
   // SSoT: Backend GanttDataService returns { id, fromId, toId, type, lag } format
   // where fromId/toId are task.id values (not task_number)
   const ganttDependencies = React.useMemo(() => {
-    return ganttApiDeps.map(dep => ({
+    const deps = ganttApiDeps.map(dep => ({
       id: dep.id,
       fromId: dep.fromId,
       toId: dep.toId,
       type: dep.type || "FS",
       lag: dep.lag || 0,
     }));
+    console.log('[Gantt Debug] ganttDependencies:', deps.length, 'sample:', deps.slice(0, 3));
+    return deps;
   }, [ganttApiDeps]);
 
   // Handle task drag in Gantt

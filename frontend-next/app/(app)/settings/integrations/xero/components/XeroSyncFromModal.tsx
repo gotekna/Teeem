@@ -212,7 +212,7 @@ export function XeroSyncFromModal({
               )}
             </div>
 
-            <ScrollArea className="flex-1 -mx-6 px-6">
+            <ScrollArea className="flex-1 -mx-6 px-6 max-h-[50vh]">
               {contactsWithDifferences.length === 0 && contactsWithErrors.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <Check className="h-12 w-12 text-green-500 mb-3" />
@@ -263,6 +263,7 @@ export function XeroSyncFromModal({
                               >
                                 <Checkbox
                                   checked={isSelected}
+                                  onClick={(e) => e.stopPropagation()}
                                   onCheckedChange={() =>
                                     toggleField(comp.contact_id, diff.field)
                                   }
