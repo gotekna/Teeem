@@ -83,6 +83,55 @@ class SmScheduleMasterSyncService
   SAFE_SYNC_FIELDS = nil # Use syncable_fields method instead
 
   # ============================================================================
+  # SCHEMA SYNC - Auto-add missing columns from SmScheduleMaster to SmTask
+  # ============================================================================
+
+  # SSoT: SmScheduleMaster defines the schema. SmTask must have all the same columns.
+  # This method auto-adds any missing columns to prevent sync failures.
+  # Called at start of sync_all_for_job to ensure schema is aligned.
+  def self.sync_schema!
+    master_cols = SmScheduleMaster.columns.index_by(&:name)
+    task_cols = SmTask.columns.index_by(&:name)
+
+    # Columns that are intentionally different between master and task
+    excluded_cols = PROTECTED_FIELDS.map(&:to_s) + %w[
+      sm_template_ids
+      is_completed
+      finance_approved
+      dependency_broken
+      predecessor_ids_backup
+    ]
+
+    # Find columns in master that are missing from task
+    missing = master_cols.keys - task_cols.keys - excluded_cols
+
+    return { added: [], message: "Schema in sync" } if missing.empty?
+
+    Rails.logger.info "[SmScheduleMasterSyncService] Auto-adding missing columns to sm_tasks: #{missing.join(', ')}"
+
+    added = []
+    missing.each do |col_name|
+      master_col = master_cols[col_name]
+      begin
+        ActiveRecord::Base.connection.add_column(
+          :sm_tasks, col_name, master_col.type,
+          default: master_col.default,
+          null: master_col.null
+        )
+        added << col_name
+        Rails.logger.info "[SmScheduleMasterSyncService] Added column #{col_name} (#{master_col.type}) to sm_tasks"
+      rescue StandardError => e
+        Rails.logger.error "[SmScheduleMasterSyncService] Failed to add column #{col_name}: #{e.message}"
+      end
+    end
+
+    SmTask.reset_column_information
+    @syncable_fields = nil  # Clear cached syncable fields
+
+    { added: added, message: "Added #{added.count} column(s) to sm_tasks" }
+  end
+
+  # ============================================================================
   # INTELLIGENT MATCHING - Analyze unlinked tasks and suggest matches
   # ============================================================================
 
@@ -565,6 +614,9 @@ class SmScheduleMasterSyncService
   # Bulk sync all template rows to tasks for a job
   # Returns summary: { created: N, updated: N, skipped: N, unchanged: N, errors: [] }
   def self.sync_all_for_job(job, template, options = {})
+    # SSoT: Ensure SmTask has all columns from SmScheduleMaster
+    sync_schema!
+
     # Ensure Foundation column types are in sync first
     sync_foundation_column_types!
 
