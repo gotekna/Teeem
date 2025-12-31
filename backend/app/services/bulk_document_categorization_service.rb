@@ -247,10 +247,17 @@ class BulkDocumentCategorizationService
     nil
   end
 
-  def find_matching_document_type(doc, tab)
-    return nil if tab.document_types.empty?
+  # Image extensions that should fallback to Supervisor Photo
+  IMAGE_EXTENSIONS = %w[.jpg .jpeg .png .heic .gif .bmp .tiff .webp].freeze
+  SUPERVISOR_PHOTO_TYPE_ID = 87  # SSoT: "Supervisor Photo" document type
 
+  def find_matching_document_type(doc, tab)
     extension = ".#{doc.file_extension.to_s.downcase}"
+
+    # If tab has no document types, use fallback
+    if tab.document_types.empty?
+      return fallback_document_type(extension)
+    end
 
     # Filter to types that accept this file extension
     matching_types = tab.document_types.select do |dt|
@@ -259,6 +266,11 @@ class BulkDocumentCategorizationService
 
     # If no match by extension, try all types (some may not have extensions configured)
     matching_types = tab.document_types.to_a if matching_types.empty?
+
+    # If still no match, use fallback
+    if matching_types.empty?
+      return fallback_document_type(extension)
+    end
 
     # If only one match, return it
     return matching_types.first if matching_types.size == 1
@@ -274,6 +286,17 @@ class BulkDocumentCategorizationService
     end
 
     context_match || matching_types.first
+  end
+
+  # Fallback document type when tab has no matching types
+  def fallback_document_type(extension)
+    # Images default to Supervisor Photo
+    if IMAGE_EXTENSIONS.include?(extension)
+      @supervisor_photo_type ||= DocumentType.find_by(id: SUPERVISOR_PHOTO_TYPE_ID)
+      return @supervisor_photo_type
+    end
+
+    nil
   end
 
   def compute_matching_path(tab, parent_path)
