@@ -199,8 +199,8 @@ class GanttDataService
       predecessor_ids: record.predecessor_ids || [],
       # PO-related fields
       po_required: record.po_required || false,
-      supplier_id: record.supplier_id,
-      supplier_name: record.try(:supplier)&.name,
+      supplier_id: record.try(:supplier_id) || record.try(:po_supplier_id),
+      supplier_name: record.try(:supplier)&.name || record.try(:po_supplier)&.name,
       purchase_order_id: record.respond_to?(:linked_purchase_order) ? record.linked_purchase_order&.id : nil,
       # Header/parent info
       header_gantt: record.try(:header_gantt),

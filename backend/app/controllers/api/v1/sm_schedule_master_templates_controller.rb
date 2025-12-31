@@ -32,7 +32,7 @@ module Api
       # SSoT: Returns Gantt-formatted data with dependencies converted to row.id format
       # This is THE SINGLE place that converts task_number references to row.id
       def gantt_data
-        records = @template.sm_schedule_masters.ordered.includes(:supplier)
+        records = @template.sm_schedule_master_rows.in_sequence.includes(:po_supplier)
         service = GanttDataService.new(records)
         result = service.build_response
 

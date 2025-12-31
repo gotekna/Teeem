@@ -640,6 +640,16 @@ export function XeroContactSync() {
       );
     }
 
+    // Match confidence - stored as decimal (0-1), display as percentage
+    if (columnKey === "match_confidence") {
+      const confidence = entry.match_confidence as number | null;
+      if (confidence === null || confidence === undefined) return <span className="text-muted-foreground">-</span>;
+      const percent = Math.round(confidence * 100);
+      const color = percent === 100 ? "text-green-600" :
+                   percent >= 80 ? "text-amber-600" : "text-red-600";
+      return <span className={cn("font-medium", color)}>{percent}%</span>;
+    }
+
     // PDF sync percent with color coding
     if (columnKey === "pdf_sync_percent") {
       const percent = entry.pdf_sync_percent as number | null;
