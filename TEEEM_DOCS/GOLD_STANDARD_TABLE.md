@@ -6,7 +6,7 @@
 
 ---
 
-## The 31 Column Types
+## The 34 Column Types
 
 Every table in TEEEM can use these column types. Each type has specific validation rules, SQL storage, and display behavior.
 
@@ -30,61 +30,64 @@ Every table in TEEEM can use these column types. Each type has specific validati
 | 9 | `currency` | NUMERIC(10,2) | Positive, 2 decimals, displays with $ | $1,234.56 |
 | 10 | `percentage` | NUMERIC(5,2) | 0-100, displays with % symbol | 15.5% |
 
-### Date & Time Types (2)
+### Date & Time Types (3)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
 | 11 | `date` | DATE | Stored: YYYY-MM-DD, Display: DD/MM/YYYY | 19/11/2024 |
 | 12 | `date_and_time` | TIMESTAMP | Full timestamp with time | 19/11/2024 14:30 |
+| 13 | `time` | TIME | Time of day without date, format: HH:MM | 14:30 |
 
 ### Special Types (4)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 13 | `gps_coordinates` | VARCHAR(100) | Latitude, Longitude format | -33.8688, 151.2093 |
-| 14 | `color_picker` | VARCHAR(7) | Hex color format #RRGGBB | #FF5733 |
-| 15 | `file_upload` | TEXT | File path or URL to uploaded file | /uploads/doc.pdf |
-| 16 | `action_buttons` | VARCHAR(255) | JSON config for row actions | {"buttons": [...]} |
+| 14 | `gps_coordinates` | VARCHAR(100) | Latitude, Longitude format | -33.8688, 151.2093 |
+| 15 | `color_picker` | VARCHAR(7) | Hex color format #RRGGBB | #FF5733 |
+| 16 | `file_upload` | TEXT | File path or URL to uploaded file | /uploads/doc.pdf |
+| 17 | `action_buttons` | VARCHAR(255) | JSON config for row actions | {"buttons": [...]} |
 
 ### Selection Types (2)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 17 | `boolean` | BOOLEAN | True or False only | true, false |
-| 18 | `choice` | VARCHAR(50) | Must be one of predefined options | Active, Pending, Complete |
+| 18 | `boolean` | BOOLEAN | True or False only | true, false |
+| 19 | `choice` | VARCHAR(50) | Must be one of predefined options | Active, Pending, Complete |
 
 ### Relationship Types (3)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 19 | `lookup` | VARCHAR(255) | Must reference valid value from linked table | Product #123 |
-| 20 | `multiple_lookups` | TEXT | Array of IDs stored as JSON | [1, 5, 12] |
-| 21 | `user` | INTEGER | Must reference valid user ID | User #7 |
+| 20 | `lookup` | VARCHAR(255) | Must reference valid value from linked table | Product #123 |
+| 21 | `multiple_lookups` | TEXT | Array of IDs stored as JSON | [1, 5, 12] |
+| 22 | `user` | INTEGER | Must reference valid user ID | User #7 |
 
 ### Computed Types (1)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 22 | `computed` | VIRTUAL | Read-only, calculated from formula | $1,255.00 (price × qty) |
+| 23 | `computed` | VIRTUAL | Read-only, calculated from formula | $1,255.00 (price × qty) |
 
-### Advanced Types (3)
+### Advanced Types (5)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 23 | `structured_data` | JSONB | Valid JSON object, supports nesting | {"key": "value"} |
-| 24 | `array_of_items` | TEXT[] | Array of text values | ["tag1", "tag2"] |
-| 25 | `searchable_text` | TSVECTOR | Read-only, auto-generated for search | 'search':1 'term':2 |
+| 24 | `structured_data` | JSONB | Valid JSON object, supports nesting | {"key": "value"} |
+| 25 | `array_of_items` | TEXT[] | Array of text values | ["tag1", "tag2"] |
+| 26 | `array_of_integers` | INTEGER[] | Array of integer values | [1, 2, 3] |
+| 27 | `searchable_text` | TSVECTOR | Read-only, auto-generated for search | 'search':1 'term':2 |
+| 28 | `uuid` | UUID | Universally unique identifier (128-bit) | 550e8400-e29b-41d4-a716-446655440000 |
 
 ### Australian Types (6)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 26 | `abn` | VARCHAR(14) | 11 digits, format: XX XXX XXX XXX | 51 824 753 556 |
-| 27 | `acn` | VARCHAR(11) | 9 digits, format: XXX XXX XXX | 004 085 616 |
-| 28 | `bsb` | VARCHAR(7) | 6 digits, format: XXX-XXX | 063-000 |
-| 29 | `bank_account` | VARCHAR(9) | Up to 9 digits | 12345678 |
-| 30 | `postcode` | VARCHAR(4) | Exactly 4 digits | 3000 |
-| 31 | `tfn` | VARCHAR(11) | 9 digits, format: XXX XXX XXX | 123 456 789 |
+| 29 | `abn` | VARCHAR(14) | 11 digits, format: XX XXX XXX XXX | 51 824 753 556 |
+| 30 | `acn` | VARCHAR(11) | 9 digits, format: XXX XXX XXX | 004 085 616 |
+| 31 | `bsb` | VARCHAR(7) | 6 digits, format: XXX-XXX | 063-000 |
+| 32 | `bank_account` | VARCHAR(9) | Up to 9 digits | 12345678 |
+| 33 | `postcode` | VARCHAR(4) | Exactly 4 digits | 3000 |
+| 34 | `tfn` | VARCHAR(11) | 9 digits, format: XXX XXX XXX | 123 456 789 |
 
 ---
 

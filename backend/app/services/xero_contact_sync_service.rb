@@ -496,12 +496,36 @@ class XeroContactSyncService
   end
 
   # Calculate similarity between two names (0.0 to 1.0)
+  # Handles exact matches, prefix matches, and fuzzy matches
   def calculate_name_similarity(name1, name2)
     return 1.0 if name1 == name2
 
-    # Use Levenshtein distance normalized by max length
-    distance = levenshtein_distance(name1, name2)
-    max_len = [ name1.length, name2.length ].max
+    # Normalize for comparison
+    n1 = name1.downcase.gsub(/\s+/, " ").strip
+    n2 = name2.downcase.gsub(/\s+/, " ").strip
+    return 1.0 if n1 == n2
+
+    shorter, longer = [n1, n2].sort_by(&:length)
+
+    # Prefix match: if shorter name is prefix of longer, high confidence
+    # e.g., "7 Eleven" is prefix of "7 Eleven - Service Station"
+    if longer.start_with?(shorter)
+      # Score based on how much of the longer string is matched
+      # Minimum 85% for any prefix match, up to 99% for near-complete matches
+      prefix_ratio = shorter.length.to_f / longer.length
+      return 0.85 + (prefix_ratio * 0.14)  # 85% to 99%
+    end
+
+    # Check if shorter appears anywhere in longer (substring match)
+    if longer.include?(shorter)
+      # Lower confidence than prefix, but still decent
+      prefix_ratio = shorter.length.to_f / longer.length
+      return 0.70 + (prefix_ratio * 0.15)  # 70% to 85%
+    end
+
+    # Fall back to Levenshtein distance for fuzzy matching
+    distance = levenshtein_distance(n1, n2)
+    max_len = [n1.length, n2.length].max
     return 0.0 if max_len.zero?
 
     1.0 - (distance.to_f / max_len)
