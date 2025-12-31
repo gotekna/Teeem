@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Download, AlertTriangle, Check } from "lucide-react";
@@ -212,7 +211,7 @@ export function XeroSyncFromModal({
               )}
             </div>
 
-            <ScrollArea className="flex-1 min-h-0 -mx-6 px-6" style={{ maxHeight: "calc(80vh - 200px)" }}>
+            <div className="overflow-y-auto -mx-6 px-6" style={{ maxHeight: "400px" }}>
               {contactsWithDifferences.length === 0 && contactsWithErrors.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <Check className="h-12 w-12 text-green-500 mb-3" />
@@ -220,7 +219,7 @@ export function XeroSyncFromModal({
                   <p className="text-sm">No differences found between TEEEM and Xero</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 pb-2">
                   {comparisons.map((comp) => {
                     if (comp.error) {
                       return (
@@ -291,7 +290,7 @@ export function XeroSyncFromModal({
                   })}
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={onClose}>
