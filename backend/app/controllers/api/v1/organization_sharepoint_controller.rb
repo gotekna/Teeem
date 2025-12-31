@@ -1911,11 +1911,13 @@ module Api
       # Params:
       #   - job_id: Required - Job ID to categorize
       #   - dry_run: Optional (default: false) - If true, preview only without saving
+      #   - force: Optional (default: false) - If true, re-categorize ALL docs (fix wrong assignments)
       # Returns:
-      #   - success, stats (total, categorized, skipped, failed), details
+      #   - success, stats (total, categorized, skipped, failed, recategorized), details
       def bulk_categorize_job_documents
         job_id = params[:job_id]
         dry_run = params[:dry_run].to_s == 'true'
+        force = params[:force].to_s == 'true'
 
         unless job_id.present?
           return render json: { error: "job_id is required" }, status: :bad_request
@@ -1923,7 +1925,7 @@ module Api
 
         job = Job.find(job_id)
 
-        service = BulkDocumentCategorizationService.new(job, dry_run: dry_run, user: current_user)
+        service = BulkDocumentCategorizationService.new(job, dry_run: dry_run, force: force, user: current_user)
         result = service.categorize_all
 
         render json: {

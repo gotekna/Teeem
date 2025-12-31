@@ -18,18 +18,24 @@ class BulkDocumentCategorizationService
   def initialize(job, options = {})
     @job = job
     @dry_run = options.fetch(:dry_run, false)
+    @force = options.fetch(:force, false)  # Re-categorize even already-categorized docs
     @current_user = options[:user]
-    @stats = { total: 0, categorized: 0, skipped: 0, failed: 0 }
+    @stats = { total: 0, categorized: 0, skipped: 0, failed: 0, recategorized: 0 }
     @details = []
   end
 
-  # Main entry point - categorizes all uncategorized documents
+  # Main entry point - categorizes documents
+  # With force=true, re-categorizes ALL documents (fixes wrong assignments)
+  # With force=false (default), only categorizes documents with document_type_id IS NULL
   def categorize_all
     load_entity_tabs
 
-    # Get uncategorized documents (document_type_id IS NULL)
-    # Note: Process ALL uncategorized docs, not just synced ones (folder_path available for all)
-    documents = @job.job_documents.where(document_type_id: nil)
+    # Get documents to process
+    documents = if @force
+      @job.job_documents.all  # ALL documents when force=true
+    else
+      @job.job_documents.where(document_type_id: nil)  # Only uncategorized
+    end
     @stats[:total] = documents.count
 
     Rails.logger.info("[BulkCategorize] Starting categorization for Job #{@job.id}: #{@stats[:total]} documents, dry_run=#{@dry_run}")
@@ -131,31 +137,53 @@ class BulkDocumentCategorizationService
       return
     end
 
-    # Categorize the document
-    if @dry_run
-      @stats[:categorized] += 1
+    # Check if already correctly categorized (skip if no change needed)
+    already_correct = doc.document_type_id == matched_type.id
+    was_wrong = doc.document_type_id.present? && doc.document_type_id != matched_type.id
+    old_type_name = was_wrong ? DocumentType.find_by(id: doc.document_type_id)&.name : nil
+
+    if already_correct
+      @stats[:skipped] += 1
       @details << {
         id: doc.id,
         file_name: doc.file_name,
         folder_path: doc.folder_path,
-        status: 'would_categorize',
+        status: 'skipped',
+        reason: 'already_correct',
+        document_type: matched_type.name
+      }
+      return
+    end
+
+    # Categorize the document
+    if @dry_run
+      status = was_wrong ? 'would_recategorize' : 'would_categorize'
+      @stats[was_wrong ? :recategorized : :categorized] += 1
+      @details << {
+        id: doc.id,
+        file_name: doc.file_name,
+        folder_path: doc.folder_path,
+        status: status,
         entity_tab: matched_tab.display_name,
         document_type: matched_type.name,
-        document_type_id: matched_type.id
-      }
+        document_type_id: matched_type.id,
+        old_type: old_type_name
+      }.compact
     else
       begin
         doc.update!(document_type_id: matched_type.id)
-        @stats[:categorized] += 1
+        status = was_wrong ? 'recategorized' : 'categorized'
+        @stats[was_wrong ? :recategorized : :categorized] += 1
         @details << {
           id: doc.id,
           file_name: doc.file_name,
           folder_path: doc.folder_path,
-          status: 'categorized',
+          status: status,
           entity_tab: matched_tab.display_name,
           document_type: matched_type.name,
-          document_type_id: matched_type.id
-        }
+          document_type_id: matched_type.id,
+          old_type: old_type_name
+        }.compact
       rescue => e
         @stats[:failed] += 1
         @details << {

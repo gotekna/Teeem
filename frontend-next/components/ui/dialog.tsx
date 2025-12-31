@@ -19,7 +19,8 @@ const DialogOverlay = React.forwardRef<
     ref={ref}
     className={cn(
       // Start below header (top-12 = 48px) so header/breadcrumb stay accessible
-      "fixed top-12 left-0 right-0 bottom-0 z-50 bg-black/50 data-[state=closed]:animate-[dialog-overlay-hide_100ms] data-[state=open]:animate-[dialog-overlay-show_100ms]",
+      // z-[130] to be above EntityConfigurationTab fullscreen overlay (z-[120])
+      "fixed top-12 left-0 right-0 bottom-0 z-[130] bg-black/50 data-[state=closed]:animate-[dialog-overlay-hide_100ms] data-[state=open]:animate-[dialog-overlay-show_100ms]",
       className,
     )}
     {...props}
@@ -54,7 +55,7 @@ const DialogContent = React.forwardRef<
         onOpenAutoFocus?.(e);
       }}
       className={cn(
-        "bg-background border-border border fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[calc(100svh-10vw)] overflow-y-auto w-[90vw] max-w-xl p-6 text-primary z-50 data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]",
+        "bg-background border-border border fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[calc(100svh-10vw)] overflow-y-auto w-[90vw] max-w-xl p-6 text-primary z-[130] data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]",
         className,
       )}
       {...props}
@@ -97,7 +98,7 @@ const DialogContentFrameless = React.forwardRef<
         onOpenAutoFocus?.(e);
       }}
       className={cn(
-        "fixed bg-background top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-xl border dark:border-none dark:p-px text-primary z-50 data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]",
+        "fixed bg-background top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-xl border dark:border-none dark:p-px text-primary z-[130] data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]",
         className,
       )}
       {...props}

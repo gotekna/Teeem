@@ -17,11 +17,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   enable_extension "pg_trgm"
 
   create_table "account_mappings", force: :cascade do |t|
-    t.integer "accounting_integration_id", null: false
-    t.integer "keepr_account_id", null: false
-    t.string "external_account_id", limit: 255, null: false
-    t.string "external_account_name", limit: 255
-    t.string "external_account_code", limit: 255
+    t.bigint "accounting_integration_id", null: false
+    t.bigint "keepr_account_id", null: false
+    t.string "external_account_id", null: false
+    t.string "external_account_name"
+    t.string "external_account_code"
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -33,15 +33,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "accounting_integrations", force: :cascade do |t|
-    t.integer "contact_id", null: false
-    t.string "system_type", limit: 255, null: false
+    t.bigint "contact_id", null: false
+    t.string "system_type", null: false
     t.text "oauth_token"
     t.text "refresh_token"
-    t.datetime "token_expires_at", precision: nil
-    t.string "organization_id", limit: 255
-    t.string "tenant_id", limit: 255
-    t.datetime "last_sync_at", precision: nil
-    t.string "sync_status", limit: 255
+    t.datetime "token_expires_at"
+    t.string "organization_id"
+    t.string "tenant_id"
+    t.datetime "last_sync_at"
+    t.string "sync_status"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -83,11 +83,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "agent_definitions", force: :cascade do |t|
-    t.string "agent_id", limit: 255, null: false
-    t.string "name", limit: 255, null: false
-    t.string "agent_type", limit: 255, null: false
-    t.text "focus", null: false
-    t.string "model", limit: 255, default: "sonnet"
+    t.string "agent_id", null: false
+    t.string "name", null: false
+    t.string "agent_type", null: false
+    t.string "focus", null: false
+    t.string "model", default: "sonnet"
     t.text "purpose"
     t.text "capabilities"
     t.text "when_to_use"
@@ -98,8 +98,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.integer "total_runs", default: 0
     t.integer "successful_runs", default: 0
     t.integer "failed_runs", default: 0
-    t.datetime "last_run_at", precision: nil
-    t.string "last_status", limit: 255
+    t.datetime "last_run_at"
+    t.string "last_status"
     t.text "last_message"
     t.jsonb "last_run_details", default: {}
     t.jsonb "metadata", default: {}
@@ -107,13 +107,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.integer "priority", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "created_by_id"
-    t.integer "updated_by_id"
-    t.integer "last_run_by_id"
-    t.string "last_run_by_name", limit: 255
-    t.string "created_by_name", limit: 255
-    t.string "updated_by_name", limit: 255
-    t.string "category", limit: 255
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.bigint "last_run_by_id"
+    t.string "last_run_by_name"
+    t.string "created_by_name"
+    t.string "updated_by_name"
+    t.string "category"
     t.integer "last_run_tokens"
     t.integer "total_tokens"
     t.index ["active"], name: "index_agent_definitions_on_active"
@@ -443,27 +443,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "balance_sheet_reports", force: :cascade do |t|
-    t.integer "company_id", null: false
-    t.string "company_name", limit: 255, null: false
-    t.string "company_code", limit: 255
-    t.string "financial_year", limit: 255, null: false
+    t.bigint "company_id", null: false
+    t.string "company_name", null: false
+    t.string "company_code"
+    t.string "financial_year", null: false
     t.date "report_date"
-    t.decimal "total_assets", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_liabilities", precision: 10, scale: 2, default: "0.0"
-    t.decimal "net_assets", precision: 10, scale: 2, default: "0.0"
+    t.decimal "total_assets", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_liabilities", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_assets", precision: 15, scale: 2, default: "0.0"
     t.jsonb "report_data"
-    t.string "cloudinary_public_id", limit: 255
-    t.string "cloudinary_url", limit: 500
-    t.string "file_name", limit: 255
+    t.string "cloudinary_public_id"
+    t.string "cloudinary_url"
+    t.string "file_name"
     t.integer "file_size"
-    t.string "status", limit: 50, default: "pending"
-    t.datetime "generated_at", precision: nil
+    t.string "status", default: "pending"
+    t.datetime "generated_at"
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "period", limit: 255
+    t.string "period"
     t.date "period_end_date"
-    t.integer "document_type_id"
+    t.bigint "document_type_id"
     t.string "display_name"
     t.index ["company_code"], name: "index_balance_sheet_reports_on_company_code"
     t.index ["company_id", "period_end_date"], name: "idx_bs_reports_company_period", unique: true, where: "(period_end_date IS NOT NULL)"
@@ -474,25 +474,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "bank_accounts", force: :cascade do |t|
-    t.integer "company_id", null: false
-    t.string "institution_name", limit: 255
-    t.string "bsb", limit: 7
-    t.string "account_number", limit: 255
-    t.string "account_name", limit: 255
+    t.bigint "company_id", null: false
+    t.string "institution_name"
+    t.string "bsb"
+    t.string "account_number"
+    t.string "account_name"
     t.text "description"
     t.date "date_opened"
     t.date "date_closed"
-    t.string "status", limit: 50, default: "active"
+    t.string "status", default: "active"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "xero_account_id", limit: 255
-    t.string "bank_code", limit: 255
-    t.string "aba_user_name", limit: 255
-    t.string "aba_user_number", limit: 255
-    t.string "aba_file_description", limit: 255
+    t.string "xero_account_id"
+    t.string "bank_code"
+    t.string "aba_user_name", limit: 26
+    t.string "aba_user_number", limit: 6
+    t.string "aba_file_description", limit: 12
     t.boolean "is_ap_enabled", default: false
     t.integer "next_aba_sequence", default: 1
-    t.string "bank_feed_name", limit: 255
+    t.string "bank_feed_name"
     t.index ["company_id", "is_ap_enabled"], name: "idx_bank_accounts_company_ap"
     t.index ["company_id", "status"], name: "index_bank_accounts_on_company_id_and_status"
     t.index ["company_id"], name: "index_bank_accounts_on_company_id"
@@ -501,32 +501,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "bank_statement_reports", id: :serial, force: :cascade do |t|
-    t.string "bank_account_id", limit: 255, null: false
-    t.string "bank_account_name", limit: 255, null: false
-    t.string "financial_year", limit: 255, null: false
+    t.string "bank_account_id", null: false
+    t.string "bank_account_name", null: false
+    t.string "financial_year", null: false
     t.integer "month"
     t.integer "year"
-    t.string "report_type", limit: 50, default: "monthly"
+    t.string "report_type", default: "monthly"
     t.date "period_start"
     t.date "period_end"
     t.integer "transaction_count", default: 0
-    t.decimal "total_in", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_out", precision: 10, scale: 2, default: "0.0"
-    t.decimal "net_change", precision: 10, scale: 2, default: "0.0"
-    t.string "cloudinary_public_id", limit: 255
-    t.string "cloudinary_url", limit: 500
-    t.string "file_name", limit: 255
+    t.decimal "total_in", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_out", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_change", precision: 15, scale: 2, default: "0.0"
+    t.string "cloudinary_public_id"
+    t.string "cloudinary_url"
+    t.string "file_name"
     t.integer "file_size"
     t.datetime "generated_at", precision: nil
-    t.string "status", limit: 50, default: "pending"
+    t.string "status", default: "pending"
     t.text "error_message"
     t.datetime "created_at", precision: nil, default: -> { "now()" }, null: false
     t.datetime "updated_at", precision: nil, default: -> { "now()" }, null: false
-    t.string "bank_code", limit: 50
-    t.string "account_number", limit: 255
-    t.string "company_code", limit: 255
-    t.integer "company_id"
-    t.integer "document_type_id"
+    t.string "bank_code"
+    t.string "account_number"
+    t.string "company_code"
+    t.bigint "company_id"
+    t.bigint "document_type_id"
     t.string "display_name"
     t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
     t.index ["bank_code"], name: "index_bank_statement_reports_on_bank_code"
@@ -624,48 +624,48 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "bill_inboxes", force: :cascade do |t|
-    t.string "source", limit: 255, default: "email", null: false
-    t.string "email_message_id", limit: 255
-    t.integer "email_warehouse_id"
-    t.integer "corporate_company_id"
-    t.integer "detected_company_id"
-    t.integer "supplier_id"
-    t.string "supplier_name_raw", limit: 255
-    t.string "supplier_abn_raw", limit: 255
-    t.string "invoice_number", limit: 255
+    t.string "source", default: "email", null: false
+    t.string "email_message_id"
+    t.bigint "email_warehouse_id"
+    t.bigint "corporate_company_id"
+    t.bigint "detected_company_id"
+    t.bigint "supplier_id"
+    t.string "supplier_name_raw"
+    t.string "supplier_abn_raw"
+    t.string "invoice_number"
     t.date "invoice_date"
     t.date "due_date"
-    t.decimal "subtotal", precision: 10, scale: 2
-    t.decimal "tax_amount", precision: 10, scale: 2
-    t.decimal "total_amount", precision: 10, scale: 2
-    t.string "currency", limit: 255, default: "AUD"
+    t.decimal "subtotal", precision: 15, scale: 2
+    t.decimal "tax_amount", precision: 15, scale: 2
+    t.decimal "total_amount", precision: 15, scale: 2
+    t.string "currency", default: "AUD"
     t.jsonb "line_items", default: []
     t.jsonb "ai_extraction_result", default: {}
-    t.decimal "ai_confidence", precision: 10, scale: 2
-    t.datetime "extracted_at", precision: nil
-    t.integer "matched_purchase_order_id"
-    t.string "match_status", limit: 255, default: "unmatched"
-    t.decimal "variance_amount", precision: 10, scale: 2
-    t.string "variance_reason", limit: 255
-    t.string "status", limit: 255, default: "pending", null: false
-    t.integer "bpmn_process_instance_id"
-    t.integer "approved_by_id"
-    t.datetime "approved_at", precision: nil
+    t.decimal "ai_confidence", precision: 5, scale: 4
+    t.datetime "extracted_at"
+    t.bigint "matched_purchase_order_id"
+    t.string "match_status", default: "unmatched"
+    t.decimal "variance_amount", precision: 15, scale: 2
+    t.string "variance_reason"
+    t.string "status", default: "pending", null: false
+    t.bigint "bpmn_process_instance_id"
+    t.bigint "approved_by_id"
+    t.datetime "approved_at"
     t.text "rejection_reason"
-    t.integer "external_invoice_id"
-    t.string "xero_invoice_id", limit: 255
-    t.datetime "synced_to_xero_at", precision: nil
-    t.string "original_filename", limit: 255
-    t.string "content_type", limit: 255
+    t.bigint "external_invoice_id"
+    t.string "xero_invoice_id"
+    t.datetime "synced_to_xero_at"
+    t.string "original_filename"
+    t.string "content_type"
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "ocr_extraction_result"
     t.jsonb "comparison_data"
     t.jsonb "contact_comparison_data", default: {}
-    t.string "sharepoint_file_id", limit: 255
+    t.string "sharepoint_file_id"
     t.integer "match_confidence"
-    t.string "match_source", limit: 255
+    t.string "match_source", limit: 30
     t.index ["approved_by_id"], name: "index_bill_inboxes_on_approved_by_id"
     t.index ["corporate_company_id", "status"], name: "index_bill_inboxes_on_corporate_company_id_and_status"
     t.index ["corporate_company_id"], name: "index_bill_inboxes_on_corporate_company_id"
@@ -862,10 +862,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "bug_hunter_test_runs", force: :cascade do |t|
-    t.string "test_id", limit: 255, null: false
-    t.string "status", limit: 255, null: false
+    t.string "test_id", null: false
+    t.string "status", null: false
     t.text "message"
-    t.decimal "duration", precision: 10, scale: 2
+    t.float "duration"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "template_id"
@@ -1084,21 +1084,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "chat_messages", force: :cascade do |t|
-    t.integer "user_id", null: false
-    t.integer "project_id"
+    t.bigint "user_id", null: false
+    t.bigint "project_id"
     t.text "content", null: false
-    t.string "channel", limit: 255, default: "general", null: false
+    t.string "channel", default: "general", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "recipient_user_id"
-    t.integer "job_id"
+    t.bigint "job_id"
     t.boolean "saved_to_job", default: false
-    t.integer "contact_id"
-    t.integer "case_id"
-    t.string "message_type", limit: 255, default: "text"
-    t.string "file_url", limit: 500
-    t.string "file_name", limit: 255
-    t.string "sharepoint_file_id", limit: 255
+    t.bigint "contact_id"
+    t.bigint "case_id"
+    t.string "message_type", default: "text"
+    t.string "file_url"
+    t.string "file_name"
+    t.string "sharepoint_file_id"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
     t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
@@ -1246,13 +1246,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "contact_activities", force: :cascade do |t|
-    t.integer "contact_id", null: false
-    t.string "activity_type", limit: 255
+    t.bigint "contact_id", null: false
+    t.string "activity_type"
     t.text "description"
     t.jsonb "metadata"
-    t.string "performed_by_type", limit: 255
-    t.integer "performed_by_id"
-    t.datetime "occurred_at", precision: nil
+    t.string "performed_by_type"
+    t.bigint "performed_by_id"
+    t.datetime "occurred_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["contact_id"], name: "index_contact_activities_on_contact_id"
@@ -1260,17 +1260,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "contact_addresses", force: :cascade do |t|
-    t.integer "contact_id", null: false
-    t.string "address_type", limit: 255
-    t.string "line1", limit: 255
-    t.string "line2", limit: 255
-    t.string "line3", limit: 255
-    t.string "line4", limit: 255
-    t.string "city", limit: 255
-    t.string "region", limit: 255
-    t.string "postal_code", limit: 255
-    t.string "country", limit: 255
-    t.string "attention_to", limit: 255
+    t.bigint "contact_id", null: false
+    t.string "address_type"
+    t.string "line1"
+    t.string "line2"
+    t.string "line3"
+    t.string "line4"
+    t.string "city"
+    t.string "region"
+    t.string "postal_code"
+    t.string "country"
+    t.string "attention_to"
     t.boolean "is_primary", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1344,8 +1344,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "contact_group_memberships", force: :cascade do |t|
-    t.integer "contact_id", null: false
-    t.integer "contact_group_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "contact_group_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["contact_group_id"], name: "index_contact_group_memberships_on_contact_group_id"
@@ -1353,9 +1353,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "contact_groups", force: :cascade do |t|
-    t.string "xero_contact_group_id", limit: 255, null: false
-    t.string "name", limit: 255, null: false
-    t.string "status", limit: 255
+    t.string "xero_contact_group_id", null: false
+    t.string "name", null: false
+    t.string "status"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_contact_groups_on_name"
@@ -1364,17 +1364,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "contact_persons", force: :cascade do |t|
-    t.integer "contact_id", null: false
-    t.string "first_name", limit: 255
-    t.string "last_name", limit: 255
-    t.string "email", limit: 255
+    t.bigint "contact_id", null: false
+    t.string "first_name"
+    t.string "last_name"
+    t.string "email"
     t.boolean "include_in_emails", default: true
     t.boolean "is_primary", default: false
-    t.string "xero_contact_person_id", limit: 255
+    t.string "xero_contact_person_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "role", limit: 255
-    t.string "mobile", limit: 255
+    t.string "role"
+    t.string "mobile"
     t.index ["contact_id", "is_primary"], name: "index_contact_persons_on_contact_id_and_is_primary"
     t.index ["contact_id"], name: "index_contact_persons_on_contact_id"
     t.index ["email"], name: "index_contact_persons_on_email"
@@ -1420,13 +1420,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "contact_relationships", force: :cascade do |t|
-    t.integer "source_contact_id", null: false
-    t.integer "related_contact_id", null: false
-    t.string "relationship_type", limit: 255, null: false
+    t.bigint "source_contact_id", null: false
+    t.bigint "related_contact_id", null: false
+    t.string "relationship_type", null: false
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "role_in_relationship", limit: 255
+    t.string "role_in_relationship"
     t.decimal "ownership_percentage", precision: 5, scale: 2
     t.text "context"
     t.date "start_date"
@@ -1443,9 +1443,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "contact_types", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "display_name", limit: 255, null: false
-    t.string "tab_label", limit: 255
+    t.string "name", null: false
+    t.string "display_name", null: false
+    t.string "tab_label"
     t.text "description"
     t.boolean "active", default: true, null: false
     t.integer "position", null: false
@@ -1456,13 +1456,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "contacts", force: :cascade do |t|
-    t.string "abn", limit: 14
+    t.string "abn"
     t.string "email"
-    t.string "office_phone", limit: 20
-    t.string "mobile_phone", limit: 20
-    t.string "website", limit: 500
-    t.string "first_name", limit: 255
-    t.string "last_name", limit: 255
+    t.string "office_phone"
+    t.string "mobile_phone"
+    t.string "website"
+    t.string "first_name"
+    t.string "last_name"
     t.string "display_name"
     t.boolean "sync_with_xero"
     t.datetime "created_at", null: false
@@ -1471,83 +1471,83 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.boolean "is_active", default: true
     t.text "address"
     t.text "lgas", default: [], array: true
-    t.string "bank_bsb", limit: 255
-    t.string "bank_account_number", limit: 255
-    t.string "bank_account_name", limit: 255
-    t.integer "default_purchase_account"
+    t.string "bank_bsb"
+    t.string "bank_account_number"
+    t.string "bank_account_name"
+    t.string "default_purchase_account"
     t.integer "bill_due_day"
-    t.string "bill_due_type", limit: 50
-    t.string "xero_contact_number", limit: 255
-    t.string "xero_account_number", limit: 255
-    t.integer "default_sales_account"
+    t.string "bill_due_type"
+    t.string "xero_contact_number"
+    t.string "xero_account_number"
+    t.string "default_sales_account"
     t.decimal "default_discount", precision: 5, scale: 2
     t.integer "sales_due_day"
-    t.string "sales_due_type", limit: 50
+    t.string "sales_due_type"
     t.boolean "portal_enabled", default: false
-    t.string "company_name_or_trust", limit: 255
+    t.string "company_name_or_trust"
     t.bigint "primary_company_id"
     t.string "entity_type"
-    t.string "place_of_birth", limit: 255
-    t.string "birth_state", limit: 255
-    t.string "birth_country", limit: 255
+    t.string "place_of_birth"
+    t.string "birth_state"
+    t.string "birth_country"
     t.text "residential_address"
     t.boolean "is_family_member", default: false
     t.boolean "is_potential_director", default: false
-    t.integer "company_group_id"
+    t.bigint "company_group_id"
     t.integer "xero_invoice_count", default: 0
     t.boolean "link_to_cg", default: false
     t.integer "linked_company_id"
-    t.string "city", limit: 255
-    t.string "state", limit: 255
-    t.string "postcode", limit: 4
+    t.string "city"
+    t.string "state"
+    t.string "postcode"
     t.text "xero_contact_types", default: [], array: true
-    t.string "middle_name", limit: 255
+    t.string "middle_name"
     t.boolean "is_team_contact", default: false, null: false
-    t.decimal "accounts_receivable_outstanding", precision: 10, scale: 2, default: "0.0"
-    t.decimal "accounts_receivable_overdue", precision: 10, scale: 2, default: "0.0"
-    t.decimal "accounts_payable_outstanding", precision: 10, scale: 2, default: "0.0"
-    t.decimal "accounts_payable_overdue", precision: 10, scale: 2, default: "0.0"
-    t.string "company_number", limit: 255
-    t.string "fax_phone", limit: 20
+    t.decimal "accounts_receivable_outstanding", precision: 15, scale: 2, default: "0.0"
+    t.decimal "accounts_receivable_overdue", precision: 15, scale: 2, default: "0.0"
+    t.decimal "accounts_payable_outstanding", precision: 15, scale: 2, default: "0.0"
+    t.decimal "accounts_payable_overdue", precision: 15, scale: 2, default: "0.0"
+    t.string "company_number"
+    t.string "fax_phone"
     t.jsonb "email_domains", default: [], null: false, comment: "Email domains for auto-linking employees (e.g., ['tekna.com.au', 'bunnings.com.au']). Used by rake task to create employee_of relationships."
     t.text "notes"
     t.boolean "has_trust_account", default: false, null: false
-    t.string "trust_bsb", limit: 7
-    t.string "trust_account_number", limit: 255
-    t.string "trust_account_name", limit: 255
-    t.string "payment_terms", limit: 255
+    t.string "trust_bsb"
+    t.string "trust_account_number"
+    t.string "trust_account_name"
+    t.string "payment_terms"
     t.integer "employees_count", default: 0, null: false
     t.boolean "abn_valid"
-    t.string "abn_entity_name", limit: 255
-    t.string "abn_entity_type", limit: 255
+    t.string "abn_entity_name"
+    t.string "abn_entity_type"
     t.boolean "abn_gst_registered"
-    t.datetime "abn_verified_at", precision: nil
+    t.datetime "abn_verified_at"
     t.string "acn", limit: 11
     t.boolean "acn_valid"
-    t.datetime "acn_verified_at", precision: nil
+    t.datetime "acn_verified_at"
     t.integer "xero_linked_count", default: 0
-    t.string "xero_tenant_names", limit: 255, default: "{}"
+    t.string "xero_tenant_names", default: [], array: true
     t.boolean "tpar_required", default: false
-    t.string "tpar_industry_code", limit: 255
+    t.string "tpar_industry_code", limit: 10
     t.integer "team_size"
-    t.decimal "daily_rate_per_person", precision: 5, scale: 2, default: "800.0"
+    t.decimal "daily_rate_per_person", precision: 10, scale: 2, default: "800.0"
     t.tsvector "searchable"
     t.boolean "is_saas_customer", default: false
-    t.decimal "annual_turnover", precision: 10, scale: 2
-    t.string "saas_status", limit: 255, default: "active"
+    t.decimal "annual_turnover", precision: 15, scale: 2
+    t.string "saas_status", default: "active"
     t.date "saas_started_at"
     t.date "saas_churned_at"
-    t.integer "support_contact_id"
-    t.integer "upline_contact_id"
-    t.string "referrer_status", limit: 255, default: "pending"
-    t.datetime "referrer_training_completed_at", precision: nil
-    t.datetime "referrer_training_expires_at", precision: nil
-    t.datetime "l1_eligible_at", precision: nil
-    t.datetime "l2_eligible_at", precision: nil
-    t.decimal "total_network_fees", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_commissions_earned", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_commissions_paid", precision: 10, scale: 2, default: "0.0"
-    t.string "direct_line", limit: 255
+    t.bigint "support_contact_id"
+    t.bigint "upline_contact_id"
+    t.string "referrer_status", default: "pending"
+    t.datetime "referrer_training_completed_at"
+    t.datetime "referrer_training_expires_at"
+    t.datetime "l1_eligible_at"
+    t.datetime "l2_eligible_at"
+    t.decimal "total_network_fees", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_commissions_earned", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_commissions_paid", precision: 12, scale: 2, default: "0.0"
+    t.string "direct_line"
     t.index "lower((email)::text)", name: "idx_contacts_lower_email"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1705,41 +1705,41 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.string "document_type", null: false
     t.date "document_date"
     t.string "file_url"
-    t.string "file_name", limit: 255
+    t.string "file_name"
     t.integer "file_size"
-    t.datetime "uploaded_at", precision: nil
+    t.datetime "uploaded_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "folder"
-    t.string "storage_type", limit: 255
-    t.string "filed_by", limit: 255
+    t.string "storage_type"
+    t.string "filed_by"
     t.bigint "document_type_id"
     t.string "sharepoint_file_id"
     t.string "sharepoint_download_url"
-    t.datetime "last_modified_at", precision: nil
-    t.string "expected_sharepoint_path", limit: 255
-    t.string "register_folder", limit: 255
+    t.datetime "last_modified_at"
+    t.string "expected_sharepoint_path"
+    t.string "register_folder"
     t.string "company_code"
     t.string "source", default: "manual"
-    t.integer "asset_id"
-    t.integer "loan_id"
-    t.integer "contact_id"
+    t.bigint "asset_id"
+    t.bigint "loan_id"
+    t.bigint "contact_id"
     t.integer "financial_years", default: [], array: true
-    t.datetime "ai_verified_at", precision: nil
+    t.datetime "ai_verified_at"
     t.string "ai_verification_status"
-    t.string "ai_suggested_name", limit: 255
-    t.string "ai_suggested_folder", limit: 255
-    t.decimal "ai_confidence_score", precision: 10, scale: 2
-    t.datetime "user_validated_at", precision: nil
-    t.integer "user_validated_by_id"
-    t.string "display_name", limit: 255
-    t.string "ai_suggested_type", limit: 255
+    t.string "ai_suggested_name"
+    t.string "ai_suggested_folder"
+    t.decimal "ai_confidence_score"
+    t.datetime "user_validated_at"
+    t.bigint "user_validated_by_id"
+    t.string "display_name"
+    t.string "ai_suggested_type"
     t.integer "ai_suggested_fy", default: [], array: true
     t.text "ai_analysis_notes"
     t.boolean "validation_required", default: false
     t.date "ref_date"
     t.date "filed_date"
-    t.string "ai_extracted_description", limit: 255
+    t.string "ai_extracted_description"
     t.date "ai_extracted_date"
     t.integer "ai_source_page"
     t.text "ai_source_quote"
@@ -1747,20 +1747,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.jsonb "ai_split_recommendation"
     t.string "documentable_type"
     t.bigint "documentable_id"
-    t.string "content_hash", limit: 255
+    t.string "content_hash"
     t.string "external_id"
     t.integer "job_id"
-    t.string "mime_type", limit: 255
-    t.datetime "synced_to_xero_at", precision: nil
-    t.string "xero_attachment_id", limit: 255
+    t.string "mime_type"
+    t.datetime "synced_to_xero_at"
+    t.string "xero_attachment_id"
     t.boolean "sync_to_xero", default: false, null: false
-    t.string "focus", limit: 255, default: "company", null: false
+    t.string "focus", default: "company", null: false
     t.boolean "is_pdf_eligible", default: true, null: false
-    t.datetime "orphaned_at", precision: nil
-    t.string "orphan_reason", limit: 255
-    t.decimal "ocr_confidence", precision: 10, scale: 2
-    t.string "ocr_method", limit: 255
-    t.decimal "human_confidence", precision: 10, scale: 2
+    t.datetime "orphaned_at"
+    t.string "orphan_reason"
+    t.decimal "ocr_confidence", precision: 5, scale: 2
+    t.string "ocr_method"
+    t.decimal "human_confidence", precision: 5, scale: 2
     t.tsvector "searchable"
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
@@ -2039,10 +2039,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "designs", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
+    t.string "name", null: false
     t.decimal "size", precision: 10, scale: 2
     t.decimal "frontage_required", precision: 10, scale: 2
-    t.string "floor_plan_url", limit: 500
+    t.string "floor_plan_url"
     t.text "description"
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
@@ -2186,20 +2186,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "document_tasks", force: :cascade do |t|
-    t.integer "job_id", null: false
-    t.string "category", limit: 255
-    t.string "name", limit: 255
+    t.bigint "job_id", null: false
+    t.string "category"
+    t.string "name"
     t.text "description"
     t.boolean "required"
     t.boolean "has_document"
     t.boolean "is_validated"
-    t.datetime "uploaded_at", precision: nil
-    t.string "uploaded_by", limit: 255
-    t.datetime "validated_at", precision: nil
-    t.string "validated_by", limit: 255
+    t.datetime "uploaded_at"
+    t.string "uploaded_by"
+    t.datetime "validated_at"
+    t.string "validated_by"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "sharepoint_url", limit: 500
+    t.string "sharepoint_url"
     t.index ["job_id"], name: "index_document_tasks_on_job_id"
   end
 
@@ -2240,8 +2240,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "document_types", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "folder", limit: 50
+    t.string "name", null: false
+    t.string "folder"
     t.text "description"
     t.string "category"
     t.boolean "requires_filing", default: false
@@ -2251,14 +2251,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.datetime "updated_at", null: false
     t.jsonb "tabs", default: []
     t.string "primary_tab"
-    t.string "name_format", limit: 255
-    t.string "file_name", limit: 255
-    t.string "abbreviation", limit: 255
+    t.string "name_format"
+    t.string "file_name"
+    t.string "abbreviation"
     t.jsonb "aliases", default: []
-    t.string "display_name", limit: 255
-    t.string "scope", limit: 255, default: "company"
+    t.string "display_name"
+    t.string "scope", default: "company"
     t.string "file_extensions", default: [], array: true
-    t.string "target_folder", limit: 255
+    t.string "target_folder"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
@@ -2295,16 +2295,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "documentation_categories", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "icon", limit: 255
-    t.string "color", limit: 255
+    t.string "name", null: false
+    t.string "icon"
+    t.string "color"
     t.text "description"
     t.integer "sequence_order", default: 0
     t.boolean "is_default", default: false
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "folder_path", limit: 255
+    t.string "folder_path"
     t.index ["name"], name: "index_documentation_categories_on_name", unique: true
   end
 
@@ -2504,19 +2504,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "email_job_proposals", id: :bigint, default: nil, force: :cascade do |t|
-    t.integer "email_warehouse_id", null: false
-    t.integer "created_by_user_id", null: false
-    t.integer "job_id"
+    t.bigint "email_warehouse_id", null: false
+    t.bigint "created_by_user_id", null: false
+    t.bigint "job_id"
     t.jsonb "extracted_data", default: {}, null: false
     t.text "ai_prompt"
     t.text "ai_response_raw"
     t.integer "processing_time_ms"
-    t.string "ai_model_used", limit: 255
-    t.string "status", limit: 255, default: "pending", null: false
+    t.string "ai_model_used"
+    t.string "status", default: "pending", null: false
     t.text "rejection_reason"
     t.text "error_message"
-    t.integer "approved_by_user_id"
-    t.datetime "approved_at", precision: nil
+    t.bigint "approved_by_user_id"
+    t.datetime "approved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -2722,19 +2722,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "emails", id: :bigint, default: nil, force: :cascade do |t|
-    t.integer "job_id"
-    t.integer "user_id"
-    t.string "from_email", limit: 255, null: false
+    t.bigint "job_id"
+    t.bigint "user_id"
+    t.string "from_email", null: false
     t.text "to_emails"
     t.text "cc_emails"
     t.text "bcc_emails"
     t.text "subject"
     t.text "body_text"
     t.text "body_html"
-    t.string "message_id", limit: 255
-    t.string "in_reply_to", limit: 255
+    t.string "message_id"
+    t.string "in_reply_to"
     t.text "references"
-    t.datetime "received_at", precision: nil
+    t.datetime "received_at"
     t.boolean "has_attachments", default: false
     t.integer "attachment_count", default: 0
     t.text "raw_email"
@@ -2792,11 +2792,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
-    t.integer "estimate_id", null: false
-    t.string "category", limit: 255
-    t.string "item_description", limit: 255, null: false
-    t.decimal "quantity", precision: 10, scale: 2, default: "1.0"
-    t.string "unit", limit: 255, default: "ea"
+    t.bigint "estimate_id", null: false
+    t.string "category"
+    t.string "item_description", null: false
+    t.decimal "quantity", precision: 15, scale: 3, default: "1.0"
+    t.string "unit", default: "ea"
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -2805,16 +2805,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "estimate_reviews", force: :cascade do |t|
-    t.integer "estimate_id", null: false
-    t.string "status", limit: 255, default: "pending", null: false
+    t.bigint "estimate_id", null: false
+    t.string "status", default: "pending", null: false
     t.text "ai_findings"
     t.text "discrepancies"
     t.integer "items_matched", default: 0
     t.integer "items_mismatched", default: 0
     t.integer "items_missing", default: 0
     t.integer "items_extra", default: 0
-    t.decimal "confidence_score", precision: 10, scale: 2
-    t.datetime "reviewed_at", precision: nil
+    t.decimal "confidence_score", precision: 5, scale: 2
+    t.datetime "reviewed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["estimate_id"], name: "index_estimate_reviews_on_estimate_id"
@@ -2823,15 +2823,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "estimates", force: :cascade do |t|
-    t.integer "job_id"
-    t.string "source", limit: 255, default: "unreal_engine", null: false
-    t.string "estimator_name", limit: 255
-    t.string "job_name_from_source", limit: 255, null: false
+    t.bigint "job_id"
+    t.string "source", default: "unreal_engine", null: false
+    t.string "estimator_name"
+    t.string "job_name_from_source", null: false
     t.boolean "matched_automatically", default: false
-    t.decimal "match_confidence_score", precision: 10, scale: 2
-    t.string "status", limit: 255, default: "pending", null: false
+    t.decimal "match_confidence_score", precision: 5, scale: 2
+    t.string "status", default: "pending", null: false
     t.integer "total_items", default: 0
-    t.datetime "imported_at", precision: nil
+    t.datetime "imported_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["imported_at"], name: "index_estimates_on_imported_at"
@@ -2842,10 +2842,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "external_integrations", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "api_key_digest", limit: 255, null: false
+    t.string "name", null: false
+    t.string "api_key_digest", null: false
     t.boolean "is_active", default: true
-    t.datetime "last_used_at", precision: nil
+    t.datetime "last_used_at"
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -2965,8 +2965,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "feature_trackers", force: :cascade do |t|
-    t.string "chapter", limit: 255, null: false
-    t.string "feature_name", limit: 255, null: false
+    t.string "chapter", null: false
+    t.string "feature_name", null: false
     t.text "detail_point_1"
     t.text "detail_point_2"
     t.text "detail_point_3"
@@ -2978,7 +2978,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "ui_checked", default: false, null: false
-    t.decimal "dev_progress", precision: 5, scale: 2, default: "0.0", null: false
+    t.integer "dev_progress", default: 0, null: false
     t.boolean "buildertrend_has", default: false, null: false
     t.boolean "buildexact_has", default: false, null: false
     t.boolean "jacks_has", default: false, null: false
@@ -2989,7 +2989,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.boolean "clickhome_has", default: false, null: false
     t.boolean "teeem_has", default: false, null: false
     t.boolean "clickup_has"
-    t.integer "feature_chapter_id", null: false
+    t.bigint "feature_chapter_id", null: false
     t.boolean "evolve_has"
     t.index ["chapter"], name: "index_feature_trackers_on_chapter"
     t.index ["feature_chapter_id"], name: "index_feature_trackers_on_feature_chapter_id"
@@ -3004,15 +3004,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.string "category"
     t.string "status", default: "draft", null: false
     t.bigint "job_id"
-    t.integer "user_id", null: false
+    t.bigint "user_id", null: false
     t.bigint "company_id", null: false
-    t.integer "keepr_journal_id"
-    t.string "external_system_id", limit: 255
-    t.string "external_system_type", limit: 255
-    t.datetime "synced_at", precision: nil
+    t.bigint "keepr_journal_id"
+    t.string "external_system_id"
+    t.string "external_system_type"
+    t.datetime "synced_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "sharepoint_file_id", limit: 255
+    t.string "sharepoint_file_id"
     t.index ["category"], name: "index_financial_transactions_on_category"
     t.index ["company_id", "status"], name: "index_financial_transactions_on_company_id_and_status"
     t.index ["company_id", "transaction_date"], name: "idx_on_company_id_transaction_date_f27cab6995"
@@ -3029,11 +3029,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "folder_template_items", force: :cascade do |t|
-    t.integer "folder_template_id", null: false
-    t.string "name", limit: 255, null: false
+    t.bigint "folder_template_id", null: false
+    t.string "name", null: false
     t.integer "level", default: 0, null: false
     t.integer "order", default: 0, null: false
-    t.integer "parent_id"
+    t.bigint "parent_id"
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -3044,11 +3044,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "folder_templates", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "template_type", limit: 255
+    t.string "name", null: false
+    t.string "template_type"
     t.boolean "is_system_default", default: false, null: false
     t.boolean "is_active", default: true, null: false
-    t.integer "created_by_id"
+    t.bigint "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["created_by_id"], name: "index_folder_templates_on_created_by_id"
@@ -5352,21 +5352,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.string "single_line_text", limit: 255
     t.text "multiple_lines_text"
     t.string "url", limit: 500
-    t.decimal "number", precision: 10, scale: 2
-    t.decimal "currency", precision: 10, scale: 2
-    t.decimal "percentage", precision: 5, scale: 2
+    t.decimal "number", precision: 15, scale: 2
+    t.decimal "currency", precision: 15, scale: 2
+    t.decimal "percentage", precision: 15, scale: 2
     t.date "date"
     t.datetime "date_and_time", precision: nil
-    t.string "gps_coordinates", limit: 100
-    t.string "color_picker", limit: 7
+    t.string "gps_coordinates", limit: 255
+    t.string "color_picker", limit: 255
     t.text "file_upload"
     t.boolean "boolean"
     t.string "choice", limit: 50
-    t.integer "lookup"
+    t.string "lookup", limit: 255
     t.text "multiple_lookups"
     t.integer "user"
     t.string "computed", limit: 255
     t.jsonb "structured_data", default: {}
+    t.text "array_of_items", default: [], array: true
     t.tsvector "searchable_text"
     t.string "abn", limit: 14
     t.string "acn", limit: 11
@@ -5374,19 +5375,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.string "bank_account", limit: 9
     t.string "postcode", limit: 4
     t.string "tfn", limit: 11
-    t.text "array_of_items", array: true
-    t.time "time"
-    t.uuid "uuid"
-    t.integer "array_of_integers", array: true
     t.index ["user_id"], name: "index_gold_standard_table_on_user_id"
   end
 
   create_table "grok_plans", force: :cascade do |t|
-    t.string "title", limit: 255
+    t.string "title"
     t.text "description"
     t.jsonb "conversation", default: []
-    t.string "status", limit: 255, default: "planning"
-    t.integer "user_id", null: false
+    t.string "status", default: "planning"
+    t.bigint "user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_grok_plans_on_user_id"
@@ -5452,10 +5449,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
 
   create_table "implementation_patterns", force: :cascade do |t|
     t.integer "chapter_number", null: false
-    t.string "chapter_name", limit: 255, null: false
-    t.string "section_number", limit: 255, null: false
-    t.string "pattern_title", limit: 255, null: false
-    t.string "bible_rule_reference", limit: 255
+    t.string "chapter_name", null: false
+    t.string "section_number", null: false
+    t.string "pattern_title", null: false
+    t.string "bible_rule_reference"
     t.text "quick_start"
     t.text "full_implementation"
     t.text "architecture"
@@ -5467,35 +5464,35 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.jsonb "code_examples", default: []
     t.jsonb "metadata", default: {}
     t.text "search_text"
-    t.string "complexity", limit: 255, default: "medium"
-    t.text "languages", default: "{}"
-    t.text "tags", default: "{}"
+    t.string "complexity", default: "medium"
+    t.string "languages", default: [], array: true
+    t.string "tags", default: [], array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chapter_number", "section_number"], name: "index_implementation_patterns_on_chapter_and_section", unique: true
     t.index ["chapter_number"], name: "index_implementation_patterns_on_chapter_number"
     t.index ["complexity"], name: "index_implementation_patterns_on_complexity"
-    t.index ["languages"], name: "index_implementation_patterns_on_languages"
+    t.index ["languages"], name: "index_implementation_patterns_on_languages", using: :gin
     t.index ["search_text"], name: "index_implementation_patterns_on_search_text", opclass: :gin_trgm_ops, using: :gin
     t.index ["section_number"], name: "index_implementation_patterns_on_section_number"
-    t.index ["tags"], name: "index_implementation_patterns_on_tags"
+    t.index ["tags"], name: "index_implementation_patterns_on_tags", using: :gin
   end
 
   create_table "import_sessions", force: :cascade do |t|
-    t.string "session_key", limit: 255
-    t.string "file_path", limit: 255
-    t.string "original_filename", limit: 255
+    t.string "session_key"
+    t.string "file_path"
+    t.string "original_filename"
     t.integer "file_size"
-    t.datetime "expires_at", precision: nil
+    t.datetime "expires_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "status", limit: 255, default: "pending"
-    t.decimal "progress", precision: 10, scale: 2, default: "0.0"
+    t.string "status", default: "pending"
+    t.decimal "progress", precision: 5, scale: 2, default: "0.0"
     t.integer "total_rows", default: 0
     t.integer "processed_rows", default: 0
-    t.datetime "completed_at", precision: nil
+    t.datetime "completed_at"
     t.text "error_message"
-    t.jsonb "result"
+    t.json "result"
     t.integer "foundation_id"
     t.text "file_data"
     t.index ["foundation_id"], name: "index_import_sessions_on_foundation_id"
@@ -5505,8 +5502,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
 
   create_table "inspiring_quotes", force: :cascade do |t|
     t.text "quote", null: false
-    t.string "author", limit: 255
-    t.string "category", limit: 255
+    t.string "author"
+    t.string "category"
     t.boolean "is_active", default: true, null: false
     t.integer "display_order", default: 0
     t.datetime "created_at", null: false
@@ -5687,13 +5684,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "job_contacts", force: :cascade do |t|
-    t.integer "job_id", null: false
-    t.integer "contact_id"
+    t.bigint "job_id", null: false
+    t.bigint "contact_id"
     t.boolean "primary", default: false, null: false
-    t.string "role", limit: 255
+    t.string "role"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id"
+    t.bigint "user_id"
     t.index ["contact_id"], name: "index_job_contacts_on_contact_id"
     t.index ["job_id", "contact_id"], name: "index_job_contacts_on_job_id_and_contact_id", unique: true
     t.index ["job_id", "primary"], name: "index_job_contacts_on_job_id_and_primary"
@@ -5746,17 +5743,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "job_documentation_tabs", force: :cascade do |t|
-    t.integer "job_id", null: false
-    t.string "name", limit: 255, null: false
-    t.string "icon", limit: 255
-    t.string "color", limit: 255
+    t.bigint "job_id", null: false
+    t.string "name", null: false
+    t.string "icon"
+    t.string "color"
     t.text "description"
     t.integer "sequence_order", default: 0
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "folder_path", limit: 255
-    t.integer "parent_id"
+    t.string "folder_path"
+    t.bigint "parent_id"
     t.index ["job_id", "name", "parent_id"], name: "index_job_doc_tabs_on_job_name_parent", unique: true
     t.index ["job_id", "sequence_order"], name: "index_job_documentation_tabs_on_job_id_and_sequence_order"
     t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
@@ -5844,9 +5841,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "job_people", force: :cascade do |t|
-    t.integer "job_id", null: false
-    t.integer "contact_id", null: false
-    t.string "role", limit: 255
+    t.bigint "job_id", null: false
+    t.bigint "contact_id", null: false
+    t.string "role"
     t.text "notes"
     t.boolean "is_primary", default: false, null: false
     t.datetime "created_at", null: false
@@ -5965,10 +5962,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "job_stages", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
+    t.string "name", null: false
     t.integer "position", default: 0
     t.boolean "is_active", default: true
-    t.string "color", limit: 255
+    t.string "color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "job_status_id"
@@ -5978,9 +5975,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "job_status_stages", force: :cascade do |t|
-    t.integer "job_type_id", null: false
-    t.integer "job_status_id", null: false
-    t.integer "job_stage_id", null: false
+    t.bigint "job_type_id", null: false
+    t.bigint "job_status_id", null: false
+    t.bigint "job_stage_id", null: false
     t.integer "position", default: 0
     t.boolean "is_required", default: false
     t.datetime "created_at", null: false
@@ -5996,7 +5993,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.string "name", null: false
     t.integer "position", default: 0
     t.boolean "is_active", default: true
-    t.string "color", limit: 255
+    t.string "color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["is_active"], name: "index_job_statuses_on_is_active"
@@ -6017,8 +6014,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "job_type_statuses", force: :cascade do |t|
-    t.integer "job_type_id", null: false
-    t.integer "job_status_id", null: false
+    t.bigint "job_type_id", null: false
+    t.bigint "job_status_id", null: false
     t.integer "position", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -6034,10 +6031,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "icon", limit: 255
-    t.string "color", limit: 255, default: "#6366F1"
+    t.string "icon"
+    t.string "color", default: "#6366F1"
     t.text "description"
-    t.integer "sm_schedule_master_template_id"
+    t.bigint "sm_schedule_master_template_id"
     t.index ["is_active"], name: "index_job_types_on_is_active"
     t.index ["position"], name: "index_job_types_on_position"
     t.index ["sm_schedule_master_template_id"], name: "idx_job_types_template"
@@ -6045,50 +6042,50 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "name"
-    t.decimal "contract_value", precision: 10, scale: 2, comment: "DEPRECATED: Use contract_price instead. See TEEEM_DOCS/SSOT_CONTRACT_VALUE_MIGRATION.md"
-    t.decimal "live_profit", precision: 10, scale: 2
-    t.decimal "profit_percentage", precision: 5, scale: 2
-    t.string "certifier_job_no", limit: 255
+    t.decimal "contract_value", precision: 15, scale: 2, comment: "DEPRECATED: Use contract_price instead. See TEEEM_DOCS/SSOT_CONTRACT_VALUE_MIGRATION.md"
+    t.decimal "live_profit", precision: 15, scale: 2
+    t.decimal "profit_percentage", precision: 10, scale: 2
+    t.string "certifier_job_no"
     t.date "start_date"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "purchase_orders_count", default: 0, null: false
-    t.string "site_supervisor_name", limit: 255, default: "Andrew Clement"
-    t.string "site_supervisor_phone", limit: 20, default: "0407 150 081"
-    t.string "sharepoint_folder_status", limit: 255, default: "not_requested"
-    t.decimal "latitude", precision: 10, scale: 2
-    t.decimal "longitude", precision: 10, scale: 2
-    t.string "location", limit: 255
+    t.string "site_supervisor_name", default: "Andrew Clement"
+    t.string "site_supervisor_phone", default: "0407 150 081"
+    t.string "sharepoint_folder_status", default: "not_requested"
+    t.decimal "latitude", precision: 10, scale: 6
+    t.decimal "longitude", precision: 10, scale: 6
+    t.string "location"
     t.bigint "job_type_id"
     t.bigint "job_status_id"
-    t.string "xero_tracking_option_id", limit: 255
-    t.string "xero_tracking_option_name", limit: 255
-    t.datetime "archived_at", precision: nil
-    t.string "archive_reason", limit: 255
-    t.integer "archived_by_id"
-    t.string "lot_number", limit: 255
-    t.string "street_number", limit: 255
-    t.string "street_name", limit: 255
-    t.string "street_type", limit: 255
-    t.string "suburb", limit: 255
+    t.string "xero_tracking_option_id"
+    t.string "xero_tracking_option_name"
+    t.datetime "archived_at"
+    t.string "archive_reason"
+    t.bigint "archived_by_id"
+    t.string "lot_number"
+    t.string "street_number"
+    t.string "street_name"
+    t.string "street_type"
+    t.string "suburb"
     t.string "postcode", limit: 4
-    t.string "state", limit: 255
-    t.string "council", limit: 255
+    t.string "state", limit: 3
+    t.string "council"
     t.integer "job_stage_id"
-    t.string "plan_number", limit: 255
-    t.decimal "contract_price", precision: 10, scale: 2
-    t.decimal "deposit", precision: 10, scale: 2
-    t.decimal "prime_cost", precision: 10, scale: 2
-    t.decimal "provisional_sums", precision: 10, scale: 2
+    t.string "plan_number"
+    t.decimal "contract_price", precision: 12, scale: 2
+    t.decimal "deposit", precision: 12, scale: 2
+    t.decimal "prime_cost", precision: 12, scale: 2
+    t.decimal "provisional_sums", precision: 12, scale: 2
     t.date "contract_date"
-    t.string "build_period", limit: 255
-    t.string "stage_slab", limit: 255
-    t.string "stage_frame", limit: 255
-    t.string "stage_enclosed", limit: 255
-    t.string "stage_fixing", limit: 255
-    t.string "stage_practical", limit: 255
-    t.string "stage_weather", limit: 255
-    t.string "weekend_work", limit: 255
+    t.string "build_period"
+    t.string "stage_slab"
+    t.string "stage_frame"
+    t.string "stage_enclosed"
+    t.string "stage_fixing"
+    t.string "stage_practical"
+    t.string "stage_weather"
+    t.string "weekend_work"
     t.date "plan_date"
     t.date "spec_date"
     t.date "practical_completion_date"
@@ -6103,23 +6100,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.text "special_conditions"
     t.boolean "finance_approval_required"
     t.date "finance_approval_date"
-    t.decimal "external_sales_fee", precision: 10, scale: 2
+    t.decimal "external_sales_fee", precision: 15, scale: 2
     t.decimal "default_retainage_percentage", precision: 5, scale: 2, default: "0.0"
     t.tsvector "searchable"
-    t.integer "cost_centre_id"
+    t.bigint "cost_centre_id"
     t.integer "site_radius_meters", default: 100
     t.boolean "require_photo_checkin", default: false
     t.boolean "require_photo_checkout", default: false
     t.boolean "require_face_verification", default: false
-    t.decimal "labour_budget", precision: 10, scale: 2
-    t.decimal "labour_actual_cached", precision: 10, scale: 2, default: "0.0"
+    t.decimal "labour_budget", precision: 14, scale: 2
+    t.decimal "labour_actual_cached", precision: 14, scale: 2, default: "0.0"
     t.decimal "labour_variance_percent", precision: 5, scale: 2
-    t.decimal "site_latitude", precision: 10, scale: 2
-    t.decimal "site_longitude", precision: 10, scale: 2
+    t.decimal "site_latitude", precision: 10, scale: 7
+    t.decimal "site_longitude", precision: 10, scale: 7
     t.integer "plans_count", default: 0, null: false
     t.integer "on_issue_plans_count", default: 0, null: false
-    t.datetime "template_applied_at", precision: nil
-    t.string "sharepoint_folder_id", limit: 255
+    t.datetime "template_applied_at"
+    t.string "sharepoint_folder_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6157,12 +6154,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "kudos_events", force: :cascade do |t|
-    t.integer "subcontractor_account_id", null: false
-    t.integer "quote_response_id"
-    t.integer "purchase_order_id"
-    t.string "event_type", limit: 255, null: false
-    t.datetime "expected_time", precision: nil
-    t.datetime "actual_time", precision: nil
+    t.bigint "subcontractor_account_id", null: false
+    t.bigint "quote_response_id"
+    t.bigint "purchase_order_id"
+    t.string "event_type", null: false
+    t.datetime "expected_time"
+    t.datetime "actual_time"
     t.decimal "points_awarded", precision: 10, scale: 2, default: "0.0"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
@@ -6225,28 +6222,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "leads", force: :cascade do |t|
-    t.string "lead_number", limit: 255
-    t.string "title", limit: 255
-    t.string "status", limit: 255, default: "new"
-    t.string "source", limit: 255
-    t.string "client_name", limit: 255
-    t.string "client_email", limit: 255
-    t.string "client_phone", limit: 255
-    t.string "client_company", limit: 255
-    t.string "site_address", limit: 255
-    t.string "site_suburb", limit: 255
-    t.string "site_state", limit: 255
-    t.string "site_postcode", limit: 255
-    t.string "lot_plan_number", limit: 255
-    t.string "project_type", limit: 255
-    t.string "dwelling_type", limit: 255
+    t.string "lead_number"
+    t.string "title"
+    t.string "status", default: "new"
+    t.string "source"
+    t.string "client_name"
+    t.string "client_email"
+    t.string "client_phone"
+    t.string "client_company"
+    t.string "site_address"
+    t.string "site_suburb"
+    t.string "site_state"
+    t.string "site_postcode"
+    t.string "lot_plan_number"
+    t.string "project_type"
+    t.string "dwelling_type"
     t.integer "number_of_storeys"
     t.decimal "estimated_floor_area", precision: 10, scale: 2
-    t.decimal "estimated_value", precision: 10, scale: 2, default: "0.0"
+    t.decimal "estimated_value", precision: 12, scale: 2, default: "0.0"
     t.date "expected_start_date"
-    t.string "decision_timeline", limit: 255
+    t.string "decision_timeline"
     t.text "notes"
-    t.integer "job_id"
+    t.bigint "job_id"
     t.integer "contract_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -6257,15 +6254,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "maintenance_requests", force: :cascade do |t|
-    t.integer "job_id", null: false
-    t.integer "supplier_contact_id"
-    t.integer "reported_by_user_id"
-    t.integer "purchase_order_id"
-    t.string "request_number", limit: 255, null: false
-    t.string "status", limit: 255, default: "open", null: false
-    t.string "priority", limit: 255, default: "medium"
-    t.string "category", limit: 255
-    t.string "title", limit: 255, null: false
+    t.bigint "job_id", null: false
+    t.bigint "supplier_contact_id"
+    t.bigint "reported_by_user_id"
+    t.bigint "purchase_order_id"
+    t.string "request_number", null: false
+    t.string "status", default: "open", null: false
+    t.string "priority", default: "medium"
+    t.string "category"
+    t.string "title", null: false
     t.text "description"
     t.text "resolution_notes"
     t.date "reported_date", null: false
@@ -6287,17 +6284,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "meeting_agenda_items", force: :cascade do |t|
-    t.integer "meeting_id", null: false
-    t.string "title", limit: 255, null: false
+    t.bigint "meeting_id", null: false
+    t.string "title", null: false
     t.text "description"
     t.integer "sequence_order", null: false
     t.integer "duration_minutes"
-    t.integer "presenter_id"
+    t.bigint "presenter_id"
     t.boolean "completed", default: false
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "sm_task_id"
+    t.bigint "sm_task_id"
     t.index ["completed"], name: "index_meeting_agenda_items_on_completed"
     t.index ["meeting_id", "sequence_order"], name: "index_meeting_agenda_items_on_meeting_id_and_sequence_order"
     t.index ["meeting_id"], name: "index_meeting_agenda_items_on_meeting_id"
@@ -6306,10 +6303,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "meeting_participants", force: :cascade do |t|
-    t.integer "meeting_id", null: false
-    t.integer "user_id"
-    t.integer "contact_id"
-    t.string "response_status", limit: 255, default: "pending"
+    t.bigint "meeting_id", null: false
+    t.bigint "user_id"
+    t.bigint "contact_id"
+    t.string "response_status", default: "pending"
     t.boolean "is_organizer", default: false
     t.boolean "is_required", default: true
     t.text "notes"
@@ -6325,11 +6322,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "meeting_types", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
+    t.string "name", null: false
     t.text "description"
-    t.string "category", limit: 255
-    t.string "icon", limit: 255
-    t.string "color", limit: 255
+    t.string "category"
+    t.string "icon"
+    t.string "color"
     t.integer "default_duration_minutes", default: 60
     t.text "required_participant_types"
     t.text "optional_participant_types"
@@ -6351,21 +6348,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "meetings", force: :cascade do |t|
-    t.string "title", limit: 255, null: false
+    t.string "title", null: false
     t.text "description"
-    t.datetime "start_time", precision: nil, null: false
-    t.datetime "end_time", precision: nil, null: false
-    t.string "location", limit: 255
-    t.string "meeting_type", limit: 255, null: false
-    t.string "status", limit: 255, default: "scheduled", null: false
-    t.integer "job_id", null: false
-    t.integer "created_by_id", null: false
+    t.datetime "start_time", null: false
+    t.datetime "end_time", null: false
+    t.string "location"
+    t.string "meeting_type", null: false
+    t.string "status", default: "scheduled", null: false
+    t.bigint "job_id", null: false
+    t.bigint "created_by_id", null: false
     t.text "notes"
-    t.string "video_url", limit: 500
+    t.string "video_url"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "meeting_type_id", null: false
+    t.bigint "meeting_type_id", null: false
     t.index ["created_by_id"], name: "index_meetings_on_created_by_id"
     t.index ["job_id", "start_time"], name: "index_meetings_on_job_id_and_start_time"
     t.index ["job_id"], name: "index_meetings_on_job_id"
@@ -6517,13 +6514,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "one_drive_credentials", force: :cascade do |t|
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.text "access_token"
     t.text "refresh_token"
-    t.datetime "token_expires_at", precision: nil
-    t.string "drive_id", limit: 255
-    t.string "root_folder_id", limit: 255
-    t.string "folder_path", limit: 255
+    t.datetime "token_expires_at"
+    t.string "drive_id"
+    t.string "root_folder_id"
+    t.string "folder_path"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -6569,18 +6566,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   create_table "organization_one_drive_credentials", force: :cascade do |t|
     t.text "access_token"
     t.text "refresh_token"
-    t.datetime "token_expires_at", precision: nil
-    t.string "drive_id", limit: 255
-    t.string "drive_name", limit: 255
-    t.string "root_folder_id", limit: 255
-    t.string "root_folder_path", limit: 255
+    t.datetime "token_expires_at"
+    t.string "drive_id"
+    t.string "drive_name"
+    t.string "root_folder_id"
+    t.string "root_folder_path"
     t.jsonb "metadata", default: {}
     t.boolean "is_active", default: true
-    t.integer "connected_by_id"
-    t.datetime "last_synced_at", precision: nil
+    t.bigint "connected_by_id"
+    t.datetime "last_synced_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "name", limit: 255
+    t.string "name"
     t.index ["connected_by_id"], name: "index_organization_one_drive_credentials_on_connected_by_id"
     t.index ["drive_id"], name: "index_organization_one_drive_credentials_on_drive_id"
     t.index ["is_active"], name: "index_org_onedrive_creds_on_is_active"
@@ -6604,30 +6601,30 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "pay_now_requests", force: :cascade do |t|
-    t.integer "purchase_order_id", null: false
-    t.integer "contact_id", null: false
-    t.integer "requested_by_portal_user_id"
-    t.decimal "original_amount", precision: 10, scale: 2, null: false
+    t.bigint "purchase_order_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "requested_by_portal_user_id"
+    t.decimal "original_amount", precision: 15, scale: 2, null: false
     t.decimal "discount_percentage", precision: 5, scale: 2, default: "5.0", null: false
-    t.decimal "discount_amount", precision: 10, scale: 2, null: false
-    t.decimal "discounted_amount", precision: 10, scale: 2, null: false
-    t.string "status", limit: 255, default: "pending", null: false
-    t.integer "reviewed_by_supervisor_id"
-    t.datetime "supervisor_reviewed_at", precision: nil
+    t.decimal "discount_amount", precision: 15, scale: 2, null: false
+    t.decimal "discounted_amount", precision: 15, scale: 2, null: false
+    t.string "status", default: "pending", null: false
+    t.bigint "reviewed_by_supervisor_id"
+    t.datetime "supervisor_reviewed_at"
     t.text "supervisor_notes"
-    t.integer "approved_by_builder_id"
-    t.datetime "builder_approved_at", precision: nil
+    t.bigint "approved_by_builder_id"
+    t.datetime "builder_approved_at"
     t.text "builder_notes"
-    t.integer "payment_id"
-    t.datetime "paid_at", precision: nil
+    t.bigint "payment_id"
+    t.datetime "paid_at"
     t.text "supplier_notes"
     t.date "requested_payment_date"
-    t.datetime "rejected_at", precision: nil
+    t.datetime "rejected_at"
     t.text "rejection_reason"
-    t.integer "pay_now_weekly_limit_id"
+    t.bigint "pay_now_weekly_limit_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "sharepoint_file_id", limit: 255
+    t.string "sharepoint_file_id"
     t.jsonb "proof_photos_sharepoint_ids", default: []
     t.index ["approved_by_builder_id"], name: "index_pay_now_requests_on_approved_by_builder_id"
     t.index ["contact_id", "status"], name: "index_pay_now_requests_on_contact_and_status"
@@ -6646,14 +6643,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "pay_now_weekly_limits", force: :cascade do |t|
-    t.decimal "total_limit", precision: 10, scale: 2, default: "0.0", null: false
-    t.decimal "used_amount", precision: 10, scale: 2, default: "0.0", null: false
-    t.decimal "remaining_amount", precision: 10, scale: 2, default: "0.0", null: false
+    t.decimal "total_limit", precision: 15, scale: 2, default: "0.0", null: false
+    t.decimal "used_amount", precision: 15, scale: 2, default: "0.0", null: false
+    t.decimal "remaining_amount", precision: 15, scale: 2, default: "0.0", null: false
     t.date "week_start_date", null: false
     t.date "week_end_date", null: false
     t.boolean "active", default: true, null: false
-    t.integer "set_by_id"
-    t.decimal "previous_limit", precision: 10, scale: 2
+    t.bigint "set_by_id"
+    t.decimal "previous_limit", precision: 15, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["active", "week_start_date"], name: "index_pay_now_weekly_limits_on_active_and_week"
@@ -6689,16 +6686,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "payments", force: :cascade do |t|
-    t.integer "purchase_order_id", null: false
-    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.bigint "purchase_order_id", null: false
+    t.decimal "amount", precision: 15, scale: 2, null: false
     t.date "payment_date", null: false
-    t.string "payment_method", limit: 255
-    t.string "reference_number", limit: 255
+    t.string "payment_method"
+    t.string "reference_number"
     t.text "notes"
-    t.string "xero_payment_id", limit: 255
-    t.datetime "xero_synced_at", precision: nil
+    t.string "xero_payment_id"
+    t.datetime "xero_synced_at"
     t.text "xero_sync_error"
-    t.integer "created_by_id"
+    t.bigint "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["created_by_id"], name: "index_payments_on_created_by_id"
@@ -6883,9 +6880,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "permissions", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
+    t.string "name", null: false
     t.text "description"
-    t.string "category", limit: 255
+    t.string "category"
     t.boolean "enabled", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -7050,10 +7047,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "portal_access_logs", force: :cascade do |t|
-    t.integer "portal_user_id", null: false
-    t.string "action", limit: 255
-    t.string "ip_address", limit: 255
-    t.string "user_agent", limit: 255
+    t.bigint "portal_user_id", null: false
+    t.string "action"
+    t.string "ip_address"
+    t.string "user_agent"
     t.jsonb "metadata"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -7064,16 +7061,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "portal_users", force: :cascade do |t|
-    t.integer "contact_id", null: false
-    t.string "email", limit: 255, null: false
-    t.string "password_digest", limit: 255, null: false
-    t.string "portal_type", limit: 255, null: false
+    t.bigint "contact_id", null: false
+    t.string "email", null: false
+    t.string "password_digest", null: false
+    t.string "portal_type", null: false
     t.boolean "active", default: true
-    t.datetime "last_login_at", precision: nil
-    t.string "reset_password_token", limit: 255
-    t.datetime "reset_password_sent_at", precision: nil
+    t.datetime "last_login_at"
+    t.string "reset_password_token"
+    t.datetime "reset_password_sent_at"
     t.integer "failed_login_attempts", default: 0
-    t.datetime "locked_until", precision: nil
+    t.datetime "locked_until"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["contact_id", "portal_type"], name: "index_portal_users_on_contact_id_and_portal_type", unique: true
@@ -7086,27 +7083,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.bigint "pricebook_item_id", null: false
     t.decimal "old_price", precision: 10, scale: 2
     t.decimal "new_price", precision: 10, scale: 2
-    t.string "change_reason", limit: 255
-    t.integer "changed_by_user_id"
+    t.string "change_reason"
+    t.bigint "changed_by_user_id"
     t.bigint "supplier_id"
-    t.string "quote_reference", limit: 255
+    t.string "quote_reference"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "lga", limit: 255
+    t.string "lga"
     t.date "date_effective"
-    t.string "user_name", limit: 255
+    t.string "user_name"
     t.index ["changed_by_user_id"], name: "index_price_histories_on_changed_by_user_id"
     t.index ["created_at"], name: "index_price_histories_on_created_at"
-    t.index ["pricebook_item_id", "supplier_id", "new_price", "created_at"], name: "index_price_histories_on_unique_combination", unique: true, comment: "Prevents duplicate price history entries from race conditions"
+    t.index ["pricebook_item_id", "supplier_id", "new_price", "created_at"], name: "index_price_histories_on_unique_combination", unique: true
     t.index ["pricebook_item_id"], name: "index_price_histories_on_pricebook_item_id"
     t.index ["supplier_id"], name: "index_price_histories_on_supplier_id"
   end
 
   create_table "pricebook_categories", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "display_name", limit: 255
-    t.string "color", limit: 255, default: "#6B7280"
-    t.string "icon", limit: 255
+    t.string "name", null: false
+    t.string "display_name"
+    t.string "color", default: "#6B7280"
+    t.string "icon"
     t.integer "position", default: 0
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
@@ -7117,40 +7114,40 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "pricebooks", force: :cascade do |t|
-    t.string "item_code", limit: 255, null: false
-    t.string "item_name", limit: 255, null: false
-    t.string "category", limit: 255
-    t.string "unit_of_measure", limit: 255, default: "Each"
+    t.string "item_code", null: false
+    t.string "item_name", null: false
+    t.string "category"
+    t.string "unit_of_measure", default: "Each"
     t.decimal "current_price", precision: 10, scale: 2
-    t.integer "supplier_id"
-    t.string "brand", limit: 255
+    t.bigint "supplier_id"
+    t.string "brand"
     t.text "notes"
     t.boolean "is_active", default: true
     t.boolean "needs_pricing_review", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.tsvector "searchable_text"
-    t.datetime "price_last_updated_at", precision: nil
-    t.string "image_url", limit: 500
-    t.string "image_source", limit: 255
-    t.datetime "image_fetched_at", precision: nil
-    t.string "image_fetch_status", limit: 255
-    t.integer "default_supplier_id"
-    t.string "qr_code_url", limit: 500
+    t.datetime "price_last_updated_at"
+    t.string "image_url"
+    t.string "image_source"
+    t.datetime "image_fetched_at"
+    t.string "image_fetch_status"
+    t.bigint "default_supplier_id"
+    t.string "qr_code_url"
     t.boolean "requires_photo", default: false
     t.boolean "requires_spec", default: false
-    t.string "spec_url", limit: 500
-    t.string "gst_code", limit: 255
+    t.string "spec_url"
+    t.string "gst_code"
     t.boolean "photo_attached", default: false
     t.boolean "spec_attached", default: false
-    t.string "image_file_id", limit: 255
-    t.string "spec_file_id", limit: 255
-    t.string "qr_code_file_id", limit: 255
+    t.string "image_file_id"
+    t.string "spec_file_id"
+    t.string "qr_code_file_id"
     t.integer "category_id"
     t.decimal "supplier_price", precision: 10, scale: 2
-    t.string "colour", limit: 255
-    t.string "colour_code", limit: 255
-    t.string "colour_brand", limit: 255
+    t.string "colour"
+    t.string "colour_code"
+    t.string "colour_brand"
     t.integer "lead_time_days"
     t.integer "call_time_days"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
@@ -7171,28 +7168,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "profit_loss_reports", force: :cascade do |t|
-    t.integer "company_id", null: false
-    t.string "company_name", limit: 255, null: false
-    t.string "company_code", limit: 255
-    t.string "financial_year", limit: 255, null: false
+    t.bigint "company_id", null: false
+    t.string "company_name", null: false
+    t.string "company_code"
+    t.string "financial_year", null: false
     t.date "report_date"
     t.date "period_start"
     t.date "period_end"
-    t.decimal "total_revenue", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_expenses", precision: 10, scale: 2, default: "0.0"
-    t.decimal "net_profit", precision: 10, scale: 2, default: "0.0"
+    t.decimal "total_revenue", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_expenses", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_profit", precision: 15, scale: 2, default: "0.0"
     t.jsonb "report_data"
-    t.string "cloudinary_public_id", limit: 255
-    t.string "cloudinary_url", limit: 500
-    t.string "file_name", limit: 255
+    t.string "cloudinary_public_id"
+    t.string "cloudinary_url"
+    t.string "file_name"
     t.integer "file_size"
-    t.string "status", limit: 50, default: "pending"
-    t.datetime "generated_at", precision: nil
+    t.string "status", default: "pending"
+    t.datetime "generated_at"
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "period", limit: 255
-    t.integer "document_type_id"
+    t.string "period"
+    t.bigint "document_type_id"
     t.string "display_name"
     t.index ["company_code"], name: "index_profit_loss_reports_on_company_code"
     t.index ["company_id", "period_end"], name: "idx_pl_reports_company_period", unique: true, where: "(period_end IS NOT NULL)"
@@ -7203,20 +7200,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "projects", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "project_code", limit: 255
+    t.string "name", null: false
+    t.string "project_code"
     t.text "description"
     t.date "start_date"
     t.date "planned_end_date"
     t.date "actual_end_date"
-    t.string "status", limit: 255, default: "planning"
-    t.string "client_name", limit: 255
+    t.string "status", default: "planning"
+    t.string "client_name"
     t.text "site_address"
-    t.integer "project_manager_id", null: false
+    t.bigint "project_manager_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "job_id", null: false
-    t.datetime "generated_at", precision: nil
+    t.bigint "job_id", null: false
+    t.datetime "generated_at"
     t.index ["job_id"], name: "index_projects_on_job_id"
     t.index ["project_code"], name: "index_projects_on_project_code", unique: true
     t.index ["project_manager_id"], name: "index_projects_on_project_manager_id"
@@ -7225,16 +7222,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "public_holidays", force: :cascade do |t|
-    t.string "name", limit: 255
+    t.string "name"
     t.date "date"
-    t.string "region", limit: 255
+    t.string "region"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
   create_table "purchase_order_documents", force: :cascade do |t|
-    t.integer "purchase_order_id", null: false
-    t.integer "document_task_id", null: false
+    t.bigint "purchase_order_id", null: false
+    t.bigint "document_task_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["document_task_id"], name: "index_purchase_order_documents_on_document_task_id"
@@ -7243,21 +7240,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "purchase_order_line_items", force: :cascade do |t|
-    t.integer "purchase_order_id", null: false
-    t.integer "pricebook_item_id"
+    t.bigint "purchase_order_id", null: false
+    t.bigint "pricebook_item_id"
     t.text "description", null: false
-    t.decimal "quantity", precision: 10, scale: 2, default: "1.0", null: false
-    t.decimal "unit_price", precision: 10, scale: 2, default: "0.0", null: false
-    t.decimal "tax_amount", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_amount", precision: 10, scale: 2, default: "0.0"
+    t.decimal "quantity", precision: 15, scale: 3, default: "1.0", null: false
+    t.decimal "unit_price", precision: 15, scale: 2, default: "0.0", null: false
+    t.decimal "tax_amount", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_amount", precision: 15, scale: 2, default: "0.0"
     t.text "notes"
     t.integer "line_number", default: 1, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "gst_code", limit: 255, default: "GST"
-    t.string "colour", limit: 255
-    t.string "colour_code", limit: 255
-    t.string "spec_reference", limit: 255
+    t.string "gst_code", default: "GST"
+    t.string "colour"
+    t.string "colour_code"
+    t.string "spec_reference"
     t.index ["pricebook_item_id"], name: "index_purchase_order_line_items_on_pricebook_item_id"
     t.index ["purchase_order_id", "line_number"], name: "index_po_line_items_on_po_and_line_num"
     t.index ["purchase_order_id"], name: "index_purchase_order_line_items_on_purchase_order_id"
@@ -7274,38 +7271,38 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.decimal "sub_total", precision: 15, scale: 2, default: "0.0"
     t.decimal "tax", precision: 15, scale: 2, default: "0.0"
     t.decimal "total", precision: 15, scale: 2, default: "0.0"
-    t.decimal "budget", precision: 10, scale: 2
-    t.decimal "amount_invoiced", precision: 10, scale: 2, default: "0.0"
-    t.decimal "amount_paid", precision: 10, scale: 2, default: "0.0"
-    t.string "xero_invoice_id", limit: 255
-    t.decimal "xero_amount_paid", precision: 10, scale: 2, default: "0.0"
+    t.decimal "budget", precision: 15, scale: 2
+    t.decimal "amount_invoiced", precision: 15, scale: 2, default: "0.0"
+    t.decimal "amount_paid", precision: 15, scale: 2, default: "0.0"
+    t.string "xero_invoice_id"
+    t.decimal "xero_amount_paid", precision: 15, scale: 2, default: "0.0"
     t.date "required_date"
     t.date "ordered_date"
     t.date "expected_delivery_date"
     t.date "received_date"
     t.integer "created_by_id"
     t.integer "approved_by_id"
-    t.datetime "approved_at", precision: nil
+    t.datetime "approved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.decimal "amount_still_to_be_invoiced", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_with_allowance", precision: 10, scale: 2, default: "0.0"
+    t.decimal "amount_still_to_be_invoiced", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_with_allowance", precision: 15, scale: 2, default: "0.0"
     t.text "ted_task"
     t.boolean "estimation_check", default: false
     t.boolean "part_payment", default: false
-    t.string "xero_supplier", limit: 255
+    t.string "xero_supplier"
     t.boolean "xero_complete", default: false
-    t.decimal "xero_still_to_be_paid", precision: 10, scale: 2, default: "0.0"
-    t.decimal "xero_budget_diff", precision: 10, scale: 2, default: "0.0"
+    t.decimal "xero_still_to_be_paid", precision: 15, scale: 2, default: "0.0"
+    t.decimal "xero_budget_diff", precision: 15, scale: 2, default: "0.0"
     t.date "xero_paid_date"
-    t.decimal "xero_total_with_allowance", precision: 10, scale: 2, default: "0.0"
-    t.decimal "xero_amount_paid_exc_gst", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_allowance_xero_paid", precision: 10, scale: 2, default: "0.0"
-    t.decimal "diff_po_with_allowance_versus_budget", precision: 10, scale: 2, default: "0.0"
-    t.decimal "diff_xero_and_total_but_not_complete", precision: 10, scale: 2, default: "0.0"
+    t.decimal "xero_total_with_allowance", precision: 15, scale: 2, default: "0.0"
+    t.decimal "xero_amount_paid_exc_gst", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_allowance_xero_paid", precision: 15, scale: 2, default: "0.0"
+    t.decimal "diff_po_with_allowance_versus_budget", precision: 15, scale: 2, default: "0.0"
+    t.decimal "diff_xero_and_total_but_not_complete", precision: 15, scale: 2, default: "0.0"
     t.date "required_on_site_date"
     t.boolean "creates_schedule_tasks", default: true
-    t.string "task_category", limit: 255
+    t.string "task_category"
     t.string "payment_status", default: "pending", null: false
     t.decimal "invoiced_amount", precision: 15, scale: 2, default: "0.0"
     t.date "invoice_date"
@@ -7313,20 +7310,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.bigint "estimate_id"
     t.boolean "visible_to_supplier", default: false
     t.jsonb "payment_schedule"
-    t.integer "quote_response_id"
-    t.datetime "arrived_at", precision: nil
-    t.datetime "completed_at", precision: nil
-    t.string "xero_invoice_number", limit: 255
-    t.decimal "total_billed", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_paid_via_ap", precision: 10, scale: 2, default: "0.0"
-    t.decimal "remaining_to_pay", precision: 10, scale: 2, default: "0.0"
-    t.integer "last_bill_inbox_id"
-    t.string "source", limit: 255
+    t.bigint "quote_response_id"
+    t.datetime "arrived_at"
+    t.datetime "completed_at"
+    t.string "xero_invoice_number"
+    t.decimal "total_billed", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_paid_via_ap", precision: 15, scale: 2, default: "0.0"
+    t.decimal "remaining_to_pay", precision: 15, scale: 2, default: "0.0"
+    t.bigint "last_bill_inbox_id"
+    t.string "source"
     t.date "due_date"
-    t.integer "sm_task_id"
+    t.bigint "sm_task_id"
     t.tsvector "searchable"
-    t.decimal "labour_budget", precision: 10, scale: 2
-    t.decimal "labour_actual", precision: 10, scale: 2, default: "0.0"
+    t.decimal "labour_budget", precision: 12, scale: 2
+    t.decimal "labour_actual", precision: 12, scale: 2, default: "0.0"
     t.boolean "is_labour_po", default: false
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
@@ -7374,10 +7371,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "quote_request_contacts", force: :cascade do |t|
-    t.integer "quote_request_id", null: false
-    t.integer "contact_id", null: false
-    t.datetime "notified_at", precision: nil
-    t.string "notification_method", limit: 255
+    t.bigint "quote_request_id", null: false
+    t.bigint "contact_id", null: false
+    t.datetime "notified_at"
+    t.string "notification_method"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -7388,16 +7385,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "quote_requests", force: :cascade do |t|
-    t.integer "job_id", null: false
-    t.integer "created_by_id", null: false
-    t.string "title", limit: 255, null: false
+    t.bigint "job_id", null: false
+    t.bigint "created_by_id", null: false
+    t.string "title", null: false
     t.text "description"
-    t.string "trade_category", limit: 255
+    t.string "trade_category"
     t.date "requested_date"
-    t.decimal "budget_min", precision: 10, scale: 2
-    t.decimal "budget_max", precision: 10, scale: 2
-    t.string "status", limit: 255, default: "draft", null: false
-    t.integer "selected_quote_response_id"
+    t.decimal "budget_min", precision: 12, scale: 2
+    t.decimal "budget_max", precision: 12, scale: 2
+    t.string "status", default: "draft", null: false
+    t.bigint "selected_quote_response_id"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -7412,15 +7409,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "quote_responses", force: :cascade do |t|
-    t.integer "quote_request_id", null: false
-    t.integer "contact_id", null: false
-    t.integer "responded_by_portal_user_id"
-    t.decimal "price", precision: 10, scale: 2, null: false
-    t.string "timeframe", limit: 255
+    t.bigint "quote_request_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "responded_by_portal_user_id"
+    t.decimal "price", precision: 12, scale: 2, null: false
+    t.string "timeframe"
     t.text "notes"
-    t.string "status", limit: 255, default: "pending", null: false
-    t.datetime "submitted_at", precision: nil
-    t.datetime "decision_at", precision: nil
+    t.string "status", default: "pending", null: false
+    t.datetime "submitted_at"
+    t.datetime "decision_at"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -7435,13 +7432,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "rain_logs", force: :cascade do |t|
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.date "date", null: false
     t.decimal "rainfall_mm", precision: 10, scale: 2
-    t.decimal "hours_affected", precision: 10, scale: 2
-    t.string "severity", limit: 255
-    t.string "source", limit: 255, default: "manual", null: false
-    t.integer "created_by_user_id"
+    t.decimal "hours_affected", precision: 5, scale: 2
+    t.string "severity"
+    t.string "source", default: "manual", null: false
+    t.bigint "created_by_user_id"
     t.text "notes"
     t.jsonb "weather_api_response"
     t.datetime "created_at", null: false
@@ -7578,8 +7575,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "role_permissions", force: :cascade do |t|
-    t.string "role", limit: 255, null: false
-    t.integer "permission_id", null: false
+    t.string "role", null: false
+    t.bigint "permission_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["permission_id"], name: "index_role_permissions_on_permission_id"
@@ -7587,8 +7584,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "roles", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "display_name", limit: 255, null: false
+    t.string "name", null: false
+    t.string "display_name", null: false
     t.text "description"
     t.boolean "active", default: true, null: false
     t.integer "position", null: false
@@ -7792,15 +7789,39 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.index ["sm_task_id"], name: "index_sm_comments_on_sm_task_id"
   end
 
+  create_table "sm_dependencies", force: :cascade do |t|
+    t.bigint "predecessor_task_id", null: false
+    t.bigint "successor_task_id", null: false
+    t.string "dependency_type", limit: 10, null: false
+    t.integer "lag_days", default: 0, null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "deleted_at", precision: nil
+    t.boolean "deleted_by_rollover", default: false
+    t.string "deleted_reason", limit: 100
+    t.bigint "created_by_id"
+    t.bigint "deleted_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_sm_dependencies_on_active"
+    t.index ["created_by_id"], name: "index_sm_dependencies_on_created_by_id"
+    t.index ["deleted_by_id"], name: "index_sm_dependencies_on_deleted_by_id"
+    t.index ["predecessor_task_id", "successor_task_id"], name: "idx_sm_deps_unique_active", unique: true, where: "(active = true)"
+    t.index ["predecessor_task_id"], name: "idx_sm_deps_predecessor_active", where: "(active = true)"
+    t.index ["predecessor_task_id"], name: "index_sm_dependencies_on_predecessor_task_id"
+    t.index ["successor_task_id"], name: "idx_sm_deps_successor_active", where: "(active = true)"
+    t.index ["successor_task_id"], name: "index_sm_dependencies_on_successor_task_id"
+    t.check_constraint "predecessor_task_id <> successor_task_id", name: "no_self_dependency"
+  end
+
   create_table "sm_hold_logs", force: :cascade do |t|
-    t.integer "job_id", null: false
-    t.integer "hold_task_id", null: false
-    t.integer "hold_reason_id"
-    t.string "event_type", limit: 255, null: false
+    t.bigint "job_id", null: false
+    t.bigint "hold_task_id", null: false
+    t.bigint "hold_reason_id"
+    t.string "event_type", limit: 20, null: false
     t.datetime "hold_started_at", precision: nil
-    t.integer "hold_started_by_id"
+    t.bigint "hold_started_by_id"
     t.datetime "hold_released_at", precision: nil
-    t.integer "hold_released_by_id"
+    t.bigint "hold_released_by_id"
     t.text "hold_release_reason"
     t.integer "supplier_confirms_cleared", default: 0
     t.integer "dependencies_cleared", default: 0
@@ -7816,10 +7837,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "sm_hold_reasons", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
+    t.string "name", limit: 100, null: false
     t.text "description"
-    t.string "color", limit: 255, default: "#EF4444"
-    t.string "icon", limit: 255, default: "pause"
+    t.string "color", limit: 20, default: "#EF4444"
+    t.string "icon", limit: 50, default: "pause"
     t.integer "sequence_order", default: 0, null: false
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
@@ -7871,12 +7892,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "sm_resource_allocations", force: :cascade do |t|
-    t.integer "task_id", null: false
-    t.integer "resource_id", null: false
+    t.bigint "task_id", null: false
+    t.bigint "resource_id", null: false
     t.decimal "allocated_hours", precision: 10, scale: 2
     t.decimal "allocated_quantity", precision: 10, scale: 2
     t.date "allocation_date"
-    t.string "status", limit: 255, default: "planned"
+    t.string "status", limit: 20, default: "planned"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["allocation_date"], name: "index_sm_resource_allocations_on_allocation_date"
@@ -7889,18 +7910,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   create_table "sm_resources", force: :cascade do |t|
     t.string "resource_type", limit: 20, null: false
     t.string "name", limit: 255, null: false
-    t.string "code", limit: 255
+    t.string "code", limit: 50
     t.text "description"
-    t.integer "user_id"
+    t.bigint "user_id"
     t.bigint "contact_id"
     t.string "trade", limit: 100
     t.decimal "hourly_rate", precision: 10, scale: 2
-    t.integer "asset_id"
-    t.decimal "daily_rate", precision: 5, scale: 2
-    t.string "unit", limit: 255
+    t.bigint "asset_id"
+    t.decimal "daily_rate", precision: 10, scale: 2
+    t.string "unit", limit: 50
     t.decimal "unit_cost", precision: 10, scale: 2
     t.boolean "is_active", default: true
-    t.decimal "availability_hours_per_day", precision: 10, scale: 2, default: "8.0"
+    t.decimal "availability_hours_per_day", precision: 4, scale: 2, default: "8.0"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["asset_id"], name: "index_sm_resources_on_asset_id"
@@ -7914,7 +7935,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   create_table "sm_rollover_logs", force: :cascade do |t|
     t.uuid "rollover_batch_id", null: false
     t.datetime "rollover_timestamp", precision: nil, null: false
-    t.integer "task_id", null: false
+    t.bigint "task_id", null: false
     t.date "old_start_date"
     t.date "new_start_date"
     t.date "old_end_date"
@@ -7923,7 +7944,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.string "confirm_status_change", limit: 255
     t.boolean "hold_cleared", default: false
     t.integer "supplier_confirms_cleared", default: 0
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.integer "cascade_depth"
     t.boolean "cross_job_cascade", default: false
     t.datetime "created_at", null: false
@@ -7953,7 +7974,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
 
   create_table "sm_schedule_masters", force: :cascade do |t|
     t.integer "task_number", null: false
-    t.string "name", limit: 255, null: false
+    t.string "name", null: false
     t.text "description"
     t.decimal "sequence_order", precision: 10, scale: 2, null: false
     t.integer "duration_days", default: 1, null: false
@@ -7963,7 +7984,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
     t.boolean "pass_fail_enabled", default: false
-    t.integer "checklist_id"
+    t.bigint "checklist_id"
     t.integer "order_time_days"
     t.integer "call_time_days"
     t.boolean "require_photo", default: false
@@ -7973,18 +7994,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.boolean "create_po_on_job_start", default: false
     t.boolean "has_subtasks", default: false
     t.integer "subtask_count"
-    t.string "subtask_names", limit: 255, default: "{}"
-    t.string "tags", limit: 255, default: "{}"
-    t.string "color", limit: 255
+    t.string "subtask_names", default: [], array: true
+    t.string "tags", default: [], array: true
+    t.string "color"
     t.boolean "is_active", default: true
-    t.integer "created_by_id"
-    t.integer "updated_by_id"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "linked_po_task_id"
-    t.integer "cost_centre"
+    t.string "cost_centre"
     t.boolean "supplier_confirm", default: false
-    t.string "header_gantt", limit: 255
+    t.string "header_gantt"
     t.jsonb "sm_template_ids", default: []
     t.boolean "hold"
     t.date "hold_date"
@@ -7993,14 +8014,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.jsonb "predecessor_ids_backup"
     t.date "previous_manual_start_date"
     t.boolean "dependency_broken", default: false
-    t.datetime "confirmed_at", precision: nil
-    t.datetime "supplier_confirmed_at", precision: nil
-    t.datetime "hold_at", precision: nil
-    t.integer "po_supplier_id"
+    t.datetime "confirmed_at"
+    t.datetime "supplier_confirmed_at"
+    t.datetime "hold_at"
+    t.bigint "po_supplier_id"
     t.jsonb "po_line_items", default: []
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
-    t.integer "spawn_scan_task_id"
+    t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
     t.boolean "allow_header", default: false, null: false
     t.integer "assigned_role"
@@ -8025,7 +8046,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
 
   create_table "sm_settings", force: :cascade do |t|
     t.time "rollover_time", default: "2000-01-01 00:00:00", null: false
-    t.string "rollover_timezone", limit: 255, default: "Australia/Brisbane", null: false
+    t.string "rollover_timezone", limit: 50, default: "Australia/Brisbane", null: false
     t.boolean "rollover_enabled", default: true
     t.boolean "notify_on_hold", default: true
     t.boolean "notify_on_supplier_confirm", default: true
@@ -8040,12 +8061,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|
-    t.integer "parent_task_id", null: false
-    t.integer "spawned_task_id", null: false
-    t.string "spawn_type", limit: 255, null: false
-    t.string "spawn_trigger", limit: 255, null: false
+    t.bigint "parent_task_id", null: false
+    t.bigint "spawned_task_id", null: false
+    t.string "spawn_type", limit: 50, null: false
+    t.string "spawn_trigger", limit: 50, null: false
     t.datetime "spawned_at", precision: nil, default: -> { "now()" }, null: false
-    t.integer "spawned_by_id"
+    t.bigint "spawned_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["parent_task_id"], name: "index_sm_spawn_logs_on_parent_task_id"
@@ -8118,7 +8139,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
 
   create_table "sm_tasks", force: :cascade do |t|
     t.bigint "job_id"
-    t.integer "parent_task_id"
+    t.bigint "parent_task_id"
     t.integer "task_number", null: false
     t.string "name", limit: 255, null: false
     t.text "description"
@@ -8128,29 +8149,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.integer "duration_days", null: false
     t.string "status", limit: 50, default: "not_started", null: false
     t.datetime "started_at", precision: nil
-    t.date "completed_at"
+    t.datetime "completed_at", precision: nil
     t.boolean "passed"
     t.boolean "confirm", default: false
     t.boolean "supplier_confirm", default: false
     t.boolean "hold", default: false
     t.datetime "hold_at", precision: nil
-    t.string "confirm_status", limit: 255
+    t.string "confirm_status", limit: 50
     t.datetime "confirm_requested_at", precision: nil
     t.datetime "supplier_confirmed_at", precision: nil
-    t.integer "supplier_confirmed_by_id"
+    t.bigint "supplier_confirmed_by_id"
     t.boolean "is_hold_task", default: false
-    t.integer "hold_reason_id"
+    t.bigint "hold_reason_id"
     t.datetime "hold_started_at", precision: nil
-    t.integer "hold_started_by_id"
+    t.bigint "hold_started_by_id"
     t.datetime "hold_released_at", precision: nil
-    t.integer "hold_released_by_id"
+    t.bigint "hold_released_by_id"
     t.text "hold_release_reason"
-    t.integer "assigned_user_id"
+    t.bigint "assigned_user_id"
     t.bigint "supplier_id"
     t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
     t.boolean "pass_fail_enabled", default: false
-    t.integer "checklist_id"
+    t.bigint "checklist_id"
     t.integer "order_time_days"
     t.integer "call_time_days"
     t.boolean "order_reminder_sent", default: false
@@ -8159,29 +8180,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.boolean "require_confirm", default: false
     t.boolean "po_required", default: false
     t.boolean "critical_po", default: false
-    t.integer "created_by_id"
-    t.integer "updated_by_id"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "sm_schedule_master_id"
+    t.bigint "sm_schedule_master_id"
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
     t.boolean "is_photo_task", default: false, null: false
-    t.integer "recurring_task_definition_id"
+    t.bigint "recurring_task_definition_id"
     t.integer "recurring_sequence"
-    t.string "source_type", limit: 255, default: "manual"
-    t.integer "spawn_scan_task_id"
+    t.string "source_type", default: "manual"
+    t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
     t.date "required_by"
     t.tsvector "searchable"
     t.date "hold_date"
-    t.integer "saas_customer_id"
+    t.bigint "saas_customer_id"
     t.boolean "is_ticket", default: false
-    t.string "ticket_priority", limit: 255
-    t.string "ticket_category", limit: 255
-    t.datetime "sla_response_due_at", precision: nil
-    t.datetime "sla_resolution_due_at", precision: nil
-    t.datetime "sla_first_response_at", precision: nil
+    t.string "ticket_priority"
+    t.string "ticket_category"
+    t.datetime "sla_response_due_at"
+    t.datetime "sla_resolution_due_at"
+    t.datetime "sla_first_response_at"
     t.boolean "customer_visible", default: true
     t.boolean "submitted_via_portal", default: false
     t.integer "trade"
@@ -8221,17 +8242,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   create_table "sm_time_entries", force: :cascade do |t|
     t.bigint "task_id", null: false
     t.bigint "resource_id", null: false
-    t.integer "allocation_id"
+    t.bigint "allocation_id"
     t.date "entry_date", null: false
     t.time "start_time"
     t.time "end_time"
     t.integer "break_minutes", default: 0
     t.decimal "total_hours", precision: 10, scale: 2, null: false
-    t.string "entry_type", limit: 255, default: "regular"
+    t.string "entry_type", limit: 20, default: "regular"
     t.text "description"
-    t.integer "approved_by_id"
+    t.bigint "approved_by_id"
     t.datetime "approved_at", precision: nil
-    t.integer "created_by_id"
+    t.bigint "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["allocation_id"], name: "index_sm_time_entries_on_allocation_id"
@@ -8273,13 +8294,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "sm_working_drawing_pages", force: :cascade do |t|
-    t.integer "task_id", null: false
+    t.bigint "task_id", null: false
     t.integer "page_number", null: false
     t.text "image_url", null: false
-    t.string "category", limit: 255, null: false
-    t.decimal "ai_confidence", precision: 10, scale: 2
+    t.string "category", limit: 100, null: false
+    t.decimal "ai_confidence", precision: 5, scale: 4
     t.boolean "category_overridden", default: false
-    t.string "manual_category", limit: 255
+    t.string "manual_category", limit: 100
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["category"], name: "index_sm_working_drawing_pages_on_category"
@@ -8288,16 +8309,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "sms_messages", force: :cascade do |t|
-    t.integer "contact_id", null: false
-    t.integer "user_id"
-    t.string "from_phone", limit: 20, null: false
-    t.string "to_phone", limit: 20, null: false
+    t.bigint "contact_id", null: false
+    t.bigint "user_id"
+    t.string "from_phone", null: false
+    t.string "to_phone", null: false
     t.text "body", null: false
-    t.string "direction", limit: 255, null: false
-    t.string "status", limit: 255
-    t.string "twilio_sid", limit: 255
-    t.datetime "sent_at", precision: nil
-    t.datetime "received_at", precision: nil
+    t.string "direction", null: false
+    t.string "status"
+    t.string "twilio_sid"
+    t.datetime "sent_at"
+    t.datetime "received_at"
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -8505,10 +8526,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "subcontractor_accounts", force: :cascade do |t|
-    t.integer "portal_user_id", null: false
-    t.string "account_tier", limit: 255, default: "free", null: false
-    t.datetime "activated_at", precision: nil
-    t.integer "invited_by_contact_id"
+    t.bigint "portal_user_id", null: false
+    t.string "account_tier", default: "free", null: false
+    t.datetime "activated_at"
+    t.bigint "invited_by_contact_id"
     t.decimal "kudos_score", precision: 10, scale: 2, default: "0.0"
     t.integer "jobs_completed_count", default: 0
     t.boolean "accounting_system_connected", default: false
@@ -8523,14 +8544,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "subcontractor_invoices", force: :cascade do |t|
-    t.integer "purchase_order_id", null: false
-    t.integer "contact_id", null: false
-    t.integer "accounting_integration_id"
-    t.decimal "amount", precision: 10, scale: 2, null: false
-    t.string "external_invoice_id", limit: 255
-    t.string "status", limit: 255, default: "draft", null: false
-    t.datetime "synced_at", precision: nil
-    t.datetime "paid_at", precision: nil
+    t.bigint "purchase_order_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "accounting_integration_id"
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.string "external_invoice_id"
+    t.string "status", default: "draft", null: false
+    t.datetime "synced_at"
+    t.datetime "paid_at"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -8561,14 +8582,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "supervisor_checklist_templates", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
+    t.string "name", null: false
     t.text "description"
-    t.string "category", limit: 255
+    t.string "category"
     t.integer "sequence_order", default: 0
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "response_type", limit: 255, default: "checkbox"
+    t.string "response_type", default: "checkbox"
     t.index ["category"], name: "index_supervisor_checklist_templates_on_category"
     t.index ["name"], name: "index_supervisor_checklist_templates_on_name", unique: true
     t.index ["sequence_order"], name: "index_supervisor_checklist_templates_on_sequence_order"
@@ -8644,11 +8665,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
 
   create_table "trinities", force: :cascade do |t|
     t.integer "chapter_number", null: false
-    t.string "chapter_name", limit: 255, null: false
-    t.string "component", limit: 255
-    t.string "title", limit: 255, null: false
-    t.string "status", limit: 255, default: "open"
-    t.string "severity", limit: 255, default: "medium"
+    t.string "chapter_name", null: false
+    t.string "component"
+    t.string "title", null: false
+    t.string "status", default: "open"
+    t.string "severity", default: "medium"
     t.date "first_reported"
     t.date "last_occurred"
     t.date "fixed_date"
@@ -8660,22 +8681,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.text "search_text"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "entry_type", limit: 255, default: "bug", null: false
+    t.string "entry_type", default: "bug", null: false
     t.text "description"
     t.text "details"
     t.text "examples"
     t.text "recommendations"
-    t.string "rule_reference", limit: 255
-    t.string "section_number", limit: 255
-    t.string "difficulty", limit: 255
+    t.string "rule_reference"
+    t.string "section_number"
+    t.string "difficulty"
     t.text "summary"
     t.text "code_example"
     t.text "common_mistakes"
     t.text "testing_strategy"
     t.text "related_rules"
-    t.string "category", limit: 255, null: false
-    t.string "created_by", limit: 255
-    t.string "updated_by", limit: 255
+    t.string "category", null: false
+    t.string "created_by"
+    t.string "updated_by"
     t.boolean "exclude_from_export", default: false, null: false
     t.text "dense_index"
     t.index ["category", "chapter_number"], name: "index_trinities_on_category_and_chapter_number"
@@ -8722,7 +8743,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "unreal_variables", force: :cascade do |t|
-    t.string "variable_name", limit: 255, null: false
+    t.string "variable_name", null: false
     t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
     t.boolean "is_active", default: true
     t.text "variable_rule"
@@ -8813,8 +8834,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "user_permissions", force: :cascade do |t|
-    t.integer "user_id", null: false
-    t.integer "permission_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "permission_id", null: false
     t.boolean "granted", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -8833,25 +8854,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "users", force: :cascade do |t|
-    t.string "email", limit: 255
-    t.string "password_digest", limit: 255
-    t.string "name", limit: 255
+    t.string "email"
+    t.string "password_digest"
+    t.string "name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.datetime "last_chat_read_at", precision: nil
-    t.string "reset_password_token", limit: 255
-    t.datetime "reset_password_sent_at", precision: nil
-    t.datetime "last_login_at", precision: nil
-    t.string "mobile_phone", limit: 255
-    t.string "provider", limit: 255
-    t.string "uid", limit: 255
+    t.datetime "last_chat_read_at"
+    t.string "reset_password_token"
+    t.datetime "reset_password_sent_at"
+    t.datetime "last_login_at"
+    t.string "mobile_phone"
+    t.string "provider"
+    t.string "uid"
     t.text "oauth_token"
-    t.datetime "oauth_expires_at", precision: nil
+    t.datetime "oauth_expires_at"
     t.boolean "wphs_appointee", default: false, null: false
     t.boolean "preload_price_books", default: false, null: false
     t.jsonb "assigned_roles", default: []
-    t.integer "user_group_id"
-    t.datetime "last_seen_at", precision: nil
+    t.bigint "user_group_id"
+    t.datetime "last_seen_at"
     t.boolean "can_view_confidential_fields", default: false, null: false
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["email"], name: "index_users_on_email", unique: true
@@ -8969,22 +8990,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_action_items", force: :cascade do |t|
-    t.string "actionable_type", limit: 255, null: false
-    t.integer "actionable_id", null: false
-    t.integer "assigned_to_user_id"
-    t.integer "created_by_id", null: false
-    t.string "title", limit: 255, null: false
+    t.string "actionable_type", null: false
+    t.bigint "actionable_id", null: false
+    t.bigint "assigned_to_user_id"
+    t.bigint "created_by_id", null: false
+    t.string "title", null: false
     t.text "description"
-    t.string "action_type", limit: 255, null: false
-    t.string "priority", limit: 255, default: "medium", null: false
-    t.string "status", limit: 255, default: "open", null: false
+    t.string "action_type", null: false
+    t.string "priority", default: "medium", null: false
+    t.string "status", default: "open", null: false
     t.date "due_date"
-    t.datetime "completed_at", precision: nil
+    t.datetime "completed_at"
     t.text "completion_notes"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "sm_task_id"
+    t.bigint "sm_task_id"
     t.index ["actionable_type", "actionable_id"], name: "index_whs_action_items_on_actionable"
     t.index ["assigned_to_user_id"], name: "index_whs_action_items_on_assigned_to_user_id"
     t.index ["created_by_id"], name: "index_whs_action_items_on_created_by_id"
@@ -8995,32 +9016,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_incidents", force: :cascade do |t|
-    t.integer "job_id"
-    t.integer "reported_by_user_id", null: false
-    t.integer "investigated_by_user_id"
-    t.string "incident_number", limit: 255, null: false
-    t.datetime "incident_date", precision: nil, null: false
-    t.datetime "report_date", precision: nil, null: false
-    t.string "location_description", limit: 255
-    t.string "status", limit: 255, default: "reported", null: false
-    t.string "incident_category", limit: 255, null: false
-    t.string "incident_type", limit: 255
-    t.string "severity_level", limit: 255, null: false
+    t.bigint "job_id"
+    t.bigint "reported_by_user_id", null: false
+    t.bigint "investigated_by_user_id"
+    t.string "incident_number", null: false
+    t.datetime "incident_date", null: false
+    t.datetime "report_date", null: false
+    t.string "location_description"
+    t.string "status", default: "reported", null: false
+    t.string "incident_category", null: false
+    t.string "incident_type"
+    t.string "severity_level", null: false
     t.text "what_happened", null: false
-    t.string "activity_being_performed", limit: 255
-    t.string "equipment_involved", limit: 255
-    t.string "weather_conditions", limit: 255
-    t.string "time_of_day", limit: 255
-    t.string "lighting_conditions", limit: 255
+    t.string "activity_being_performed"
+    t.string "equipment_involved"
+    t.string "weather_conditions"
+    t.string "time_of_day"
+    t.string "lighting_conditions"
     t.jsonb "contributing_factors", default: []
-    t.string "injured_person_name", limit: 255
-    t.string "injured_person_company", limit: 255
-    t.string "injured_person_role", limit: 255
-    t.string "injury_type", limit: 255
-    t.string "body_part_affected", limit: 255
+    t.string "injured_person_name"
+    t.string "injured_person_company"
+    t.string "injured_person_role"
+    t.string "injury_type"
+    t.string "body_part_affected"
     t.boolean "first_aid_given", default: false
     t.boolean "medical_treatment_required", default: false
-    t.string "hospital_attended", limit: 255
+    t.string "hospital_attended"
     t.integer "time_lost_hours"
     t.date "likely_return_date"
     t.jsonb "witnesses", default: []
@@ -9034,13 +9055,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
     t.boolean "workcov_notification_required", default: false
     t.boolean "notifiable_incident", default: false
     t.date "workcov_notification_date"
-    t.string "workcov_reference_number", limit: 255
-    t.datetime "closed_at", precision: nil
+    t.string "workcov_reference_number"
+    t.datetime "closed_at"
     t.text "closure_notes"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "sm_task_id"
+    t.bigint "sm_task_id"
     t.index ["incident_category"], name: "index_whs_incidents_on_incident_category"
     t.index ["incident_date"], name: "index_whs_incidents_on_incident_date"
     t.index ["incident_number"], name: "index_whs_incidents_on_incident_number", unique: true
@@ -9055,11 +9076,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_induction_templates", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "induction_type", limit: 255, null: false
+    t.string "name", null: false
+    t.string "induction_type", null: false
     t.text "description"
     t.boolean "active", default: true
-    t.decimal "version", precision: 10, scale: 2, default: "1.0"
+    t.decimal "version", precision: 3, scale: 1, default: "1.0"
     t.jsonb "content_sections", default: []
     t.integer "expiry_months"
     t.boolean "requires_renewal", default: false
@@ -9075,17 +9096,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_inductions", force: :cascade do |t|
-    t.integer "whs_induction_template_id", null: false
-    t.integer "job_id"
-    t.integer "user_id"
-    t.integer "conducted_by_user_id", null: false
-    t.string "certificate_number", limit: 255, null: false
-    t.string "induction_type", limit: 255, null: false
-    t.string "status", limit: 255, default: "valid", null: false
-    t.string "worker_name", limit: 255, null: false
-    t.string "worker_company", limit: 255
-    t.string "worker_contact", limit: 255
-    t.datetime "completion_date", precision: nil, null: false
+    t.bigint "whs_induction_template_id", null: false
+    t.bigint "job_id"
+    t.bigint "user_id"
+    t.bigint "conducted_by_user_id", null: false
+    t.string "certificate_number", null: false
+    t.string "induction_type", null: false
+    t.string "status", default: "valid", null: false
+    t.string "worker_name", null: false
+    t.string "worker_company"
+    t.string "worker_contact"
+    t.datetime "completion_date", null: false
     t.date "expiry_date"
     t.integer "quiz_score"
     t.boolean "passed", default: true
@@ -9106,10 +9127,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_inspection_items", force: :cascade do |t|
-    t.integer "whs_inspection_id", null: false
-    t.string "item_description", limit: 255, null: false
-    t.string "category", limit: 255
-    t.string "result", limit: 255
+    t.bigint "whs_inspection_id", null: false
+    t.string "item_description", null: false
+    t.string "category"
+    t.string "result"
     t.boolean "photo_required", default: false
     t.boolean "notes_required", default: false
     t.integer "weight", default: 1
@@ -9125,9 +9146,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_inspection_templates", force: :cascade do |t|
-    t.string "name", limit: 255, null: false
-    t.string "inspection_type", limit: 255
-    t.string "category", limit: 255
+    t.string "name", null: false
+    t.string "inspection_type"
+    t.string "category"
     t.text "description"
     t.integer "pass_threshold_percentage", default: 80
     t.boolean "active", default: true
@@ -9141,26 +9162,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_inspections", force: :cascade do |t|
-    t.integer "job_id"
-    t.integer "whs_inspection_template_id"
-    t.integer "inspector_user_id"
-    t.integer "created_by_id", null: false
-    t.integer "meeting_id"
-    t.string "inspection_number", limit: 255, null: false
-    t.string "inspection_type", limit: 255, null: false
-    t.string "status", limit: 255, default: "scheduled", null: false
-    t.string "title", limit: 255
+    t.bigint "job_id"
+    t.bigint "whs_inspection_template_id"
+    t.bigint "inspector_user_id"
+    t.bigint "created_by_id", null: false
+    t.bigint "meeting_id"
+    t.string "inspection_number", null: false
+    t.string "inspection_type", null: false
+    t.string "status", default: "scheduled", null: false
+    t.string "title"
     t.text "description"
     t.date "scheduled_date"
-    t.datetime "started_at", precision: nil
-    t.datetime "completed_at", precision: nil
-    t.string "weather_conditions", limit: 255
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.string "weather_conditions"
     t.text "site_conditions"
     t.integer "total_items", default: 0
     t.integer "pass_count", default: 0
     t.integer "fail_count", default: 0
     t.integer "na_count", default: 0
-    t.decimal "compliance_score", precision: 10, scale: 2
+    t.decimal "compliance_score", precision: 5, scale: 2
     t.boolean "overall_pass", default: false
     t.boolean "critical_issues_found", default: false
     t.text "inspector_signature"
@@ -9183,9 +9204,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_settings", force: :cascade do |t|
-    t.string "setting_key", limit: 255, null: false
+    t.string "setting_key", null: false
     t.text "setting_value"
-    t.string "setting_type", limit: 255, default: "string"
+    t.string "setting_type", default: "string"
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -9193,38 +9214,38 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_swms", force: :cascade do |t|
-    t.integer "job_id"
-    t.integer "created_by_id", null: false
-    t.integer "approved_by_id"
-    t.integer "superseded_by_id"
-    t.string "swms_number", limit: 255, null: false
-    t.string "title", limit: 255, null: false
-    t.decimal "version", precision: 10, scale: 2, default: "1.0", null: false
-    t.string "status", limit: 255, default: "draft", null: false
+    t.bigint "job_id"
+    t.bigint "created_by_id", null: false
+    t.bigint "approved_by_id"
+    t.bigint "superseded_by_id"
+    t.string "swms_number", null: false
+    t.string "title", null: false
+    t.decimal "version", precision: 3, scale: 1, default: "1.0", null: false
+    t.string "status", default: "draft", null: false
     t.boolean "company_wide", default: false, null: false
     t.text "activity_description"
-    t.string "location_area", limit: 255
-    t.string "high_risk_type", limit: 255
+    t.string "location_area"
+    t.string "high_risk_type"
     t.date "start_date"
     t.integer "expected_duration_days"
     t.integer "workers_involved"
-    t.string "supervisor_responsible", limit: 255
+    t.string "supervisor_responsible"
     t.text "emergency_procedures"
     t.text "emergency_contact_numbers"
-    t.string "first_aid_location", limit: 255
-    t.string "fire_extinguisher_location", limit: 255
-    t.string "emergency_assembly_point", limit: 255
+    t.string "first_aid_location"
+    t.string "fire_extinguisher_location"
+    t.string "emergency_assembly_point"
     t.text "evacuation_procedures"
     t.text "legislative_references"
     t.jsonb "ppe_requirements", default: {}
     t.jsonb "required_qualifications", default: []
-    t.datetime "approved_at", precision: nil
-    t.datetime "superseded_at", precision: nil
-    t.string "rejection_reason", limit: 255
+    t.datetime "approved_at"
+    t.datetime "superseded_at"
+    t.string "rejection_reason"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "sm_task_id"
+    t.bigint "sm_task_id"
     t.index ["approved_by_id"], name: "index_whs_swms_on_approved_by_id"
     t.index ["company_wide"], name: "index_whs_swms_on_company_wide"
     t.index ["created_by_id"], name: "index_whs_swms_on_created_by_id"
@@ -9238,14 +9259,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_swms_acknowledgments", force: :cascade do |t|
-    t.integer "whs_swms_id", null: false
-    t.integer "user_id"
-    t.string "worker_name", limit: 255, null: false
-    t.string "worker_company", limit: 255
-    t.string "worker_role", limit: 255
+    t.bigint "whs_swms_id", null: false
+    t.bigint "user_id"
+    t.string "worker_name", null: false
+    t.string "worker_company"
+    t.string "worker_role"
     t.text "signature_data"
-    t.datetime "acknowledged_at", precision: nil, null: false
-    t.string "ip_address", limit: 255
+    t.datetime "acknowledged_at", null: false
+    t.string "ip_address"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["acknowledged_at"], name: "index_whs_swms_acknowledgments_on_acknowledged_at"
@@ -9254,14 +9275,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_swms_controls", force: :cascade do |t|
-    t.integer "whs_swms_hazard_id", null: false
+    t.bigint "whs_swms_hazard_id", null: false
     t.text "control_description", null: false
-    t.string "control_type", limit: 255, null: false
-    t.string "responsibility", limit: 255
+    t.string "control_type", null: false
+    t.string "responsibility"
     t.integer "residual_likelihood"
     t.integer "residual_consequence"
     t.integer "residual_risk_score"
-    t.string "residual_risk_level", limit: 255
+    t.string "residual_risk_level"
     t.integer "position", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -9270,12 +9291,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "whs_swms_hazards", force: :cascade do |t|
-    t.integer "whs_swms_id", null: false
+    t.bigint "whs_swms_id", null: false
     t.text "hazard_description", null: false
     t.integer "likelihood", null: false
     t.integer "consequence", null: false
     t.integer "risk_score", null: false
-    t.string "risk_level", limit: 255
+    t.string "risk_level"
     t.text "affected_persons"
     t.integer "position", default: 0
     t.datetime "created_at", null: false
@@ -9316,13 +9337,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "xero_accounts", force: :cascade do |t|
-    t.string "code", limit: 255, null: false
-    t.string "name", limit: 255, null: false
-    t.string "account_type", limit: 255
-    t.string "tax_type", limit: 255
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "account_type"
+    t.string "tax_type"
     t.text "description"
     t.boolean "active", default: true
-    t.string "account_class", limit: 255
+    t.string "account_class"
     t.boolean "system_account", default: false
     t.boolean "enable_payments_to_account", default: false
     t.boolean "show_in_expense_claims", default: false
@@ -9356,11 +9377,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "xero_chart_of_accounts", force: :cascade do |t|
-    t.integer "company_group_id"
-    t.string "account_code", limit: 255, null: false
-    t.string "account_name", limit: 255, null: false
-    t.string "account_type", limit: 255
-    t.string "tax_type", limit: 255
+    t.bigint "company_group_id"
+    t.string "account_code", null: false
+    t.string "account_name", null: false
+    t.string "account_type"
+    t.string "tax_type"
     t.text "description"
     t.boolean "active", default: true
     t.datetime "created_at", null: false
@@ -9373,27 +9394,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "xero_credentials", force: :cascade do |t|
-    t.text "access_token", null: false
-    t.string "refresh_token", limit: 255, null: false
-    t.datetime "expires_at", precision: nil, null: false
-    t.string "tenant_id", limit: 255, null: false
-    t.string "tenant_name", limit: 255
-    t.string "tenant_type", limit: 255
+    t.string "access_token", null: false
+    t.string "refresh_token", null: false
+    t.datetime "expires_at", null: false
+    t.string "tenant_id", null: false
+    t.string "tenant_name"
+    t.string "tenant_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "is_primary", default: false, null: false
-    t.string "status", limit: 255, default: "connected", null: false
-    t.datetime "refresh_token_expires_at", precision: nil
-    t.datetime "last_refresh_at", precision: nil
+    t.string "status", default: "connected", null: false
+    t.datetime "refresh_token_expires_at"
+    t.datetime "last_refresh_at"
     t.text "last_refresh_error"
     t.integer "refresh_failure_count", default: 0, null: false
-    t.datetime "last_successful_api_call_at", precision: nil
-    t.string "circuit_state", limit: 255, default: "closed", null: false
-    t.datetime "circuit_opened_at", precision: nil
+    t.datetime "last_successful_api_call_at"
+    t.string "circuit_state", default: "closed", null: false
+    t.datetime "circuit_opened_at"
     t.integer "circuit_failure_count", default: 0, null: false
-    t.string "granted_scopes", limit: 255
-    t.datetime "token_poisoned_at", precision: nil
-    t.string "poisoned_reason", limit: 255
+    t.string "granted_scopes"
+    t.datetime "token_poisoned_at"
+    t.string "poisoned_reason"
     t.integer "lock_version", default: 0, null: false
     t.index ["circuit_state"], name: "index_xero_credentials_on_circuit_state"
     t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
@@ -9503,12 +9524,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   end
 
   create_table "xero_tax_rates", force: :cascade do |t|
-    t.string "code", limit: 255
-    t.string "name", limit: 255
-    t.decimal "rate", precision: 5, scale: 2
+    t.string "code"
+    t.string "name"
+    t.decimal "rate"
     t.boolean "active"
-    t.string "display_rate", limit: 255
-    t.string "tax_type", limit: 255
+    t.string "display_rate"
+    t.string "tax_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -10175,6 +10196,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_225555) do
   add_foreign_key "sm_comments", "sm_resources", column: "resource_id"
   add_foreign_key "sm_comments", "sm_tasks"
   add_foreign_key "sm_comments", "users", column: "author_id"
+  add_foreign_key "sm_dependencies", "sm_tasks", column: "predecessor_task_id", on_delete: :cascade
+  add_foreign_key "sm_dependencies", "sm_tasks", column: "successor_task_id", on_delete: :cascade
+  add_foreign_key "sm_dependencies", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_dependencies", "users", column: "deleted_by_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_hold_logs", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "sm_tasks", column: "hold_task_id", on_delete: :cascade

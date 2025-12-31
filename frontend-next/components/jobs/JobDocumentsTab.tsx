@@ -212,10 +212,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [bulkCategorizing, setBulkCategorizing] = useState(false);
   const [categorizeResult, setCategorizeResult] = useState<{
     dry_run: boolean;
-    stats: { total: number; categorized: number; skipped: number; failed: number };
-    details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string }>;
+    stats: { total: number; categorized: number; skipped: number; failed: number; recategorized: number };
+    details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string; old_type?: string }>;
   } | null>(null);
   const [showCategorizeSummary, setShowCategorizeSummary] = useState(false);
+  const [forceRecategorize, setForceRecategorize] = useState(false);
 
   // Photo upload state
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
@@ -1206,7 +1207,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   };
 
   // Bulk categorize documents based on folder paths (for client onboarding)
-  const handleBulkCategorize = async (dryRun: boolean = false) => {
+  // force=true will re-categorize ALL documents, fixing wrong assignments
+  const handleBulkCategorize = async (dryRun: boolean = false, force: boolean = false) => {
     try {
       setBulkCategorizing(true);
       setCategorizeResult(null);
@@ -1215,19 +1217,21 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       const response = await api.post<{
         success: boolean;
         dry_run: boolean;
-        stats: { total: number; categorized: number; skipped: number; failed: number };
-        details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string }>;
+        stats: { total: number; categorized: number; skipped: number; failed: number; recategorized: number };
+        details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string; old_type?: string }>;
       }>(`/api/v1/organization_onedrive/bulk_categorize_job_documents`, {
         job_id: jobId,
         dry_run: dryRun,
+        force: force,
       });
 
       if (response?.success) {
         setCategorizeResult(response);
         setShowCategorizeSummary(true);
 
-        if (!dryRun && response.stats.categorized > 0) {
-          setMessage({ type: "success", text: `Categorized ${response.stats.categorized} documents` });
+        const totalChanged = (response.stats.categorized || 0) + (response.stats.recategorized || 0);
+        if (!dryRun && totalChanged > 0) {
+          setMessage({ type: "success", text: `Categorized ${totalChanged} documents` });
           // Refresh file list to show updated data
           setTimeout(loadAllFiles, 1000);
         }
@@ -1979,24 +1983,36 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         )}
 
         {/* Bulk Categorization Card (for client onboarding) */}
-        {aiStats && aiStats.unanalyzed > 0 && (
+        {aiStats && (
           <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="space-y-1">
                   <h4 className="font-medium flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-purple-600" />
                     Bulk Categorize
                   </h4>
                   <p className="text-sm text-muted-foreground">
-                    Assign document types to {aiStats.unanalyzed} files based on folder structure
+                    {forceRecategorize
+                      ? `Re-categorize ALL ${allFiles.length} files based on folder structure`
+                      : `Assign document types to ${aiStats.unanalyzed} uncategorized files`
+                    }
                   </p>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={forceRecategorize}
+                      onCheckedChange={(checked) => setForceRecategorize(checked === true)}
+                    />
+                    <span className="text-orange-600 dark:text-orange-400">
+                      Force re-categorize (fix wrong assignments)
+                    </span>
+                  </label>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleBulkCategorize(true)}
+                    onClick={() => handleBulkCategorize(true, forceRecategorize)}
                     disabled={bulkCategorizing}
                   >
                     {bulkCategorizing ? <Spinner className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
@@ -2004,12 +2020,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => handleBulkCategorize(false)}
+                    onClick={() => handleBulkCategorize(false, forceRecategorize)}
                     disabled={bulkCategorizing}
                     className="bg-purple-600 hover:bg-purple-700 text-white"
                   >
                     {bulkCategorizing ? <Spinner className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                    Categorize All
+                    {forceRecategorize ? "Re-categorize All" : "Categorize All"}
                   </Button>
                 </div>
               </div>
@@ -2530,7 +2546,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           {categorizeResult && (
             <div className="flex-1 overflow-y-auto space-y-4">
               {/* Stats Summary */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-5 gap-3">
                 <Card className="bg-muted/50">
                   <CardContent className="p-3 text-center">
                     <div className="text-xl font-bold">{categorizeResult.stats.total}</div>
@@ -2539,9 +2555,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 </Card>
                 <Card className="bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800">
                   <CardContent className="p-3 text-center">
-                    <div className="text-xl font-bold text-green-600">{categorizeResult.stats.categorized}</div>
+                    <div className="text-xl font-bold text-green-600">{categorizeResult.stats.categorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
-                      {categorizeResult.dry_run ? "Would Categorize" : "Categorized"}
+                      {categorizeResult.dry_run ? "New" : "Categorized"}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
+                  <CardContent className="p-3 text-center">
+                    <div className="text-xl font-bold text-orange-600">{categorizeResult.stats.recategorized || 0}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {categorizeResult.dry_run ? "Fix" : "Fixed"}
                     </div>
                   </CardContent>
                 </Card>
@@ -2590,19 +2614,23 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                             <TableCell>
                               <Badge
                                 variant={
-                                  item.status === "categorized" || item.status === "would_categorize"
+                                  item.status.includes("categorize") || item.status.includes("recategorize")
                                     ? "default"
                                     : item.status === "skipped"
                                     ? "secondary"
                                     : "destructive"
                                 }
                                 className={
-                                  item.status === "categorized" || item.status === "would_categorize"
+                                  item.status.includes("recategorize")
+                                    ? "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+                                    : item.status.includes("categorize")
                                     ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
                                     : ""
                                 }
                               >
-                                {item.status === "would_categorize" ? "match" : item.status}
+                                {item.status === "would_categorize" ? "new" :
+                                 item.status === "would_recategorize" ? "fix" :
+                                 item.status === "recategorized" ? "fixed" : item.status}
                               </Badge>
                               {item.reason && (
                                 <span className="ml-2 text-xs text-muted-foreground">({item.reason})</span>
@@ -2611,6 +2639,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                             <TableCell>
                               {item.document_type ? (
                                 <div>
+                                  {item.old_type && (
+                                    <div className="text-xs text-red-500 line-through">{item.old_type}</div>
+                                  )}
                                   <div className="font-medium">{item.document_type}</div>
                                   {item.entity_tab && (
                                     <div className="text-xs text-muted-foreground">{item.entity_tab}</div>
@@ -2639,13 +2670,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 <Button
                   onClick={() => {
                     setShowCategorizeSummary(false);
-                    handleBulkCategorize(false);
+                    handleBulkCategorize(false, forceRecategorize);
                   }}
                   className="bg-purple-600 hover:bg-purple-700 text-white"
-                  disabled={categorizeResult.stats.categorized === 0}
+                  disabled={(categorizeResult.stats.categorized || 0) + (categorizeResult.stats.recategorized || 0) === 0}
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Categorize {categorizeResult.stats.categorized} Files
+                  {forceRecategorize ? "Re-categorize" : "Categorize"} {(categorizeResult.stats.categorized || 0) + (categorizeResult.stats.recategorized || 0)} Files
                 </Button>
               </>
             ) : (
