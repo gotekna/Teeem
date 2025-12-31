@@ -185,8 +185,9 @@ export function resolveDisplayName(
   pathname: string,
   searchParams?: URLSearchParams | null
 ): string {
-  // Get tab from query params, or use default tab for known pages
-  const tab = searchParams?.get('tab');
+  // Get tab or view from query params, or use default tab for known pages
+  // Some pages use ?tab=xxx, others use ?view=xxx
+  const tab = searchParams?.get('tab') || searchParams?.get('view');
   const defaultTab = PAGES_WITH_DEFAULT_TAB[pathname];
   const effectiveTab = tab || defaultTab;
 
@@ -398,23 +399,28 @@ export function buildBreadcrumbsFromUrl(
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
     const isNumericId = /^\d+$/.test(segment);
-    const prevSegment = i > 0 ? segments[i - 1] : null;
 
     // Build path up to this point
     currentPath += '/' + segment;
 
-    // Skip standalone numeric IDs - they'll be combined with previous segment
-    // e.g., /jobs/46 → "Job #46" (single item, not two)
-    if (isNumericId && prevSegment && !(/^\d+$/.test(prevSegment))) {
-      // Update the previous item to include the ID
-      if (trail.length > 0) {
-        const lastItem = trail[trail.length - 1];
-        lastItem.pathname = currentPath;
-        lastItem.displayName = resolveDisplayName(currentPath, null);
-      }
+    // If this is a numeric ID, create combined "Entity #ID" item
+    // e.g., segment "46" after "jobs" → "Job #46" with path /jobs/46
+    if (isNumericId) {
+      const isLast = i === segments.length - 1;
+      const item = {
+        id: `${currentPath}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        pathname: currentPath,
+        searchParams: isLast ? searchParams?.toString() : undefined,
+        displayName: resolveDisplayName(currentPath, isLast ? searchParams : null),
+        icon: resolveIcon(currentPath),
+        timestamp: Date.now(),
+      };
+      trail.push(item);
       continue;
     }
 
+    // Non-numeric segment (e.g., /jobs, /schedule, /setup)
+    // Add as separate breadcrumb item
     const isLast = i === segments.length - 1;
     const item = {
       id: `${currentPath}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
