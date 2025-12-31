@@ -852,16 +852,26 @@ class SmScheduleMasterSyncService
   def calculate_differences(task)
     differences = {}
 
-    # Fields that are handled separately (not direct comparison)
-    # predecessor_ids: Remapped via sync_predecessor_ids_for_job after sync
-    skip_fields = %i[predecessor_ids]
-
     self.class.syncable_fields.each do |field|
-      next if skip_fields.include?(field)
       next unless template_row.respond_to?(field) && task.respond_to?(field)
 
       raw_template_value = template_row.send(field)
       task_value = task.send(field)
+
+      # Special handling for predecessor_ids - needs remapping to compare
+      if field == :predecessor_ids
+        remapped_template_preds = remap_predecessor_ids_for_comparison(raw_template_value)
+        if remapped_template_preds != task_value
+          # Show count for cleaner display
+          template_count = remapped_template_preds&.size || 0
+          task_count = task_value&.size || 0
+          differences["predecessor_ids"] = {
+            template: "#{template_count} dependencies",
+            task: "#{task_count} dependencies"
+          }
+        end
+        next
+      end
 
       # Normalize lookup values where template stores ID and task stores name
       template_value = self.class.normalize_lookup_value(field.to_s, raw_template_value, is_from_template: true)
@@ -876,6 +886,28 @@ class SmScheduleMasterSyncService
     end
 
     differences
+  end
+
+  # Remap predecessor_ids from template task_numbers to job task_numbers for comparison
+  def remap_predecessor_ids_for_comparison(template_preds)
+    return [] if template_preds.blank?
+
+    # Build mapping from template task_number to job task_number (single query)
+    master_ids = job.sm_tasks.where.not(sm_schedule_master_id: nil).pluck(:sm_schedule_master_id)
+    master_id_to_tn = SmScheduleMaster.where(id: master_ids).pluck(:id, :task_number).to_h
+
+    template_to_job_tn = {}
+    job.sm_tasks.where.not(sm_schedule_master_id: nil).pluck(:sm_schedule_master_id, :task_number).each do |master_id, job_tn|
+      template_tn = master_id_to_tn[master_id]
+      template_to_job_tn[template_tn] = job_tn if template_tn
+    end
+
+    template_preds.filter_map do |pred|
+      template_tn = pred["id"]
+      job_tn = template_to_job_tn[template_tn]
+      next unless job_tn
+      { "id" => job_tn, "type" => pred["type"], "lag" => pred["lag"] }
+    end
   end
 
   def user
