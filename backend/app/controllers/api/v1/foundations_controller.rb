@@ -351,6 +351,14 @@ module Api
                     query = query.where(column => value)
                   when "!=", "not_equals"
                     query = query.where.not(column => value)
+                  when ">"
+                    query = query.where("#{conn.quote_column_name(column)} > ?", value)
+                  when "<"
+                    query = query.where("#{conn.quote_column_name(column)} < ?", value)
+                  when ">="
+                    query = query.where("#{conn.quote_column_name(column)} >= ?", value)
+                  when "<="
+                    query = query.where("#{conn.quote_column_name(column)} <= ?", value)
                   when "contains"
                     query = query.where("#{conn.quote_column_name(column)} ILIKE ?", "%#{value}%")
                   when "starts_with"
