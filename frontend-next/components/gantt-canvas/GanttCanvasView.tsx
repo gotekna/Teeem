@@ -1897,15 +1897,6 @@ export function GanttCanvasView({
       darkMode: isDarkMode,
     });
 
-    // Debug: Log data being passed to canvas
-    console.log('[GanttCanvasView] Setting data:', {
-      taskCount: taskList.length,
-      depCount: dependencies.length,
-      sampleTaskIds: taskList.slice(0, 5).map(t => t.id),
-      sampleDeps: dependencies.slice(0, 5),
-      isStaticMode,
-    });
-
     // Set data
     gantt.setTasks(taskList);
     gantt.setDependencies(dependencies);

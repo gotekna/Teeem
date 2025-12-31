@@ -265,6 +265,7 @@ class Contact < ApplicationRecord
   validate :validate_no_email_as_name     # Block email addresses used as names
   validate :validate_team_contact_company # Team contacts must have a company
   validate :validate_primary_company       # Prevent self-reference and ensure company type
+  validate :validate_employee_role_company # Employee role requires company link (FRC: dual SSoT systems)
 
   # Team/supplier configuration validations
   validates :team_size, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
@@ -1191,6 +1192,26 @@ class Contact < ApplicationRecord
     elsif !%w[company trust].include?(primary.entity_type)
       errors.add(:primary_company, "must be a Company or Trust, not a #{primary.entity_type}")
     end
+  end
+
+  # FRC: Employee role requires a company link
+  # Root cause: Two systems track employment (roles array vs ContactRelationship) - they must be linked
+  # Either primary_company_id must be set, OR an active employee_of relationship must exist
+  def validate_employee_role_company
+    return unless has_role?("Employee")
+
+    # Check if has primary_company_id
+    return if primary_company_id.present?
+
+    # Check if has active employee_of relationship (check persisted relationships only)
+    if persisted?
+      has_active_employment = outgoing_relationships
+        .where(relationship_type: "employee_of", is_active: true)
+        .exists?
+      return if has_active_employment
+    end
+
+    errors.add(:roles, "Employee role requires a primary company or active employment relationship. Either set primary_company or remove Employee from roles.")
   end
 
   # Legacy update_xero_synced_status callback removed

@@ -175,7 +175,7 @@ export function XeroSyncFromModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="h-5 w-5 text-blue-500" />
@@ -212,7 +212,7 @@ export function XeroSyncFromModal({
               )}
             </div>
 
-            <ScrollArea className="flex-1 -mx-6 px-6 max-h-[50vh]">
+            <ScrollArea className="flex-1 min-h-0 -mx-6 px-6" style={{ maxHeight: "calc(80vh - 200px)" }}>
               {contactsWithDifferences.length === 0 && contactsWithErrors.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <Check className="h-12 w-12 text-green-500 mb-3" />

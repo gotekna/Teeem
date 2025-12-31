@@ -832,10 +832,6 @@ export class GanttCanvas {
    * Set the dependencies between tasks
    */
   setDependencies(dependencies: GanttDependency[]): void {
-    console.log('[GanttCanvas] setDependencies called:', dependencies.length, 'deps');
-    if (dependencies.length > 0) {
-      console.log('[GanttCanvas] Sample deps:', dependencies.slice(0, 3));
-    }
     this.state.dependencies = dependencies;
 
     // Sync with DependencyManager (Day 3 Refactor)

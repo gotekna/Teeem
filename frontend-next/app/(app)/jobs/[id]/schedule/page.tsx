@@ -451,12 +451,6 @@ export default function SchedulePage() {
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       const tasks = response.gantt_data?.tasks || [];
       const deps = response.gantt_data?.dependencies || [];
-      console.log('[Gantt Debug] API response:', {
-        tasksCount: tasks.length,
-        depsCount: deps.length,
-        sampleTaskIds: tasks.slice(0, 5).map(t => ({ id: t.id, type: typeof t.id })),
-        sampleDeps: deps.slice(0, 5).map(d => ({ fromId: d.fromId, toId: d.toId, fromType: typeof d.fromId, toType: typeof d.toId })),
-      });
       setGanttTasks(tasks);
       setGanttApiDeps(deps);
     } catch (error) {
@@ -532,7 +526,6 @@ export default function SchedulePage() {
         shape: undefined, // Let Gantt decide based on duration
       } as GanttTask;
     });
-    console.log('[Gantt Debug] ganttTasksFormatted:', formatted.length, 'sample IDs:', formatted.slice(0, 5).map(t => t.id));
     return formatted;
   }, [ganttTasks]);
 
@@ -547,7 +540,6 @@ export default function SchedulePage() {
       type: dep.type || "FS",
       lag: dep.lag || 0,
     }));
-    console.log('[Gantt Debug] ganttDependencies:', deps.length, 'sample:', deps.slice(0, 3));
     return deps;
   }, [ganttApiDeps]);
 

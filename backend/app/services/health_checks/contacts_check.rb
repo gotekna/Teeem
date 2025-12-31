@@ -241,6 +241,36 @@ module HealthChecks
       )
     end
 
+    # Contacts with Employee role but no company link (neither primary_company nor employee_of relationship)
+    # FRC: Two systems track employment - roles array and ContactRelationship - this catches orphaned employees
+    def check_employee_without_company
+      # Find contacts with Employee role but no company link
+      # Note: roles is TEXT storing JSON array like '["Employee"]', so use LIKE pattern
+      contacts_with_employee_role = Contact.all
+        .where("roles LIKE ?", '%"Employee"%')
+        .where(primary_company_id: nil)
+
+      # Exclude those who have an active employee_of relationship
+      contacts_with_active_employment = ContactRelationship
+        .where(relationship_type: "employee_of", is_active: true)
+        .select(:source_contact_id)
+
+      contacts = contacts_with_employee_role
+        .where.not(id: contacts_with_active_employment)
+
+      build_result(
+        name: "Employee Without Company",
+        description: "Contacts with 'Employee' role but no company linked. Either assign a primary company or remove the Employee role.",
+        severity: :warning,
+        items: contacts,
+        icon: "user-x",
+        action_path: "/contacts/:id",
+        check_name: "employee_without_company",
+        auto_fixable: true,
+        fix_type: "employee_role_cleanup"
+      )
+    end
+
     # Company or Trust contacts missing company_name_or_trust
     def check_company_missing_business_name
       contacts = Contact.all
