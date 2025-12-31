@@ -735,50 +735,37 @@ export function GanttCanvasView({
   }, [resizingColumn, resizeStartX, resizeStartWidth]);
 
   // Open dependency editor for a task
+  // SSoT: Derive predecessors/successors from dependencies array (already rewired around invisible tasks)
+  // NOT from task.rowData.predecessor_ids (raw JSONB, may reference filtered-out invisible tasks)
   const openDepEditor = React.useCallback((task: GanttTask) => {
     setDepEditorTask(task);
-    // Use full predecessor data from rowData if available (has type and lag)
-    // Otherwise fall back to just IDs with defaults
-    // NOTE: pred.id is task_number, need to convert to row.id for matching task.id
-    const apiPredecessors = task.rowData?.predecessor_ids || [];
-    const links: PredecessorLink[] = apiPredecessors.map(pred => {
-      // Find the task by task_number to get its row.id
-      // Use string comparison to handle type mismatches (API may return number or string)
-      const predecessorTask = tasks.find(t =>
-        String(t.rowData?.task_number) === String(pred.id)
-      );
-      return {
-        predecessorId: predecessorTask?.id || String(pred.id), // Use task.id (row.id), fallback to task_number if not found
-        type: (pred.type || 'FS') as DependencyType,
-        lag: pred.lag || 0,
-      };
-    });
-    setDepEditorLinks(links);
 
-    // Also populate successor links - tasks that have this task as a predecessor
-    const currentTaskNum = task.rowData?.task_number;
-    const successorLinks: PredecessorLink[] = [];
-    tasks.forEach(t => {
-      if (t.id === task.id) return; // Skip self
-      const predIds = t.rowData?.predecessor_ids;
-      if (!predIds || !Array.isArray(predIds)) return;
-      // Use string comparison to handle type mismatches
-      const predInfo = predIds.find((p: any) => {
-        const predId = String(p?.id || p);
-        return predId === String(currentTaskNum) || predId === String(task.id);
-      });
-      if (predInfo) {
-        successorLinks.push({
-          predecessorId: t.id, // This is actually the successor task ID
-          type: (predInfo.type || 'FS') as DependencyType,
-          lag: predInfo.lag || 0,
-        });
-      }
-    });
+    // SSoT: Use dependencies array (staticDependencies for job schedule, templateDependencies for templates)
+    // This is already properly rewired around invisible tasks by backend GanttDataService
+    const currentDeps = isStaticMode ? (staticDependencies || []) : templateDependencies;
+
+    // Find predecessors: dependencies where this task is the target (toId)
+    const predecessorLinks: PredecessorLink[] = currentDeps
+      .filter(d => d.toId === task.id)
+      .map(d => ({
+        predecessorId: d.fromId, // Already row.id format from backend
+        type: (d.type || 'FS') as DependencyType,
+        lag: d.lag || 0,
+      }));
+    setDepEditorLinks(predecessorLinks);
+
+    // Find successors: dependencies where this task is the source (fromId)
+    const successorLinks: PredecessorLink[] = currentDeps
+      .filter(d => d.fromId === task.id)
+      .map(d => ({
+        predecessorId: d.toId, // Successor task ID (row.id format)
+        type: (d.type || 'FS') as DependencyType,
+        lag: d.lag || 0,
+      }));
     setDepEditorSuccessorLinks(successorLinks);
 
     setDepEditorOpen(true);
-  }, [tasks]);
+  }, [isStaticMode, staticDependencies, templateDependencies]);
 
   // Add a new predecessor link
   const addPredecessorLink = React.useCallback(() => {
@@ -3085,10 +3072,10 @@ export function GanttCanvasView({
               {/* Predecessor rows */}
               <div className="space-y-2">
                 {depEditorLinks.map((link, index) => {
-                  // SSoT: Use String() for consistent comparison - link.predecessorId may be number or string
-                  const predecessorTask = tasks.find(t => String(t.id) === String(link.predecessorId));
+                  // SSoT: IDs are now consistent (all row.id strings from dependencies array)
+                  const predecessorTask = tasks.find(t => t.id === link.predecessorId);
                   const predecessorRowNum = predecessorTask
-                    ? tasks.findIndex(t => String(t.id) === String(link.predecessorId)) + 1
+                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
                     : '';
 
                   return (
@@ -3117,7 +3104,7 @@ export function GanttCanvasView({
                       {/* Task dropdown */}
                       <ComboboxDropdown
                         items={taskComboItems}
-                        selectedItem={taskComboItems.find(item => String(item.id) === String(link.predecessorId))}
+                        selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
                         onSelect={(item) => updatePredecessorLink(index, { predecessorId: item.id })}
                         placeholder="Select task..."
                         searchPlaceholder="Search tasks..."
@@ -3227,10 +3214,10 @@ export function GanttCanvasView({
               {/* Successor rows */}
               <div className="space-y-2">
                 {depEditorSuccessorLinks.map((link, index) => {
-                  // SSoT: Use String() for consistent comparison
-                  const successorTask = tasks.find(t => String(t.id) === String(link.predecessorId));
+                  // SSoT: IDs are now consistent (all row.id strings from dependencies array)
+                  const successorTask = tasks.find(t => t.id === link.predecessorId);
                   const successorRowNum = successorTask
-                    ? tasks.findIndex(t => String(t.id) === String(link.predecessorId)) + 1
+                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
                     : '';
 
                   return (
@@ -3259,7 +3246,7 @@ export function GanttCanvasView({
                       {/* Task dropdown */}
                       <ComboboxDropdown
                         items={taskComboItems}
-                        selectedItem={taskComboItems.find(item => String(item.id) === String(link.predecessorId))}
+                        selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
                         onSelect={(item) => updateSuccessorLink(index, { predecessorId: item.id })}
                         placeholder="Select task..."
                         searchPlaceholder="Search tasks..."
