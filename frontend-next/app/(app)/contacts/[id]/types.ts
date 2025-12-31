@@ -270,6 +270,10 @@ export interface ContactRelationship {
   relationship_type_label?: string;
   direction?: 'outgoing' | 'incoming';
   role_in_relationship?: string | null;
+  // Multi-role support - SSoT for relationship roles
+  role_ids?: number[];
+  role_names?: string[];
+  roles?: Array<{ id: number; name: string }>;
   ownership_percentage?: number | null;
   context?: string | null;
   start_date?: string | null;

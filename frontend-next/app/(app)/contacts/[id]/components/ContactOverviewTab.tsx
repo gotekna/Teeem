@@ -830,57 +830,112 @@ export function ContactOverviewTab({
                           const companyName = company
                             ? ("display_name" in company ? company.display_name : "name" in company ? company.name : "Unknown")
                             : "Unknown";
-                          const roleLabel = rel.role_in_relationship || "Employee";
+                          // Display multiple roles from role_names array, fallback to role_in_relationship
+                          const roleLabel = rel.role_names && rel.role_names.length > 0
+                            ? rel.role_names.join(", ")
+                            : rel.role_in_relationship || "Employee";
                           const isPrimary = index === 0;
+                          const isEditing = editingRelationshipId === rel.id;
 
                           return (
                             <SortableItem
                               key={rel.id}
                               id={rel.id}
-                              className="flex items-center gap-2 py-2 px-2 -mx-2 rounded-md bg-muted/30 group"
+                              className="flex flex-col gap-2 py-2 px-2 -mx-2 rounded-md bg-muted/30 group"
                             >
-                              <DragHandle className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab" />
-                              <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-green-100 dark:bg-green-900/30">
-                                <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <Link
-                                    href={`/contacts/${company?.id}`}
-                                    className="text-sm font-medium truncate hover:underline"
-                                  >
-                                    {companyName}
+                              <div className="flex items-center gap-2">
+                                <DragHandle className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab" />
+                                <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-green-100 dark:bg-green-900/30">
+                                  <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <Link
+                                      href={`/contacts/${company?.id}`}
+                                      className="text-sm font-medium truncate hover:underline"
+                                    >
+                                      {companyName}
+                                    </Link>
+                                    {isPrimary && (
+                                      <Badge variant="default" className="text-[10px] h-4 px-1.5 bg-green-600">
+                                        Primary
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {!isEditing && (
+                                    <button
+                                      className="text-xs text-muted-foreground hover:text-foreground hover:underline text-left"
+                                      onClick={() => {
+                                        setEditingRelationshipId(rel.id);
+                                        setEditRoleIds(rel.role_ids || []);
+                                      }}
+                                    >
+                                      {roleLabel}
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Link href={`/contacts/${company?.id}`}>
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                                    </Button>
                                   </Link>
-                                  {isPrimary && (
-                                    <Badge variant="default" className="text-[10px] h-4 px-1.5 bg-green-600">
-                                      Primary
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {roleLabel}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Link href={`/contacts/${company?.id}`}>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={() => removeCompanyLink(rel.id)}
+                                    disabled={savingCompanyLink}
+                                  >
+                                    {savingCompanyLink ? (
+                                      <Spinner size={12} />
+                                    ) : (
+                                      <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                                    )}
                                   </Button>
-                                </Link>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={() => removeCompanyLink(rel.id)}
-                                  disabled={savingCompanyLink}
-                                >
-                                  {savingCompanyLink ? (
-                                    <Spinner size={12} />
-                                  ) : (
-                                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                                  )}
-                                </Button>
+                                </div>
                               </div>
+
+                              {/* Inline role editor */}
+                              {isEditing && (
+                                <div className="ml-10 space-y-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {availableRoles.map((role) => (
+                                      <Button
+                                        key={role.id}
+                                        variant={editRoleIds.includes(role.id) ? "default" : "outline"}
+                                        size="sm"
+                                        className="h-6 text-xs"
+                                        onClick={() => toggleRoleId(role.id, editRoleIds, setEditRoleIds)}
+                                      >
+                                        {editRoleIds.includes(role.id) && "✓ "}
+                                        {role.name}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      onClick={() => updateRelationshipRoles(rel.id, editRoleIds)}
+                                      disabled={savingCompanyLink}
+                                    >
+                                      {savingCompanyLink ? <Spinner size={12} /> : "Save"}
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      onClick={() => {
+                                        setEditingRelationshipId(null);
+                                        setEditRoleIds([]);
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
                             </SortableItem>
                           );
                         })}
@@ -890,28 +945,26 @@ export function ContactOverviewTab({
                     {/* Add company link interface */}
                     {showCompanySearch ? (
                       <div className="space-y-3">
-                        {/* Role selector from contact_types Foundation (SSoT) */}
+                        {/* Role selector - multi-select from contact_types Foundation (SSoT) */}
                         {availableRoles.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            <Button
-                              variant={selectedRole === "" ? "default" : "outline"}
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => setSelectedRole("")}
-                            >
-                              Employee
-                            </Button>
-                            {availableRoles.map((role) => (
-                              <Button
-                                key={role.id}
-                                variant={selectedRole === role.name ? "default" : "outline"}
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => setSelectedRole(role.name)}
-                              >
-                                {role.name}
-                              </Button>
-                            ))}
+                          <div className="space-y-2">
+                            <div className="text-xs text-muted-foreground">
+                              Select roles (optional):
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {availableRoles.map((role) => (
+                                <Button
+                                  key={role.id}
+                                  variant={selectedRoleIds.includes(role.id) ? "default" : "outline"}
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => toggleRoleId(role.id, selectedRoleIds, setSelectedRoleIds)}
+                                >
+                                  {selectedRoleIds.includes(role.id) && "✓ "}
+                                  {role.name}
+                                </Button>
+                              ))}
+                            </div>
                           </div>
                         )}
 
@@ -933,7 +986,7 @@ export function ContactOverviewTab({
                               setShowCompanySearch(false);
                               setCompanySearchQuery("");
                               setCompanySearchResults([]);
-                              setSelectedRole("");
+                              setSelectedRoleIds([]);
                             }}
                           >
                             <X className="h-3.5 w-3.5" />
