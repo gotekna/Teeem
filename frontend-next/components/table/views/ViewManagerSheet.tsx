@@ -536,10 +536,20 @@ export function ViewManagerSheet({
 
         // Apply the view state immediately using captured state
         // This ensures display type changes take effect immediately
-        console.log('[ViewManagerSheet] Applying saved view with columnOrder:', savedView.columnOrder);
+        console.log('[ViewManagerSheet] Applying saved view:', {
+          name: savedView.name,
+          filters: savedView.filters,
+          filterCount: Array.isArray(savedView.filters) ? savedView.filters.length : 0,
+          columnOrder: savedView.columnOrder?.length,
+        });
         onApplyView?.(savedView);
 
+        // Small delay to ensure atom updates propagate before triggering refresh
+        // This prevents a race condition where the refresh sees stale filter state
+        await new Promise(resolve => setTimeout(resolve, 10));
+
         // Trigger data refresh to apply new filters/sorting/etc
+        console.log('[ViewManagerSheet] Triggering refresh after view applied');
         onRefresh?.();
 
         onViewsChange?.();

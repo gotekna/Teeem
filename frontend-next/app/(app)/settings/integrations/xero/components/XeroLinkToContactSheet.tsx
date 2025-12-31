@@ -28,6 +28,7 @@ import {
   Check,
   Link2,
   LinkIcon,
+  Plus,
   Search,
   Unlink,
   User,
@@ -80,6 +81,7 @@ export function XeroLinkToContactSheet({
   const [searching, setSearching] = React.useState(false);
   const [linking, setLinking] = React.useState(false);
   const [unlinking, setUnlinking] = React.useState(false);
+  const [creating, setCreating] = React.useState(false);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = React.useState(false);
 
   // Track current link locally so we can update after unlink
@@ -224,6 +226,54 @@ export function XeroLinkToContactSheet({
     }
   };
 
+  // Create new TEEEM contact from Xero info and link it
+  const handleCreateNewContact = async () => {
+    if (!xeroId || !xeroName) {
+      toast.error("Missing Xero contact info");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Create a new contact with the Xero name
+      const createResponse = await api.post<{
+        success: boolean;
+        data: { id: number; display_name: string };
+      }>("/api/v1/contacts", {
+        contact: {
+          display_name: xeroName,
+          entity_type: "company", // Default to company
+        },
+      });
+
+      if (createResponse?.success && createResponse?.data?.id) {
+        const newContactId = createResponse.data.id;
+
+        // Now link the Xero contact to this new TEEEM contact
+        const linkResponse = await api.post<{ success: boolean }>(
+          "/api/v1/xero/link_unlinked_contact",
+          {
+            xero_contact_id: xeroId,
+            contact_id: newContactId,
+          }
+        );
+
+        if (linkResponse?.success) {
+          toast.success(`Created "${xeroName}" and linked to Xero`);
+          onLinkChanged();
+          onClose();
+        } else {
+          toast.error("Contact created but failed to link to Xero");
+        }
+      }
+    } catch (error) {
+      console.error("Create contact failed:", error);
+      toast.error("Failed to create contact");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <>
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -244,18 +294,37 @@ export function XeroLinkToContactSheet({
               <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">
                 Xero Contact
               </div>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded">
-                  <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded">
+                    <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="font-semibold">{xeroName}</div>
+                    {xeroTenantName && (
+                      <div className="text-sm text-muted-foreground">
+                        {xeroTenantName}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <div className="font-semibold">{xeroName}</div>
-                  {xeroTenantName && (
-                    <div className="text-sm text-muted-foreground">
-                      {xeroTenantName}
-                    </div>
-                  )}
-                </div>
+                {/* Create New Contact button - only show if not already linked */}
+                {!localSynced && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCreateNewContact}
+                    disabled={creating}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900"
+                  >
+                    {creating ? (
+                      <Spinner size={14} className="mr-1" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-1" />
+                    )}
+                    Create New
+                  </Button>
+                )}
               </div>
             </div>
 

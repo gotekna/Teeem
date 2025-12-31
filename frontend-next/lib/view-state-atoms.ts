@@ -429,6 +429,14 @@ export const applyViewAtom = atom(
       }
     }
 
+    console.log('[applyViewAtom] Setting view filters:', {
+      viewName: view.name,
+      viewId: view.id,
+      filterCount: sourcedFilters.length,
+      filters: sourcedFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
+      filterGroups: filterGroups.length,
+      interGroupLogic,
+    });
     set(_viewFiltersAtom, sourcedFilters);
     set(_filterGroupsAtom, filterGroups);
     set(_interGroupLogicAtom, interGroupLogic);

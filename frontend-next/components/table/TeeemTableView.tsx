@@ -2964,6 +2964,12 @@ export default function TeeemTableView({
   // Filter and sort entries using extracted utility functions
   // IMPORTANT: Use effectiveEntries (not raw entries) to support auto-fetch mode
   const filteredAndSortedEntries = useMemo(() => {
+    // Debug: Log filtering state on each recalculation
+    console.log('[TeeemTableView] Filtering entries:', {
+      effectiveEntriesCount: effectiveEntries.length,
+      safeFiltersCount: safeFilters.length,
+      filterDetails: safeFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
+    });
     let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
@@ -2995,7 +3001,13 @@ export default function TeeemTableView({
     const skipClientFilters = effectiveOnServerSearch && search;
     if (safeFilters.length > 0 && !skipClientFilters) {
       // Use extracted utility function for filters
+      const beforeCount = result.length;
       result = applyFilters(result, safeFilters, filterGroups, interGroupLogic);
+      console.log('[TeeemTableView] After applying filters:', {
+        beforeCount,
+        afterCount: result.length,
+        filtered: beforeCount - result.length,
+      });
     }
 
     // Apply sorting using extracted utility function
