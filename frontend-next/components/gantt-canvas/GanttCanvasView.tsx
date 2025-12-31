@@ -596,17 +596,18 @@ export function GanttCanvasView({
   const [depEditorSuccessorLinks, setDepEditorSuccessorLinks] = React.useState<PredecessorLink[]>([]);
 
   // Task items for combobox (memoized)
-  // SSoT: Use task_number (actual row identifier) not array index
+  // Use visual row index (1-based) for user-friendly display
+  // This is what users see in the Gantt and expect when typing row numbers
   const taskComboItems = React.useMemo((): ComboboxItem[] => {
     return tasks
       .filter(t => t.id !== depEditorTask?.id)
       .map(t => {
-        // SSoT: Use task_number from rowData, fallback to array index if not available
-        const taskNumber = t.rowData?.task_number ?? (tasks.findIndex(task => task.id === t.id) + 1);
+        // Use visual row index (1-based) for display - this is what users expect
+        const visualRowIndex = tasks.findIndex(task => task.id === t.id) + 1;
         return {
           id: t.id,
-          label: `${taskNumber}. ${t.name}`,
-          taskNumber, // Store for lookup
+          label: `${visualRowIndex}. ${t.name}`,
+          visualRowIndex, // Store for lookup by row number
         };
       });
   }, [tasks, depEditorTask]);
