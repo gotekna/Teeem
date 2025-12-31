@@ -2189,12 +2189,13 @@ export class GanttCanvas {
       let reason = '';
 
       switch (dep.type) {
-        case 'FS': // Finish-to-Start: successor must start after predecessor ends
+        case 'FS': // Finish-to-Start: successor must start on or after predecessor ends
           const minStartDate = new Date(fromTask.endDate);
-          minStartDate.setDate(minStartDate.getDate() + lag + 1);
+          minStartDate.setDate(minStartDate.getDate() + lag);
           if (toTask.startDate < minStartDate) {
             isViolated = true;
-            reason = `Starts before predecessor finishes (needs +${Math.ceil((minStartDate.getTime() - toTask.startDate.getTime()) / (24*60*60*1000))} days)`;
+            const daysNeeded = Math.ceil((minStartDate.getTime() - toTask.startDate.getTime()) / (24*60*60*1000));
+            reason = `Starts ${daysNeeded} day${daysNeeded > 1 ? 's' : ''} before predecessor finishes`;
           }
           break;
 
