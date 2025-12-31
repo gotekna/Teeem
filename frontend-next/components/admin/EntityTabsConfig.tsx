@@ -88,7 +88,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
-import { useUrlState } from "@/hooks/useUrlState";
+// useUrlState removed - doesn't work reliably with catch-all routes
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Spinner } from "@/components/ui/spinner";
 import type {
@@ -240,37 +240,27 @@ export function EntityTabsConfig({
 
   const [saving, setSaving] = React.useState(false);
 
-  // SSoT: Navigation state synced to URL for back button support
-  // Uses tab_key (slug) instead of numeric IDs for readable, stable URLs
-  const [urlState, setUrlState] = useUrlState({
-    group: "overview",           // Active tab group
-    tab: null as string | null,  // Tab being edited (tab_key slug)
-    action: null as string | null, // "edit" | "create" | null
-    config: null as string | null, // Config panel name (e.g., "plan-categories")
-  });
+  // Local state for dialog - URL state doesn't work reliably with catch-all routes
+  const [activeGroup, setActiveGroup] = React.useState("overview");
+  const [editingTabKey, setEditingTabKey] = React.useState<string | null>(null);
+  const [dialogAction, setDialogAction] = React.useState<"edit" | "create" | null>(null);
+  const [configPanelName, setConfigPanelName] = React.useState<string | null>(null);
 
-  // Local state for expanded items - URL state doesn't work well with catch-all routes
+  // Local state for expanded items
   const [expandedItems, setExpandedItemsState] = React.useState<Set<string>>(new Set());
   const [expandedDocTypes, setExpandedDocTypesState] = React.useState<Set<string>>(new Set());
 
-  // Derive values from URL state
-  const activeGroup = urlState.group;
-  const isDialogOpen = urlState.action === "create" || urlState.action === "edit";
-  const isCreateMode = urlState.action === "create";
+  // Derive values from local state
+  const isDialogOpen = dialogAction === "create" || dialogAction === "edit";
+  const isCreateMode = dialogAction === "create";
 
-  // Debug: Log URL state changes
-  React.useEffect(() => {
-    console.log('[EntityTabsConfig] URL state changed:', urlState);
-    console.log('[EntityTabsConfig] isDialogOpen:', isDialogOpen);
-  }, [urlState, isDialogOpen]);
-
-  // Look up editingTab from tabs array using URL tab (tab_key slug)
+  // Look up editingTab from tabs array using local state
   const editingTab = React.useMemo(() => {
-    if (!urlState.tab || urlState.action !== "edit") return null;
+    if (!editingTabKey || dialogAction !== "edit") return null;
     // Search recursively through tabs and children by tab_key
     const findTab = (tabList: EntityTab[]): EntityTab | null => {
       for (const tab of tabList) {
-        if (tab.tab_key === urlState.tab) return tab;
+        if (tab.tab_key === editingTabKey) return tab;
         if (tab.children?.length) {
           const found = findTab(tab.children);
           if (found) return found;
@@ -279,21 +269,16 @@ export function EntityTabsConfig({
       return null;
     };
     return findTab(tabs);
-  }, [urlState.tab, urlState.action, tabs]);
+  }, [editingTabKey, dialogAction, tabs]);
 
-  // Look up configTab from tabs array using URL config param
+  // Look up configTab from tabs array using local state
   const configTab = React.useMemo(() => {
-    if (!urlState.config) return null;
+    if (!configPanelName) return null;
     // Find the plans tab and add the component_name
     const plansTab = tabs.find(t => t.tab_key === "plans");
     if (!plansTab) return null;
-    return { ...plansTab, component_name: urlState.config } as EntityTab & { component_name: string };
-  }, [urlState.config, tabs]);
-
-  // Helper setters that update URL state
-  const setActiveGroup = React.useCallback((group: string) => {
-    setUrlState({ group });
-  }, [setUrlState]);
+    return { ...plansTab, component_name: configPanelName } as EntityTab & { component_name: string };
+  }, [configPanelName, tabs]);
 
   // Use tab_key (slug) for expanded state - Set<string> instead of Set<number>
   const setExpandedItems = React.useCallback((updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
@@ -314,28 +299,30 @@ export function EntityTabsConfig({
 
   // Use tab_key (slug) instead of numeric ID
   const setEditingTab = React.useCallback((tab: EntityTab | null) => {
-    console.log('[EntityTabsConfig] setEditingTab called with:', tab?.tab_key);
     if (tab) {
-      console.log('[EntityTabsConfig] Setting URL state: tab=', tab.tab_key, 'action=edit');
-      setUrlState({ tab: tab.tab_key, action: "edit" });
+      setEditingTabKey(tab.tab_key);
+      setDialogAction("edit");
     } else {
-      setUrlState({ tab: null, action: null });
+      setEditingTabKey(null);
+      setDialogAction(null);
     }
-  }, [setUrlState]);
+  }, []);
 
   const setDialogOpen = React.useCallback((open: boolean) => {
     if (!open) {
-      setUrlState({ action: null, tab: null });
+      setDialogAction(null);
+      setEditingTabKey(null);
     }
-  }, [setUrlState]);
+  }, []);
 
   const openCreateMode = React.useCallback(() => {
-    setUrlState({ action: "create", tab: null });
-  }, [setUrlState]);
+    setDialogAction("create");
+    setEditingTabKey(null);
+  }, []);
 
   const setConfigTab = React.useCallback((tab: EntityTab | null, componentName?: string) => {
-    setUrlState({ config: componentName || null });
-  }, [setUrlState]);
+    setConfigPanelName(componentName || null);
+  }, []);
 
   const [deleteConfirmTab, setDeleteConfirmTab] = React.useState<EntityTab | null>(null);
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
@@ -526,7 +513,6 @@ export function EntityTabsConfig({
   // Open edit dialog - always opens the edit dialog for tab settings
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: EntityTab) => {
-    console.log('[EntityTabsConfig] openEditDialog called for tab:', tab.tab_key);
     // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
     const folderPath = tab.sharepoint_folder_path || "";
 
