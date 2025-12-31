@@ -3085,9 +3085,10 @@ export function GanttCanvasView({
               {/* Predecessor rows */}
               <div className="space-y-2">
                 {depEditorLinks.map((link, index) => {
-                  const predecessorTask = tasks.find(t => t.id === link.predecessorId);
+                  // SSoT: Use String() for consistent comparison - link.predecessorId may be number or string
+                  const predecessorTask = tasks.find(t => String(t.id) === String(link.predecessorId));
                   const predecessorRowNum = predecessorTask
-                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
+                    ? tasks.findIndex(t => String(t.id) === String(link.predecessorId)) + 1
                     : '';
 
                   return (
@@ -3116,7 +3117,7 @@ export function GanttCanvasView({
                       {/* Task dropdown */}
                       <ComboboxDropdown
                         items={taskComboItems}
-                        selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
+                        selectedItem={taskComboItems.find(item => String(item.id) === String(link.predecessorId))}
                         onSelect={(item) => updatePredecessorLink(index, { predecessorId: item.id })}
                         placeholder="Select task..."
                         searchPlaceholder="Search tasks..."
@@ -3226,9 +3227,10 @@ export function GanttCanvasView({
               {/* Successor rows */}
               <div className="space-y-2">
                 {depEditorSuccessorLinks.map((link, index) => {
-                  const successorTask = tasks.find(t => t.id === link.predecessorId);
+                  // SSoT: Use String() for consistent comparison
+                  const successorTask = tasks.find(t => String(t.id) === String(link.predecessorId));
                   const successorRowNum = successorTask
-                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
+                    ? tasks.findIndex(t => String(t.id) === String(link.predecessorId)) + 1
                     : '';
 
                   return (
@@ -3257,7 +3259,7 @@ export function GanttCanvasView({
                       {/* Task dropdown */}
                       <ComboboxDropdown
                         items={taskComboItems}
-                        selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
+                        selectedItem={taskComboItems.find(item => String(item.id) === String(link.predecessorId))}
                         onSelect={(item) => updateSuccessorLink(index, { predecessorId: item.id })}
                         placeholder="Select task..."
                         searchPlaceholder="Search tasks..."
