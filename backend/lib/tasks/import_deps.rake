@@ -584,22 +584,27 @@ namespace :deps do
 
     deps = JSON.parse(deps_json)
 
-    # Build name -> task_number map
+    # Build CASE-INSENSITIVE name -> task_number map
     name_to_tn = {}
     SmScheduleMaster.pluck(:name, :task_number).each do |name, tn|
-      name_to_tn[name.strip] = tn if name
+      name_to_tn[name.strip.downcase] = tn if name
     end
+
+    # Track which tasks were matched
+    matched_task_numbers = Set.new
 
     updated = 0
     deps.each do |task_name, preds|
-      task_tn = name_to_tn[task_name]
+      task_tn = name_to_tn[task_name.downcase]
       next unless task_tn
 
       task = SmScheduleMaster.find_by(task_number: task_tn)
       next unless task
 
+      matched_task_numbers << task_tn
+
       new_preds = preds.filter_map do |p|
-        pred_tn = name_to_tn[p["name"]]
+        pred_tn = name_to_tn[p["name"].downcase]
         next unless pred_tn
         { "id" => pred_tn, "type" => p["type"], "lag" => p["lag"] }
       end
@@ -608,10 +613,21 @@ namespace :deps do
       updated += 1
     end
 
-    puts "Updated #{updated} tasks"
+    puts "Updated #{updated} tasks with dependencies"
 
-    # Verify DO - Certification
-    cert = SmScheduleMaster.find_by(name: "DO - Certification")
+    # Clear predecessor_ids for ALL tasks NOT in the import
+    # This removes old/wrong references
+    cleared = 0
+    SmScheduleMaster.where.not(task_number: matched_task_numbers.to_a).find_each do |task|
+      if task.predecessor_ids.present?
+        task.update!(predecessor_ids: [])
+        cleared += 1
+      end
+    end
+    puts "Cleared dependencies for #{cleared} unmatched tasks"
+
+    # Verify DO - Certification (case insensitive)
+    cert = SmScheduleMaster.where("LOWER(name) = ?", "do - certification").first
     if cert
       puts ""
       puts "DO - Certification predecessors:"
