@@ -2494,20 +2494,20 @@ module Api
 
             normalize_phone = ->(p) { p&.gsub(/[\s\-\(\)]/, "") }
 
-            if xero_phone.present? && normalize_phone.call(xero_phone) != normalize_phone.call(contact.phone)
+            if xero_phone.present? && normalize_phone.call(xero_phone) != normalize_phone.call(contact.office_phone)
               differences << {
                 field: "phone",
                 label: "Phone",
-                teeem_value: contact.phone,
+                teeem_value: contact.office_phone,
                 xero_value: xero_phone
               }
             end
 
-            if xero_mobile.present? && normalize_phone.call(xero_mobile) != normalize_phone.call(contact.mobile)
+            if xero_mobile.present? && normalize_phone.call(xero_mobile) != normalize_phone.call(contact.mobile_phone)
               differences << {
                 field: "mobile",
                 label: "Mobile",
-                teeem_value: contact.mobile,
+                teeem_value: contact.mobile_phone,
                 xero_value: xero_mobile
               }
             end
@@ -2617,8 +2617,8 @@ module Api
             attrs = {}
             attrs[:display_name] = fields[:name] if fields[:name].present?
             attrs[:abn] = fields[:abn] if fields[:abn].present?
-            attrs[:phone] = fields[:phone] if fields[:phone].present?
-            attrs[:mobile] = fields[:mobile] if fields[:mobile].present?
+            attrs[:office_phone] = fields[:phone] if fields[:phone].present?
+            attrs[:mobile_phone] = fields[:mobile] if fields[:mobile].present?
             attrs[:website] = fields[:website] if fields[:website].present?
             attrs[:address] = fields[:address] if fields[:address].present?
 

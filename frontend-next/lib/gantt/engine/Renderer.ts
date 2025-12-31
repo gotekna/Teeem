@@ -24,6 +24,7 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private config: GanttConfig;
   private viewport: Viewport;
+  private _hasLoggedDepDebug = false;
 
   constructor(ctx: CanvasRenderingContext2D, config: GanttConfig, viewport: Viewport) {
     this.ctx = ctx;
@@ -1168,6 +1169,22 @@ export class Renderer {
     hideNonHighlighted: boolean = false
   ): void {
     const taskMap = new Map(tasks.map((t, i) => [t.id, { task: t, index: i }]));
+
+    // Debug: Log if task IDs match dependency IDs
+    if (dependencies.length > 0 && !this._hasLoggedDepDebug) {
+      this._hasLoggedDepDebug = true;
+      const taskIds = new Set(tasks.map(t => t.id));
+      const depIds = new Set(dependencies.flatMap(d => [d.fromId, d.toId]));
+      const missing = [...depIds].filter(id => !taskIds.has(id));
+      console.log('[Renderer] drawDependencies debug:', {
+        taskCount: tasks.length,
+        depCount: dependencies.length,
+        sampleTaskIds: tasks.slice(0, 3).map(t => t.id),
+        sampleDepFromTo: dependencies.slice(0, 3).map(d => ({ from: d.fromId, to: d.toId })),
+        missingIds: missing.slice(0, 10),
+        missingCount: missing.length,
+      });
+    }
 
     // Get visible range for filtering (if canvas height provided)
     const visibleRange = canvasHeight
