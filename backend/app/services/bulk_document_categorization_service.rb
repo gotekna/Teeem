@@ -225,23 +225,45 @@ class BulkDocumentCategorizationService
     end
 
     # Strategy 3: Folder name contains tab display name (fuzzy match)
-    # Split folder path into parts and try to match each part
+    # Split folder path into parts and find the LONGEST matching tab name
+    # This ensures "certification" matches before "certificate"
     folder_parts = normalized.split('/')
+    best_name_match = nil
+    best_name_length = 0
 
     @name_to_tabs.each do |name, tabs|
       # Check if any folder part matches the tab name
       if folder_parts.any? { |part| part == name || part.include?(name) }
-        Rails.logger.debug("[BulkCategorize] Name match for '#{folder_path}' -> #{tabs.first.display_name}")
-        return tabs.first
+        # Prefer longer name matches (certification > certificate)
+        if name.length > best_name_length
+          best_name_match = tabs.first
+          best_name_length = name.length
+        end
       end
     end
 
+    if best_name_match
+      Rails.logger.debug("[BulkCategorize] Name match for '#{folder_path}' -> #{best_name_match.display_name} (#{best_name_length} chars)")
+      return best_name_match
+    end
+
     # Strategy 4: Check if the tab's display_name appears anywhere in the folder path
+    # Again, prefer longer matches
+    best_contains_match = nil
+    best_contains_length = 0
+
     @name_to_tabs.each do |name, tabs|
       if normalized.include?(name) && name.length >= 3  # Minimum 3 chars to avoid false positives
-        Rails.logger.debug("[BulkCategorize] Contains match for '#{folder_path}' -> #{tabs.first.display_name}")
-        return tabs.first
+        if name.length > best_contains_length
+          best_contains_match = tabs.first
+          best_contains_length = name.length
+        end
       end
+    end
+
+    if best_contains_match
+      Rails.logger.debug("[BulkCategorize] Contains match for '#{folder_path}' -> #{best_contains_match.display_name} (#{best_contains_length} chars)")
+      return best_contains_match
     end
 
     nil
