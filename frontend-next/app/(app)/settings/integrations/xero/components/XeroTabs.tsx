@@ -26,12 +26,14 @@ import {
   ArrowRightLeft,
   Users,
   Upload,
+  Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
+import { XeroSyncFromModal } from "./XeroSyncFromModal";
 import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 import { clearCachedRecords } from "@/lib/records-cache";
 
@@ -498,6 +500,9 @@ export function XeroContactSync() {
   const [showLinkSheet, setShowLinkSheet] = React.useState(false);
   const [selectedRow, setSelectedRow] = React.useState<SelectedRowForLinkSheet | null>(null);
 
+  // State for Sync from Xero modal
+  const [showSyncFromModal, setShowSyncFromModal] = React.useState(false);
+
   // Handle sync button
   const handleSync = async () => {
     setSyncing(true);
@@ -762,20 +767,31 @@ export function XeroContactSync() {
                 {syncing ? "Syncing..." : "Sync Now"}
               </Button>
               {selectedRows.size > 0 && (
-                <Button
-                  onClick={handlePushToXero}
-                  disabled={pushing}
-                  size="sm"
-                  variant="outline"
-                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                >
-                  {pushing ? (
-                    <Spinner size={14} className="mr-2" />
-                  ) : (
-                    <Upload className="h-4 w-4 mr-2" />
-                  )}
-                  Push to Xero ({selectedRows.size})
-                </Button>
+                <>
+                  <Button
+                    onClick={handlePushToXero}
+                    disabled={pushing}
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                  >
+                    {pushing ? (
+                      <Spinner size={14} className="mr-2" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    Push to Xero ({selectedRows.size})
+                  </Button>
+                  <Button
+                    onClick={() => setShowSyncFromModal(true)}
+                    size="sm"
+                    variant="outline"
+                    className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/30"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Sync from Xero ({selectedRows.size})
+                  </Button>
+                </>
               )}
               <Select value={filterStatus} onValueChange={(value: FilterStatus) => setFilterStatus(value)}>
                 <SelectTrigger className="w-[140px] h-8">
@@ -817,6 +833,18 @@ export function XeroContactSync() {
           }}
         />
       )}
+
+      {/* Sync from Xero Modal */}
+      <XeroSyncFromModal
+        isOpen={showSyncFromModal}
+        onClose={() => setShowSyncFromModal(false)}
+        xeroLinkIds={Array.from(selectedRows)}
+        onSyncComplete={() => {
+          clearCachedRecords("xero-sync-contacts");
+          setRefreshKey((prev) => prev + 1);
+          clearSelection();
+        }}
+      />
     </div>
   );
 }

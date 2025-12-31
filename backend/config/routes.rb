@@ -1908,6 +1908,8 @@ Rails.application.routes.draw do
           post :link_unlinked_contact
           post :auto_match_contacts
           post :push_contact_names
+          post :pull_contact_details
+          post :apply_xero_updates
           post :sync_all_companies
         end
         member do
