@@ -181,6 +181,8 @@ export function XeroLinkToContactSheet({
           `/api/v1/xero/link_unlinked_contact`,
           {
             xero_contact_id: xeroId,
+            xero_contact_name: xeroName,
+            tenant_id: xeroTenantId,
             contact_id: contactId,
           }
         );
@@ -257,6 +259,8 @@ export function XeroLinkToContactSheet({
           "/api/v1/xero/link_unlinked_contact",
           {
             xero_contact_id: xeroId,
+            xero_contact_name: xeroName,
+            tenant_id: xeroTenantId,
             contact_id: newContactId,
           }
         );

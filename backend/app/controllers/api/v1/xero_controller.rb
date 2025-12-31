@@ -2201,48 +2201,74 @@ module Api
       end
 
       # POST /api/v1/xero/link_unlinked_contact
-      # Links all invoices with a given Xero contact name to a TEEEM contact
-      # Can optionally create a new contact if create_new: true
+      # Links a Xero contact to a TEEEM contact by creating a ContactExternalLink
+      # Also updates any invoices with this Xero contact to point to the TEEEM contact
       def link_unlinked_contact
+        xero_contact_id = params[:xero_contact_id]
         xero_contact_name = params[:xero_contact_name]
+        tenant_id = params[:tenant_id]
         contact_id = params[:contact_id]
-        create_new = params[:create_new] == true || params[:create_new] == "true"
 
-        unless xero_contact_name.present?
-          return render json: { success: false, error: "xero_contact_name is required" }, status: :bad_request
+        unless xero_contact_id.present?
+          return render json: { success: false, error: "xero_contact_id is required" }, status: :bad_request
         end
 
-        unless contact_id.present? || create_new
-          return render json: { success: false, error: "contact_id or create_new is required" }, status: :bad_request
+        unless contact_id.present?
+          return render json: { success: false, error: "contact_id is required" }, status: :bad_request
         end
 
         begin
           ActiveRecord::Base.transaction do
-            # Find the TEEEM contact (or create new)
-            if create_new
-              # Create a new contact with the Xero contact name
-              # Default to "company" entity_type since most Xero contacts are businesses
-              @contact = Contact.create!(
-                display_name: xero_contact_name,
-                company_name_or_trust: xero_contact_name,
-                entity_type: "company",
-                is_active: true
-              )
-            else
-              @contact = Contact.find(contact_id)
+            @contact = Contact.find(contact_id)
+
+            # Get tenant info - prefer passed tenant_id, fall back to finding from invoices
+            effective_tenant_id = tenant_id
+            if effective_tenant_id.blank?
+              # Try to find tenant_id from an invoice with this Xero contact
+              invoice = ExternalInvoice.find_by(external_contact_id: xero_contact_id)
+              effective_tenant_id = invoice&.tenant_id
             end
 
-            # Update all unlinked invoices with this contact name
-            updated_count = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
+            # Get tenant name from XeroCredential
+            xero_credential = XeroCredential.find_by(tenant_id: effective_tenant_id) if effective_tenant_id.present?
+
+            # Create or update ContactExternalLink
+            link = ContactExternalLink.find_or_initialize_by(
+              source: "xero",
+              external_contact_id: xero_contact_id,
+              tenant_id: effective_tenant_id
+            )
+
+            link.assign_attributes(
+              contact_id: @contact.id,
+              external_name: xero_contact_name || link.external_name,
+              tenant_name: xero_credential&.tenant_name || link.tenant_name,
+              sync_enabled: true,
+              sync_direction: "bidirectional",
+              match_type: "manual",
+              needs_review: false,
+              last_synced_at: Time.current
+            )
+            link.save!
+
+            # Update all invoices with this Xero contact ID to point to the TEEEM contact
+            updated_count = ExternalInvoice.where(external_contact_id: xero_contact_id)
               .update_all(contact_id: @contact.id)
+
+            # Also update by name if we have it (for invoices that might have the name but not the ID)
+            if xero_contact_name.present?
+              name_updated = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
+                .update_all(contact_id: @contact.id)
+              updated_count += name_updated
+            end
 
             render json: {
               success: true,
               data: {
                 contact_id: @contact.id,
                 contact_name: @contact.display_name,
-                invoices_linked: updated_count,
-                created_new: create_new
+                xero_link_id: link.id,
+                invoices_linked: updated_count
               }
             }
           end
@@ -2250,6 +2276,7 @@ module Api
           render json: { success: false, error: "Contact not found" }, status: :not_found
         rescue StandardError => e
           Rails.logger.error("Xero link_unlinked_contact error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
           render json: { success: false, error: "Failed to link contact: #{e.message}" }, status: :internal_server_error
         end
       end

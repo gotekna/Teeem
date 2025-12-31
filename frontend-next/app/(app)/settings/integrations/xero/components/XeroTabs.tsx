@@ -33,6 +33,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
 import { selectedRowsAtom } from "@/lib/table-atoms";
+import { clearCachedRecords } from "@/lib/records-cache";
 
 // Types
 type FilterStatus = "all" | "synced" | "not-synced" | "errors";
@@ -505,7 +506,8 @@ export function XeroContactSync() {
           title: "Success",
           description: `Synced ${(response.data?.contacts_created || 0) + (response.data?.contacts_updated || 0)} contacts`,
         });
-        // Trigger table refresh
+        // Clear cache and trigger table refresh
+        clearCachedRecords("xero-sync-contacts");
         setRefreshKey(prev => prev + 1);
       }
     } catch (error) {
@@ -550,7 +552,8 @@ export function XeroContactSync() {
             variant: "default",
           });
         }
-        // Trigger table refresh
+        // Clear cache and trigger table refresh
+        clearCachedRecords("xero-sync-contacts");
         setRefreshKey((prev) => prev + 1);
       }
     } catch (error) {
@@ -804,7 +807,10 @@ export function XeroContactSync() {
           currentContactName={selectedRow.currentContactName}
           synced={selectedRow.synced}
           matchConfidence={selectedRow.matchConfidence}
-          onLinkChanged={() => setRefreshKey((prev) => prev + 1)}
+          onLinkChanged={() => {
+            clearCachedRecords("xero-sync-contacts");
+            setRefreshKey((prev) => prev + 1);
+          }}
         />
       )}
     </div>

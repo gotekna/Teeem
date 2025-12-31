@@ -422,6 +422,30 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     return photosInFolder.map(convertToPhotoItem);
   }, [allFiles, selectedCategory, selectedSubCategory, jobId]);
 
+  // Get category documents (non-photos) by filtering allFiles by folder_path
+  const categoryDocumentItems: LegacyItem[] = useMemo(() => {
+    const activeCategory = selectedSubCategory || selectedCategory;
+    if (!activeCategory || isPhotoCategory(activeCategory)) {
+      return [];
+    }
+
+    const categoryName = activeCategory?.name?.toLowerCase() || "";
+    const folderPath = activeCategory?.folder_path?.toLowerCase() || "";
+
+    // Filter allFiles to documents (non-images) in this folder
+    return allFiles.filter((file) => {
+      if (isImageFile(file)) return false; // Skip images
+      const fileFolderPath = (file.folder_path || "").toLowerCase();
+
+      // Match by multiple strategies (same as categoryPhotoItems)
+      return (
+        (folderPath && fileFolderPath.includes(folderPath)) ||
+        (categoryName && fileFolderPath.includes(categoryName)) ||
+        (folderPath && folderPath.includes(fileFolderPath) && fileFolderPath.length > 0)
+      );
+    });
+  }, [allFiles, selectedCategory, selectedSubCategory]);
+
   // Generate photo filename based on category and current date/time
   const generatePhotoFilename = (extension: string): string => {
     const category = selectedSubCategory || selectedCategory;
@@ -597,8 +621,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (e.target) e.target.value = "";
   };
 
+  // Track if org status has been checked for this job (prevents duplicate API calls)
+  const orgStatusCheckedRef = useRef<string | null>(null);
+
   useEffect(() => {
-    checkOrganizationStatus();
+    // Only check org status once per job (not on every category/prop change)
+    if (orgStatusCheckedRef.current !== String(jobId)) {
+      orgStatusCheckedRef.current = String(jobId);
+      checkOrganizationStatus();
+    }
     loadDocumentCategories();
 
   }, [jobId, initialCategory, propCategories]);  // SSoT: Re-run when initialCategory or propCategories changes
@@ -680,11 +711,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         setFolders(folderItems);
       }
     } catch (err: unknown) {
-      const error = err as { response?: { status?: number } };
-      if (error.response?.status === 404) {
+      // Check both error.status (ApiError) and error.response?.status (legacy)
+      const error = err as { status?: number; response?: { status?: number } };
+      const status = error.status || error.response?.status;
+
+      if (status === 404) {
+        // Expected: folder doesn't exist yet - not an error to log
         setJobFolderStatus({ loading: false, exists: false, webUrl: null });
       } else {
+        // Unexpected error - log it
         console.error("Failed to check job folder status:", err);
+        setJobFolderStatus({ loading: false, exists: false, webUrl: null });
       }
     }
   };
@@ -1246,15 +1283,16 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     }
   };
 
-  // Load all files when switching to the All Files tab or when viewing photo categories
+  // Load all files when viewing any document tab (tasks view) or All Files tab
+  // This provides real data for both photo galleries and document lists
   // Use a ref to prevent duplicate in-flight requests
   const loadAllFilesInFlightRef = useRef(false);
 
   useEffect(() => {
-    const activeCategory = selectedSubCategory || selectedCategory;
-    const needsPhotos = isPhotoCategory(activeCategory);
+    // Load files for: All Files tab, Document Tasks view (any category)
+    const needsFiles = viewMode === "allfiles" || viewMode === "tasks";
 
-    if (orgStatus.connected && (viewMode === "allfiles" || needsPhotos)) {
+    if (orgStatus.connected && needsFiles) {
       // Prevent duplicate requests if one is already in flight
       if (loadAllFilesInFlightRef.current) {
         return;
@@ -1496,74 +1534,71 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       />
                     )}
                   </div>
-                ) : tasks.length === 0 ? (
+                ) : loadingAllFiles ? (
+                  <div className="py-12 text-center">
+                    <Spinner size={32} className="mx-auto mb-3" />
+                    <p className="text-muted-foreground">Loading documents...</p>
+                  </div>
+                ) : categoryDocumentItems.length === 0 ? (
                   <div className="py-12 text-center">
                     <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-muted-foreground">No document tasks in this category.</p>
+                    <p className="text-muted-foreground">No documents in this folder yet.</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Upload files via SharePoint or the All Files tab
+                    </p>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Document</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead>Uploaded</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {tasks.map((task) => (
-                        <TableRow key={task.id}>
+                      {categoryDocumentItems.map((doc) => (
+                        <TableRow key={doc.id}>
                           <TableCell>
                             <div className="flex items-start gap-3">
-                              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                              <File className="h-5 w-5 text-muted-foreground mt-0.5" />
                               <div>
-                                <p className="font-medium">{task.name}</p>
-                                <p className="text-sm text-muted-foreground">{task.description}</p>
+                                <p className="font-medium">{doc.name}</p>
+                                <p className="text-sm text-muted-foreground">{doc.folder_path}</p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{getStatusBadge(task)}</TableCell>
                           <TableCell>
-                            {task.uploaded_at ? new Date(task.uploaded_at).toLocaleDateString() : "-"}
+                            {doc.ai_suggested_type_name ? (
+                              <Badge variant="secondary">{doc.ai_suggested_type_name}</Badge>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {doc.modified ? new Date(doc.modified).toLocaleDateString() : "-"}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <label className="cursor-pointer">
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleTaskUpload(task.id, file);
-                                  }}
-                                  disabled={uploading === task.id}
-                                />
-                                <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
-                                  <span>
-                                    {uploading === task.id ? (
-                                      <Spinner size={16} />
-                                    ) : (
-                                      <Upload className="h-4 w-4 mr-1" />
-                                    )}
-                                    {task.has_document ? "Replace" : "Upload"}
-                                  </span>
-                                </Button>
-                              </label>
-                              {task.has_document && (
+                              {doc.web_url && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => task.document_url && window.open(task.document_url, "_blank")}
+                                  onClick={() => window.open(doc.web_url, "_blank")}
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
                                   View
                                 </Button>
                               )}
-                              {task.has_document && !task.is_validated && (
-                                <Button variant="ghost" size="sm" onClick={() => handleValidate(task.id)}>
-                                  <ShieldCheck className="h-4 w-4 mr-1" />
-                                  Validate
+                              {doc.download_url && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => window.open(doc.download_url, "_blank")}
+                                >
+                                  <Download className="h-4 w-4 mr-1" />
+                                  Download
                                 </Button>
                               )}
                             </div>
