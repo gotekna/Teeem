@@ -78,6 +78,8 @@ interface SmTask {
   // Lock status fields for dependency editor
   confirm?: boolean;
   supplier_confirm?: boolean;
+  // Header info from linked sm_schedule_master
+  header_gantt?: string | null;
 }
 
 interface SmTasksResponse {

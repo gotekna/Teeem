@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_31_121257) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_31_121258) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8212,6 +8212,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_31_121257) do
     t.integer "stage"
     t.integer "assigned_role"
     t.jsonb "predecessor_ids", default: []
+    t.string "header_gantt"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"

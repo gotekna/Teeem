@@ -203,7 +203,8 @@ class GanttDataService
       supplier_name: record.try(:supplier)&.name || record.try(:po_supplier)&.name,
       purchase_order_id: record.respond_to?(:linked_purchase_order) ? record.linked_purchase_order&.id : nil,
       # Header/parent info
-      header_gantt: record.try(:header_gantt),
+      # SmTask doesn't have header_gantt column - look it up from linked sm_schedule_master
+      header_gantt: record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt,
       parent_id: record.try(:parent_task_id),
       # Additional fields
       trade: record.try(:trade),
