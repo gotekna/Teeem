@@ -242,6 +242,7 @@ export function XeroLinkToContactSheet({
       }>("/api/v1/contacts", {
         contact: {
           display_name: xeroName,
+          company_name_or_trust: xeroName, // Required for company entity_type
           entity_type: "company", // Default to company
         },
       });

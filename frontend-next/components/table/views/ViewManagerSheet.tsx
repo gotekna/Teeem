@@ -955,6 +955,26 @@ export function ViewManagerSheet({
       }
     }
 
+    // Special handling for percentage columns - show % suffix
+    const isPercentage = columnType === 'percentage';
+
+    if (isPercentage) {
+      return (
+        <div className="relative w-[100px]">
+          <Input
+            type="number"
+            value={String(filter.value || "").replace(/%$/, "")}
+            onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
+            placeholder="e.g. 99"
+            className="h-8 pr-6"
+          />
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+            %
+          </span>
+        </div>
+      );
+    }
+
     return (
       <Input
         value={String(filter.value || "")}

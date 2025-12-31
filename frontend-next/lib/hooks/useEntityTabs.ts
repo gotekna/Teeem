@@ -28,9 +28,14 @@ interface CachedResponse {
 }
 
 // Module-level cache for request deduplication
-const requestCache = new Map<string, Promise<EntityTabsResponse>>();
+interface CachedRequest {
+  promise: Promise<EntityTabsResponse>;
+  timestamp: number;
+}
+const requestCache = new Map<string, CachedRequest>();
 const responseCache = new Map<string, CachedResponse>();
 const CACHE_TTL_MS = 5000; // Cache responses for 5 seconds
+const REQUEST_CACHE_TTL_MS = 30000; // Max 30 seconds for in-flight requests
 
 function getCacheKey(
   scope: EntityTabScope,
@@ -118,10 +123,23 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
       const url = `/api/v1/entity_tabs?${params.toString()}`;
 
       // Deduplicate in-flight requests - if same request is already in progress, reuse it
-      let requestPromise = requestCache.get(cacheKey);
-      if (!requestPromise || forceRefresh) {
+      // Clear stale cache entries to prevent hanging on dead promises
+      const now = Date.now();
+      const cachedRequest = requestCache.get(cacheKey);
+
+      if (cachedRequest && now - cachedRequest.timestamp > REQUEST_CACHE_TTL_MS) {
+        console.warn(`Clearing stale entity tabs request cache for ${cacheKey}`);
+        requestCache.delete(cacheKey);
+      }
+
+      let requestPromise: Promise<EntityTabsResponse>;
+      const freshCached = requestCache.get(cacheKey);
+
+      if (freshCached && !forceRefresh) {
+        requestPromise = freshCached.promise;
+      } else {
         requestPromise = api.get<EntityTabsResponse>(url);
-        requestCache.set(cacheKey, requestPromise);
+        requestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
       }
 
       const response = await requestPromise;

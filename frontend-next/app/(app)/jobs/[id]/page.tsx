@@ -84,8 +84,10 @@ import type { EntityTab } from "@/lib/types/entity-tabs";
 // Module-level cache for in-flight job requests. If the same job is requested
 // while a fetch is in progress, reuse the existing promise instead of making
 // a duplicate request.
+// Cache entries expire after 30 seconds to prevent hanging on stale promises.
 // =============================================================================
-const jobRequestCache = new Map<string, Promise<Job>>();
+const jobRequestCache = new Map<string, { promise: Promise<Job>; timestamp: number }>();
+const REQUEST_CACHE_TTL_MS = 30000; // 30 seconds max for in-flight requests
 
 // SSoT: Job Tab Component Registry
 // Maps tab_key → component. When tabs are renamed in admin, they auto-work.
@@ -891,12 +893,25 @@ export default function JobDetailPage() {
   const loadJob = React.useCallback(async () => {
     try {
       // Deduplicate in-flight requests - if same job is already being fetched, reuse the promise
+      // Clear stale cache entries to prevent hanging on dead promises
       const cacheKey = `job-${jobId}`;
-      let requestPromise = jobRequestCache.get(cacheKey);
+      const cached = jobRequestCache.get(cacheKey);
+      const now = Date.now();
 
-      if (!requestPromise) {
+      // Check if cached promise is stale (older than TTL)
+      if (cached && now - cached.timestamp > REQUEST_CACHE_TTL_MS) {
+        console.warn(`Clearing stale job request cache for ${cacheKey}`);
+        jobRequestCache.delete(cacheKey);
+      }
+
+      let requestPromise: Promise<Job>;
+      const freshCached = jobRequestCache.get(cacheKey);
+
+      if (freshCached) {
+        requestPromise = freshCached.promise;
+      } else {
         requestPromise = api.get<Job>(`/api/v1/jobs/${jobId}`);
-        jobRequestCache.set(cacheKey, requestPromise);
+        jobRequestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
       }
 
       const data = await requestPromise;
