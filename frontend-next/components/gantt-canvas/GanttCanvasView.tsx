@@ -2774,7 +2774,8 @@ export function GanttCanvasView({
                           ? predecessorIds.map((pred: { id: number; type?: string; lag?: number }) => {
                               // Find the predecessor task by task_number in FULL rows list
                               // Note: rows is SmScheduleMaster[] so use t.task_number directly
-                              const predRowIndex = rows.findIndex(t => t.task_number === pred.id);
+                              // Use string comparison to handle type mismatches
+                              const predRowIndex = rows.findIndex(t => String(t.task_number) === String(pred.id));
                               // Get stable row number (1-based index in FULL task list)
                               const stableRowNum = predRowIndex >= 0 ? predRowIndex + 1 : pred.id;
                               const depType = pred.type || 'FS';
