@@ -33,7 +33,8 @@ import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
-import type { GanttTask } from "@/lib/gantt/types";
+import type { GanttTask, SmScheduleMaster } from "@/lib/gantt/types";
+import { convertRowsToTasks } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -445,9 +446,101 @@ export default function SchedulePage() {
     router.push(`/jobs/${jobId}/schedule`);
   }, [router, jobId]);
 
-  // Convert tasks to Canvas Gantt format
+  // Convert tasks to Canvas Gantt format with dependency-based scheduling
+  // Uses same convertRowsToTasks function as Schedule Master template
   const ganttTasksFormatted = React.useMemo(() => {
-    return ganttTasks.map(mapTaskToGanttTask);
+    if (ganttTasks.length === 0) return [];
+
+    // Adapt SmTask to SmScheduleMaster format for convertRowsToTasks
+    const adaptedRows: SmScheduleMaster[] = ganttTasks.map((task, index) => ({
+      id: task.id,
+      task_number: task.task_number,
+      name: task.name,
+      description: null,
+      sequence_order: index + 1, // Use array order as sequence
+      duration_days: task.duration_days || 1,
+      predecessor_ids: (task.predecessor_ids || []).map(p => ({
+        id: p.id,
+        type: (p.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
+        lag: p.lag ?? 0,
+      })),
+      predecessor_display: '',
+      predecessor_display_names: [],
+      trade: null,
+      stage: null,
+      cost_centre: null,
+      assigned_role: null,
+      supplier_id: task.supplier_id ?? null,
+      supplier_name: task.supplier_name ?? null,
+      checklist_id: null,
+      require_photo: false,
+      require_certificate: false,
+      confirm: task.confirm ?? false,
+      supplier_confirm: task.supplier_confirm ?? false,
+      finance_approved: false,
+      po_required: task.po_required ?? false,
+      critical_po: false,
+      create_po_on_job_start: false,
+      has_subtasks: false,
+      subtask_count: null,
+      subtask_names: null,
+      spawn_scan_task_id: null,
+      spawn_scan_lag_days: 0,
+      spawn_scan_task_name: null,
+      pass_fail_enabled: false,
+      order_time_days: null,
+      call_time_days: null,
+      documentation_category_ids: [],
+      linked_task_ids: [],
+      price_book_item_ids: [],
+      tags: [],
+      color: null,
+      is_active: true,
+      linked_po_task_id: null,
+      linked_po_task_name: null,
+      header_gantt: null,
+      sm_template_ids: [],
+      hold: false,
+      hold_date: null,
+      is_completed: task.status === 'completed',
+      completed_at: null,
+      predecessor_ids_backup: null,
+      dependency_broken: null,
+      created_at: '',
+      updated_at: '',
+    }));
+
+    // Use today as project start date (same as template mode)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Apply same scheduling logic as Schedule Master template
+    const scheduledTasks = convertRowsToTasks(adaptedRows, today);
+
+    // Merge scheduled dates with original task data for sidebar/PO info
+    return scheduledTasks.map(scheduled => {
+      const original = ganttTasks.find(t => String(t.id) === scheduled.id);
+      return {
+        ...scheduled,
+        // Preserve original task info for sidebar
+        supplierId: original?.supplier_id ?? undefined,
+        supplierName: original?.supplier_name ?? undefined,
+        purchaseOrderId: original?.purchase_order?.id ?? original?.purchase_order_id ?? undefined,
+        purchaseOrderNumber: original?.purchase_order?.po_number ?? undefined,
+        poRequired: original?.po_required ?? false,
+        // SSoT: rowData for dependency editor
+        rowData: {
+          task_number: original?.task_number ?? 0,
+          predecessor_ids: (original?.predecessor_ids || []).map(p => ({
+            id: p.id,
+            type: (p.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
+            lag: p.lag ?? 0,
+          })),
+          confirm: original?.confirm ?? false,
+          supplier_confirm: original?.supplier_confirm ?? false,
+        },
+      };
+    });
   }, [ganttTasks]);
 
   // Build dependencies from API data

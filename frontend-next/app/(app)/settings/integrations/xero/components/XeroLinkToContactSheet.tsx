@@ -245,7 +245,7 @@ export function XeroLinkToContactSheet({
       // Create a new contact with the Xero name
       const createResponse = await api.post<{
         success: boolean;
-        data: { id: number; display_name: string };
+        contact: { id: number; display_name: string };
       }>("/api/v1/contacts", {
         contact: {
           display_name: xeroName,
@@ -254,8 +254,8 @@ export function XeroLinkToContactSheet({
         },
       });
 
-      if (createResponse?.success && createResponse?.data?.id) {
-        const newContactId = createResponse.data.id;
+      if (createResponse?.success && createResponse?.contact?.id) {
+        const newContactId = createResponse.contact.id;
 
         // Now link the Xero contact to this new TEEEM contact
         const linkResponse = await api.post<{ success: boolean }>(
@@ -296,7 +296,7 @@ export function XeroLinkToContactSheet({
       // 1. Create the company contact with the Xero name
       const createResponse = await api.post<{
         success: boolean;
-        data: { id: number; display_name: string };
+        contact: { id: number; display_name: string };
       }>("/api/v1/contacts", {
         contact: {
           display_name: xeroName,
@@ -305,12 +305,12 @@ export function XeroLinkToContactSheet({
         },
       });
 
-      if (!createResponse?.success || !createResponse?.data?.id) {
+      if (!createResponse?.success || !createResponse?.contact?.id) {
         toast.error("Failed to create company");
         return;
       }
 
-      const newCompanyId = createResponse.data.id;
+      const newCompanyId = createResponse.contact.id;
 
       // 2. Link the Xero contact to the new company
       const linkResponse = await api.post<{ success: boolean }>(
