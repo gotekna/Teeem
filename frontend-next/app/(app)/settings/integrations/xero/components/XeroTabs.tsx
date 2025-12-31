@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useAtom } from "jotai";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +25,14 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   Users,
+  Upload,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
+import { selectedRowsAtom } from "@/lib/table-atoms";
 
 // Types
 type FilterStatus = "all" | "synced" | "not-synced" | "errors";
@@ -480,8 +483,12 @@ export function XeroContactSync() {
   const router = useRouter();
   const { toast } = useToast();
   const [syncing, setSyncing] = React.useState(false);
+  const [pushing, setPushing] = React.useState(false);
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [filterStatus, setFilterStatus] = React.useState<FilterStatus>("all");
+
+  // Access selected rows from the table atom
+  const [selectedRows] = useAtom(selectedRowsAtom);
 
   // State for Xero link management sheet
   const [showLinkSheet, setShowLinkSheet] = React.useState(false);
@@ -509,6 +516,51 @@ export function XeroContactSync() {
       });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // Handle push to Xero button
+  const handlePushToXero = async () => {
+    if (selectedRows.size === 0) return;
+
+    setPushing(true);
+    try {
+      // Convert selected row IDs to array - these are xero_link_ids from the view
+      const xeroLinkIds = Array.from(selectedRows);
+
+      const response = await api.post<{
+        success: boolean;
+        data: { success: number; failed: number; errors: Array<{ link_id: number; error: string }> };
+      }>("/api/v1/xero/push_contact_names", {
+        xero_link_ids: xeroLinkIds,
+      });
+
+      if (response?.success) {
+        const { success: successCount, failed: failedCount } = response.data;
+        if (failedCount === 0) {
+          toast({
+            title: "Success",
+            description: `Updated ${successCount} contact name${successCount !== 1 ? "s" : ""} in Xero`,
+          });
+        } else {
+          toast({
+            title: "Partial Success",
+            description: `Updated ${successCount}, failed ${failedCount}`,
+            variant: "default",
+          });
+        }
+        // Trigger table refresh
+        setRefreshKey((prev) => prev + 1);
+      }
+    } catch (error) {
+      console.error("Push to Xero failed:", error);
+      toast({
+        title: "Error",
+        description: "Failed to push contact names to Xero",
+        variant: "destructive",
+      });
+    } finally {
+      setPushing(false);
     }
   };
 
@@ -701,6 +753,22 @@ export function XeroContactSync() {
                 <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
                 {syncing ? "Syncing..." : "Sync Now"}
               </Button>
+              {selectedRows.size > 0 && (
+                <Button
+                  onClick={handlePushToXero}
+                  disabled={pushing}
+                  size="sm"
+                  variant="outline"
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                >
+                  {pushing ? (
+                    <Spinner size={14} className="mr-2" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  Push to Xero ({selectedRows.size})
+                </Button>
+              )}
               <Select value={filterStatus} onValueChange={(value: FilterStatus) => setFilterStatus(value)}>
                 <SelectTrigger className="w-[140px] h-8">
                   <SelectValue />

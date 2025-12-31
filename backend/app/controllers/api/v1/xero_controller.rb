@@ -2309,6 +2309,81 @@ module Api
         end
       end
 
+      # POST /api/v1/xero/push_contact_names
+      # Updates Xero contact names to match TEEEM contact display names
+      # Takes an array of xero_link_ids and pushes the TEEEM name to Xero
+      def push_contact_names
+        xero_link_ids = params[:xero_link_ids]
+
+        unless xero_link_ids.present? && xero_link_ids.is_a?(Array)
+          return render json: { success: false, error: "xero_link_ids array is required" }, status: :bad_request
+        end
+
+        begin
+          results = { success: 0, failed: 0, errors: [] }
+          xero_client = XeroApiClient.new
+
+          xero_link_ids.each do |link_id|
+            link = ContactExternalLink.find_by(id: link_id)
+            unless link
+              results[:failed] += 1
+              results[:errors] << { link_id: link_id, error: "Link not found" }
+              next
+            end
+
+            contact = link.contact
+            unless contact
+              results[:failed] += 1
+              results[:errors] << { link_id: link_id, error: "Contact not found" }
+              next
+            end
+
+            # Build the Xero payload - just update the name
+            xero_payload = {
+              Contacts: [
+                {
+                  ContactID: link.external_contact_id,
+                  Name: contact.display_name
+                }
+              ]
+            }
+
+            # Push to Xero
+            result = xero_client.post("Contacts", xero_payload, tenant_id: link.tenant_id)
+
+            if result[:success]
+              # Update the external_name to match what we pushed
+              link.update!(
+                external_name: contact.display_name,
+                match_confidence: 1.0,
+                last_synced_at: Time.current
+              )
+              results[:success] += 1
+              Rails.logger.info("[Xero] Pushed name '#{contact.display_name}' to Xero contact #{link.external_contact_id}")
+            else
+              results[:failed] += 1
+              results[:errors] << {
+                link_id: link_id,
+                contact_name: contact.display_name,
+                error: result[:error] || "Failed to update Xero contact"
+              }
+              Rails.logger.error("[Xero] Failed to push name for link #{link_id}: #{result[:error]}")
+            end
+          end
+
+          render json: {
+            success: true,
+            data: results
+          }
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("[Xero] push_contact_names auth error: #{e.message}")
+          render json: { success: false, error: "Xero authentication failed: #{e.message}" }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("[Xero] push_contact_names error: #{e.message}")
+          render json: { success: false, error: "Failed to push contact names: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/xero/sync_all_companies
       # Syncs all corporate companies with Xero connections
       # Used from the Corporate page to sync all 10 companies at once

@@ -1907,6 +1907,7 @@ Rails.application.routes.draw do
           get :unlinked_contacts
           post :link_unlinked_contact
           post :auto_match_contacts
+          post :push_contact_names
           post :sync_all_companies
         end
         member do
