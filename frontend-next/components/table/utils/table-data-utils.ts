@@ -18,6 +18,17 @@ import { fuzzyMatch } from "./table-utils";
 // ============================================================================
 
 /**
+ * Parse a numeric filter value, handling percentage symbols
+ * "99%" -> 99, "0.99" -> 0.99, "99" -> 99
+ */
+function parseNumericFilterValue(filterValue: unknown): number {
+  const str = String(filterValue).trim();
+  // Strip % sign if present
+  const cleaned = str.replace(/%$/, '');
+  return Number(cleaned);
+}
+
+/**
  * Extract display value from lookup objects
  * Handles objects with display, name, or id properties
  *
@@ -82,13 +93,13 @@ export function evaluateFilter(entry: TableRow, filter: CascadeFilter): boolean 
     case "!=":
       return !compareValues(valueForEquality, filterValue);
     case ">":
-      return Number(value) > Number(filterValue);
+      return Number(value) > parseNumericFilterValue(filterValue);
     case "<":
-      return Number(value) < Number(filterValue);
+      return Number(value) < parseNumericFilterValue(filterValue);
     case ">=":
-      return Number(value) >= Number(filterValue);
+      return Number(value) >= parseNumericFilterValue(filterValue);
     case "<=":
-      return Number(value) <= Number(filterValue);
+      return Number(value) <= parseNumericFilterValue(filterValue);
     case "contains":
       return String(value ?? "")
         .toLowerCase()

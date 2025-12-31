@@ -201,12 +201,22 @@ export function displayCurrency(value: unknown): React.ReactNode {
 
 /**
  * Display percentage with % symbol
+ * Handles both decimal storage (0.5 = 50%) and whole number storage (50 = 50%)
+ * Heuristic: values <= 1 are assumed to be decimals and multiplied by 100
  */
 export function displayPercentage(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
   const num = typeof value === "number" ? value : parseFloat(String(value));
   if (isNaN(num)) return <span className="text-[11px]">{String(value)}</span>;
-  return <span className="text-[11px] tabular-nums">{num}%</span>;
+
+  // If value is <= 1, assume it's stored as decimal (0.5 = 50%) and multiply by 100
+  // Otherwise assume it's already in percentage form (50 = 50%)
+  const displayValue = num <= 1 && num >= 0 ? num * 100 : num;
+  const formatted = displayValue % 1 === 0
+    ? displayValue.toFixed(0)
+    : displayValue.toFixed(1);
+
+  return <span className="text-[11px] tabular-nums">{formatted}%</span>;
 }
 
 /**
