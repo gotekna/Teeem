@@ -27,6 +27,12 @@ class DocumentRenameService
     raise RenameError, "Document has no SharePoint item ID" if @document.sharepoint_item_id.blank?
     raise RenameError, "New name cannot be blank" if new_name.blank?
 
+    # Check if document type should skip renaming (CAD/BIM files)
+    if @document.document_type&.skip_rename?
+      Rails.logger.info("[DocumentRename] Skipping #{@document.file_name} - document type has skip_rename=true")
+      return { success: false, skipped: true, reason: "Document type does not allow renaming" }
+    end
+
     # Preserve file extension if not included in new name
     new_name = ensure_extension(new_name)
 
@@ -81,6 +87,12 @@ class DocumentRenameService
     stats = { total: documents.size, success: 0, failed: 0, skipped: 0, errors: [] }
 
     documents.each do |doc|
+      # Skip documents whose type doesn't allow renaming (CAD/BIM files)
+      if doc.document_type&.skip_rename?
+        stats[:skipped] += 1
+        next
+      end
+
       service = new(doc)
 
       if use_ai_names
@@ -97,6 +109,8 @@ class DocumentRenameService
 
       if result[:success]
         stats[:success] += 1
+      elsif result[:skipped]
+        stats[:skipped] += 1
       else
         stats[:failed] += 1
         stats[:errors] << { document_id: doc.id, error: result[:error] }
@@ -111,6 +125,7 @@ class DocumentRenameService
   # @return [Array<Hash>] Preview of changes
   def self.preview(documents)
     documents.filter_map do |doc|
+      next if doc.document_type&.skip_rename?  # Skip CAD/BIM types
       next if doc.ai_proposed_name.blank?
       next if normalize_name(doc.file_name) == normalize_name(doc.ai_proposed_name)
 
