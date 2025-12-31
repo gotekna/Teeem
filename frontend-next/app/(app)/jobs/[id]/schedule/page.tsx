@@ -1404,14 +1404,22 @@ export default function SchedulePage() {
                               )}
                               {comp.status === "will_update" && Object.keys(comp.differences).length > 0 && (
                                 <div className="text-xs space-y-0.5">
-                                  {Object.entries(comp.differences).slice(0, 3).map(([field, diff]) => (
-                                    <div key={field} className="flex gap-1">
-                                      <span className="font-medium">{field}:</span>
-                                      <span className="text-red-500 line-through">{String(diff.task ?? "-")}</span>
-                                      <span>→</span>
-                                      <span className="text-green-600">{String(diff.template)}</span>
-                                    </div>
-                                  ))}
+                                  {Object.entries(comp.differences).slice(0, 3).map(([field, diff]) => {
+                                    // Format values - handle objects/arrays with JSON.stringify
+                                    const formatValue = (val: unknown): string => {
+                                      if (val === null || val === undefined) return "-";
+                                      if (typeof val === "object") return JSON.stringify(val);
+                                      return String(val);
+                                    };
+                                    return (
+                                      <div key={field} className="flex gap-1">
+                                        <span className="font-medium">{field}:</span>
+                                        <span className="text-red-500 line-through truncate max-w-[100px]">{formatValue(diff.task)}</span>
+                                        <span>→</span>
+                                        <span className="text-green-600 truncate max-w-[100px]">{formatValue(diff.template)}</span>
+                                      </div>
+                                    );
+                                  })}
                                   {Object.keys(comp.differences).length > 3 && (
                                     <span className="text-muted-foreground">+{Object.keys(comp.differences).length - 3} more</span>
                                   )}

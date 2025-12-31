@@ -800,7 +800,12 @@ class SmScheduleMasterSyncService
   def calculate_differences(task)
     differences = {}
 
+    # Fields that are handled separately (not direct comparison)
+    # predecessor_ids: Remapped via sync_predecessor_ids_for_job after sync
+    skip_fields = %i[predecessor_ids]
+
     self.class.syncable_fields.each do |field|
+      next if skip_fields.include?(field)
       next unless template_row.respond_to?(field) && task.respond_to?(field)
 
       raw_template_value = template_row.send(field)

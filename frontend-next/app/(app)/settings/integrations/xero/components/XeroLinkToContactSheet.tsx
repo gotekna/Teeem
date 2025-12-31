@@ -52,6 +52,7 @@ interface XeroLinkToContactSheetProps {
   // Xero contact info (from the row)
   xeroName: string;
   xeroId: string | null;
+  xeroTenantId: string | null;
   xeroTenantName: string | null;
   xeroLinkId: number | null;
   // Current TEEEM contact link (if any)
@@ -68,6 +69,7 @@ export function XeroLinkToContactSheet({
   onClose,
   xeroName,
   xeroId,
+  xeroTenantId,
   xeroTenantName,
   xeroLinkId,
   currentContactId,

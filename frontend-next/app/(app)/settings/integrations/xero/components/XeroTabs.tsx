@@ -470,6 +470,7 @@ interface XeroDataStats {
 interface SelectedRowForLinkSheet {
   xeroName: string;
   xeroId: string | null;
+  xeroTenantId: string | null;
   xeroTenantName: string | null;
   xeroLinkId: number | null;
   currentContactId: number | null;
@@ -621,8 +622,9 @@ export function XeroContactSync() {
               setSelectedRow({
                 xeroName: entry.xero_name as string,
                 xeroId: entry.xero_id as string | null,
+                xeroTenantId: entry.xero_tenant_id as string | null,
                 xeroTenantName: entry.xero_tenant_name as string | null,
-                xeroLinkId: entry.id as number,  // id is now xero_link_id in the view
+                xeroLinkId: entry.xero_link_id as number | null,  // null for unlinked contacts
                 currentContactId: entry.contact_id as number | null,
                 currentContactName: entry.display_name as string | null,
                 synced: entry.synced as boolean,
@@ -795,6 +797,7 @@ export function XeroContactSync() {
           }}
           xeroName={selectedRow.xeroName}
           xeroId={selectedRow.xeroId}
+          xeroTenantId={selectedRow.xeroTenantId}
           xeroTenantName={selectedRow.xeroTenantName}
           xeroLinkId={selectedRow.xeroLinkId}
           currentContactId={selectedRow.currentContactId}
