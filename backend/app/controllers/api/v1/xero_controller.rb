@@ -2462,10 +2462,12 @@ module Api
               }
             end
 
-            # ABN/Tax Number comparison
+            # ABN/Tax Number comparison (normalize by removing spaces/dashes)
             xero_abn = xero_contact["TaxNumber"]
             teeem_abn = contact.abn
-            if xero_abn.present? && xero_abn != teeem_abn
+            xero_abn_normalized = xero_abn&.gsub(/[\s\-]/, "")
+            teeem_abn_normalized = teeem_abn&.gsub(/[\s\-]/, "")
+            if xero_abn.present? && xero_abn_normalized != teeem_abn_normalized
               differences << {
                 field: "abn",
                 label: "ABN",
@@ -2606,18 +2608,40 @@ module Api
             attrs = {}
             attrs[:display_name] = fields[:name] if fields[:name].present?
             attrs[:abn] = fields[:abn] if fields[:abn].present?
-            attrs[:email] = fields[:email] if fields[:email].present?
             attrs[:phone] = fields[:phone] if fields[:phone].present?
             attrs[:mobile] = fields[:mobile] if fields[:mobile].present?
             attrs[:website] = fields[:website] if fields[:website].present?
             attrs[:address] = fields[:address] if fields[:address].present?
+
+            # Handle email specially - add as secondary if contact already has different email
+            if fields[:email].present?
+              xero_email = fields[:email].downcase.strip
+              existing_email = contact.email&.downcase&.strip
+
+              if existing_email.blank?
+                # No existing email - set it directly
+                attrs[:email] = fields[:email]
+              elsif existing_email != xero_email
+                # Different email exists - add Xero email as secondary
+                # Check if this email already exists for this contact
+                unless contact.contact_emails.exists?(email: xero_email)
+                  contact.contact_emails.create!(
+                    email: fields[:email],
+                    label: "Xero",
+                    is_primary: false
+                  )
+                  Rails.logger.info("[Xero] Added secondary email '#{fields[:email]}' to contact #{contact_id}")
+                end
+              end
+              # If same email, do nothing
+            end
 
             if attrs.present?
               contact.update!(attrs)
               results[:success] += 1
               Rails.logger.info("[Xero] Applied Xero updates to contact #{contact_id}: #{attrs.keys.join(', ')}")
             else
-              results[:success] += 1 # No changes needed
+              results[:success] += 1 # No changes needed (or only email was added as secondary)
             end
           end
 
