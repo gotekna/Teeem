@@ -379,10 +379,10 @@ export function Sidebar() {
             href={item.href}
             prefetch={false}
             onClick={() => {
+              // Always reset breadcrumb trail when clicking sidebar - starting new navigation flow
+              window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
               if (!active) {
                 setLoadingHref(item.href);
-                // Reset breadcrumb trail - starting new navigation flow
-                window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
               }
             }}
             className={cn(
