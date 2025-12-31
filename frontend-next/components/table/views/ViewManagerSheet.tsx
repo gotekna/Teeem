@@ -298,6 +298,8 @@ export function ViewManagerSheet({
         })) as SavedView[];
 
         setViews(mappedViews);
+        // Also update global atom so view buttons in TeeemTableView update immediately
+        setGlobalViews(mappedViews);
 
         if (selectViewByName) {
           const newView = mappedViews.find(v => v.name === selectViewByName);
