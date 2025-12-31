@@ -460,6 +460,7 @@ export default function TeeemTableView({
   preloadedViews = null,
   disableSavedViews = false,
   defaultViewId,
+  defaultViewSlug,
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
   onLoadViewReady,
@@ -813,9 +814,10 @@ export default function TeeemTableView({
 
     if (!useAutoFetch) return;
 
-    // ULTRA Solution: Wait for base filters to be set if initialFilters is provided
+    // ULTRA Solution: Wait for base filters to be set if in embedded context
+    // SSoT: isEmbeddedContext defined at component top
     // This prevents the race condition where we fetch without filters, then re-fetch with filters
-    if (initialFilters && initialFilters.length > 0 && baseFilters.length === 0) {
+    if (isEmbeddedContext && baseFilters.length === 0) {
       return;
     }
 
@@ -1236,15 +1238,16 @@ export default function TeeemTableView({
 
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
   // Also clear view filters to prevent pollution from other tables with initialFilters
+  // SSoT: isEmbeddedContext defined at component top
   const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters]);
   useEffect(() => {
-    if (initialFilters && initialFilters.length > 0) {
+    if (isEmbeddedContext) {
       // Clear view filters first to prevent pollution from other tables
       // Base filters are the defining context for this table instance
       setViewFilters([]);
-      setBaseFilters(initialFilters);
+      setBaseFilters(initialFilters!);  // Safe - isEmbeddedContext guarantees initialFilters exists
     }
-  }, [initialFiltersKey, setBaseFilters, setViewFilters]); // Only re-run when initialFilters changes (JSON stringified)
+  }, [initialFiltersKey, setBaseFilters, setViewFilters, isEmbeddedContext]); // Only re-run when initialFilters changes (JSON stringified)
 
   // Backward compatibility alias
   const setCascadeFilters = setUserFilters;
@@ -2806,16 +2809,13 @@ export default function TeeemTableView({
       // Hide filter editor when loading a saved view
       setShowFilters(false);
 
-      // URL update with slug (preferred) or numeric ID (fallback)
-      // Using slug for: portability across environments, human-readable URLs
-      // SKIP URL update for embedded tables (initialFilters = subtab/filtered view context)
-      // This matches the pattern at line ~2872 where skipUrlViewForEmbeddedContext prevents READING URL params
-      const isEmbeddedContext = initialFilters && initialFilters.length > 0;
+      // URL handling based on context:
+      // - Embedded context: Parent owns URL, no direct URL updates
+      // - Standalone context: Update query param directly
+      // SSoT: isEmbeddedContext defined at component top
       if (view.id && !skipUrlUpdate && !isEmbeddedContext) {
-        // SSoT: Read current URL params from window.location to avoid stale closure
         const currentParams = new URLSearchParams(window.location.search);
         const currentUrlView = currentParams.get('view');
-        // Prefer slug if available, fall back to numeric ID for backwards compatibility
         const newViewIdentifier = view.slug || String(view.id);
         if (currentUrlView !== newViewIdentifier) {
           currentParams.set('view', newViewIdentifier);
@@ -2828,8 +2828,12 @@ export default function TeeemTableView({
       if (view.filters && onViewApiParamsChange) {
         onViewApiParamsChange(null);
       }
+
+      // Notify parent of view change (for both contexts)
+      // Parent can use this to update path-based URL for embedded tables
+      onViewChange?.(view);
     },
-    [applyView, onViewApiParamsChange, router, initialFilters]
+    [applyView, onViewApiParamsChange, router, onViewChange, isEmbeddedContext]
   );
 
   // Load saved views (simplified using atoms)
@@ -2871,27 +2875,25 @@ export default function TeeemTableView({
         const filteredViews = result.views || [];
 
         // Auto-apply default view using consolidated utility
-        // Read URL param here (not as effect dependency) to avoid re-triggering on URL changes
-        const urlViewParam = searchParams.get('view');
+        // SSoT: isEmbeddedContext defined at component top - embedded tables don't read from URL
+        // For embedded context: use defaultViewSlug prop (parent owns URL)
+        // For standalone: read from URL query param
+        const urlViewParam = isEmbeddedContext ? null : searchParams.get('view');
 
-        // CRITICAL FIX: Tables with initialFilters are "embedded" contexts (subtabs, filtered views)
-        // They should NOT apply URL views because:
-        // 1. URL views are from parent page or other tabs (would pollute this table's filter context)
-        // 2. initialFilters defines the authoritative filter context for this table instance
-        // This prevents cross-table pollution when multiple TeeemTableView instances share the page
-        const skipUrlViewForEmbeddedContext = initialFilters && initialFilters.length > 0;
+        // For embedded context, use defaultViewSlug from parent (path-based URL)
+        const slugToMatch = isEmbeddedContext ? defaultViewSlug : urlViewParam;
 
-        // Support both slug (new) and numeric ID (legacy) in URL
+        // Support both slug (new) and numeric ID (legacy)
         // Try to find view by slug first, then by numeric ID for backwards compatibility
         let urlMatchedView: (typeof filteredViews)[0] | undefined;
-        if (urlViewParam && !skipUrlViewForEmbeddedContext) {
+        if (slugToMatch) {
           // First try slug match (non-numeric strings)
-          if (!/^\d+$/.test(urlViewParam)) {
-            urlMatchedView = filteredViews.find(v => v.slug === urlViewParam);
+          if (!/^\d+$/.test(slugToMatch)) {
+            urlMatchedView = filteredViews.find(v => v.slug === slugToMatch);
           }
           // Fall back to numeric ID match (backwards compatibility)
           if (!urlMatchedView) {
-            const numericId = parseInt(urlViewParam, 10);
+            const numericId = parseInt(slugToMatch, 10);
             if (!isNaN(numericId)) {
               urlMatchedView = filteredViews.find(v => v.id === numericId);
             }

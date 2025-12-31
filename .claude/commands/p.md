@@ -5,11 +5,29 @@ Run browser-based performance checks AND backend performance analysis.
 
 ## What This Command Does
 
-1. **Visual Browser Check** - Opens pages via Chrome DevTools MCP, measures CLS/LCP
-2. **Backend Performance Data** - Fetches slow queries, anomalies, endpoint stats
-3. **Fixes Issues** - Automatically implements fixes for any slowness detected
+1. **Automatic Login** - Logs in automatically (no user intervention needed)
+2. **Visual Browser Check** - Opens pages via Chrome DevTools MCP, measures CLS/LCP
+3. **Backend Performance Data** - Fetches slow queries, anomalies, endpoint stats
+4. **Fixes Issues** - Automatically implements fixes for any slowness detected
+5. **Tests Both Local AND Production** - Runs checks on both environments
 
 ## Execution Steps
+
+### Step 0: Automatic Login (Chrome DevTools MCP)
+
+**For Local (localhost:3000):**
+1. Navigate to `http://localhost:3000/login`
+2. Take snapshot to find form elements
+3. Fill email field (uid for email input) with: `robert@tekna.com.au`
+4. Fill password field (uid for password input) with: `Wisdom50-50`
+5. Click "Sign in" button
+6. Wait for redirect to `/dashboard`
+7. Verify login successful by checking for dashboard content
+
+**For Production (teeemlive.vercel.app):**
+1. Navigate to `https://teeemlive.vercel.app/login`
+2. Same login flow as above
+3. Verify login successful
 
 ### Step 1: Visual Browser Check (Chrome DevTools MCP)
 
@@ -131,9 +149,22 @@ ISSUES FOUND & FIXED:
 - `click` - Navigate to tabs/items
 - `wait_for` - Wait for content to appear
 
+## Environments to Test
+
+| Environment | Frontend URL | Backend API |
+|-------------|--------------|-------------|
+| Local | http://localhost:3000 | http://localhost:3001 |
+| Production | https://teeemlive.vercel.app | https://teeemlive-ce8e2660a615.herokuapp.com |
+
+**Run checks on BOTH environments** and compare results.
+
+## Login Credentials
+
+- **Email:** robert@tekna.com.au
+- **Password:** Wisdom50-50
+
 ## Notes
 
-- Backend API runs on port 3001
-- Frontend runs on port 3000
-- Check both local and production if needed
-- For production checks, use `https://teeemlive.vercel.app`
+- Always login first before checking pages
+- If login fails, report error and stop
+- Compare local vs production performance to catch deployment regressions

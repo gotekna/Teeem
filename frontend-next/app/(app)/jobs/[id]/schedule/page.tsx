@@ -328,11 +328,22 @@ export default function SchedulePage() {
   // Check if Gantt should auto-open from URL param
   const shouldOpenGantt = searchParams.get('gantt') === 'true';
 
-  // Parse view from path: /jobs/123/schedule/setup → "setup"
-  const activeView = React.useMemo(() => {
+  // Parse view slug from path: /jobs/123/schedule/po-tasks-only → "po-tasks-only"
+  // Returns null if no view slug in path (just /schedule)
+  const viewSlug = React.useMemo(() => {
     const parts = pathname.replace(`/jobs/${jobId}/schedule`, "").split("/").filter(Boolean);
-    return parts[0] || "table";
+    return parts[0] || null;
   }, [pathname, jobId]);
+
+  // Legacy: "gantt" in path triggers fullscreen Gantt
+  const activeView = viewSlug === 'gantt' ? 'gantt' : 'table';
+
+  // Handle view change from TeeemTableView - update URL path
+  const handleViewChange = React.useCallback((view: { slug?: string } | null) => {
+    if (view?.slug) {
+      router.push(`/jobs/${jobId}/schedule/${view.slug}`);
+    }
+  }, [router, jobId]);
 
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1057,6 +1068,8 @@ export default function SchedulePage() {
           ]}
           inheritViewsFrom="sm_schedule_master"
           tableName="Schedule Tasks"
+          defaultViewSlug={viewSlug}
+          onViewChange={handleViewChange}
           leftActions={
             <div className="flex items-center gap-2">
               <Button
@@ -1078,7 +1091,7 @@ export default function SchedulePage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleOpenGantt}
+                onClick={() => router.push(`/jobs/${jobId}/schedule/gantt`)}
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Open Gantt
