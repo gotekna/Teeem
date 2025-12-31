@@ -224,9 +224,19 @@ export function XeroLinkToContactSheet({
         onLinkChanged();
         // DON'T close - let user link to another contact
       }
-    } catch (error) {
-      console.error("Unlink failed:", error);
-      toast.error("Failed to unlink contact");
+    } catch (error: unknown) {
+      // If link was already deleted (404), treat as success
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("Resource not found") || errorMessage.includes("404")) {
+        toast.success("Link already removed");
+        setLocalContactId(null);
+        setLocalContactName(null);
+        setLocalSynced(false);
+        onLinkChanged();
+      } else {
+        console.error("Unlink failed:", error);
+        toast.error("Failed to unlink contact");
+      }
     } finally {
       setUnlinking(false);
       setShowUnlinkConfirm(false);

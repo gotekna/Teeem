@@ -339,3 +339,93 @@ export function isDefaultView(pathname: string): boolean {
 
   return false;
 }
+
+/**
+ * Check if two paths are related (share common first-level ancestor)
+ * Used to detect stale breadcrumb state when navigating across sections
+ *
+ * @example
+ * isRelatedPath('/jobs/123/schedule', '/jobs/456/plans') // true - both under /jobs
+ * isRelatedPath('/jobs/123', '/purchase_orders/456')     // false - different sections
+ */
+export function isRelatedPath(path1: string, path2: string): boolean {
+  const segments1 = path1.split('/').filter(Boolean);
+  const segments2 = path2.split('/').filter(Boolean);
+
+  // Both need at least one segment
+  if (segments1.length === 0 || segments2.length === 0) return false;
+
+  // First segment must match (e.g., both under /jobs)
+  return segments1[0] === segments2[0];
+}
+
+/**
+ * Build a breadcrumb trail from URL hierarchy
+ * Used when trail is empty or stale (doesn't match current URL)
+ *
+ * @example
+ * buildBreadcrumbsFromUrl('/jobs/46/schedule/po-tasks-only')
+ * Returns: [
+ *   { pathname: '/jobs', displayName: 'Jobs' },
+ *   { pathname: '/jobs/46', displayName: 'Job #46' },
+ *   { pathname: '/jobs/46/schedule', displayName: 'Schedule' },
+ *   { pathname: '/jobs/46/schedule/po-tasks-only', displayName: 'Po Tasks Only' }
+ * ]
+ */
+export function buildBreadcrumbsFromUrl(
+  pathname: string,
+  searchParams?: URLSearchParams | null
+): Array<{
+  id: string;
+  pathname: string;
+  searchParams?: string;
+  displayName: string;
+  icon?: string;
+  timestamp: number;
+}> {
+  const segments = pathname.split('/').filter(Boolean);
+  const trail: Array<{
+    id: string;
+    pathname: string;
+    searchParams?: string;
+    displayName: string;
+    icon?: string;
+    timestamp: number;
+  }> = [];
+
+  let currentPath = '';
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    const isNumericId = /^\d+$/.test(segment);
+    const prevSegment = i > 0 ? segments[i - 1] : null;
+
+    // Build path up to this point
+    currentPath += '/' + segment;
+
+    // Skip standalone numeric IDs - they'll be combined with previous segment
+    // e.g., /jobs/46 → "Job #46" (single item, not two)
+    if (isNumericId && prevSegment && !(/^\d+$/.test(prevSegment))) {
+      // Update the previous item to include the ID
+      if (trail.length > 0) {
+        const lastItem = trail[trail.length - 1];
+        lastItem.pathname = currentPath;
+        lastItem.displayName = resolveDisplayName(currentPath, null);
+      }
+      continue;
+    }
+
+    const isLast = i === segments.length - 1;
+    const item = {
+      id: `${currentPath}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      pathname: currentPath,
+      searchParams: isLast ? searchParams?.toString() : undefined,
+      displayName: resolveDisplayName(currentPath, isLast ? searchParams : null),
+      icon: resolveIcon(currentPath),
+      timestamp: Date.now(),
+    };
+    trail.push(item);
+  }
+
+  return trail;
+}

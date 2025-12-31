@@ -31,7 +31,7 @@ import {
   type BreadcrumbItem,
 } from "@/lib/breadcrumb-atoms";
 import { searchQueryAtom } from "@/lib/table-atoms";
-import { resolveDisplayName, resolveIcon, isSameRoute } from "@/lib/breadcrumb-utils";
+import { resolveDisplayName, resolveIcon, isSameRoute, isRelatedPath, buildBreadcrumbsFromUrl } from "@/lib/breadcrumb-utils";
 
 interface BreadcrumbContextType {
   /** Set a custom display name for the current page */
@@ -145,7 +145,17 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
         return truncated;
       }
 
-      // New navigation - add to trail
+      // BACKLOAD: Rebuild trail from URL when stale or empty
+      // This handles: browser back button, direct links, external navigation
+      const isTrailStale = prev.length > 0 && !isRelatedPath(prev[prev.length - 1].pathname, pathname);
+      const isTrailEmpty = prev.length === 0;
+
+      if (isTrailStale || isTrailEmpty) {
+        // Trail doesn't match current location - rebuild from URL hierarchy
+        return buildBreadcrumbsFromUrl(pathname, searchParams);
+      }
+
+      // Normal forward navigation - add to trail
       const newItem: BreadcrumbItem = {
         id: generateBreadcrumbId(pathname),
         pathname,

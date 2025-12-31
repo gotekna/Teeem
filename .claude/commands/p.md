@@ -3,6 +3,42 @@
 Run browser-based performance checks AND backend performance analysis.
 **Automatically fix any slowness found.**
 
+---
+
+## 🔴 CRITICAL REMINDERS (Don't Forget These!)
+
+### FRC - Find Root Cause
+**Before fixing ANY issue, STOP and ask: "WHY does this issue exist?"**
+- Don't just add a bandaid fix - find the root cause
+- Use the 5 Whys technique
+- Fix the gap, not just the symptom
+- Add guardrails to prevent recurrence
+
+### Ultra - Ultrathink Design Philosophy
+**Take a deep breath. Quality over speed.**
+- Question assumptions - is there a simpler solution?
+- Present 3 approaches before implementing
+- Remove code instead of adding when possible
+- Simplify ruthlessly - elegance is when there's nothing left to take away
+
+### SSoT - Single Source of Truth
+**Before adding/changing code, search for existing implementations:**
+- Is this logic defined elsewhere? Search first!
+- Check `lib/constants/`, `lib/table-atoms.ts`
+- If duplicates found: STOP, document all locations, ask user which is SSoT
+- Never create parallel implementations
+
+### Gold - Gold Standard UI
+**Use THE ONE component, not duplicates:**
+- Table: `TeeemTableView` (not data-table.tsx)
+- Spinner: `Spinner` from `@/components/ui/spinner`
+- Modal: `Dialog` (not drawer)
+- Check `lib/component-registry.ts` for approved components
+- Always use Tailwind config colors (not hex)
+- Always support dark mode (`dark:` classes)
+
+---
+
 ## What This Command Does
 
 1. **Automatic Login** - Logs in automatically (no user intervention needed)
@@ -89,6 +125,12 @@ Fetch from API and analyze:
 
 ### Step 3: Fix Issues Found
 
+**⚠️ BEFORE IMPLEMENTING ANY FIX, REMEMBER:**
+1. **FRC** - WHY does this issue exist? Find root cause, not just symptom
+2. **SSoT** - Is there existing code that should be used/extended?
+3. **Ultra** - Is there a simpler solution? Can we remove code instead of add?
+4. **Gold** - Use approved components from `lib/component-registry.ts`
+
 For each issue detected, implement the appropriate fix:
 
 | Issue Type | Fix |
@@ -98,6 +140,12 @@ For each issue detected, implement the appropriate fix:
 | High CLS on page | Add SSR data pre-loading, skeleton, or proper loading state |
 | High LCP | Optimize lazy loading, add caching, or reduce component complexity |
 | Anomaly detected | Investigate and fix root cause |
+
+**After fixing, verify:**
+- Root cause addressed (not bandaid)
+- No duplicate implementations created
+- Uses SSoT components/patterns
+- Dark mode supported if UI change
 
 ### Output Format
 
