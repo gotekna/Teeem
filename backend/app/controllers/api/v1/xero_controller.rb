@@ -2487,12 +2487,14 @@ module Api
               }
             end
 
-            # Phone comparison
+            # Phone comparison (normalize by removing spaces, dashes, parentheses)
             phones = xero_contact["Phones"] || []
             xero_phone = phones.find { |p| p["PhoneType"] == "DEFAULT" }&.dig("PhoneNumber")
             xero_mobile = phones.find { |p| p["PhoneType"] == "MOBILE" }&.dig("PhoneNumber")
 
-            if xero_phone.present? && xero_phone != contact.phone
+            normalize_phone = ->(p) { p&.gsub(/[\s\-\(\)]/, "") }
+
+            if xero_phone.present? && normalize_phone.call(xero_phone) != normalize_phone.call(contact.phone)
               differences << {
                 field: "phone",
                 label: "Phone",
@@ -2501,7 +2503,7 @@ module Api
               }
             end
 
-            if xero_mobile.present? && xero_mobile != contact.mobile
+            if xero_mobile.present? && normalize_phone.call(xero_mobile) != normalize_phone.call(contact.mobile)
               differences << {
                 field: "mobile",
                 label: "Mobile",
@@ -2510,7 +2512,7 @@ module Api
               }
             end
 
-            # Address comparison
+            # Address comparison (normalize whitespace and punctuation)
             addresses = xero_contact["Addresses"] || []
             street_address = addresses.find { |a| a["AddressType"] == "STREET" }
             if street_address.present?
@@ -2523,7 +2525,14 @@ module Api
               ].compact.reject(&:blank?).join(", ")
 
               teeem_address = contact.address.presence
-              if xero_address.present? && xero_address != teeem_address
+
+              # Normalize addresses: downcase, remove extra spaces, normalize punctuation
+              normalize_address = ->(a) {
+                return nil if a.blank?
+                a.downcase.gsub(/\s+/, " ").gsub(/\s*,\s*/, ", ").gsub(/\s*-\s*/, " - ").strip
+              }
+
+              if xero_address.present? && normalize_address.call(xero_address) != normalize_address.call(teeem_address)
                 differences << {
                   field: "address",
                   label: "Address",
