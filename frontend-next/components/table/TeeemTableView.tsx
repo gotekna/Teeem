@@ -299,6 +299,7 @@ import {
   type SearchMode as DataSearchMode,
 } from "./utils/table-data-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
+import { fetchColumnsForFoundation, getCachedColumns, invalidateColumnsCache } from "./utils/columns-cache";
 
 // Jotai atoms for centralized state management (SSoT)
 import { useAtom, useSetAtom, useAtomValue } from 'jotai';
@@ -646,6 +647,7 @@ export default function TeeemTableView({
   }, [useAutoFetch]);
 
   // Auto-fetch columns when effectiveFoundationId is set
+  // ULTRA: Uses module-level cache for instant loading on repeat visits
   useEffect(() => {
     // SSR: Skip client fetch if server provided columns
     if (initialColumns && initialColumns.length > 0) {
@@ -660,82 +662,79 @@ export default function TeeemTableView({
       return;
     }
 
+    // ULTRA: Check cache first for instant loading
+    const cached = getCachedColumns(effectiveFoundationId);
+    if (cached) {
+      setFoundationColumns(cached.columns);
+      setResolvedFoundation(cached.foundationInfo);
+      setColumnsLoading(false);
+      return;
+    }
+
     const fetchColumns = async () => {
       setColumnsLoading(true);
       try {
-        const response = await api.get<{ foundation: { id: number; slug: string; columns: ApiColumn[] } }>(
-          `/api/v1/foundations/${effectiveFoundationId}`
-        );
-        // Store resolved Foundation info for consistent Table ID display
-        if (response?.foundation?.id && response?.foundation?.slug) {
-          setResolvedFoundation({ id: response.foundation.id, slug: response.foundation.slug });
-        }
-        const dbColumns = response?.foundation?.columns || [];
-        const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, effectiveFoundationId);
-        setFoundationColumns(teeemColumns);
+        // ULTRA: Use cached fetch (handles deduplication)
+        const result = await fetchColumnsForFoundation(effectiveFoundationId);
 
-        // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
-        // In development: throw error to force fix
-        // In production: log to console and use Foundation columns (SSoT)
-        if (columns && columns.length > 0 && teeemColumns.length > 0) {
-          const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
-          const foundationKeys = teeemColumns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
+        if (result) {
+          setFoundationColumns(result.columns);
+          setResolvedFoundation(result.foundationInfo);
 
-          if (propKeys.length !== foundationKeys.length) {
-            const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
-            const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
+          // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
+          if (columns && columns.length > 0 && result.columns.length > 0) {
+            const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
+            const foundationKeys = result.columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
 
-            const errorMessage =
-              `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
-              `but Foundation ${effectiveFoundationId} has ${foundationKeys.length} columns.\n` +
-              `In PROPS but not Foundation: ${inPropsNotFoundation.join(', ') || 'none'}\n` +
-              `In FOUNDATION but not Props: ${inFoundationNotProps.join(', ') || 'none'}\n` +
-              `FIX: Remove the columns prop - TeeemTableView auto-fetches from Foundation API (SSoT)`;
+            if (propKeys.length !== foundationKeys.length) {
+              const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
+              const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
 
-            if (process.env.NODE_ENV === 'development') {
-              // In dev mode, throw error to force immediate fix
-              throw new Error(errorMessage);
-            } else {
-              // In production, log warning and continue with Foundation columns
-              console.error(errorMessage);
+              const errorMessage =
+                `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
+                `but Foundation ${effectiveFoundationId} has ${foundationKeys.length} columns.\n` +
+                `In PROPS but not Foundation: ${inPropsNotFoundation.join(', ') || 'none'}\n` +
+                `In FOUNDATION but not Props: ${inFoundationNotProps.join(', ') || 'none'}\n` +
+                `FIX: Remove the columns prop - TeeemTableView auto-fetches from Foundation API (SSoT)`;
+
+              if (process.env.NODE_ENV === 'development') {
+                throw new Error(errorMessage);
+              } else {
+                console.error(errorMessage);
+              }
             }
           }
+        } else {
+          // Fetch failed - clean up stale caches
+          invalidateColumnsCache(effectiveFoundationId);
+
+          // Clean up localStorage views cache
+          try {
+            const viewsCacheKey = 'teeem_views_cache';
+            const viewsCache = localStorage.getItem(viewsCacheKey);
+            if (viewsCache) {
+              const parsed = JSON.parse(viewsCache);
+              if (parsed[effectiveFoundationId]) {
+                delete parsed[effectiveFoundationId];
+                localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
+              }
+            }
+          } catch {
+            // Ignore cache cleanup errors
+          }
+
+          // Clean up sessionStorage table state
+          try {
+            const sessionKey = `teeem-table-state-v1-${effectiveFoundationId}`;
+            sessionStorage.removeItem(sessionKey);
+          } catch {
+            // Ignore cache cleanup errors
+          }
+
+          setFoundationColumns(null);
         }
       } catch (error) {
         console.error(`[TeeemTableView] Failed to fetch columns for Foundation ${effectiveFoundationId}:`, error);
-
-        // If 404 (foundation deleted), clean up stale cache entries
-        const apiError = error as { status?: number };
-        if (apiError?.status === 404) {
-          console.warn(`[TeeemTableView] Foundation ${effectiveFoundationId} not found - cleaning up stale cache`);
-
-          // Clean up localStorage views cache
-          if (effectiveFoundationId !== null) {
-            try {
-              const viewsCacheKey = 'teeem_views_cache';
-              const viewsCache = localStorage.getItem(viewsCacheKey);
-              if (viewsCache) {
-                const parsed = JSON.parse(viewsCache);
-                if (parsed[effectiveFoundationId]) {
-                  delete parsed[effectiveFoundationId];
-                  localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
-                }
-              }
-            } catch {
-              // Ignore cache cleanup errors
-            }
-
-            // Clean up sessionStorage table state
-            try {
-              const sessionKey = `teeem-table-state-v1-${effectiveFoundationId}`;
-              sessionStorage.removeItem(sessionKey);
-            } catch {
-              // Ignore cache cleanup errors
-            }
-          }
-        }
-
-        // Fall back to props if fetch fails
         setFoundationColumns(null);
       } finally {
         setColumnsLoading(false);
