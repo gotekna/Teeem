@@ -32,6 +32,60 @@ Heroku:   [vXXX] - [deployed/skipped]
 - ❌ DON'T rush, skip planning, make assumptions, or take shortcuts
 - ✅ DO understand fully, explore thoroughly, ask questions, implement RIGHT solution
 
+## 🔴 CRITICAL: Bug Fixing - Find Root Cause (FRC)
+
+**Before fixing ANY bug, STOP and ask: "WHY does this bug exist?"**
+
+### The FRC Process
+
+1. **STOP** - Don't touch the code yet
+2. **INVESTIGATE** - Use git blame, read the original code, understand intent
+3. **ASK WHY** - Apply the "5 Whys" technique
+4. **FIND THE GAP** - What's missing? Test? Validation? Type safety? Design?
+5. **FIX THE ROOT** - Fix the cause, not just the symptom
+6. **PREVENT** - Add guardrails so this class of bug can't happen again
+
+### The 5 Whys Example
+
+```
+Bug: validateResult.rolled_over throws "possibly null"
+
+Why 1: validateResult could be null
+Why 2: api.post() returns T | null
+Why 3: The API might fail or return empty
+Why 4: No null check before accessing properties
+Why 5: TypeScript caught it, but we should handle API failures gracefully
+
+Root Cause: Missing error handling pattern for API responses
+Fix: Add null check AND consider if all api.post() calls need this pattern
+```
+
+### Investigation Checklist
+
+| Question | Action |
+|----------|--------|
+| When was this code written? | `git blame <file>` |
+| What was the original intent? | Read surrounding code, comments, PR |
+| Is this a one-off or pattern? | Search for similar code |
+| What guardrail is missing? | Type? Test? Validation? |
+| Where else might this exist? | `grep` for similar patterns |
+
+### Red Flags → Go Deeper
+
+- "Just add a null check" → Why is it null? Should it be?
+- "Just add a try/catch" → What error? Why does it throw?
+- "Just add a condition" → Why wasn't it there? Design gap?
+- "Just rename/move" → Why was it wrong? Naming convention missing?
+
+### After Fixing
+
+- ✅ Bug is fixed
+- ✅ Root cause is understood and documented (in commit message)
+- ✅ Similar bugs elsewhere are identified and fixed
+- ✅ Guardrail added to prevent recurrence (test, type, validation)
+
+**Mantra:** "A bug is a gift - it reveals a weakness in the system. Don't waste it on a bandaid."
+
 ## 🔴 CRITICAL: Quality Triggers
 
 | Keyword | What Claude Missed | Action |
@@ -39,6 +93,7 @@ Heroku:   [vXXX] - [deployed/skipped]
 | `ssot` | Duplicate logic exists | Find both, flag to user, ask which is SSoT |
 | `ultra` | Lazy thinking | Present 3 approaches, question assumptions, simplify |
 | `gold` | Wrong component/bad UI | Check THE ONE table, TeeemTableView, Tailwind, dark mode |
+| `frc` | Bandaid bug fix | Stop, investigate root cause, fix the gap not the symptom |
 
 **Before ANY code change:**
 1. **SSoT Check** - Is this defined elsewhere? Search first.
