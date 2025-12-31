@@ -212,12 +212,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [bulkCategorizing, setBulkCategorizing] = useState(false);
   const [categorizeResult, setCategorizeResult] = useState<{
     dry_run: boolean;
-    stats: { total: number; categorized: number; skipped: number; failed: number; recategorized: number };
+    stats: { total: number; categorized: number; skipped: number; failed: number; recategorized: number; already_correct?: number };
     details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string; old_type?: string }>;
   } | null>(null);
   const [showCategorizeSummary, setShowCategorizeSummary] = useState(false);
   const [forceRecategorize, setForceRecategorize] = useState(false);
-  const [categorizeFilter, setCategorizeFilter] = useState<"all" | "new" | "fixed" | "skipped" | "failed">("all");
+  const [categorizeFilter, setCategorizeFilter] = useState<"all" | "new" | "fixed" | "correct" | "skipped" | "failed">("all");
 
   // Photo upload state
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
@@ -2548,13 +2548,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           {categorizeResult && (
             <div className="flex-1 overflow-y-auto space-y-4">
               {/* Stats Summary - Clickable to filter */}
-              <div className="grid grid-cols-5 gap-3">
+              <div className="grid grid-cols-6 gap-2">
                 <Card
                   className={`bg-muted/50 cursor-pointer transition-all hover:ring-2 hover:ring-primary/50 ${categorizeFilter === "all" ? "ring-2 ring-primary" : ""}`}
                   onClick={() => setCategorizeFilter("all")}
                 >
-                  <CardContent className="p-3 text-center">
-                    <div className="text-xl font-bold">{categorizeResult.stats.total}</div>
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold">{categorizeResult.stats.total}</div>
                     <div className="text-xs text-muted-foreground">Total</div>
                   </CardContent>
                 </Card>
@@ -2562,8 +2562,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   className={`bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 cursor-pointer transition-all hover:ring-2 hover:ring-green-500/50 ${categorizeFilter === "new" ? "ring-2 ring-green-500" : ""}`}
                   onClick={() => setCategorizeFilter("new")}
                 >
-                  <CardContent className="p-3 text-center">
-                    <div className="text-xl font-bold text-green-600">{categorizeResult.stats.categorized || 0}</div>
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-green-600">{categorizeResult.stats.categorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
                       {categorizeResult.dry_run ? "New" : "Categorized"}
                     </div>
@@ -2573,19 +2573,28 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   className={`bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800 cursor-pointer transition-all hover:ring-2 hover:ring-orange-500/50 ${categorizeFilter === "fixed" ? "ring-2 ring-orange-500" : ""}`}
                   onClick={() => setCategorizeFilter("fixed")}
                 >
-                  <CardContent className="p-3 text-center">
-                    <div className="text-xl font-bold text-orange-600">{categorizeResult.stats.recategorized || 0}</div>
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-orange-600">{categorizeResult.stats.recategorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
                       {categorizeResult.dry_run ? "Fix" : "Fixed"}
                     </div>
                   </CardContent>
                 </Card>
                 <Card
+                  className={`bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 cursor-pointer transition-all hover:ring-2 hover:ring-blue-500/50 ${categorizeFilter === "correct" ? "ring-2 ring-blue-500" : ""}`}
+                  onClick={() => setCategorizeFilter("correct")}
+                >
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-blue-600">{categorizeResult.stats.already_correct || 0}</div>
+                    <div className="text-xs text-muted-foreground">Correct</div>
+                  </CardContent>
+                </Card>
+                <Card
                   className={`bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800 cursor-pointer transition-all hover:ring-2 hover:ring-yellow-500/50 ${categorizeFilter === "skipped" ? "ring-2 ring-yellow-500" : ""}`}
                   onClick={() => setCategorizeFilter("skipped")}
                 >
-                  <CardContent className="p-3 text-center">
-                    <div className="text-xl font-bold text-yellow-600">{categorizeResult.stats.skipped}</div>
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-yellow-600">{categorizeResult.stats.skipped}</div>
                     <div className="text-xs text-muted-foreground">Skipped</div>
                   </CardContent>
                 </Card>
@@ -2593,8 +2602,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   className={`bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 cursor-pointer transition-all hover:ring-2 hover:ring-red-500/50 ${categorizeFilter === "failed" ? "ring-2 ring-red-500" : ""}`}
                   onClick={() => setCategorizeFilter("failed")}
                 >
-                  <CardContent className="p-3 text-center">
-                    <div className="text-xl font-bold text-red-600">{categorizeResult.stats.failed}</div>
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-red-600">{categorizeResult.stats.failed}</div>
                     <div className="text-xs text-muted-foreground">Failed</div>
                   </CardContent>
                 </Card>
@@ -2607,6 +2616,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   if (categorizeFilter === "all") return true;
                   if (categorizeFilter === "new") return item.status === "would_categorize" || item.status === "categorized";
                   if (categorizeFilter === "fixed") return item.status === "would_recategorize" || item.status === "recategorized";
+                  if (categorizeFilter === "correct") return item.status === "already_correct";
                   if (categorizeFilter === "skipped") return item.status === "skipped";
                   if (categorizeFilter === "failed") return item.status === "failed";
                   return true;
@@ -2660,6 +2670,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                 variant={
                                   item.status.includes("categorize") || item.status.includes("recategorize")
                                     ? "default"
+                                    : item.status === "already_correct"
+                                    ? "default"
                                     : item.status === "skipped"
                                     ? "secondary"
                                     : "destructive"
@@ -2667,6 +2679,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                 className={
                                   item.status.includes("recategorize")
                                     ? "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+                                    : item.status === "already_correct"
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
                                     : item.status.includes("categorize")
                                     ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
                                     : ""
@@ -2674,7 +2688,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               >
                                 {item.status === "would_categorize" ? "new" :
                                  item.status === "would_recategorize" ? "fix" :
-                                 item.status === "recategorized" ? "fixed" : item.status}
+                                 item.status === "recategorized" ? "fixed" :
+                                 item.status === "already_correct" ? "correct" : item.status}
                               </Badge>
                               {item.reason && (
                                 <span className="ml-2 text-xs text-muted-foreground">({item.reason})</span>

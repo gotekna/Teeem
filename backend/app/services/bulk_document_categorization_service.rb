@@ -20,7 +20,7 @@ class BulkDocumentCategorizationService
     @dry_run = options.fetch(:dry_run, false)
     @force = options.fetch(:force, false)  # Re-categorize even already-categorized docs
     @current_user = options[:user]
-    @stats = { total: 0, categorized: 0, skipped: 0, failed: 0, recategorized: 0 }
+    @stats = { total: 0, categorized: 0, skipped: 0, failed: 0, recategorized: 0, already_correct: 0 }
     @details = []
   end
 
@@ -143,14 +143,14 @@ class BulkDocumentCategorizationService
     old_type_name = was_wrong ? DocumentType.find_by(id: doc.document_type_id)&.name : nil
 
     if already_correct
-      @stats[:skipped] += 1
+      @stats[:already_correct] += 1
       @details << {
         id: doc.id,
         file_name: doc.file_name,
         folder_path: doc.folder_path,
-        status: 'skipped',
-        reason: 'already_correct',
-        document_type: matched_type.name
+        status: 'already_correct',
+        document_type: matched_type.name,
+        entity_tab: matched_tab.display_name
       }
       return
     end

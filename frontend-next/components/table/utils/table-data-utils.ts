@@ -19,6 +19,7 @@ import { fuzzyMatch } from "./table-utils";
 
 /**
  * Parse a numeric filter value, handling percentage symbols
+ * Returns both the parsed value and whether it looks like a percentage
  * "99%" -> 99, "0.99" -> 0.99, "99" -> 99
  */
 function parseNumericFilterValue(filterValue: unknown): number {
@@ -26,6 +27,29 @@ function parseNumericFilterValue(filterValue: unknown): number {
   // Strip % sign if present
   const cleaned = str.replace(/%$/, '');
   return Number(cleaned);
+}
+
+/**
+ * Compare numeric values for percentage columns
+ * Handles decimal storage (0.99 = 99%) vs whole number storage (99 = 99%)
+ * If raw value is <= 1 (decimal) and filter value is > 1 (whole %), convert filter to decimal
+ */
+function compareNumericValues(rawValue: number, filterValue: number, operator: string): boolean {
+  let compareValue = filterValue;
+
+  // If raw value looks like decimal storage (0-1) but filter value looks like whole percentage (>1)
+  // Convert filter to decimal for fair comparison
+  if (rawValue >= 0 && rawValue <= 1 && filterValue > 1) {
+    compareValue = filterValue / 100;
+  }
+
+  switch (operator) {
+    case ">": return rawValue > compareValue;
+    case "<": return rawValue < compareValue;
+    case ">=": return rawValue >= compareValue;
+    case "<=": return rawValue <= compareValue;
+    default: return false;
+  }
 }
 
 /**
@@ -93,13 +117,10 @@ export function evaluateFilter(entry: TableRow, filter: CascadeFilter): boolean 
     case "!=":
       return !compareValues(valueForEquality, filterValue);
     case ">":
-      return Number(value) > parseNumericFilterValue(filterValue);
     case "<":
-      return Number(value) < parseNumericFilterValue(filterValue);
     case ">=":
-      return Number(value) >= parseNumericFilterValue(filterValue);
     case "<=":
-      return Number(value) <= parseNumericFilterValue(filterValue);
+      return compareNumericValues(Number(value), parseNumericFilterValue(filterValue), filter.operator);
     case "contains":
       return String(value ?? "")
         .toLowerCase()
