@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_31_003724) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_31_013705) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1434,10 +1434,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_31_003724) do
     t.boolean "is_active", default: true
     t.jsonb "metadata", default: {}
     t.integer "display_order", default: 0
+    t.integer "role_ids", default: [], array: true
     t.index ["is_active"], name: "index_contact_relationships_on_is_active"
     t.index ["related_contact_id", "display_order"], name: "index_contact_relationships_on_company_and_order"
     t.index ["related_contact_id"], name: "index_contact_relationships_on_related_contact_id"
     t.index ["relationship_type"], name: "index_contact_relationships_on_relationship_type"
+    t.index ["role_ids"], name: "index_contact_relationships_on_role_ids", using: :gin
     t.index ["source_contact_id", "related_contact_id", "relationship_type"], name: "index_contact_relationships_unique_by_type", unique: true
     t.index ["source_contact_id"], name: "index_contact_relationships_on_source_contact_id"
   end

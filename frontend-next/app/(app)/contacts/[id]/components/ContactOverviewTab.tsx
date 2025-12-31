@@ -85,9 +85,11 @@ export function ContactOverviewTab({
   const [companySearchResults, setCompanySearchResults] = useState<{ id: number; name: string; entity_type: string }[]>([]);
   const [searchingCompany, setSearchingCompany] = useState(false);
   const [savingCompanyLink, setSavingCompanyLink] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<string>("");
+  const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
   const [companyRelationships, setCompanyRelationships] = useState<ContactRelationship[]>([]);
   const [availableRoles, setAvailableRoles] = useState<{ id: number; name: string }[]>([]);
+  const [editingRelationshipId, setEditingRelationshipId] = useState<number | null>(null);
+  const [editRoleIds, setEditRoleIds] = useState<number[]>([]);
 
   // Employee/person link state (for companies)
   const [showPersonSearch, setShowPersonSearch] = useState(false);
@@ -196,7 +198,7 @@ export function ContactOverviewTab({
     return () => clearTimeout(timer);
   }, [companySearchQuery, searchCompanies]);
 
-  // Add company link - always employee_of, with optional role
+  // Add company link - always employee_of, with optional roles (multi-select)
   const addCompanyLink = useCallback(async (companyId: number) => {
     setSavingCompanyLink(true);
     try {
@@ -204,7 +206,7 @@ export function ContactOverviewTab({
         contact_relationship: {
           related_contact_id: companyId,
           relationship_type: "employee_of", // Always employee_of
-          role_in_relationship: selectedRole || null, // Optional role from contact_types (SSoT)
+          role_ids: selectedRoleIds, // Multi-role support - array of ContactType IDs
         },
       });
 
@@ -219,11 +221,14 @@ export function ContactOverviewTab({
       setShowCompanySearch(false);
       setCompanySearchQuery("");
       setCompanySearchResults([]);
-      setSelectedRole("");
+      setSelectedRoleIds([]);
 
+      const roleNames = selectedRoleIds.length > 0
+        ? availableRoles.filter(r => selectedRoleIds.includes(r.id)).map(r => r.name).join(", ")
+        : "Employee";
       toast({
         title: "Company linked",
-        description: selectedRole ? `Added as ${selectedRole}` : "Added as employee",
+        description: `Added as ${roleNames}`,
       });
     } catch (err) {
       toast({
@@ -234,7 +239,47 @@ export function ContactOverviewTab({
     } finally {
       setSavingCompanyLink(false);
     }
-  }, [contact.id, selectedRole, onContactUpdate, loadRelatedEntities, toast]);
+  }, [contact.id, selectedRoleIds, availableRoles, onContactUpdate, loadRelatedEntities, toast]);
+
+  // Update roles for existing relationship
+  const updateRelationshipRoles = useCallback(async (relationshipId: number, newRoleIds: number[]) => {
+    setSavingCompanyLink(true);
+    try {
+      await api.patch(`/api/v1/contacts/${contact.id}/relationships/${relationshipId}`, {
+        contact_relationship: {
+          role_ids: newRoleIds,
+        },
+      });
+
+      // Refresh relationships
+      await loadRelatedEntities();
+
+      setEditingRelationshipId(null);
+      setEditRoleIds([]);
+
+      toast({
+        title: "Roles updated",
+        description: "Relationship roles have been updated",
+      });
+    } catch (err) {
+      toast({
+        title: "Error updating roles",
+        description: err instanceof Error ? err.message : "Failed to update roles",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCompanyLink(false);
+    }
+  }, [contact.id, loadRelatedEntities, toast]);
+
+  // Toggle role selection (for multi-select)
+  const toggleRoleId = (roleId: number, currentIds: number[], setter: (ids: number[]) => void) => {
+    if (currentIds.includes(roleId)) {
+      setter(currentIds.filter(id => id !== roleId));
+    } else {
+      setter([...currentIds, roleId]);
+    }
+  };
 
   // Remove company relationship
   const removeCompanyLink = useCallback(async (relationshipId: number) => {
