@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { usePathBasedViews } from "@/lib/hooks/usePathBasedViews";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
@@ -319,7 +320,6 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
 export default function SchedulePage() {
   const params = useParams();
   const jobId = params.id as string;
-  const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -328,22 +328,16 @@ export default function SchedulePage() {
   // Check if Gantt should auto-open from URL param
   const shouldOpenGantt = searchParams.get('gantt') === 'true';
 
-  // Parse view slug from path: /jobs/123/schedule/po-tasks-only → "po-tasks-only"
-  // Returns null if no view slug in path (just /schedule)
-  const viewSlug = React.useMemo(() => {
-    const parts = pathname.replace(`/jobs/${jobId}/schedule`, "").split("/").filter(Boolean);
-    return parts[0] || null;
-  }, [pathname, jobId]);
+  // SSoT: Path-based view URLs for embedded tables
+  // Handles: /jobs/123/schedule/po-tasks-only → viewSlug = "po-tasks-only"
+  // Reserved: /jobs/123/schedule/gantt → isReservedPath = true, viewSlug = null
+  const { viewSlug, handleViewChange, isReservedPath } = usePathBasedViews({
+    basePath: `/jobs/${jobId}/schedule`,
+    reservedSlugs: ['gantt'], // 'gantt' is special mode, not a saved view
+  });
 
-  // Legacy: "gantt" in path triggers fullscreen Gantt
-  const activeView = viewSlug === 'gantt' ? 'gantt' : 'table';
-
-  // Handle view change from TeeemTableView - update URL path
-  const handleViewChange = React.useCallback((view: { slug?: string } | null) => {
-    if (view?.slug) {
-      router.push(`/jobs/${jobId}/schedule/${view.slug}`);
-    }
-  }, [router, jobId]);
+  // Gantt mode detection: /schedule/gantt or ?gantt=true
+  const isGanttMode = isReservedPath || shouldOpenGantt;
 
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -465,12 +459,11 @@ export default function SchedulePage() {
 
   // Auto-open Gantt in fullscreen when path is /schedule/gantt or ?gantt=true is in URL
   React.useEffect(() => {
-    const shouldOpen = shouldOpenGantt || activeView === 'gantt';
-    if (shouldOpen && !loading && job && !ganttFullscreen) {
+    if (isGanttMode && !loading && job && !ganttFullscreen) {
       setGanttFullscreen(true);
       handleOpenGantt();
     }
-  }, [shouldOpenGantt, activeView, loading, job, ganttFullscreen, handleOpenGantt]);
+  }, [isGanttMode, loading, job, ganttFullscreen, handleOpenGantt]);
 
   // Close fullscreen Gantt
   const handleCloseFullscreenGantt = React.useCallback(() => {

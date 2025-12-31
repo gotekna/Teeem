@@ -19,13 +19,12 @@ export const Spinner = ({
   return (
     <span
       style={{
-        display: 'inline-flex',
+        display: 'inline-block',
         width: size,
         height: size,
+        position: 'relative',
         // Contain layout to prevent animation from causing CLS
-        contain: 'layout paint',
-        // Create stacking context for compositing
-        isolation: 'isolate',
+        contain: 'strict',
       }}
     >
       <svg
@@ -36,13 +35,18 @@ export const Spinner = ({
         strokeLinecap="round"
         strokeLinejoin="round"
         xmlns="http://www.w3.org/2000/svg"
-        className={cn("animate-spin stroke-muted-foreground", className)}
+        className={cn("stroke-muted-foreground", className)}
         style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
           width: size,
           height: size,
-          // Force GPU compositing layer to prevent layout shifts from animation
+          // GPU compositing hints
           transform: 'translateZ(0)',
           willChange: 'transform',
+          // Use CSS animation directly for better GPU compositing
+          animation: 'spin 1s linear infinite',
           ...style
         }}
         {...props}

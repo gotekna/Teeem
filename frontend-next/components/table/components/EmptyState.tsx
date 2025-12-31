@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Search, Filter, Database, AlertCircle, Plus, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +60,7 @@ export function EmptyState({
   if (isLoading || variant === "loading") {
     return (
       <div className={cn("flex flex-col items-center justify-center py-16 px-4", className)}>
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent mb-4" />
+        <Spinner size={32} className="mb-4" />
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     );
