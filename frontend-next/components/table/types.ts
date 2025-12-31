@@ -249,6 +249,11 @@ export interface TeeemTableViewProps {
     totalRecords: number;
     displayValuesMap: Record<string, Record<number, string>>;
   } | null;
+
+  // Parent-triggered refresh signal
+  // Increment this number to trigger an internal refresh without unmounting/remounting the component
+  // Use this INSTEAD OF key={refreshKey} pattern to avoid losing SSR data
+  refreshTrigger?: number;
 }
 
 // Column visibility state

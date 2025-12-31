@@ -24,7 +24,6 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private config: GanttConfig;
   private viewport: Viewport;
-  private _hasLoggedDepDebug = false;
 
   constructor(ctx: CanvasRenderingContext2D, config: GanttConfig, viewport: Viewport) {
     this.ctx = ctx;
@@ -310,6 +309,7 @@ export class Renderer {
       const y = this.viewport.rowToY(index);
       const startX = this.viewport.dateToX(task.startDate);
       const endX = this.viewport.dateToX(task.endDate);
+
       // For single-day tasks (same start/end date), fill the full day width
       // For multi-day tasks, use the actual span
       const dayWidth = this.viewport.getDayWidth();
@@ -1170,22 +1170,6 @@ export class Renderer {
   ): void {
     const taskMap = new Map(tasks.map((t, i) => [t.id, { task: t, index: i }]));
 
-    // Debug: Log if task IDs match dependency IDs
-    if (dependencies.length > 0 && !this._hasLoggedDepDebug) {
-      this._hasLoggedDepDebug = true;
-      const taskIds = new Set(tasks.map(t => t.id));
-      const depIds = new Set(dependencies.flatMap(d => [d.fromId, d.toId]));
-      const missing = [...depIds].filter(id => !taskIds.has(id));
-      console.log('[Renderer] drawDependencies debug:', {
-        taskCount: tasks.length,
-        depCount: dependencies.length,
-        sampleTaskIds: tasks.slice(0, 3).map(t => t.id),
-        sampleDepFromTo: dependencies.slice(0, 3).map(d => ({ from: d.fromId, to: d.toId })),
-        missingIds: missing.slice(0, 10),
-        missingCount: missing.length,
-      });
-    }
-
     // Get visible range for filtering (if canvas height provided)
     const visibleRange = canvasHeight
       ? this.getVisibleRowRange(tasks.length, canvasHeight)
@@ -1436,10 +1420,10 @@ export class Renderer {
     fromIndex?: number,
     toIndex?: number
   ): void {
-    // In dark mode, use lighter gray for better visibility
-    const defaultColor = this.config.darkMode ? TAILWIND_COLORS.gray[400] : TAILWIND_COLORS.gray[500];
+    // In dark mode, use much lighter gray for better visibility (was gray[400], now gray[200])
+    const defaultColor = this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[500];
     const color = highlighted && highlightColor ? highlightColor : defaultColor;
-    const lineWidth = highlighted ? 3 : 2; // Increased from 1.5 to 2 for better visibility
+    const lineWidth = highlighted ? 4 : 3; // Increased for better visibility
 
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = lineWidth;

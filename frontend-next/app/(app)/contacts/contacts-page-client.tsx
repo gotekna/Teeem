@@ -135,7 +135,6 @@ export default function ContactsPageClient({
   return (
     <TablePage>
       <TeeemTableView
-        key={refreshKey}
         foundationId="contacts"
         tableName="Contacts"
         enableExport
@@ -156,6 +155,8 @@ export default function ContactsPageClient({
         initialHasMore={initialHasMore}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
+        // Use refreshTrigger instead of key={} to avoid full remount and SSR data loss
+        refreshTrigger={refreshKey}
       />
 
       {/* Lazy loaded modals - only render when open */}

@@ -83,7 +83,7 @@ export function XeroLinkToContactSheet({
   const [search, setSearch] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<Contact[]>([]);
   const [searching, setSearching] = React.useState(false);
-  const [linking, setLinking] = React.useState(false);
+  const [linkingContactId, setLinkingContactId] = React.useState<number | null>(null);
   const [unlinking, setUnlinking] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
   const [creatingCompany, setCreatingCompany] = React.useState(false);
@@ -165,7 +165,7 @@ export function XeroLinkToContactSheet({
       return;
     }
 
-    setLinking(true);
+    setLinkingContactId(contactId);
     try {
       // If already linked, we need to transfer the link
       if (localContactId && xeroLinkId) {
@@ -199,7 +199,7 @@ export function XeroLinkToContactSheet({
       console.error("Link failed:", error);
       toast.error("Failed to link contact");
     } finally {
-      setLinking(false);
+      setLinkingContactId(null);
     }
   };
 
@@ -544,9 +544,9 @@ export function XeroLinkToContactSheet({
                       <Button
                         size="sm"
                         onClick={() => handleLinkToContact(contact.id)}
-                        disabled={linking}
+                        disabled={linkingContactId !== null}
                       >
-                        {linking ? (
+                        {linkingContactId === contact.id ? (
                           <Spinner size={14} />
                         ) : localSynced ? (
                           <>

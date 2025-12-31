@@ -499,6 +499,8 @@ export default function TeeemTableView({
   initialView,
   // SSR Group Counts - Pre-fetched group counts to eliminate CLS on grouped views
   initialGroupCounts,
+  // Parent-triggered refresh signal (use instead of key={refreshKey} to avoid full remount)
+  refreshTrigger,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -659,6 +661,20 @@ export default function TeeemTableView({
       setAutoFetchRefreshKey(prev => prev + 1);
     }
   }, [useAutoFetch]);
+
+  // Parent-triggered refresh via refreshTrigger prop
+  // This allows parents to request a refresh without unmounting the component (avoiding SSR data loss)
+  // Use this INSTEAD OF key={refreshKey} pattern
+  const prevRefreshTriggerRef = useRef(refreshTrigger);
+  useEffect(() => {
+    // Only trigger on changes after initial mount (not on initial render)
+    if (prevRefreshTriggerRef.current !== undefined &&
+        refreshTrigger !== undefined &&
+        refreshTrigger !== prevRefreshTriggerRef.current) {
+      triggerAutoRefresh();
+    }
+    prevRefreshTriggerRef.current = refreshTrigger;
+  }, [refreshTrigger, triggerAutoRefresh]);
 
   // Auto-fetch columns when effectiveFoundationId is set
   // ULTRA: Uses module-level cache for instant loading on repeat visits
