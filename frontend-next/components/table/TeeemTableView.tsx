@@ -1594,12 +1594,16 @@ export default function TeeemTableView({
       setShowDeleteConfirmModal(false);
       setRecordToDelete(null);
 
-      // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+      // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
       // SSoT: records-cache.ts
       clearCachedRecords(effectiveFoundationId);
 
-      // Refresh data - both internal (autoFetch) and external (parent callback)
-      triggerAutoRefresh();
+      // OPTIMISTIC UPDATE: Remove deleted row from local state
+      if (useAutoFetch) {
+        setAutoFetchedRecords(prev => prev.filter(r => r.id !== recordToDelete.id));
+      }
+
+      // For non-autoFetch mode: call parent's onRefresh callback
       onRefresh?.();
     } catch (err) {
       console.error("Failed to delete record:", err);
@@ -1611,7 +1615,7 @@ export default function TeeemTableView({
     } finally {
       setIsDeleting(false);
     }
-  }, [effectiveFoundationId, recordToDelete, onRefresh, toast, triggerAutoRefresh]);
+  }, [effectiveFoundationId, recordToDelete, onRefresh, toast, useAutoFetch]);
 
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
@@ -2564,30 +2568,48 @@ export default function TeeemTableView({
           });
         }
 
-        // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+        // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
         // SSoT: records-cache.ts
         if (effectiveFoundationId) {
           clearCachedRecords(effectiveFoundationId);
         }
 
-        // Only refresh once after all updates
-        // For autoFetch mode: trigger internal refresh
-        // For manual mode: call parent's onRefresh callback
-        triggerAutoRefresh();
+        // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
+        // This gives instant feedback without a full table reload
+        if (useAutoFetch) {
+          setAutoFetchedRecords(prev => prev.map(record => {
+            const update = rowsToUpdate.find(r => r.rowId === record.id);
+            if (update) {
+              return { ...record, ...update.changes };
+            }
+            return record;
+          }));
+        }
+
+        // For non-autoFetch mode: call parent's onRefresh callback
+        // Parent is responsible for updating their own state
         onRefresh?.();
       } else {
-        // Fallback: call onRowUpdate for each field (triggers refresh per field - slow)
+        // Fallback: call onRowUpdate for each field
         for (const { rowId, changes } of rowsToUpdate) {
           for (const [key, value] of Object.entries(changes)) {
             await onRowUpdate(rowId, key, value);
           }
         }
-        // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+        // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
         if (effectiveFoundationId) {
           clearCachedRecords(effectiveFoundationId);
         }
-        // After all updates via onRowUpdate, trigger internal refresh for autoFetch mode
-        triggerAutoRefresh();
+        // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
+        if (useAutoFetch) {
+          setAutoFetchedRecords(prev => prev.map(record => {
+            const update = rowsToUpdate.find(r => r.rowId === record.id);
+            if (update) {
+              return { ...record, ...update.changes };
+            }
+            return record;
+          }));
+        }
       }
 
       setEditingRowIds(new Set());
@@ -2606,7 +2628,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, triggerAutoRefresh, COLUMNS, setValidationErrors]);
+  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, useAutoFetch, COLUMNS, setValidationErrors]);
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {
@@ -2749,15 +2771,24 @@ export default function TeeemTableView({
       setBulkUpdateValue("");
       setSelectedRows(new Set<string | number>());
 
-      // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+      // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
       // SSoT: records-cache.ts
       if (effectiveFoundationId) {
         clearCachedRecords(effectiveFoundationId);
       }
 
-      console.log('[Bulk Update] Calling refresh...');
-      // Refresh data - both internal (autoFetch) and external (parent callback)
-      triggerAutoRefresh();
+      console.log('[Bulk Update] Applying optimistic update...');
+      // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
+      if (useAutoFetch) {
+        setAutoFetchedRecords(prev => prev.map(record => {
+          if (ids.includes(record.id as number)) {
+            return { ...record, [bulkUpdateColumn]: valueToSend };
+          }
+          return record;
+        }));
+      }
+
+      // For non-autoFetch mode: call parent's onRefresh callback
       onRefresh?.();
       console.log('[Bulk Update] Complete!');
     } catch (error) {
@@ -2771,7 +2802,7 @@ export default function TeeemTableView({
       setBulkUpdateSaving(false);
       console.log('[Bulk Update] Saving state reset');
     }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS, triggerAutoRefresh]);
+  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS, useAutoFetch]);
 
   // Fetch lookup options when bulk update column changes to a lookup column
   useEffect(() => {
@@ -2934,6 +2965,13 @@ export default function TeeemTableView({
           const skipUrlUpdate = !!urlViewExistsForFoundation;
           loadViewState(defaultView, skipUrlUpdate);
           initialViewLoadedRef.current = true;
+
+          // For embedded context: notify parent on initial load so URL can sync
+          // Only if no view was already in the URL (don't override explicit URL)
+          // This ensures /jobs/46/schedule → /jobs/46/schedule/po-tasks-only
+          if (isEmbeddedContext && !slugToMatch && onViewChange) {
+            onViewChange(defaultView);
+          }
         }
       } catch (error) {
         console.error("Error loading saved views:", error);

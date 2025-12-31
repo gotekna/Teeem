@@ -134,9 +134,13 @@ export function useGroupCounts(
     // Don't fetch if disabled or missing required params
     if (!enabled || !foundationId || !groupByColumn) {
       console.log('[useGroupCounts] Skipping - disabled or missing params');
-      setGroups([]);
-      setTotalRecords(0);
-      setDisplayValuesMap({});
+      // SSR FIX: Don't clear state if we have SSR data and haven't fetched yet
+      // This prevents losing initial data during the hydration phase
+      if (!skipInitialFetchRef.current) {
+        setGroups([]);
+        setTotalRecords(0);
+        setDisplayValuesMap({});
+      }
       setError(null);
       return;
     }
@@ -216,9 +220,10 @@ export function useGroupCounts(
   // Fetch on mount and when dependencies change
   useEffect(() => {
     // SSR: Skip initial fetch if we have pre-loaded data
-    if (skipInitialFetchRef.current) {
+    // Keep skipInitialFetchRef true until we actually need to fetch
+    if (skipInitialFetchRef.current && enabled && foundationId && groupByColumn) {
       console.log('[useGroupCounts] Skipping initial fetch - using SSR data');
-      skipInitialFetchRef.current = false; // Allow future refetches
+      skipInitialFetchRef.current = false; // Mark SSR data as consumed
       return;
     }
 
