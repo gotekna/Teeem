@@ -1227,26 +1227,26 @@ export class Renderer {
         const to = taskMap.get(dep.toId);
         if (!from || !to) return;
 
-      // Virtual scrolling: skip if both tasks are outside visible range
-      if (!shouldRenderDep(from.index, to.index)) return;
+        // Virtual scrolling: skip if both tasks are outside visible range
+        if (!shouldRenderDep(from.index, to.index)) return;
 
-      const { fromX, toX } = this.getDependencyEndpoints(dep, from.task, to.task);
-      const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
-      const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
+        const { fromX, toX } = this.getDependencyEndpoints(dep, from.task, to.task);
+        const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
+        const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
 
-      // Check if this is a broken dependency
-      const isBroken = brokenDepIds?.has(dep.id);
-      if (isBroken) {
-        this.drawBrokenDependencyLine(fromX, fromY, toX, toY, dep.type);
-      } else {
-        // Check if this dependency is on the critical path
-        const isCritical = criticalDependencyIds?.has(dep.id);
-        if (isCritical) {
-          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, STATUS_COLORS.danger, tasks, from.index, to.index);
+        // Check if this is a broken dependency
+        const isBroken = brokenDepIds?.has(dep.id);
+        if (isBroken) {
+          this.drawBrokenDependencyLine(fromX, fromY, toX, toY, dep.type);
         } else {
-          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false, undefined, tasks, from.index, to.index);
+          // Check if this dependency is on the critical path
+          const isCritical = criticalDependencyIds?.has(dep.id);
+          if (isCritical) {
+            this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, STATUS_COLORS.danger, tasks, from.index, to.index);
+          } else {
+            this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false, undefined, tasks, from.index, to.index);
+          }
         }
-      }
       });
     } // End of hideNonHighlighted check
 
@@ -1436,8 +1436,10 @@ export class Renderer {
     fromIndex?: number,
     toIndex?: number
   ): void {
-    const color = highlighted && highlightColor ? highlightColor : TAILWIND_COLORS.gray[500];
-    const lineWidth = highlighted ? 3 : 1.5;
+    // In dark mode, use lighter gray for better visibility
+    const defaultColor = this.config.darkMode ? TAILWIND_COLORS.gray[400] : TAILWIND_COLORS.gray[500];
+    const color = highlighted && highlightColor ? highlightColor : defaultColor;
+    const lineWidth = highlighted ? 3 : 2; // Increased from 1.5 to 2 for better visibility
 
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = lineWidth;

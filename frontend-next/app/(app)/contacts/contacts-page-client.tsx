@@ -142,6 +142,7 @@ export default function ContactsPageClient({
         enableImport
         showDataHealth
         onDataHealthIssueClick={handleDataHealthIssueClick}
+        onRowClick={handleRowDoubleClick}
         onRowDoubleClick={handleRowDoubleClick}
         onRowUpdate={handleRowUpdate}
         onDelete={handleDelete}
