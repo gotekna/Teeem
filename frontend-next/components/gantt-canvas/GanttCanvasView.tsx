@@ -762,9 +762,10 @@ export function GanttCanvasView({
       if (t.id === task.id) return; // Skip self
       const predIds = t.rowData?.predecessor_ids;
       if (!predIds || !Array.isArray(predIds)) return;
+      // Use string comparison to handle type mismatches
       const predInfo = predIds.find((p: any) => {
-        const predId = p?.id || p;
-        return predId === currentTaskNum || String(predId) === String(task.id);
+        const predId = String(p?.id || p);
+        return predId === String(currentTaskNum) || predId === String(task.id);
       });
       if (predInfo) {
         successorLinks.push({
