@@ -217,6 +217,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   } | null>(null);
   const [showCategorizeSummary, setShowCategorizeSummary] = useState(false);
   const [forceRecategorize, setForceRecategorize] = useState(false);
+  const [categorizeFilter, setCategorizeFilter] = useState<"all" | "new" | "fixed" | "skipped" | "failed">("all");
 
   // Photo upload state
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
@@ -1227,6 +1228,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
       if (response?.success) {
         setCategorizeResult(response);
+        setCategorizeFilter("all");  // Reset filter when opening dialog
         setShowCategorizeSummary(true);
 
         const totalChanged = (response.stats.categorized || 0) + (response.stats.recategorized || 0);
@@ -2545,15 +2547,21 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
           {categorizeResult && (
             <div className="flex-1 overflow-y-auto space-y-4">
-              {/* Stats Summary */}
+              {/* Stats Summary - Clickable to filter */}
               <div className="grid grid-cols-5 gap-3">
-                <Card className="bg-muted/50">
+                <Card
+                  className={`bg-muted/50 cursor-pointer transition-all hover:ring-2 hover:ring-primary/50 ${categorizeFilter === "all" ? "ring-2 ring-primary" : ""}`}
+                  onClick={() => setCategorizeFilter("all")}
+                >
                   <CardContent className="p-3 text-center">
                     <div className="text-xl font-bold">{categorizeResult.stats.total}</div>
                     <div className="text-xs text-muted-foreground">Total</div>
                   </CardContent>
                 </Card>
-                <Card className="bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800">
+                <Card
+                  className={`bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 cursor-pointer transition-all hover:ring-2 hover:ring-green-500/50 ${categorizeFilter === "new" ? "ring-2 ring-green-500" : ""}`}
+                  onClick={() => setCategorizeFilter("new")}
+                >
                   <CardContent className="p-3 text-center">
                     <div className="text-xl font-bold text-green-600">{categorizeResult.stats.categorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
@@ -2561,7 +2569,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
+                <Card
+                  className={`bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800 cursor-pointer transition-all hover:ring-2 hover:ring-orange-500/50 ${categorizeFilter === "fixed" ? "ring-2 ring-orange-500" : ""}`}
+                  onClick={() => setCategorizeFilter("fixed")}
+                >
                   <CardContent className="p-3 text-center">
                     <div className="text-xl font-bold text-orange-600">{categorizeResult.stats.recategorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
@@ -2569,13 +2580,19 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800">
+                <Card
+                  className={`bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800 cursor-pointer transition-all hover:ring-2 hover:ring-yellow-500/50 ${categorizeFilter === "skipped" ? "ring-2 ring-yellow-500" : ""}`}
+                  onClick={() => setCategorizeFilter("skipped")}
+                >
                   <CardContent className="p-3 text-center">
                     <div className="text-xl font-bold text-yellow-600">{categorizeResult.stats.skipped}</div>
                     <div className="text-xs text-muted-foreground">Skipped</div>
                   </CardContent>
                 </Card>
-                <Card className="bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
+                <Card
+                  className={`bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 cursor-pointer transition-all hover:ring-2 hover:ring-red-500/50 ${categorizeFilter === "failed" ? "ring-2 ring-red-500" : ""}`}
+                  onClick={() => setCategorizeFilter("failed")}
+                >
                   <CardContent className="p-3 text-center">
                     <div className="text-xl font-bold text-red-600">{categorizeResult.stats.failed}</div>
                     <div className="text-xs text-muted-foreground">Failed</div>
@@ -2584,10 +2601,37 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               </div>
 
               {/* Sample Details */}
-              {categorizeResult.details.length > 0 && (
+              {categorizeResult.details.length > 0 && (() => {
+                // Filter results based on selected filter
+                const filteredDetails = categorizeResult.details.filter((item) => {
+                  if (categorizeFilter === "all") return true;
+                  if (categorizeFilter === "new") return item.status === "would_categorize" || item.status === "categorized";
+                  if (categorizeFilter === "fixed") return item.status === "would_recategorize" || item.status === "recategorized";
+                  if (categorizeFilter === "skipped") return item.status === "skipped";
+                  if (categorizeFilter === "failed") return item.status === "failed";
+                  return true;
+                });
+                // Show all when filtered, limit to 100 when showing all
+                const displayLimit = categorizeFilter === "all" ? 100 : filteredDetails.length;
+                const displayDetails = filteredDetails.slice(0, displayLimit);
+
+                return (
                 <div>
                   <h4 className="font-medium mb-2 text-sm">
-                    Sample Results ({Math.min(categorizeResult.details.length, 20)} of {categorizeResult.details.length})
+                    {categorizeFilter === "all"
+                      ? `Sample Results (${Math.min(displayDetails.length, displayLimit)} of ${categorizeResult.details.length})`
+                      : `${categorizeFilter.charAt(0).toUpperCase() + categorizeFilter.slice(1)} Results (${filteredDetails.length})`
+                    }
+                    {categorizeFilter !== "all" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-2 h-6 text-xs"
+                        onClick={() => setCategorizeFilter("all")}
+                      >
+                        Show All
+                      </Button>
+                    )}
                   </h4>
                   <div className="border rounded-lg overflow-hidden">
                     <Table>
@@ -2599,7 +2643,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {categorizeResult.details.slice(0, 20).map((item) => (
+                        {displayDetails.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="font-mono text-xs">
                               <div className="truncate max-w-[280px]" title={item.file_name}>
@@ -2657,7 +2701,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     </Table>
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
