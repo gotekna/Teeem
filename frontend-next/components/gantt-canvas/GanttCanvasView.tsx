@@ -741,9 +741,25 @@ export function GanttCanvasView({
     // Otherwise fall back to just IDs with defaults
     // NOTE: pred.id is task_number, need to convert to row.id for matching task.id
     const apiPredecessors = task.rowData?.predecessor_ids || [];
+    console.log('🔍 openDepEditor debug:', {
+      taskId: task.id,
+      taskName: task.name,
+      rowData: task.rowData,
+      apiPredecessors,
+      tasksCount: tasks.length,
+      sampleTaskRowData: tasks[0]?.rowData,
+    });
     const links: PredecessorLink[] = apiPredecessors.map(pred => {
       // Find the task by task_number to get its row.id
-      const predecessorTask = tasks.find(t => t.rowData?.task_number === pred.id);
+      // Handle both number and string comparison for task_number matching
+      const predecessorTask = tasks.find(t => {
+        const taskNum = t.rowData?.task_number;
+        const predId = pred.id;
+        const match = taskNum === predId || String(taskNum) === String(predId);
+        if (match) console.log('🔍 Found match:', { taskNum, predId, taskId: t.id });
+        return match;
+      });
+      console.log('🔍 Predecessor lookup:', { predId: pred.id, predIdType: typeof pred.id, found: !!predecessorTask, resultId: predecessorTask?.id || String(pred.id) });
       return {
         predecessorId: predecessorTask?.id || String(pred.id), // Use task.id (row.id), fallback to task_number if not found
         type: (pred.type || 'FS') as DependencyType,
