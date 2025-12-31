@@ -518,7 +518,7 @@ export default function SchedulePage() {
       is_active: true,
       linked_po_task_id: null,
       linked_po_task_name: null,
-      header_gantt: null,
+      header_gantt: task.header_gantt ?? null,  // SSoT: From linked sm_schedule_master via API
       sm_template_ids: [],
       hold: false,
       hold_date: null,
