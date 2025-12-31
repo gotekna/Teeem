@@ -523,6 +523,13 @@ export default function TeeemTableView({
   // - Auto-fetch records
   const shouldAutoEnable = !!effectiveFoundationId;
 
+  // SSoT: Embedded context detection - tables with initialFilters are in subtab/filtered view context
+  // These tables should NOT interact with URL (read or write) because:
+  // 1. URL views are from parent page or other tabs (would pollute this table's filter context)
+  // 2. initialFilters defines the authoritative filter context for this table instance
+  // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read)
+  const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0);
+
   const effectiveEnableImport = enableImport || shouldAutoEnable;
   const effectiveEnableExport = enableExport || shouldAutoEnable;
   const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
