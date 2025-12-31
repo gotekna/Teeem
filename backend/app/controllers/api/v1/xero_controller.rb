@@ -2464,7 +2464,7 @@ module Api
 
             # ABN/Tax Number comparison
             xero_abn = xero_contact["TaxNumber"]
-            teeem_abn = contact.abn.presence || contact.tax_number.presence
+            teeem_abn = contact.abn
             if xero_abn.present? && xero_abn != teeem_abn
               differences << {
                 field: "abn",
