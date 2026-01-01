@@ -2304,58 +2304,6 @@ module Api
         end
       end
 
-      private
-
-      # Check if two names are likely duplicates
-      # Returns true if one name is essentially contained in the other
-      def likely_duplicate?(name1, name2, suffixes)
-        n1 = normalize_name(name1, suffixes)
-        n2 = normalize_name(name2, suffixes)
-
-        return false if n1.empty? || n2.empty?
-        return true if n1 == n2  # Same after normalization
-
-        # Check if one is a prefix/substring of the other
-        return true if n1.start_with?(n2) || n2.start_with?(n1)
-        return true if n1.include?(n2) || n2.include?(n1)
-
-        # Check word-level containment (e.g., "Coles" vs "Coles Express")
-        words1 = n1.split
-        words2 = n2.split
-
-        # If shorter name's words are all in longer name (in order), it's likely a duplicate
-        shorter, longer = words1.length <= words2.length ? [ words1, words2 ] : [ words2, words1 ]
-
-        # All words from shorter must appear in longer
-        return shorter.all? { |w| longer.include?(w) } if shorter.length >= 1 && shorter.length <= 2
-
-        false
-      end
-
-      # Normalize name by removing common suffixes and lowercasing
-      def normalize_name(name, suffixes)
-        words = name.downcase.gsub(/[^a-z0-9\s]/, "").split
-        words.reject { |w| suffixes.include?(w) || w.length < 2 }.join(" ")
-      end
-
-      # Build contact info hash for a Xero contact
-      def build_xero_contact_info(contact)
-        inv_count = ExternalInvoice.where(external_contact_id: contact[:xero_id]).count
-        total_amount = ExternalInvoice.where(external_contact_id: contact[:xero_id]).sum(:total)&.to_f || 0
-        has_link = ContactExternalLink.exists?(external_contact_id: contact[:xero_id])
-        linked_contact = has_link ? ContactExternalLink.find_by(external_contact_id: contact[:xero_id])&.contact : nil
-
-        {
-          xero_name: contact[:name],
-          xero_id: contact[:xero_id],
-          invoice_count: inv_count,
-          total_amount: total_amount,
-          has_teeem_link: has_link,
-          teeem_contact_id: linked_contact&.id,
-          teeem_contact_name: linked_contact&.display_name
-        }
-      end
-
       # POST /api/v1/xero/link_unlinked_contact
       # Links a Xero contact to a TEEEM contact by creating a ContactExternalLink
       # Also updates any invoices with this Xero contact to point to the TEEEM contact
@@ -2988,6 +2936,56 @@ module Api
       end
 
       private
+
+      # Check if two names are likely duplicates (for xero_duplicates endpoint)
+      # Returns true if one name is essentially contained in the other
+      def likely_duplicate?(name1, name2, suffixes)
+        n1 = normalize_name(name1, suffixes)
+        n2 = normalize_name(name2, suffixes)
+
+        return false if n1.empty? || n2.empty?
+        return true if n1 == n2  # Same after normalization
+
+        # Check if one is a prefix/substring of the other
+        return true if n1.start_with?(n2) || n2.start_with?(n1)
+        return true if n1.include?(n2) || n2.include?(n1)
+
+        # Check word-level containment (e.g., "Coles" vs "Coles Express")
+        words1 = n1.split
+        words2 = n2.split
+
+        # If shorter name's words are all in longer name (in order), it's likely a duplicate
+        shorter, longer = words1.length <= words2.length ? [ words1, words2 ] : [ words2, words1 ]
+
+        # All words from shorter must appear in longer
+        return shorter.all? { |w| longer.include?(w) } if shorter.length >= 1 && shorter.length <= 2
+
+        false
+      end
+
+      # Normalize name by removing common suffixes and lowercasing (for xero_duplicates endpoint)
+      def normalize_name(name, suffixes)
+        words = name.downcase.gsub(/[^a-z0-9\s]/, "").split
+        words.reject { |w| suffixes.include?(w) || w.length < 2 }.join(" ")
+      end
+
+      # Build contact info hash for a Xero contact (for xero_duplicates endpoint)
+      def build_xero_contact_info(contact)
+        inv_count = ExternalInvoice.where(external_contact_id: contact[:xero_id]).count
+        total_amount = ExternalInvoice.where(external_contact_id: contact[:xero_id]).sum(:total)&.to_f || 0
+        has_link = ContactExternalLink.exists?(external_contact_id: contact[:xero_id])
+        linked_contact = has_link ? ContactExternalLink.find_by(external_contact_id: contact[:xero_id])&.contact : nil
+
+        {
+          xero_name: contact[:name],
+          xero_id: contact[:xero_id],
+          invoice_count: inv_count,
+          total_amount: total_amount,
+          has_teeem_link: has_link,
+          teeem_contact_id: linked_contact&.id,
+          teeem_contact_name: linked_contact&.display_name
+        }
+      end
 
       # Calculate Xero data statistics for sync dashboard
       def calculate_xero_data_stats
