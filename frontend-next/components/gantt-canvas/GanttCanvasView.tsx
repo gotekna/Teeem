@@ -565,6 +565,45 @@ export function GanttCanvasView({
   // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
   // Two-pass filtering: first determine visible non-headers, then filter headers based on visible children
   const visibleTasks = React.useMemo(() => {
+    // Build header task_number -> task.id mapping from BOTH rows and tasks to ensure completeness
+    const headerTaskNumToTaskId = new Map<number, string>();
+    // First from rows (SSoT)
+    for (const row of rows) {
+      if (row.header_gantt === 'Header') {
+        headerTaskNumToTaskId.set(Number(row.task_number), String(row.id));
+      }
+    }
+    // Also from tasks (in case IDs differ)
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        headerTaskNumToTaskId.set(Number(rowData.task_number), task.id);
+      }
+    }
+
+    // Helper to get parent header task ID from a child task
+    const getParentId = (task: GanttTask): string | null => {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (!rowData) return null;
+      const hg = rowData.header_gantt;
+      if (hg === 'Header' || hg === null || hg === undefined) return null;
+
+      let parentTaskNum: number | null = null;
+      if (typeof hg === 'number') {
+        parentTaskNum = hg;
+      } else if (typeof hg === 'object' && hg?.id) {
+        parentTaskNum = hg.id;
+      } else if (typeof hg === 'string') {
+        const parsed = parseInt(hg, 10);
+        if (!isNaN(parsed)) parentTaskNum = parsed;
+      }
+
+      if (parentTaskNum !== null) {
+        return headerTaskNumToTaskId.get(parentTaskNum) ?? null;
+      }
+      return null;
+    };
+
     // Helper to check if a non-header task passes filters (excluding collapse check for now)
     const taskPassesFilters = (task: GanttTask): boolean => {
       // Name search filter
@@ -574,7 +613,7 @@ export function GanttCanvasView({
 
       const rowData = task.rowData as SmScheduleMaster | undefined;
       const isHeader = rowData?.header_gantt === 'Header';
-      const parentHeaderId = getParentHeaderId(task);
+      const parentHeaderId = getParentId(task);
 
       // If showOnlyGrouped is enabled, only show headers (handled separately)
       if (showOnlyGrouped && !isHeader) {
@@ -591,8 +630,7 @@ export function GanttCanvasView({
       return true;
     };
 
-    // First pass: Build a set of header IDs that have at least one visible child
-    // (a child is visible if it passes filters AND its parent header is not collapsed)
+    // First pass: Build a set of header task IDs that have at least one visible child
     const headersWithVisibleChildren = new Set<string>();
 
     for (const task of tasks) {
@@ -600,7 +638,7 @@ export function GanttCanvasView({
       const isHeader = rowData?.header_gantt === 'Header';
 
       if (!isHeader && taskPassesFilters(task)) {
-        const parentHeaderId = getParentHeaderId(task);
+        const parentHeaderId = getParentId(task);
         if (parentHeaderId) {
           // This child passes filters - mark its parent as having visible children
           headersWithVisibleChildren.add(parentHeaderId);
@@ -612,7 +650,7 @@ export function GanttCanvasView({
     return tasks.filter(task => {
       const rowData = task.rowData as SmScheduleMaster | undefined;
       const isHeader = rowData?.header_gantt === 'Header';
-      const parentHeaderId = getParentHeaderId(task);
+      const parentHeaderId = getParentId(task);
 
       // For headers: hide if they have no visible children
       if (isHeader) {
@@ -635,7 +673,7 @@ export function GanttCanvasView({
 
       return true;
     });
-  }, [tasks, collapsedHeaders, showOnlyGrouped, viewSlug, nameSearch, getParentHeaderId]);
+  }, [tasks, rows, collapsedHeaders, showOnlyGrouped, viewSlug, nameSearch]);
 
   // Check if a task is a header (rowData.header_gantt === 'Header')
   const isHeaderTask = React.useCallback((task: GanttTask | undefined) => {
@@ -692,20 +730,42 @@ export function GanttCanvasView({
     if (!firstVisibleTask) return null;
 
     // If first visible is a header, no need for sticky
-    if (isHeaderTask(firstVisibleTask)) {
+    const firstRowData = firstVisibleTask.rowData as SmScheduleMaster | undefined;
+    if (firstRowData?.header_gantt === 'Header') {
       return null;
     }
 
-    // Get parent header of first visible task
-    const parentHeaderId = getParentHeaderId(firstVisibleTask);
-    if (!parentHeaderId) return null;
+    // Build header task_number -> task mapping for lookup
+    const headerTaskNumToTask = new Map<number, GanttTask>();
+    for (const task of visibleTasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        headerTaskNumToTask.set(Number(rowData.task_number), task);
+      }
+    }
+
+    // Get parent task_number from first visible task's header_gantt
+    const hg = firstRowData?.header_gantt;
+    if (!hg || hg === 'Header') return null;
+
+    let parentTaskNum: number | null = null;
+    if (typeof hg === 'number') {
+      parentTaskNum = hg;
+    } else if (typeof hg === 'object' && hg?.id) {
+      parentTaskNum = hg.id;
+    } else if (typeof hg === 'string') {
+      const parsed = parseInt(hg, 10);
+      if (!isNaN(parsed)) parentTaskNum = parsed;
+    }
+
+    if (parentTaskNum === null) return null;
 
     // Find the parent header task
-    const headerTask = visibleTasks.find(t => t.id === parentHeaderId);
+    const headerTask = headerTaskNumToTask.get(parentTaskNum);
     if (!headerTask) return null;
 
     // Check if header is scrolled out of view (its index * ROW_HEIGHT < scrollY)
-    const headerIndex = visibleTasks.findIndex(t => t.id === parentHeaderId);
+    const headerIndex = visibleTasks.findIndex(t => t.id === headerTask.id);
     if (headerIndex < 0) return null;
 
     const headerTop = headerIndex * ROW_HEIGHT;
@@ -716,7 +776,7 @@ export function GanttCanvasView({
 
     // Header is scrolled out, show sticky
     return headerTask;
-  }, [sidebarScrollY, visibleTasks, isHeaderTask, getParentHeaderId]);
+  }, [sidebarScrollY, visibleTasks]);
 
   // Fullscreen state - use external if provided, otherwise internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
