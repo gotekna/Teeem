@@ -31,6 +31,7 @@ interface Comparison {
   teeem_name: string;
   xero_name?: string;
   xero_id?: string;
+  tenant_name?: string;
   has_differences?: boolean;
   differences?: Difference[];
   error?: string;
@@ -112,7 +113,7 @@ export function XeroSyncFromModal({
 
   const handleApply = async () => {
     // Build updates array from selected fields
-    const updates: Array<{ contact_id: number; fields: Record<string, string> }> = [];
+    const updates: Array<{ contact_id: number; fields: Record<string, string>; tenant_name?: string }> = [];
 
     comparisons.forEach((comp) => {
       if (!comp.has_differences || !comp.differences) return;
@@ -130,6 +131,7 @@ export function XeroSyncFromModal({
         updates.push({
           contact_id: comp.contact_id,
           fields: fieldsToUpdate,
+          tenant_name: comp.tenant_name,
         });
       }
     });
@@ -269,17 +271,30 @@ export function XeroSyncFromModal({
                                 />
                                 <div className="flex-1 min-w-0">
                                   <div className="text-xs font-medium text-muted-foreground mb-1">
-                                    {diff.label}
+                                    {diff.field === "email" && diff.teeem_value
+                                      ? "Add Secondary Email"
+                                      : diff.label}
                                   </div>
-                                  <div className="flex items-center gap-2 text-sm">
-                                    <span className="text-red-600 line-through truncate max-w-[200px]">
-                                      {diff.teeem_value || "(empty)"}
-                                    </span>
-                                    <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                    <span className="text-green-600 font-medium truncate max-w-[200px]">
-                                      {diff.xero_value}
-                                    </span>
-                                  </div>
+                                  {diff.field === "email" && diff.teeem_value ? (
+                                    <div className="text-sm">
+                                      <span className="text-green-600 font-medium">
+                                        + {diff.xero_value}
+                                      </span>
+                                      <span className="text-muted-foreground text-xs ml-2">
+                                        (keeps {diff.teeem_value})
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <span className="text-red-600 line-through truncate max-w-[200px]">
+                                        {diff.teeem_value || "(empty)"}
+                                      </span>
+                                      <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                      <span className="text-green-600 font-medium truncate max-w-[200px]">
+                                        {diff.xero_value}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             );

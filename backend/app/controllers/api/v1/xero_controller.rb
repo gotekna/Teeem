@@ -2567,6 +2567,7 @@ module Api
               teeem_name: contact.display_name,
               xero_name: xero_name,
               xero_id: link.external_contact_id,
+              tenant_name: link.tenant_name,
               has_differences: differences.any?,
               differences: differences
             }
@@ -2605,6 +2606,7 @@ module Api
           updates.each do |update|
             contact_id = update[:contact_id]
             fields = update[:fields] || {}
+            tenant_name = update[:tenant_name]
 
             contact = Contact.find_by(id: contact_id)
             unless contact
@@ -2634,12 +2636,14 @@ module Api
                 # Different email exists - add Xero email as secondary
                 # Check if this email already exists for this contact
                 unless contact.contact_emails.exists?(email: xero_email)
+                  # Use tenant name as label if available, otherwise "Xero"
+                  email_label = tenant_name.present? ? "Xero (#{tenant_name})" : "Xero"
                   contact.contact_emails.create!(
                     email: fields[:email],
-                    label: "Xero",
+                    label: email_label,
                     is_primary: false
                   )
-                  Rails.logger.info("[Xero] Added secondary email '#{fields[:email]}' to contact #{contact_id}")
+                  Rails.logger.info("[Xero] Added secondary email '#{fields[:email]}' to contact #{contact_id} with label '#{email_label}'")
                 end
               end
               # If same email, do nothing

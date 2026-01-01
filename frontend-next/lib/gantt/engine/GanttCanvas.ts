@@ -845,7 +845,11 @@ export class GanttCanvas {
     // Recalculate critical path if enabled
     this.recalculateCriticalPath();
 
-    // Auto-detect broken dependencies (successor starts before predecessor finishes)
+    // Auto-float unlocked tasks to respect predecessor constraints
+    // This moves tasks to their earliest valid start date
+    this.autoScheduleAll();
+
+    // Detect broken dependencies (only for LOCKED tasks that still violate constraints)
     this.autoDetectBrokenDependencies();
   }
 

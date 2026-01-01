@@ -5510,12 +5510,12 @@ export default function TeeemTableView({
             showHeader
           />
         ) : filteredAndSortedEntries.length === 0 && effectiveLoadingMore ? (
-          /* Show loading state when initial records are loading */
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Spinner size={32} className="mb-4" />
-            <p className="text-sm font-medium">Loading records...</p>
-            <p className="text-xs mt-1">Fetching data...</p>
-          </div>
+          /* Show skeleton while initial records are loading - prevents CLS */
+          <TableSkeleton
+            rowCount={10}
+            columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
+            showHeader
+          />
         ) : filteredAndSortedEntries.length === 0 && search ? (
           /* Show no results message when search is active but no matches */
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
