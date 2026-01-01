@@ -1048,7 +1048,8 @@ export function GanttCanvasView({
 
   // Save dependencies
   const saveDependencies = React.useCallback(async () => {
-    if (!depEditorTask || !templateId) return;
+    // Support both template mode (templateId) and static mode (jobId for sm_tasks)
+    if (!depEditorTask || (!templateId && !jobId)) return;
 
     // Filter out empty links
     const validLinks = depEditorLinks.filter(l => l.predecessorId);
@@ -1089,24 +1090,36 @@ export function GanttCanvasView({
       const isLocked = depEditorTask.rowData?.supplier_confirm === true;
       const isFullyLocked = isLocked && depEditorTask.rowData?.confirm === true;
 
+      // Helper function to save a task's predecessor_ids
+      // Uses different API endpoints for template mode vs static (job) mode
+      const saveTaskPredecessors = async (taskId: string, data: { predecessor_ids: unknown; dependency_broken?: boolean; confirm?: boolean }) => {
+        if (templateId) {
+          // Template mode: save to template row
+          await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${taskId}`, {
+            row: data
+          });
+        } else if (jobId) {
+          // Static mode: save to sm_task
+          await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+            sm_task: data
+          });
+        }
+      };
+
       if (isFullyLocked && predecessorData.length > 0) {
         // Task is fully locked - remove dependencies and mark as broken
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${depEditorTask.id}`, {
-          row: {
-            predecessor_ids: [],
-            dependency_broken: true
-          }
+        await saveTaskPredecessors(depEditorTask.id, {
+          predecessor_ids: [],
+          dependency_broken: true
         });
       } else {
         // Normal case - save the dependencies
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${depEditorTask.id}`, {
-          row: {
-            predecessor_ids: predecessorData,
-            // Clear dependency_broken if we're setting dependencies
-            dependency_broken: false,
-            // Set confirm if task is locked and can't follow dependencies
-            ...(isLocked && predecessorData.length > 0 && { confirm: true })
-          }
+        await saveTaskPredecessors(depEditorTask.id, {
+          predecessor_ids: predecessorData,
+          // Clear dependency_broken if we're setting dependencies
+          dependency_broken: false,
+          // Set confirm if task is locked and can't follow dependencies
+          ...(isLocked && predecessorData.length > 0 && { confirm: true })
         });
       }
 
@@ -1147,9 +1160,7 @@ export function GanttCanvasView({
           const predId = p?.id || p;
           return predId !== currentTaskNum && String(predId) !== String(depEditorTask.id);
         });
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
-          row: { predecessor_ids: newPreds }
-        });
+        await saveTaskPredecessors(successorId, { predecessor_ids: newPreds });
       }
 
       // Add this task to added successors' predecessor_ids
@@ -1163,9 +1174,7 @@ export function GanttCanvasView({
           type: succLink?.type || 'FS',
           lag: succLink?.lag || 0
         }];
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
-          row: { predecessor_ids: newPreds }
-        });
+        await saveTaskPredecessors(successorId, { predecessor_ids: newPreds });
       }
 
       // Update modified successors' predecessor_ids (type/lag might have changed)
@@ -1185,9 +1194,7 @@ export function GanttCanvasView({
           }
           return p;
         });
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
-          row: { predecessor_ids: newPreds }
-        });
+        await saveTaskPredecessors(successorId, { predecessor_ids: newPreds });
       }
 
       // Build display string for local state update (matches backend format: "2FS+3, 5SS")
@@ -1243,7 +1250,7 @@ export function GanttCanvasView({
         description: errorMessage,
       });
     }
-  }, [depEditorTask, depEditorLinks, depEditorSuccessorLinks, templateId, tasks, toast, loadData, hasCircularDependency]);
+  }, [depEditorTask, depEditorLinks, depEditorSuccessorLinks, templateId, jobId, tasks, toast, loadData, hasCircularDependency]);
 
   // Theme
   const { resolvedTheme } = useTheme();

@@ -853,10 +853,11 @@ export default function TeeemTableView({
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { limit: 100 };
-        // ULTRA Solution: Include base filters in API call
-        // These are immutable filters from initialFilters prop (e.g., template filter)
-        if (baseFilters.length > 0) {
-          params.filters = JSON.stringify(baseFilters.map(f => ({
+        // ULTRA Solution: Include ALL filters in API call (base + cascade/view)
+        // This ensures server-side filtering for much better performance
+        const allFilters = [...baseFilters, ...safeFilters.filter(sf => !baseFilters.some(bf => bf.id === sf.id))];
+        if (allFilters.length > 0) {
+          params.filters = JSON.stringify(allFilters.map(f => ({
             column: f.column,
             operator: f.operator,
             value: f.value,
@@ -878,8 +879,9 @@ export default function TeeemTableView({
     fetchInitialRecords();
     // SSR props (initialRecords, initialHasMore) intentionally excluded from deps
     // They're applied one-time via hasAppliedInitialRecordsRef, not on prop changes
+    // Also re-fetch when view/cascade filters change (safeFilters) for server-side filtering
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey]);
+  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey, safeFilters]);
 
   // Auto-load more records in background after initial render
   // ULTRA Solution: Include base filters to ensure consistent data loading
@@ -905,9 +907,10 @@ export default function TeeemTableView({
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { cursor, limit: 100 };
-        // ULTRA Solution: Include base filters in load-more to maintain filter consistency
-        if (baseFilters.length > 0) {
-          params.filters = JSON.stringify(baseFilters.map(f => ({
+        // ULTRA Solution: Include ALL filters in load-more (base + cascade/view)
+        const allFilters = [...baseFilters, ...safeFilters.filter(sf => !baseFilters.some(bf => bf.id === sf.id))];
+        if (allFilters.length > 0) {
+          params.filters = JSON.stringify(allFilters.map(f => ({
             column: f.column,
             operator: f.operator,
             value: f.value,
@@ -927,7 +930,7 @@ export default function TeeemTableView({
     }, 2000); // Wait 2 seconds before auto-loading more
 
     return () => clearTimeout(timer);
-  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId, baseFilters]);
+  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId, baseFilters, safeFilters]);
 
   // Server-side search for auto-fetch mode
   // Supports all search modes: contains (default), exact, starts_with, fuzzy, regex
