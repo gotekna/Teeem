@@ -359,6 +359,25 @@ export function GanttCanvasView({
     sourceEdge: null
   });
 
+  // Global mouseup listener to hide dependency popup when mouse is released anywhere
+  // This ensures the popup doesn't stay visible if user releases outside the buttons
+  React.useEffect(() => {
+    if (!depPopup.visible) return;
+
+    const hidePopup = () => {
+      // Small delay to allow button handlers to fire first
+      setTimeout(() => {
+        setDepPopup(prev => ({ ...prev, visible: false }));
+        if (ganttRef.current) {
+          ganttRef.current.cancelDependencyDrag();
+        }
+      }, 100);
+    };
+
+    window.addEventListener('mouseup', hidePopup);
+    return () => window.removeEventListener('mouseup', hidePopup);
+  }, [depPopup.visible]);
+
   // Cascade dialog state for task moves
   const [cascadeDialog, setCascadeDialog] = React.useState<{
     isOpen: boolean;
@@ -3258,15 +3277,19 @@ export function GanttCanvasView({
               left: depPopup.x,
               top: depPopup.y,
               transform: 'translate(-50%, 8px)',
+              pointerEvents: 'auto',
             }}
             onMouseUp={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             {/* Highlight Start when dragging from left (start), Finish when dragging from right (end) */}
             <Button
               size="sm"
               variant={depPopup.sourceEdge === 'start' ? 'default' : 'outline'}
               className="h-8 px-4 text-sm font-medium"
+              style={{ pointerEvents: 'auto' }}
               onMouseUp={() => handleDepPopupClick('start')}
+              onClick={() => handleDepPopupClick('start')}
             >
               Start
             </Button>
@@ -3274,7 +3297,9 @@ export function GanttCanvasView({
               size="sm"
               variant={depPopup.sourceEdge === 'end' ? 'default' : 'outline'}
               className="h-8 px-4 text-sm font-medium"
+              style={{ pointerEvents: 'auto' }}
               onMouseUp={() => handleDepPopupClick('end')}
+              onClick={() => handleDepPopupClick('end')}
             >
               Finish
             </Button>

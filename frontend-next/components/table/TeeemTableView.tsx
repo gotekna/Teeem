@@ -4386,7 +4386,7 @@ export default function TeeemTableView({
               )}
               <span className="font-bold text-[13px]">
                 {groupKey === "(Empty)" && isGroupingByCompany
-                  ? "No Roles"
+                  ? "No Employees Assigned"
                   : combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
