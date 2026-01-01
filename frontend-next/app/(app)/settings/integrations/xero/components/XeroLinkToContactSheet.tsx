@@ -44,6 +44,7 @@ interface Contact {
   entity_type: string | null;
   email: string | null;
   xero_linked_count?: number;
+  xero_tenant_names?: string[];
 }
 
 interface XeroLinkToContactSheetProps {
@@ -538,9 +539,13 @@ export function XeroLinkToContactSheet({
                               <Check className="h-3 w-3" />
                               currently linked
                             </span>
+                          ) : contact.xero_tenant_names?.includes(xeroTenantName || '') ? (
+                            <span className="flex items-center gap-1 text-red-600">
+                              linked in {xeroTenantName}
+                            </span>
                           ) : contact.xero_linked_count && contact.xero_linked_count > 0 ? (
                             <span className="flex items-center gap-1 text-amber-600">
-                              linked to other Xero
+                              linked in other org
                             </span>
                           ) : null}
                         </div>
@@ -548,7 +553,8 @@ export function XeroLinkToContactSheet({
                       <Button
                         size="sm"
                         onClick={() => handleLinkToContact(contact.id)}
-                        disabled={linkingContactId !== null}
+                        disabled={linkingContactId !== null || (contact.id !== localContactId && contact.xero_tenant_names?.includes(xeroTenantName || ''))}
+                        title={contact.xero_tenant_names?.includes(xeroTenantName || '') && contact.id !== localContactId ? 'This contact is already linked to another Xero contact in this organization. Unlink it first.' : undefined}
                       >
                         {linkingContactId === contact.id ? (
                           <Spinner size={14} />
