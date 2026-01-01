@@ -69,13 +69,16 @@ export function MergeModal({
   const [merging, setMerging] = useState(false);
 
   // Get the actual record objects for the selected IDs
+  // Use String() comparison to handle type mismatches (IDs may be string or number)
   const selectedRecords = useMemo(() => {
-    return records.filter((r) => selectedIds.includes(r.id as string | number));
+    const selectedIdStrings = new Set(selectedIds.map(id => String(id)));
+    return records.filter((r) => selectedIdStrings.has(String(r.id)));
   }, [records, selectedIds]);
 
   // Reset primary when modal opens with new selection
   useMemo(() => {
-    if (open && selectedIds.length > 0 && !selectedIds.includes(primaryId as string | number)) {
+    const selectedIdStrings = selectedIds.map(id => String(id));
+    if (open && selectedIds.length > 0 && !selectedIdStrings.includes(String(primaryId))) {
       setPrimaryId(defaultPrimaryId ?? selectedIds[0]);
     }
   }, [open, selectedIds, primaryId, defaultPrimaryId]);
@@ -194,7 +197,7 @@ export function MergeModal({
                 <div
                   key={recordId}
                   className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer ${
-                    primaryId === recordId
+                    String(primaryId) === String(recordId)
                       ? "border-primary bg-primary/5"
                       : "border-border hover:bg-muted/50"
                   }`}

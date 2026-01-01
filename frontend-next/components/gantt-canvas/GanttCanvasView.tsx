@@ -1985,8 +1985,7 @@ export function GanttCanvasView({
     let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
 
     if (isStaticMode && staticTasks) {
-      // Static mode - use provided data directly (dependencies come from API's gantt_data.dependencies)
-      // Clone tasks so we can modify header dates
+      // Static mode - clone tasks so we can recalculate dates
       taskList = staticTasks.map(t => ({ ...t }));
       dependencies = (staticDependencies || []).map((d, i) => ({
         id: d.id || `dep-${i}`,
@@ -1996,8 +1995,70 @@ export function GanttCanvasView({
         lag: d.lag || 0,
       }));
 
-      // Derive header dates from children (earliest start, latest end)
-      // Build map of header task_number -> task for quick lookup
+      // STEP 1: Recalculate ALL task dates based on dependencies
+      // This ensures proper positioning when headers have dependencies that affect children
+      // Sort by sequence order to process in correct order
+      const sortedTasks = [...taskList].sort((a, b) => {
+        const seqA = (a.rowData as SmScheduleMaster | undefined)?.sequence_order ?? 0;
+        const seqB = (b.rowData as SmScheduleMaster | undefined)?.sequence_order ?? 0;
+        return seqA - seqB;
+      });
+
+      // Build task date map (keyed by task_number) - will be updated as we process
+      const taskDateMap = new Map<number, { start: Date; end: Date }>();
+
+      // First pass: Process non-header tasks (calculate dates from dependencies)
+      for (const task of sortedTasks) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (!rowData || rowData.header_gantt === 'Header') continue;
+
+        // Check if task is locked (should keep backend date)
+        const isLocked = rowData.confirm || rowData.supplier_confirm ||
+                         rowData.finance_approved || rowData.is_completed;
+
+        if ((rowData.hold || isLocked) && rowData.hold_date) {
+          // Locked/held tasks keep their position
+          // Already have correct dates from backend
+        } else if (rowData.predecessor_ids && rowData.predecessor_ids.length > 0) {
+          // Recalculate based on dependencies
+          let latestRequiredStart = task.startDate;
+
+          for (const pred of rowData.predecessor_ids) {
+            const predDates = taskDateMap.get(pred.id);
+            if (!predDates) continue;
+
+            const predType = pred.type || 'FS';
+            const lag = pred.lag || 0;
+            let requiredStart: Date;
+
+            if (predType === 'FS') {
+              requiredStart = addWorkingDays(predDates.end, 1 + lag);
+            } else if (predType === 'SS') {
+              requiredStart = addWorkingDays(predDates.start, lag);
+            } else {
+              requiredStart = addWorkingDays(predDates.end, 1 + lag);
+            }
+
+            if (requiredStart > latestRequiredStart) {
+              latestRequiredStart = requiredStart;
+            }
+          }
+
+          // Update task dates if needed
+          if (latestRequiredStart > task.startDate) {
+            const offsetMs = latestRequiredStart.getTime() - task.startDate.getTime();
+            task.startDate = new Date(latestRequiredStart);
+            task.endDate = new Date(task.endDate.getTime() + offsetMs);
+          }
+        }
+
+        // Update map with this task's dates
+        if (rowData.task_number) {
+          taskDateMap.set(Number(rowData.task_number), { start: task.startDate, end: task.endDate });
+        }
+      }
+
+      // STEP 2: Build header -> children map
       const headerTaskNumberToTask = new Map<number, GanttTask>();
       for (const task of taskList) {
         const rowData = task.rowData as SmScheduleMaster | undefined;
@@ -2006,13 +2067,11 @@ export function GanttCanvasView({
         }
       }
 
-      // Build map of header task.id -> children
       const headerChildrenMap = new Map<string, GanttTask[]>();
       for (const task of taskList) {
         const rowData = task.rowData as SmScheduleMaster | undefined;
         if (!rowData || rowData.header_gantt === 'Header') continue;
 
-        // Get parent header task_number from header_gantt
         let parentTaskNumber: number | null = null;
         const hg = rowData.header_gantt;
         if (typeof hg === 'number') {
@@ -2032,15 +2091,6 @@ export function GanttCanvasView({
             }
             headerChildrenMap.get(headerTask.id)!.push(task);
           }
-        }
-      }
-
-      // Build task date map for dependency lookups (keyed by task_number)
-      const taskDateMap = new Map<number, { start: Date; end: Date }>();
-      for (const task of taskList) {
-        const rowData = task.rowData as SmScheduleMaster | undefined;
-        if (rowData?.task_number) {
-          taskDateMap.set(Number(rowData.task_number), { start: task.startDate, end: task.endDate });
         }
       }
 
