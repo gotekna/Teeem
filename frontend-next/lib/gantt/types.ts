@@ -605,13 +605,17 @@ export function convertRowsToTasks(
 
   // Third pass: update header tasks to span their children
   // Header rows have header_gantt === 'Header'
-  // Note: parent_row_id removed - header grouping handled by sequence_order positioning
-  const headerIds = new Set(
-    sortedRows.filter(r => r.header_gantt === 'Header').map(r => r.id)
-  );
+  // Children reference headers by task_number (not id), so we need to map task_number -> row
+  const headerRows = sortedRows.filter(r => r.header_gantt === 'Header');
+  const headerTaskNumbers = new Set(headerRows.map(r => r.task_number));
+  // Map task_number -> row.id for looking up header by task_number
+  const taskNumberToId = new Map<number, number>();
+  for (const row of headerRows) {
+    taskNumberToId.set(row.task_number, row.id);
+  }
 
-  if (headerIds.size > 0) {
-    // Build map of header ID -> child tasks from header_gantt field
+  if (headerRows.length > 0) {
+    // Build map of header row.id -> child tasks
     const headerChildrenMap = new Map<number, GanttTask[]>();
 
     // Populate headerChildrenMap by checking each row's header_gantt field
@@ -622,19 +626,30 @@ export function convertRowsToTasks(
       // Skip headers themselves
       if (row.header_gantt === 'Header') continue;
 
-      // Get parent header ID from header_gantt field
-      let parentId: number | null = null;
+      // Get parent header task_number from header_gantt field
+      // Can be: number, {id, display} object, or string number like "1407"
+      let parentTaskNumber: number | null = null;
       if (typeof row.header_gantt === 'number') {
-        parentId = row.header_gantt;
+        parentTaskNumber = row.header_gantt;
       } else if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
-        parentId = row.header_gantt.id;
+        parentTaskNumber = row.header_gantt.id;
+      } else if (typeof row.header_gantt === 'string' && row.header_gantt !== 'Header') {
+        // Parse string number (e.g., "1407" -> 1407)
+        const parsed = parseInt(row.header_gantt, 10);
+        if (!isNaN(parsed)) {
+          parentTaskNumber = parsed;
+        }
       }
 
-      if (parentId && headerIds.has(parentId)) {
-        if (!headerChildrenMap.has(parentId)) {
-          headerChildrenMap.set(parentId, []);
+      // Convert task_number to row.id for the map
+      if (parentTaskNumber && headerTaskNumbers.has(parentTaskNumber)) {
+        const headerId = taskNumberToId.get(parentTaskNumber);
+        if (headerId) {
+          if (!headerChildrenMap.has(headerId)) {
+            headerChildrenMap.set(headerId, []);
+          }
+          headerChildrenMap.get(headerId)!.push(task);
         }
-        headerChildrenMap.get(parentId)!.push(task);
       }
     }
 
@@ -699,6 +714,16 @@ export function convertRowsToTasks(
         }
       }
     }
+
+    // Filter out headers that have no children
+    return tasks.filter(task => {
+      const row = sortedRows.find(r => String(r.id) === task.id);
+      if (row?.header_gantt === 'Header') {
+        const children = headerChildrenMap.get(row.id);
+        return children && children.length > 0;
+      }
+      return true;
+    });
   }
 
   return tasks;
