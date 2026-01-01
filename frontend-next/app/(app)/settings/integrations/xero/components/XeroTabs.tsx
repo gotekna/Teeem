@@ -753,7 +753,7 @@ export function XeroContactSync() {
       {/* Gold Standard Table - Foundation backed */}
       <div className="flex-1 -mx-4">
         <TeeemTableView
-          key={refreshKey}
+          refreshTrigger={refreshKey}
           foundationId="xero-sync-contacts"
           autoFetchRecords={true}
           onRowClick={handleRowClick}
@@ -840,9 +840,10 @@ export function XeroContactSync() {
         onClose={() => setShowSyncFromModal(false)}
         xeroLinkIds={Array.from(selectedRows)}
         onSyncComplete={() => {
-          // Just clear cache - don't force full refresh which resets fullscreen and scroll
-          // Data will refresh on next natural table interaction or manual refresh
+          // Clear cache and trigger refresh
+          // Using refreshTrigger (not key) preserves fullscreen and scroll
           clearCachedRecords("xero-sync-contacts");
+          setRefreshKey((prev) => prev + 1);
         }}
       />
     </div>
