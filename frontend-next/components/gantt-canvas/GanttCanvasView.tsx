@@ -1051,12 +1051,18 @@ export function GanttCanvasView({
 
   // Save dependencies
   const saveDependencies = React.useCallback(async () => {
+    console.log('[saveDependencies] Called', { depEditorTask: depEditorTask?.id, templateId, jobId, isStaticMode });
+
     // Support both template mode (templateId) and static mode (jobId for sm_tasks)
-    if (!depEditorTask || (!templateId && !jobId)) return;
+    if (!depEditorTask || (!templateId && !jobId)) {
+      console.log('[saveDependencies] Early return - missing depEditorTask or mode', { depEditorTask: !!depEditorTask, templateId, jobId });
+      return;
+    }
 
     // Filter out empty links
     const validLinks = depEditorLinks.filter(l => l.predecessorId);
     const predecessorIds = validLinks.map(l => l.predecessorId);
+    console.log('[saveDependencies] Links', { validLinks, predecessorIds, depEditorLinks });
 
     // Check for circular dependencies
     if (hasCircularDependency(depEditorTask.id, predecessorIds)) {
@@ -1095,22 +1101,29 @@ export function GanttCanvasView({
 
       // Helper function to save a task's predecessor_ids
       // Uses different API endpoints for template mode vs static (job) mode
+      // NOTE: dependency_broken only exists on SmScheduleMaster (templates), not SmTask
       const saveTaskPredecessors = async (taskId: string, data: { predecessor_ids: unknown; dependency_broken?: boolean; confirm?: boolean }) => {
+        console.log('[saveTaskPredecessors] Saving', { taskId, data, templateId, jobId });
         if (templateId) {
-          // Template mode: save to template row
+          // Template mode: save to template row (includes dependency_broken)
+          console.log('[saveTaskPredecessors] Template mode - patching template row');
           await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${taskId}`, {
             row: data
           });
         } else if (jobId) {
-          // Static mode: save to sm_task
-          await api.patch(`/api/v1/sm_tasks/${taskId}`, {
-            sm_task: data
+          // Static mode: save to sm_task (no dependency_broken field)
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { dependency_broken, ...smTaskData } = data;
+          console.log('[saveTaskPredecessors] Static mode - patching sm_task', { url: `/api/v1/sm_tasks/${taskId}`, smTaskData });
+          const result = await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+            sm_task: smTaskData
           });
+          console.log('[saveTaskPredecessors] API response', result);
         }
       };
 
       if (isFullyLocked && predecessorData.length > 0) {
-        // Task is fully locked - remove dependencies and mark as broken
+        // Task is fully locked - remove dependencies and mark as broken (template mode only)
         await saveTaskPredecessors(depEditorTask.id, {
           predecessor_ids: [],
           dependency_broken: true
@@ -1119,7 +1132,7 @@ export function GanttCanvasView({
         // Normal case - save the dependencies
         await saveTaskPredecessors(depEditorTask.id, {
           predecessor_ids: predecessorData,
-          // Clear dependency_broken if we're setting dependencies
+          // Clear dependency_broken if we're setting dependencies (template mode only)
           dependency_broken: false,
           // Set confirm if task is locked and can't follow dependencies
           ...(isLocked && predecessorData.length > 0 && { confirm: true })

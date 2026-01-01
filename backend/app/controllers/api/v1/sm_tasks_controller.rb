@@ -269,9 +269,17 @@ module Api
       def update
         @task.updated_by = current_user
 
+        # Track if predecessor_ids is changing (for date recalculation)
+        predecessor_ids_changing = params[:sm_task]&.key?(:predecessor_ids)
+
         if @task.update(sm_task_params)
           # Create notification if task was assigned to a new user
           notify_task_assignment(@task)
+
+          # Recalculate dates if dependencies changed and task is not locked
+          if predecessor_ids_changing && !@task.locked?
+            recalculate_task_dates_from_predecessors(@task)
+          end
 
           render json: {
             success: true,
@@ -1013,13 +1021,11 @@ module Api
           # Other
           :searchable,
 
-          # Dependencies (SSoT: predecessor_ids jsonb column)
-          :dependency_broken,
-
           # Arrays
           documentation_category_ids: [],
           linked_task_ids: [],
-          predecessor_ids: []
+          # predecessor_ids is JSONB array of {id, type, lag} objects
+          predecessor_ids: [:id, :type, :lag]
         )
       end
 
@@ -1126,6 +1132,63 @@ module Api
       rescue StandardError => e
         Rails.logger.error("Failed to create task assignment notification: #{e.message}")
         # Don't fail the update if notification fails
+      end
+
+      # Recalculate task dates based on predecessor dependencies
+      # SSoT: Uses same logic as SmCascadeService#calculate_successor_dates
+      def recalculate_task_dates_from_predecessors(task)
+        deps = task.active_predecessor_dependencies
+        return if deps.empty?
+
+        calendar = WorkingDaysCalculator.new(task.job&.company_setting)
+
+        # Calculate the earliest valid start based on all predecessors
+        earliest_start = deps.map do |dep|
+          predecessor = dep.predecessor_task
+          next nil unless predecessor
+
+          case dep.dependency_type
+          when "FS" # Finish-to-Start: successor starts after predecessor ends
+            calendar.add_working_days(predecessor.end_date, dep.lag_days + 1)
+          when "SS" # Start-to-Start: successor starts with/after predecessor starts
+            calendar.add_working_days(predecessor.start_date, dep.lag_days)
+          when "FF" # Finish-to-Finish: successor ends with/after predecessor ends
+            target_end = calendar.add_working_days(predecessor.end_date, dep.lag_days)
+            calendar.subtract_working_days(target_end, task.duration_days - 1)
+          when "SF" # Start-to-Finish: successor ends with/after predecessor starts
+            target_end = calendar.add_working_days(predecessor.start_date, dep.lag_days)
+            calendar.subtract_working_days(target_end, task.duration_days - 1)
+          else
+            predecessor.end_date + 1.day
+          end
+        end.compact.max
+
+        return unless earliest_start
+
+        new_end = calendar.add_working_days(earliest_start, task.duration_days - 1)
+
+        # Update task dates
+        task.update!(
+          start_date: earliest_start,
+          end_date: new_end
+        )
+
+        Rails.logger.info "[SmTasksController] Recalculated dates for task #{task.id}: #{earliest_start} - #{new_end}"
+
+        # Cascade to unlocked successors
+        cascade_unlocked_successors(task, calendar)
+      end
+
+      # Recursively cascade date changes to unlocked successor tasks
+      def cascade_unlocked_successors(task, calendar)
+        task.active_successor_dependencies.each do |dep|
+          successor = dep.successor_task
+          next unless successor
+          next if successor.locked?
+
+          # Recalculate successor's dates
+          recalculate_task_dates_from_predecessors(successor)
+        end
       end
 
       def task_to_json_with_job(task)

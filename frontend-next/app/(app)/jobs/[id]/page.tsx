@@ -43,6 +43,8 @@ import {
   FileSignature,
   Palette,
   MoreVertical,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -50,6 +52,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { SortableList, SortableItem, DragHandle, reorderByPosition } from "@/components/ui/dnd";
 import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
@@ -206,6 +215,9 @@ interface Job {
     recommendations?: string[];
     source?: string;
   };
+  // Construction details
+  level?: string;
+  dwelling_type?: string;
 }
 
 interface JobType {
@@ -725,6 +737,14 @@ export default function JobDetailPage() {
   const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
   const [linkingXero, setLinkingXero] = React.useState(false);
 
+  // Choice columns state (Level, Dwelling Type)
+  const [levelChoices, setLevelChoices] = React.useState<string[]>(['Lowest', 'Highest', 'Stumps']);
+  const [dwellingTypeChoices, setDwellingTypeChoices] = React.useState<string[]>(['Class 1A', 'Class 1B', 'Class 3']);
+  const [editingChoices, setEditingChoices] = React.useState<{ field: 'level' | 'dwelling_type'; choices: string[] } | null>(null);
+  const [newChoiceInput, setNewChoiceInput] = React.useState('');
+  const [savingChoices, setSavingChoices] = React.useState(false);
+  const [choiceColumnIds, setChoiceColumnIds] = React.useState<{ level?: number; dwelling_type?: number }>({});
+
   // Get tab from URL - URL is SSoT for tab state (back button support)
   // Uses path-based structure: /jobs/{id}/{parent}/{child} for hierarchical tabs
   // Parse: /jobs/123/photo/site → { parent: "photo", child: "site" }
@@ -987,12 +1007,92 @@ export default function JobDetailPage() {
     }
   };
 
+  // Load choice column data from Jobs foundation schema
+  const loadChoiceColumns = React.useCallback(async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { columns: { id: number; name: string; column_type: string; available_choices: string[] | null }[] };
+      }>('/api/v1/foundations/jobs/schema');
+
+      if (response?.success && response.data?.columns) {
+        const levelCol = response.data.columns.find(c => c.name === 'level');
+        const dwellingCol = response.data.columns.find(c => c.name === 'dwelling_type');
+
+        if (levelCol?.available_choices) {
+          setLevelChoices(levelCol.available_choices);
+          setChoiceColumnIds(prev => ({ ...prev, level: levelCol.id }));
+        }
+        if (dwellingCol?.available_choices) {
+          setDwellingTypeChoices(dwellingCol.available_choices);
+          setChoiceColumnIds(prev => ({ ...prev, dwelling_type: dwellingCol.id }));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load choice columns:", error);
+    }
+  }, []);
+
+  // Save choices to the Column API
+  const saveChoices = async () => {
+    if (!editingChoices) return;
+
+    const columnId = choiceColumnIds[editingChoices.field];
+    if (!columnId) {
+      console.error("Column ID not found for field:", editingChoices.field);
+      return;
+    }
+
+    setSavingChoices(true);
+    try {
+      await api.patch(`/api/v1/columns/${columnId}`, {
+        column: { available_choices: editingChoices.choices }
+      });
+
+      // Update local state
+      if (editingChoices.field === 'level') {
+        setLevelChoices(editingChoices.choices);
+      } else {
+        setDwellingTypeChoices(editingChoices.choices);
+      }
+
+      setEditingChoices(null);
+      setNewChoiceInput('');
+    } catch (error) {
+      console.error("Failed to save choices:", error);
+    } finally {
+      setSavingChoices(false);
+    }
+  };
+
+  // Add a choice to the editing list
+  const addChoice = () => {
+    if (!editingChoices || !newChoiceInput.trim()) return;
+    if (editingChoices.choices.includes(newChoiceInput.trim())) return; // Prevent duplicates
+
+    setEditingChoices({
+      ...editingChoices,
+      choices: [...editingChoices.choices, newChoiceInput.trim()]
+    });
+    setNewChoiceInput('');
+  };
+
+  // Remove a choice from the editing list
+  const removeChoice = (choice: string) => {
+    if (!editingChoices) return;
+    setEditingChoices({
+      ...editingChoices,
+      choices: editingChoices.choices.filter(c => c !== choice)
+    });
+  };
+
   React.useEffect(() => {
     if (jobId) {
       loadJob();
       loadXeroTrackingOptions();
+      loadChoiceColumns();
     }
-  }, [jobId, loadJob, loadXeroTrackingOptions]);
+  }, [jobId, loadJob, loadXeroTrackingOptions, loadChoiceColumns]);
 
   // SSoT: Auto-start editing when /edit is in path (e.g., from jobs list page)
   // Also supports legacy ?edit=true query param for backward compatibility
@@ -1035,6 +1135,8 @@ export default function JobDetailPage() {
         job_type_id: job.job_type?.id || job.job_type_id,
         job_status_id: job.job_status?.id || job.job_status_id,
         job_stage_id: job.job_stage?.id || job.job_stage_id,
+        level: job.level,
+        dwelling_type: job.dwelling_type,
       });
       setIsEditing(true);
       // Load dropdown data only when editing
@@ -1436,6 +1538,71 @@ export default function JobDetailPage() {
                       </p>
                     )}
                   </div>
+                  {/* Construction Details - Choice columns with inline edit */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Level</Label>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit choices">
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <button
+                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
+                              onClick={() => setEditingChoices({ field: 'level', choices: [...levelChoices] })}
+                            >
+                              <Settings className="h-3 w-3 inline mr-2" />
+                              Edit Choices
+                            </button>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {isEditing ? (
+                        <ComboboxDropdown
+                          items={levelChoices.map((c) => ({ id: c, label: c }))}
+                          selectedItem={editForm.level ? { id: editForm.level, label: editForm.level } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, level: item.label })}
+                          placeholder="Select level..."
+                        />
+                      ) : (
+                        <Input value={job.level || "-"} readOnly />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Dwelling Type</Label>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit choices">
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <button
+                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
+                              onClick={() => setEditingChoices({ field: 'dwelling_type', choices: [...dwellingTypeChoices] })}
+                            >
+                              <Settings className="h-3 w-3 inline mr-2" />
+                              Edit Choices
+                            </button>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {isEditing ? (
+                        <ComboboxDropdown
+                          items={dwellingTypeChoices.map((c) => ({ id: c, label: c }))}
+                          selectedItem={editForm.dwelling_type ? { id: editForm.dwelling_type, label: editForm.dwelling_type } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, dwelling_type: item.label })}
+                          placeholder="Select dwelling type..."
+                        />
+                      ) : (
+                        <Input value={job.dwelling_type || "-"} readOnly />
+                      )}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1758,6 +1925,65 @@ export default function JobDetailPage() {
           jobTitle={job.name}
         />
       )}
+
+      {/* Edit Choices Dialog */}
+      <Dialog open={!!editingChoices} onOpenChange={(open) => !open && setEditingChoices(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Edit {editingChoices?.field === 'level' ? 'Level' : 'Dwelling Type'} Choices
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Current choices list */}
+            <div className="space-y-2">
+              <Label>Current Choices</Label>
+              <div className="space-y-1">
+                {editingChoices?.choices.map((choice) => (
+                  <div key={choice} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                    <span className="text-sm">{choice}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive hover:text-destructive"
+                      onClick={() => removeChoice(choice)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                {editingChoices?.choices.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">No choices defined</p>
+                )}
+              </div>
+            </div>
+
+            {/* Add new choice */}
+            <div className="space-y-2">
+              <Label>Add New Choice</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={newChoiceInput}
+                  onChange={(e) => setNewChoiceInput(e.target.value)}
+                  placeholder="Enter new choice..."
+                  onKeyDown={(e) => e.key === 'Enter' && addChoice()}
+                />
+                <Button variant="outline" size="icon" onClick={addChoice} disabled={!newChoiceInput.trim()}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditingChoices(null)}>
+              Cancel
+            </Button>
+            <Button onClick={saveChoices} disabled={savingChoices}>
+              {savingChoices ? <Spinner className="h-4 w-4" /> : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
