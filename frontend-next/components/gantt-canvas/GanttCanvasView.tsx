@@ -3192,35 +3192,6 @@ export function GanttCanvasView({
           style={{ position: "relative" }}
         />
 
-        {/* Dependency Creation Popup - shows Start/Finish buttons when dragging over target */}
-        {depPopup.visible && depPopup.targetTask && (
-          <div
-            className="fixed z-50 bg-popover border rounded-lg shadow-lg p-2 flex gap-1"
-            style={{
-              left: depPopup.x,
-              top: depPopup.y,
-              transform: 'translate(-50%, 0)',
-            }}
-          >
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-3 text-xs font-medium"
-              onClick={() => handleDepPopupClick('FS')}
-            >
-              Start
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-3 text-xs font-medium"
-              onClick={() => handleDepPopupClick('FF')}
-            >
-              Finish
-            </Button>
-          </div>
-        )}
-
         {/* Photo Panel - Right Side (only when jobId is provided) */}
         {showPhotoPanel && jobId && (
           <div className="w-64 border-l bg-background flex flex-col overflow-hidden">

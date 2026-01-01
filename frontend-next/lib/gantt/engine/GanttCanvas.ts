@@ -554,7 +554,7 @@ export class GanttCanvas {
   private onTaskDelete?: (task: GanttTask) => void;
   private onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
   private onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
-  private onDependencyPopupShow?: (sourceTask: GanttTask, targetTask: GanttTask, sourceEdge: 'start' | 'end', x: number, y: number) => void;
+  private onDependencyPopupShow?: (sourceTask: GanttTask, targetTask: GanttTask, x: number, y: number) => void;
   private onDependencyPopupHide?: () => void;
   private onUndoStateChange?: (canUndo: boolean, canRedo: boolean) => void;
   private onContextMenuAction?: (actionId: string, task: GanttTask | null) => void;
@@ -3115,11 +3115,7 @@ export class GanttCanvas {
 
       // Check if hovering over a potential target task
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
-      const validTarget = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
-      const prevTarget = this.dependencyTargetTask;
-
-      // Track target task for visual feedback
-      this.dependencyTargetTask = validTarget;
+      this.dependencyTargetTask = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
 
       this.markDirty();
       return;
@@ -3847,8 +3843,8 @@ export class GanttCanvas {
     const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
     const actualEndX = taskStartX + taskWidth;
 
-    // Extend hit area to include the chevron (offset=6 + width=8 = 14, plus extra for easy clicking)
-    const chevronPadding = 18;  // Must cover chevron area so hoveredTaskId stays set
+    // Extend hit area to include the chevron zone (offset=6 + width=8 + padding=15 = 29)
+    const chevronPadding = 30;  // Must cover full chevron hit area so hoveredTaskId stays set
     if (x >= taskStartX - chevronPadding && x <= actualEndX + chevronPadding) {
       return task;
     }
@@ -3932,28 +3928,31 @@ export class GanttCanvas {
     const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
     const taskEndX = taskStartX + taskWidth;
 
-    // Chevron hit areas - LARGER than visual chevron for easier clicking
+    // Chevron hit areas - MUCH LARGER than visual chevron for easy clicking
     const chevronOffset = 6;
     const chevronWidth = 8;
-    const hitPaddingX = 8;  // Extra padding on each side for easier clicking
-    const hitPaddingY = 10; // Extra padding top/bottom for easier clicking
+    const hitPaddingX = 15;  // Large horizontal padding for easy clicking
 
-    // Check if within Y range of chevron (generous hit area)
-    if (y < centerY - this.config.taskBarHeight / 2 - hitPaddingY ||
-        y > centerY + this.config.taskBarHeight / 2 + hitPaddingY) {
+    // Y range covers the full task bar height
+    const barBottom = barTop + this.config.taskBarHeight;
+
+    // Check if within Y range of task bar (full bar height is clickable)
+    if (y < barTop - 5 || y > barBottom + 5) {
       return null;
     }
 
     // Start chevron is to the LEFT of the bar (drag from start = SS or SF)
+    // Hit area extends from well left of chevron to overlap slightly with bar start
     const startChevronLeft = taskStartX - chevronOffset - chevronWidth - hitPaddingX;
-    const startChevronRight = taskStartX - chevronOffset + hitPaddingX;
+    const startChevronRight = taskStartX - chevronOffset + hitPaddingX + 5;  // Extra overlap
 
     if (x >= startChevronLeft && x <= startChevronRight) {
       return { task, edge: 'start' };
     }
 
     // End chevron is to the RIGHT of the bar (drag from end = FS or FF)
-    const endChevronLeft = taskEndX + chevronOffset - hitPaddingX;
+    // Hit area extends from overlap with bar end to well right of chevron
+    const endChevronLeft = taskEndX + chevronOffset - hitPaddingX - 5;  // Extra overlap
     const endChevronRight = taskEndX + chevronOffset + chevronWidth + hitPaddingX;
 
     if (x >= endChevronLeft && x <= endChevronRight) {
