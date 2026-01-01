@@ -139,6 +139,8 @@ interface GanttCanvasViewProps {
   viewSlug?: string;
   /** Callback to clear the view filter */
   onViewClear?: () => void;
+  /** Callback when data changes (dependencies saved, etc.) - for static mode refresh */
+  onDataChange?: () => void;
 }
 
 interface ApiResponse {
@@ -271,6 +273,7 @@ export function GanttCanvasView({
   onTaskDrag,
   viewSlug,
   onViewClear,
+  onDataChange,
 }: GanttCanvasViewProps) {
   // Refs
   const containerRef = React.useRef<HTMLDivElement>(null);

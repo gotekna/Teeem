@@ -2622,7 +2622,34 @@ module Api
 
             # Build attributes to update
             attrs = {}
-            attrs[:display_name] = fields[:name] if fields[:name].present?
+
+            # Handle name update based on entity type
+            # For person/sole_trader: update first_name (display_name auto-generates from first+last)
+            # For company/trust: update display_name directly (syncs to company_name_or_trust)
+            if fields[:name].present?
+              xero_name = fields[:name].strip
+              if contact.person_entity? || contact.entity_type == "sole_trader"
+                # Smart name parsing: if Xero name ends with existing last_name, only update first_name
+                if contact.last_name.present? && xero_name.downcase.end_with?(contact.last_name.downcase)
+                  # Extract first name (everything before the last name)
+                  new_first = xero_name[0...(xero_name.length - contact.last_name.length)].strip
+                  attrs[:first_name] = new_first if new_first.present?
+                else
+                  # Different last name or no existing last name - split on spaces
+                  name_parts = xero_name.split(/\s+/)
+                  if name_parts.length >= 2
+                    attrs[:first_name] = name_parts[0..-2].join(" ")
+                    attrs[:last_name] = name_parts[-1]
+                  else
+                    attrs[:first_name] = xero_name
+                  end
+                end
+                Rails.logger.info("[Xero] Person contact - updating first_name/last_name instead of display_name")
+              else
+                # Company/trust - update display_name directly
+                attrs[:display_name] = xero_name
+              end
+            end
             attrs[:abn] = fields[:abn] if fields[:abn].present?
             attrs[:office_phone] = fields[:phone] if fields[:phone].present?
             attrs[:mobile_phone] = fields[:mobile] if fields[:mobile].present?
