@@ -5655,7 +5655,8 @@ export default function TeeemTableView({
       />
 
       {/* Shared Merge Modal - used by all tables when enableMerge is true */}
-      {effectiveFoundationId && enableMerge !== false && (
+      {/* SSoT: Only render if parent doesn't provide onBulkMerge (custom modal) */}
+      {effectiveFoundationId && enableMerge !== false && !onBulkMerge && (
         <MergeModal
           open={showMergeModal}
           onOpenChange={setShowMergeModal}
