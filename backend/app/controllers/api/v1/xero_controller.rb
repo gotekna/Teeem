@@ -2604,9 +2604,11 @@ module Api
           results = { success: 0, failed: 0, errors: [] }
 
           updates.each do |update|
-            contact_id = update[:contact_id]
-            fields = update[:fields] || {}
-            tenant_name = update[:tenant_name]
+            contact_id = update[:contact_id] || update["contact_id"]
+            fields = (update[:fields] || update["fields"] || {}).with_indifferent_access
+            tenant_name = update[:tenant_name] || update["tenant_name"]
+
+            Rails.logger.info("[Xero] Processing update for contact #{contact_id}, fields: #{fields.keys.inspect}")
 
             contact = Contact.find_by(id: contact_id)
             unless contact
