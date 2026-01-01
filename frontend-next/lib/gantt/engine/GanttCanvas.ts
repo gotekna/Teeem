@@ -3167,19 +3167,8 @@ export class GanttCanvas {
               }
             }, 200); // 200ms delay before popup appears
           }
-          // If over same target and popup already visible, just update position
-          else if (this.dependencyPopupVisible) {
-            const rect = this.canvas.getBoundingClientRect();
-            const popupX = rect.left + e.offsetX;
-            const popupY = rect.top + e.offsetY;
-            this.onDependencyPopupShow(
-              this.dependencyFromTask,
-              validTarget,
-              this.dependencyFromEdge,
-              popupX,
-              popupY
-            );
-          }
+          // If over same target and popup already visible, keep it in place (don't move)
+          // This makes it easier to click the buttons
         } else {
           // Not over a valid target - clear timer and hide popup
           if (this.dependencyPopupTimer) {

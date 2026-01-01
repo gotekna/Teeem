@@ -4057,6 +4057,11 @@ export default function TeeemTableView({
     // Sort groups alphabetically by display name
     // "(Empty)" / "No Value" group always goes last
     const isEmptyGroup = (key: string) => key === "(Empty)" || key === "No Value";
+    const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
+
+    // Collect all group keys to filter companies from "No Employees Assigned" group
+    const groupKeysAtRoot = new Set(Object.keys(groups));
+
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
       if (isEmptyGroup(keyA)) return 1;
       if (isEmptyGroup(keyB)) return -1;
@@ -4087,9 +4092,14 @@ export default function TeeemTableView({
       // Check if we're currently loading this group's data
       const isLoadingGroup = depth === 0 && groupLoadingState.has(groupKey);
       // Use lazy-loaded records if available, otherwise use current records
-      const effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
+      let effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
         ? lazyLoadedGroups.get(groupKey) || group.rows
         : group.rows;
+
+      // Filter rows for "No Employees Assigned" group - exclude records that are group headers
+      if (isEmptyGroup(groupKey) && isGroupingByCompany) {
+        effectiveRows = effectiveRows.filter(r => !groupKeysAtRoot.has(String(r.id)));
+      }
 
       // Render entire group (header + content) as a single unit
       result.push(
@@ -4324,6 +4334,10 @@ export default function TeeemTableView({
 
     // Collect all group keys at depth 0 to filter companies from "(Empty)"
     const groupKeysAtRoot = allGroupKeys || new Set(Object.keys(groups));
+    // Debug: log group keys on first render
+    if (!allGroupKeys && depth === 0) {
+      console.log('[Group Keys] All group headers:', Array.from(groupKeysAtRoot));
+    }
 
     // Sort groups alphabetically by display name
     // "(Empty)" / "No Value" group always goes last
@@ -4461,17 +4475,18 @@ export default function TeeemTableView({
 
           // Filter rows for rendering:
           // - For named groups: exclude the company row (it's rendered first)
-          // - For "(Empty)" / "No Value" group: exclude companies that appear as headers in other groups
+          // - For "(Empty)" / "No Value" group: exclude records that appear as group headers
           let rowsToRender = effectiveRows;
           if (companyRow) {
             rowsToRender = effectiveRows.filter(r => r.id !== companyRow.id);
           } else if (isEmptyGroup(groupKey) && isGroupingByCompany) {
-            // Filter out companies whose ID appears as a group key
+            // Filter out any record whose ID appears as a group key (they have employees, so they're headers)
             rowsToRender = effectiveRows.filter(r => {
-              if (typeof r.entity_type !== 'string') return true;
-              if (r.entity_type !== 'company' && r.entity_type !== 'trust') return true;
-              // Keep if company's ID is NOT a group key (not claimed as a header)
-              return !groupKeysAtRoot.has(String(r.id));
+              const isGroupHeader = groupKeysAtRoot.has(String(r.id));
+              if (isGroupHeader) {
+                console.log('[Company Filter] Hiding from No Employees:', r.display_name || r.name, 'ID:', r.id);
+              }
+              return !isGroupHeader;
             });
           }
 

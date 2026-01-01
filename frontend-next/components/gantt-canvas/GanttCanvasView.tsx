@@ -300,12 +300,12 @@ export function GanttCanvasView({
   const [showSidebar, setShowSidebar] = React.useState(true);
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
-  const [showDependencies, setShowDependencies] = React.useState(true);
+  const [showDependencies, setShowDependencies] = React.useState(false); // Off by default
   // SSoT: Dependencies from backend gantt_data endpoint (for template mode)
   const [templateDependencies, setTemplateDependencies] = React.useState<GanttDependency[]>([]);
 
   // Photo panel state (only available when jobId is provided)
-  const [showPhotoPanel, setShowPhotoPanel] = React.useState(false);
+  const [showPhotoPanel, setShowPhotoPanel] = React.useState(false); // Off by default
   const [jobPhotos, setJobPhotos] = React.useState<PhotoItem[]>([]);
   const [loadingPhotos, setLoadingPhotos] = React.useState(false);
   const [lightboxOpen, setLightboxOpen] = React.useState(false);
