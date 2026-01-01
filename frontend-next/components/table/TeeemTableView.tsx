@@ -112,6 +112,7 @@ import {
   Pin,
   Expand,
   Minimize2,
+  Building2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -4293,13 +4294,29 @@ export default function TeeemTableView({
   const renderInlineGroupRows = (
     groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
     depth: number = 0,
-    parentKey: string = ""
+    parentKey: string = "",
+    allGroupKeys?: Set<string> // Track all group keys to filter companies from "(Empty)"
   ): React.ReactNode[] => {
     const currentColKey = groupByColumns[depth];
     const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
     const result: React.ReactNode[] = [];
 
-    Object.entries(groups).forEach(([groupKey, group]) => {
+    // Collect all group keys at depth 0 to filter companies from "(Empty)"
+    const groupKeysAtRoot = allGroupKeys || new Set(Object.keys(groups));
+
+    // Sort groups alphabetically by display name
+    // "(Empty)" group always goes last
+    const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
+      // "(Empty)" always last
+      if (keyA === "(Empty)") return 1;
+      if (keyB === "(Empty)") return -1;
+      // Get display values for proper alphabetical sort
+      const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
+      const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
+      return displayA.localeCompare(displayB);
+    });
+
+    sortedGroupEntries.forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
       // Use server count for first-level groups (accurate total), UNLESS there's an active search
@@ -4402,10 +4419,119 @@ export default function TeeemTableView({
           );
         } else if (group.subgroups && Object.keys(group.subgroups).length > 0) {
           // Render subgroups recursively
-          result.push(...renderInlineGroupRows(group.subgroups as typeof groups, depth + 1, fullKey));
+          result.push(...renderInlineGroupRows(group.subgroups as typeof groups, depth + 1, fullKey, groupKeysAtRoot));
         } else {
-          // Render actual data rows
-          effectiveRows.forEach((row, rowIndex) => {
+          // Company/Role view enhancement: Show company as first row with special styling
+          // Check if grouping by company-related column (primary_company_id or similar)
+          const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
+
+          // Find company record for this group (company's ID matches the groupKey)
+          // Companies have entity_type='company' and their ID should match the group key
+          const companyRow = isGroupingByCompany && groupKey !== "(Empty)"
+            ? effectiveRows.find(r =>
+                String(r.id) === String(groupKey) &&
+                typeof r.entity_type === 'string' &&
+                (r.entity_type === 'company' || r.entity_type === 'trust')
+              )
+            : null;
+
+          // Filter rows for rendering:
+          // - For named groups: exclude the company row (it's rendered first)
+          // - For "(Empty)" group: exclude companies that appear as headers in other groups
+          let rowsToRender = effectiveRows;
+          if (companyRow) {
+            rowsToRender = effectiveRows.filter(r => r.id !== companyRow.id);
+          } else if (groupKey === "(Empty)" && isGroupingByCompany) {
+            // Filter out companies whose ID appears as a group key
+            rowsToRender = effectiveRows.filter(r => {
+              if (typeof r.entity_type !== 'string') return true;
+              if (r.entity_type !== 'company' && r.entity_type !== 'trust') return true;
+              // Keep if company's ID is NOT a group key (not claimed as a header)
+              return !groupKeysAtRoot.has(String(r.id));
+            });
+          }
+
+          // Render company row first with special styling
+          if (companyRow) {
+            const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === companyRow.id);
+            result.push(
+              <TableRow
+                key={`${fullKey}-company-${companyRow.id}`}
+                data-row-id={companyRow.id}
+                className={cn(
+                  "bg-blue-50 dark:bg-blue-950/50 border-l-4 border-l-blue-500",
+                  selectedRows.has(companyRow.id) && "!bg-blue-100 dark:!bg-blue-900/50",
+                  "hover:bg-blue-100 dark:hover:bg-blue-900/30 cursor-pointer"
+                )}
+                onClick={() => {
+                  if (!isEditMode && onRowClick) {
+                    onRowClick(companyRow);
+                  }
+                }}
+                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(companyRow)}
+                onMouseEnter={() => handleRowMouseEnter(companyRow.id, globalIndex)}
+              >
+                {visibleColumnsInOrder.map((column, colIndex) => {
+                  const isSystemGen = isSystemGeneratedColumn(column);
+                  const stickyStyles = getStickyColumnStyles(column.key, false);
+                  // Show Building2 icon in first visible column (after select)
+                  const isFirstDataColumn = colIndex === 1; // 0 is select
+                  return (
+                    <TableCell
+                      key={`${column.key}-${colIndex}`}
+                      title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(companyRow[column.key]) : undefined}
+                      style={{
+                        width: columnWidths[column.key],
+                        minWidth: columnWidths[column.key],
+                        ...stickyStyles,
+                        ...(column.key === "select" && {
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }),
+                        ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                          backgroundColor: 'rgb(239 246 255)', // blue-50 for system columns too
+                        }),
+                      }}
+                      className={cn(
+                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "actions" && "!border-l-0",
+                        isFirstDataColumn && "font-semibold"
+                      )}
+                      onClick={(e) => {
+                        if (column.key === "select") {
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      {column.key === "select" ? (
+                        <div
+                          data-column="select"
+                          onMouseDown={(e) => handleSelectMouseDown(companyRow.id, globalIndex, e)}
+                        >
+                          <SelectCheckbox
+                            checked={selectedRows.has(companyRow.id)}
+                            onCheckedChange={getToggleCallback(companyRow.id)}
+                          />
+                        </div>
+                      ) : column.key === "actions" ? (
+                        renderCellValue(companyRow, column)
+                      ) : (
+                        <div className="truncate flex items-center gap-1.5">
+                          {isFirstDataColumn && (
+                            <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                          )}
+                          {renderCellValue(companyRow, column)}
+                        </div>
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          }
+
+          // Render regular data rows (employees)
+          rowsToRender.forEach((row, rowIndex) => {
             const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
             result.push(
               <TableRow

@@ -206,8 +206,8 @@ module Api
               is_title: col.is_title,
               required: col.required,
               position: col.position,
-              visible: col.visible,
-              editable: col.editable,
+              visible: true,   # Columns don't have visibility control yet
+              editable: true,  # Columns don't have editability control yet
               lookup_foundation_id: col.lookup_foundation_id,
               lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
               lookup_display_column: col.lookup_display_column,

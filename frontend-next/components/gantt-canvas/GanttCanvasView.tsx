@@ -3263,16 +3263,16 @@ export function GanttCanvasView({
           >
             <Button
               size="sm"
-              variant="outline"
-              className="h-8 px-4 text-sm font-medium hover:bg-primary hover:text-primary-foreground"
+              variant="default"
+              className="h-8 px-4 text-sm font-medium"
               onMouseUp={() => handleDepPopupClick('start')}
             >
               Start
             </Button>
             <Button
               size="sm"
-              variant="outline"
-              className="h-8 px-4 text-sm font-medium hover:bg-primary hover:text-primary-foreground"
+              variant="default"
+              className="h-8 px-4 text-sm font-medium"
               onMouseUp={() => handleDepPopupClick('end')}
             >
               Finish
