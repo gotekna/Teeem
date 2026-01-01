@@ -18,17 +18,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  X,
-  ChevronUp,
-  ChevronDown,
-} from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import type { SortColumn } from "../types";
 
 // DnD Primitives - SSoT for drag and drop UI
-import { DragHandle, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
+import {
+  DragHandle,
+  DRAGGING_CLASSES,
+  DROP_TARGET_CLASSES,
+  SortableList,
+  SortableItem,
+  reorderItems,
+} from "@/components/ui/dnd";
 
 interface Column {
   id: number;
@@ -75,18 +78,36 @@ export function SortableSortByItem({
 
   // Get unique values for the selected column (for custom sort)
   const uniqueValues = React.useMemo(() => {
-    if (!allRows || !sort.column) return [];
+    if (!allRows || !sort.column) {
+      return [];
+    }
     const values = new Set<string>();
+
+    // For lookup columns with _id suffix, try both the _id column and the base column name
+    // Example: job_type_id -> try both job_type_id and job_type
+    const columnVariants = [sort.column];
+    if (sort.column.endsWith('_id')) {
+      const baseColumn = sort.column.replace(/_id$/, '');
+      columnVariants.push(baseColumn);
+    }
+
     allRows.forEach(row => {
-      const val = row[sort.column];
-      if (val !== null && val !== undefined) {
-        // Handle object values (lookup columns)
-        if (typeof val === 'object') {
-          const objVal = val as { display?: string; name?: string; id?: number };
-          const displayVal = objVal.display || objVal.name || String(objVal.id || '');
-          if (displayVal) values.add(displayVal);
-        } else {
-          values.add(String(val));
+      // Try each column variant until we find a value
+      for (const colName of columnVariants) {
+        const val = row[colName];
+        if (val !== null && val !== undefined) {
+          // Handle object values (lookup columns)
+          if (typeof val === 'object') {
+            const objVal = val as { display?: string; name?: string; id?: number };
+            const displayVal = objVal.display || objVal.name || String(objVal.id || '');
+            if (displayVal) {
+              values.add(displayVal);
+              break; // Found a value, stop checking variants
+            }
+          } else {
+            values.add(String(val));
+            break; // Found a value, stop checking variants
+          }
         }
       }
     });
@@ -96,11 +117,10 @@ export function SortableSortByItem({
   // Initialize custom order with unique values if not set
   const currentOrder = sort.customOrder || uniqueValues;
 
-  const handleCustomOrderChange = (fromIndex: number, toIndex: number) => {
+  // Handle DnD reordering for custom sort values
+  const handleCustomOrderReorder = (reorderedItems: Array<{ id: string; value: string }>) => {
     if (!onChangeCustomOrder) return;
-    const newOrder = [...currentOrder];
-    const [moved] = newOrder.splice(fromIndex, 1);
-    newOrder.splice(toIndex, 0, moved);
+    const newOrder = reorderedItems.map(item => item.value);
     onChangeCustomOrder(newOrder);
   };
 
@@ -153,39 +173,24 @@ export function SortableSortByItem({
         </Button>
       </div>
 
-      {/* Custom order editor */}
+      {/* Custom order editor - SSoT: Uses DnD SortableList/SortableItem */}
       {sort.dir === "custom" && uniqueValues.length > 0 && (
         <div className="ml-6 p-2 bg-muted/50 rounded border space-y-1">
           <p className="text-xs text-muted-foreground mb-2">Drag to reorder:</p>
-          {currentOrder.map((value, index) => (
-            <div
-              key={value}
-              className="flex items-center gap-2 p-1.5 bg-background rounded border text-sm"
-            >
-              <span className="text-muted-foreground w-4 text-center">{index + 1}</span>
-              <span className="flex-1">{value}</span>
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  disabled={index === 0}
-                  onClick={() => handleCustomOrderChange(index, index - 1)}
-                >
-                  <ChevronUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  disabled={index === currentOrder.length - 1}
-                  onClick={() => handleCustomOrderChange(index, index + 1)}
-                >
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
+          <SortableList
+            items={currentOrder.map((value, index) => ({ id: `${value}-${index}`, value }))}
+            onReorder={handleCustomOrderReorder}
+          >
+            {currentOrder.map((value, index) => (
+              <SortableItem
+                key={`${value}-${index}`}
+                id={`${value}-${index}`}
+                position={index + 1}
+              >
+                <span className="text-sm">{value}</span>
+              </SortableItem>
+            ))}
+          </SortableList>
         </div>
       )}
     </div>

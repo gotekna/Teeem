@@ -105,22 +105,23 @@ export class Renderer {
         }
       }
 
-      // Grid line
-      this.ctx.strokeStyle = this.config.colors.gridLines;
-      this.ctx.lineWidth = 0.5;
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, this.config.headerHeight);
-      this.ctx.lineTo(x, height);
-      this.ctx.stroke();
+      // Grid line - removed to match table style (no vertical lines)
+      // this.ctx.strokeStyle = this.config.colors.gridLines;
+      // this.ctx.lineWidth = 0.5;
+      // this.ctx.beginPath();
+      // this.ctx.moveTo(x, this.config.headerHeight);
+      // this.ctx.lineTo(x, height);
+      // this.ctx.stroke();
     }
 
-    // Draw horizontal grid lines (rows)
+    // Draw horizontal grid lines (rows) - match table border-b styling
     for (let i = 0; i <= totalRows; i++) {
       const y = this.viewport.rowToY(i);
       if (y < this.config.headerHeight || y > height) continue;
 
-      this.ctx.strokeStyle = this.config.colors.gridLines;
-      this.ctx.lineWidth = 0.5;
+      // Match table border styling - medium gray, 1px, clearly visible
+      this.ctx.strokeStyle = '#d1d5db'; // gray-300 to match visible table borders
+      this.ctx.lineWidth = 1;
       this.ctx.beginPath();
       this.ctx.moveTo(0, y);
       this.ctx.lineTo(width, y);

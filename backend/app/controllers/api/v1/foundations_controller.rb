@@ -462,7 +462,11 @@ module Api
           if model.table_name == "contacts" && group_by_column == "primary_company_id"
             # SSoT: Rebuild groups using employees_count (includes relationship-based employees)
             # The GROUP BY on primary_company_id misses employees linked via contact_relationships
-            all_companies = query.where(entity_type: %w[company trust sole_trader])
+            # Natural/Human sort: "2Code" < "7 Eleven" < "12 Tulum" (not "12" < "14" < "2" < "7")
+            all_companies = query.where(entity_type: %w[company trust sole_trader]).to_a.sort_by do |company|
+              # Split name into chunks: digits vs non-digits, then compare numerically/alphabetically
+              (company.display_name || "").scan(/\d+|\D+/).map { |chunk| chunk.match?(/\d+/) ? chunk.to_i : chunk.downcase }
+            end
 
             # Build company groups from actual company records (not GROUP BY results)
             groups = all_companies.map do |company|

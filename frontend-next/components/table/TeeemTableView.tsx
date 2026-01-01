@@ -414,6 +414,39 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 // - DEFAULT_COLUMNS, FILTER_OPERATOR_LABELS -> utils/table-utils.ts
 
 // ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Natural/Human sorting comparison
+ * Sorts strings with embedded numbers naturally: "2Code" < "7 Eleven" < "12 Tulum"
+ * Instead of alphabetically: "12 Tulum" < "2Code" < "7 Eleven"
+ */
+function naturalCompare(a: string, b: string): number {
+  const aChunks = a.match(/\d+|\D+/g) || [];
+  const bChunks = b.match(/\d+|\D+/g) || [];
+  const maxLen = Math.max(aChunks.length, bChunks.length);
+
+  for (let i = 0; i < maxLen; i++) {
+    const aChunk = aChunks[i] || '';
+    const bChunk = bChunks[i] || '';
+
+    const aIsNum = /^\d+$/.test(aChunk);
+    const bIsNum = /^\d+$/.test(bChunk);
+
+    if (aIsNum && bIsNum) {
+      const diff = parseInt(aChunk, 10) - parseInt(bChunk, 10);
+      if (diff !== 0) return diff;
+    } else {
+      const diff = aChunk.toLowerCase().localeCompare(bChunk.toLowerCase());
+      if (diff !== 0) return diff;
+    }
+  }
+
+  return 0;
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -2314,7 +2347,27 @@ export default function TeeemTableView({
               } else if (typeof aVal === "number" && typeof bVal === "number") {
                 comparison = aVal - bVal;
               } else {
-                comparison = aDisplay.localeCompare(bDisplay);
+                // Natural/Human sorting: "2Code" < "7 Eleven" < "12 Tulum"
+                // Split into chunks: digits vs non-digits, compare numerically/alphabetically
+                const aChunks = aDisplay.match(/\d+|\D+/g) || [];
+                const bChunks = bDisplay.match(/\d+|\D+/g) || [];
+                const maxLen = Math.max(aChunks.length, bChunks.length);
+
+                for (let i = 0; i < maxLen; i++) {
+                  const aChunk = aChunks[i] || '';
+                  const bChunk = bChunks[i] || '';
+
+                  const aIsNum = /^\d+$/.test(aChunk);
+                  const bIsNum = /^\d+$/.test(bChunk);
+
+                  if (aIsNum && bIsNum) {
+                    comparison = parseInt(aChunk, 10) - parseInt(bChunk, 10);
+                  } else {
+                    comparison = aChunk.toLowerCase().localeCompare(bChunk.toLowerCase());
+                  }
+
+                  if (comparison !== 0) break;
+                }
               }
 
               if (comparison !== 0) {
@@ -4095,7 +4148,7 @@ export default function TeeemTableView({
       if (isEmptyGroup(keyB)) return -1;
       const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
       const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
-      return displayA.localeCompare(displayB);
+      return naturalCompare(displayA, displayB);
     });
 
     sortedGroupEntries.forEach(([groupKey, group]) => {
@@ -4311,13 +4364,18 @@ export default function TeeemTableView({
                   textAlign: 'center',
                   verticalAlign: 'middle',
                 }),
+                ...(column.column_type === 'boolean' && {
+                  textAlign: 'center',
+                  verticalAlign: 'middle',
+                }),
                 ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                   backgroundColor: SYSTEM_COLUMN_BG,
                 }),
               }}
               className={cn(
                 column.key === "select" && "!border-r-0 !p-0 !h-full",
-                column.key === "actions" && "!border-l-0"
+                column.key === "actions" && "!border-l-0",
+                column.column_type === "boolean" && "!px-1"
               )}
               onClick={(e) => {
                 if (column.key === "select") {
@@ -4377,7 +4435,7 @@ export default function TeeemTableView({
       // Try prefixed key first (e.g., "primary_company_id:123"), then unprefixed, then raw key
       const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
       const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
-      return displayA.localeCompare(displayB);
+      return naturalCompare(displayA, displayB);
     });
 
     sortedGroupEntries.forEach(([groupKey, group]) => {
@@ -4554,6 +4612,10 @@ export default function TeeemTableView({
                           textAlign: 'center',
                           verticalAlign: 'middle',
                         }),
+                        ...(column.column_type === 'boolean' && {
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }),
                         ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                           backgroundColor: 'rgb(239 246 255)', // blue-50 for system columns too
                         }),
@@ -4561,7 +4623,8 @@ export default function TeeemTableView({
                       className={cn(
                         column.key === "select" && "!border-r-0 !p-0 !h-full",
                         column.key === "actions" && "!border-l-0",
-                        isFirstDataColumn && "font-semibold"
+                        isFirstDataColumn && "font-semibold",
+                        column.column_type === "boolean" && "!px-1"
                       )}
                       onClick={(e) => {
                         if (column.key === "select") {
@@ -4633,13 +4696,18 @@ export default function TeeemTableView({
                         textAlign: 'center',
                         verticalAlign: 'middle',
                       }),
+                      ...(column.column_type === 'boolean' && {
+                        textAlign: 'center',
+                        verticalAlign: 'middle',
+                      }),
                       ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                         backgroundColor: SYSTEM_COLUMN_BG,
                       }),
                     }}
                     className={cn(
                       column.key === "select" && "!border-r-0 !p-0 !h-full",
-                      column.key === "actions" && "!border-l-0"
+                      column.key === "actions" && "!border-l-0",
+                      column.column_type === "boolean" && "!px-1"
                     )}
                     onClick={(e) => {
                       if (column.key === "select") {
@@ -4855,13 +4923,18 @@ export default function TeeemTableView({
                           textAlign: 'center',
                           verticalAlign: 'middle'
                         }),
+                        ...(column.column_type === 'boolean' && {
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }),
                         ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                           backgroundColor: SYSTEM_COLUMN_BG,
                         })
                       }}
                       className={cn(
                         column.key === "select" && "!border-r-0 !p-0 !h-full",
-                        column.key === "actions" && "!border-l-0"
+                        column.key === "actions" && "!border-l-0",
+                        column.column_type === "boolean" && "!px-1"
                       )}
                       onClick={(e) => {
                         if (column.key === "select") {
@@ -4880,6 +4953,8 @@ export default function TeeemTableView({
                           />
                         </div>
                       ) : column.key === "actions" ? (
+                        renderCellValue(row, column)
+                      ) : column.column_type === "boolean" ? (
                         renderCellValue(row, column)
                       ) : (
                         <div
@@ -5905,7 +5980,7 @@ export default function TeeemTableView({
             triggerAutoRefresh();
             onRefresh?.();
           }}
-          rows={entries as Record<string, unknown>[]}
+          rows={filteredAndSortedEntries as Record<string, unknown>[]}
           currentColumnWidths={columnWidths}
           activeViewId={activeViewId}
         />

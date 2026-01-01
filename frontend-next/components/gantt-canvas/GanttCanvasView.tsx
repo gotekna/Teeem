@@ -3355,6 +3355,10 @@ export function GanttCanvasView({
                       case 'status':
                         return <div className="truncate px-1 text-muted-foreground">{task.status || '-'}</div>;
                       case 'confirm':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
                         const isConfirmed = row?.confirm === true;
                         return (
                           <div className="flex justify-center">
@@ -3371,6 +3375,10 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'supplierConfirm':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
                         const isSupplierConfirmed = row?.supplier_confirm === true;
                         return (
                           <div className="flex justify-center">
@@ -3455,6 +3463,10 @@ export function GanttCanvasView({
                           </button>
                         );
                       case 'hold':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
                         const isHeld = row?.hold === true;
                         return (
                           <div className="flex justify-center">
@@ -3476,6 +3488,10 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'complete':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
                         const isComplete = row?.is_completed === true;
                         return (
                           <div className="flex justify-center">
@@ -3556,7 +3572,7 @@ export function GanttCanvasView({
                       }}
                     >
                       {visibleColumns.map(col => (
-                        <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="truncate px-1">
+                        <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0, height: 28 }} className="flex items-center px-1">
                           {renderCell(col)}
                         </div>
                       ))}
