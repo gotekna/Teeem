@@ -480,6 +480,7 @@ export class GanttCanvas {
   private dependencyFromEdge: 'start' | 'end' | null = null;
   private dependencyTargetTask: GanttTask | null = null;
   private dependencyPopupVisible: boolean = false;  // Track if popup is shown - don't hide while true
+  private dependencyPopupTimer: number | null = null;  // Delay timer before showing popup
   private dependencyLineEndX: number = 0;
   private dependencyLineEndY: number = 0;
   private connectorRadius: number = 5;
@@ -554,7 +555,7 @@ export class GanttCanvas {
   private onTaskDelete?: (task: GanttTask) => void;
   private onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
   private onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
-  private onDependencyPopupShow?: (sourceTask: GanttTask, targetTask: GanttTask, x: number, y: number) => void;
+  private onDependencyPopupShow?: (sourceTask: GanttTask, targetTask: GanttTask, sourceEdge: 'start' | 'end', x: number, y: number) => void;
   private onDependencyPopupHide?: () => void;
   private onUndoStateChange?: (canUndo: boolean, canRedo: boolean) => void;
   private onContextMenuAction?: (actionId: string, task: GanttTask | null) => void;
@@ -1270,7 +1271,7 @@ export class GanttCanvas {
     this.onDependencyCreate = handler;
   }
 
-  onDependencyPopupShowHandler(handler: (sourceTask: GanttTask, targetTask: GanttTask, x: number, y: number) => void): void {
+  onDependencyPopupShowHandler(handler: (sourceTask: GanttTask, targetTask: GanttTask, sourceEdge: 'start' | 'end', x: number, y: number) => void): void {
     this.onDependencyPopupShow = handler;
   }
 
@@ -1294,6 +1295,11 @@ export class GanttCanvas {
     this.dependencyFromEdge = null;
     this.dependencyTargetTask = null;
     this.dependencyPopupVisible = false;
+    // Clear any pending popup timer
+    if (this.dependencyPopupTimer) {
+      window.clearTimeout(this.dependencyPopupTimer);
+      this.dependencyPopupTimer = null;
+    }
     this.dependencyLineEndX = 0;
     this.dependencyLineEndY = 0;
     this.onDependencyPopupHide?.();
@@ -2968,7 +2974,20 @@ export class GanttCanvas {
 
     // Handle dependency creation completion
     if (this.isCreatingDependency && this.dependencyFromTask && this.dependencyFromEdge) {
-      // Auto-determine target edge based on drop position
+      // If popup handlers are registered and popup is visible, let the popup handle completion
+      // Don't auto-complete - user needs to click Start/Finish button
+      if (this.onDependencyPopupShow && this.dependencyPopupVisible) {
+        // Popup is showing - don't reset, wait for button click
+        return;
+      }
+
+      // If popup handlers registered but no target yet, cancel the drag
+      if (this.onDependencyPopupShow && !this.dependencyTargetTask) {
+        this.cancelDependencyDrag();
+        return;
+      }
+
+      // Fallback: Auto-determine target edge based on drop position (no popup)
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
 
       if (targetTask && targetTask.id !== this.dependencyFromTask.id) {
@@ -3115,7 +3134,55 @@ export class GanttCanvas {
 
       // Check if hovering over a potential target task
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
-      this.dependencyTargetTask = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
+      const validTarget = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
+      const prevTarget = this.dependencyTargetTask;
+
+      // Only update target if popup is NOT visible AND we have a valid target
+      // (preserve target while popup is shown OR while mouse is in empty space during drag)
+      // This prevents timer from failing when mouse briefly passes through gaps between tasks
+      if (!this.dependencyPopupVisible && validTarget) {
+        this.dependencyTargetTask = validTarget;
+      }
+
+      // Handle popup show with delay (so it doesn't pop up when just passing over)
+      if (this.onDependencyPopupShow && !this.dependencyPopupVisible) {
+        // Only reset timer if moving to a DIFFERENT task (not when moving to empty space)
+        // This prevents timer reset when mouse briefly passes through gaps between tasks
+        if (validTarget && validTarget !== prevTarget) {
+          // Moving to a new task - cancel old timer and start new one
+          if (this.dependencyPopupTimer) {
+            window.clearTimeout(this.dependencyPopupTimer);
+            this.dependencyPopupTimer = null;
+          }
+
+          const target = validTarget;  // Capture for closure
+          const fromTask = this.dependencyFromTask;
+          const fromEdge = this.dependencyFromEdge;
+
+          this.dependencyPopupTimer = window.setTimeout(() => {
+            // Double-check target is still the same (or we're still on same row)
+            if (this.dependencyTargetTask === target && fromTask && fromEdge) {
+                // Calculate popup position (center below target task bar)
+                const rowIndex = this.state.tasks.indexOf(target);
+                const rowY = this.viewport.rowToY(rowIndex);
+                const barTop = rowY + this.config.taskBarPadding;
+                const barCenterY = barTop + this.config.taskBarHeight / 2;
+                const targetStartX = this.viewport.dateToX(target.startDate);
+                const targetEndX = this.viewport.dateToX(target.endDate);
+                const taskCenterX = (targetStartX + targetEndX) / 2;
+
+                // Get canvas position for absolute positioning
+                const rect = this.canvas.getBoundingClientRect();
+                const popupX = rect.left + taskCenterX - this.viewportState.scrollX;
+                const popupY = rect.top + barCenterY + this.config.headerHeight - this.viewportState.scrollY + this.config.taskBarHeight / 2;
+
+                this.dependencyPopupVisible = true;
+                this.dependencyPopupTimer = null;
+                this.onDependencyPopupShow?.(fromTask, target, fromEdge, popupX, popupY);
+            }
+          }, 300);  // 300ms delay before showing popup
+        }
+      }
 
       this.markDirty();
       return;

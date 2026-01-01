@@ -5662,7 +5662,7 @@ export default function TeeemTableView({
           onOpenChange={setShowMergeModal}
           selectedIds={mergeSelectedIds}
           foundationId={effectiveFoundationId}
-          records={entries}
+          records={effectiveEntries}
           displayColumn={mergeDisplayColumn}
           secondaryColumns={mergeSecondaryColumns}
           entityName={tableName?.replace(/s$/, '') || "Record"}

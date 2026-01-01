@@ -342,6 +342,23 @@ export function GanttCanvasView({
     affectedSuccessors: []
   });
 
+  // Dependency creation popup state (shows Start/Finish buttons when dragging over target)
+  const [depPopup, setDepPopup] = React.useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    sourceTask: GanttTask | null;
+    targetTask: GanttTask | null;
+    sourceEdge: 'start' | 'end' | null;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    sourceTask: null,
+    targetTask: null,
+    sourceEdge: null
+  });
+
   // Cascade dialog state for task moves
   const [cascadeDialog, setCascadeDialog] = React.useState<{
     isOpen: boolean;
@@ -929,6 +946,30 @@ export function GanttCanvasView({
     setDepEditorOpen(true);
   }, [isStaticMode, staticDependencies, templateDependencies]);
 
+  // Handle dependency popup button click (Start or Finish)
+  const handleDepPopupClick = React.useCallback((targetEdge: 'start' | 'end') => {
+    if (!depPopup.sourceTask || !depPopup.targetTask || !depPopup.sourceEdge) return;
+
+    // Determine dependency type from source edge + target edge
+    let depType: 'FS' | 'FF' | 'SS' | 'SF';
+    if (depPopup.sourceEdge === 'end') {
+      depType = targetEdge === 'start' ? 'FS' : 'FF';
+    } else {
+      depType = targetEdge === 'start' ? 'SS' : 'SF';
+    }
+
+    // Hide the popup
+    setDepPopup(prev => ({ ...prev, visible: false }));
+
+    // Cancel the canvas drag state
+    if (ganttRef.current) {
+      ganttRef.current.cancelDependencyDrag();
+    }
+
+    // Open the dependency editor with the new predecessor pre-filled
+    openDepEditorWithNewPredecessor(depPopup.targetTask, depPopup.sourceTask, depType);
+  }, [depPopup.sourceTask, depPopup.targetTask, depPopup.sourceEdge, openDepEditorWithNewPredecessor]);
+
   // Add a new predecessor link
   const addPredecessorLink = React.useCallback(() => {
     setDepEditorLinks(prev => [...prev, { predecessorId: '', type: 'FS', lag: 0 }]);
@@ -1487,15 +1528,22 @@ export function GanttCanvasView({
     }
   }, [rows, toast]);
 
+  // Refs for stable callback (avoid infinite loop from dependency changes)
+  const visibleTasksRef = React.useRef(visibleTasks);
+  const openDepEditorRef = React.useRef(openDepEditorWithNewPredecessor);
+  React.useEffect(() => { visibleTasksRef.current = visibleTasks; }, [visibleTasks]);
+  React.useEffect(() => { openDepEditorRef.current = openDepEditorWithNewPredecessor; }, [openDepEditorWithNewPredecessor]);
+
   // Handle dependency create - open dialog to confirm/edit before saving
   const handleDependencyCreate = React.useCallback((
     fromTaskId: string,
     toTaskId: string,
     type: 'FS' | 'SS' | 'FF' | 'SF'
   ) => {
-    // Find the source and target tasks from visible tasks
-    const sourceTask = visibleTasks.find(t => t.id === fromTaskId);
-    const targetTask = visibleTasks.find(t => t.id === toTaskId);
+    // Find the source and target tasks from visible tasks (use ref for stability)
+    const tasks = visibleTasksRef.current;
+    const sourceTask = tasks.find(t => t.id === fromTaskId);
+    const targetTask = tasks.find(t => t.id === toTaskId);
 
     if (!sourceTask || !targetTask) {
       console.error('Could not find tasks for dependency:', { fromTaskId, toTaskId });
@@ -1503,8 +1551,8 @@ export function GanttCanvasView({
     }
 
     // Open the dependency editor dialog with the new predecessor pre-filled
-    openDepEditorWithNewPredecessor(targetTask, sourceTask, type);
-  }, [visibleTasks, openDepEditorWithNewPredecessor]);
+    openDepEditorRef.current(targetTask, sourceTask, type);
+  }, []); // Empty deps - uses refs for stability
 
   // Handle task resize - update duration and cascade dependencies
   const handleTaskResize = React.useCallback(async (task: GanttTask, newStartDate: Date, newEndDate: Date) => {
@@ -2211,6 +2259,14 @@ export function GanttCanvasView({
 
     // Register dependency create handler to save new dependencies
     gantt.onDependencyCreateHandler(handleDependencyCreate);
+
+    // Register dependency popup handlers (for Start/Finish selection UI)
+    gantt.onDependencyPopupShowHandler((sourceTask, targetTask, sourceEdge, x, y) => {
+      setDepPopup({ visible: true, x, y, sourceTask, targetTask, sourceEdge });
+    });
+    gantt.onDependencyPopupHideHandler(() => {
+      setDepPopup(prev => ({ ...prev, visible: false }));
+    });
 
     // Register scroll sync callback
     gantt.onScrollHandler((scrollX, scrollY) => {
@@ -3191,6 +3247,35 @@ export function GanttCanvasView({
           className="flex-1 min-h-0 bg-background"
           style={{ position: "relative" }}
         />
+
+        {/* Dependency Creation Popup - shows Start/Finish buttons when dragging over target */}
+        {depPopup.visible && depPopup.targetTask && (
+          <div
+            className="fixed z-50 bg-popover border rounded-lg shadow-lg p-2 flex gap-2"
+            style={{
+              left: depPopup.x,
+              top: depPopup.y,
+              transform: 'translate(-50%, 8px)',
+            }}
+          >
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-4 text-sm font-medium"
+              onClick={() => handleDepPopupClick('start')}
+            >
+              Start
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-4 text-sm font-medium"
+              onClick={() => handleDepPopupClick('end')}
+            >
+              Finish
+            </Button>
+          </div>
+        )}
 
         {/* Photo Panel - Right Side (only when jobId is provided) */}
         {showPhotoPanel && jobId && (
