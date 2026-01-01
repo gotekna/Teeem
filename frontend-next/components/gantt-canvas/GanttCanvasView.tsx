@@ -3261,9 +3261,10 @@ export function GanttCanvasView({
             }}
             onMouseUp={(e) => e.stopPropagation()}
           >
+            {/* Highlight Start when dragging from left (start), Finish when dragging from right (end) */}
             <Button
               size="sm"
-              variant="default"
+              variant={depPopup.sourceEdge === 'start' ? 'default' : 'outline'}
               className="h-8 px-4 text-sm font-medium"
               onMouseUp={() => handleDepPopupClick('start')}
             >
@@ -3271,7 +3272,7 @@ export function GanttCanvasView({
             </Button>
             <Button
               size="sm"
-              variant="default"
+              variant={depPopup.sourceEdge === 'end' ? 'default' : 'outline'}
               className="h-8 px-4 text-sm font-medium"
               onMouseUp={() => handleDepPopupClick('end')}
             >

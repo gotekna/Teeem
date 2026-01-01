@@ -2188,11 +2188,19 @@ export default function TeeemTableView({
     // Trigger refresh to show updated data
     // For autoFetch mode, increment the refresh key to re-fetch
     if (useAutoFetch) {
-      setAutoFetchRefreshKey(prev => prev + 1);
+      // If there's an active search, re-trigger search to refresh results
+      const currentSearch = searchRef.current;
+      if (currentSearch) {
+        // Re-run search with current term to get fresh results
+        handleAutoFetchSearch(currentSearch);
+      } else {
+        // No search - increment refresh key to trigger normal fetch
+        setAutoFetchRefreshKey(prev => prev + 1);
+      }
     }
     // Also call onRefresh for non-autoFetch tables
     onRefresh?.();
-  }, [effectiveFoundationId, useAutoFetch, onRefresh]);
+  }, [effectiveFoundationId, useAutoFetch, onRefresh, handleAutoFetchSearch]);
 
   // Group handlers
   // Lazy load all records for a group when expanding (server-side grouping)
@@ -4334,6 +4342,9 @@ export default function TeeemTableView({
       // Don't show if all data is already loaded via main Load All button
       const hasPartialData = !allDataLoaded && serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
+      // Company/Role view enhancement: Check if grouping by company-related column
+      const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
+
       // Add group header row - STICKY cell so it stays visible while scrolling within group
       // Calculate top position: column header height (28px) + previous group headers
       const stickyTop = 28 + (depth * 36); // 28px for column header, 36px per group level
@@ -4374,7 +4385,9 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
+                {groupKey === "(Empty)" && isGroupingByCompany
+                  ? "No Roles"
+                  : combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
@@ -4422,9 +4435,6 @@ export default function TeeemTableView({
           result.push(...renderInlineGroupRows(group.subgroups as typeof groups, depth + 1, fullKey, groupKeysAtRoot));
         } else {
           // Company/Role view enhancement: Show company as first row with special styling
-          // Check if grouping by company-related column (primary_company_id or similar)
-          const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
-
           // Find company record for this group (company's ID matches the groupKey)
           // Companies have entity_type='company' and their ID should match the group key
           const companyRow = isGroupingByCompany && groupKey !== "(Empty)"
