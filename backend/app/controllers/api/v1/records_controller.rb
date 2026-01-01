@@ -163,6 +163,45 @@ module Api
               query = query.where(conditions, search: "%#{search}%")
             end
           end
+
+          # SSoT: Bidirectional company/employee search for contacts foundation
+          # When searching contacts, also return related company/employees
+          # - Search for company → also return its employees
+          # - Search for employee → also return their employer
+          if @foundation.table_name == "contacts"
+            model = @foundation.dynamic_model
+
+            # Get IDs of records that matched the search
+            matching_ids = query.pluck(:id)
+
+            # Find companies that matched (could be company, trust, or sole_trader)
+            matching_company_ids = model.where(id: matching_ids, entity_type: %w[company trust sole_trader]).pluck(:id)
+
+            # Find employees of those companies (via primary_company_id)
+            if matching_company_ids.any?
+              employee_ids = model.where(primary_company_id: matching_company_ids)
+                                  .where(deleted_at: nil)
+                                  .where(is_active: [true, nil])
+                                  .pluck(:id)
+              matching_ids = (matching_ids + employee_ids).uniq
+            end
+
+            # Find employers of people who matched (reverse lookup)
+            employer_ids = model.where(id: matching_ids)
+                               .where.not(primary_company_id: nil)
+                               .pluck(:primary_company_id)
+                               .compact
+                               .uniq
+            if employer_ids.any?
+              matching_ids = (matching_ids + employer_ids).uniq
+            end
+
+            # Re-filter query to include related records
+            query = model.where(id: matching_ids)
+            # Re-apply soft delete and is_active filters
+            query = query.where(deleted_at: nil) if model.column_names.include?("deleted_at")
+            query = query.where(is_active: [true, nil]) if model.column_names.include?("is_active")
+          end
         end
 
         # Apply cascade filters (sent from frontend view state)

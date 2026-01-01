@@ -853,6 +853,13 @@ export default function TeeemTableView({
       return;
     }
 
+    // ULTRA Solution: Wait for initial view to load before fetching (prevents flash of wrong data)
+    // Skip waiting if: no foundation, views disabled, or views already loaded
+    // This prevents the race where we fetch → show wrong data → view loads → re-fetch → show correct data
+    if (effectiveFoundationId && !disableSavedViews && !initialViewLoadedRef.current) {
+      return; // Will re-run when initialViewLoadedRef.current becomes true via safeFilters change
+    }
+
     const fetchInitialRecords = async () => {
       // IMPORTANT: Skip initial fetch if there's an active search term
       // The search handler (handleAutoFetchSearch) is responsible for fetching when searching
@@ -3022,6 +3029,13 @@ export default function TeeemTableView({
       } finally {
         // Reset loading flag to allow future loads (e.g., on foundation change)
         viewsLoadingRef.current = false;
+        // CRITICAL: Mark views as loaded even if no default view was found
+        // This triggers the initial fetch effect which was waiting for views to load
+        if (!initialViewLoadedRef.current) {
+          initialViewLoadedRef.current = true;
+          // Force re-render to trigger the fetch effect
+          setAutoFetchRefreshKey(prev => prev + 1);
+        }
       }
     };
 
@@ -4110,12 +4124,12 @@ export default function TeeemTableView({
         ? lazyLoadedGroups.get(groupKey) || group.rows
         : group.rows;
 
-      // Filter rows for "No Employees Assigned" group - exclude companies and group headers
+      // Filter rows for "No Employees Assigned" group - only exclude group headers (companies WITH employees)
+      // Companies WITHOUT employees should appear in this group
       if (isEmptyGroup(groupKey) && isGroupingByCompany) {
         effectiveRows = effectiveRows.filter(r => {
-          const isCompany = r.entity_type === 'company';
           const isGroupHeader = groupKeysAtRoot.has(String(r.id));
-          return !isCompany && !isGroupHeader;
+          return !isGroupHeader;
         });
       }
 
