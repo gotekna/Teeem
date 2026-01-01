@@ -611,8 +611,32 @@ export function convertRowsToTasks(
   );
 
   if (headerIds.size > 0) {
-    // Build map of header ID -> child tasks (empty for now - hierarchy removed)
+    // Build map of header ID -> child tasks from header_gantt field
     const headerChildrenMap = new Map<number, GanttTask[]>();
+
+    // Populate headerChildrenMap by checking each row's header_gantt field
+    for (let i = 0; i < tasks.length; i++) {
+      const row = sortedRows[i];
+      const task = tasks[i];
+
+      // Skip headers themselves
+      if (row.header_gantt === 'Header') continue;
+
+      // Get parent header ID from header_gantt field
+      let parentId: number | null = null;
+      if (typeof row.header_gantt === 'number') {
+        parentId = row.header_gantt;
+      } else if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
+        parentId = row.header_gantt.id;
+      }
+
+      if (parentId && headerIds.has(parentId)) {
+        if (!headerChildrenMap.has(parentId)) {
+          headerChildrenMap.set(parentId, []);
+        }
+        headerChildrenMap.get(parentId)!.push(task);
+      }
+    }
 
     // Update header task dates to span their children
     // If header has dependencies, shift children first

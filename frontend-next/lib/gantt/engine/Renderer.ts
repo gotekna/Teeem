@@ -346,7 +346,7 @@ export class Renderer {
       const barHeight = taskBarHeight;
 
       // Check if this is a header/summary task (MS Project style)
-      const isHeader = task.rowData?.category === 'Header';
+      const isHeader = task.rowData?.header_gantt === 'Header';
 
       if (isHeader) {
         // MS Project style summary bar: thin black bar with downward triangles at ends
