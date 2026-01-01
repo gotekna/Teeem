@@ -756,7 +756,6 @@ export function XeroContactSync() {
           refreshTrigger={refreshKey}
           foundationId="xero-sync-contacts"
           autoFetchRecords={true}
-          pageSize={500}
           onRowClick={handleRowClick}
           customCellRenderer={customCellRenderer}
           initialFilters={initialFilters}
