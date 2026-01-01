@@ -68,9 +68,9 @@ export class Renderer {
   }
 
   /**
-   * Draw grid lines, weekend shading, and holiday shading
+   * Draw weekend and holiday shading (called BEFORE selections)
    */
-  drawGrid(width: number, height: number, totalRows: number, calendar?: WorkingDaysCalendar): void {
+  drawWeekendsAndHolidays(width: number, height: number, calendar?: WorkingDaysCalendar): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
 
@@ -78,7 +78,7 @@ export class Renderer {
     const startDayOffset = Math.floor(state.scrollX / dayWidth);
     const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
 
-    // Draw vertical grid lines (days) and non-working day shading
+    // Draw non-working day shading
     for (let i = startDayOffset; i <= endDayOffset; i++) {
       const x = i * dayWidth - state.scrollX;
       const currentDate = new Date(state.startDate);
@@ -103,16 +103,13 @@ export class Renderer {
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         }
       }
-
-      // Grid line - removed to match table style (no vertical lines)
-      // this.ctx.strokeStyle = this.config.colors.gridLines;
-      // this.ctx.lineWidth = 0.5;
-      // this.ctx.beginPath();
-      // this.ctx.moveTo(x, this.config.headerHeight);
-      // this.ctx.lineTo(x, height);
-      // this.ctx.stroke();
     }
+  }
 
+  /**
+   * Draw horizontal grid lines (called AFTER selections so lines show on top)
+   */
+  drawHorizontalGridLines(width: number, height: number, totalRows: number): void {
     // Draw horizontal grid lines (rows) - match table border-b styling
     // Start at i=1 because border-b puts borders at BOTTOM of each row
     for (let i = 1; i <= totalRows; i++) {

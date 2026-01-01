@@ -11,7 +11,7 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { GanttCanvas } from "@/lib/gantt/engine/GanttCanvas";
+import { GanttCanvas, getAustralianHolidays } from "@/lib/gantt/engine/GanttCanvas";
 import {
   convertRowsToTasks,
   countWorkingDays,
