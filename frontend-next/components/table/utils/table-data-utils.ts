@@ -527,12 +527,46 @@ export function buildGroupedEntries(
     const currentCol = columns[depth];
     const unsortedGroups: Record<string, NestedGroup> = {};
 
+    // SSoT: Company/Role View Special Handling
+    // When grouping by employer (primary_company_id), companies should create their OWN group
+    // using their ID, not be grouped by their employer (which is null).
+    // This makes companies appear as group headers, not in "No Employees Assigned".
+    const isGroupingByCompany = currentCol.includes('company') || currentCol.includes('employer');
+
+    // When grouping by company: separate companies from employees
+    // Companies WITH employees → appear as group headers (not rows)
+    // Companies WITHOUT employees → appear in "No Employees Assigned" group
+    const companiesInData: TableRow[] = [];
+
     for (const entry of groupEntries) {
+      if (isGroupingByCompany && entry.entity_type === 'company') {
+        // Track companies separately - we'll add them to appropriate group after
+        companiesInData.push(entry);
+        continue;
+      }
+
       const groupKey = getGroupDisplayValue(entry[currentCol]);
       if (!unsortedGroups[groupKey]) {
         unsortedGroups[groupKey] = { rows: [] };
       }
       unsortedGroups[groupKey].rows.push(entry);
+    }
+
+    // Handle companies: those with employees become group headers, those without go to "No Employees Assigned"
+    if (isGroupingByCompany && companiesInData.length > 0) {
+      for (const company of companiesInData) {
+        const companyId = String(company.id);
+        // If this company has employees (a group exists with their ID as key), they're a header - skip
+        if (unsortedGroups[companyId]) {
+          continue; // Company is a group header via its employees
+        }
+        // Company has NO employees in current data - add to "No Value" (No Employees Assigned)
+        const noValueKey = "No Value";
+        if (!unsortedGroups[noValueKey]) {
+          unsortedGroups[noValueKey] = { rows: [] };
+        }
+        unsortedGroups[noValueKey].rows.push(company);
+      }
     }
 
     // Sort group keys by customOrder if available for this column

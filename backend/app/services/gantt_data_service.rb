@@ -36,15 +36,18 @@ class GanttDataService
     # Filter invisible tasks if requested (po_required without PO)
     visible_records, invisible_ids = filter_records
 
+    # SSoT: Sort hierarchically - headers followed by their children
+    sorted_records = sort_hierarchically(visible_records)
+
     # Rewire dependencies around invisible tasks if any were filtered
     dependencies = if invisible_ids.any?
-      rewire_dependencies_around_invisible(visible_records, invisible_ids, task_num_to_row_id)
+      rewire_dependencies_around_invisible(sorted_records, invisible_ids, task_num_to_row_id)
     else
-      build_dependencies(visible_records, task_num_to_row_id)
+      build_dependencies(sorted_records, task_num_to_row_id)
     end
 
     {
-      tasks: visible_records.map { |r| task_to_gantt_format(r) },
+      tasks: sorted_records.map { |r| task_to_gantt_format(r) },
       dependencies: dependencies,
       meta: {
         total_count: @records.count,
@@ -208,6 +211,8 @@ class GanttDataService
       # SmTask doesn't have header_gantt column - look it up from linked sm_schedule_master
       header_gantt: determine_header_gantt(record),
       parent_id: record.try(:parent_task_id),
+      # Ordering
+      sequence_order: record.try(:sequence_order) || 0,
       # Additional fields
       trade: record.try(:trade),
       stage: record.try(:stage),
@@ -219,6 +224,97 @@ class GanttDataService
   def format_date(date)
     return nil unless date
     date.respond_to?(:strftime) ? date.strftime("%Y-%m-%d") : date.to_s
+  end
+
+  # SSoT: Sort records hierarchically - headers followed by their children
+  # ALL rows sorted by start_date for intuitive Gantt display
+  # Headers appear at the position of their earliest child
+  def sort_hierarchically(records)
+    return records if records.empty?
+
+    # Identify headers and build parent map
+    header_task_numbers = Set.new
+    children_by_parent = Hash.new { |h, k| h[k] = [] }
+    header_by_task_number = {}
+
+    records.each do |r|
+      if is_header?(r)
+        header_task_numbers.add(r.task_number)
+        header_by_task_number[r.task_number] = r
+      end
+    end
+
+    # Group children by their parent's task_number
+    records.each do |r|
+      parent_num = get_parent_task_number(r)
+      if parent_num && header_task_numbers.include?(parent_num)
+        children_by_parent[parent_num] << r
+      end
+    end
+
+    # Sort children within each header by start_date
+    children_by_parent.each_value do |children|
+      children.sort_by! { |c| [c.try(:start_date) || Date.new(9999), c.try(:sequence_order) || 0] }
+    end
+
+    # Calculate effective start date for headers (min of children's start dates)
+    header_start_dates = {}
+    header_by_task_number.each do |task_num, header|
+      children = children_by_parent[task_num]
+      if children.any?
+        header_start_dates[task_num] = children.map { |c| c.try(:start_date) || Date.new(9999) }.min
+      else
+        header_start_dates[task_num] = header.try(:start_date) || Date.new(9999)
+      end
+    end
+
+    # Collect standalone/orphaned tasks
+    standalone_tasks = records.reject do |r|
+      is_header?(r) || (get_parent_task_number(r) && header_task_numbers.include?(get_parent_task_number(r)))
+    end
+
+    # Build sortable blocks: each header with children is a block, each standalone is a block
+    blocks = []
+
+    # Add header blocks
+    header_by_task_number.each do |task_num, header|
+      blocks << {
+        start_date: header_start_dates[task_num],
+        sequence_order: header.try(:sequence_order) || 0,
+        items: [header] + children_by_parent[task_num]
+      }
+    end
+
+    # Add standalone blocks
+    standalone_tasks.each do |task|
+      blocks << {
+        start_date: task.try(:start_date) || Date.new(9999),
+        sequence_order: task.try(:sequence_order) || 0,
+        items: [task]
+      }
+    end
+
+    # Sort all blocks by start_date, then sequence_order as tiebreaker
+    blocks.sort_by! { |b| [b[:start_date], b[:sequence_order]] }
+
+    # Flatten blocks into result
+    blocks.flat_map { |b| b[:items] }
+  end
+
+  # Check if record is a header
+  def is_header?(record)
+    record.try(:allow_header) || record.try(:sm_schedule_master)&.allow_header
+  end
+
+  # Get parent task_number from header_gantt field
+  def get_parent_task_number(record)
+    return nil if is_header?(record)
+
+    header_gantt = record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt
+    return nil if header_gantt.nil? || header_gantt == "Header"
+
+    # Parse task_number from header_gantt (can be string or integer)
+    header_gantt.to_i if header_gantt.to_s.match?(/^\d+$/)
   end
 
   # SSoT: Determine header_gantt value for frontend

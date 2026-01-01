@@ -44,6 +44,7 @@ import React, {
   useState,
   useMemo,
   useEffect,
+  useLayoutEffect,
   useRef,
   useCallback,
   memo,
@@ -779,6 +780,10 @@ export default function TeeemTableView({
   // Initialized empty, updated by effect after search atom is declared
   const searchRef = useRef<string>('');
 
+  // Ref to hold current cascade filters for use in search handler (prevents stale closure)
+  // This ensures search always uses the LATEST filter state even if React hasn't re-rendered yet
+  const cascadeFiltersRef = useRef<CascadeFilter[]>([]);
+
   // SSR: Track if initial records have been applied (one-time only)
   // Prevents re-application on prop changes that would wipe load-more data
   const hasAppliedInitialRecordsRef = useRef(false);
@@ -804,6 +809,13 @@ export default function TeeemTableView({
 
   // Defensive: ensure cascadeFilters is always an array for .map/.length calls
   const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
+
+  // Keep cascadeFiltersRef in sync for use in search handler (prevents stale closure)
+  // CRITICAL: useLayoutEffect ensures ref is updated BEFORE any user interaction
+  // (useEffect runs after paint, which creates a race condition where user could type before ref updates)
+  useLayoutEffect(() => {
+    cascadeFiltersRef.current = cascadeFilters;
+  }, [cascadeFilters]);
 
   // Auto-fetch records when foundationIdNumeric is set AND entries not provided
   // ULTRA Solution: Create stable filter key for dependency tracking
@@ -952,7 +964,9 @@ export default function TeeemTableView({
       }
       // Include cascade filters in search (e.g., entity_type=person for By Company view)
       // Combine base filters (immutable) with cascade filters (view + user filters)
-      const allFilters = [...baseFilters, ...cascadeFilters];
+      // CRITICAL: Use cascadeFiltersRef.current to get LATEST filters (prevents stale closure)
+      const currentFilters = cascadeFiltersRef.current;
+      const allFilters = [...baseFilters, ...currentFilters];
       if (allFilters.length > 0) {
         params.filters = JSON.stringify(allFilters.map(f => ({
           column: f.column,
@@ -971,7 +985,7 @@ export default function TeeemTableView({
     } finally {
       setIsSearching(false);
     }
-  }, [useAutoFetch, effectiveFoundationId, baseFilters, cascadeFilters]);
+  }, [useAutoFetch, effectiveFoundationId, baseFilters]); // cascadeFilters removed - using ref
 
   // Use Foundation columns when available (SSoT), otherwise fall back to props
   // Merge with extraColumns if provided (for dynamic/computed columns like company presence)
@@ -4096,9 +4110,13 @@ export default function TeeemTableView({
         ? lazyLoadedGroups.get(groupKey) || group.rows
         : group.rows;
 
-      // Filter rows for "No Employees Assigned" group - exclude records that are group headers
+      // Filter rows for "No Employees Assigned" group - exclude companies and group headers
       if (isEmptyGroup(groupKey) && isGroupingByCompany) {
-        effectiveRows = effectiveRows.filter(r => !groupKeysAtRoot.has(String(r.id)));
+        effectiveRows = effectiveRows.filter(r => {
+          const isCompany = r.entity_type === 'company';
+          const isGroupHeader = groupKeysAtRoot.has(String(r.id));
+          return !isCompany && !isGroupHeader;
+        });
       }
 
       // Render entire group (header + content) as a single unit
@@ -4334,10 +4352,6 @@ export default function TeeemTableView({
 
     // Collect all group keys at depth 0 to filter companies from "(Empty)"
     const groupKeysAtRoot = allGroupKeys || new Set(Object.keys(groups));
-    // Debug: log group keys on first render
-    if (!allGroupKeys && depth === 0) {
-      console.log('[Group Keys] All group headers:', Array.from(groupKeysAtRoot));
-    }
 
     // Sort groups alphabetically by display name
     // "(Empty)" / "No Value" group always goes last
@@ -4480,12 +4494,11 @@ export default function TeeemTableView({
           if (companyRow) {
             rowsToRender = effectiveRows.filter(r => r.id !== companyRow.id);
           } else if (isEmptyGroup(groupKey) && isGroupingByCompany) {
-            // Filter out any record whose ID appears as a group key (they have employees, so they're headers)
+            // Filter out only companies that ARE group headers (have employees)
+            // Companies WITHOUT employees should appear in "No Employees Assigned"
             rowsToRender = effectiveRows.filter(r => {
               const isGroupHeader = groupKeysAtRoot.has(String(r.id));
-              if (isGroupHeader) {
-                console.log('[Company Filter] Hiding from No Employees:', r.display_name || r.name, 'ID:', r.id);
-              }
+              // Only filter out companies that have employees (are group headers elsewhere)
               return !isGroupHeader;
             });
           }

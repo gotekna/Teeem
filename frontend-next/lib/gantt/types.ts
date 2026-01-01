@@ -581,6 +581,90 @@ export function convertRowToTask(
 }
 
 /**
+ * SSoT: Hierarchical sort for Gantt rows
+ * Groups children immediately after their parent headers.
+ * Headers are sorted by sequence_order, children by sequence_order within parent.
+ */
+export function sortRowsHierarchically<T extends {
+  task_number: number;
+  sequence_order: number;
+  header_gantt: string | number | { id: number } | null;
+}>(rows: T[]): T[] {
+  if (rows.length === 0) return [];
+
+  // Helper: get parent task_number from header_gantt
+  const getParentTaskNumber = (row: T): number | null => {
+    if (row.header_gantt === 'Header') return null; // IS a header
+    if (typeof row.header_gantt === 'number') return row.header_gantt;
+    if (typeof row.header_gantt === 'object' && row.header_gantt?.id) return row.header_gantt.id;
+    if (typeof row.header_gantt === 'string') {
+      const parsed = parseInt(row.header_gantt, 10);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  };
+
+  // Helper: is this row a header?
+  const isHeader = (row: T) => row.header_gantt === 'Header';
+
+  // Build sets and maps
+  const headerTaskNumbers = new Set<number>();
+  const childrenByParent = new Map<number, T[]>();
+  const processed = new Set<number>();
+
+  // First pass: identify headers and group children
+  for (const row of rows) {
+    if (isHeader(row)) {
+      headerTaskNumbers.add(row.task_number);
+      if (!childrenByParent.has(row.task_number)) {
+        childrenByParent.set(row.task_number, []);
+      }
+    }
+  }
+
+  for (const row of rows) {
+    const parentNum = getParentTaskNumber(row);
+    if (parentNum !== null && headerTaskNumbers.has(parentNum)) {
+      childrenByParent.get(parentNum)!.push(row);
+    }
+  }
+
+  // Sort children within each header by sequence_order
+  for (const children of childrenByParent.values()) {
+    children.sort((a, b) => a.sequence_order - b.sequence_order);
+  }
+
+  // Build result: iterate by sequence_order, emit blocks
+  const result: T[] = [];
+  const sortedBySeq = [...rows].sort((a, b) => a.sequence_order - b.sequence_order);
+
+  for (const row of sortedBySeq) {
+    if (processed.has(row.task_number)) continue;
+
+    if (isHeader(row)) {
+      // Emit header + children block
+      result.push(row);
+      processed.add(row.task_number);
+      const children = childrenByParent.get(row.task_number) || [];
+      for (const child of children) {
+        result.push(child);
+        processed.add(child.task_number);
+      }
+    } else {
+      const parentNum = getParentTaskNumber(row);
+      if (parentNum === null || !headerTaskNumbers.has(parentNum)) {
+        // Standalone or orphaned child - emit as standalone
+        result.push(row);
+        processed.add(row.task_number);
+      }
+      // Else: child of a header, will be emitted with parent
+    }
+  }
+
+  return result;
+}
+
+/**
  * Convert SmScheduleMaster records to GanttTasks with calculated dates
  */
 export function convertRowsToTasks(
@@ -591,8 +675,8 @@ export function convertRowsToTasks(
   // Key by task_number (not row.id) because predecessor_ids reference task_number
   const taskDateMap = new Map<number, { start: Date; end: Date }>();
 
-  // Sort by sequence order
-  const sortedRows = [...rows].sort((a, b) => a.sequence_order - b.sequence_order);
+  // Sort hierarchically: headers with children grouped, then by sequence_order
+  const sortedRows = sortRowsHierarchically(rows);
 
   // Calculate dates for each row
   for (const row of sortedRows) {

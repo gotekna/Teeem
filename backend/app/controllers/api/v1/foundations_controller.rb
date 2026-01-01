@@ -451,6 +451,51 @@ module Api
             }
           end
 
+          # SSoT: Company/Role View Special Handling
+          # When grouping contacts by employer (primary_company_id), companies should:
+          # 1. Create their OWN group (keyed by their ID) - not be grouped by their employer
+          # 2. Be excluded from the "(Empty)" group - they're not "unassigned employees"
+          #
+          # This makes companies appear as group headers with their employees underneath,
+          # even if the company has no employees (shows as empty group).
+          if model.table_name == "contacts" && group_by_column == "primary_company_id"
+            # Get existing group keys (companies that already have employees)
+            existing_group_keys = groups.map { |g| g[:key] }.compact.map(&:to_i).to_set
+
+            # Find all companies in the current query that don't have their own group yet
+            # These are companies without employees that would otherwise be in "(Empty)"
+            companies_without_groups = query
+              .where(entity_type: "company")
+              .where.not(id: existing_group_keys.to_a)
+              .pluck(:id, :display_name)
+
+            # Add a group for each company (count = 0 employees, but company itself exists)
+            companies_without_groups.each do |company_id, display_name|
+              groups << {
+                key: company_id,
+                count: 0,  # No employees
+                display_value: display_name || "Company ##{company_id}",
+                is_company_group: true  # Flag for frontend to know this is a company-created group
+              }
+              # Add to display_values_map for consistency
+              display_values_map[group_by_column] ||= {}
+              display_values_map[group_by_column][company_id] = display_name || "Company ##{company_id}"
+            end
+
+            # Adjust the "(Empty)" group count to exclude companies
+            # Companies in "(Empty)" should be moved to their own groups, not counted as "unassigned"
+            empty_group = groups.find { |g| g[:key].nil? }
+            if empty_group
+              companies_in_empty = query
+                .where(primary_company_id: nil)
+                .where(entity_type: "company")
+                .count
+              empty_group[:count] -= companies_in_empty
+              # If all records in empty were companies, remove the empty group entirely
+              groups.delete(empty_group) if empty_group[:count] <= 0
+            end
+          end
+
           # Get total records in query (for verification)
           total_records = groups.sum { |g| g[:count] }
 
