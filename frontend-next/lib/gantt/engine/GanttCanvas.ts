@@ -512,7 +512,7 @@ export class GanttCanvas {
   private contextMenuHoveredItem: string | null = null;
 
   // Dependency lines visibility
-  private dependenciesVisible: boolean = true;
+  private dependenciesVisible: boolean = false; // Off by default
 
   // Minimap state
   private minimapVisible: boolean = true;

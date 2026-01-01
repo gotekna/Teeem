@@ -2939,6 +2939,7 @@ module Api
 
       # Check if two names are likely duplicates (for xero_duplicates endpoint)
       # Returns true if one name is essentially contained in the other
+      # Uses strict word-level matching to avoid false positives
       def likely_duplicate?(name1, name2, suffixes)
         n1 = normalize_name(name1, suffixes)
         n2 = normalize_name(name2, suffixes)
@@ -2946,21 +2947,33 @@ module Api
         return false if n1.empty? || n2.empty?
         return true if n1 == n2  # Same after normalization
 
-        # Check if one is a prefix/substring of the other
-        return true if n1.start_with?(n2) || n2.start_with?(n1)
-        return true if n1.include?(n2) || n2.include?(n1)
-
-        # Check word-level containment (e.g., "Coles" vs "Coles Express")
         words1 = n1.split
         words2 = n2.split
 
-        # If shorter name's words are all in longer name (in order), it's likely a duplicate
+        # Require at least 2 characters per word to avoid false matches
+        return false if words1.any? { |w| w.length < 3 } || words2.any? { |w| w.length < 3 }
+
+        # Check if one name's words are a subset of the other (word-level matching only)
+        # This catches "Coles" vs "Coles Express" or "Star" vs "Star Airconditioning"
         shorter, longer = words1.length <= words2.length ? [ words1, words2 ] : [ words2, words1 ]
 
-        # All words from shorter must appear in longer
-        return shorter.all? { |w| longer.include?(w) } if shorter.length >= 1 && shorter.length <= 2
+        # For single-word names: the word must be the FIRST word of the longer name
+        # This prevents "STA" matching "inSTAllations"
+        if shorter.length == 1
+          return shorter.first == longer.first
+        end
 
-        false
+        # For two-word names: the first word must match the first word of the longer name,
+        # and all words must appear in the longer name
+        if shorter.length == 2
+          return false unless shorter.first == longer.first
+          return shorter.all? { |w| longer.include?(w) }
+        end
+
+        # For longer names: require exact first word match and high word overlap
+        return false unless shorter.first == longer.first
+        matching_words = shorter.count { |w| longer.include?(w) }
+        matching_words >= (shorter.length * 0.8).ceil
       end
 
       # Normalize name by removing common suffixes and lowercasing (for xero_duplicates endpoint)

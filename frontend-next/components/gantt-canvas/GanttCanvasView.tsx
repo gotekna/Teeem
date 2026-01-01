@@ -3263,8 +3263,10 @@ export function GanttCanvasView({
         {/* Canvas Container */}
         <div
           ref={containerRef}
-          className="flex-1 min-h-0 bg-background"
+          className="flex-1 min-h-0 bg-background outline-none"
           style={{ position: "relative" }}
+          tabIndex={0}
+          onMouseEnter={(e) => e.currentTarget.focus()}
         />
 
         {/* Dependency Creation Popup - shows Start/Finish buttons when dragging over target */}

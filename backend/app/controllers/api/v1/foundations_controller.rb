@@ -211,10 +211,10 @@ module Api
               lookup_foundation_id: col.lookup_foundation_id,
               lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
               lookup_display_column: col.lookup_display_column,
-              lookup_multiple: col.lookup_multiple,
-              formula: col.formula,
-              formula_output_type: col.formula_output_type,
-              choices: col.choices,
+              lookup_multiple: col.is_multiple,  # Database column is is_multiple
+              formula: nil,  # Not implemented yet
+              formula_output_type: nil,  # Not implemented yet
+              choices: col.available_choices,  # Database column is available_choices
               validation_regex: col.effective_validation_regex
             }
 
