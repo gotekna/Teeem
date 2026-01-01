@@ -89,6 +89,30 @@ interface SmTask {
   // Header info from linked sm_schedule_master
   // "Header" = this IS a header, number = parent header ID
   header_gantt?: string | number | null;
+  // Editable fields for task edit sheet
+  description?: string;
+  sequence_order?: number;
+  trade?: string | number | null;
+  trade_name?: string;
+  stage?: string | number | null;
+  stage_name?: string;
+  assigned_role?: string | null;
+  cost_centre?: string | number | null;
+  cost_centre_name?: string;
+  // PO settings
+  critical_po?: boolean;
+  create_po_on_job_start?: boolean;
+  spawn_order_task?: boolean;
+  spawn_call_task?: boolean;
+  order_time_days?: number;
+  call_time_days?: number;
+  // Completion settings
+  require_photo?: boolean;
+  pass_fail_enabled?: boolean;
+  // Header settings
+  allow_header?: boolean;
+  // Link to schedule master template
+  sm_schedule_master_id?: number | null;
 }
 
 interface SmTasksResponse {
@@ -420,6 +444,32 @@ export default function SchedulePage() {
       fetchJob();
     }
   }, [jobId]);
+
+  // Fetch dropdown options for task edit form
+  React.useEffect(() => {
+    const fetchDropdownOptions = async () => {
+      try {
+        // Fetch trades
+        const tradesRes = await api.get<{ records: Array<{ id: number; name: string }> }>('/api/v1/foundations/sm_trades/records');
+        if (tradesRes?.records) {
+          setAvailableTrades(tradesRes.records);
+        }
+        // Fetch stages
+        const stagesRes = await api.get<{ records: Array<{ id: number; name: string }> }>('/api/v1/foundations/sm_stages/records');
+        if (stagesRes?.records) {
+          setAvailableStages(stagesRes.records);
+        }
+        // Fetch assignable roles (SSoT: /api/v1/sm_settings/assignable_roles)
+        const rolesRes = await api.get<{ assignable_roles: Array<{ value: string; label: string }> }>('/api/v1/sm_settings/assignable_roles');
+        if (rolesRes?.assignable_roles) {
+          setAvailableRoles(rolesRes.assignable_roles.map(r => ({ id: r.value, display_name: r.label })));
+        }
+      } catch (err) {
+        console.error("Failed to fetch dropdown options:", err);
+      }
+    };
+    fetchDropdownOptions();
+  }, []);
 
   const triggerRefresh = React.useCallback(() => {
     setRefreshKey(k => k + 1);
@@ -886,6 +936,80 @@ export default function SchedulePage() {
     }
   };
 
+  // Task Edit Sheet handlers
+  const handleOpenTaskEdit = (task: SmTask) => {
+    setEditingTask(task);
+    // SSoT: Backend returns header_gantt="Header" for headers, derive allow_header from it
+    const isHeader = task.header_gantt === "Header";
+    setTaskEditForm({
+      name: task.name,
+      duration_days: task.duration_days,
+      sequence_order: task.sequence_order || 0,
+      description: task.description || "",
+      trade: task.trade ? String(task.trade) : null,
+      stage: task.stage ? String(task.stage) : null,
+      assigned_role: task.assigned_role || null,
+      po_required: task.po_required || false,
+      critical_po: task.critical_po || false,
+      create_po_on_job_start: task.create_po_on_job_start || false,
+      spawn_order_task: task.spawn_order_task || false,
+      spawn_call_task: task.spawn_call_task || false,
+      require_photo: task.require_photo || false,
+      pass_fail_enabled: task.pass_fail_enabled || false,
+      allow_header: isHeader,
+      header_gantt: task.header_gantt,
+    });
+    setTaskEditOpen(true);
+  };
+
+  const handleSaveTask = async () => {
+    if (!editingTask) return;
+
+    setSavingTask(true);
+    try {
+      await api.patch(`/api/v1/foundations/sm-tasks/records/${editingTask.id}`, {
+        record: {
+          name: taskEditForm.name,
+          duration_days: taskEditForm.duration_days,
+          sequence_order: taskEditForm.sequence_order,
+          description: taskEditForm.description,
+          trade_id: taskEditForm.trade ? Number(taskEditForm.trade) : null,
+          stage_id: taskEditForm.stage ? Number(taskEditForm.stage) : null,
+          assigned_role: taskEditForm.assigned_role,
+          po_required: taskEditForm.po_required,
+          critical_po: taskEditForm.critical_po,
+          create_po_on_job_start: taskEditForm.create_po_on_job_start,
+          spawn_order_task: taskEditForm.spawn_order_task,
+          spawn_call_task: taskEditForm.spawn_call_task,
+          require_photo: taskEditForm.require_photo,
+          pass_fail_enabled: taskEditForm.pass_fail_enabled,
+          allow_header: taskEditForm.allow_header,
+        }
+      });
+
+      toast({
+        title: "Task Saved",
+        description: "Task has been updated successfully",
+      });
+
+      setTaskEditOpen(false);
+      triggerRefresh();
+      // Refresh gantt data if open
+      if (ganttOpen && refetchGanttData) {
+        refetchGanttData();
+      }
+    } catch (err) {
+      console.error("Failed to save task:", err);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save task changes",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTask(false);
+    }
+  };
+
   // SSoT: Show skeleton layout during loading to prevent flash/CLS
   // The skeleton matches the actual page structure so there's no jarring layout shift
   if (loading) {
@@ -1006,10 +1130,10 @@ export default function SchedulePage() {
                   setSelectedGanttTask(task);
                 }}
               onTaskDoubleClick={(task) => {
-                  // Find the SmTask from ganttTasks and open the detail drawer
+                  // Find the SmTask from ganttTasks and open the task edit sheet
                   const smTask = ganttTasks.find(t => String(t.id) === task.id);
                   if (smTask) {
-                    handleRowDoubleClick(smTask as unknown as Record<string, unknown>);
+                    handleOpenTaskEdit(smTask);
                   }
                 }}
               className="h-full"
@@ -1164,6 +1288,266 @@ export default function SchedulePage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Task Edit Sheet - Full Edit Form (fullscreen mode) */}
+      <Sheet open={taskEditOpen} onOpenChange={setTaskEditOpen}>
+        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
+          <SheetHeader className="pb-2">
+            <SheetTitle>Edit Task</SheetTitle>
+            <SheetDescription>
+              {editingTask?.name} (Task #{editingTask?.task_number})
+            </SheetDescription>
+          </SheetHeader>
+          <div className="py-3 space-y-3">
+            {/* Row 1: Name + Duration + Sequence - full width */}
+            <div className="grid grid-cols-[1fr_80px_80px] gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="task-name-fs" className="text-xs">Name</Label>
+                <Input
+                  id="task-name-fs"
+                  value={taskEditForm.name || ""}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, name: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="task-duration-fs" className="text-xs">Days</Label>
+                <Input
+                  id="task-duration-fs"
+                  type="number"
+                  value={taskEditForm.duration_days || 0}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, duration_days: parseInt(e.target.value) || 0 })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="task-sequence-fs" className="text-xs">Seq</Label>
+                <Input
+                  id="task-sequence-fs"
+                  type="number"
+                  step="0.1"
+                  value={taskEditForm.sequence_order || 0}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, sequence_order: parseFloat(e.target.value) || 0 })}
+                  className="h-8"
+                />
+              </div>
+            </div>
+
+            {/* Description - full width */}
+            <div className="space-y-1">
+              <Label htmlFor="task-description-fs" className="text-xs">Description</Label>
+              <Input
+                id="task-description-fs"
+                value={taskEditForm.description || ""}
+                onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })}
+                className="h-8"
+                placeholder="Optional description..."
+              />
+            </div>
+
+            {/* Two-column layout for dropdowns and settings */}
+            <div className="grid grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Trade</Label>
+                  <ComboboxDropdown
+                    items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
+                    selectedItem={taskEditForm.trade ? { id: String(taskEditForm.trade), label: availableTrades.find(t => String(t.id) === String(taskEditForm.trade))?.name || editingTask?.trade_name || String(taskEditForm.trade) } : undefined}
+                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, trade: item.id })}
+                    placeholder="Select trade..."
+                    emptyResults="No trades found"
+                    clearable
+                    onClear={() => setTaskEditForm({ ...taskEditForm, trade: null })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Assigned Role</Label>
+                  <ComboboxDropdown
+                    items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
+                    selectedItem={taskEditForm.assigned_role ? { id: taskEditForm.assigned_role, label: availableRoles.find(r => String(r.id) === taskEditForm.assigned_role)?.display_name || taskEditForm.assigned_role } : undefined}
+                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, assigned_role: item.id })}
+                    placeholder="Select role..."
+                    emptyResults="No roles found"
+                    clearable
+                    onClear={() => setTaskEditForm({ ...taskEditForm, assigned_role: null })}
+                  />
+                </div>
+                <div className="pt-2 border-t">
+                  <h4 className="font-medium text-sm mb-2">PO Settings</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-po-required-fs"
+                        checked={taskEditForm.po_required || false}
+                        onCheckedChange={(checked) => {
+                          if (!checked && !taskEditForm.create_po_on_job_start) {
+                            setTaskEditForm({
+                              ...taskEditForm,
+                              po_required: checked,
+                              spawn_order_task: false,
+                              spawn_call_task: false,
+                            });
+                          } else {
+                            setTaskEditForm({ ...taskEditForm, po_required: checked });
+                          }
+                        }}
+                      />
+                      <Label htmlFor="task-po-required-fs" className="text-xs">PO Required</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-critical-po-fs"
+                        checked={taskEditForm.critical_po || false}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, critical_po: checked })}
+                      />
+                      <Label htmlFor="task-critical-po-fs" className="text-xs">Critical PO</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-create-po-fs"
+                        checked={taskEditForm.create_po_on_job_start || false}
+                        onCheckedChange={(checked) => {
+                          if (!checked && !taskEditForm.po_required) {
+                            setTaskEditForm({
+                              ...taskEditForm,
+                              create_po_on_job_start: checked,
+                              spawn_order_task: false,
+                              spawn_call_task: false,
+                            });
+                          } else {
+                            setTaskEditForm({ ...taskEditForm, create_po_on_job_start: checked });
+                          }
+                        }}
+                      />
+                      <Label htmlFor="task-create-po-fs" className="text-xs">Auto-PO on Start</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-spawn-order-fs"
+                        checked={taskEditForm.spawn_order_task || false}
+                        disabled={!(taskEditForm.po_required || taskEditForm.create_po_on_job_start)}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, spawn_order_task: checked })}
+                      />
+                      <Label htmlFor="task-spawn-order-fs" className={`text-xs ${!(taskEditForm.po_required || taskEditForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                        Spawn Order Task
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-spawn-call-fs"
+                        checked={taskEditForm.spawn_call_task || false}
+                        disabled={!(taskEditForm.po_required || taskEditForm.create_po_on_job_start)}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, spawn_call_task: checked })}
+                      />
+                      <Label htmlFor="task-spawn-call-fs" className={`text-xs ${!(taskEditForm.po_required || taskEditForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                        Spawn Call Task
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Stage</Label>
+                  <ComboboxDropdown
+                    items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
+                    selectedItem={taskEditForm.stage ? { id: String(taskEditForm.stage), label: availableStages.find(s => String(s.id) === String(taskEditForm.stage))?.name || editingTask?.stage_name || String(taskEditForm.stage) } : undefined}
+                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, stage: item.id })}
+                    placeholder="Select stage..."
+                    emptyResults="No stages found"
+                    clearable
+                    onClear={() => setTaskEditForm({ ...taskEditForm, stage: null })}
+                  />
+                </div>
+                <div className="pt-2 border-t">
+                  <h4 className="font-medium text-sm mb-2">Completion</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-require-photo-fs"
+                        checked={taskEditForm.require_photo || false}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, require_photo: checked })}
+                      />
+                      <Label htmlFor="task-require-photo-fs" className="text-xs">Require Photo</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-pass-fail-fs"
+                        checked={taskEditForm.pass_fail_enabled || false}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, pass_fail_enabled: checked })}
+                      />
+                      <div>
+                        <Label htmlFor="task-pass-fail-fs" className="text-xs">Pass/Fail</Label>
+                        <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Allow Header */}
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  <Switch
+                    id="task-allow-header-fs"
+                    checked={taskEditForm.allow_header || false}
+                    disabled={taskEditForm.po_required || taskEditForm.create_po_on_job_start}
+                    onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, allow_header: checked })}
+                  />
+                  <div>
+                    <Label htmlFor="task-allow-header-fs" className={`text-xs ${(taskEditForm.po_required || taskEditForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                      Allow Header
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Can be selected as parent for other tasks</p>
+                  </div>
+                  {taskEditForm.allow_header && (
+                    <Badge className="text-[10px] bg-blue-500">Header</Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Task Info (read-only) */}
+            {editingTask && (
+              <div className="pt-4 border-t space-y-2">
+                <h4 className="font-medium text-sm">Task Info</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="ml-2">{editingTask.status}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Locked:</span>
+                    <span className="ml-2">{editingTask.confirm ? "Yes" : "No"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Supplier Confirmed:</span>
+                    <span className="ml-2">{editingTask.supplier_confirm ? "Yes" : "No"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Has PO:</span>
+                    <span className="ml-2">{editingTask.purchase_order_id ? "Yes" : "No"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Save Button */}
+            <div className="pt-4 border-t flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setTaskEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTask} disabled={savingTask}>
+                {savingTask ? (
+                  <><Spinner size={16} className="mr-2" />Saving...</>
+                ) : (
+                  <><Check className="h-4 w-4 mr-2" />Save</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
     );
   }
@@ -1259,9 +1643,10 @@ export default function SchedulePage() {
                   setSelectedGanttTask(task);
                 }}
                 onTaskDoubleClick={(task) => {
+                  // Open task edit sheet on double-click
                   const smTask = ganttTasks.find(t => String(t.id) === task.id);
                   if (smTask) {
-                    handleRowDoubleClick(smTask as unknown as Record<string, unknown>);
+                    handleOpenTaskEdit(smTask);
                   }
                 }}
                 className="h-full"
@@ -1930,6 +2315,266 @@ export default function SchedulePage() {
                 </div>
               </div>
             )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Task Edit Sheet - Full Edit Form */}
+      <Sheet open={taskEditOpen} onOpenChange={setTaskEditOpen}>
+        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
+          <SheetHeader className="pb-2">
+            <SheetTitle>Edit Task</SheetTitle>
+            <SheetDescription>
+              {editingTask?.name} (Task #{editingTask?.task_number})
+            </SheetDescription>
+          </SheetHeader>
+          <div className="py-3 space-y-3">
+            {/* Row 1: Name + Duration + Sequence - full width */}
+            <div className="grid grid-cols-[1fr_80px_80px] gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="task-name" className="text-xs">Name</Label>
+                <Input
+                  id="task-name"
+                  value={taskEditForm.name || ""}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, name: e.target.value })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="task-duration" className="text-xs">Days</Label>
+                <Input
+                  id="task-duration"
+                  type="number"
+                  value={taskEditForm.duration_days || 0}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, duration_days: parseInt(e.target.value) || 0 })}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="task-sequence" className="text-xs">Seq</Label>
+                <Input
+                  id="task-sequence"
+                  type="number"
+                  step="0.1"
+                  value={taskEditForm.sequence_order || 0}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, sequence_order: parseFloat(e.target.value) || 0 })}
+                  className="h-8"
+                />
+              </div>
+            </div>
+
+            {/* Description - full width */}
+            <div className="space-y-1">
+              <Label htmlFor="task-description" className="text-xs">Description</Label>
+              <Input
+                id="task-description"
+                value={taskEditForm.description || ""}
+                onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })}
+                className="h-8"
+                placeholder="Optional description..."
+              />
+            </div>
+
+            {/* Two-column layout for dropdowns and settings */}
+            <div className="grid grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Trade</Label>
+                  <ComboboxDropdown
+                    items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
+                    selectedItem={taskEditForm.trade ? { id: String(taskEditForm.trade), label: availableTrades.find(t => String(t.id) === String(taskEditForm.trade))?.name || editingTask?.trade_name || String(taskEditForm.trade) } : undefined}
+                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, trade: item.id })}
+                    placeholder="Select trade..."
+                    emptyResults="No trades found"
+                    clearable
+                    onClear={() => setTaskEditForm({ ...taskEditForm, trade: null })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Assigned Role</Label>
+                  <ComboboxDropdown
+                    items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
+                    selectedItem={taskEditForm.assigned_role ? { id: taskEditForm.assigned_role, label: availableRoles.find(r => String(r.id) === taskEditForm.assigned_role)?.display_name || taskEditForm.assigned_role } : undefined}
+                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, assigned_role: item.id })}
+                    placeholder="Select role..."
+                    emptyResults="No roles found"
+                    clearable
+                    onClear={() => setTaskEditForm({ ...taskEditForm, assigned_role: null })}
+                  />
+                </div>
+                <div className="pt-2 border-t">
+                  <h4 className="font-medium text-sm mb-2">PO Settings</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-po-required"
+                        checked={taskEditForm.po_required || false}
+                        onCheckedChange={(checked) => {
+                          if (!checked && !taskEditForm.create_po_on_job_start) {
+                            setTaskEditForm({
+                              ...taskEditForm,
+                              po_required: checked,
+                              spawn_order_task: false,
+                              spawn_call_task: false,
+                            });
+                          } else {
+                            setTaskEditForm({ ...taskEditForm, po_required: checked });
+                          }
+                        }}
+                      />
+                      <Label htmlFor="task-po-required" className="text-xs">PO Required</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-critical-po"
+                        checked={taskEditForm.critical_po || false}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, critical_po: checked })}
+                      />
+                      <Label htmlFor="task-critical-po" className="text-xs">Critical PO</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-create-po"
+                        checked={taskEditForm.create_po_on_job_start || false}
+                        onCheckedChange={(checked) => {
+                          if (!checked && !taskEditForm.po_required) {
+                            setTaskEditForm({
+                              ...taskEditForm,
+                              create_po_on_job_start: checked,
+                              spawn_order_task: false,
+                              spawn_call_task: false,
+                            });
+                          } else {
+                            setTaskEditForm({ ...taskEditForm, create_po_on_job_start: checked });
+                          }
+                        }}
+                      />
+                      <Label htmlFor="task-create-po" className="text-xs">Auto-PO on Start</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-spawn-order"
+                        checked={taskEditForm.spawn_order_task || false}
+                        disabled={!(taskEditForm.po_required || taskEditForm.create_po_on_job_start)}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, spawn_order_task: checked })}
+                      />
+                      <Label htmlFor="task-spawn-order" className={`text-xs ${!(taskEditForm.po_required || taskEditForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                        Spawn Order Task
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-spawn-call"
+                        checked={taskEditForm.spawn_call_task || false}
+                        disabled={!(taskEditForm.po_required || taskEditForm.create_po_on_job_start)}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, spawn_call_task: checked })}
+                      />
+                      <Label htmlFor="task-spawn-call" className={`text-xs ${!(taskEditForm.po_required || taskEditForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                        Spawn Call Task
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Stage</Label>
+                  <ComboboxDropdown
+                    items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
+                    selectedItem={taskEditForm.stage ? { id: String(taskEditForm.stage), label: availableStages.find(s => String(s.id) === String(taskEditForm.stage))?.name || editingTask?.stage_name || String(taskEditForm.stage) } : undefined}
+                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, stage: item.id })}
+                    placeholder="Select stage..."
+                    emptyResults="No stages found"
+                    clearable
+                    onClear={() => setTaskEditForm({ ...taskEditForm, stage: null })}
+                  />
+                </div>
+                <div className="pt-2 border-t">
+                  <h4 className="font-medium text-sm mb-2">Completion</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-require-photo"
+                        checked={taskEditForm.require_photo || false}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, require_photo: checked })}
+                      />
+                      <Label htmlFor="task-require-photo" className="text-xs">Require Photo</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="task-pass-fail"
+                        checked={taskEditForm.pass_fail_enabled || false}
+                        onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, pass_fail_enabled: checked })}
+                      />
+                      <div>
+                        <Label htmlFor="task-pass-fail" className="text-xs">Pass/Fail</Label>
+                        <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Allow Header */}
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  <Switch
+                    id="task-allow-header"
+                    checked={taskEditForm.allow_header || false}
+                    disabled={taskEditForm.po_required || taskEditForm.create_po_on_job_start}
+                    onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, allow_header: checked })}
+                  />
+                  <div>
+                    <Label htmlFor="task-allow-header" className={`text-xs ${(taskEditForm.po_required || taskEditForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
+                      Allow Header
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Can be selected as parent for other tasks</p>
+                  </div>
+                  {taskEditForm.allow_header && (
+                    <Badge className="text-[10px] bg-blue-500">Header</Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Task Info (read-only) */}
+            {editingTask && (
+              <div className="pt-4 border-t space-y-2">
+                <h4 className="font-medium text-sm">Task Info</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="ml-2">{editingTask.status}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Locked:</span>
+                    <span className="ml-2">{editingTask.confirm ? "Yes" : "No"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Supplier Confirmed:</span>
+                    <span className="ml-2">{editingTask.supplier_confirm ? "Yes" : "No"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Has PO:</span>
+                    <span className="ml-2">{editingTask.purchase_order_id ? "Yes" : "No"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Save Button */}
+            <div className="pt-4 border-t flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setTaskEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTask} disabled={savingTask}>
+                {savingTask ? (
+                  <><Spinner size={16} className="mr-2" />Saving...</>
+                ) : (
+                  <><Check className="h-4 w-4 mr-2" />Save</>
+                )}
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
