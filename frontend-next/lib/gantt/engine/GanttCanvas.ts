@@ -3814,39 +3814,35 @@ export class GanttCanvas {
   }
 
   private hitTest(x: number, y: number): GanttTask | null {
-    // Convert screen coordinates to world coordinates (Day 7 Optimization)
-    const world = this.screenToWorld(x, y);
+    // First: Check extended chevron area (ALWAYS check this for hover to work on chevrons)
+    // This must run before spatial index because spatial index doesn't include chevron padding
+    const adjustedY = y - this.config.headerHeight + this.viewportState.scrollY;
+    if (adjustedY >= 0) {
+      const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
+      if (rowIndex >= 0 && rowIndex < this.state.tasks.length) {
+        const task = this.state.tasks[rowIndex];
+        const taskStartX = this.viewport.dateToX(task.startDate);
+        const taskEndX = this.viewport.dateToX(task.endDate);
+        const dayWidth = this.viewport.getDayWidth();
+        const calculatedWidth = taskEndX - taskStartX;
+        const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
+        const actualEndX = taskStartX + taskWidth;
 
-    // Use SpatialIndex for O(1) hit testing
+        // Large chevron padding to keep hover active when moving toward chevrons
+        const chevronPadding = 50;
+        if (x >= taskStartX - chevronPadding && x <= actualEndX + chevronPadding) {
+          return task;
+        }
+      }
+    }
+
+    // Fallback: Use SpatialIndex for O(1) hit testing on task bar itself
+    const world = this.screenToWorld(x, y);
     const hits = this.spatialIndex.queryPoint(world.x, world.y);
 
     if (hits.length > 0) {
       const taskId = hits[0];
       return this.state.tasks.find(t => t.id === taskId) || null;
-    }
-
-    // Fallback: Direct row-based hit test if spatial index fails
-    // This ensures hover works even if spatial index gets out of sync (e.g., after zoom)
-    const adjustedY = y - this.config.headerHeight + this.viewportState.scrollY;
-    if (adjustedY < 0) return null;
-
-    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
-    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
-
-    const task = this.state.tasks[rowIndex];
-
-    // Check if x is within task bounds (plus connector dot area)
-    const taskStartX = this.viewport.dateToX(task.startDate);
-    const taskEndX = this.viewport.dateToX(task.endDate);
-    const dayWidth = this.viewport.getDayWidth();
-    const calculatedWidth = taskEndX - taskStartX;
-    const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
-    const actualEndX = taskStartX + taskWidth;
-
-    // Extend hit area to include the chevron zone (offset=6 + width=8 + padding=15 = 29)
-    const chevronPadding = 30;  // Must cover full chevron hit area so hoveredTaskId stays set
-    if (x >= taskStartX - chevronPadding && x <= actualEndX + chevronPadding) {
-      return task;
     }
 
     return null;
