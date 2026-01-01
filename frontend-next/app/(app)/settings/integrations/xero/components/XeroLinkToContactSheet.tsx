@@ -553,8 +553,8 @@ export function XeroLinkToContactSheet({
                       <Button
                         size="sm"
                         onClick={() => handleLinkToContact(contact.id)}
-                        disabled={linkingContactId !== null || (contact.id !== localContactId && contact.xero_tenant_names?.includes(xeroTenantName || ''))}
-                        title={contact.xero_tenant_names?.includes(xeroTenantName || '') && contact.id !== localContactId ? 'This contact is already linked to another Xero contact in this organization. Unlink it first.' : undefined}
+                        disabled={linkingContactId !== null}
+                        title={contact.xero_tenant_names?.includes(xeroTenantName || '') && contact.id !== localContactId ? 'This contact already has another Xero link in this organization - will add as additional link' : undefined}
                       >
                         {linkingContactId === contact.id ? (
                           <Spinner size={14} />

@@ -678,6 +678,18 @@ module Api
           }, status: :unprocessable_entity
         end
 
+        # Check for active Xero sync links (SSoT protection)
+        xero_links = @contact.external_links.where(source: "xero")
+        if xero_links.any?
+          return render json: {
+            success: false,
+            error: "Cannot delete contact with #{xero_links.count} active Xero link#{'s' if xero_links.count != 1}. Unlink from Xero first.",
+            reason: "has_xero_links",
+            count: xero_links.count,
+            tenant_names: xero_links.map(&:tenant_name).compact.uniq
+          }, status: :unprocessable_entity
+        end
+
         # Check for data that requires archiving instead of deletion
         archive_reasons = []
 

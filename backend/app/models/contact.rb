@@ -845,11 +845,12 @@ class Contact < ApplicationRecord
 
   # Check if contact can be deleted (for Xero sync)
   def can_delete?
-    # Can't delete if has linked jobs, invoices, purchase orders, etc.
+    # Can't delete if has linked jobs, invoices, purchase orders, Xero links, etc.
     return false if jobs.any?
     return false if purchase_orders.any?
     return false if subcontractor_invoices.any?
     return false if quote_responses.any?
+    return false if external_links.xero.any?
     true
   end
 
@@ -859,6 +860,7 @@ class Contact < ApplicationRecord
     blockers << "#{purchase_orders.count} purchase orders" if purchase_orders.any?
     blockers << "#{subcontractor_invoices.count} invoices" if subcontractor_invoices.any?
     blockers << "#{quote_responses.count} quote responses" if quote_responses.any?
+    blockers << "#{external_links.xero.count} Xero links" if external_links.xero.any?
     blockers
   end
 

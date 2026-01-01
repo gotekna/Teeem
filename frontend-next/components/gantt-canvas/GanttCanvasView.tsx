@@ -327,6 +327,9 @@ export function GanttCanvasView({
   // Name search filter
   const [nameSearch, setNameSearch] = React.useState('');
 
+  // Scroll position for sticky header calculation
+  const [sidebarScrollY, setSidebarScrollY] = React.useState(0);
+
   // Confirm/Supplier Confirm dialog state
   const [confirmDialog, setConfirmDialog] = React.useState<{
     isOpen: boolean;
@@ -560,8 +563,10 @@ export function GanttCanvasView({
   }, [headerTaskNumberToId]);
 
   // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
+  // Two-pass filtering: first determine visible non-headers, then filter headers based on visible children
   const visibleTasks = React.useMemo(() => {
-    return tasks.filter(task => {
+    // Helper to check if a non-header task passes filters (excluding collapse check for now)
+    const taskPassesFilters = (task: GanttTask): boolean => {
       // Name search filter
       if (nameSearch && !task.name.toLowerCase().includes(nameSearch.toLowerCase())) {
         return false;
@@ -569,27 +574,63 @@ export function GanttCanvasView({
 
       const rowData = task.rowData as SmScheduleMaster | undefined;
       const isHeader = rowData?.header_gantt === 'Header';
-
-      // If this task has a parent header that is collapsed, hide it
       const parentHeaderId = getParentHeaderId(task);
-      if (parentHeaderId && collapsedHeaders.has(parentHeaderId)) {
+
+      // If showOnlyGrouped is enabled, only show headers (handled separately)
+      if (showOnlyGrouped && !isHeader) {
         return false;
       }
 
-      // If showOnlyGrouped is enabled, only show headers
-      if (showOnlyGrouped) {
-        if (!isHeader) {
-          return false;
-        }
-      }
-
-      // In header view: show headers + children of EXPANDED headers
-      // Children of collapsed headers already filtered above
+      // In header view: show headers + children of headers only
       if (viewSlug === 'header') {
-        // Show if it's a header OR if it has a parent header (and that parent is expanded - checked above)
         if (!isHeader && !parentHeaderId) {
           return false; // Hide ungrouped tasks in header view
         }
+      }
+
+      return true;
+    };
+
+    // First pass: Build a set of header IDs that have at least one visible child
+    // (a child is visible if it passes filters AND its parent header is not collapsed)
+    const headersWithVisibleChildren = new Set<string>();
+
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      const isHeader = rowData?.header_gantt === 'Header';
+
+      if (!isHeader && taskPassesFilters(task)) {
+        const parentHeaderId = getParentHeaderId(task);
+        if (parentHeaderId) {
+          // This child passes filters - mark its parent as having visible children
+          headersWithVisibleChildren.add(parentHeaderId);
+        }
+      }
+    }
+
+    // Second pass: Filter tasks
+    return tasks.filter(task => {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      const isHeader = rowData?.header_gantt === 'Header';
+      const parentHeaderId = getParentHeaderId(task);
+
+      // For headers: hide if they have no visible children
+      if (isHeader) {
+        // Check if this header has any visible children
+        if (!headersWithVisibleChildren.has(task.id)) {
+          return false; // Hide header with no visible children
+        }
+        return true; // Header has visible children, show it
+      }
+
+      // For non-headers: apply all filters including collapse check
+      if (!taskPassesFilters(task)) {
+        return false;
+      }
+
+      // If this task has a parent header that is collapsed, hide it
+      if (parentHeaderId && collapsedHeaders.has(parentHeaderId)) {
+        return false;
       }
 
       return true;
@@ -607,6 +648,75 @@ export function GanttCanvasView({
     const children = tasks.filter(t => getParentHeaderId(t) === headerTaskId);
     return children.length;
   }, [tasks, getParentHeaderId]);
+
+  // Get the header ID for the selected group (when clicking header or child, highlight entire group)
+  const selectedGroupHeaderId = React.useMemo(() => {
+    if (!selectedTaskId) return null;
+
+    const selectedTask = tasks.find(t => t.id === selectedTaskId);
+    if (!selectedTask) return null;
+
+    // If selected task IS a header, use its ID
+    if (isHeaderTask(selectedTask)) {
+      return selectedTask.id;
+    }
+
+    // If selected task has a parent header, use parent's ID
+    const parentId = getParentHeaderId(selectedTask);
+    return parentId;
+  }, [selectedTaskId, tasks, isHeaderTask, getParentHeaderId]);
+
+  // Check if a task is in the selected group (header or child of selected header)
+  const isInSelectedGroup = React.useCallback((task: GanttTask): boolean => {
+    if (!selectedGroupHeaderId) return false;
+
+    // Is this the header itself?
+    if (task.id === selectedGroupHeaderId) return true;
+
+    // Is this a child of the selected header?
+    const parentId = getParentHeaderId(task);
+    return parentId === selectedGroupHeaderId;
+  }, [selectedGroupHeaderId, getParentHeaderId]);
+
+  // Calculate sticky header - show parent header when scrolled past it but viewing children
+  const stickyHeader = React.useMemo(() => {
+    const ROW_HEIGHT = 28;
+    // Find the first visible row index based on scroll position
+    const firstVisibleIndex = Math.floor(sidebarScrollY / ROW_HEIGHT);
+
+    if (firstVisibleIndex < 0 || firstVisibleIndex >= visibleTasks.length) {
+      return null;
+    }
+
+    const firstVisibleTask = visibleTasks[firstVisibleIndex];
+    if (!firstVisibleTask) return null;
+
+    // If first visible is a header, no need for sticky
+    if (isHeaderTask(firstVisibleTask)) {
+      return null;
+    }
+
+    // Get parent header of first visible task
+    const parentHeaderId = getParentHeaderId(firstVisibleTask);
+    if (!parentHeaderId) return null;
+
+    // Find the parent header task
+    const headerTask = visibleTasks.find(t => t.id === parentHeaderId);
+    if (!headerTask) return null;
+
+    // Check if header is scrolled out of view (its index * ROW_HEIGHT < scrollY)
+    const headerIndex = visibleTasks.findIndex(t => t.id === parentHeaderId);
+    if (headerIndex < 0) return null;
+
+    const headerTop = headerIndex * ROW_HEIGHT;
+    if (headerTop >= sidebarScrollY) {
+      // Header is still visible, no sticky needed
+      return null;
+    }
+
+    // Header is scrolled out, show sticky
+    return headerTask;
+  }, [sidebarScrollY, visibleTasks, isHeaderTask, getParentHeaderId]);
 
   // Fullscreen state - use external if provided, otherwise internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
@@ -2466,6 +2576,8 @@ export function GanttCanvasView({
         if (scrollY !== lastScrollY) {
           lastScrollY = scrollY;
           sidebarRef.current.scrollTop = scrollY;
+          // Track scroll position for sticky header
+          setSidebarScrollY(scrollY);
         }
       }
       animationFrameId = requestAnimationFrame(syncScroll);
@@ -2933,7 +3045,7 @@ export function GanttCanvasView({
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Table - always shows Name column, toggles other columns */}
-        <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 280, maxWidth: showSidebar ? 600 : 300 }}>
+        <div className="flex flex-col border-r bg-background relative" style={{ width: 'auto', minWidth: showSidebar ? 200 : 280, maxWidth: showSidebar ? 600 : 300 }}>
             {/* Sidebar Header - Draggable Columns with Search in Name column */}
             <DndContext
               sensors={columnDragSensors}
@@ -2977,6 +3089,48 @@ export function GanttCanvasView({
                 </div>
               </SortableContext>
             </DndContext>
+
+            {/* Sticky Header - shows parent header when scrolled past it */}
+            {stickyHeader && (
+              <div
+                className="absolute left-0 right-0 z-10 flex items-center border-b text-xs px-2 cursor-pointer bg-amber-100 dark:bg-amber-900/40 border-l-4 border-l-amber-500 shadow-sm"
+                style={{ height: 28, top: 50 }}
+                onClick={() => {
+                  setSelectedTaskId(stickyHeader.id);
+                  onTaskClick?.(stickyHeader);
+                  // Scroll to show the header
+                  if (ganttRef.current) {
+                    ganttRef.current.scrollToTaskHorizontalOnly(stickyHeader.id, true);
+                  }
+                }}
+              >
+                {visibleColumns.map(col => (
+                  <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="truncate px-1">
+                    {col.id === 'name' ? (
+                      <div className="truncate px-2 flex items-center font-bold" title={stickyHeader.name}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleHeaderCollapse(stickyHeader.id);
+                          }}
+                          className="mr-1 hover:bg-muted rounded p-0.5 flex-shrink-0"
+                        >
+                          {collapsedHeaders.has(stickyHeader.id) ? (
+                            <ChevronRight className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )}
+                        </button>
+                        <span className="text-amber-700 dark:text-amber-300">{stickyHeader.name}</span>
+                        <span className="text-muted-foreground text-[10px] ml-2">
+                          ({getChildCount(stickyHeader.id)})
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Sidebar Rows */}
             <div
@@ -3222,6 +3376,7 @@ export function GanttCanvasView({
                   };
 
                   const isSelected = selectedTaskId === task.id;
+                  const inSelectedGroup = isInSelectedGroup(task);
 
                   return (
                     <div
@@ -3230,9 +3385,13 @@ export function GanttCanvasView({
                         "flex items-center border-b text-xs hover:bg-muted/30 px-2 cursor-pointer",
                         isSelected
                           ? "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-inset ring-blue-500"
-                          : isHeader
-                            ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
-                            : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
+                          : inSelectedGroup
+                            ? isHeader
+                              ? "bg-amber-100 dark:bg-amber-900/30 border-l-4 border-l-amber-500"
+                              : "bg-amber-50 dark:bg-amber-900/20 border-l-2 border-l-amber-400"
+                            : isHeader
+                              ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
+                              : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
                       )}
                       style={{ height: 28 }}
                       onClick={() => {

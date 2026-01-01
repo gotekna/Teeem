@@ -720,15 +720,9 @@ export function convertRowsToTasks(
       }
     }
 
-    // Filter out headers that have no children
-    return tasks.filter(task => {
-      const row = sortedRows.find(r => String(r.id) === task.id);
-      if (row?.header_gantt === 'Header') {
-        const children = headerChildrenMap.get(Number(row.id));
-        return children && children.length > 0;
-      }
-      return true;
-    });
+    // Keep all tasks including headers with no children
+    // Headers remain visible regardless of whether they have children
+    return tasks;
   }
 
   return tasks;
