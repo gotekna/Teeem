@@ -1977,14 +1977,6 @@ export function GanttCanvasView({
   // Initialize canvas engine - recreated when data changes
   // Note: Using rows in dependencies causes recreation, but this is needed for proper handler binding
   React.useEffect(() => {
-    console.log('[GanttCanvasView] Main useEffect running', {
-      hasContainer: !!containerRef.current,
-      loading,
-      error,
-      isStaticMode,
-      staticTasksCount: staticTasks?.length,
-      staticDepsCount: staticDependencies?.length,
-    });
     if (!containerRef.current || loading || error) return;
 
     // Get tasks and dependencies based on mode
@@ -2071,13 +2063,6 @@ export function GanttCanvasView({
     // Store tasks for sidebar
     setTasks(taskList);
 
-    // Debug: Find FRAME task to verify date update
-    const frameTask = taskList.find(t => t.name?.toUpperCase?.().includes('FRAME'));
-    console.log('[GanttCanvasView] Creating new canvas', {
-      taskCount: taskList.length,
-      frameTask: frameTask ? { id: frameTask.id, name: frameTask.name, startDate: frameTask.startDate?.toISOString?.() } : 'not found',
-    });
-
     // Create canvas instance
     const gantt = new GanttCanvas(containerRef.current, {
       darkMode: isDarkMode,
@@ -2086,7 +2071,6 @@ export function GanttCanvasView({
     // Set data
     gantt.setTasks(taskList);
     gantt.setDependencies(dependencies);
-    console.log('[GanttCanvasView] Canvas created and tasks set');
 
     // Disable snap-to-working-day for templates
     // Templates use relative day offsets, not calendar dates
@@ -2134,7 +2118,6 @@ export function GanttCanvasView({
 
     // Cleanup
     return () => {
-      console.log('[GanttCanvasView] Cleanup: destroying canvas');
       gantt.destroy();
       ganttRef.current = null;
     };
@@ -2149,11 +2132,6 @@ export function GanttCanvasView({
 
   // Sync visible tasks to canvas when headers are collapsed/expanded
   React.useEffect(() => {
-    console.log('[GanttCanvasView] visibleTasks effect', {
-      hasGanttRef: !!ganttRef.current,
-      visibleTasksCount: visibleTasks.length,
-      sampleTask: visibleTasks[0] ? { id: visibleTasks[0].id, startDate: visibleTasks[0].startDate?.toISOString?.() } : null
-    });
     if (ganttRef.current && visibleTasks.length > 0) {
       ganttRef.current.setTasks(visibleTasks);
     }

@@ -451,12 +451,6 @@ export default function SchedulePage() {
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       const tasks = response.gantt_data?.tasks || [];
       const deps = response.gantt_data?.dependencies || [];
-      // Debug: Check FRAME task from initial API response
-      const frameTask = tasks.find(t => t.name?.toUpperCase?.().includes('FRAME'));
-      console.log('[fetchTasksForGantt] Initial load', {
-        taskCount: tasks.length,
-        frameTask: frameTask ? { id: frameTask.id, name: frameTask.name, start_date: frameTask.start_date } : 'not found',
-      });
       setGanttTasks(tasks);
       setGanttApiDeps(deps);
     } catch (error) {
@@ -469,15 +463,8 @@ export default function SchedulePage() {
 
   // Refetch Gantt data (called after dependency changes, task updates, etc.)
   const refetchGanttData = React.useCallback(async () => {
-    console.log('[refetchGanttData] Called - fetching fresh data');
     try {
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
-      // Debug: Find FRAME task to verify date update from API
-      const frameTask = response.gantt_data?.tasks?.find(t => t.name?.toUpperCase?.().includes('FRAME'));
-      console.log('[refetchGanttData] Got response', {
-        taskCount: response.gantt_data?.tasks?.length,
-        frameTask: frameTask ? { id: frameTask.id, name: frameTask.name, start_date: frameTask.start_date } : 'not found',
-      });
       setGanttTasks(response.gantt_data?.tasks || []);
       setGanttApiDeps(response.gantt_data?.dependencies || []);
     } catch (error) {
