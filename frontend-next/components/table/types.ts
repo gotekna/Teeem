@@ -69,7 +69,8 @@ export interface SavedView {
   id: number | string;
   slug?: string; // URL-friendly identifier (auto-generated from name)
   name: string;
-  view_type?: "table" | "relational" | "grouped"; // Display mode: table grid, relational network graph, or grouped by relationship
+  view_type?: "custom" | "default" | null; // Whether view is custom or default (legacy field)
+  view_display_type?: "table" | "grouped" | "relational"; // Display mode: table grid, grouped by relationship, or relational
   filters?: CascadeFilter[];
   filterGroups?: FilterGroup[];
   interGroupLogic?: "AND" | "OR";

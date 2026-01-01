@@ -474,8 +474,10 @@ export const applyViewAtom = atom(
     }
 
     // Grouped view type (Company/Role search mode)
-    // When view_type is "grouped", enable panel mode for relationship grouping
-    if (view.view_type === 'grouped') {
+    // When view_display_type is "grouped", enable panel mode for relationship grouping
+    // FRC: view_display_type indicates HOW data is shown (table/grouped)
+    //      view_type indicates if it's custom/default - wrong field was checked before
+    if (view.view_display_type === 'grouped') {
       set(groupViewModeAtom, 'panel');
       // If no groupByColumn is set, default to "primary_company_id" for contacts
       if (!view.groupByColumns?.length && !view.groupByColumn) {

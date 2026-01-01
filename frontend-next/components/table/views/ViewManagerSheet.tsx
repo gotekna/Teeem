@@ -344,7 +344,7 @@ export function ViewManagerSheet({
     setEditingView(view);
     setEditName(view.name);
     setEditIsGlobal(view.is_global || false);
-    setEditViewType(view.view_type || "table");
+    setEditViewType(view.view_display_type || "table");
     setEditFilters(view.filters || []);
     setEditFilterGroups(view.filterGroups || [{ id: "default", logic: "AND" }]);
     setEditInterGroupLogic(view.interGroupLogic || "OR");
@@ -512,7 +512,7 @@ export function ViewManagerSheet({
         const savedView: SavedView = {
           id: isNewView && response.view?.id ? response.view.id : editingView.id,
           name: currentEditState.name,
-          view_type: currentEditState.viewType,
+          view_display_type: currentEditState.viewType,
           is_global: currentEditState.isGlobal,
           visibleColumns: currentEditState.visibleColumns,
           columnOrder: currentEditState.columnOrder,
