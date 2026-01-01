@@ -2875,7 +2875,10 @@ export default function TeeemTableView({
       // - Embedded context: Parent owns URL, only notify on user actions
       // - Standalone context: Update query param directly
       // SSoT: isEmbeddedContext defined at component top
-      if (view.id && !skipUrlUpdate && !isEmbeddedContext) {
+      // IMPORTANT: Only update URL on explicit user action to prevent conflicts with
+      // other URL state management (e.g., useUrlState, tabs). Initial view load should
+      // NOT modify the URL - only user-initiated view changes should update it.
+      if (view.id && !skipUrlUpdate && !isEmbeddedContext && isUserAction) {
         const currentParams = new URLSearchParams(window.location.search);
         const currentUrlView = currentParams.get('view');
         const newViewIdentifier = view.slug || String(view.id);
