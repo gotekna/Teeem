@@ -413,9 +413,11 @@ export const applyViewAtom = atom(
       locked: false,
     }));
 
-    // For "grouped" view type (By Company), auto-add entity_type = "person" filter
+    // For "grouped" view display type (By Company), auto-add entity_type = "person" filter
     // This ensures only people are shown, grouped under their company
-    if (view.view_type === 'grouped') {
+    // FRC: view_display_type indicates HOW data is shown (table/grouped)
+    //      view_type indicates if it's custom/default - wrong field was checked before
+    if (view.view_display_type === 'grouped') {
       const hasEntityTypeFilter = sourcedFilters.some(f => f.column === 'entity_type');
       if (!hasEntityTypeFilter) {
         sourcedFilters.push({

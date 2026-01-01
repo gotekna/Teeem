@@ -307,8 +307,8 @@ export function GanttCanvasView({
   const [lightboxOpen, setLightboxOpen] = React.useState(false);
   const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
-  // Collapsed headers state - stores row IDs of collapsed header rows
-  const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<number>>(new Set());
+  // Collapsed headers state - stores task IDs of collapsed header rows
+  const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<string>>(new Set());
 
   // Selected task ID - synced between grid and Gantt
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
@@ -391,7 +391,7 @@ export function GanttCanvasView({
   }, []);
 
   // Toggle header collapse state
-  const toggleHeaderCollapse = React.useCallback((headerId: number) => {
+  const toggleHeaderCollapse = React.useCallback((headerId: string) => {
     setCollapsedHeaders(prev => {
       const next = new Set(prev);
       if (next.has(headerId)) {
@@ -403,11 +403,24 @@ export function GanttCanvasView({
     });
   }, []);
 
-  // Collapse all headers
+  // Collapse all headers (works with both rows and tasks)
   const collapseAllHeaders = React.useCallback(() => {
-    const allHeaderIds = rows.filter(r => r.header_gantt === 'Header').map(r => r.id);
+    const allHeaderIds: string[] = [];
+    // From rows (template mode)
+    for (const row of rows) {
+      if (row.header_gantt === 'Header') {
+        allHeaderIds.push(String(row.id));
+      }
+    }
+    // From tasks.rowData (static mode)
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        allHeaderIds.push(task.id);
+      }
+    }
     setCollapsedHeaders(new Set(allHeaderIds));
-  }, [rows]);
+  }, [rows, tasks]);
 
   // Expand all headers
   const expandAllHeaders = React.useCallback(() => {
@@ -416,48 +429,90 @@ export function GanttCanvasView({
 
   // Auto-collapse all headers when "header" view is active
   React.useEffect(() => {
-    if (viewSlug === 'header' && rows.length > 0) {
-      const allHeaderIds = rows.filter(r => r.header_gantt === 'Header').map(r => r.id);
+    const hasData = rows.length > 0 || tasks.length > 0;
+    if (viewSlug === 'header' && hasData) {
+      const allHeaderIds: string[] = [];
+      // From rows (template mode)
+      for (const row of rows) {
+        if (row.header_gantt === 'Header') {
+          allHeaderIds.push(String(row.id));
+        }
+      }
+      // From tasks.rowData (static mode)
+      for (const task of tasks) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (rowData?.header_gantt === 'Header') {
+          allHeaderIds.push(task.id);
+        }
+      }
       setCollapsedHeaders(new Set(allHeaderIds));
     }
-  }, [viewSlug, rows]);
+  }, [viewSlug, rows, tasks]);
 
-  // Get set of header IDs for quick lookup
-  const headerIds = React.useMemo(() => {
-    return new Set(rows.filter(r => r.header_gantt === 'Header').map(r => r.id));
-  }, [rows]);
-
-  // Map task_number -> row.id for headers (children reference headers by task_number, not id)
+  // Map task_number -> task.id for headers (children reference headers by task_number, not id)
+  // Works with both rows (template mode) and tasks (static mode via rowData)
+  // Use Number() to ensure consistent numeric types (API may return strings)
   const headerTaskNumberToId = React.useMemo(() => {
-    const map = new Map<number, number>();
+    const map = new Map<number, string>();
+    // First try rows (template mode)
     for (const row of rows) {
       if (row.header_gantt === 'Header') {
-        map.set(row.task_number, row.id);
+        map.set(Number(row.task_number), String(row.id));
+      }
+    }
+    // Then try tasks.rowData (static mode) - rowData contains header_gantt
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        map.set(Number(rowData.task_number), task.id);
       }
     }
     return map;
-  }, [rows]);
+  }, [rows, tasks]);
 
-  // Helper to extract parent header row.id from header_gantt field
-  // header_gantt contains task_number reference, we convert to row.id for consistency
-  const getParentHeaderId = React.useCallback((row: SmScheduleMaster): number | null => {
-    if (row.header_gantt === 'Header' || row.header_gantt === null || row.header_gantt === undefined) {
+  // Get set of header task IDs for quick lookup
+  const headerIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    // From rows (template mode)
+    for (const row of rows) {
+      if (row.header_gantt === 'Header') {
+        ids.add(String(row.id));
+      }
+    }
+    // From tasks.rowData (static mode)
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        ids.add(task.id);
+      }
+    }
+    return ids;
+  }, [rows, tasks]);
+
+  // Helper to extract parent header task.id from header_gantt field
+  // header_gantt contains task_number reference, we convert to task.id for consistency
+  const getParentHeaderId = React.useCallback((task: GanttTask): string | null => {
+    const rowData = task.rowData as SmScheduleMaster | undefined;
+    if (!rowData) return null;
+
+    const headerGantt = rowData.header_gantt;
+    if (headerGantt === 'Header' || headerGantt === null || headerGantt === undefined) {
       return null;
     }
     // Get the task_number from header_gantt
     let parentTaskNumber: number | null = null;
-    if (typeof row.header_gantt === 'number') {
-      parentTaskNumber = row.header_gantt;
-    } else if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
-      parentTaskNumber = row.header_gantt.id;
-    } else if (typeof row.header_gantt === 'string') {
+    if (typeof headerGantt === 'number') {
+      parentTaskNumber = headerGantt;
+    } else if (typeof headerGantt === 'object' && headerGantt?.id) {
+      parentTaskNumber = headerGantt.id;
+    } else if (typeof headerGantt === 'string') {
       // Handle string number (e.g., "1407")
-      const parsed = parseInt(row.header_gantt, 10);
+      const parsed = parseInt(headerGantt, 10);
       if (!isNaN(parsed)) {
         parentTaskNumber = parsed;
       }
     }
-    // Convert task_number to row.id using the map
+    // Convert task_number to task.id using the map
     if (parentTaskNumber !== null) {
       return headerTaskNumberToId.get(parentTaskNumber) ?? null;
     }
@@ -472,18 +527,17 @@ export function GanttCanvasView({
         return false;
       }
 
-      const row = rows.find(r => String(r.id) === task.id);
-      if (!row) return true;
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      const isHeader = rowData?.header_gantt === 'Header';
 
       // If this task has a parent header that is collapsed, hide it
-      const parentHeaderId = getParentHeaderId(row);
+      const parentHeaderId = getParentHeaderId(task);
       if (parentHeaderId && collapsedHeaders.has(parentHeaderId)) {
         return false;
       }
 
       // If showOnlyGrouped is enabled, only show headers
       if (showOnlyGrouped) {
-        const isHeader = row.header_gantt === 'Header';
         if (!isHeader) {
           return false;
         }
@@ -492,7 +546,6 @@ export function GanttCanvasView({
       // In header view: show headers + children of EXPANDED headers
       // Children of collapsed headers already filtered above
       if (viewSlug === 'header') {
-        const isHeader = row.header_gantt === 'Header';
         // Show if it's a header OR if it has a parent header (and that parent is expanded - checked above)
         if (!isHeader && !parentHeaderId) {
           return false; // Hide ungrouped tasks in header view
@@ -501,17 +554,19 @@ export function GanttCanvasView({
 
       return true;
     });
-  }, [tasks, rows, collapsedHeaders, showOnlyGrouped, viewSlug, nameSearch, getParentHeaderId]);
+  }, [tasks, collapsedHeaders, showOnlyGrouped, viewSlug, nameSearch, getParentHeaderId]);
 
-  // Check if a row is a header (header_gantt === 'Header')
-  const isHeaderRow = React.useCallback((row: SmScheduleMaster | undefined) => {
-    return row?.header_gantt === 'Header';
+  // Check if a task is a header (rowData.header_gantt === 'Header')
+  const isHeaderTask = React.useCallback((task: GanttTask | undefined) => {
+    const rowData = task?.rowData as SmScheduleMaster | undefined;
+    return rowData?.header_gantt === 'Header';
   }, []);
 
-  // Get child count for a header (uses header_gantt to find children)
-  const getChildCount = React.useCallback((headerId: number) => {
-    return rows.filter(r => getParentHeaderId(r) === headerId).length;
-  }, [rows, getParentHeaderId]);
+  // Get child count for a header task (uses header_gantt to find children)
+  const getChildCount = React.useCallback((headerTaskId: string) => {
+    const children = tasks.filter(t => getParentHeaderId(t) === headerTaskId);
+    return children.length;
+  }, [tasks, getParentHeaderId]);
 
   // Fullscreen state - use external if provided, otherwise internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
@@ -1900,7 +1955,8 @@ export function GanttCanvasView({
 
     if (isStaticMode && staticTasks) {
       // Static mode - use provided data directly (dependencies come from API's gantt_data.dependencies)
-      taskList = staticTasks;
+      // Clone tasks so we can modify header dates
+      taskList = staticTasks.map(t => ({ ...t }));
       dependencies = (staticDependencies || []).map((d, i) => ({
         id: d.id || `dep-${i}`,
         fromId: d.fromId,
@@ -1908,6 +1964,61 @@ export function GanttCanvasView({
         type: (d.type || "FS") as "FS" | "SS" | "FF" | "SF",
         lag: d.lag || 0,
       }));
+
+      // Derive header dates from children (earliest start, latest end)
+      // Build map of header task_number -> task for quick lookup
+      const headerTaskNumberToTask = new Map<number, GanttTask>();
+      for (const task of taskList) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (rowData?.header_gantt === 'Header') {
+          headerTaskNumberToTask.set(Number(rowData.task_number), task);
+        }
+      }
+
+      // Build map of header task.id -> children
+      const headerChildrenMap = new Map<string, GanttTask[]>();
+      for (const task of taskList) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (!rowData || rowData.header_gantt === 'Header') continue;
+
+        // Get parent header task_number from header_gantt
+        let parentTaskNumber: number | null = null;
+        const hg = rowData.header_gantt;
+        if (typeof hg === 'number') {
+          parentTaskNumber = hg;
+        } else if (typeof hg === 'object' && hg?.id) {
+          parentTaskNumber = hg.id;
+        } else if (typeof hg === 'string') {
+          const parsed = parseInt(hg, 10);
+          if (!isNaN(parsed)) parentTaskNumber = parsed;
+        }
+
+        if (parentTaskNumber !== null) {
+          const headerTask = headerTaskNumberToTask.get(parentTaskNumber);
+          if (headerTask) {
+            if (!headerChildrenMap.has(headerTask.id)) {
+              headerChildrenMap.set(headerTask.id, []);
+            }
+            headerChildrenMap.get(headerTask.id)!.push(task);
+          }
+        }
+      }
+
+      // Update header dates to span children
+      for (const [headerId, children] of headerChildrenMap) {
+        if (children.length === 0) continue;
+        const headerTask = taskList.find(t => t.id === headerId);
+        if (!headerTask) continue;
+
+        let minStart = children[0].startDate;
+        let maxEnd = children[0].endDate;
+        for (const child of children) {
+          if (child.startDate < minStart) minStart = child.startDate;
+          if (child.endDate > maxEnd) maxEnd = child.endDate;
+        }
+        headerTask.startDate = new Date(minStart);
+        headerTask.endDate = new Date(maxEnd);
+      }
     } else {
       // Template mode - convert rows to tasks, use SSoT dependencies from gantt_data endpoint
       // Use company timezone for consistent date handling
@@ -2656,9 +2767,9 @@ export function GanttCanvasView({
                   const endStr = task.endDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
                   // Use working days to match backend duration_days semantics
                   const duration = countWorkingDays(task.startDate, task.endDate);
-                  const isHeader = isHeaderRow(row);
-                  const childCount = isHeader && row ? getChildCount(row.id) : 0;
-                  const isCollapsed = row ? collapsedHeaders.has(row.id) : false;
+                  const isHeader = isHeaderTask(task);
+                  const childCount = isHeader ? getChildCount(task.id) : 0;
+                  const isCollapsed = collapsedHeaders.has(task.id);
 
                   // Render cell content based on column id
                   const renderCell = (col: ColumnConfig) => {
@@ -2670,7 +2781,7 @@ export function GanttCanvasView({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (row) toggleHeaderCollapse(row.id);
+                                  toggleHeaderCollapse(task.id);
                                 }}
                                 className="mr-1 hover:bg-muted rounded p-0.5 flex-shrink-0"
                               >

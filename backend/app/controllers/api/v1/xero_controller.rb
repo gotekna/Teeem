@@ -2605,9 +2605,10 @@ module Api
 
           updates.each do |update|
             contact_id = update[:contact_id] || update["contact_id"]
-            # Convert to Hash first (.to_h), then add indifferent access for consistent key access
+            # Convert to Hash first, then add indifferent access for consistent key access
+            # Use to_unsafe_h for ActionController::Parameters (bypasses permit requirement)
             raw_fields = update[:fields] || update["fields"] || {}
-            fields = raw_fields.respond_to?(:to_h) ? raw_fields.to_h.with_indifferent_access : raw_fields.with_indifferent_access
+            fields = raw_fields.respond_to?(:to_unsafe_h) ? raw_fields.to_unsafe_h.with_indifferent_access : (raw_fields.is_a?(Hash) ? raw_fields.with_indifferent_access : {})
             tenant_name = update[:tenant_name] || update["tenant_name"]
 
             Rails.logger.info("[Xero] Processing update for contact #{contact_id}, fields: #{fields.keys.inspect}")

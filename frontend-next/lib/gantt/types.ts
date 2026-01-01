@@ -606,12 +606,13 @@ export function convertRowsToTasks(
   // Third pass: update header tasks to span their children
   // Header rows have header_gantt === 'Header'
   // Children reference headers by task_number (not id), so we need to map task_number -> row
+  // Use Number() to ensure consistent numeric types (API may return strings)
   const headerRows = sortedRows.filter(r => r.header_gantt === 'Header');
-  const headerTaskNumbers = new Set(headerRows.map(r => r.task_number));
+  const headerTaskNumbers = new Set(headerRows.map(r => Number(r.task_number)));
   // Map task_number -> row.id for looking up header by task_number
   const taskNumberToId = new Map<number, number>();
   for (const row of headerRows) {
-    taskNumberToId.set(row.task_number, row.id);
+    taskNumberToId.set(Number(row.task_number), Number(row.id));
   }
 
   if (headerRows.length > 0) {
@@ -658,7 +659,7 @@ export function convertRowsToTasks(
     for (const task of tasks) {
       const row = sortedRows.find(r => String(r.id) === task.id);
       if (row?.header_gantt === 'Header') {
-        const children = headerChildrenMap.get(row.id);
+        const children = headerChildrenMap.get(Number(row.id));
         if (children && children.length > 0) {
           // Find current min start from children
           let minStart = children[0].startDate;
@@ -719,7 +720,7 @@ export function convertRowsToTasks(
     return tasks.filter(task => {
       const row = sortedRows.find(r => String(r.id) === task.id);
       if (row?.header_gantt === 'Header') {
-        const children = headerChildrenMap.get(row.id);
+        const children = headerChildrenMap.get(Number(row.id));
         return children && children.length > 0;
       }
       return true;
