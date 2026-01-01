@@ -973,7 +973,13 @@ export default function TeeemTableView({
           `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params }
         );
-        setAutoFetchedRecords(prev => [...prev, ...(response.records || [])]);
+
+        // Deduplicate records by ID to prevent duplicate rows
+        setAutoFetchedRecords(prev => {
+          const existingIds = new Set(prev.map(r => r.id));
+          const newRecords = (response.records || []).filter(r => !existingIds.has(r.id));
+          return [...prev, ...newRecords];
+        });
         setHasMore(response.has_more ?? false);
       } catch (error) {
         console.error(`[TeeemTableView] Failed to load more records:`, error);
