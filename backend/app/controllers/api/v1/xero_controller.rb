@@ -2605,7 +2605,9 @@ module Api
 
           updates.each do |update|
             contact_id = update[:contact_id] || update["contact_id"]
-            fields = (update[:fields] || update["fields"] || {}).with_indifferent_access
+            # Convert to Hash first (.to_h), then add indifferent access for consistent key access
+            raw_fields = update[:fields] || update["fields"] || {}
+            fields = raw_fields.respond_to?(:to_h) ? raw_fields.to_h.with_indifferent_access : raw_fields.with_indifferent_access
             tenant_name = update[:tenant_name] || update["tenant_name"]
 
             Rails.logger.info("[Xero] Processing update for contact #{contact_id}, fields: #{fields.keys.inspect}")

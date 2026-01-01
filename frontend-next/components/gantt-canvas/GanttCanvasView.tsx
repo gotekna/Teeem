@@ -427,22 +427,42 @@ export function GanttCanvasView({
     return new Set(rows.filter(r => r.header_gantt === 'Header').map(r => r.id));
   }, [rows]);
 
-  // Helper to extract parent header ID from header_gantt field
-  // header_gantt can be: "Header" (this is a header), number (parent ID), { id, display } (parent lookup), or null
+  // Map task_number -> row.id for headers (children reference headers by task_number, not id)
+  const headerTaskNumberToId = React.useMemo(() => {
+    const map = new Map<number, number>();
+    for (const row of rows) {
+      if (row.header_gantt === 'Header') {
+        map.set(row.task_number, row.id);
+      }
+    }
+    return map;
+  }, [rows]);
+
+  // Helper to extract parent header row.id from header_gantt field
+  // header_gantt contains task_number reference, we convert to row.id for consistency
   const getParentHeaderId = React.useCallback((row: SmScheduleMaster): number | null => {
     if (row.header_gantt === 'Header' || row.header_gantt === null || row.header_gantt === undefined) {
       return null;
     }
+    // Get the task_number from header_gantt
+    let parentTaskNumber: number | null = null;
     if (typeof row.header_gantt === 'number') {
-      return row.header_gantt;
+      parentTaskNumber = row.header_gantt;
+    } else if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
+      parentTaskNumber = row.header_gantt.id;
+    } else if (typeof row.header_gantt === 'string') {
+      // Handle string number (e.g., "1407")
+      const parsed = parseInt(row.header_gantt, 10);
+      if (!isNaN(parsed)) {
+        parentTaskNumber = parsed;
+      }
     }
-    if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
-      return row.header_gantt.id;
+    // Convert task_number to row.id using the map
+    if (parentTaskNumber !== null) {
+      return headerTaskNumberToId.get(parentTaskNumber) ?? null;
     }
-    // Handle string number (e.g., "123")
-    const parsed = parseInt(String(row.header_gantt), 10);
-    return isNaN(parsed) ? null : parsed;
-  }, []);
+    return null;
+  }, [headerTaskNumberToId]);
 
   // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
   const visibleTasks = React.useMemo(() => {
