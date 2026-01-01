@@ -15,6 +15,7 @@ import { GanttCanvas } from "@/lib/gantt/engine/GanttCanvas";
 import {
   convertRowsToTasks,
   countWorkingDays,
+  addWorkingDays,
   type SmScheduleMaster,
   type GanttTask,
   type GanttDependency,
@@ -2034,20 +2035,89 @@ export function GanttCanvasView({
         }
       }
 
-      // Update header dates to span children
-      for (const [headerId, children] of headerChildrenMap) {
-        if (children.length === 0) continue;
+      // Build task date map for dependency lookups (keyed by task_number)
+      const taskDateMap = new Map<number, { start: Date; end: Date }>();
+      for (const task of taskList) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (rowData?.task_number) {
+          taskDateMap.set(Number(rowData.task_number), { start: task.startDate, end: task.endDate });
+        }
+      }
+
+      // Update header dates to span children (and respect header dependencies)
+      // Process in sequence order so earlier headers update taskDateMap before later ones
+      const sortedHeaderIds = [...headerChildrenMap.keys()].sort((a, b) => {
+        const taskA = taskList.find(t => t.id === a);
+        const taskB = taskList.find(t => t.id === b);
+        const seqA = (taskA?.rowData as SmScheduleMaster | undefined)?.sequence_order ?? 0;
+        const seqB = (taskB?.rowData as SmScheduleMaster | undefined)?.sequence_order ?? 0;
+        return seqA - seqB;
+      });
+
+      for (const headerId of sortedHeaderIds) {
+        const children = headerChildrenMap.get(headerId);
+        if (!children || children.length === 0) continue;
         const headerTask = taskList.find(t => t.id === headerId);
         if (!headerTask) continue;
+        const headerRowData = headerTask.rowData as SmScheduleMaster | undefined;
 
+        // Find current min start from children
         let minStart = children[0].startDate;
         let maxEnd = children[0].endDate;
         for (const child of children) {
           if (child.startDate < minStart) minStart = child.startDate;
           if (child.endDate > maxEnd) maxEnd = child.endDate;
         }
+
+        // Check if header has dependencies - if so, calculate required start and shift children
+        if (headerRowData?.predecessor_ids && headerRowData.predecessor_ids.length > 0) {
+          let latestRequiredStart: Date | null = null;
+
+          for (const pred of headerRowData.predecessor_ids) {
+            const predDates = taskDateMap.get(pred.id);
+            if (!predDates) continue;
+
+            const predType = pred.type || 'FS';
+            const lagDays = pred.lag || 0;
+            let requiredStart: Date;
+
+            if (predType === 'FS') {
+              requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
+            } else if (predType === 'SS') {
+              requiredStart = addWorkingDays(predDates.start, lagDays);
+            } else {
+              requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
+            }
+
+            if (!latestRequiredStart || requiredStart > latestRequiredStart) {
+              latestRequiredStart = requiredStart;
+            }
+          }
+
+          // If header needs to start later due to dependencies, shift all children
+          if (latestRequiredStart && latestRequiredStart > minStart) {
+            const offsetMs = latestRequiredStart.getTime() - minStart.getTime();
+            for (const child of children) {
+              child.startDate = new Date(child.startDate.getTime() + offsetMs);
+              child.endDate = new Date(child.endDate.getTime() + offsetMs);
+              // Also update taskDateMap for shifted children
+              const childRowData = child.rowData as SmScheduleMaster | undefined;
+              if (childRowData?.task_number) {
+                taskDateMap.set(Number(childRowData.task_number), { start: child.startDate, end: child.endDate });
+              }
+            }
+            minStart = new Date(latestRequiredStart);
+            maxEnd = new Date(maxEnd.getTime() + offsetMs);
+          }
+        }
+
         headerTask.startDate = new Date(minStart);
         headerTask.endDate = new Date(maxEnd);
+
+        // Update taskDateMap so subsequent headers depending on this one use correct dates
+        if (headerRowData?.task_number) {
+          taskDateMap.set(Number(headerRowData.task_number), { start: headerTask.startDate, end: headerTask.endDate });
+        }
       }
     } else {
       // Template mode - convert rows to tasks, use SSoT dependencies from gantt_data endpoint

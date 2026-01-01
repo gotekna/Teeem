@@ -712,6 +712,10 @@ export function convertRowsToTasks(
 
           task.startDate = new Date(minStart);
           task.endDate = new Date(maxEnd);
+
+          // CRITICAL: Update taskDateMap with the header's new dates
+          // so that subsequent headers depending on this one use the correct dates
+          taskDateMap.set(Number(row.task_number), { start: task.startDate, end: task.endDate });
         }
       }
     }

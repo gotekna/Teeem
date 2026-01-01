@@ -2203,16 +2203,24 @@ module Api
       # GET /api/v1/xero/xero_duplicates
       # Finds potential duplicate contacts WITHIN Xero tenants (same entity, different Xero contact IDs)
       # These need to be merged in Xero, not in TEEEM
+      #
+      # Real duplicates are like:
+      #   - "Bunnings" vs "Bunnings Group Limited" (one is substring of other)
+      #   - "Coles" vs "Coles Express" (one is prefix of other)
+      #   - "Homes of Hope" vs "Homes of Hope LTD" (differ only by suffix)
+      #
+      # NOT duplicates (false positives to filter):
+      #   - "David Kim" vs "David Kilner" (different last names)
+      #   - "Austral Bricks" vs "Austral Insulation" (different products)
+      #   - "Joii Tiling" vs "Joii Carpentry" (intentionally separate divisions)
       def xero_duplicates
         begin
           duplicates = []
 
-          # Words to ignore when grouping (too common, create false positives)
-          ignore_words = %w[the a an and or of for in at to from by with on as
-                            pty ltd limited inc corp company group holdings trust
-                            all my our your new old big small first last best top
-                            david john michael james robert william peter paul mark steve
-                            andrew chris daniel jason matthew brian kevin jeff scott eric]
+          # Common business suffixes to ignore when comparing
+          suffixes = %w[pty ltd limited inc corp company group holdings trust
+                        australia australian qld nsw vic sa wa nt act tas
+                        services solutions consulting enterprises industries]
 
           # Get all unique Xero contacts per tenant
           tenant_contacts = ExternalInvoice
@@ -2228,60 +2236,55 @@ module Api
             cred = XeroCredential.find_by(tenant_id: tenant_id)
             tenant_name = cred&.tenant_name || tenant_id[0..7]
 
-            # Group contacts by normalized first meaningful word
             names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
 
-            # Find first meaningful word (not in ignore list)
-            by_first_word = names.group_by do |c|
-              words = c[:name].downcase.split(/\s+/)
-              meaningful = words.find { |w| w.length >= 3 && !ignore_words.include?(w) }
-              meaningful || words.first
-            end
+            # Compare each pair of names to find real duplicates
+            # Real duplicate = one name is essentially contained in the other (ignoring suffixes)
+            checked_pairs = Set.new
+            names.each do |a|
+              names.each do |b|
+                next if a[:xero_id] == b[:xero_id]
+                pair_key = [ a[:xero_id], b[:xero_id] ].sort.join("-")
+                next if checked_pairs.include?(pair_key)
+                checked_pairs.add(pair_key)
 
-            by_first_word.each do |first_word, group|
-              next if group.length <= 1
-              next if first_word.nil? || first_word.length < 3
-              next if ignore_words.include?(first_word)
+                if likely_duplicate?(a[:name], b[:name], suffixes)
+                  # Find or create group for this pair
+                  existing_group = duplicates.find do |d|
+                    d[:tenant_id] == tenant_id &&
+                    d[:xero_contacts].any? { |c| c[:xero_id] == a[:xero_id] || c[:xero_id] == b[:xero_id] }
+                  end
 
-              # Check if names are actually different (not just same first word with same full name)
-              unique_names = group.map { |g| g[:name] }.uniq
-              next if unique_names.length <= 1
-
-              # Check if names are similar enough to be duplicates (share significant words)
-              # Skip if names are clearly different entities
-              name_words = unique_names.map { |n| n.downcase.split(/\s+/).reject { |w| ignore_words.include?(w) } }
-              shared_words = name_words.reduce { |a, b| a & b }
-              next if shared_words.nil? || shared_words.empty?
-
-              # Build group details
-              xero_contacts = group.map do |g|
-                inv_count = ExternalInvoice.where(external_contact_id: g[:xero_id]).count
-                total_amount = ExternalInvoice.where(external_contact_id: g[:xero_id]).sum(:total)&.to_f || 0
-                has_link = ContactExternalLink.exists?(external_contact_id: g[:xero_id])
-                linked_contact = has_link ? ContactExternalLink.find_by(external_contact_id: g[:xero_id])&.contact : nil
-
-                {
-                  xero_name: g[:name],
-                  xero_id: g[:xero_id],
-                  invoice_count: inv_count,
-                  total_amount: total_amount,
-                  has_teeem_link: has_link,
-                  teeem_contact_id: linked_contact&.id,
-                  teeem_contact_name: linked_contact&.display_name
-                }
+                  if existing_group
+                    # Add to existing group if not already there
+                    [ a, b ].each do |contact|
+                      unless existing_group[:xero_contacts].any? { |c| c[:xero_id] == contact[:xero_id] }
+                        existing_group[:xero_contacts] << build_xero_contact_info(contact)
+                      end
+                    end
+                    existing_group[:variation_count] = existing_group[:xero_contacts].length
+                  else
+                    # Create new group
+                    duplicates << {
+                      tenant_id: tenant_id,
+                      tenant_name: tenant_name,
+                      base_name: normalize_name(a[:name], suffixes).split.first&.capitalize || a[:name],
+                      variation_count: 2,
+                      xero_contacts: [
+                        build_xero_contact_info(a),
+                        build_xero_contact_info(b)
+                      ].sort_by { |c| -c[:invoice_count] }
+                    }
+                  end
+                end
               end
-
-              duplicates << {
-                tenant_id: tenant_id,
-                tenant_name: tenant_name,
-                base_name: first_word.capitalize,
-                variation_count: unique_names.length,
-                xero_contacts: xero_contacts.sort_by { |c| -c[:invoice_count] }
-              }
             end
           end
 
-          # Sort by variation count (most variations first)
+          # Sort contacts within each group by invoice count, then sort groups
+          duplicates.each do |d|
+            d[:xero_contacts].sort_by! { |c| -c[:invoice_count] }
+          end
           duplicates.sort_by! { |d| -d[:variation_count] }
 
           render json: {
@@ -2299,6 +2302,58 @@ module Api
             error: "Failed to get Xero duplicates: #{e.message}"
           }, status: :internal_server_error
         end
+      end
+
+      private
+
+      # Check if two names are likely duplicates
+      # Returns true if one name is essentially contained in the other
+      def likely_duplicate?(name1, name2, suffixes)
+        n1 = normalize_name(name1, suffixes)
+        n2 = normalize_name(name2, suffixes)
+
+        return false if n1.empty? || n2.empty?
+        return true if n1 == n2  # Same after normalization
+
+        # Check if one is a prefix/substring of the other
+        return true if n1.start_with?(n2) || n2.start_with?(n1)
+        return true if n1.include?(n2) || n2.include?(n1)
+
+        # Check word-level containment (e.g., "Coles" vs "Coles Express")
+        words1 = n1.split
+        words2 = n2.split
+
+        # If shorter name's words are all in longer name (in order), it's likely a duplicate
+        shorter, longer = words1.length <= words2.length ? [ words1, words2 ] : [ words2, words1 ]
+
+        # All words from shorter must appear in longer
+        return shorter.all? { |w| longer.include?(w) } if shorter.length >= 1 && shorter.length <= 2
+
+        false
+      end
+
+      # Normalize name by removing common suffixes and lowercasing
+      def normalize_name(name, suffixes)
+        words = name.downcase.gsub(/[^a-z0-9\s]/, "").split
+        words.reject { |w| suffixes.include?(w) || w.length < 2 }.join(" ")
+      end
+
+      # Build contact info hash for a Xero contact
+      def build_xero_contact_info(contact)
+        inv_count = ExternalInvoice.where(external_contact_id: contact[:xero_id]).count
+        total_amount = ExternalInvoice.where(external_contact_id: contact[:xero_id]).sum(:total)&.to_f || 0
+        has_link = ContactExternalLink.exists?(external_contact_id: contact[:xero_id])
+        linked_contact = has_link ? ContactExternalLink.find_by(external_contact_id: contact[:xero_id])&.contact : nil
+
+        {
+          xero_name: contact[:name],
+          xero_id: contact[:xero_id],
+          invoice_count: inv_count,
+          total_amount: total_amount,
+          has_teeem_link: has_link,
+          teeem_contact_id: linked_contact&.id,
+          teeem_contact_name: linked_contact&.display_name
+        }
       end
 
       # POST /api/v1/xero/link_unlinked_contact
