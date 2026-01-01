@@ -3111,8 +3111,10 @@ export default function TeeemTableView({
     let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
+    // Use String() for comparison to handle type mismatches (IDs may be string or number)
     if (pendingDeleteIds.size > 0) {
-      result = result.filter((entry) => !pendingDeleteIds.has(entry.id as string | number));
+      const pendingDeleteStrings = new Set([...pendingDeleteIds].map(id => String(id)));
+      result = result.filter((entry) => !pendingDeleteStrings.has(String(entry.id)));
     }
 
     // Apply search filter (client-side)

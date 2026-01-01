@@ -3159,22 +3159,17 @@ export class GanttCanvas {
           const fromTask = this.dependencyFromTask;
           const fromEdge = this.dependencyFromEdge;
 
-          this.dependencyPopupTimer = window.setTimeout(() => {
-            // Double-check target is still the same (or we're still on same row)
-            if (this.dependencyTargetTask === target && fromTask && fromEdge) {
-                // Calculate popup position (center below target task bar)
-                const rowIndex = this.state.tasks.indexOf(target);
-                const rowY = this.viewport.rowToY(rowIndex);
-                const barTop = rowY + this.config.taskBarPadding;
-                const barCenterY = barTop + this.config.taskBarHeight / 2;
-                const targetStartX = this.viewport.dateToX(target.startDate);
-                const targetEndX = this.viewport.dateToX(target.endDate);
-                const taskCenterX = (targetStartX + targetEndX) / 2;
+          // Capture current mouse position for popup placement
+          const mouseX = this.dependencyLineEndX;
+          const mouseY = this.dependencyLineEndY;
 
-                // Get canvas position for absolute positioning
+          this.dependencyPopupTimer = window.setTimeout(() => {
+            // Double-check target is still the same
+            if (this.dependencyTargetTask === target && fromTask && fromEdge) {
+                // Position popup at the mouse location (where user dragged to)
                 const rect = this.canvas.getBoundingClientRect();
-                const popupX = rect.left + taskCenterX - this.viewportState.scrollX;
-                const popupY = rect.top + barCenterY + this.config.headerHeight - this.viewportState.scrollY + this.config.taskBarHeight / 2;
+                const popupX = rect.left + mouseX;
+                const popupY = rect.top + mouseY;
 
                 this.dependencyPopupVisible = true;
                 this.dependencyPopupTimer = null;
