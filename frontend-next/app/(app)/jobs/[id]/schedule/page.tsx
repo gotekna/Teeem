@@ -461,6 +461,17 @@ export default function SchedulePage() {
     }
   }, [jobId, toast]);
 
+  // Refetch Gantt data (called after dependency changes, task updates, etc.)
+  const refetchGanttData = React.useCallback(async () => {
+    try {
+      const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
+      setGanttTasks(response.gantt_data?.tasks || []);
+      setGanttApiDeps(response.gantt_data?.dependencies || []);
+    } catch (error) {
+      console.error("Failed to refetch Gantt data:", error);
+    }
+  }, [jobId]);
+
   // Auto-open Gantt in fullscreen when path is /schedule/gantt or ?gantt=true is in URL
   React.useEffect(() => {
     if (isGanttMode && !loading && job && !ganttFullscreen) {
@@ -979,6 +990,7 @@ export default function SchedulePage() {
                 }}
               className="h-full"
               jobId={Number(jobId)}
+              onDataChange={refetchGanttData}
             />
           )}
         </div>

@@ -2628,7 +2628,7 @@ module Api
             # For company/trust: update display_name directly (syncs to company_name_or_trust)
             if fields[:name].present?
               xero_name = fields[:name].strip
-              if contact.person_entity? || contact.entity_type == "sole_trader"
+              if contact.is_person? || contact.entity_type == "sole_trader"
                 # Smart name parsing: if Xero name ends with existing last_name, only update first_name
                 if contact.last_name.present? && xero_name.downcase.end_with?(contact.last_name.downcase)
                   # Extract first name (everything before the last name)

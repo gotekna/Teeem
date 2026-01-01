@@ -1235,8 +1235,14 @@ export function GanttCanvasView({
 
       setDepEditorOpen(false);
 
-      // Silent reload to recalculate all dependent task dates (refresh Gantt with new lag values)
-      await loadData(true);
+      // Reload to recalculate all dependent task dates (refresh Gantt with new lag values)
+      if (isStaticMode && onDataChange) {
+        // Static mode: notify parent to refetch data
+        onDataChange();
+      } else {
+        // Template mode: reload via API
+        await loadData(true);
+      }
     } catch (err: unknown) {
       console.error('Failed to save dependencies:', err);
 
@@ -1253,7 +1259,7 @@ export function GanttCanvasView({
         description: errorMessage,
       });
     }
-  }, [depEditorTask, depEditorLinks, depEditorSuccessorLinks, templateId, jobId, tasks, toast, loadData, hasCircularDependency]);
+  }, [depEditorTask, depEditorLinks, depEditorSuccessorLinks, templateId, jobId, tasks, toast, loadData, hasCircularDependency, isStaticMode, onDataChange]);
 
   // Theme
   const { resolvedTheme } = useTheme();

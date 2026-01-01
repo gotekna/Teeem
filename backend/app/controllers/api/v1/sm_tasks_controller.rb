@@ -1013,9 +1013,13 @@ module Api
           # Other
           :searchable,
 
+          # Dependencies (SSoT: predecessor_ids jsonb column)
+          :dependency_broken,
+
           # Arrays
           documentation_category_ids: [],
-          linked_task_ids: []
+          linked_task_ids: [],
+          predecessor_ids: []
         )
       end
 
