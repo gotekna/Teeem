@@ -376,7 +376,7 @@ export function XeroLinkToContactSheet({
   return (
     <>
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="right" className="w-[450px] sm:w-[540px] p-0">
+        <SheetContent side="right-wide" className="p-0">
           <SheetHeader className="p-6 pb-4 border-b">
             <SheetTitle className="flex items-center gap-2">
               <LinkIcon className="h-5 w-5 text-blue-500" />
@@ -390,22 +390,9 @@ export function XeroLinkToContactSheet({
           <div className="flex flex-col h-[calc(100vh-120px)]">
             {/* Xero Contact Info */}
             <div className="p-4 border-b bg-blue-50 dark:bg-blue-950/30">
-              <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">
-                Xero Contact
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded">
-                    <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <div className="font-semibold">{xeroName}</div>
-                    {xeroTenantName && (
-                      <div className="text-sm text-muted-foreground">
-                        {xeroTenantName}
-                      </div>
-                    )}
-                  </div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                  Xero Contact
                 </div>
                 {/* Create New Contact button - only show if not already linked */}
                 {!localSynced && (
@@ -414,16 +401,30 @@ export function XeroLinkToContactSheet({
                     variant="outline"
                     onClick={handleCreateNewContact}
                     disabled={creating}
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900 whitespace-nowrap"
+                    title="Create new TEEEM contact from this Xero contact"
                   >
                     {creating ? (
                       <Spinner size={14} className="mr-1" />
                     ) : (
                       <Plus className="h-4 w-4 mr-1" />
                     )}
-                    Create New
+                    Create
                   </Button>
                 )}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded flex-shrink-0">
+                  <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold">{xeroName}</div>
+                  {xeroTenantName && (
+                    <div className="text-sm text-muted-foreground">
+                      {xeroTenantName}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

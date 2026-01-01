@@ -168,7 +168,8 @@ module Api
           # When searching contacts, also return related company/employees
           # - Search for company → also return its employees
           # - Search for employee → also return their employer
-          if @foundation.table_name == "contacts"
+          # Uses BOTH primary_company_id AND contact_relationships table
+          if @foundation.slug == "contacts"
             model = @foundation.dynamic_model
 
             # Get IDs of records that matched the search
@@ -177,23 +178,39 @@ module Api
             # Find companies that matched (could be company, trust, or sole_trader)
             matching_company_ids = model.where(id: matching_ids, entity_type: %w[company trust sole_trader]).pluck(:id)
 
-            # Find employees of those companies (via primary_company_id)
+            # Find employees of those companies
             if matching_company_ids.any?
-              employee_ids = model.where(primary_company_id: matching_company_ids)
-                                  .where(deleted_at: nil)
-                                  .where(is_active: [true, nil])
-                                  .pluck(:id)
-              matching_ids = (matching_ids + employee_ids).uniq
+              # Via primary_company_id
+              employee_query = model.where(primary_company_id: matching_company_ids)
+              employee_query = employee_query.where(is_active: [true, nil]) if model.column_names.include?("is_active")
+              employee_ids = employee_query.pluck(:id)
+
+              # Via contact_relationships (employee_of relationship)
+              relationship_employee_ids = ContactRelationship
+                .where(related_contact_id: matching_company_ids, relationship_type: "employee_of")
+                .pluck(:source_contact_id)
+
+              matching_ids = (matching_ids + employee_ids + relationship_employee_ids).uniq
             end
 
             # Find employers of people who matched (reverse lookup)
-            employer_ids = model.where(id: matching_ids)
+            person_ids = model.where(id: matching_ids).where.not(entity_type: %w[company trust sole_trader]).pluck(:id)
+
+            # Via primary_company_id
+            employer_ids = model.where(id: person_ids)
                                .where.not(primary_company_id: nil)
                                .pluck(:primary_company_id)
                                .compact
                                .uniq
-            if employer_ids.any?
-              matching_ids = (matching_ids + employer_ids).uniq
+
+            # Via contact_relationships (employee_of relationship - person is source, company is related)
+            relationship_employer_ids = ContactRelationship
+              .where(source_contact_id: person_ids, relationship_type: "employee_of")
+              .pluck(:related_contact_id)
+
+            all_employer_ids = (employer_ids + relationship_employer_ids).uniq
+            if all_employer_ids.any?
+              matching_ids = (matching_ids + all_employer_ids).uniq
             end
 
             # Re-filter query to include related records
@@ -1008,6 +1025,19 @@ module Api
             json[:xero_linked_count] = record.xero_linked_count
             json[:xero_tenant_names] = record.xero_tenant_names
             json[:xero_link_summary] = record.xero_link_summary
+
+            # SSoT: employer_ids - all companies this person works for
+            # Used by Company/Role view to group employees under multiple employers
+            # Combines primary_company_id AND contact_relationships (employee_of)
+            entity_type = record.entity_type
+            if entity_type == "person" || entity_type.nil?
+              employer_ids_from_primary = record.primary_company_id ? [record.primary_company_id] : []
+              employer_ids_from_relationships = ContactRelationship
+                .where(source_contact_id: record.id, relationship_type: "employee_of")
+                .pluck(:related_contact_id)
+              json[:employer_ids] = (employer_ids_from_primary + employer_ids_from_relationships).uniq
+              Rails.logger.info "[EMPLOYER_IDS] Contact #{record.id} (#{record.display_name}): employer_ids=#{json[:employer_ids]}" if json[:employer_ids].any?
+            end
           end
 
           # SSoT: PurchaseOrder required_date comes from linked task's start_date

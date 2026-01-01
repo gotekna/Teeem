@@ -2182,6 +2182,14 @@ export function GanttCanvasView({
     if (isStaticMode && staticTasks) {
       // Static mode - clone tasks so we can recalculate dates
       taskList = staticTasks.map(t => ({ ...t }));
+
+      // Debug: Log original staticTasks dates
+      console.log('[USEEFFECT START] First 15 staticTasks:', staticTasks.slice(0, 15).map(t => ({
+        name: t.name?.substring(0, 25),
+        startDate: t.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' }),
+        header_gantt: (t.rowData as SmScheduleMaster | undefined)?.header_gantt
+      })));
+
       dependencies = (staticDependencies || []).map((d, i) => ({
         id: d.id || `dep-${i}`,
         fromId: d.fromId,
@@ -2402,9 +2410,33 @@ export function GanttCanvasView({
         }
       }
 
-      // Sort children within each header by start date
-      for (const children of childrenByHeader.values()) {
+      // Helper: get the DISPLAYED start date from rowData (what user sees in sidebar)
+      // This is different from task.startDate which is recalculated from dependencies
+      const getDisplayedStartDate = (task: GanttTask): Date => {
+        const rd = task.rowData as SmScheduleMaster | undefined;
+        // Use hold_date if available (this is what sidebar shows), otherwise start_date
+        const dateStr = rd?.hold_date || rd?.start_date;
+        if (dateStr) {
+          const parsed = new Date(dateStr);
+          if (!isNaN(parsed.getTime())) return parsed;
+        }
+        // Fallback to task.startDate if no rowData date
+        return task.startDate;
+      };
+
+      // Sort children within each header by task.startDate (what sidebar displays - line 3260)
+      for (const [headerNum, children] of childrenByHeader.entries()) {
+        console.log(`[SORT] Header ${headerNum} children BEFORE:`, children.map(c => ({
+          name: c.name?.substring(0, 25),
+          taskStartDate: c.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' }),
+          rowDataDate: getDisplayedStartDate(c).toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })
+        })));
+        // Use task.startDate which is what the sidebar displays
         children.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+        console.log(`[SORT] Header ${headerNum} children AFTER:`, children.map(c => ({
+          name: c.name?.substring(0, 25),
+          taskStartDate: c.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })
+        })));
       }
 
       // Collect standalone tasks
@@ -2414,7 +2446,7 @@ export function GanttCanvasView({
       type Block = { startDate: Date; items: GanttTask[] };
       const blocks: Block[] = [];
 
-      // Header blocks
+      // Header blocks - use earliest child's task.startDate for block position
       for (const [taskNum, header] of headerByTaskNum) {
         const children = childrenByHeader.get(taskNum) || [];
         const blockStart = children.length > 0
@@ -2428,7 +2460,7 @@ export function GanttCanvasView({
         blocks.push({ startDate: task.startDate, items: [task] });
       }
 
-      // Sort blocks by start date
+      // Sort blocks by task.startDate
       blocks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 
       // Flatten to final task list
@@ -3231,6 +3263,11 @@ export function GanttCanvasView({
               style={{ overflowY: 'hidden' }}
             >
               <div style={{ height: visibleTasks.length * 28 }}>
+                {/* Debug: Log first 10 visible task dates */}
+                {console.log('[SIDEBAR RENDER] First 10 tasks:', visibleTasks.slice(0, 10).map(t => ({
+                  name: t.name?.substring(0, 25),
+                  startDate: t.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })
+                })))}
                 {visibleTasks.map((task, index) => {
                   const row = rows.find(r => String(r.id) === task.id);
                   const startStr = task.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });

@@ -545,6 +545,20 @@ export function buildGroupedEntries(
         continue;
       }
 
+      // SSoT: For Company/Role view, use employer_ids array (supports multiple employers)
+      // This includes both primary_company_id AND contact_relationships
+      if (isGroupingByCompany && Array.isArray(entry.employer_ids) && entry.employer_ids.length > 0) {
+        // Add employee to EACH employer's group (they can work for multiple companies)
+        for (const employerId of entry.employer_ids) {
+          const groupKey = String(employerId);
+          if (!unsortedGroups[groupKey]) {
+            unsortedGroups[groupKey] = { rows: [] };
+          }
+          unsortedGroups[groupKey].rows.push(entry);
+        }
+        continue;
+      }
+
       const groupKey = getGroupDisplayValue(entry[currentCol]);
       if (!unsortedGroups[groupKey]) {
         unsortedGroups[groupKey] = { rows: [] };
