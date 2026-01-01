@@ -151,6 +151,9 @@ export interface GanttColors {
   selectedRow: string;
   hoverRow: string;
   headerRowBackground: string;  // Amber background for header/summary task rows
+  childRowBackground: string;   // Lighter amber background for child rows in selected group
+  borderColor: string;
+  textColor: string;
 }
 
 export interface GanttState {
@@ -382,6 +385,9 @@ const defaultLightColors: GanttColors = {
   selectedRow: CHART_COLORS.light.selectedRow,
   hoverRow: CHART_COLORS.light.hoverRow,
   headerRowBackground: CHART_COLORS.light.headerRowBackground,
+  childRowBackground: CHART_COLORS.light.childRowBackground,
+  borderColor: CHART_COLORS.light.borderColor,
+  textColor: CHART_COLORS.light.textColor,
 };
 
 // SSoT: Uses CHART_COLORS and GANTT_COLORS from @/lib/constants/color-constants
@@ -404,6 +410,9 @@ const defaultDarkColors: GanttColors = {
   selectedRow: CHART_COLORS.dark.selectedRow,
   hoverRow: CHART_COLORS.dark.hoverRow,
   headerRowBackground: CHART_COLORS.dark.headerRowBackground,
+  childRowBackground: CHART_COLORS.dark.childRowBackground,
+  borderColor: CHART_COLORS.dark.borderColor,
+  textColor: CHART_COLORS.dark.textColor,
 };
 
 const defaultConfig: GanttConfig = {

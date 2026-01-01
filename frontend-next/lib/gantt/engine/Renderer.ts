@@ -407,7 +407,7 @@ export class Renderer {
       if (isSelected) {
         this.ctx.fillStyle = this.config.colors.selectedRow;
         this.ctx.fillRect(0, y, 10000, rowHeight);
-      } else if (task.id !== isSelected && task.id === hoveredTaskId) {
+      } else if (!isSelected && task.id === hoveredTaskId) {
         this.ctx.fillStyle = this.config.colors.hoverRow;
         this.ctx.fillRect(0, y, 10000, rowHeight);
       }
