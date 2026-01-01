@@ -393,6 +393,53 @@ export function ContactOverviewTab({
     }
   }, [contact.id, onContactUpdate, toast]);
 
+  // Create a new person and add as employee (for companies)
+  const createAndAddPersonAsEmployee = useCallback(async () => {
+    if (!personSearchQuery.trim()) return;
+    setSavingPersonLink(true);
+    try {
+      // Parse name - assume "First Last" format
+      const nameParts = personSearchQuery.trim().split(/\s+/);
+      const firstName = nameParts[0] || personSearchQuery.trim();
+      const lastName = nameParts.slice(1).join(" ") || "";
+
+      // Create the new person contact linked to this company
+      const response = await api.post<{ contact: { id: number; display_name: string } }>("/api/v1/contacts", {
+        contact: {
+          first_name: firstName,
+          last_name: lastName,
+          display_name: personSearchQuery.trim(),
+          entity_type: "person",
+          primary_company_id: contact.id,
+        },
+      });
+
+      if (response?.contact) {
+        // Refresh contact to get updated employees list
+        const contactRes = await api.get<{ contact: Contact }>(`/api/v1/contacts/${contact.id}`);
+        onContactUpdate(contactRes.contact);
+
+        toast({
+          title: "Person created and linked",
+          description: `Created "${response.contact.display_name}" as employee`,
+        });
+      }
+
+      // Reset search state
+      setShowPersonSearch(false);
+      setPersonSearchQuery("");
+      setPersonSearchResults([]);
+    } catch (err) {
+      toast({
+        title: "Error creating person",
+        description: err instanceof Error ? err.message : "Failed to create person",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPersonLink(false);
+    }
+  }, [contact.id, personSearchQuery, onContactUpdate, toast]);
+
   // Reorder company relationships (for DnD)
   const reorderCompanyLinks = useCallback(async (newOrder: ContactRelationship[]) => {
     // Update local state immediately for responsive UI
@@ -1130,10 +1177,42 @@ export function ContactOverviewTab({
                                   </div>
                                 </button>
                               ))}
+                              {/* Create new option at bottom of results */}
+                              <button
+                                onClick={createAndAddPersonAsEmployee}
+                                disabled={savingPersonLink}
+                                className="w-full text-left px-3 py-2 hover:bg-muted rounded-md transition-colors flex items-center gap-3 border-t border-dashed mt-1 pt-2"
+                              >
+                                <div className="h-7 w-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                  {savingPersonLink ? (
+                                    <Spinner size={12} className="text-blue-600 dark:text-blue-400" />
+                                  ) : (
+                                    <Plus className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">Create "{personSearchQuery}"</div>
+                                  <div className="text-xs text-muted-foreground">Add as new contact</div>
+                                </div>
+                              </button>
                             </div>
                           ) : personSearchQuery.length >= 2 ? (
-                            <div className="text-sm text-muted-foreground text-center py-3">
-                              No people found
+                            <div className="text-sm text-muted-foreground text-center py-3 space-y-2">
+                              <div>No people found</div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={createAndAddPersonAsEmployee}
+                                disabled={savingPersonLink}
+                                className="text-xs"
+                              >
+                                {savingPersonLink ? (
+                                  <Spinner size={12} className="mr-1" />
+                                ) : (
+                                  <Plus className="h-3 w-3 mr-1" />
+                                )}
+                                Create "{personSearchQuery}"
+                              </Button>
                             </div>
                           ) : (
                             <div className="text-xs text-muted-foreground text-center py-2">

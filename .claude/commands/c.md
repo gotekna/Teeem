@@ -42,3 +42,25 @@ Use these tools:
 - Debug profile stored in ~/.chrome-debug
 - Port 9222 is the Chrome DevTools Protocol port
 - After running /c, ask Claude to interact with the page
+
+## Quick Navigation
+After Chrome opens, Claude can navigate to specific pages:
+```javascript
+// Navigate to Gantt for job 46
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:3000/jobs/46/schedule/gantt' })
+```
+
+## Testing Canvas-Based Features (Gantt)
+Canvas interactions (like dependency creation) cannot be reliably tested with synthetic events.
+For Gantt testing, Claude should:
+1. Take a screenshot to verify the page loaded
+2. Check console for errors: `mcp__chrome-devtools__list_console_messages`
+3. Instruct user to test manually:
+
+**Manual Dependency Creation Test:**
+1. Hover over a task bar to see chevrons (< >) appear
+2. Click and HOLD on a chevron
+3. Drag to another task row - popup should appear IMMEDIATELY
+4. Popup follows as you cross different rows
+5. Release mouse over "Start" or "Finish" button
+6. Edit Dependencies dialog should open
