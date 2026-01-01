@@ -374,6 +374,7 @@ export default function ContactDetailPage() {
       const emails: ContactEmail[] = [];
       if (contact.email) {
         emails.push({
+          _tempId: `legacy-email-${Date.now()}`, // Required for click-to-edit to work
           email: contact.email,
           is_primary: true,
           label: null,
@@ -387,6 +388,7 @@ export default function ContactDetailPage() {
       const phones: ContactPhone[] = [];
       if (contact.mobile_phone) {
         phones.push({
+          _tempId: `legacy-mobile-${Date.now()}`, // Required for click-to-edit to work
           phone_number: contact.mobile_phone,
           phone_type: 'mobile',
           is_primary: true,
@@ -396,6 +398,7 @@ export default function ContactDetailPage() {
       }
       if (contact.office_phone) {
         phones.push({
+          _tempId: `legacy-office-${Date.now()}`, // Required for click-to-edit to work
           phone_number: contact.office_phone,
           phone_type: 'office',
           is_primary: !contact.mobile_phone, // Primary only if no mobile

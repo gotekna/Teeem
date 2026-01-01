@@ -18,6 +18,7 @@ export interface ContactGroup {
 
 export interface ContactEmail {
   id?: number;
+  _tempId?: string; // For new/synthetic emails before saved to backend
   email: string;
   is_primary: boolean;
   label: string | null;
@@ -27,6 +28,7 @@ export interface ContactEmail {
 
 export interface ContactPhone {
   id?: number;
+  _tempId?: string; // For new/synthetic phones before saved to backend
   phone_number: string;
   phone_type: 'mobile' | 'office' | 'fax' | 'home';
   is_primary: boolean;

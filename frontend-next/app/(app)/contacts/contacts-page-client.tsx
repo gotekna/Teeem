@@ -139,7 +139,6 @@ export default function ContactsPageClient({
         tableName="Contacts"
         enableExport
         enableImport
-        showDataHealth
         onDataHealthIssueClick={handleDataHealthIssueClick}
         onRowClick={handleRowDoubleClick}
         onRowDoubleClick={handleRowDoubleClick}
