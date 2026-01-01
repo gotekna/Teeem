@@ -3880,8 +3880,8 @@ export class GanttCanvas {
   }
 
   /**
-   * Hit test for connector dots (for dependency creation)
-   * Returns which connector was clicked (start, end) or null
+   * Hit test for connector dot (for dependency creation)
+   * Only right chevron - returns 'end' edge or null
    */
   private hitTestConnector(x: number, y: number): { task: GanttTask; edge: 'start' | 'end' } | null {
     // Only check connectors for hovered task (chevrons only visible on hover)
@@ -3907,29 +3907,20 @@ export class GanttCanvas {
     const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
     const taskEndX = taskStartX + taskWidth;
 
-    // Chevron hit areas are OUTSIDE the bar (must match Renderer.drawConnectorDots)
-    // Chevron params: offset=6, width=8, height=12
+    // Chevron hit area (only right side now)
+    // Must match Renderer.drawConnectorDots: offset=6, width=8, height=12
     const chevronOffset = 6;
     const chevronWidth = 8;
     const chevronHeight = 12;
 
-    // Check if within Y range of chevrons
+    // Check if within Y range of chevron
     if (y < centerY - chevronHeight / 2 - 5 || y > centerY + chevronHeight / 2 + 5) {
       return null;
     }
 
-    // Start chevron is to the LEFT of the bar (from taskStartX-offset-chevronWidth to taskStartX-offset)
-    const startChevronLeft = taskStartX - chevronOffset - chevronWidth;
-    const startChevronRight = taskStartX - chevronOffset + 4; // Small overlap for easier clicking
-
     // End chevron is to the RIGHT of the bar (from taskEndX+offset to taskEndX+offset+chevronWidth)
     const endChevronLeft = taskEndX + chevronOffset - 4; // Small overlap for easier clicking
     const endChevronRight = taskEndX + chevronOffset + chevronWidth;
-
-    // Check if click is in start chevron area
-    if (x >= startChevronLeft && x <= startChevronRight) {
-      return { task, edge: 'start' };
-    }
 
     // Check if click is in end chevron area
     if (x >= endChevronLeft && x <= endChevronRight) {
