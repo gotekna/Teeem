@@ -4953,6 +4953,9 @@ export class GanttCanvas {
     const task = this.getTask(taskId);
     if (!task || task.locked) return;
 
+    // Skip header tasks - they span their children, shouldn't be independently scheduled
+    if (task.rowData?.header_gantt === 'Header') return;
+
     const earliestStart = this.calculateEarliestStart(taskId);
     const snappedStart = this.calendar.snapToWorkingDay(earliestStart, true);
 

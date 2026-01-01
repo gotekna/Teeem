@@ -841,8 +841,11 @@ export function XeroContactSync() {
         xeroLinkIds={Array.from(selectedRows)}
         onSyncComplete={() => {
           clearCachedRecords("xero-sync-contacts");
-          setRefreshKey((prev) => prev + 1);
-          clearSelection();
+          // Don't clear selection - user might want to continue syncing other contacts
+          // Use timeout to let modal close animation complete before refresh
+          setTimeout(() => {
+            setRefreshKey((prev) => prev + 1);
+          }, 300);
         }}
       />
     </div>
