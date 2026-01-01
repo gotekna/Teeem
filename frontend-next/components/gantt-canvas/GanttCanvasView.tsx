@@ -2530,6 +2530,58 @@ export function GanttCanvasView({
     // Store reference
     ganttRef.current = gantt;
 
+    // Set selected group header ID immediately after canvas creation
+    // (same pattern as holidays - ensures new canvas gets current value)
+    if (selectedGroupHeaderId) {
+      gantt.setSelectedGroupHeaderId(selectedGroupHeaderId);
+    }
+
+    // Set selected task immediately after canvas creation
+    // (ensures new canvas gets current selection when recreated)
+    if (selectedTaskId) {
+      console.log('[Gantt Init] Setting initial selection:', selectedTaskId);
+      gantt.selectTasks([selectedTaskId]);
+    }
+
+    // Load holidays immediately after canvas creation
+    (async () => {
+      try {
+        const currentYear = new Date().getFullYear();
+        const response = await api.get<{ dates: string[] }>(
+          `/api/v1/public_holidays/dates?year_start=${currentYear}&year_end=${currentYear + 2}&region=QLD`
+        );
+
+        if (response.dates && response.dates.length > 0) {
+          const holidays = response.dates.map(dateStr => {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            return {
+              date: new Date(year, month - 1, day),
+              name: 'Public Holiday',
+              type: 'public' as const,
+            };
+          });
+          console.log('[Gantt] Adding holidays from API (inline):', holidays.length, 'holidays');
+          gantt.addHolidays(holidays);
+        } else {
+          const fallbackHolidays = [
+            ...getAustralianHolidays(currentYear),
+            ...getAustralianHolidays(currentYear + 1),
+          ];
+          console.log('[Gantt] Using fallback holidays (inline):', fallbackHolidays.length, 'holidays');
+          gantt.addHolidays(fallbackHolidays);
+        }
+      } catch (err) {
+        console.error('Failed to load holidays (inline), using fallback:', err);
+        const currentYear = new Date().getFullYear();
+        const fallbackHolidays = [
+          ...getAustralianHolidays(currentYear),
+          ...getAustralianHolidays(currentYear + 1),
+        ];
+        console.log('[Gantt] Using error fallback holidays (inline):', fallbackHolidays.length, 'holidays');
+        gantt.addHolidays(fallbackHolidays);
+      }
+    })();
+
     // Cleanup
     return () => {
       gantt.destroy();
@@ -2562,7 +2614,10 @@ export function GanttCanvasView({
   // already handles this correctly - it recreates the canvas with fresh data
   // when staticTasks changes.
 
-  // Load holidays from API and add to canvas
+  // Note: Holiday loading moved inline to main useEffect (after canvas creation)
+  // to ensure holidays persist even when canvas is recreated
+  /*
+  // OLD: Load holidays from API and add to canvas
   React.useEffect(() => {
     if (!ganttRef.current) return;
 
@@ -2611,6 +2666,7 @@ export function GanttCanvasView({
               type: 'public' as const,
             };
           });
+          console.log('[Gantt] Adding holidays from API:', holidays.length, 'holidays');
           ganttRef.current?.addHolidays(holidays);
         } else {
           // Fallback to hardcoded holidays
@@ -2619,6 +2675,7 @@ export function GanttCanvasView({
             ...getAustralianHolidays(currentYear),
             ...getAustralianHolidays(currentYear + 1),
           ];
+          console.log('[Gantt] Using fallback holidays:', fallbackHolidays.length, 'holidays');
           ganttRef.current?.addHolidays(fallbackHolidays);
         }
       } catch (err) {
@@ -2629,12 +2686,15 @@ export function GanttCanvasView({
           ...getAustralianHolidays(currentYear),
           ...getAustralianHolidays(currentYear + 1),
         ];
+        console.log('[Gantt] Using error fallback holidays:', fallbackHolidays.length, 'holidays');
         ganttRef.current?.addHolidays(fallbackHolidays);
       }
     };
 
+    console.log('[Gantt] loadHolidays called, ganttRef.current:', !!ganttRef.current);
     loadHolidays();
   }, [rows, staticTasks]); // Re-run when data changes (after canvas is created)
+  */
 
   // Trigger resize when fullscreen changes
   React.useEffect(() => {
@@ -3519,9 +3579,9 @@ export function GanttCanvasView({
                     <div
                       key={task.id}
                       className={cn(
-                        "flex items-center border-b text-xs hover:bg-muted/30 px-2 cursor-pointer",
+                        "flex items-center border-b text-xs hover:bg-gray-100 dark:hover:bg-gray-700 px-2 cursor-pointer",
                         isSelected
-                          ? "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-inset ring-blue-500"
+                          ? "bg-blue-600 dark:bg-blue-600"
                           : inSelectedGroup
                             ? isHeader
                               ? "bg-amber-200 dark:bg-amber-900/30 border-l-4 border-l-amber-500"
@@ -3534,6 +3594,14 @@ export function GanttCanvasView({
                       onClick={() => {
                         // Select the task and scroll Gantt horizontally to show the bar
                         setSelectedTaskId(task.id);
+                        // Update canvas selection to show blue highlight
+                        if (ganttRef.current) {
+                          console.log('[Sidebar Click] Selecting task on canvas:', task.id);
+                          ganttRef.current.selectTasks([task.id]);
+                          console.log('[Sidebar Click] Canvas selection updated');
+                        } else {
+                          console.log('[Sidebar Click] ganttRef.current is null!');
+                        }
                         // Call external onTaskClick handler (for PO button etc)
                         onTaskClick?.(task);
                         // Scroll horizontally to the task bar
@@ -3564,6 +3632,18 @@ export function GanttCanvasView({
                             const targetScrollY = headerIndex * ROW_HEIGHT;
                             ganttRef.current.scrollToY(targetScrollY);
                           }
+                        }
+                      }}
+                      onMouseEnter={() => {
+                        // Sync hover state with canvas
+                        if (ganttRef.current) {
+                          ganttRef.current.setHoveredTask(task.id);
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        // Clear hover state on canvas
+                        if (ganttRef.current) {
+                          ganttRef.current.setHoveredTask(null);
                         }
                       }}
                       onDoubleClick={() => {

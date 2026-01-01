@@ -258,7 +258,7 @@ export const CHART_COLORS = {
     weekendBackground: TAILWIND_COLORS.gray[50],        // #f9fafb
     headerBackground: TAILWIND_COLORS.gray[100],        // #f3f4f6
     headerText: TAILWIND_COLORS.gray[700],              // #374151
-    selectedRow: BRAND_COLORS.status.info.light,        // #dbeafe - Info background
+    selectedRow: '#2563eb',                             // blue-600 - solid blue
     hoverRow: TAILWIND_COLORS.gray[100],                // #f3f4f6
     borderColor: TAILWIND_COLORS.gray[200],             // #e5e7eb
     textColor: BRAND_COLORS.text.primary,               // #1D1D1D
@@ -273,7 +273,7 @@ export const CHART_COLORS = {
     weekendBackground: TAILWIND_COLORS.gray[900],       // #111827
     headerBackground: TAILWIND_COLORS.gray[900],        // #111827
     headerText: TAILWIND_COLORS.gray[200],              // #e5e7eb
-    selectedRow: BRAND_COLORS.status.info.dark,         // #1E3A8A - Info background
+    selectedRow: '#2563eb',                             // blue-600 - solid blue
     hoverRow: TAILWIND_COLORS.gray[700],                // #374151
     borderColor: TAILWIND_COLORS.gray[700],             // #374151
     textColor: TAILWIND_COLORS.gray[200],               // #e5e7eb

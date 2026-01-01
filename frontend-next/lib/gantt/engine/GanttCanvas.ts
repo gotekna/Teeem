@@ -417,7 +417,7 @@ const defaultDarkColors: GanttColors = {
 
 const defaultConfig: GanttConfig = {
   rowHeight: 28,
-  headerHeight: 50,
+  headerHeight: 49.5,
   taskBarHeight: 18,
   taskBarPadding: 5,
   dayWidth: 25,  // Matches preferred zoom level
@@ -4619,6 +4619,14 @@ export class GanttCanvas {
    */
   clearSelection(): void {
     this.selectionManager.clear();
+  }
+
+  /**
+   * Set hovered task (for external hover sync)
+   */
+  setHoveredTask(taskId: string | null): void {
+    this.state.hoveredTaskId = taskId;
+    this.markDirty();
   }
 
   /**

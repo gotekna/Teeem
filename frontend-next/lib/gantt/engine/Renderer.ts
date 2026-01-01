@@ -87,20 +87,19 @@ export class Renderer {
       // Use calendar if available, otherwise fall back to simple weekend check
       if (calendar) {
         if (calendar.isHoliday(currentDate)) {
-          // Holiday shading (slightly different color from weekends)
-          // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
-          this.ctx.fillStyle = this.config.darkMode ? '#2d1f1f' : TAILWIND_COLORS.red[50]; // Reddish tint
+          // Holiday shading - light pink/red tint to distinguish from weekends
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(239, 68, 68, 0.1)' : TAILWIND_COLORS.red[50]; // Light red tint
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         } else if (calendar.isWeekend(currentDate)) {
-          // Weekend shading
-          this.ctx.fillStyle = this.config.colors.weekendBackground;
+          // Weekend shading - light gray
+          this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[50];
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         }
       } else {
-        // Fallback: simple weekend check
+        // Fallback: simple weekend check - slightly darker gray
         const dayOfWeek = currentDate.getDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) {
-          this.ctx.fillStyle = this.config.colors.weekendBackground;
+          this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[100];
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         }
       }
@@ -115,16 +114,19 @@ export class Renderer {
     }
 
     // Draw horizontal grid lines (rows) - match table border-b styling
-    for (let i = 0; i <= totalRows; i++) {
+    // Start at i=1 because border-b puts borders at BOTTOM of each row
+    for (let i = 1; i <= totalRows; i++) {
       const y = this.viewport.rowToY(i);
       if (y < this.config.headerHeight || y > height) continue;
 
-      // Match table border styling - medium gray, 1px, clearly visible
-      this.ctx.strokeStyle = '#d1d5db'; // gray-300 to match visible table borders
-      this.ctx.lineWidth = 1;
+      // Match table border styling - darker gray, 0.25px thin but visible
+      this.ctx.strokeStyle = '#9ca3af'; // gray-400 for darker visibility at thin width
+      this.ctx.lineWidth = 0.25;
       this.ctx.beginPath();
-      this.ctx.moveTo(0, y);
-      this.ctx.lineTo(width, y);
+      // Align to exact pixel for crisp rendering
+      const alignedY = Math.floor(y) + 0.5;
+      this.ctx.moveTo(0, alignedY);
+      this.ctx.lineTo(width, alignedY);
       this.ctx.stroke();
     }
   }
@@ -367,20 +369,20 @@ export class Renderer {
           } else {
             this.ctx.fillStyle = this.config.colors.childRowBackground;  // amber-100 (lighter)
           }
-          this.ctx.fillRect(0, y, 10000, rowHeight);
+          this.ctx.fillRect(0, y, 100000, rowHeight);
         } else if (isHeaderRow && !isSelected) {
           // Non-selected header rows get gray background
           this.ctx.fillStyle = this.config.darkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.06)';
-          this.ctx.fillRect(0, y, 10000, rowHeight);
+          this.ctx.fillRect(0, y, 100000, rowHeight);
         }
 
         // Then draw selection/hover on top (ONLY for the clicked row)
         if (isSelected) {
           this.ctx.fillStyle = this.config.colors.selectedRow;
-          this.ctx.fillRect(0, y, 10000, rowHeight);
+          this.ctx.fillRect(0, y, 100000, rowHeight);
         } else if (task.id === hoveredTaskId) {
           this.ctx.fillStyle = this.config.colors.hoverRow;
-          this.ctx.fillRect(0, y, 10000, rowHeight);
+          this.ctx.fillRect(0, y, 100000, rowHeight);
         }
         continue;
       }
@@ -397,20 +399,20 @@ export class Renderer {
         } else {
           this.ctx.fillStyle = this.config.colors.childRowBackground;  // amber-100 (lighter)
         }
-        this.ctx.fillRect(0, y, 10000, rowHeight);
+        this.ctx.fillRect(0, y, 100000, rowHeight);
       } else if (isHeaderRow && !isSelected && task.id !== hoveredTaskId) {
         // Not selected header: gray/muted background
         this.ctx.fillStyle = this.config.darkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.06)';
-        this.ctx.fillRect(0, y, 10000, rowHeight);
+        this.ctx.fillRect(0, y, 100000, rowHeight);
       }
 
       // Then draw selection/hover on top (ONLY for the clicked row)
       if (isSelected) {
         this.ctx.fillStyle = this.config.colors.selectedRow;
-        this.ctx.fillRect(0, y, 10000, rowHeight);
+        this.ctx.fillRect(0, y, 100000, rowHeight);
       } else if (!isSelected && task.id === hoveredTaskId) {
         this.ctx.fillStyle = this.config.colors.hoverRow;
-        this.ctx.fillRect(0, y, 10000, rowHeight);
+        this.ctx.fillRect(0, y, 100000, rowHeight);
       }
 
       // Calculate task bar position

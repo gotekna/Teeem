@@ -1172,7 +1172,7 @@ export default function SchedulePage() {
 
       {/* Row Edit Drawer (for fullscreen gantt mode) */}
       <Sheet open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
-        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
+        <SheetContent side="right" className="w-[600px] sm:w-[750px] overflow-y-auto">
           <SheetHeader className="pb-4 border-b">
             <SheetTitle className="flex items-center gap-2">
               <span className="font-mono text-muted-foreground">#{selectedRow?.task_number as number}</span>
@@ -1317,7 +1317,7 @@ export default function SchedulePage() {
 
       {/* Task Edit Sheet - Full Edit Form (fullscreen mode) */}
       <Sheet open={taskEditOpen} onOpenChange={setTaskEditOpen}>
-        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
+        <SheetContent side="right-wide" className="overflow-y-auto">
           <SheetHeader className="pb-2">
             <SheetTitle>Edit Task</SheetTitle>
             <SheetDescription>
@@ -1561,6 +1561,21 @@ export default function SchedulePage() {
                     <span className="text-muted-foreground">Has PO:</span>
                     <span className="ml-2">{editingTask.purchase_order_id ? "Yes" : "No"}</span>
                   </div>
+                  {/* Parent task info (full width) - handles both number and string IDs */}
+                  {editingTask.header_gantt && editingTask.header_gantt !== "Header" && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Parent Task:</span>
+                      <span className="ml-2">
+                        {(() => {
+                          const parentId = typeof editingTask.header_gantt === "string"
+                            ? parseInt(editingTask.header_gantt, 10)
+                            : editingTask.header_gantt;
+                          const parentTask = ganttTasks.find(t => t.id === parentId);
+                          return parentTask?.name || `Task #${editingTask.header_gantt}`;
+                        })()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2210,7 +2225,7 @@ export default function SchedulePage() {
 
       {/* Row Edit Drawer */}
       <Sheet open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
-        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
+        <SheetContent side="right" className="w-[600px] sm:w-[750px] overflow-y-auto">
           <SheetHeader className="pb-4 border-b">
             <SheetTitle className="flex items-center gap-2">
               <span className="font-mono text-muted-foreground">#{selectedRow?.task_number as number}</span>
@@ -2355,7 +2370,7 @@ export default function SchedulePage() {
 
       {/* Task Edit Sheet - Full Edit Form */}
       <Sheet open={taskEditOpen} onOpenChange={setTaskEditOpen}>
-        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
+        <SheetContent side="right-wide" className="overflow-y-auto">
           <SheetHeader className="pb-2">
             <SheetTitle>Edit Task</SheetTitle>
             <SheetDescription>
@@ -2599,6 +2614,21 @@ export default function SchedulePage() {
                     <span className="text-muted-foreground">Has PO:</span>
                     <span className="ml-2">{editingTask.purchase_order_id ? "Yes" : "No"}</span>
                   </div>
+                  {/* Parent task info (full width) - handles both number and string IDs */}
+                  {editingTask.header_gantt && editingTask.header_gantt !== "Header" && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Parent Task:</span>
+                      <span className="ml-2">
+                        {(() => {
+                          const parentId = typeof editingTask.header_gantt === "string"
+                            ? parseInt(editingTask.header_gantt, 10)
+                            : editingTask.header_gantt;
+                          const parentTask = ganttTasks.find(t => t.id === parentId);
+                          return parentTask?.name || `Task #${editingTask.header_gantt}`;
+                        })()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
