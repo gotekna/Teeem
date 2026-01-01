@@ -1140,7 +1140,7 @@ module Api
         deps = task.active_predecessor_dependencies
         return if deps.empty?
 
-        calendar = WorkingDaysCalculator.new(task.job&.company_setting)
+        calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
 
         # Calculate the earliest valid start based on all predecessors
         earliest_start = deps.map do |dep|

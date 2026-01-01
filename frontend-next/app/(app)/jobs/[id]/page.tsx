@@ -1111,6 +1111,8 @@ export default function JobDetailPage() {
         job_type_id: job.job_type?.id || job.job_type_id,
         job_status_id: job.job_status?.id || job.job_status_id,
         job_stage_id: job.job_stage?.id || job.job_stage_id,
+        level: job.level,
+        dwelling_type: job.dwelling_type,
       });
       setIsEditing(true);
       // Load dropdown data for editing
