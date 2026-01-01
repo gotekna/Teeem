@@ -451,6 +451,12 @@ export default function SchedulePage() {
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       const tasks = response.gantt_data?.tasks || [];
       const deps = response.gantt_data?.dependencies || [];
+      // Debug: Check FRAME task from initial API response
+      const frameTask = tasks.find(t => t.name?.toUpperCase?.().includes('FRAME'));
+      console.log('[fetchTasksForGantt] Initial load', {
+        taskCount: tasks.length,
+        frameTask: frameTask ? { id: frameTask.id, name: frameTask.name, start_date: frameTask.start_date } : 'not found',
+      });
       setGanttTasks(tasks);
       setGanttApiDeps(deps);
     } catch (error) {

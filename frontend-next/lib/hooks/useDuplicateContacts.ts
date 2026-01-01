@@ -51,6 +51,7 @@ export interface MergeResponse {
   merged_count: number;
   deleted_contact_ids: number[];
   target_contact_id: number;
+  already_merged?: boolean;
 }
 
 // Hooks
@@ -96,9 +97,9 @@ export function useMergeDuplicateGroup() {
       );
       return response as MergeResponse;
     },
-    onSuccess: () => {
-      // Invalidate and refetch duplicate groups
-      queryClient.invalidateQueries({ queryKey: ['duplicate-contacts', 'groups'] });
+    onSuccess: async () => {
+      // Force immediate refetch (not just invalidate) to ensure UI updates
+      await queryClient.refetchQueries({ queryKey: ['duplicate-contacts', 'groups'] });
       // Also invalidate contacts list in case it's open
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
     },
@@ -118,8 +119,9 @@ export function useDismissDuplicateGroup() {
       );
       return response;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['duplicate-contacts', 'groups'] });
+    onSuccess: async () => {
+      // Force immediate refetch to ensure UI updates
+      await queryClient.refetchQueries({ queryKey: ['duplicate-contacts', 'groups'] });
     },
   });
 }

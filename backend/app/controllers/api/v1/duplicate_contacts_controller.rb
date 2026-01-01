@@ -66,13 +66,26 @@ class Api::V1::DuplicateContactsController < ApplicationController
     result = service.merge_group(params[:id], params[:target_contact_id].to_i)
 
     if result[:success]
-      render json: {
-        success: true,
-        message: "Successfully merged #{result[:merged_count]} contact(s) into Contact ##{result[:target_id]}",
-        merged_count: result[:merged_count],
-        deleted_contact_ids: result[:deleted_ids],
-        target_contact_id: result[:target_id]
-      }
+      if result[:merged_count] == 0
+        # Nothing was merged - duplicates may have already been merged
+        render json: {
+          success: true,
+          message: "No duplicates found to merge. This group may have already been merged.",
+          merged_count: 0,
+          deleted_contact_ids: [],
+          target_contact_id: result[:target_id],
+          already_merged: true
+        }
+      else
+        render json: {
+          success: true,
+          message: "Successfully merged #{result[:merged_count]} contact(s) into Contact ##{result[:target_id]}",
+          merged_count: result[:merged_count],
+          deleted_contact_ids: result[:deleted_ids],
+          target_contact_id: result[:target_id],
+          already_merged: false
+        }
+      end
     else
       render json: {
         success: false,
