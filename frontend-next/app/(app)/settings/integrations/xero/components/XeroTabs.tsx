@@ -840,12 +840,9 @@ export function XeroContactSync() {
         onClose={() => setShowSyncFromModal(false)}
         xeroLinkIds={Array.from(selectedRows)}
         onSyncComplete={() => {
+          // Just clear cache - don't force full refresh which resets fullscreen and scroll
+          // Data will refresh on next natural table interaction or manual refresh
           clearCachedRecords("xero-sync-contacts");
-          // Don't clear selection - user might want to continue syncing other contacts
-          // Use timeout to let modal close animation complete before refresh
-          setTimeout(() => {
-            setRefreshKey((prev) => prev + 1);
-          }, 300);
         }}
       />
     </div>

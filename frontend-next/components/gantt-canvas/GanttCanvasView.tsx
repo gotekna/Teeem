@@ -461,11 +461,21 @@ export function GanttCanvasView({
         return false;
       }
 
-      // If showOnlyGrouped is enabled OR viewSlug is 'header', only show headers
-      if (showOnlyGrouped || viewSlug === 'header') {
+      // If showOnlyGrouped is enabled, only show headers
+      if (showOnlyGrouped) {
         const isHeader = row.header_gantt === 'Header';
         if (!isHeader) {
           return false;
+        }
+      }
+
+      // In header view: show headers + children of EXPANDED headers
+      // Children of collapsed headers already filtered above
+      if (viewSlug === 'header') {
+        const isHeader = row.header_gantt === 'Header';
+        // Show if it's a header OR if it has a parent header (and that parent is expanded - checked above)
+        if (!isHeader && !parentHeaderId) {
+          return false; // Hide ungrouped tasks in header view
         }
       }
 
