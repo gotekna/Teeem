@@ -173,11 +173,11 @@ const DEFAULT_ASSIGNABLE_ROLES = [
 /** Default column configuration - matches preferred layout */
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'name', label: 'Name', width: 242, visible: true, align: 'left' },
-  { id: 'started', label: 'Started', shortLabel: '▶', width: 28, visible: true, align: 'center' },
-  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 28, visible: true, align: 'center' },
-  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 28, visible: true, align: 'center' },
-  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 28, visible: true, align: 'center' },
-  { id: 'complete', label: 'Done', shortLabel: '✓', width: 28, visible: true, align: 'center' },
+  { id: 'started', label: 'Started', shortLabel: '▶', width: 24, visible: true, align: 'center' },
+  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 24, visible: true, align: 'center' },
+  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 24, visible: true, align: 'center' },
+  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 24, visible: true, align: 'center' },
+  { id: 'complete', label: 'Done', shortLabel: '✓', width: 24, visible: true, align: 'center' },
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
   { id: 'duration', label: 'Duration', shortLabel: 'Days', width: 50, visible: true, align: 'center' },
   { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
@@ -1019,11 +1019,11 @@ export function GanttCanvasView({
       // Use fixed widths in collapsed mode to ensure all columns fit
       const collapsedWidths: Record<string, number> = {
         name: 200,           // Wider name column when collapsed for better readability
-        started: 28,
-        hold: 28,
-        confirm: 28,
-        supplierConfirm: 28,
-        complete: 28,
+        started: 24,
+        hold: 24,
+        confirm: 24,
+        supplierConfirm: 24,
+        complete: 24,
       };
       return PERMANENT_COLUMN_IDS.map(id => {
         const col = columns.find(c => c.id === id) || DEFAULT_COLUMNS.find(c => c.id === id);
@@ -3266,7 +3266,7 @@ export function GanttCanvasView({
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Table - always shows Name column, toggles other columns */}
-        <div className="flex flex-col bg-background relative" style={{ width: 'auto', minWidth: showSidebar ? 200 : 360, maxWidth: showSidebar ? 600 : 380 }}>
+        <div className="flex flex-col bg-background relative" style={{ width: 'auto', minWidth: showSidebar ? 200 : 310, maxWidth: showSidebar ? 600 : 330 }}>
             {/* Sidebar Header - Draggable Columns with Search in Name column */}
             <DndContext
               sensors={columnDragSensors}
@@ -3325,9 +3325,12 @@ export function GanttCanvasView({
                   }
                 }}
               >
-                {visibleColumns.map(col => (
-                  <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="truncate px-1">
-                    {col.id === 'name' ? (
+                {visibleColumns.map(col => {
+                  // Remove padding from checkbox columns to save space
+                  const isCheckboxCol = ['started', 'hold', 'confirm', 'supplierConfirm', 'complete'].includes(col.id);
+                  return (
+                    <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className={`truncate ${isCheckboxCol ? 'flex justify-center items-center' : 'px-1'}`}>
+                      {col.id === 'name' ? (
                       <div className="truncate px-2 flex items-center font-bold" title={stickyHeader.name}>
                         <button
                           onClick={(e) => {
@@ -3348,8 +3351,9 @@ export function GanttCanvasView({
                         </span>
                       </div>
                     ) : null}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -3712,11 +3716,15 @@ export function GanttCanvasView({
                         onTaskDoubleClick?.(task);
                       }}
                     >
-                      {visibleColumns.map(col => (
-                        <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0, height: 28 }} className="flex items-center px-1">
-                          {renderCell(col)}
-                        </div>
-                      ))}
+                      {visibleColumns.map(col => {
+                        // Remove padding from checkbox columns to save space
+                        const isCheckboxCol = ['started', 'hold', 'confirm', 'supplierConfirm', 'complete'].includes(col.id);
+                        return (
+                          <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0, height: 28 }} className={`flex items-center ${isCheckboxCol ? 'justify-center' : 'px-1'}`}>
+                            {renderCell(col)}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}

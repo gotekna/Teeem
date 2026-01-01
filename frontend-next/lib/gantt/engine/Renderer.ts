@@ -208,15 +208,16 @@ export class Renderer {
   }
 
   /**
-   * Draw time scale header
+   * Draw time scale header (sticky - follows scrollY)
    */
   drawTimeScale(width: number, calendar?: WorkingDaysCalendar): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
+    const headerY = state.scrollY; // Sticky header: draw at scroll position
 
     // Draw header background
     this.ctx.fillStyle = this.config.colors.headerBackground;
-    this.ctx.fillRect(0, 0, width, this.config.headerHeight);
+    this.ctx.fillRect(0, headerY, width, this.config.headerHeight);
 
     // Calculate visible days for weekend/holiday shading
     const startDayOffset = Math.floor(state.scrollX / dayWidth);
@@ -232,11 +233,11 @@ export class Renderer {
         if (calendar.isHoliday(currentDate)) {
           // Holiday shading in header
           this.ctx.fillStyle = this.config.darkMode ? 'rgba(239, 68, 68, 0.1)' : TAILWIND_COLORS.red[50];
-          this.ctx.fillRect(x, 0, dayWidth, this.config.headerHeight);
+          this.ctx.fillRect(x, headerY, dayWidth, this.config.headerHeight);
         } else if (calendar.isWeekend(currentDate)) {
           // Weekend shading in header
           this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[50];
-          this.ctx.fillRect(x, 0, dayWidth, this.config.headerHeight);
+          this.ctx.fillRect(x, headerY, dayWidth, this.config.headerHeight);
         }
       }
     }
@@ -245,8 +246,8 @@ export class Renderer {
     this.ctx.strokeStyle = this.config.colors.gridLines;
     this.ctx.lineWidth = 1;
     this.ctx.beginPath();
-    this.ctx.moveTo(0, this.config.headerHeight);
-    this.ctx.lineTo(width, this.config.headerHeight);
+    this.ctx.moveTo(0, headerY + this.config.headerHeight);
+    this.ctx.lineTo(width, headerY + this.config.headerHeight);
     this.ctx.stroke();
 
     // Determine what level of detail to show based on zoom
@@ -255,15 +256,15 @@ export class Renderer {
 
     if (showMonthsOnly) {
       // Only show months
-      this.drawMonthHeaders(width, startDayOffset, endDayOffset);
+      this.drawMonthHeaders(width, startDayOffset, endDayOffset, headerY);
     } else {
       // Show both months and days
-      this.drawMonthHeaders(width, startDayOffset, endDayOffset);
-      this.drawDayHeaders(width, startDayOffset, endDayOffset);
+      this.drawMonthHeaders(width, startDayOffset, endDayOffset, headerY);
+      this.drawDayHeaders(width, startDayOffset, endDayOffset, headerY);
     }
   }
 
-  private drawMonthHeaders(width: number, startDayOffset: number, endDayOffset: number): void {
+  private drawMonthHeaders(width: number, startDayOffset: number, endDayOffset: number, headerY: number): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
 
@@ -291,15 +292,15 @@ export class Renderer {
             this.ctx.font = 'bold 12px Inter, system-ui, sans-serif';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(monthLabel, monthStartX + monthWidth / 2, 15);
+            this.ctx.fillText(monthLabel, monthStartX + monthWidth / 2, headerY + 15);
           }
 
           // Draw month separator
           this.ctx.strokeStyle = this.config.colors.gridLines;
           this.ctx.lineWidth = 1;
           this.ctx.beginPath();
-          this.ctx.moveTo(x, 0);
-          this.ctx.lineTo(x, this.config.headerHeight / 2);
+          this.ctx.moveTo(x, headerY);
+          this.ctx.lineTo(x, headerY + this.config.headerHeight / 2);
           this.ctx.stroke();
         }
 

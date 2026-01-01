@@ -1564,12 +1564,17 @@ export default function SchedulePage() {
                   </div>
                   {/* Parent/Header task info (full width) */}
                   {(() => {
+                    // SSoT: allow_header determines if task IS a header
+                    const currentAllowHeader = taskEditForm.allow_header !== undefined
+                      ? taskEditForm.allow_header
+                      : editingTask.allow_header;
+
                     const currentHeaderGantt = taskEditForm.header_gantt !== undefined
                       ? taskEditForm.header_gantt
                       : editingTask.header_gantt;
 
-                    // Show if this task IS a header
-                    if (currentHeaderGantt === "Header") {
+                    // Show if this task IS a header (SSoT: allow_header)
+                    if (currentAllowHeader) {
                       return (
                         <div className="col-span-2">
                           <span className="text-muted-foreground">Type:</span>
@@ -1590,7 +1595,6 @@ export default function SchedulePage() {
                                   ? parseInt(currentHeaderGantt, 10)
                                   : currentHeaderGantt;
                                 const parentTask = ganttTasks.find(t => t.id === parentId);
-                                console.log('[TaskEdit] Looking for parent:', parentId, 'Found:', parentTask?.name, 'Total tasks:', ganttTasks.length);
                                 return parentTask?.name || `Task #${currentHeaderGantt} (not found in loaded tasks)`;
                               })()}
                             </span>
@@ -2656,12 +2660,17 @@ export default function SchedulePage() {
                   </div>
                   {/* Parent/Header task info (full width) */}
                   {(() => {
+                    // SSoT: allow_header determines if task IS a header
+                    const currentAllowHeader = taskEditForm.allow_header !== undefined
+                      ? taskEditForm.allow_header
+                      : editingTask.allow_header;
+
                     const currentHeaderGantt = taskEditForm.header_gantt !== undefined
                       ? taskEditForm.header_gantt
                       : editingTask.header_gantt;
 
-                    // Show if this task IS a header
-                    if (currentHeaderGantt === "Header") {
+                    // Show if this task IS a header (SSoT: allow_header)
+                    if (currentAllowHeader) {
                       return (
                         <div className="col-span-2">
                           <span className="text-muted-foreground">Type:</span>
@@ -2682,7 +2691,6 @@ export default function SchedulePage() {
                                   ? parseInt(currentHeaderGantt, 10)
                                   : currentHeaderGantt;
                                 const parentTask = ganttTasks.find(t => t.id === parentId);
-                                console.log('[TaskEdit] Looking for parent:', parentId, 'Found:', parentTask?.name, 'Total tasks:', ganttTasks.length);
                                 return parentTask?.name || `Task #${currentHeaderGantt} (not found in loaded tasks)`;
                               })()}
                             </span>
