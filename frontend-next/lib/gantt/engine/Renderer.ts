@@ -165,7 +165,6 @@ export class Renderer {
       if (!inGroup) return;
 
       const y = this.viewport.rowToY(index);
-      console.log('[Weekend Overlay] Drawing for task:', task.name, 'at y:', y, 'isHeader:', task.rowData?.header_gantt === 'Header');
 
       // Draw weekend/holiday overlay for this row
       for (let i = startDayOffset; i <= endDayOffset; i++) {
@@ -1524,28 +1523,34 @@ export class Renderer {
   private getTaskColor(task: GanttTask): string {
     const { taskBar } = this.config.colors;
 
-    // Priority order: Complete > Supplier Confirm > Confirm > Hold
+    // Priority order: Complete > Supplier Confirm > Confirm > Hold > Started > Default
 
     // 1. Dark gray for completed tasks (beats all)
     if (task.rowData?.is_completed) {
-      return TAILWIND_COLORS.gray[800]; // Dark gray / near black
+      return '#1f2937'; // gray-800 - Dark gray for done/complete
     }
 
-    // 2. Purple for supplier confirmed tasks (beats confirm and hold)
+    // 2. Purple for supplier confirmed tasks (beats confirm, hold, and started)
     if (task.rowData?.supplier_confirm) {
-      return TAILWIND_COLORS.violet[500]; // Purple - supplier confirmed
+      return '#a855f7'; // purple-500 - Purple for supplier confirm
     }
 
-    // 3. Green for confirmed tasks (beats hold)
+    // 3. Orange for confirmed tasks (beats hold and started)
     if (task.rowData?.confirm) {
-      return STATUS_COLORS.success; // Green - supervisor confirmed
+      return '#f97316'; // orange-500 - Orange for supervisor confirm
     }
 
-    // 4. Light brown for manually positioned (held) tasks
+    // 4. Tan for manually positioned (held) tasks (beats started)
     if (task.rowData?.hold) {
-      return '#D4A574'; // Light brown / tan - custom brand color for hold status
+      return '#D4A574'; // Tan - custom brand color for hold status
     }
 
+    // 5. Green for started tasks (beats default)
+    if (task.rowData?.started) {
+      return '#10b981'; // emerald-500 - Green for started tasks
+    }
+
+    // 6. Default gray for not started
     switch (task.status) {
       case 'completed':
         return taskBar.completed;
@@ -1556,7 +1561,7 @@ export class Renderer {
       case 'at-risk':
         return taskBar.atRisk;
       default:
-        return taskBar.notStarted;
+        return TAILWIND_COLORS.gray[400]; // Default gray for not started
     }
   }
 

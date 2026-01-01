@@ -173,6 +173,7 @@ const DEFAULT_ASSIGNABLE_ROLES = [
 /** Default column configuration - matches preferred layout */
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'name', label: 'Name', width: 242, visible: true, align: 'left' },
+  { id: 'started', label: 'Started', shortLabel: '▶', width: 28, visible: true, align: 'center' },
   { id: 'hold', label: 'Hold', shortLabel: '📌', width: 28, visible: true, align: 'center' },
   { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 28, visible: true, align: 'center' },
   { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 28, visible: true, align: 'center' },
@@ -208,6 +209,24 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
     isDragging,
   } = useSortable({ id: column.id });
 
+  // Get background color for checkbox columns to indicate Gantt bar color
+  const getHeaderBgColor = () => {
+    switch (column.id) {
+      case 'started':
+        return 'rgba(16, 185, 129, 0.25)'; // emerald-500 green - matches task bar
+      case 'hold':
+        return 'rgba(212, 165, 116, 0.3)'; // tan/beige - matches task bar
+      case 'confirm':
+        return 'rgba(249, 115, 22, 0.25)'; // orange-500 - matches task bar
+      case 'supplierConfirm':
+        return 'rgba(168, 85, 247, 0.2)'; // purple - matches task bar
+      case 'complete':
+        return 'rgba(31, 41, 55, 0.3)'; // dark gray - matches task bar
+      default:
+        return undefined;
+    }
+  };
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -217,6 +236,7 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
     height: '100%',
     touchAction: 'none',
     cursor: isDragging ? 'grabbing' : 'grab',
+    backgroundColor: getHeaderBgColor(),
   };
 
   return (
@@ -297,7 +317,7 @@ export function GanttCanvasView({
   const [loading, setLoading] = React.useState(!isStaticMode);
   const [error, setError] = React.useState<string | null>(null);
   const [rows, setRows] = React.useState<SmScheduleMaster[]>([]);
-  const [showSidebar, setShowSidebar] = React.useState(true);
+  const [showSidebar, setShowSidebar] = React.useState(false); // Start collapsed by default
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
   const [showDependencies, setShowDependencies] = React.useState(false); // Off by default
@@ -981,9 +1001,9 @@ export function GanttCanvasView({
   }, [tasks, depEditorTask]);
 
   // Permanent columns that cannot be hidden (always show in collapsed mode)
-  // These are the essential status columns: Name + Hold, Confirm, Supplier Confirm, Complete
+  // These are the essential status columns: Name + Started, Hold, Confirm, Supplier Confirm, Complete
   // Order matters - this is the order they appear in collapsed mode
-  const PERMANENT_COLUMN_IDS = ['name', 'hold', 'confirm', 'supplierConfirm', 'complete'];
+  const PERMANENT_COLUMN_IDS = ['name', 'started', 'hold', 'confirm', 'supplierConfirm', 'complete'];
 
   // Get visible columns (always includes permanent columns, name always first)
   // When sidebar is "hidden", only show permanent columns (Name + status checkboxes)
@@ -998,7 +1018,8 @@ export function GanttCanvasView({
     if (!showSidebar) {
       // Use fixed widths in collapsed mode to ensure all columns fit
       const collapsedWidths: Record<string, number> = {
-        name: 150,           // Narrower name to fit other columns
+        name: 200,           // Wider name column when collapsed for better readability
+        started: 28,
         hold: 28,
         confirm: 28,
         supplierConfirm: 28,
@@ -3021,31 +3042,38 @@ export function GanttCanvasView({
                 <div className="grid gap-2 text-sm">
                   {/* Checkbox-based colors in priority order */}
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#1f2937' }} />
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(31, 41, 55, 0.3)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">Done checked</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#a855f7' }} />
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(168, 85, 247, 0.2)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">S✓ (Supplier Confirm) checked</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#22c55e' }} />
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(249, 115, 22, 0.25)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-muted-foreground">✓ (Confirm) checked</span>
+                      <span className="text-muted-foreground">✓ (Confirm) checked - orange</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#D4A574' }} />
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(212, 165, 116, 0.3)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">Hold checked (tan)</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(16, 185, 129, 0.25)' }} />
+                    <div className="flex items-center gap-1.5">
+                      <Check className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">▶ Started checked - green</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -3054,19 +3082,31 @@ export function GanttCanvasView({
                   </div>
                 </div>
                 <div className="border-t pt-2 mt-2">
-                  <h4 className="font-medium text-sm mb-2">Other Indicators</h4>
+                  <h4 className="font-medium text-sm mb-2">Background Shading</h4>
                   <div className="grid gap-2 text-sm">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-3 rounded" style={{ backgroundColor: '#ef4444' }} />
-                      <span className="text-muted-foreground">Today marker</span>
+                      <span className="text-muted-foreground">Today marker (red line)</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-3 rounded opacity-50" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }} />
-                      <span className="text-muted-foreground">Weekend</span>
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }} />
+                      <span className="text-muted-foreground">Weekend (light gray)</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-3 rounded" style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca' }} />
-                      <span className="text-muted-foreground">Holiday</span>
+                      <span className="text-muted-foreground">Holiday (light pink)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#fef3c7', border: '1px solid #fde68a' }} />
+                      <span className="text-muted-foreground">Group row (amber)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#f59e0b', opacity: 0.15, border: '1px solid #d97706' }} />
+                      <span className="text-muted-foreground">Weekend on group (darker amber)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#f59e0b', opacity: 0.25, border: '1px solid #d97706' }} />
+                      <span className="text-muted-foreground">Holiday on group (darkest amber)</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div
@@ -3226,7 +3266,7 @@ export function GanttCanvasView({
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Table - always shows Name column, toggles other columns */}
-        <div className="flex flex-col bg-background relative" style={{ width: 'auto', minWidth: showSidebar ? 200 : 280, maxWidth: showSidebar ? 600 : 300 }}>
+        <div className="flex flex-col bg-background relative" style={{ width: 'auto', minWidth: showSidebar ? 200 : 360, maxWidth: showSidebar ? 600 : 380 }}>
             {/* Sidebar Header - Draggable Columns with Search in Name column */}
             <DndContext
               sensors={columnDragSensors}
@@ -3521,6 +3561,27 @@ export function GanttCanvasView({
                           >
                             {hasDeps ? depDisplay : '-'}
                           </button>
+                        );
+                      case 'started':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
+                        const isStarted = row?.started === true;
+                        return (
+                          <div className="flex justify-center">
+                            <input
+                              type="checkbox"
+                              checked={isStarted}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                // TODO: Add started toggle handler
+                                console.log('Started checkbox toggled:', !isStarted, 'for task:', task.id);
+                              }}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              title={isStarted ? 'Task started - click to mark not started' : 'Click to mark task as started'}
+                            />
+                          </div>
                         );
                       case 'hold':
                         // Don't show checkbox for header rows

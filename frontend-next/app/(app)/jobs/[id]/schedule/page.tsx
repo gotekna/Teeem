@@ -1562,34 +1562,57 @@ export default function SchedulePage() {
                     <span className="text-muted-foreground">Has PO:</span>
                     <span className="ml-2">{editingTask.purchase_order_id ? "Yes" : "No"}</span>
                   </div>
-                  {/* Parent task info (full width) - handles both number and string IDs */}
+                  {/* Parent/Header task info (full width) */}
                   {(() => {
                     const currentHeaderGantt = taskEditForm.header_gantt !== undefined
                       ? taskEditForm.header_gantt
                       : editingTask.header_gantt;
-                    return currentHeaderGantt && currentHeaderGantt !== "Header" && (
-                      <div className="col-span-2 flex items-center justify-between">
-                        <div>
-                          <span className="text-muted-foreground">Parent Task:</span>
-                          <span className="ml-2">
-                            {(() => {
-                              const parentId = typeof currentHeaderGantt === "string"
-                                ? parseInt(currentHeaderGantt, 10)
-                                : currentHeaderGantt;
-                              const parentTask = ganttTasks.find(t => t.id === parentId);
-                              return parentTask?.name || `Task #${currentHeaderGantt}`;
-                            })()}
-                          </span>
+
+                    // Show if this task IS a header
+                    if (currentHeaderGantt === "Header") {
+                      return (
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Type:</span>
+                          <span className="ml-2 font-medium text-primary">Header Task (parent of other tasks)</span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => setTaskEditForm({ ...taskEditForm, header_gantt: null })}
-                          title="Remove parent task"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
+                      );
+                    }
+
+                    // Show parent task if this task has one
+                    if (currentHeaderGantt && currentHeaderGantt !== "Header") {
+                      return (
+                        <div className="col-span-2 flex items-center justify-between">
+                          <div>
+                            <span className="text-muted-foreground">Parent Task:</span>
+                            <span className="ml-2">
+                              {(() => {
+                                const parentId = typeof currentHeaderGantt === "string"
+                                  ? parseInt(currentHeaderGantt, 10)
+                                  : currentHeaderGantt;
+                                const parentTask = ganttTasks.find(t => t.id === parentId);
+                                console.log('[TaskEdit] Looking for parent:', parentId, 'Found:', parentTask?.name, 'Total tasks:', ganttTasks.length);
+                                return parentTask?.name || `Task #${currentHeaderGantt} (not found in loaded tasks)`;
+                              })()}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => setTaskEditForm({ ...taskEditForm, header_gantt: null })}
+                            title="Remove parent task"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      );
+                    }
+
+                    // No parent - top-level task
+                    return (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Type:</span>
+                        <span className="ml-2">Top-level task (no parent)</span>
                       </div>
                     );
                   })()}
@@ -2631,34 +2654,57 @@ export default function SchedulePage() {
                     <span className="text-muted-foreground">Has PO:</span>
                     <span className="ml-2">{editingTask.purchase_order_id ? "Yes" : "No"}</span>
                   </div>
-                  {/* Parent task info (full width) - handles both number and string IDs */}
+                  {/* Parent/Header task info (full width) */}
                   {(() => {
                     const currentHeaderGantt = taskEditForm.header_gantt !== undefined
                       ? taskEditForm.header_gantt
                       : editingTask.header_gantt;
-                    return currentHeaderGantt && currentHeaderGantt !== "Header" && (
-                      <div className="col-span-2 flex items-center justify-between">
-                        <div>
-                          <span className="text-muted-foreground">Parent Task:</span>
-                          <span className="ml-2">
-                            {(() => {
-                              const parentId = typeof currentHeaderGantt === "string"
-                                ? parseInt(currentHeaderGantt, 10)
-                                : currentHeaderGantt;
-                              const parentTask = ganttTasks.find(t => t.id === parentId);
-                              return parentTask?.name || `Task #${currentHeaderGantt}`;
-                            })()}
-                          </span>
+
+                    // Show if this task IS a header
+                    if (currentHeaderGantt === "Header") {
+                      return (
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Type:</span>
+                          <span className="ml-2 font-medium text-primary">Header Task (parent of other tasks)</span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => setTaskEditForm({ ...taskEditForm, header_gantt: null })}
-                          title="Remove parent task"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
+                      );
+                    }
+
+                    // Show parent task if this task has one
+                    if (currentHeaderGantt && currentHeaderGantt !== "Header") {
+                      return (
+                        <div className="col-span-2 flex items-center justify-between">
+                          <div>
+                            <span className="text-muted-foreground">Parent Task:</span>
+                            <span className="ml-2">
+                              {(() => {
+                                const parentId = typeof currentHeaderGantt === "string"
+                                  ? parseInt(currentHeaderGantt, 10)
+                                  : currentHeaderGantt;
+                                const parentTask = ganttTasks.find(t => t.id === parentId);
+                                console.log('[TaskEdit] Looking for parent:', parentId, 'Found:', parentTask?.name, 'Total tasks:', ganttTasks.length);
+                                return parentTask?.name || `Task #${currentHeaderGantt} (not found in loaded tasks)`;
+                              })()}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => setTaskEditForm({ ...taskEditForm, header_gantt: null })}
+                            title="Remove parent task"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      );
+                    }
+
+                    // No parent - top-level task
+                    return (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Type:</span>
+                        <span className="ml-2">Top-level task (no parent)</span>
                       </div>
                     );
                   })()}
