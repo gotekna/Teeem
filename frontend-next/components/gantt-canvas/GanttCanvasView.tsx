@@ -342,6 +342,21 @@ export function GanttCanvasView({
     affectedSuccessors: []
   });
 
+  // Dependency creation popup state
+  const [depPopup, setDepPopup] = React.useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    sourceTask: GanttTask | null;
+    targetTask: GanttTask | null;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    sourceTask: null,
+    targetTask: null
+  });
+
   // Cascade dialog state for task moves
   const [cascadeDialog, setCascadeDialog] = React.useState<{
     isOpen: boolean;
@@ -882,6 +897,68 @@ export function GanttCanvasView({
 
     setDepEditorOpen(true);
   }, [isStaticMode, staticDependencies, templateDependencies]);
+
+  // Open dependency editor with a new predecessor already added (from drag-drop)
+  const openDepEditorWithNewPredecessor = React.useCallback((
+    targetTask: GanttTask,
+    sourceTask: GanttTask,
+    depType: 'FS' | 'FF'
+  ) => {
+    setDepEditorTask(targetTask);
+
+    // Load existing predecessors
+    const currentDeps = isStaticMode ? (staticDependencies || []) : templateDependencies;
+    const existingPredecessors: PredecessorLink[] = currentDeps
+      .filter(d => d.toId === targetTask.id)
+      .map(d => ({
+        predecessorId: d.fromId,
+        type: (d.type || 'FS') as DependencyType,
+        lag: d.lag || 0,
+      }));
+
+    // Add the new predecessor (source task)
+    const newPredecessor: PredecessorLink = {
+      predecessorId: sourceTask.id,
+      type: depType,
+      lag: 0,
+    };
+
+    // Check if this predecessor already exists
+    const alreadyExists = existingPredecessors.some(p => p.predecessorId === sourceTask.id);
+    if (!alreadyExists) {
+      setDepEditorLinks([...existingPredecessors, newPredecessor]);
+    } else {
+      setDepEditorLinks(existingPredecessors);
+    }
+
+    // Load existing successors
+    const existingSuccessors: PredecessorLink[] = currentDeps
+      .filter(d => d.fromId === targetTask.id)
+      .map(d => ({
+        predecessorId: d.toId,
+        type: (d.type || 'FS') as DependencyType,
+        lag: d.lag || 0,
+      }));
+    setDepEditorSuccessorLinks(existingSuccessors);
+
+    setDepEditorOpen(true);
+  }, [isStaticMode, staticDependencies, templateDependencies]);
+
+  // Handle dependency popup button click (Start or Finish)
+  const handleDepPopupClick = React.useCallback((type: 'FS' | 'FF') => {
+    if (!depPopup.sourceTask || !depPopup.targetTask) return;
+
+    // Hide the popup
+    setDepPopup(prev => ({ ...prev, visible: false }));
+
+    // Cancel the canvas drag state
+    if (ganttRef.current) {
+      ganttRef.current.cancelDependencyDrag();
+    }
+
+    // Open the dependency editor with the new predecessor pre-filled
+    openDepEditorWithNewPredecessor(depPopup.targetTask, depPopup.sourceTask, type);
+  }, [depPopup.sourceTask, depPopup.targetTask, openDepEditorWithNewPredecessor]);
 
   // Add a new predecessor link
   const addPredecessorLink = React.useCallback(() => {
@@ -2217,6 +2294,14 @@ export function GanttCanvasView({
     // Register dependency create handler to save new dependencies
     gantt.onDependencyCreateHandler(handleDependencyCreate);
 
+    // Register dependency popup handlers (for Start/Finish selection UI)
+    gantt.onDependencyPopupShowHandler((sourceTask, targetTask, x, y) => {
+      setDepPopup({ visible: true, x, y, sourceTask, targetTask });
+    });
+    gantt.onDependencyPopupHideHandler(() => {
+      setDepPopup(prev => ({ ...prev, visible: false }));
+    });
+
     // Register scroll sync callback
     gantt.onScrollHandler((scrollX, scrollY) => {
       if (sidebarRef.current) {
@@ -3196,6 +3281,35 @@ export function GanttCanvasView({
           className="flex-1 min-h-0 bg-background"
           style={{ position: "relative" }}
         />
+
+        {/* Dependency Creation Popup - shows Start/Finish buttons when dragging over target */}
+        {depPopup.visible && depPopup.targetTask && (
+          <div
+            className="fixed z-50 bg-popover border rounded-lg shadow-lg p-2 flex gap-1"
+            style={{
+              left: depPopup.x,
+              top: depPopup.y,
+              transform: 'translate(-50%, 0)',
+            }}
+          >
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-3 text-xs font-medium"
+              onClick={() => handleDepPopupClick('FS')}
+            >
+              Start
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-3 text-xs font-medium"
+              onClick={() => handleDepPopupClick('FF')}
+            >
+              Finish
+            </Button>
+          </div>
+        )}
 
         {/* Photo Panel - Right Side (only when jobId is provided) */}
         {showPhotoPanel && jobId && (

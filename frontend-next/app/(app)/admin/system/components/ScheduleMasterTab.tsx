@@ -2392,6 +2392,81 @@ export function ScheduleMasterTab() {
                     <Badge className="text-[10px] bg-blue-500">Header</Badge>
                   )}
                 </div>
+                {/* Child Tasks - shown when Allow Header is enabled */}
+                {editRowForm.allow_header && editingRow && (
+                  <div className="pt-2 border-t">
+                    <Label className="text-xs">Child Tasks (tasks grouped under this header)</Label>
+                    <MultipleSelector
+                      value={dataViewRows
+                        .filter(r => {
+                          const parentId = extractLookupId(r.header_gantt);
+                          return parentId && String(parentId) === String(editingRow.id);
+                        })
+                        .map(r => ({ value: String(r.id), label: r.name }))}
+                      onChange={async (options) => {
+                        // Get current children IDs
+                        const currentChildIds = dataViewRows
+                          .filter(r => {
+                            const parentId = extractLookupId(r.header_gantt);
+                            return parentId && String(parentId) === String(editingRow.id);
+                          })
+                          .map(r => r.id);
+                        const newChildIds = options.map(o => parseInt(o.value));
+
+                        // Find added and removed children
+                        const addedIds = newChildIds.filter(id => !currentChildIds.includes(id));
+                        const removedIds = currentChildIds.filter(id => !newChildIds.includes(id));
+
+                        // Update children's header_gantt field
+                        try {
+                          // Add new children
+                          for (const childId of addedIds) {
+                            await api.patch(`/api/v1/foundations/sm-schedule-master/records/${childId}`, {
+                              header_gantt: editingRow.id
+                            });
+                          }
+                          // Remove old children (clear their header_gantt)
+                          for (const childId of removedIds) {
+                            await api.patch(`/api/v1/foundations/sm-schedule-master/records/${childId}`, {
+                              header_gantt: null
+                            });
+                          }
+                          // Refresh the data to show updated relationships
+                          await loadDataViewRows(dataViewTemplateId);
+                        } catch (error) {
+                          console.error("Failed to update child tasks:", error);
+                          toast({
+                            title: "Error",
+                            description: "Failed to update child tasks",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      defaultOptions={dataViewRows
+                        .filter(r => {
+                          // Exclude: this task, other headers, and tasks that already have a different header
+                          if (r.id === editingRow.id) return false;
+                          if (r.allow_header) return false;  // Headers can't be children
+                          const parentId = extractLookupId(r.header_gantt);
+                          // Include if no parent or parent is this task
+                          return !parentId || String(parentId) === String(editingRow.id);
+                        })
+                        .map(r => ({
+                          value: String(r.id),
+                          label: r.name
+                        }))}
+                      placeholder="Select child tasks..."
+                      emptyIndicator={
+                        <p className="text-center text-xs text-muted-foreground">
+                          No available tasks to add as children
+                        </p>
+                      }
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      These tasks will be grouped under this header in the Gantt chart
+                    </p>
+                  </div>
+                )}
                 {/* Active Status */}
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <Switch
