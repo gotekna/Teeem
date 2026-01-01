@@ -463,8 +463,10 @@ export default function SchedulePage() {
 
   // Refetch Gantt data (called after dependency changes, task updates, etc.)
   const refetchGanttData = React.useCallback(async () => {
+    console.log('[refetchGanttData] Called - fetching fresh data');
     try {
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
+      console.log('[refetchGanttData] Got response, tasks count:', response.gantt_data?.tasks?.length);
       setGanttTasks(response.gantt_data?.tasks || []);
       setGanttApiDeps(response.gantt_data?.dependencies || []);
     } catch (error) {
@@ -1090,6 +1092,7 @@ export default function SchedulePage() {
                 }}
                 className="h-full"
                 jobId={Number(jobId)}
+                onDataChange={refetchGanttData}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">

@@ -1444,6 +1444,71 @@ export default function JobDetailPage() {
                       Auto-generated from address components
                     </p>
                   </div>
+                  {/* Level & Dwelling Type - Choice columns */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Level</Label>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit choices">
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <button
+                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
+                              onClick={() => setEditingChoices({ field: 'level', choices: [...levelChoices] })}
+                            >
+                              <Settings className="h-3 w-3 inline mr-2" />
+                              Edit Choices
+                            </button>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {isEditing ? (
+                        <ComboboxDropdown
+                          items={levelChoices.map((c) => ({ id: c, label: c }))}
+                          selectedItem={editForm.level ? { id: editForm.level, label: editForm.level } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, level: item.label })}
+                          placeholder="Select level..."
+                        />
+                      ) : (
+                        <Input value={job.level || "-"} readOnly />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Dwelling Type</Label>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit choices">
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <button
+                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
+                              onClick={() => setEditingChoices({ field: 'dwelling_type', choices: [...dwellingTypeChoices] })}
+                            >
+                              <Settings className="h-3 w-3 inline mr-2" />
+                              Edit Choices
+                            </button>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {isEditing ? (
+                        <ComboboxDropdown
+                          items={dwellingTypeChoices.map((c) => ({ id: c, label: c }))}
+                          selectedItem={editForm.dwelling_type ? { id: editForm.dwelling_type, label: editForm.dwelling_type } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, dwelling_type: item.label })}
+                          placeholder="Select dwelling type..."
+                        />
+                      ) : (
+                        <Input value={job.dwelling_type || "-"} readOnly />
+                      )}
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Job Type</Label>
@@ -1539,71 +1604,6 @@ export default function JobDetailPage() {
                         Suggested match: {suggestedXeroMatch.name}
                       </p>
                     )}
-                  </div>
-                  {/* Construction Details - Choice columns with inline edit */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Level</Label>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit choices">
-                              <MoreVertical className="h-3 w-3" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <button
-                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
-                              onClick={() => setEditingChoices({ field: 'level', choices: [...levelChoices] })}
-                            >
-                              <Settings className="h-3 w-3 inline mr-2" />
-                              Edit Choices
-                            </button>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      {isEditing ? (
-                        <ComboboxDropdown
-                          items={levelChoices.map((c) => ({ id: c, label: c }))}
-                          selectedItem={editForm.level ? { id: editForm.level, label: editForm.level } : undefined}
-                          onSelect={(item) => setEditForm({ ...editForm, level: item.label })}
-                          placeholder="Select level..."
-                        />
-                      ) : (
-                        <Input value={job.level || "-"} readOnly />
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Dwelling Type</Label>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit choices">
-                              <MoreVertical className="h-3 w-3" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <button
-                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
-                              onClick={() => setEditingChoices({ field: 'dwelling_type', choices: [...dwellingTypeChoices] })}
-                            >
-                              <Settings className="h-3 w-3 inline mr-2" />
-                              Edit Choices
-                            </button>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      {isEditing ? (
-                        <ComboboxDropdown
-                          items={dwellingTypeChoices.map((c) => ({ id: c, label: c }))}
-                          selectedItem={editForm.dwelling_type ? { id: editForm.dwelling_type, label: editForm.dwelling_type } : undefined}
-                          onSelect={(item) => setEditForm({ ...editForm, dwelling_type: item.label })}
-                          placeholder="Select dwelling type..."
-                        />
-                      ) : (
-                        <Input value={job.dwelling_type || "-"} readOnly />
-                      )}
-                    </div>
                   </div>
                 </div>
               </CardContent>

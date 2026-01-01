@@ -1251,6 +1251,7 @@ export function GanttCanvasView({
       // Reload to recalculate all dependent task dates (refresh Gantt with new lag values)
       if (isStaticMode && onDataChange) {
         // Static mode: notify parent to refetch data
+        console.log('[saveDependencies] Calling onDataChange to refresh');
         onDataChange();
       } else {
         // Template mode: reload via API
