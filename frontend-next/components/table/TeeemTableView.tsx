@@ -2172,28 +2172,26 @@ export default function TeeemTableView({
     }
   }, [onBulkMerge, enableMerge, effectiveFoundationId]);
 
-  // Called when merge completes successfully - optimistically hides merged rows
+  // Called when merge completes successfully - refreshes the table to show updated data
   const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
-    // Optimistically hide deleted rows immediately (no full refresh needed!)
-    // This keeps the table open and preserves group expansion state
-    setPendingDeleteIds(new Set(deletedIds));
-
     // Clear selections
     setMergeSelectedIds([]);
     setSelectedRows(new Set<string | number>());
 
-    // 🔴 CRITICAL: Clear cache so next refresh gets fresh data
-    // Even though we don't refresh now, the cache should be invalidated
+    // 🔴 CRITICAL: Clear cache so refresh gets fresh data
     // SSoT: records-cache.ts
     if (effectiveFoundationId) {
       clearCachedRecords(effectiveFoundationId);
     }
 
-    // NOTE: We intentionally do NOT call onRefresh() here anymore.
-    // The optimistic hide via pendingDeleteIds provides instant feedback.
-    // A full refresh would reset grouped views, scroll position, and cause flicker.
-    // Data will naturally sync on the next user-triggered refresh or navigation.
-  }, [effectiveFoundationId]);
+    // Trigger refresh to show updated data
+    // For autoFetch mode, increment the refresh key to re-fetch
+    if (useAutoFetch) {
+      setAutoFetchRefreshKey(prev => prev + 1);
+    }
+    // Also call onRefresh for non-autoFetch tables
+    onRefresh?.();
+  }, [effectiveFoundationId, useAutoFetch, onRefresh]);
 
   // Group handlers
   // Lazy load all records for a group when expanding (server-side grouping)
