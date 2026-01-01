@@ -678,14 +678,17 @@ export function GanttCanvasView({
     // This runs at render time, using the current task.startDate values
     const isHeader = (task: GanttTask): boolean => {
       const rowData = task.rowData as SmScheduleMaster | undefined;
-      return rowData?.header_gantt === 'Header';
+      // SSoT: Check both header_gantt and allow_header for header detection
+      return rowData?.header_gantt === 'Header' || rowData?.allow_header === true;
     };
 
     const getParentTaskNumber = (task: GanttTask): number | null => {
       const rowData = task.rowData as SmScheduleMaster | undefined;
       if (!rowData) return null;
+      // SSoT: If this IS a header, it doesn't have a parent
+      if (rowData.header_gantt === 'Header' || rowData.allow_header === true) return null;
       const hg = rowData.header_gantt;
-      if (hg === 'Header' || hg === null || hg === undefined) return null;
+      if (hg === null || hg === undefined) return null;
       if (typeof hg === 'number') return hg;
       if (typeof hg === 'object' && hg?.id) return hg.id;
       if (typeof hg === 'string') {
@@ -759,10 +762,10 @@ export function GanttCanvasView({
     return blocks.flatMap(b => b.items);
   }, [tasks, rows, collapsedHeaders, showOnlyGrouped, viewSlug, nameSearch]);
 
-  // Check if a task is a header (rowData.header_gantt === 'Header')
+  // Check if a task is a header (SSoT: check both header_gantt and allow_header)
   const isHeaderTask = React.useCallback((task: GanttTask | undefined) => {
     const rowData = task?.rowData as SmScheduleMaster | undefined;
-    return rowData?.header_gantt === 'Header';
+    return rowData?.header_gantt === 'Header' || rowData?.allow_header === true;
   }, []);
 
   // Get child count for a header task (uses header_gantt to find children)
@@ -2548,6 +2551,13 @@ export function GanttCanvasView({
     }
   }, [visibleTasks]);
 
+  // Sync selected group header ID to canvas for header highlighting
+  React.useEffect(() => {
+    if (ganttRef.current) {
+      ganttRef.current.setSelectedGroupHeaderId(selectedGroupHeaderId);
+    }
+  }, [selectedGroupHeaderId]);
+
   // Note: The static tasks update effect was removed because the main useEffect
   // already handles this correctly - it recreates the canvas with fresh data
   // when staticTasks changes.
@@ -3156,7 +3166,7 @@ export function GanttCanvasView({
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Table - always shows Name column, toggles other columns */}
-        <div className="flex flex-col border-r bg-background relative" style={{ width: 'auto', minWidth: showSidebar ? 200 : 280, maxWidth: showSidebar ? 600 : 300 }}>
+        <div className="flex flex-col bg-background relative" style={{ width: 'auto', minWidth: showSidebar ? 200 : 280, maxWidth: showSidebar ? 600 : 300 }}>
             {/* Sidebar Header - Draggable Columns with Search in Name column */}
             <DndContext
               sensors={columnDragSensors}
@@ -3204,7 +3214,7 @@ export function GanttCanvasView({
             {/* Sticky Header - shows parent header when scrolled past it */}
             {stickyHeader && (
               <div
-                className="absolute left-0 right-0 z-10 flex items-center border-b text-xs px-2 cursor-pointer bg-amber-100 dark:bg-amber-900/40 border-l-4 border-l-amber-500 shadow-sm"
+                className="absolute left-0 right-0 z-10 flex items-center border-b text-xs px-2 cursor-pointer bg-amber-200 dark:bg-amber-900/40 border-l-4 border-l-amber-500 shadow-sm"
                 style={{ height: 28, top: 50 }}
                 onClick={() => {
                   setSelectedTaskId(stickyHeader.id);
@@ -3498,10 +3508,10 @@ export function GanttCanvasView({
                           ? "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-inset ring-blue-500"
                           : inSelectedGroup
                             ? isHeader
-                              ? "bg-amber-100 dark:bg-amber-900/30 border-l-4 border-l-amber-500"
-                              : "bg-amber-50 dark:bg-amber-900/20 border-l-2 border-l-amber-400"
+                              ? "bg-amber-200 dark:bg-amber-900/30 border-l-4 border-l-amber-500"
+                              : "bg-amber-100 dark:bg-amber-900/20 border-l-2 border-l-amber-400"
                             : isHeader
-                              ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
+                              ? "bg-blue-50/60 dark:bg-blue-900/15 border-l-4 border-l-blue-200 dark:border-l-blue-800"
                               : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
                       )}
                       style={{ height: 28 }}

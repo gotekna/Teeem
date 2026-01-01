@@ -596,6 +596,8 @@ export default function SchedulePage() {
           confirm: task.confirm ?? false,
           supplier_confirm: task.supplier_confirm ?? false,
           header_gantt: task.header_gantt,
+          // SSoT: allow_header from backend GanttDataService for canvas renderer header detection
+          allow_header: task.allow_header ?? false,
           hold: task.hold ?? false,
           hold_date: task.hold_date,
           supplier_id: task.supplier_id,

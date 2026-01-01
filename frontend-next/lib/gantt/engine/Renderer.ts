@@ -282,10 +282,43 @@ export class Renderer {
     hoveredTaskId: string | null,
     hoveredEdge?: 'left' | 'right' | null,
     canvasHeight?: number,
-    criticalTaskIds?: Set<string>
+    criticalTaskIds?: Set<string>,
+    selectedGroupHeaderId?: string | null
   ): void {
     const { taskBarHeight, taskBarPadding, rowHeight, headerHeight } = this.config;
     const state = this.viewport.getState();
+
+    // Find the selected header task's task_number for group membership checking
+    const selectedHeaderTask = selectedGroupHeaderId
+      ? tasks.find(t => t.id === selectedGroupHeaderId)
+      : null;
+    const selectedHeaderTaskNumber = selectedHeaderTask?.rowData?.task_number;
+
+    // Helper function to check if a task belongs to the selected group
+    const isTaskInSelectedGroup = (task: GanttTask): boolean => {
+      if (!selectedGroupHeaderId) return false;
+
+      // Check if task IS the header
+      if (task.id === selectedGroupHeaderId) {
+        return true;
+      }
+
+      // Check if task is a child of the selected header
+      if (selectedHeaderTaskNumber === undefined) {
+        return false;
+      }
+
+      const taskHeaderGantt = task.rowData?.header_gantt;
+      if (!taskHeaderGantt || taskHeaderGantt === 'Header') return false;
+
+      // Handle different types: object with id, string, or number
+      const headerGanttValue = typeof taskHeaderGantt === 'object' && 'id' in taskHeaderGantt
+        ? taskHeaderGantt.id
+        : taskHeaderGantt;
+
+      // Compare as strings to handle type mismatches
+      return String(headerGanttValue) === String(selectedHeaderTaskNumber);
+    };
 
     // Calculate visible row range for virtual scrolling
     const visibleHeight = canvasHeight ?? 800;
@@ -317,17 +350,30 @@ export class Renderer {
       const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth; // Add 1 day to include end date
 
       // Check if this is a header/summary task for row background
-      const isHeaderRow = task.rowData?.header_gantt === 'Header';
+      // SSoT: Check both header_gantt === 'Header' (templates) and allow_header (schedule page)
+      const isHeaderRow = task.rowData?.header_gantt === 'Header' || task.rowData?.allow_header === true;
 
       // Horizontal virtual scrolling: skip if task is entirely outside visible X range
       if (endX < visibleStartX || startX > visibleEndX) {
         // Still draw row highlight for header/selected/hovered even if bar not visible
         const isSelected = selectedTaskIds.has(task.id);
-        // SSoT: Draw header row background first (amber), then selection on top
-        if (isHeaderRow && !isSelected) {
-          this.ctx.fillStyle = this.config.colors.headerRowBackground;
+        const isInSelectedGroup = isTaskInSelectedGroup(task);
+
+        // Draw amber background for all rows in selected group (use darker for headers, lighter for children)
+        if (isInSelectedGroup) {
+          if (isHeaderRow) {
+            this.ctx.fillStyle = this.config.colors.headerRowBackground; // amber-200 (darker)
+          } else {
+            this.ctx.fillStyle = this.config.colors.childRowBackground;  // amber-100 (lighter)
+          }
+          this.ctx.fillRect(0, y, 10000, rowHeight);
+        } else if (isHeaderRow && !isSelected) {
+          // Non-selected header rows get gray background
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.06)';
           this.ctx.fillRect(0, y, 10000, rowHeight);
         }
+
+        // Then draw selection/hover on top (ONLY for the clicked row)
         if (isSelected) {
           this.ctx.fillStyle = this.config.colors.selectedRow;
           this.ctx.fillRect(0, y, 10000, rowHeight);
@@ -339,18 +385,29 @@ export class Renderer {
       }
 
       const isSelected = selectedTaskIds.has(task.id);
+      const isInSelectedGroup = isTaskInSelectedGroup(task);
 
-      // Row background: header rows get amber, selection/hover on top
-      // SSoT: Draw header row background first (amber to match sidebar)
-      if (isHeaderRow && !isSelected && task.id !== hoveredTaskId) {
-        this.ctx.fillStyle = this.config.colors.headerRowBackground;
+      // Row background: Amber for ALL rows in selected group (header + children)
+      // SSoT: Draw amber FIRST for entire group, then selection overlay on top for clicked row
+      if (isInSelectedGroup) {
+        // Selected group: use darker amber for headers, lighter for children (matches sidebar)
+        if (isHeaderRow) {
+          this.ctx.fillStyle = this.config.colors.headerRowBackground; // amber-200 (darker)
+        } else {
+          this.ctx.fillStyle = this.config.colors.childRowBackground;  // amber-100 (lighter)
+        }
+        this.ctx.fillRect(0, y, 10000, rowHeight);
+      } else if (isHeaderRow && !isSelected && task.id !== hoveredTaskId) {
+        // Not selected header: gray/muted background
+        this.ctx.fillStyle = this.config.darkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.06)';
         this.ctx.fillRect(0, y, 10000, rowHeight);
       }
-      // Then draw selection/hover on top
+
+      // Then draw selection/hover on top (ONLY for the clicked row)
       if (isSelected) {
         this.ctx.fillStyle = this.config.colors.selectedRow;
         this.ctx.fillRect(0, y, 10000, rowHeight);
-      } else if (task.id === hoveredTaskId) {
+      } else if (task.id !== isSelected && task.id === hoveredTaskId) {
         this.ctx.fillStyle = this.config.colors.hoverRow;
         this.ctx.fillRect(0, y, 10000, rowHeight);
       }

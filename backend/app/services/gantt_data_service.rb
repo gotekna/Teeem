@@ -210,6 +210,8 @@ class GanttDataService
       # Otherwise, return the parent's task_number from header_gantt column
       # SmTask doesn't have header_gantt column - look it up from linked sm_schedule_master
       header_gantt: determine_header_gantt(record),
+      # SSoT: Explicit allow_header flag for canvas renderer header detection
+      allow_header: is_header?(record),
       parent_id: record.try(:parent_task_id),
       # Ordering
       sequence_order: record.try(:sequence_order) || 0,

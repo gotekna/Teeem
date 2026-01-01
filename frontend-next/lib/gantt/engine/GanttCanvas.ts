@@ -514,6 +514,9 @@ export class GanttCanvas {
   private contextMenuItems: ContextMenuItem[] = [];
   private contextMenuHoveredItem: string | null = null;
 
+  // Selected group header ID (passed from React component for header highlighting)
+  private selectedGroupHeaderIdFromParent: string | null = null;
+
   // Dependency lines visibility
   private dependenciesVisible: boolean = false; // Off by default
 
@@ -833,6 +836,15 @@ export class GanttCanvas {
 
     // Recalculate critical path if enabled
     this.recalculateCriticalPath();
+  }
+
+  /**
+   * Set the selected group header ID from the parent component
+   * Used for highlighting header rows when a child task is selected
+   */
+  setSelectedGroupHeaderId(headerId: string | null): void {
+    this.selectedGroupHeaderIdFromParent = headerId;
+    this.markDirty();
   }
 
   /**
@@ -2736,7 +2748,10 @@ export class GanttCanvas {
       this.renderer.drawBaselines(this.state.tasks, this.baselineData, this.containerHeight);
     }
 
-    this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks);
+    // Use selected group header ID from parent component (for amber highlighting)
+    const selectedGroupHeaderId = this.selectedGroupHeaderIdFromParent;
+
+    this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks, selectedGroupHeaderId);
 
     // Draw dependency lines
     // When toggle is OFF, still show highlighted deps for selected task (black/yellow & black/white)

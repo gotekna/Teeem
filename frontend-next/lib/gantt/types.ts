@@ -118,6 +118,8 @@ export interface SmScheduleMaster {
   supplier_confirm: boolean;
   finance_approved: boolean;
   header_gantt: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
+  // SSoT: Explicit allow_header flag for header detection (from GanttDataService)
+  allow_header?: boolean;
   // Multi-template support
   sm_template_ids: number[];
   // Manual positioning (held dates)
@@ -225,6 +227,10 @@ export interface GanttColors {
   headerText: string;
   selectedRow: string;
   hoverRow: string;
+  borderColor: string;
+  textColor: string;
+  headerRowBackground: string;   // Amber background for header rows in selected group
+  childRowBackground: string;    // Lighter amber background for child rows in selected group
 }
 
 /**
