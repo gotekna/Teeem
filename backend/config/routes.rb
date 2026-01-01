@@ -1906,6 +1906,7 @@ Rails.application.routes.draw do
           get :sync_stats
           get :common_contacts
           get :unlinked_contacts
+          get :xero_duplicates
           post :link_unlinked_contact
           post :auto_match_contacts
           post :push_contact_names

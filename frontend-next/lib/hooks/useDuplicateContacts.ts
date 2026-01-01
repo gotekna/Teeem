@@ -123,3 +123,55 @@ export function useDismissDuplicateGroup() {
     },
   });
 }
+
+// ============================================
+// Xero Duplicates (duplicates WITHIN Xero that need merging in Xero)
+// ============================================
+
+export interface XeroDuplicateContact {
+  xero_name: string;
+  xero_id: string;
+  invoice_count: number;
+  total_amount: number;
+  has_teeem_link: boolean;
+  teeem_contact_id: number | null;
+  teeem_contact_name: string | null;
+}
+
+export interface XeroDuplicateGroup {
+  tenant_id: string;
+  tenant_name: string;
+  base_name: string;
+  variation_count: number;
+  xero_contacts: XeroDuplicateContact[];
+}
+
+export interface XeroDuplicatesResponse {
+  success: boolean;
+  data: {
+    total_groups: number;
+    groups: XeroDuplicateGroup[];
+  };
+}
+
+/**
+ * Fetch Xero duplicate contacts (same entity, different Xero IDs within same tenant)
+ * These need to be merged in Xero, not in TEEEM
+ */
+export function useGetXeroDuplicates() {
+  return useQuery<XeroDuplicatesResponse>({
+    queryKey: ['xero-duplicates'],
+    queryFn: async () => {
+      const response = await api.get<XeroDuplicatesResponse>('/api/v1/xero/xero_duplicates');
+      return response;
+    },
+  });
+}
+
+/**
+ * Get count of Xero duplicate groups (for badge)
+ */
+export function useGetXeroDuplicateCount() {
+  const { data } = useGetXeroDuplicates();
+  return data?.data?.total_groups ?? 0;
+}

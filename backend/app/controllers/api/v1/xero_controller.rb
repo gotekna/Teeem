@@ -2200,6 +2200,107 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/xero_duplicates
+      # Finds potential duplicate contacts WITHIN Xero tenants (same entity, different Xero contact IDs)
+      # These need to be merged in Xero, not in TEEEM
+      def xero_duplicates
+        begin
+          duplicates = []
+
+          # Words to ignore when grouping (too common, create false positives)
+          ignore_words = %w[the a an and or of for in at to from by with on as
+                            pty ltd limited inc corp company group holdings trust
+                            all my our your new old big small first last best top
+                            david john michael james robert william peter paul mark steve
+                            andrew chris daniel jason matthew brian kevin jeff scott eric]
+
+          # Get all unique Xero contacts per tenant
+          tenant_contacts = ExternalInvoice
+            .where.not(contact_name: [ nil, "", "No Contact" ])
+            .where.not(external_contact_id: nil)
+            .select("DISTINCT tenant_id, contact_name, external_contact_id")
+            .to_a
+
+          # Group by tenant
+          by_tenant = tenant_contacts.group_by(&:tenant_id)
+
+          by_tenant.each do |tenant_id, contacts|
+            cred = XeroCredential.find_by(tenant_id: tenant_id)
+            tenant_name = cred&.tenant_name || tenant_id[0..7]
+
+            # Group contacts by normalized first meaningful word
+            names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
+
+            # Find first meaningful word (not in ignore list)
+            by_first_word = names.group_by do |c|
+              words = c[:name].downcase.split(/\s+/)
+              meaningful = words.find { |w| w.length >= 3 && !ignore_words.include?(w) }
+              meaningful || words.first
+            end
+
+            by_first_word.each do |first_word, group|
+              next if group.length <= 1
+              next if first_word.nil? || first_word.length < 3
+              next if ignore_words.include?(first_word)
+
+              # Check if names are actually different (not just same first word with same full name)
+              unique_names = group.map { |g| g[:name] }.uniq
+              next if unique_names.length <= 1
+
+              # Check if names are similar enough to be duplicates (share significant words)
+              # Skip if names are clearly different entities
+              name_words = unique_names.map { |n| n.downcase.split(/\s+/).reject { |w| ignore_words.include?(w) } }
+              shared_words = name_words.reduce { |a, b| a & b }
+              next if shared_words.nil? || shared_words.empty?
+
+              # Build group details
+              xero_contacts = group.map do |g|
+                inv_count = ExternalInvoice.where(external_contact_id: g[:xero_id]).count
+                total_amount = ExternalInvoice.where(external_contact_id: g[:xero_id]).sum(:total)&.to_f || 0
+                has_link = ContactExternalLink.exists?(external_contact_id: g[:xero_id])
+                linked_contact = has_link ? ContactExternalLink.find_by(external_contact_id: g[:xero_id])&.contact : nil
+
+                {
+                  xero_name: g[:name],
+                  xero_id: g[:xero_id],
+                  invoice_count: inv_count,
+                  total_amount: total_amount,
+                  has_teeem_link: has_link,
+                  teeem_contact_id: linked_contact&.id,
+                  teeem_contact_name: linked_contact&.display_name
+                }
+              end
+
+              duplicates << {
+                tenant_id: tenant_id,
+                tenant_name: tenant_name,
+                base_name: first_word.capitalize,
+                variation_count: unique_names.length,
+                xero_contacts: xero_contacts.sort_by { |c| -c[:invoice_count] }
+              }
+            end
+          end
+
+          # Sort by variation count (most variations first)
+          duplicates.sort_by! { |d| -d[:variation_count] }
+
+          render json: {
+            success: true,
+            data: {
+              total_groups: duplicates.size,
+              groups: duplicates
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero xero_duplicates error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to get Xero duplicates: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/xero/link_unlinked_contact
       # Links a Xero contact to a TEEEM contact by creating a ContactExternalLink
       # Also updates any invoices with this Xero contact to point to the TEEEM contact

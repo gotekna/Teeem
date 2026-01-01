@@ -324,6 +324,19 @@ module Api
                             end
                   end
 
+                  # Convert percentage values (0-100) to decimal (0-1) for percentage columns
+                  # Users think in percentages (e.g., "< 99%") but data is stored as decimal
+                  # SSoT: Columns storing percentages as decimals (0-1)
+                  percentage_columns = %w[match_confidence pdf_sync_percent]
+                  if percentage_columns.include?(column) && value.present?
+                    numeric_value = value.to_f
+                    # Only convert if value looks like a percentage (> 1)
+                    # This allows both "99" (percentage) and "0.99" (decimal) to work
+                    if numeric_value > 1
+                      value = numeric_value / 100.0
+                    end
+                  end
+
                   # Resolve lookup display values to IDs
                   # If filtering a lookup column with a string value (display name), find the corresponding ID
                   # This handles saved views or filters that store display values instead of IDs

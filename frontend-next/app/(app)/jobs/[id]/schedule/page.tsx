@@ -466,7 +466,12 @@ export default function SchedulePage() {
     console.log('[refetchGanttData] Called - fetching fresh data');
     try {
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
-      console.log('[refetchGanttData] Got response, tasks count:', response.gantt_data?.tasks?.length);
+      // Debug: Find FRAME task to verify date update from API
+      const frameTask = response.gantt_data?.tasks?.find(t => t.name?.toUpperCase?.().includes('FRAME'));
+      console.log('[refetchGanttData] Got response', {
+        taskCount: response.gantt_data?.tasks?.length,
+        frameTask: frameTask ? { id: frameTask.id, name: frameTask.name, start_date: frameTask.start_date } : 'not found',
+      });
       setGanttTasks(response.gantt_data?.tasks || []);
       setGanttApiDeps(response.gantt_data?.dependencies || []);
     } catch (error) {
