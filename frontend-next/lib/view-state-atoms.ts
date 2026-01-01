@@ -413,23 +413,14 @@ export const applyViewAtom = atom(
       locked: false,
     }));
 
-    // For "grouped" view display type (By Company), auto-add entity_type = "person" filter
-    // This ensures only people are shown, grouped under their company
+    // For "grouped" view display type (By Company), include both people AND companies
+    // People are grouped by their primary_company; companies appear as standalone entries
+    // This allows searching for companies even if they have 0 employees linked
     // FRC: view_display_type indicates HOW data is shown (table/grouped)
     //      view_type indicates if it's custom/default - wrong field was checked before
-    if (view.view_display_type === 'grouped') {
-      const hasEntityTypeFilter = sourcedFilters.some(f => f.column === 'entity_type');
-      if (!hasEntityTypeFilter) {
-        sourcedFilters.push({
-          id: `grouped_entity_filter_${Date.now()}`,
-          column: 'entity_type',
-          operator: '=' as const,
-          value: 'person',
-          source: 'view' as const,
-          locked: true, // Lock this filter so users can't accidentally remove it
-        });
-      }
-    }
+    // NOTE: No entity_type filter needed - show all entity types in grouped view
+    // Companies with employees will have those employees grouped under them
+    // Companies with 0 employees will still appear in search results
 
     console.log('[applyViewAtom] Setting view filters:', {
       viewName: view.name,
