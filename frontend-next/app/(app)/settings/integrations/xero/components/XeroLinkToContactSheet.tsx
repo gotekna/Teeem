@@ -533,12 +533,16 @@ export function XeroLinkToContactSheet({
                               {contact.entity_type}
                             </Badge>
                           )}
-                          {contact.xero_linked_count && contact.xero_linked_count > 0 && (
+                          {contact.id === localContactId ? (
                             <span className="flex items-center gap-1 text-green-600">
                               <Check className="h-3 w-3" />
-                              linked
+                              currently linked
                             </span>
-                          )}
+                          ) : contact.xero_linked_count && contact.xero_linked_count > 0 ? (
+                            <span className="flex items-center gap-1 text-amber-600">
+                              linked to other Xero
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <Button

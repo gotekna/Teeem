@@ -3131,32 +3131,67 @@ export class GanttCanvas {
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
       const validTarget = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
 
-      // Show/update/hide popup IMMEDIATELY based on current target (no timer delay)
-      // Popup follows cursor - appears instantly when over a task, hides when leaving
+      // Show popup with a small delay (200ms) so user can drag across tasks without popup appearing on each
+      // Popup only shows after hovering over a task for the delay period
       if (this.onDependencyPopupShow) {
         if (validTarget) {
-          // Over a valid target - show/update popup immediately
-          this.dependencyTargetTask = validTarget;
-          this.dependencyPopupVisible = true;
+          // Check if we're over a NEW target (different from current)
+          if (this.dependencyTargetTask?.id !== validTarget.id) {
+            // Clear any existing timer
+            if (this.dependencyPopupTimer) {
+              window.clearTimeout(this.dependencyPopupTimer);
+              this.dependencyPopupTimer = null;
+            }
+            // Hide popup while moving between targets
+            if (this.dependencyPopupVisible) {
+              this.dependencyPopupVisible = false;
+              this.onDependencyPopupHide?.();
+            }
+            // Start timer for new target
+            this.dependencyTargetTask = validTarget;
+            const rect = this.canvas.getBoundingClientRect();
+            const popupX = rect.left + e.offsetX;
+            const popupY = rect.top + e.offsetY;
 
-          // Position popup at current mouse location
-          const rect = this.canvas.getBoundingClientRect();
-          const popupX = rect.left + e.offsetX;
-          const popupY = rect.top + e.offsetY;
-
-          this.onDependencyPopupShow(
-            this.dependencyFromTask,
-            validTarget,
-            this.dependencyFromEdge,
-            popupX,
-            popupY
-          );
+            this.dependencyPopupTimer = window.setTimeout(() => {
+              // Only show if still over the same target
+              if (this.dependencyTargetTask?.id === validTarget.id && this.dependencyFromTask) {
+                this.dependencyPopupVisible = true;
+                this.onDependencyPopupShow!(
+                  this.dependencyFromTask,
+                  validTarget,
+                  this.dependencyFromEdge!,
+                  popupX,
+                  popupY
+                );
+              }
+            }, 200); // 200ms delay before popup appears
+          }
+          // If over same target and popup already visible, just update position
+          else if (this.dependencyPopupVisible) {
+            const rect = this.canvas.getBoundingClientRect();
+            const popupX = rect.left + e.offsetX;
+            const popupY = rect.top + e.offsetY;
+            this.onDependencyPopupShow(
+              this.dependencyFromTask,
+              validTarget,
+              this.dependencyFromEdge,
+              popupX,
+              popupY
+            );
+          }
         } else {
-          // Not over a valid target - hide popup
+          // Not over a valid target - clear timer and hide popup
+          if (this.dependencyPopupTimer) {
+            window.clearTimeout(this.dependencyPopupTimer);
+            this.dependencyPopupTimer = null;
+          }
           if (this.dependencyPopupVisible) {
             this.dependencyPopupVisible = false;
             this.dependencyTargetTask = null;
             this.onDependencyPopupHide?.();
+          } else {
+            this.dependencyTargetTask = null;
           }
         }
       }

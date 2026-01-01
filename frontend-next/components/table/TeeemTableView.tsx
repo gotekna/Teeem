@@ -4054,7 +4054,18 @@ export default function TeeemTableView({
     const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
     const result: React.ReactNode[] = [];
 
-    Object.entries(groups).forEach(([groupKey, group]) => {
+    // Sort groups alphabetically by display name
+    // "(Empty)" / "No Value" group always goes last
+    const isEmptyGroup = (key: string) => key === "(Empty)" || key === "No Value";
+    const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
+      if (isEmptyGroup(keyA)) return 1;
+      if (isEmptyGroup(keyB)) return -1;
+      const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
+      const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
+      return displayA.localeCompare(displayB);
+    });
+
+    sortedGroupEntries.forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
       // Use server count for first-level groups (accurate total), UNLESS there's an active search
@@ -4101,7 +4112,9 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
+                {isEmptyGroup(groupKey) && (currentColKey?.includes('company') || currentColKey?.includes('employer'))
+                  ? "No Employees Assigned"
+                  : combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
@@ -4313,12 +4326,13 @@ export default function TeeemTableView({
     const groupKeysAtRoot = allGroupKeys || new Set(Object.keys(groups));
 
     // Sort groups alphabetically by display name
-    // "(Empty)" group always goes last
+    // "(Empty)" / "No Value" group always goes last
+    const isEmptyGroup = (key: string) => key === "(Empty)" || key === "No Value";
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
-      // "(Empty)" always last
-      if (keyA === "(Empty)") return 1;
-      if (keyB === "(Empty)") return -1;
+      if (isEmptyGroup(keyA)) return 1;
+      if (isEmptyGroup(keyB)) return -1;
       // Get display values for proper alphabetical sort
+      // Try prefixed key first (e.g., "primary_company_id:123"), then unprefixed, then raw key
       const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
       const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
       return displayA.localeCompare(displayB);
@@ -4385,7 +4399,7 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {groupKey === "(Empty)" && isGroupingByCompany
+                {(groupKey === "(Empty)" || groupKey === "No Value") && isGroupingByCompany
                   ? "No Employees Assigned"
                   : combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
               </span>
@@ -4437,7 +4451,7 @@ export default function TeeemTableView({
           // Company/Role view enhancement: Show company as first row with special styling
           // Find company record for this group (company's ID matches the groupKey)
           // Companies have entity_type='company' and their ID should match the group key
-          const companyRow = isGroupingByCompany && groupKey !== "(Empty)"
+          const companyRow = isGroupingByCompany && !isEmptyGroup(groupKey)
             ? effectiveRows.find(r =>
                 String(r.id) === String(groupKey) &&
                 typeof r.entity_type === 'string' &&
@@ -4447,11 +4461,11 @@ export default function TeeemTableView({
 
           // Filter rows for rendering:
           // - For named groups: exclude the company row (it's rendered first)
-          // - For "(Empty)" group: exclude companies that appear as headers in other groups
+          // - For "(Empty)" / "No Value" group: exclude companies that appear as headers in other groups
           let rowsToRender = effectiveRows;
           if (companyRow) {
             rowsToRender = effectiveRows.filter(r => r.id !== companyRow.id);
-          } else if (groupKey === "(Empty)" && isGroupingByCompany) {
+          } else if (isEmptyGroup(groupKey) && isGroupingByCompany) {
             // Filter out companies whose ID appears as a group key
             rowsToRender = effectiveRows.filter(r => {
               if (typeof r.entity_type !== 'string') return true;
