@@ -2974,15 +2974,10 @@ export class GanttCanvas {
 
     // Handle dependency creation completion
     if (this.isCreatingDependency && this.dependencyFromTask && this.dependencyFromEdge) {
-      // If popup handlers are registered and popup is visible, let the popup handle completion
-      // Don't auto-complete - user needs to click Start/Finish button
-      if (this.onDependencyPopupShow && this.dependencyPopupVisible) {
-        // Popup is showing - don't reset, wait for button click
-        return;
-      }
-
-      // If popup handlers registered but no target yet, cancel the drag
-      if (this.onDependencyPopupShow && !this.dependencyTargetTask) {
+      // If popup handlers are registered, user must drop onto Start/Finish button
+      // If we get here (canvas received mouseUp), it means they released outside the popup buttons
+      if (this.onDependencyPopupShow) {
+        // User released but not on a popup button - cancel the drag
         this.cancelDependencyDrag();
         return;
       }
@@ -3135,47 +3130,34 @@ export class GanttCanvas {
       // Check if hovering over a potential target task
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
       const validTarget = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
-      const prevTarget = this.dependencyTargetTask;
 
-      // Only update target if popup is NOT visible AND we have a valid target
-      // (preserve target while popup is shown OR while mouse is in empty space during drag)
-      // This prevents timer from failing when mouse briefly passes through gaps between tasks
-      if (!this.dependencyPopupVisible && validTarget) {
-        this.dependencyTargetTask = validTarget;
-      }
+      // Show/update/hide popup IMMEDIATELY based on current target (no timer delay)
+      // Popup follows cursor - appears instantly when over a task, hides when leaving
+      if (this.onDependencyPopupShow) {
+        if (validTarget) {
+          // Over a valid target - show/update popup immediately
+          this.dependencyTargetTask = validTarget;
+          this.dependencyPopupVisible = true;
 
-      // Handle popup show with delay (so it doesn't pop up when just passing over)
-      if (this.onDependencyPopupShow && !this.dependencyPopupVisible) {
-        // Only reset timer if moving to a DIFFERENT task (not when moving to empty space)
-        // This prevents timer reset when mouse briefly passes through gaps between tasks
-        if (validTarget && validTarget !== prevTarget) {
-          // Moving to a new task - cancel old timer and start new one
-          if (this.dependencyPopupTimer) {
-            window.clearTimeout(this.dependencyPopupTimer);
-            this.dependencyPopupTimer = null;
+          // Position popup at current mouse location
+          const rect = this.canvas.getBoundingClientRect();
+          const popupX = rect.left + e.offsetX;
+          const popupY = rect.top + e.offsetY;
+
+          this.onDependencyPopupShow(
+            this.dependencyFromTask,
+            validTarget,
+            this.dependencyFromEdge,
+            popupX,
+            popupY
+          );
+        } else {
+          // Not over a valid target - hide popup
+          if (this.dependencyPopupVisible) {
+            this.dependencyPopupVisible = false;
+            this.dependencyTargetTask = null;
+            this.onDependencyPopupHide?.();
           }
-
-          const target = validTarget;  // Capture for closure
-          const fromTask = this.dependencyFromTask;
-          const fromEdge = this.dependencyFromEdge;
-
-          // Capture current mouse position for popup placement
-          const mouseX = this.dependencyLineEndX;
-          const mouseY = this.dependencyLineEndY;
-
-          this.dependencyPopupTimer = window.setTimeout(() => {
-            // Double-check target is still the same
-            if (this.dependencyTargetTask === target && fromTask && fromEdge) {
-                // Position popup at the mouse location (where user dragged to)
-                const rect = this.canvas.getBoundingClientRect();
-                const popupX = rect.left + mouseX;
-                const popupY = rect.top + mouseY;
-
-                this.dependencyPopupVisible = true;
-                this.dependencyPopupTimer = null;
-                this.onDependencyPopupShow?.(fromTask, target, fromEdge, popupX, popupY);
-            }
-          }, 300);  // 300ms delay before showing popup
         }
       }
 

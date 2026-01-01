@@ -3249,6 +3249,8 @@ export function GanttCanvasView({
         />
 
         {/* Dependency Creation Popup - shows Start/Finish buttons when dragging over target */}
+        {/* Uses onMouseUp so user can DROP onto buttons while dragging (not click after release) */}
+        {/* stopPropagation prevents canvas from cancelling drag when releasing on popup */}
         {depPopup.visible && depPopup.targetTask && (
           <div
             className="fixed z-50 bg-popover border rounded-lg shadow-lg p-2 flex gap-2"
@@ -3257,20 +3259,21 @@ export function GanttCanvasView({
               top: depPopup.y,
               transform: 'translate(-50%, 8px)',
             }}
+            onMouseUp={(e) => e.stopPropagation()}
           >
             <Button
               size="sm"
               variant="outline"
-              className="h-8 px-4 text-sm font-medium"
-              onClick={() => handleDepPopupClick('start')}
+              className="h-8 px-4 text-sm font-medium hover:bg-primary hover:text-primary-foreground"
+              onMouseUp={() => handleDepPopupClick('start')}
             >
               Start
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="h-8 px-4 text-sm font-medium"
-              onClick={() => handleDepPopupClick('end')}
+              className="h-8 px-4 text-sm font-medium hover:bg-primary hover:text-primary-foreground"
+              onMouseUp={() => handleDepPopupClick('end')}
             >
               Finish
             </Button>
