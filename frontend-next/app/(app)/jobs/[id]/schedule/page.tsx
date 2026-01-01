@@ -421,6 +421,7 @@ export default function SchedulePage() {
   const [taskEditOpen, setTaskEditOpen] = React.useState(false);
   const [editingTask, setEditingTask] = React.useState<SmTask | null>(null);
   const [taskEditForm, setTaskEditForm] = React.useState<Partial<SmTask>>({});
+  const [loadingTask, setLoadingTask] = React.useState(false);
   const [savingTask, setSavingTask] = React.useState(false);
 
   // Dropdown options for edit form
@@ -937,29 +938,52 @@ export default function SchedulePage() {
   };
 
   // Task Edit Sheet handlers
-  const handleOpenTaskEdit = (task: SmTask) => {
+  // SSoT: Fetch FULL task data from Foundation API, not gantt-optimized data
+  const handleOpenTaskEdit = async (task: SmTask) => {
+    // Set basic info immediately for sheet header
     setEditingTask(task);
-    // SSoT: Backend returns header_gantt="Header" for headers, derive allow_header from it
-    const isHeader = task.header_gantt === "Header";
-    setTaskEditForm({
-      name: task.name,
-      duration_days: task.duration_days,
-      sequence_order: task.sequence_order || 0,
-      description: task.description || "",
-      trade: task.trade ? String(task.trade) : null,
-      stage: task.stage ? String(task.stage) : null,
-      assigned_role: task.assigned_role || null,
-      po_required: task.po_required || false,
-      critical_po: task.critical_po || false,
-      create_po_on_job_start: task.create_po_on_job_start || false,
-      spawn_order_task: task.spawn_order_task || false,
-      spawn_call_task: task.spawn_call_task || false,
-      require_photo: task.require_photo || false,
-      pass_fail_enabled: task.pass_fail_enabled || false,
-      allow_header: isHeader,
-      header_gantt: task.header_gantt,
-    });
+    setTaskEditForm({});
     setTaskEditOpen(true);
+    setLoadingTask(true);
+
+    try {
+      // Fetch full task record with all editable fields
+      const fullTask = await api.get<Record<string, unknown>>(
+        `/api/v1/foundations/sm-tasks/records/${task.id}`
+      );
+
+      if (fullTask) {
+        setEditingTask({ ...task, ...fullTask } as SmTask);
+        setTaskEditForm({
+          name: (fullTask.name as string) || task.name,
+          duration_days: (fullTask.duration_days as number) || task.duration_days,
+          sequence_order: (fullTask.sequence_order as number) || 0,
+          description: (fullTask.description as string) || "",
+          trade: fullTask.trade_id ? String(fullTask.trade_id) : null,
+          stage: fullTask.stage_id ? String(fullTask.stage_id) : null,
+          assigned_role: (fullTask.assigned_role as string) || null,
+          po_required: (fullTask.po_required as boolean) || false,
+          critical_po: (fullTask.critical_po as boolean) || false,
+          create_po_on_job_start: (fullTask.create_po_on_job_start as boolean) || false,
+          spawn_order_task: (fullTask.spawn_order_task as boolean) || false,
+          spawn_call_task: (fullTask.spawn_call_task as boolean) || false,
+          require_photo: (fullTask.require_photo as boolean) || false,
+          pass_fail_enabled: (fullTask.pass_fail_enabled as boolean) || false,
+          allow_header: (fullTask.allow_header as boolean) || false,
+          header_gantt: fullTask.header_gantt as string | number | null,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch task details:", err);
+      toast({
+        title: "Error",
+        description: "Failed to load task details",
+        variant: "destructive",
+      });
+      setTaskEditOpen(false);
+    } finally {
+      setLoadingTask(false);
+    }
   };
 
   const handleSaveTask = async () => {
@@ -1298,6 +1322,13 @@ export default function SchedulePage() {
               {editingTask?.name} (Task #{editingTask?.task_number})
             </SheetDescription>
           </SheetHeader>
+
+          {/* Loading state */}
+          {loadingTask ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner size={32} className="text-muted-foreground" />
+            </div>
+          ) : (
           <div className="py-3 space-y-3">
             {/* Row 1: Name + Duration + Sequence - full width */}
             <div className="grid grid-cols-[1fr_80px_80px] gap-3">
@@ -1546,6 +1577,7 @@ export default function SchedulePage() {
               </Button>
             </div>
           </div>
+          )}
         </SheetContent>
       </Sheet>
     </>
@@ -2328,6 +2360,13 @@ export default function SchedulePage() {
               {editingTask?.name} (Task #{editingTask?.task_number})
             </SheetDescription>
           </SheetHeader>
+
+          {/* Loading state */}
+          {loadingTask ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner size={32} className="text-muted-foreground" />
+            </div>
+          ) : (
           <div className="py-3 space-y-3">
             {/* Row 1: Name + Duration + Sequence - full width */}
             <div className="grid grid-cols-[1fr_80px_80px] gap-3">
@@ -2576,6 +2615,7 @@ export default function SchedulePage() {
               </Button>
             </div>
           </div>
+          )}
         </SheetContent>
       </Sheet>
     </div>

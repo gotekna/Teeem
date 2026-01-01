@@ -316,10 +316,18 @@ export class Renderer {
       const calculatedWidth = endX - startX;
       const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth; // Add 1 day to include end date
 
+      // Check if this is a header/summary task for row background
+      const isHeaderRow = task.rowData?.header_gantt === 'Header';
+
       // Horizontal virtual scrolling: skip if task is entirely outside visible X range
       if (endX < visibleStartX || startX > visibleEndX) {
-        // Still draw row highlight for selected/hovered even if bar not visible
+        // Still draw row highlight for header/selected/hovered even if bar not visible
         const isSelected = selectedTaskIds.has(task.id);
+        // SSoT: Draw header row background first (amber), then selection on top
+        if (isHeaderRow && !isSelected) {
+          this.ctx.fillStyle = this.config.colors.headerRowBackground;
+          this.ctx.fillRect(0, y, 10000, rowHeight);
+        }
         if (isSelected) {
           this.ctx.fillStyle = this.config.colors.selectedRow;
           this.ctx.fillRect(0, y, 10000, rowHeight);
@@ -332,7 +340,13 @@ export class Renderer {
 
       const isSelected = selectedTaskIds.has(task.id);
 
-      // Row background for selection/hover
+      // Row background: header rows get amber, selection/hover on top
+      // SSoT: Draw header row background first (amber to match sidebar)
+      if (isHeaderRow && !isSelected && task.id !== hoveredTaskId) {
+        this.ctx.fillStyle = this.config.colors.headerRowBackground;
+        this.ctx.fillRect(0, y, 10000, rowHeight);
+      }
+      // Then draw selection/hover on top
       if (isSelected) {
         this.ctx.fillStyle = this.config.colors.selectedRow;
         this.ctx.fillRect(0, y, 10000, rowHeight);
@@ -345,10 +359,8 @@ export class Renderer {
       const barY = y + taskBarPadding;
       const barHeight = taskBarHeight;
 
-      // Check if this is a header/summary task (MS Project style)
-      const isHeader = task.rowData?.header_gantt === 'Header';
-
-      if (isHeader) {
+      // isHeaderRow already checked above for row background
+      if (isHeaderRow) {
         // MS Project style summary bar: thin black bar with downward triangles at ends
         const summaryBarHeight = 6;
         const summaryY = barY + (barHeight - summaryBarHeight) / 2;

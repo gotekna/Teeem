@@ -262,6 +262,8 @@ export const CHART_COLORS = {
     hoverRow: TAILWIND_COLORS.gray[100],                // #f3f4f6
     borderColor: TAILWIND_COLORS.gray[200],             // #e5e7eb
     textColor: BRAND_COLORS.text.primary,               // #1D1D1D
+    // Header row (summary task) background - amber to match sidebar
+    headerRowBackground: TAILWIND_COLORS.amber[100],    // #fef3c7 - matches bg-amber-100
   },
   dark: {
     background: BRAND_COLORS.background.secondaryDark,  // #1D1D1D
@@ -274,6 +276,8 @@ export const CHART_COLORS = {
     hoverRow: TAILWIND_COLORS.gray[700],                // #374151
     borderColor: TAILWIND_COLORS.gray[700],             // #374151
     textColor: TAILWIND_COLORS.gray[200],               // #e5e7eb
+    // Header row (summary task) background - amber to match sidebar
+    headerRowBackground: 'rgba(180, 83, 9, 0.3)',       // amber-900/30 to match dark:bg-amber-900/30
   },
 } as const;
 

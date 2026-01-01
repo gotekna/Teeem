@@ -57,7 +57,15 @@ module Api
         if search.present?
           search_mode = params[:search_mode] || "contains"
 
-          searchable_columns = if search_all
+          # Detect Company/Role view (panel view with group_by=primary_company_id)
+          group_by_column = params[:group_by]&.split(",")&.first
+          is_company_role_view = @foundation.slug == "contacts" && group_by_column == "primary_company_id"
+
+          searchable_columns = if is_company_role_view
+            # Company/Role panel view: ONLY search display_name and email
+            # This prevents matching irrelevant contacts via city, place_of_birth, abn_entity_name, etc.
+            %w[display_name email]
+          elsif search_all
             # Search ALL text columns (comprehensive but slower)
             if @foundation.table_type == "system"
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name)
@@ -165,11 +173,13 @@ module Api
           end
 
           # SSoT: Bidirectional company/employee search for contacts foundation
+          # ONLY applies when grouping by company (Company/Role view) - not for regular search
           # When searching contacts, also return related company/employees
           # - Search for company → also return its employees
           # - Search for employee → also return their employer
           # Uses BOTH primary_company_id AND contact_relationships table
-          if @foundation.slug == "contacts"
+          # NOTE: is_company_role_view was already set above (reuses same detection)
+          if is_company_role_view
             model = @foundation.dynamic_model
 
             # Get IDs of records that matched the search

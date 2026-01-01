@@ -150,6 +150,7 @@ export interface GanttColors {
   headerText: string;
   selectedRow: string;
   hoverRow: string;
+  headerRowBackground: string;  // Amber background for header/summary task rows
 }
 
 export interface GanttState {
@@ -380,6 +381,7 @@ const defaultLightColors: GanttColors = {
   headerText: CHART_COLORS.light.headerText,
   selectedRow: CHART_COLORS.light.selectedRow,
   hoverRow: CHART_COLORS.light.hoverRow,
+  headerRowBackground: CHART_COLORS.light.headerRowBackground,
 };
 
 // SSoT: Uses CHART_COLORS and GANTT_COLORS from @/lib/constants/color-constants
@@ -401,6 +403,7 @@ const defaultDarkColors: GanttColors = {
   headerText: CHART_COLORS.dark.headerText,
   selectedRow: CHART_COLORS.dark.selectedRow,
   hoverRow: CHART_COLORS.dark.hoverRow,
+  headerRowBackground: CHART_COLORS.dark.headerRowBackground,
 };
 
 const defaultConfig: GanttConfig = {
