@@ -18,9 +18,14 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
   Table,
   TableBody,
@@ -381,12 +386,23 @@ export default function SchedulePage() {
   const [orphansToDelete, setOrphansToDelete] = React.useState<Set<number>>(new Set());
   const [compareFilter, setCompareFilter] = React.useState<"all" | "will_create" | "will_update" | "will_skip" | "unchanged" | "unlinked">("all");
 
-  // Row edit drawer state
+  // Row edit drawer state (template comparison)
   const [editDrawerOpen, setEditDrawerOpen] = React.useState(false);
   const [selectedRow, setSelectedRow] = React.useState<Record<string, unknown> | null>(null);
   const [rowComparison, setRowComparison] = React.useState<RowComparison | null>(null);
   const [loadingRowComparison, setLoadingRowComparison] = React.useState(false);
   const [syncingRow, setSyncingRow] = React.useState(false);
+
+  // Task Edit Sheet state (full edit form)
+  const [taskEditOpen, setTaskEditOpen] = React.useState(false);
+  const [editingTask, setEditingTask] = React.useState<SmTask | null>(null);
+  const [taskEditForm, setTaskEditForm] = React.useState<Partial<SmTask>>({});
+  const [savingTask, setSavingTask] = React.useState(false);
+
+  // Dropdown options for edit form
+  const [availableTrades, setAvailableTrades] = React.useState<Array<{ id: number; name: string }>>([]);
+  const [availableStages, setAvailableStages] = React.useState<Array<{ id: number; name: string }>>([]);
+  const [availableRoles, setAvailableRoles] = React.useState<Array<{ id: string; display_name: string }>>([]);
 
   React.useEffect(() => {
     const fetchJob = async () => {
@@ -928,6 +944,7 @@ export default function SchedulePage() {
   // Fullscreen Gantt View
   if (ganttFullscreen) {
     return (
+    <>
       <div className="flex flex-col h-full">
         {/* Fullscreen Header */}
         <div className="flex items-center justify-between px-4 py-2 border-b bg-background shrink-0">
@@ -988,6 +1005,13 @@ export default function SchedulePage() {
                   console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
                   setSelectedGanttTask(task);
                 }}
+              onTaskDoubleClick={(task) => {
+                  // Find the SmTask from ganttTasks and open the detail drawer
+                  const smTask = ganttTasks.find(t => String(t.id) === task.id);
+                  if (smTask) {
+                    handleRowDoubleClick(smTask as unknown as Record<string, unknown>);
+                  }
+                }}
               className="h-full"
               jobId={Number(jobId)}
               onDataChange={refetchGanttData}
@@ -995,6 +1019,152 @@ export default function SchedulePage() {
           )}
         </div>
       </div>
+
+      {/* Row Edit Drawer (for fullscreen gantt mode) */}
+      <Sheet open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
+        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
+          <SheetHeader className="pb-4 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              <span className="font-mono text-muted-foreground">#{selectedRow?.task_number as number}</span>
+              {String(selectedRow?.name || "")}
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="py-4 space-y-4">
+            {/* Template link status */}
+            {selectedRow && (
+              <div className="flex items-center gap-2 text-sm">
+                {selectedRow.sm_schedule_master_id ? (
+                  <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                    <Link2 className="h-3 w-3 mr-1" />
+                    Linked to Template
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Not Linked to Template
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Loading comparison */}
+            {loadingRowComparison && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Spinner size={16} />
+                Loading template comparison...
+              </div>
+            )}
+
+            {/* Comparison table */}
+            {rowComparison?.template_row && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">Template Comparison</h4>
+                  {rowComparison.can_sync ? (
+                    <Button
+                      size="sm"
+                      onClick={handleSyncRow}
+                      disabled={syncingRow || Object.keys(rowComparison.differences).length === 0}
+                    >
+                      {syncingRow ? (
+                        <><Spinner size={14} className="mr-2" />Syncing...</>
+                      ) : Object.keys(rowComparison.differences).length === 0 ? (
+                        <><Check className="h-4 w-4 mr-2" />In Sync</>
+                      ) : (
+                        <><RefreshCw className="h-4 w-4 mr-2" />Sync {Object.keys(rowComparison.differences).length} Changes</>
+                      )}
+                    </Button>
+                  ) : (
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                      {rowComparison.skip_reason || "Cannot sync"}
+                    </Badge>
+                  )}
+                </div>
+
+                {Object.keys(rowComparison.differences).length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <UITableRow>
+                          <TableHead className="w-[120px]">Field</TableHead>
+                          <TableHead>Current Task</TableHead>
+                          <TableHead className="w-[40px]"></TableHead>
+                          <TableHead>Template</TableHead>
+                        </UITableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Object.entries(rowComparison.differences).map(([field, diff]) => (
+                          <UITableRow key={field}>
+                            <TableCell className="font-medium text-sm">{field}</TableCell>
+                            <TableCell className="text-sm text-red-600 dark:text-red-400">
+                              {String(diff.task ?? "-")}
+                            </TableCell>
+                            <TableCell>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            </TableCell>
+                            <TableCell className="text-sm text-green-600 dark:text-green-400">
+                              {String(diff.template ?? "-")}
+                            </TableCell>
+                          </UITableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-sm text-muted-foreground bg-green-50 dark:bg-green-950 rounded-lg">
+                    <Check className="h-5 w-5 text-green-500 mx-auto mb-1" />
+                    Task is in sync with template
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No template link */}
+            {selectedRow && !selectedRow.sm_schedule_master_id && !loadingRowComparison && (
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+                <p>This task is not linked to a template row.</p>
+                <p className="mt-1">Use &quot;Sync from Master&quot; to link tasks to templates.</p>
+              </div>
+            )}
+
+            {/* Task details summary */}
+            {selectedRow && (
+              <div className="space-y-3 pt-4 border-t">
+                <h4 className="text-sm font-medium">Task Details</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="ml-2 font-medium">{selectedRow.status as string}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Trade:</span>
+                    <span className="ml-2 font-medium">{(selectedRow.trade as string) || "-"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Stage:</span>
+                    <span className="ml-2 font-medium">{(selectedRow.stage as string) || "-"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Duration:</span>
+                    <span className="ml-2 font-medium">{selectedRow.duration_days as number} days</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">PO Required:</span>
+                    <span className="ml-2 font-medium">{selectedRow.po_required ? "Yes" : "No"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Photo Required:</span>
+                    <span className="ml-2 font-medium">{selectedRow.require_photo ? "Yes" : "No"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
     );
   }
 
@@ -1087,6 +1257,12 @@ export default function SchedulePage() {
                 onTaskClick={(task) => {
                   console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
                   setSelectedGanttTask(task);
+                }}
+                onTaskDoubleClick={(task) => {
+                  const smTask = ganttTasks.find(t => String(t.id) === task.id);
+                  if (smTask) {
+                    handleRowDoubleClick(smTask as unknown as Record<string, unknown>);
+                  }
                 }}
                 className="h-full"
                 jobId={Number(jobId)}

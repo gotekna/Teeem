@@ -455,44 +455,45 @@ module Api
           # When grouping contacts by employer (primary_company_id), companies should:
           # 1. Create their OWN group (keyed by their ID) - not be grouped by their employer
           # 2. Be excluded from the "(Empty)" group - they're not "unassigned employees"
+          # 3. Count includes BOTH primary_company_id AND contact_relationships (employee_of)
           #
           # This makes companies appear as group headers with their employees underneath,
           # even if the company has no employees (shows as empty group).
           if model.table_name == "contacts" && group_by_column == "primary_company_id"
-            # Get existing group keys (companies that already have employees)
-            existing_group_keys = groups.map { |g| g[:key] }.compact.map(&:to_i).to_set
+            # SSoT: Rebuild groups using employees_count (includes relationship-based employees)
+            # The GROUP BY on primary_company_id misses employees linked via contact_relationships
+            all_companies = query.where(entity_type: %w[company trust sole_trader])
 
-            # Find all companies in the current query that don't have their own group yet
-            # These are companies without employees that would otherwise be in "(Empty)"
-            companies_without_groups = query
-              .where(entity_type: "company")
-              .where.not(id: existing_group_keys.to_a)
-              .pluck(:id, :display_name)
-
-            # Add a group for each company (count = 0 employees, but company itself exists)
-            companies_without_groups.each do |company_id, display_name|
-              groups << {
-                key: company_id,
-                count: 0,  # No employees
-                display_value: display_name || "Company ##{company_id}",
-                is_company_group: true  # Flag for frontend to know this is a company-created group
+            # Build company groups from actual company records (not GROUP BY results)
+            groups = all_companies.map do |company|
+              {
+                key: company.id,
+                count: company.employees_count || 0,
+                display_value: company.display_name || "Company ##{company.id}",
+                is_company_group: true
               }
-              # Add to display_values_map for consistency
-              display_values_map[group_by_column] ||= {}
-              display_values_map[group_by_column][company_id] = display_name || "Company ##{company_id}"
             end
 
-            # Adjust the "(Empty)" group count to exclude companies
-            # Companies in "(Empty)" should be moved to their own groups, not counted as "unassigned"
-            empty_group = groups.find { |g| g[:key].nil? }
-            if empty_group
-              companies_in_empty = query
-                .where(primary_company_id: nil)
-                .where(entity_type: "company")
-                .count
-              empty_group[:count] -= companies_in_empty
-              # If all records in empty were companies, remove the empty group entirely
-              groups.delete(empty_group) if empty_group[:count] <= 0
+            # Add to display_values_map for consistency
+            display_values_map[group_by_column] ||= {}
+            all_companies.each do |company|
+              display_values_map[group_by_column][company.id] = company.display_name || "Company ##{company.id}"
+            end
+
+            # Keep the "(Empty)" group for people without any employer
+            # Count people with no primary_company_id AND no employee_of relationships
+            people_without_employer = query
+              .where(entity_type: [nil, "person"])
+              .where(primary_company_id: nil)
+              .where.not(id: ContactRelationship.where(relationship_type: "employee_of").select(:source_contact_id))
+              .count
+
+            if people_without_employer > 0
+              groups << {
+                key: nil,
+                count: people_without_employer,
+                display_value: "(Empty)"
+              }
             end
           end
 

@@ -1036,7 +1036,6 @@ module Api
                 .where(source_contact_id: record.id, relationship_type: "employee_of")
                 .pluck(:related_contact_id)
               json[:employer_ids] = (employer_ids_from_primary + employer_ids_from_relationships).uniq
-              Rails.logger.info "[EMPLOYER_IDS] Contact #{record.id} (#{record.display_name}): employer_ids=#{json[:employer_ids]}" if json[:employer_ids].any?
             end
           end
 

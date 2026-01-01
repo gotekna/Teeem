@@ -647,7 +647,7 @@ export function GanttCanvasView({
     }
 
     // Second pass: Filter tasks
-    return tasks.filter(task => {
+    const filteredTasks = tasks.filter(task => {
       const rowData = task.rowData as SmScheduleMaster | undefined;
       const isHeader = rowData?.header_gantt === 'Header';
       const parentHeaderId = getParentId(task);
@@ -673,6 +673,90 @@ export function GanttCanvasView({
 
       return true;
     });
+
+    // SSoT: Hierarchical sort - headers followed by their children, all sorted by startDate
+    // This runs at render time, using the current task.startDate values
+    const isHeader = (task: GanttTask): boolean => {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      return rowData?.header_gantt === 'Header';
+    };
+
+    const getParentTaskNumber = (task: GanttTask): number | null => {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (!rowData) return null;
+      const hg = rowData.header_gantt;
+      if (hg === 'Header' || hg === null || hg === undefined) return null;
+      if (typeof hg === 'number') return hg;
+      if (typeof hg === 'object' && hg?.id) return hg.id;
+      if (typeof hg === 'string') {
+        const parsed = parseInt(hg, 10);
+        return isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    };
+
+    // Build header task_number set and map
+    const headerTaskNumSet = new Set<number>();
+    const headerByTaskNum = new Map<number, GanttTask>();
+    for (const task of filteredTasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (isHeader(task) && rowData?.task_number) {
+        const taskNum = Number(rowData.task_number);
+        headerTaskNumSet.add(taskNum);
+        headerByTaskNum.set(taskNum, task);
+      }
+    }
+
+    // Group children by parent header task_number
+    const childrenByHeader = new Map<number, GanttTask[]>();
+    const processed = new Set<string>();
+
+    for (const task of filteredTasks) {
+      if (isHeader(task)) continue;
+      const parentNum = getParentTaskNumber(task);
+      if (parentNum !== null && headerTaskNumSet.has(parentNum)) {
+        if (!childrenByHeader.has(parentNum)) childrenByHeader.set(parentNum, []);
+        childrenByHeader.get(parentNum)!.push(task);
+      }
+    }
+
+    // Sort children within each header by startDate
+    for (const children of childrenByHeader.values()) {
+      children.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+    }
+
+    // Collect standalone tasks (no parent or parent not in filtered set)
+    const standaloneTasks = filteredTasks.filter(t =>
+      !isHeader(t) && (getParentTaskNumber(t) === null || !headerTaskNumSet.has(getParentTaskNumber(t)!))
+    );
+
+    // Build sortable blocks: [header + children] or [standalone]
+    type Block = { startDate: Date; items: GanttTask[] };
+    const blocks: Block[] = [];
+
+    // Header blocks - position by earliest child's startDate
+    for (const [taskNum, header] of headerByTaskNum) {
+      const children = childrenByHeader.get(taskNum) || [];
+      const blockStart = children.length > 0
+        ? new Date(Math.min(...children.map(c => c.startDate.getTime())))
+        : header.startDate;
+      blocks.push({ startDate: blockStart, items: [header, ...children] });
+      processed.add(header.id);
+      children.forEach(c => processed.add(c.id));
+    }
+
+    // Standalone blocks
+    for (const task of standaloneTasks) {
+      if (!processed.has(task.id)) {
+        blocks.push({ startDate: task.startDate, items: [task] });
+      }
+    }
+
+    // Sort blocks by startDate
+    blocks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+    // Flatten to final sorted list
+    return blocks.flatMap(b => b.items);
   }, [tasks, rows, collapsedHeaders, showOnlyGrouped, viewSlug, nameSearch]);
 
   // Check if a task is a header (rowData.header_gantt === 'Header')
@@ -2183,13 +2267,6 @@ export function GanttCanvasView({
       // Static mode - clone tasks so we can recalculate dates
       taskList = staticTasks.map(t => ({ ...t }));
 
-      // Debug: Log original staticTasks dates
-      console.log('[USEEFFECT START] First 15 staticTasks:', staticTasks.slice(0, 15).map(t => ({
-        name: t.name?.substring(0, 25),
-        startDate: t.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' }),
-        header_gantt: (t.rowData as SmScheduleMaster | undefined)?.header_gantt
-      })));
-
       dependencies = (staticDependencies || []).map((d, i) => ({
         id: d.id || `dep-${i}`,
         fromId: d.fromId,
@@ -2373,98 +2450,8 @@ export function GanttCanvasView({
         }
       }
 
-      // STEP 3: Sort ALL tasks by calculated start date
-      // Headers appear at their earliest child's date, children sorted within header
-      // This gives an intuitive top-to-bottom chronological flow
-      const isHeader = (t: GanttTask) => (t.rowData as SmScheduleMaster | undefined)?.header_gantt === 'Header';
-      const getParentTaskNum = (t: GanttTask): number | null => {
-        const hg = (t.rowData as SmScheduleMaster | undefined)?.header_gantt;
-        if (hg === 'Header') return null;
-        if (typeof hg === 'number') return hg;
-        if (typeof hg === 'object' && hg?.id) return hg.id;
-        if (typeof hg === 'string') {
-          const parsed = parseInt(hg, 10);
-          return isNaN(parsed) ? null : parsed;
-        }
-        return null;
-      };
-
-      // Build blocks: each header with children is a block, each standalone is a block
-      const headerTaskNumSet = new Set<number>();
-      const headerByTaskNum = new Map<number, GanttTask>();
-      for (const task of taskList) {
-        const rd = task.rowData as SmScheduleMaster | undefined;
-        if (isHeader(task) && rd?.task_number) {
-          headerTaskNumSet.add(Number(rd.task_number));
-          headerByTaskNum.set(Number(rd.task_number), task);
-        }
-      }
-
-      // Group children by parent
-      const childrenByHeader = new Map<number, GanttTask[]>();
-      for (const task of taskList) {
-        const parentNum = getParentTaskNum(task);
-        if (parentNum !== null && headerTaskNumSet.has(parentNum)) {
-          if (!childrenByHeader.has(parentNum)) childrenByHeader.set(parentNum, []);
-          childrenByHeader.get(parentNum)!.push(task);
-        }
-      }
-
-      // Helper: get the DISPLAYED start date from rowData (what user sees in sidebar)
-      // This is different from task.startDate which is recalculated from dependencies
-      const getDisplayedStartDate = (task: GanttTask): Date => {
-        const rd = task.rowData as SmScheduleMaster | undefined;
-        // Use hold_date if available (this is what sidebar shows), otherwise start_date
-        const dateStr = rd?.hold_date || rd?.start_date;
-        if (dateStr) {
-          const parsed = new Date(dateStr);
-          if (!isNaN(parsed.getTime())) return parsed;
-        }
-        // Fallback to task.startDate if no rowData date
-        return task.startDate;
-      };
-
-      // Sort children within each header by task.startDate (what sidebar displays - line 3260)
-      for (const [headerNum, children] of childrenByHeader.entries()) {
-        console.log(`[SORT] Header ${headerNum} children BEFORE:`, children.map(c => ({
-          name: c.name?.substring(0, 25),
-          taskStartDate: c.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' }),
-          rowDataDate: getDisplayedStartDate(c).toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })
-        })));
-        // Use task.startDate which is what the sidebar displays
-        children.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-        console.log(`[SORT] Header ${headerNum} children AFTER:`, children.map(c => ({
-          name: c.name?.substring(0, 25),
-          taskStartDate: c.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })
-        })));
-      }
-
-      // Collect standalone tasks
-      const standaloneTasks = taskList.filter(t => !isHeader(t) && getParentTaskNum(t) === null);
-
-      // Build sortable blocks
-      type Block = { startDate: Date; items: GanttTask[] };
-      const blocks: Block[] = [];
-
-      // Header blocks - use earliest child's task.startDate for block position
-      for (const [taskNum, header] of headerByTaskNum) {
-        const children = childrenByHeader.get(taskNum) || [];
-        const blockStart = children.length > 0
-          ? new Date(Math.min(...children.map(c => c.startDate.getTime())))
-          : header.startDate;
-        blocks.push({ startDate: blockStart, items: [header, ...children] });
-      }
-
-      // Standalone blocks
-      for (const task of standaloneTasks) {
-        blocks.push({ startDate: task.startDate, items: [task] });
-      }
-
-      // Sort blocks by task.startDate
-      blocks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-
-      // Flatten to final task list
-      taskList = blocks.flatMap(b => b.items);
+      // Note: Hierarchical sorting by startDate is done in visibleTasks useMemo
+      // This ensures sorting uses the current task.startDate values at render time
     } else {
       // Template mode - convert rows to tasks, use SSoT dependencies from gantt_data endpoint
       // Use company timezone for consistent date handling
@@ -3263,11 +3250,6 @@ export function GanttCanvasView({
               style={{ overflowY: 'hidden' }}
             >
               <div style={{ height: visibleTasks.length * 28 }}>
-                {/* Debug: Log first 10 visible task dates */}
-                {console.log('[SIDEBAR RENDER] First 10 tasks:', visibleTasks.slice(0, 10).map(t => ({
-                  name: t.name?.substring(0, 25),
-                  startDate: t.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })
-                })))}
                 {visibleTasks.map((task, index) => {
                   const row = rows.find(r => String(r.id) === task.id);
                   const startStr = task.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
@@ -3557,6 +3539,10 @@ export function GanttCanvasView({
                             ganttRef.current.scrollToY(targetScrollY);
                           }
                         }
+                      }}
+                      onDoubleClick={() => {
+                        // Open detail drawer on double-click
+                        onTaskDoubleClick?.(task);
                       }}
                     >
                       {visibleColumns.map(col => (
