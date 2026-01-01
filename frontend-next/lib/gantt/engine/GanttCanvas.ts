@@ -2744,7 +2744,7 @@ export class GanttCanvas {
     this.renderer.drawBackground(this.containerWidth, this.containerHeight);
     // Draw weekends/holidays BEFORE selections (so they're below)
     this.renderer.drawWeekendsAndHolidays(this.containerWidth, this.containerHeight, this.calendar);
-    this.renderer.drawTimeScale(this.containerWidth);
+    this.renderer.drawTimeScale(this.containerWidth, this.calendar);
     this.renderer.drawTodayMarker(this.containerHeight);
 
     // CLIP: Prevent task bars, baselines, and dependencies from rendering in header area
@@ -2762,6 +2762,9 @@ export class GanttCanvas {
     const selectedGroupHeaderId = this.selectedGroupHeaderIdFromParent;
 
     this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks, selectedGroupHeaderId);
+
+    // Draw weekend/holiday overlays on amber rows (darker amber shades)
+    this.renderer.drawAmberRowWeekendsAndHolidays(this.state.tasks, this.containerWidth, selectedGroupHeaderId, this.calendar);
 
     // Draw horizontal grid lines AFTER task bars so they appear on top of selections
     this.renderer.drawHorizontalGridLines(this.containerWidth, this.containerHeight, this.state.tasks.length);

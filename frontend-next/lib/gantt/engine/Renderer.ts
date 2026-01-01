@@ -78,7 +78,7 @@ export class Renderer {
     const startDayOffset = Math.floor(state.scrollX / dayWidth);
     const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
 
-    // Draw non-working day shading
+    // Draw non-working day shading (body only - header handled in drawTimeScale)
     for (let i = startDayOffset; i <= endDayOffset; i++) {
       const x = i * dayWidth - state.scrollX;
       const currentDate = new Date(state.startDate);
@@ -87,16 +87,16 @@ export class Renderer {
       // Use calendar if available, otherwise fall back to simple weekend check
       if (calendar) {
         if (calendar.isHoliday(currentDate)) {
-          // Holiday shading - light pink/red tint to distinguish from weekends
-          this.ctx.fillStyle = this.config.darkMode ? 'rgba(239, 68, 68, 0.1)' : TAILWIND_COLORS.red[50]; // Light red tint
+          // Holiday shading - light pink/red tint (body only)
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(239, 68, 68, 0.1)' : TAILWIND_COLORS.red[50];
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         } else if (calendar.isWeekend(currentDate)) {
-          // Weekend shading - light gray
+          // Weekend shading - light gray (body only)
           this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[50];
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         }
       } else {
-        // Fallback: simple weekend check - slightly darker gray
+        // Fallback: simple weekend check (body only)
         const dayOfWeek = currentDate.getDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) {
           this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[100];
@@ -104,6 +104,86 @@ export class Renderer {
         }
       }
     }
+  }
+
+  /**
+   * Draw weekend/holiday overlays on amber group rows (called AFTER amber backgrounds)
+   */
+  drawAmberRowWeekendsAndHolidays(
+    tasks: GanttTask[],
+    width: number,
+    selectedGroupHeaderId: string | null,
+    calendar?: WorkingDaysCalendar
+  ): void {
+    if (!calendar || !selectedGroupHeaderId) return;
+
+    const dayWidth = this.viewport.getDayWidth();
+    const state = this.viewport.getState();
+    const { rowHeight, headerHeight } = this.config;
+
+    // Find the selected header task
+    const selectedHeaderTask = tasks.find(t => t.id === selectedGroupHeaderId);
+    const selectedHeaderTaskNumber = selectedHeaderTask?.rowData?.task_number;
+
+    // Helper to check if task is in selected group (same logic as drawTaskBars)
+    const isTaskInSelectedGroup = (task: GanttTask): boolean => {
+      if (!selectedGroupHeaderId) return false;
+
+      // Check if task IS the selected header - MUST be first check
+      if (task.id === selectedGroupHeaderId) {
+        return true;  // Selected header is always in its own group
+      }
+
+      // Now check if it's a child of the selected header
+      if (selectedHeaderTaskNumber === undefined) {
+        return false;
+      }
+
+      const taskHeaderGantt = task.rowData?.header_gantt;
+
+      // Skip if no header_gantt or if it's a different header
+      if (!taskHeaderGantt || taskHeaderGantt === 'Header') {
+        return false;
+      }
+
+      // Handle different types: object with id, string, or number
+      const headerGanttValue = typeof taskHeaderGantt === 'object' && 'id' in taskHeaderGantt
+        ? taskHeaderGantt.id
+        : taskHeaderGantt;
+
+      // Compare as strings to handle type mismatches
+      return String(headerGanttValue) === String(selectedHeaderTaskNumber);
+    };
+
+    // Calculate visible days
+    const startDayOffset = Math.floor(state.scrollX / dayWidth);
+    const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
+
+    // For each task in selected group, draw weekend/holiday overlay
+    tasks.forEach((task, index) => {
+      const inGroup = isTaskInSelectedGroup(task);
+      if (!inGroup) return;
+
+      const y = this.viewport.rowToY(index);
+      console.log('[Weekend Overlay] Drawing for task:', task.name, 'at y:', y, 'isHeader:', task.rowData?.header_gantt === 'Header');
+
+      // Draw weekend/holiday overlay for this row
+      for (let i = startDayOffset; i <= endDayOffset; i++) {
+        const x = i * dayWidth - state.scrollX;
+        const currentDate = new Date(state.startDate);
+        currentDate.setDate(currentDate.getDate() + i);
+
+        if (calendar.isHoliday(currentDate)) {
+          // Darker amber for holidays
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(180, 83, 9, 0.4)' : 'rgba(180, 83, 9, 0.25)';
+          this.ctx.fillRect(x, y, dayWidth, rowHeight);
+        } else if (calendar.isWeekend(currentDate)) {
+          // Slightly darker amber for weekends
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(180, 83, 9, 0.25)' : 'rgba(180, 83, 9, 0.15)';
+          this.ctx.fillRect(x, y, dayWidth, rowHeight);
+        }
+      }
+    });
   }
 
   /**
@@ -131,13 +211,36 @@ export class Renderer {
   /**
    * Draw time scale header
    */
-  drawTimeScale(width: number): void {
+  drawTimeScale(width: number, calendar?: WorkingDaysCalendar): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
 
     // Draw header background
     this.ctx.fillStyle = this.config.colors.headerBackground;
     this.ctx.fillRect(0, 0, width, this.config.headerHeight);
+
+    // Calculate visible days for weekend/holiday shading
+    const startDayOffset = Math.floor(state.scrollX / dayWidth);
+    const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
+
+    // Draw weekend/holiday shading in header AFTER background, BEFORE text
+    if (calendar) {
+      for (let i = startDayOffset; i <= endDayOffset; i++) {
+        const currentDate = new Date(state.startDate);
+        currentDate.setDate(currentDate.getDate() + i);
+        const x = (i * dayWidth) - state.scrollX;
+
+        if (calendar.isHoliday(currentDate)) {
+          // Holiday shading in header
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(239, 68, 68, 0.1)' : TAILWIND_COLORS.red[50];
+          this.ctx.fillRect(x, 0, dayWidth, this.config.headerHeight);
+        } else if (calendar.isWeekend(currentDate)) {
+          // Weekend shading in header
+          this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[50];
+          this.ctx.fillRect(x, 0, dayWidth, this.config.headerHeight);
+        }
+      }
+    }
 
     // Draw header bottom border
     this.ctx.strokeStyle = this.config.colors.gridLines;
@@ -146,10 +249,6 @@ export class Renderer {
     this.ctx.moveTo(0, this.config.headerHeight);
     this.ctx.lineTo(width, this.config.headerHeight);
     this.ctx.stroke();
-
-    // Calculate visible days
-    const startDayOffset = Math.floor(state.scrollX / dayWidth);
-    const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
 
     // Determine what level of detail to show based on zoom
     const showDays = dayWidth >= 20;
