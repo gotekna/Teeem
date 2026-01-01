@@ -716,56 +716,19 @@ export function GanttCanvasView({
     return parentId === selectedGroupHeaderId;
   }, [selectedGroupHeaderId, getParentHeaderId]);
 
-  // Calculate sticky header - show parent header when scrolled past it but viewing children
+  // Calculate sticky header - show selected group's header when it's scrolled out of view
   const stickyHeader = React.useMemo(() => {
+    // Only show sticky header when a group is selected
+    if (!selectedGroupHeaderId) return null;
+
     const ROW_HEIGHT = 28;
-    // Find the first visible row index based on scroll position
-    const firstVisibleIndex = Math.floor(sidebarScrollY / ROW_HEIGHT);
 
-    if (firstVisibleIndex < 0 || firstVisibleIndex >= visibleTasks.length) {
-      return null;
-    }
-
-    const firstVisibleTask = visibleTasks[firstVisibleIndex];
-    if (!firstVisibleTask) return null;
-
-    // If first visible is a header, no need for sticky
-    const firstRowData = firstVisibleTask.rowData as SmScheduleMaster | undefined;
-    if (firstRowData?.header_gantt === 'Header') {
-      return null;
-    }
-
-    // Build header task_number -> task mapping for lookup
-    const headerTaskNumToTask = new Map<number, GanttTask>();
-    for (const task of visibleTasks) {
-      const rowData = task.rowData as SmScheduleMaster | undefined;
-      if (rowData?.header_gantt === 'Header') {
-        headerTaskNumToTask.set(Number(rowData.task_number), task);
-      }
-    }
-
-    // Get parent task_number from first visible task's header_gantt
-    const hg = firstRowData?.header_gantt;
-    if (!hg || hg === 'Header') return null;
-
-    let parentTaskNum: number | null = null;
-    if (typeof hg === 'number') {
-      parentTaskNum = hg;
-    } else if (typeof hg === 'object' && hg?.id) {
-      parentTaskNum = hg.id;
-    } else if (typeof hg === 'string') {
-      const parsed = parseInt(hg, 10);
-      if (!isNaN(parsed)) parentTaskNum = parsed;
-    }
-
-    if (parentTaskNum === null) return null;
-
-    // Find the parent header task
-    const headerTask = headerTaskNumToTask.get(parentTaskNum);
+    // Find the selected header in visibleTasks
+    const headerTask = visibleTasks.find(t => t.id === selectedGroupHeaderId);
     if (!headerTask) return null;
 
-    // Check if header is scrolled out of view (its index * ROW_HEIGHT < scrollY)
-    const headerIndex = visibleTasks.findIndex(t => t.id === headerTask.id);
+    // Check if header is scrolled out of view
+    const headerIndex = visibleTasks.findIndex(t => t.id === selectedGroupHeaderId);
     if (headerIndex < 0) return null;
 
     const headerTop = headerIndex * ROW_HEIGHT;
@@ -776,7 +739,7 @@ export function GanttCanvasView({
 
     // Header is scrolled out, show sticky
     return headerTask;
-  }, [sidebarScrollY, visibleTasks]);
+  }, [sidebarScrollY, visibleTasks, selectedGroupHeaderId]);
 
   // Fullscreen state - use external if provided, otherwise internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
@@ -3456,14 +3419,37 @@ export function GanttCanvasView({
                       style={{ height: 28 }}
                       onClick={() => {
                         // Select the task and scroll Gantt horizontally to show the bar
-                        // The sidebar row is already visible since user clicked it
                         setSelectedTaskId(task.id);
                         // Call external onTaskClick handler (for PO button etc)
                         onTaskClick?.(task);
-                        // Scroll horizontally to the task bar, but keep Y position unchanged
-                        // This shows the task bar in view without moving sidebar rows
+                        // Scroll horizontally to the task bar
                         if (ganttRef.current) {
                           ganttRef.current.scrollToTaskHorizontalOnly(task.id, true);
+                        }
+
+                        // If this task belongs to a group, scroll vertically to show header at top
+                        const ROW_HEIGHT = 28;
+                        let headerToShow: string | null = null;
+
+                        if (isHeader) {
+                          // Clicked on a header - scroll to show it at top
+                          headerToShow = task.id;
+                        } else {
+                          // Clicked on a child - find and scroll to its header
+                          const parentId = getParentHeaderId(task);
+                          if (parentId) {
+                            headerToShow = parentId;
+                          }
+                        }
+
+                        if (headerToShow && ganttRef.current) {
+                          // Find header's index in visibleTasks
+                          const headerIndex = visibleTasks.findIndex(t => t.id === headerToShow);
+                          if (headerIndex >= 0) {
+                            // Scroll to put header at top
+                            const targetScrollY = headerIndex * ROW_HEIGHT;
+                            ganttRef.current.scrollToY(targetScrollY);
+                          }
                         }
                       }}
                     >

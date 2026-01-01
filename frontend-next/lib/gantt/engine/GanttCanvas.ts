@@ -1056,6 +1056,15 @@ export class GanttCanvas {
   }
 
   /**
+   * Scroll to a specific Y position (vertical only, preserves horizontal)
+   */
+  scrollToY(y: number): void {
+    const currentX = this.viewportState.scrollX;
+    this.viewport.scrollTo(currentX, Math.max(0, y));
+    this.markDirty();
+  }
+
+  /**
    * Get the currently visible date range
    */
   getVisibleDateRange(): { start: Date; end: Date } {
