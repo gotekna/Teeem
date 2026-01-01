@@ -2183,7 +2183,20 @@ export class GanttCanvas {
         return;
       }
 
-      // Check date constraint violations based on dependency type
+      // SSoT: Only LOCKED tasks can be "broken"
+      // Unlocked tasks should float to correct date, not be flagged as broken
+      // A task is locked if: confirm, supplier_confirm, finance_approved, or is_completed
+      const isToTaskLocked = toTask.locked ||
+        toTask.rowData?.confirm ||
+        toTask.rowData?.supplier_confirm ||
+        toTask.rowData?.finance_approved ||
+        toTask.rowData?.is_completed;
+
+      if (!isToTaskLocked) {
+        return; // Unlocked task - can float to correct date, not broken
+      }
+
+      // Check date constraint violations based on dependency type (LOCKED tasks only)
       const lag = dep.lag || 0;
       let isViolated = false;
       let reason = '';

@@ -895,14 +895,14 @@ module Api
         end
 
         contacts.find_each do |contact|
-          # Remove "Employee" from the roles array
-          current_roles = contact.roles || []
+          # Parse JSON string to array (roles is TEXT storing JSON like '["Employee"]')
+          current_roles = contact.roles.is_a?(String) ? (JSON.parse(contact.roles) rescue []) : (contact.roles || [])
           next unless current_roles.include?("Employee")
 
           new_roles = current_roles - [ "Employee" ]
 
           # Use update_columns to skip callbacks and validations for this cleanup
-          if contact.update_columns(roles: new_roles)
+          if contact.update_columns(roles: new_roles.to_json)
             fixed_count += 1
             fixed_ids << contact.id
             Rails.logger.info "[HealthController#fix_employee_role_cleanup] Removed Employee role from Contact##{contact.id} (#{contact.display_name})"

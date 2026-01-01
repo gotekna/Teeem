@@ -61,11 +61,14 @@ namespace :contacts do
     error_count = 0
 
     orphaned.find_each do |contact|
-      old_roles = (contact.roles || []).dup
+      # Parse JSON string to array (roles is TEXT storing JSON like '["Employee"]')
+      old_roles = contact.roles.is_a?(String) ? (JSON.parse(contact.roles) rescue []) : (contact.roles || [])
+      next unless old_roles.include?("Employee")
+
       new_roles = old_roles - [ "Employee" ]
 
       begin
-        contact.update_columns(roles: new_roles)
+        contact.update_columns(roles: new_roles.to_json)
         fixed_count += 1
         puts "Fixed: #{contact.id} - #{contact.display_name} - roles: #{old_roles.join(',')} -> #{new_roles.join(',')}"
       rescue => e
