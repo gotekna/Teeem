@@ -629,7 +629,8 @@ class XeroContactSyncService
     is_company = xero_contact_is_company?(xero_contact)
 
     # Apply field mappings
-    if importable_fields.include?("name")
+    # Note: Field mapping key is "display_name", not "name"
+    if importable_fields.include?("display_name")
       updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
       updates[:entity_type] = is_company ? "company" : "person"
 
@@ -648,7 +649,8 @@ class XeroContactSyncService
       updates[:email] = xero_email if xero_email.present?
     end
 
-    if importable_fields.include?("abn")
+    # Note: Field mapping key is "tax_number", not "abn"
+    if importable_fields.include?("tax_number")
       updates[:abn] = normalize_tax_number(xero_contact["TaxNumber"]) if xero_contact["TaxNumber"].present?
     end
 

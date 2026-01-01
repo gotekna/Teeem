@@ -342,21 +342,6 @@ export function GanttCanvasView({
     affectedSuccessors: []
   });
 
-  // Dependency creation popup state
-  const [depPopup, setDepPopup] = React.useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    sourceTask: GanttTask | null;
-    targetTask: GanttTask | null;
-  }>({
-    visible: false,
-    x: 0,
-    y: 0,
-    sourceTask: null,
-    targetTask: null
-  });
-
   // Cascade dialog state for task moves
   const [cascadeDialog, setCascadeDialog] = React.useState<{
     isOpen: boolean;
@@ -902,7 +887,7 @@ export function GanttCanvasView({
   const openDepEditorWithNewPredecessor = React.useCallback((
     targetTask: GanttTask,
     sourceTask: GanttTask,
-    depType: 'FS' | 'FF'
+    depType: 'FS' | 'FF' | 'SS' | 'SF'
   ) => {
     setDepEditorTask(targetTask);
 
@@ -943,22 +928,6 @@ export function GanttCanvasView({
 
     setDepEditorOpen(true);
   }, [isStaticMode, staticDependencies, templateDependencies]);
-
-  // Handle dependency popup button click (Start or Finish)
-  const handleDepPopupClick = React.useCallback((type: 'FS' | 'FF') => {
-    if (!depPopup.sourceTask || !depPopup.targetTask) return;
-
-    // Hide the popup
-    setDepPopup(prev => ({ ...prev, visible: false }));
-
-    // Cancel the canvas drag state
-    if (ganttRef.current) {
-      ganttRef.current.cancelDependencyDrag();
-    }
-
-    // Open the dependency editor with the new predecessor pre-filled
-    openDepEditorWithNewPredecessor(depPopup.targetTask, depPopup.sourceTask, type);
-  }, [depPopup.sourceTask, depPopup.targetTask, openDepEditorWithNewPredecessor]);
 
   // Add a new predecessor link
   const addPredecessorLink = React.useCallback(() => {
@@ -1518,75 +1487,24 @@ export function GanttCanvasView({
     }
   }, [rows, toast]);
 
-  // Handle dependency create - save new dependency to API
-  const handleDependencyCreate = React.useCallback(async (
+  // Handle dependency create - open dialog to confirm/edit before saving
+  const handleDependencyCreate = React.useCallback((
     fromTaskId: string,
     toTaskId: string,
     type: 'FS' | 'SS' | 'FF' | 'SF'
   ) => {
-    // Skip API save in static mode
-    if (isStaticMode || !templateId) return;
+    // Find the source and target tasks from visible tasks
+    const sourceTask = visibleTasks.find(t => t.id === fromTaskId);
+    const targetTask = visibleTasks.find(t => t.id === toTaskId);
 
-    try {
-      // Find the source task to get its task_number
-      const fromRow = rows.find(r => String(r.id) === fromTaskId);
-      // Find the target task to get its current predecessor_ids
-      const toRow = rows.find(r => String(r.id) === toTaskId);
-
-      if (!fromRow || !toRow) {
-        console.error('Could not find tasks for dependency:', { fromTaskId, toTaskId });
-        return;
-      }
-
-      // Build new predecessor entry using task_number
-      const newPredecessor = {
-        id: fromRow.task_number,
-        type: type,
-        lag: 0
-      };
-
-      // Get current predecessors or empty array
-      const currentPredecessors = toRow.predecessor_ids || [];
-
-      // Check if this dependency already exists
-      const alreadyExists = currentPredecessors.some(p => p.id === fromRow.task_number);
-      if (alreadyExists) {
-        return; // Silently skip duplicate dependencies
-      }
-
-      // Add new predecessor
-      const updatedPredecessors = [...currentPredecessors, newPredecessor];
-
-      // Save to API
-      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${toTaskId}`, {
-        row: {
-          predecessor_ids: updatedPredecessors
-        }
-      });
-
-      // Update local state
-      setRows(prev => prev.map(r =>
-        String(r.id) === toTaskId
-          ? { ...r, predecessor_ids: updatedPredecessors }
-          : r
-      ));
-
-      // Silent reload to recalculate dates
-      await loadData(true);
-    } catch (err: any) {
-      console.error('Failed to save dependency:', err);
-      // Show user-friendly toast for errors
-      toast({
-        variant: "destructive",
-        title: "Dependency not saved",
-        description: err?.message?.includes('circular')
-          ? 'Cannot create dependency: This would create a circular reference.'
-          : 'Failed to save dependency. Please try again.',
-      });
-      // Reload to remove the invalid dependency from canvas (API rejected it)
-      await loadData(true);
+    if (!sourceTask || !targetTask) {
+      console.error('Could not find tasks for dependency:', { fromTaskId, toTaskId });
+      return;
     }
-  }, [templateId, isStaticMode, rows, loadData, toast]);
+
+    // Open the dependency editor dialog with the new predecessor pre-filled
+    openDepEditorWithNewPredecessor(targetTask, sourceTask, type);
+  }, [visibleTasks, openDepEditorWithNewPredecessor]);
 
   // Handle task resize - update duration and cascade dependencies
   const handleTaskResize = React.useCallback(async (task: GanttTask, newStartDate: Date, newEndDate: Date) => {
@@ -2293,14 +2211,6 @@ export function GanttCanvasView({
 
     // Register dependency create handler to save new dependencies
     gantt.onDependencyCreateHandler(handleDependencyCreate);
-
-    // Register dependency popup handlers (for Start/Finish selection UI)
-    gantt.onDependencyPopupShowHandler((sourceTask, targetTask, x, y) => {
-      setDepPopup({ visible: true, x, y, sourceTask, targetTask });
-    });
-    gantt.onDependencyPopupHideHandler(() => {
-      setDepPopup(prev => ({ ...prev, visible: false }));
-    });
 
     // Register scroll sync callback
     gantt.onScrollHandler((scrollX, scrollY) => {

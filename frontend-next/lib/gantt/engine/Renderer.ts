@@ -752,7 +752,7 @@ export class Renderer {
 
   /**
    * Draw connector chevron for dependency creation
-   * Only right chevron - drag from end to create FS or FF dependencies
+   * Left chevron = drag from start (SS or SF), Right chevron = drag from end (FS or FF)
    */
   private drawConnectorDots(startX: number, endX: number, barY: number, barHeight: number): void {
     const chevronWidth = 8;  // How wide the chevron opens
@@ -767,8 +767,17 @@ export class Renderer {
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
 
-    // End connector (right side only) - chevron pointing RIGHT (outward)
-    // Drag from here to create dependencies (always "from end" = FS or FF)
+    // Start connector (left side) - chevron pointing LEFT (outward)
+    // Drag from here to create SS or SF dependencies
+    const leftX = startX - offset;
+    this.ctx.beginPath();
+    this.ctx.moveTo(leftX, centerY - chevronHeight / 2);
+    this.ctx.lineTo(leftX - chevronWidth, centerY);
+    this.ctx.lineTo(leftX, centerY + chevronHeight / 2);
+    this.ctx.stroke();
+
+    // End connector (right side) - chevron pointing RIGHT (outward)
+    // Drag from here to create FS or FF dependencies
     const rightX = endX + offset;
     this.ctx.beginPath();
     this.ctx.moveTo(rightX, centerY - chevronHeight / 2);

@@ -554,7 +554,7 @@ export class GanttCanvas {
   private onTaskDelete?: (task: GanttTask) => void;
   private onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
   private onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
-  private onDependencyPopupShow?: (sourceTask: GanttTask, targetTask: GanttTask, x: number, y: number) => void;
+  private onDependencyPopupShow?: (sourceTask: GanttTask, targetTask: GanttTask, sourceEdge: 'start' | 'end', x: number, y: number) => void;
   private onDependencyPopupHide?: () => void;
   private onUndoStateChange?: (canUndo: boolean, canRedo: boolean) => void;
   private onContextMenuAction?: (actionId: string, task: GanttTask | null) => void;
@@ -2968,19 +2968,7 @@ export class GanttCanvas {
 
     // Handle dependency creation completion
     if (this.isCreatingDependency && this.dependencyFromTask && this.dependencyFromEdge) {
-      // If popup handlers are registered, don't auto-complete - let popup handle it
-      // The popup shows Start/Finish buttons when hovering over target
-      if (this.onDependencyPopupShow) {
-        // If we have a target, the popup is showing - do nothing, let user click button
-        // If no target, cancel the drag
-        if (!this.dependencyTargetTask) {
-          this.cancelDependencyDrag();
-        }
-        // Don't reset state here - popup buttons will call completeDependencyFromPopup
-        return;
-      }
-
-      // Legacy behavior (no popup): auto-determine type based on proximity
+      // Auto-determine target edge based on drop position
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
 
       if (targetTask && targetTask.id !== this.dependencyFromTask.id) {
@@ -2990,6 +2978,7 @@ export class GanttCanvas {
         const distToEnd = Math.abs(e.offsetX - targetEndX);
         const targetEdge = distToStart < distToEnd ? 'start' : 'end';
 
+        // Determine dependency type from source edge + target edge
         let depType: 'FS' | 'SS' | 'FF' | 'SF';
         if (this.dependencyFromEdge === 'end') {
           depType = targetEdge === 'start' ? 'FS' : 'FF';
@@ -2997,16 +2986,12 @@ export class GanttCanvas {
           depType = targetEdge === 'start' ? 'SS' : 'SF';
         }
 
+        // Call handler (will open dialog)
         this.onDependencyCreate?.(this.dependencyFromTask.id, targetTask.id, depType);
       }
 
       // Reset dependency creation state
-      this.isCreatingDependency = false;
-      this.dependencyFromTask = null;
-      this.dependencyFromEdge = null;
-      this.dependencyTargetTask = null;
-      this.canvas.style.cursor = 'default';
-      this.markDirty();
+      this.cancelDependencyDrag();
       return;
     }
 
@@ -3133,32 +3118,8 @@ export class GanttCanvas {
       const validTarget = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
       const prevTarget = this.dependencyTargetTask;
 
-      // Only update target if popup is NOT visible (preserve target while popup is shown)
-      if (!this.dependencyPopupVisible) {
-        this.dependencyTargetTask = validTarget;
-      }
-
-      // Show popup when hovering over target task
-      // Once popup is visible, keep it visible until explicitly dismissed (click button or cancel)
-      if (validTarget && validTarget !== prevTarget && !this.dependencyPopupVisible) {
-        // Calculate popup position (center of target task bar)
-        const rowIndex = this.state.tasks.indexOf(validTarget);
-        const rowY = this.viewport.rowToY(rowIndex);
-        const barTop = rowY + this.config.taskBarPadding;
-        const barCenterY = barTop + this.config.taskBarHeight / 2;
-        const targetStartX = this.viewport.dateToX(validTarget.startDate);
-        const targetEndX = this.viewport.dateToX(validTarget.endDate);
-        const taskCenterX = (targetStartX + targetEndX) / 2;
-
-        // Get canvas position for absolute positioning
-        const rect = this.canvas.getBoundingClientRect();
-        const popupX = rect.left + taskCenterX - this.viewportState.scrollX;
-        const popupY = rect.top + barCenterY + this.config.headerHeight - this.viewportState.scrollY + this.config.taskBarHeight / 2 + 8;
-
-        this.dependencyPopupVisible = true;
-        this.onDependencyPopupShow?.(this.dependencyFromTask, validTarget, popupX, popupY);
-      }
-      // DON'T hide popup when mouse leaves target - keep it visible until button click or cancel
+      // Track target task for visual feedback
+      this.dependencyTargetTask = validTarget;
 
       this.markDirty();
       return;
@@ -3971,8 +3932,7 @@ export class GanttCanvas {
     const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
     const taskEndX = taskStartX + taskWidth;
 
-    // Chevron hit area (only right side now)
-    // LARGER than visual chevron for easier clicking
+    // Chevron hit areas - LARGER than visual chevron for easier clicking
     const chevronOffset = 6;
     const chevronWidth = 8;
     const hitPaddingX = 8;  // Extra padding on each side for easier clicking
@@ -3984,11 +3944,18 @@ export class GanttCanvas {
       return null;
     }
 
-    // End chevron is to the RIGHT of the bar - expand hit area for easier clicking
+    // Start chevron is to the LEFT of the bar (drag from start = SS or SF)
+    const startChevronLeft = taskStartX - chevronOffset - chevronWidth - hitPaddingX;
+    const startChevronRight = taskStartX - chevronOffset + hitPaddingX;
+
+    if (x >= startChevronLeft && x <= startChevronRight) {
+      return { task, edge: 'start' };
+    }
+
+    // End chevron is to the RIGHT of the bar (drag from end = FS or FF)
     const endChevronLeft = taskEndX + chevronOffset - hitPaddingX;
     const endChevronRight = taskEndX + chevronOffset + chevronWidth + hitPaddingX;
 
-    // Check if click is in end chevron area
     if (x >= endChevronLeft && x <= endChevronRight) {
       return { task, edge: 'end' };
     }
