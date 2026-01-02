@@ -443,6 +443,7 @@ export class GanttCanvas {
   private isDirty: boolean = true;
   private containerWidth: number = 0;
   private containerHeight: number = 0;
+  private _renderCount: number = 0; // Debug: count renders for logging
 
   // Drag state
   private isDragging: boolean = false;
@@ -591,12 +592,26 @@ export class GanttCanvas {
   }
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
+    console.log('[GanttCanvas] 🎨 Constructor called', {
+      container,
+      containerWidth: container.offsetWidth,
+      containerHeight: container.offsetHeight,
+      options
+    });
+
     // Create canvas element
     this.canvas = document.createElement('canvas');
     this.canvas.style.display = 'block';
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
     container.appendChild(this.canvas);
+
+    console.log('[GanttCanvas] 📐 Canvas element created and appended', {
+      canvasWidth: this.canvas.width,
+      canvasHeight: this.canvas.height,
+      styleWidth: this.canvas.style.width,
+      styleHeight: this.canvas.style.height
+    });
 
     // Get 2D context
     const ctx = this.canvas.getContext('2d');
@@ -810,6 +825,13 @@ export class GanttCanvas {
    * Set the tasks to display
    */
   setTasks(tasks: GanttTask[]): void {
+    console.log('[GanttCanvas] 📋 setTasks called', {
+      tasksCount: tasks.length,
+      firstTask: tasks[0],
+      rowHeight: this.config.rowHeight,
+      contentHeight: tasks.length * this.config.rowHeight
+    });
+
     this.state.tasks = tasks;
     this.markDirty();
 
@@ -2431,9 +2453,20 @@ export class GanttCanvas {
    */
   resize(): void {
     const parent = this.canvas.parentElement;
-    if (!parent) return;
+    if (!parent) {
+      console.warn('[GanttCanvas] ⚠️  resize() called but canvas has no parent');
+      return;
+    }
 
     const rect = parent.getBoundingClientRect();
+    console.log('[GanttCanvas] 📐 resize() called', {
+      parentWidth: rect.width,
+      parentHeight: rect.height,
+      dpr: this.dpr,
+      canvasWidth: rect.width * this.dpr,
+      canvasHeight: rect.height * this.dpr
+    });
+
     this.containerWidth = rect.width;
     this.containerHeight = rect.height;
 
@@ -2726,6 +2759,19 @@ export class GanttCanvas {
   }
 
   private render(): void {
+    // Debug log every 60 frames (~1 second at 60fps)
+    if (!this._renderCount) this._renderCount = 0;
+    this._renderCount++;
+    if (this._renderCount % 60 === 1) {
+      console.log('[GanttCanvas] 🎬 render() called', {
+        tasksCount: this.state.tasks.length,
+        containerWidth: this.containerWidth,
+        containerHeight: this.containerHeight,
+        headerHeight: this.config.headerHeight,
+        scrollY: this.viewport.getState().scrollY
+      });
+    }
+
     // Clear canvas
     this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
 

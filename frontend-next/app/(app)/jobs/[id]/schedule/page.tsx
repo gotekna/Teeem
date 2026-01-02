@@ -1181,9 +1181,10 @@ export default function SchedulePage() {
     });
     return (
     <>
+      {/* Main Container */}
       <div className="flex flex-col h-full">
-        {/* Fullscreen Header */}
-        <div className="flex items-center justify-between px-4 py-2 border-b bg-background shrink-0">
+        {/* Fullscreen Header - STICKY */}
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-background shrink-0 sticky top-0 z-40">
           <div className="flex items-center gap-3">
             <BarChart3 className="h-5 w-5 text-muted-foreground" />
             <span className="font-medium">{job?.name || "Loading..."}</span>
@@ -1220,8 +1221,8 @@ export default function SchedulePage() {
             Exit Fullscreen
           </Button>
         </div>
-        {/* Gantt View - fills remaining space */}
-        <div className="flex-1">
+        {/* Gantt View Container */}
+        <div className="flex-1 overflow-hidden min-h-0">
           {loadingGantt ? (
             <>
               {console.log('[SchedulePage] ⏳ Rendering Gantt loading spinner')}
@@ -1259,10 +1260,10 @@ export default function SchedulePage() {
                     handleOpenTaskEdit(smTask);
                   }
                 }}
-              className="h-full"
-              jobId={Number(jobId)}
-              onDataChange={refetchGanttData}
-            />
+                className="h-full"
+                jobId={Number(jobId)}
+                onDataChange={refetchGanttData}
+              />
             </>
           )}
         </div>

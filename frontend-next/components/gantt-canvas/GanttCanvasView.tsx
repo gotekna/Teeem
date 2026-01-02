@@ -2888,12 +2888,27 @@ export function GanttCanvasView({
     );
   }
 
+  console.log('[GanttCanvasView] 🎨 Rendering component', {
+    isStaticMode,
+    staticTasksCount: staticTasks?.length || 0,
+    rowsCount: rows.length,
+    taskCount: isStaticMode ? (staticTasks?.length || 0) : rows.length,
+    showToolbar,
+    showSidebar,
+    isFullscreen,
+    className
+  });
+
   // Main Gantt content (used both inline and in fullscreen dialog)
   const ganttContent = (
-    <div className={cn("flex flex-col h-full", isFullscreen ? "fixed inset-0 z-50 bg-background" : "", className)}>
-      {/* Toolbar */}
+    <div className={cn(
+      "flex flex-col h-full",
+      isFullscreen ? "fixed inset-0 z-50 bg-background" : "",
+      className
+    )}>
+      {/* Toolbar - STICKY */}
       {showToolbar && (
-        <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 shrink-0">
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={handleZoomOut} title="Zoom Out">
               <ZoomOut className="h-4 w-4" />
@@ -3265,9 +3280,9 @@ export function GanttCanvasView({
 
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Sidebar Table - always shows Name column, toggles other columns */}
-        <div className="flex flex-col bg-background relative" style={{ width: 'auto', minWidth: showSidebar ? 200 : 310, maxWidth: showSidebar ? 600 : 330 }}>
-            {/* Sidebar Header - Draggable Columns with Search in Name column */}
+        {/* Sidebar Table - scrollable container */}
+        <div className="flex flex-col bg-background overflow-y-auto" style={{ width: 'auto', minWidth: showSidebar ? 200 : 310, maxWidth: showSidebar ? 600 : 330 }}>
+            {/* Sidebar Header - STICKY */}
             <DndContext
               sensors={columnDragSensors}
               collisionDetection={closestCenter}
@@ -3278,8 +3293,8 @@ export function GanttCanvasView({
                 strategy={horizontalListSortingStrategy}
               >
                 <div
-                  className="flex items-stretch border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
-                  style={{ height: 50, minHeight: 50 }}
+                  className="flex items-stretch border-b bg-muted px-2 text-xs font-medium text-muted-foreground sticky top-0 z-20"
+                  style={{ height: 49.5, minHeight: 49.5 }}
                 >
                   {visibleColumns.map((col) => (
                     col.id === 'name' ? (
@@ -3357,10 +3372,10 @@ export function GanttCanvasView({
               </div>
             )}
 
-            {/* Sidebar Rows */}
+            {/* Sidebar Rows Container */}
             <div
               ref={sidebarRef}
-              className="flex-1 overflow-hidden"
+              className=""
               style={{ overflowY: 'hidden' }}
             >
               <div style={{ height: visibleTasks.length * 28 }}>
@@ -3732,7 +3747,7 @@ export function GanttCanvasView({
             </div>
         </div>
 
-        {/* Canvas Container */}
+        {/* Canvas Container - The actual Gantt rendering area */}
         <div
           ref={containerRef}
           className="flex-1 min-h-0 bg-background outline-none"
