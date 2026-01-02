@@ -20,6 +20,7 @@
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { useTheme } from 'next-themes';
 import { GanttTask, GanttDependency, GanttConfig } from '@/lib/gantt/types';
 import { UnifiedGanttCanvas, TableColumn } from './UnifiedGanttCanvas';
 import { GanttOverlay } from './GanttOverlay';
@@ -121,6 +122,13 @@ export function GanttUnified({
   const ganttEngineRef = React.useRef<UnifiedGanttCanvas | null>(null);
 
   // ---------------------------------------------------------------------------
+  // Theme
+  // ---------------------------------------------------------------------------
+
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === 'dark';
+
+  // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
 
@@ -173,6 +181,7 @@ export function GanttUnified({
       // Create the unified canvas engine
       const engine = new UnifiedGanttCanvas(canvasRef.current, {
         ...DEFAULT_CONFIG,
+        darkMode: isDarkMode,
         onViewportChange: (newViewport) => {
           setViewport(newViewport);
         },
@@ -283,7 +292,7 @@ export function GanttUnified({
         ganttEngineRef.current = null;
       }
     };
-  }, [jobId, onTaskClick, onTaskDoubleClick]); // Include callbacks to prevent stale closures
+  }, [jobId, isDarkMode, onTaskClick, onTaskDoubleClick]); // Include callbacks and theme to prevent stale closures
 
   // ---------------------------------------------------------------------------
   // Data Updates
@@ -490,6 +499,7 @@ export function GanttUnified({
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onZoomToFit={handleZoomToFit}
+          zoomLevel={viewport.zoom * 100} // Convert from decimal to percentage
           onScrollToToday={handleScrollToToday}
           onToggleDependencies={handleToggleDependencies}
           onToggleFullscreen={handleToggleFullscreen}

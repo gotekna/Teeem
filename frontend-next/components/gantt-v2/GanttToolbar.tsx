@@ -45,6 +45,7 @@ interface GanttToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomToFit: () => void;
+  zoomLevel?: number; // Current zoom level (percentage, e.g., 100 = 100%)
 
   // Navigation
   onScrollToToday: () => void;
@@ -97,6 +98,7 @@ export function GanttToolbar({
   onZoomIn,
   onZoomOut,
   onZoomToFit,
+  zoomLevel,
   onScrollToToday,
   onToggleDependencies,
   onToggleFullscreen,
@@ -133,6 +135,13 @@ export function GanttToolbar({
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
+
+        {/* Zoom level display */}
+        {zoomLevel !== undefined && (
+          <span className="text-[10px] font-mono text-muted-foreground min-w-[36px] text-center">
+            {Math.round(zoomLevel)}%
+          </span>
+        )}
 
         <Button
           variant="ghost"

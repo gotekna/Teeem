@@ -4,7 +4,7 @@
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useSidebar } from "@/contexts/SidebarContext";
 import {
   Users,
@@ -67,10 +67,23 @@ export function Sidebar() {
   // Prevent duplicate fetches (React StrictMode double-mount)
   const badgeFetchingRef = useRef(false);
 
+  // Refs for preserving sidebar scroll position during React re-renders
+  const navRef = useRef<HTMLElement>(null);
+  const savedScrollTopRef = useRef<number>(0);
+
   // Clear loading state when navigation completes
   useEffect(() => {
     setLoadingHref(null);
   }, [pathname]);
+
+  // Restore scroll position AFTER re-render but BEFORE browser paints
+  // This prevents visible scroll jump when clicking nav items
+  useLayoutEffect(() => {
+    if (navRef.current && savedScrollTopRef.current > 0) {
+      navRef.current.scrollTop = savedScrollTopRef.current;
+      savedScrollTopRef.current = 0; // Reset to avoid stale restoration
+    }
+  }, [loadingHref, pathname]);
 
   // Load persona from localStorage on mount
   useEffect(() => {
@@ -249,6 +262,20 @@ export function Sidebar() {
     return pathname.startsWith(href);
   };
 
+  // Handle navigation click - saves scroll position BEFORE state change triggers re-render
+  const handleNavClick = (href: string, isActiveItem: boolean) => {
+    // Always reset breadcrumb trail when clicking sidebar - starting new navigation flow
+    window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
+
+    if (!isActiveItem) {
+      // Save scroll position BEFORE setLoadingHref triggers re-render
+      if (navRef.current) {
+        savedScrollTopRef.current = navRef.current.scrollTop;
+      }
+      setLoadingHref(href);
+    }
+  };
+
   // Render a navigation link
   const renderNavLink = (
     item: { href: string; icon: string; name: string; badge_key?: string | null },
@@ -271,14 +298,7 @@ export function Sidebar() {
         key={item.href}
         href={item.href}
         prefetch={false}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          // Always reset breadcrumb trail when clicking sidebar - starting new navigation flow
-          window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
-          if (!active) {
-            setLoadingHref(item.href);
-          }
-        }}
+        onClick={() => handleNavClick(item.href, active)}
         className={cn(
           "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
           isChild && (isExpanded || mobile) && !isGrandchild && !hasChevron && "pl-10",
@@ -379,14 +399,7 @@ export function Sidebar() {
           <Link
             href={item.href}
             prefetch={false}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              // Always reset breadcrumb trail when clicking sidebar - starting new navigation flow
-              window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
-              if (!active) {
-                setLoadingHref(item.href);
-              }
-            }}
+            onClick={() => handleNavClick(item.href, active)}
             className={cn(
               "flex-1 flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
               active
@@ -530,7 +543,7 @@ export function Sidebar() {
       )}
 
       {/* Main Navigation - SSoT from NavigationItem table */}
-      <nav className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
+      <nav ref={navRef} className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
         {navLoading ? (
           /* Loading state */
           <div className="flex items-center justify-center py-8">

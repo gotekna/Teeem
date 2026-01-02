@@ -339,6 +339,21 @@ export function ScheduleMasterTab() {
   });
   const [lockedTaskDecisions, setLockedTaskDecisions] = React.useState<Record<number, 'break' | 'cascade'>>({});
 
+  // Confirm dialog state (for supplier_confirm/confirm toggles in Gantt V2)
+  const [confirmDialog, setConfirmDialog] = React.useState<{
+    isOpen: boolean;
+    type: 'confirm' | 'supplierConfirm';
+    task: GanttTask | null;
+    isChecking: boolean;
+    affectedSuccessors: GanttSmScheduleMaster[];
+  }>({
+    isOpen: false,
+    type: 'confirm',
+    task: null,
+    isChecking: false,
+    affectedSuccessors: []
+  });
+
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
   const [editingRow, setEditingRow] = React.useState<SmScheduleMaster | null>(null);
@@ -956,6 +971,45 @@ export function ScheduleMasterTab() {
 
     console.log('[Gantt V2] Checkbox toggle:', taskId, field, checked);
 
+    // For supplier_confirm and confirm fields, show confirmation dialog first
+    if (field === 'supplier_confirm' || field === 'confirm') {
+      const task = ganttV2Tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const row = task.rowData as GanttSmScheduleMaster | undefined;
+      if (!row) {
+        // No row data, just save directly
+        await executeGanttV2CheckboxToggle(taskId, field, checked);
+        return;
+      }
+
+      // Find successors that depend on this task
+      const successors = ganttV2Tasks
+        .filter(t => {
+          const r = t.rowData as GanttSmScheduleMaster | undefined;
+          return r?.predecessor_ids?.some((p: { id: number }) => p.id === row.task_number);
+        })
+        .map(t => t.rowData as GanttSmScheduleMaster);
+
+      // Show confirmation dialog
+      setConfirmDialog({
+        isOpen: true,
+        type: field === 'supplier_confirm' ? 'supplierConfirm' : 'confirm',
+        task,
+        isChecking: checked,
+        affectedSuccessors: successors
+      });
+      return;
+    }
+
+    // For other fields, save directly
+    await executeGanttV2CheckboxToggle(taskId, field, checked);
+  };
+
+  // Gantt V2: Execute the checkbox toggle (called directly or after confirm dialog)
+  const executeGanttV2CheckboxToggle = async (taskId: string, field: string, checked: boolean) => {
+    if (!ganttV2TemplateId) return;
+
     try {
       // Map field names to API field names
       const fieldMap: Record<string, string> = {
@@ -968,8 +1022,18 @@ export function ScheduleMasterTab() {
 
       const apiField = fieldMap[field] || field;
 
+      // When confirming (locking), also save the current hold_date to lock position
+      const task = ganttV2Tasks.find(t => t.id === taskId);
+      const updateData: Record<string, unknown> = { [apiField]: checked };
+
+      if (checked && task?.startDate) {
+        // Lock the position when confirming
+        const holdDateStr = task.startDate.toISOString().split('T')[0];
+        updateData.hold_date = holdDateStr;
+      }
+
       await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskId}`, {
-        row: { [apiField]: checked },
+        row: updateData,
       });
 
       toast({ title: "Updated", description: `${field} ${checked ? 'enabled' : 'disabled'}` });
@@ -1158,8 +1222,9 @@ export function ScheduleMasterTab() {
     }
 
     try {
-      // Save to API
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${targetTask.rowData.id}`, {
+      // Save to API (cast to GanttSmScheduleMaster since we're in Gantt V2 context)
+      const rowData = targetTask.rowData as GanttSmScheduleMaster;
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${rowData.id}`, {
         row: {
           predecessor_ids: [...currentPreds, newPred]
         }
@@ -1191,8 +1256,8 @@ export function ScheduleMasterTab() {
     const predecessorTaskNumber = parseInt(match[1], 10);
     const rowId = parseInt(match[2], 10);
 
-    // Find the target task by row id
-    const targetTask = ganttV2Tasks.find(t => t.rowData?.id === rowId);
+    // Find the target task by row id (cast to GanttSmScheduleMaster since we're in Gantt V2 context)
+    const targetTask = ganttV2Tasks.find(t => (t.rowData as GanttSmScheduleMaster | undefined)?.id === rowId);
     if (!targetTask || !targetTask.rowData) {
       console.error('[Gantt V2] Target task not found for row:', rowId);
       toast({ title: "Error", description: "Target task not found", variant: "destructive" });
@@ -3287,6 +3352,252 @@ export function ScheduleMasterTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTagDialog(false)}>
               Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cascade Dependencies Dialog - shown when moving a task with successors (Gantt V2) */}
+      <Dialog open={cascadeDialog.isOpen} onOpenChange={(open) => setCascadeDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+              Cascade Dependencies
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-2 py-2">
+            {/* Task being moved */}
+            <div className="p-2 bg-muted rounded text-xs">
+              Moving <span className="font-semibold">{cascadeDialog.task?.name}</span> to{' '}
+              <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">
+                {cascadeDialog.newStartDate?.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            </div>
+
+            {/* Affected successors */}
+            <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+              <p className="text-[10px] font-medium text-yellow-800 dark:text-yellow-200 mb-1.5">
+                {cascadeDialog.successors.length} dependent task{cascadeDialog.successors.length > 1 ? 's' : ''}
+              </p>
+
+              {/* Unlocked successors - will cascade */}
+              {cascadeDialog.unlockedSuccessors.length > 0 && (
+                <div className="mb-1.5">
+                  <div className="text-[10px] font-semibold text-green-700 dark:text-green-300 flex items-center gap-1 mb-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    Will Cascade ({cascadeDialog.unlockedSuccessors.length}):
+                  </div>
+                  <div className="flex flex-wrap gap-1 ml-2">
+                    {cascadeDialog.unlockedSuccessors.map((s) => (
+                      <span key={s.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/40 rounded text-[9px] text-green-700 dark:text-green-300">
+                        #{s.task_number} {s.name.length > 15 ? s.name.slice(0, 15) + '...' : s.name}
+                        {s.downstreamCount > 0 && <span className="font-semibold">+{s.downstreamCount}</span>}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Locked successors */}
+              {cascadeDialog.lockedSuccessors.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1 mb-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                    Locked Tasks ({cascadeDialog.lockedSuccessors.length}):
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {cascadeDialog.lockedSuccessors.map((task) => {
+                      const lockType = task.supplier_confirm ? 'Supplier'
+                        : task.confirm ? 'Confirmed'
+                        : task.is_completed ? 'Done' : 'Locked';
+                      const canUnlock = !task.is_completed;
+                      const decision = lockedTaskDecisions[task.id] || 'break';
+
+                      return (
+                        <div
+                          key={task.id}
+                          className="p-1.5 rounded border bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
+                        >
+                          <div className="flex items-center gap-1 text-[10px] mb-1">
+                            <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
+                            <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
+                              task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                              : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                              : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            }`}>
+                              {lockType}
+                            </span>
+                          </div>
+
+                          <div className="flex gap-1">
+                            <label className={`flex items-center gap-1 cursor-pointer px-1.5 py-0.5 rounded flex-1 border ${decision === 'break' ? 'bg-red-100 dark:bg-red-900/50 border-red-300 dark:border-red-700' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'}`}>
+                              <input
+                                type="checkbox"
+                                checked={decision === 'break'}
+                                className="h-3 w-3 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'break' }));
+                                  }
+                                }}
+                              />
+                              <span className="text-[9px] font-medium text-red-700 dark:text-red-300">Break</span>
+                            </label>
+
+                            <label className={`flex items-center gap-1 px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}>
+                              <input
+                                type="checkbox"
+                                checked={decision === 'cascade'}
+                                disabled={!canUnlock}
+                                className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                onChange={(e) => {
+                                  if (e.target.checked && canUnlock) {
+                                    setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'cascade' }));
+                                  }
+                                }}
+                              />
+                              <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>Cascade</span>
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Legend */}
+            <div className="text-[9px] text-muted-foreground flex gap-3 pt-1 border-t">
+              <span><span className="text-green-600">●</span> Cascade = moves with parent</span>
+              <span><span className="text-red-600">●</span> Break = stays in place, dependency removed</span>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setCascadeDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
+            </Button>
+            <Button size="sm"
+              onClick={async () => {
+                if (cascadeDialog.task && cascadeDialog.newStartDate) {
+                  // For locked tasks with "break" decision, remove the dependency
+                  const movedTaskRow = cascadeDialog.task.rowData as GanttSmScheduleMaster | undefined;
+                  const movedTaskNumber = movedTaskRow?.task_number;
+
+                  if (movedTaskNumber) {
+                    // Process locked successors with "break" decision
+                    for (const lockedTask of cascadeDialog.lockedSuccessors) {
+                      const decision = lockedTaskDecisions[lockedTask.id] || 'break';
+                      if (decision === 'break') {
+                        // Remove dependency from this locked task
+                        const currentPreds = lockedTask.predecessor_ids || [];
+                        const updatedPreds = currentPreds.filter((p: { id: number }) => p.id !== movedTaskNumber);
+
+                        try {
+                          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${lockedTask.id}`, {
+                            row: { predecessor_ids: updatedPreds }
+                          });
+                        } catch (err) {
+                          console.error('[Gantt V2] Failed to break dependency for task', lockedTask.id, err);
+                        }
+                      } else {
+                        // Cascade: unlock the task so it can move
+                        try {
+                          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${lockedTask.id}`, {
+                            row: { confirm: false, supplier_confirm: false }
+                          });
+                        } catch (err) {
+                          console.error('[Gantt V2] Failed to unlock task for cascade', lockedTask.id, err);
+                        }
+                      }
+                    }
+                  }
+
+                  // Execute the actual move
+                  await executeGanttV2DragMove(cascadeDialog.task, cascadeDialog.newStartDate);
+                  setCascadeDialog(prev => ({ ...prev, isOpen: false }));
+                }
+              }}
+            >
+              Confirm Move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Dialog - shown when toggling supplier_confirm or confirm in Gantt V2 */}
+      <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {confirmDialog.isChecking ? (
+                <>
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  {confirmDialog.type === 'supplierConfirm' ? 'Supplier Confirm' : 'Confirm'} Task
+                </>
+              ) : (
+                <>
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                  Unlock Task
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmDialog.isChecking ? (
+                <>This will lock the task position. It will no longer move when predecessors change.</>
+              ) : (
+                <>This will unlock the task. It will move based on its predecessor dependencies.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            {/* Task info */}
+            <div className="p-2 bg-muted rounded text-sm mb-2">
+              <span className="font-medium">{confirmDialog.task?.name}</span>
+            </div>
+
+            {/* Affected successors info */}
+            {confirmDialog.affectedSuccessors.length > 0 && (
+              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                <p className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                  {confirmDialog.affectedSuccessors.length} successor{confirmDialog.affectedSuccessors.length > 1 ? 's' : ''} will be affected
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {confirmDialog.affectedSuccessors.slice(0, 5).map(s => (
+                    <span key={s.id} className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-800 rounded text-[10px]">
+                      #{s.task_number} {s.name.length > 20 ? s.name.slice(0, 20) + '...' : s.name}
+                    </span>
+                  ))}
+                  {confirmDialog.affectedSuccessors.length > 5 && (
+                    <span className="px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      +{confirmDialog.affectedSuccessors.length - 5} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant={confirmDialog.isChecking ? "default" : "outline"}
+              onClick={async () => {
+                if (confirmDialog.task) {
+                  const field = confirmDialog.type === 'supplierConfirm' ? 'supplier_confirm' : 'confirm';
+                  await executeGanttV2CheckboxToggle(confirmDialog.task.id, field, confirmDialog.isChecking);
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                }
+              }}
+            >
+              {confirmDialog.isChecking ? 'Confirm' : 'Unlock'}
             </Button>
           </DialogFooter>
         </DialogContent>

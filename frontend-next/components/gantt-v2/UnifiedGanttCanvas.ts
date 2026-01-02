@@ -2929,6 +2929,35 @@ export class UnifiedGanttCanvas {
         this.ctx.lineWidth = 1;
         this.ctx.strokeRect(startX, barY, barWidth, taskBarHeight);
 
+        // Draw lock icon for locked tasks (completed, confirmed, or supplier confirmed)
+        const isLocked = rowData?.is_completed || rowData?.confirm || rowData?.supplier_confirm;
+        if (isLocked && barWidth >= 20) {
+          // Draw lock icon on left edge of bar (Unicode lock: 🔒)
+          this.ctx.font = '10px sans-serif';
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.7)';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillText('🔒', startX + 2, barY + taskBarHeight / 2);
+        }
+
+        // Draw visual resize handles on hover (grip lines on edges)
+        if (this.hoveredTaskId === task.id && !isLocked && barWidth >= 30) {
+          const gripColor = this.config.darkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.4)';
+          const gripWidth = 2;
+          const gripGap = 3;
+          const gripHeight = 6;
+          const centerY = barY + taskBarHeight / 2;
+
+          // Left edge grip lines
+          this.ctx.fillStyle = gripColor;
+          this.ctx.fillRect(startX + 2, centerY - gripHeight / 2, gripWidth, gripHeight);
+          this.ctx.fillRect(startX + 2 + gripGap, centerY - gripHeight / 2, gripWidth, gripHeight);
+
+          // Right edge grip lines
+          const rightX = startX + barWidth - 4 - gripWidth;
+          this.ctx.fillRect(rightX - gripGap, centerY - gripHeight / 2, gripWidth, gripHeight);
+          this.ctx.fillRect(rightX, centerY - gripHeight / 2, gripWidth, gripHeight);
+        }
+
         // Draw hold date marker (pinned task indicator)
         if (rowData?.hold && rowData?.hold_date) {
           const holdDate = new Date(rowData.hold_date);
