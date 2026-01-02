@@ -356,6 +356,13 @@ export default function SchedulePage() {
   const { toast } = useToast();
   const { setMode } = useLayoutMode();
 
+  console.log('[SchedulePage] 🚀 Component render', {
+    jobId,
+    params,
+    searchParams: Object.fromEntries(searchParams.entries()),
+    timestamp: new Date().toISOString()
+  });
+
   // Check if Gantt should auto-open from URL param
   const shouldOpenGantt = searchParams.get('gantt') === 'true';
 
@@ -370,6 +377,13 @@ export default function SchedulePage() {
   // Gantt mode detection: /schedule/gantt or ?gantt=true
   const isGanttMode = isReservedPath || shouldOpenGantt;
 
+  console.log('[SchedulePage] 📊 View state', {
+    viewSlug,
+    isReservedPath,
+    shouldOpenGantt,
+    isGanttMode
+  });
+
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshKey, setRefreshKey] = React.useState(0);
@@ -383,13 +397,25 @@ export default function SchedulePage() {
   const [loadingGantt, setLoadingGantt] = React.useState(false);
   const [selectedGanttTask, setSelectedGanttTask] = React.useState<GanttTask | null>(null);
 
+  console.log('[SchedulePage] 📈 Gantt state', {
+    ganttFullscreen,
+    ganttOpen,
+    ganttTasksCount: ganttTasks.length,
+    ganttDepsCount: ganttApiDeps.length,
+    loadingGantt,
+    selectedGanttTaskId: selectedGanttTask?.id
+  });
+
   // Set fullscreen layout mode when Gantt is fullscreen
   React.useEffect(() => {
+    console.log('[SchedulePage] 🖥️  Fullscreen effect', { ganttFullscreen });
     if (ganttFullscreen) {
+      console.log('[SchedulePage] Setting layout mode to fullscreen');
       setMode("fullscreen");
     }
     return () => {
       if (ganttFullscreen) {
+        console.log('[SchedulePage] Cleanup: Resetting layout mode to padded');
         setMode("padded");
       }
     };

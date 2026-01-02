@@ -208,12 +208,12 @@ export class Renderer {
   }
 
   /**
-   * Draw time scale header (sticky - follows scrollY)
+   * Draw time scale header (sticky - always at top)
    */
   drawTimeScale(width: number, calendar?: WorkingDaysCalendar): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
-    const headerY = state.scrollY; // Sticky header: draw at scroll position
+    const headerY = 0; // Sticky header: always at top (y=0)
 
     // Draw header background
     this.ctx.fillStyle = this.config.colors.headerBackground;
@@ -311,7 +311,7 @@ export class Renderer {
     }
   }
 
-  private drawDayHeaders(width: number, startDayOffset: number, endDayOffset: number): void {
+  private drawDayHeaders(width: number, startDayOffset: number, endDayOffset: number, headerY: number): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
 
@@ -330,13 +330,13 @@ export class Renderer {
         this.ctx.font = '11px Inter, system-ui, sans-serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(dayLabel, x + dayWidth / 2, this.config.headerHeight - 15);
+        this.ctx.fillText(dayLabel, x + dayWidth / 2, headerY + this.config.headerHeight - 15);
       }
     }
   }
 
   /**
-   * Draw today marker
+   * Draw today marker (starts at header bottom)
    */
   drawTodayMarker(height: number): void {
     // Get today in company timezone (from /api/v1/company_settings)
@@ -346,7 +346,7 @@ export class Renderer {
 
     if (x < 0 || x > 10000) return; // Off screen
 
-    // Draw line
+    // Draw line from header bottom to canvas bottom
     this.ctx.strokeStyle = this.config.colors.todayMarker;
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
@@ -354,7 +354,7 @@ export class Renderer {
     this.ctx.lineTo(x, height);
     this.ctx.stroke();
 
-    // Draw triangle marker at top
+    // Draw triangle marker at header bottom
     this.ctx.fillStyle = this.config.colors.todayMarker;
     this.ctx.beginPath();
     this.ctx.moveTo(x, this.config.headerHeight);
@@ -363,7 +363,7 @@ export class Renderer {
     this.ctx.closePath();
     this.ctx.fill();
 
-    // Draw "Today" label
+    // Draw "Today" label at header bottom
     this.ctx.fillStyle = this.config.colors.todayMarker;
     this.ctx.font = 'bold 10px Inter, system-ui, sans-serif';
     this.ctx.textAlign = 'center';

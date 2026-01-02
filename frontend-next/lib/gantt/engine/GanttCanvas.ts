@@ -2744,12 +2744,11 @@ export class GanttCanvas {
     this.renderer.drawBackground(this.containerWidth, this.containerHeight);
     // Draw weekends/holidays BEFORE selections (so they're below)
     this.renderer.drawWeekendsAndHolidays(this.containerWidth, this.containerHeight, this.calendar);
-    this.renderer.drawTimeScale(this.containerWidth, this.calendar);
-    this.renderer.drawTodayMarker(this.containerHeight);
 
     // CLIP: Prevent task bars, baselines, and dependencies from rendering in header area
     this.ctx.save();
     this.ctx.beginPath();
+    // Clip below the header (fixed position at top)
     this.ctx.rect(0, this.config.headerHeight, this.containerWidth, this.containerHeight - this.config.headerHeight);
     this.ctx.clip();
 
@@ -2819,6 +2818,12 @@ export class GanttCanvas {
     }
 
     // RESTORE: End clipping region for task area
+    this.ctx.restore();
+
+    // Draw sticky header AFTER restore (so it's always on top, unclipped)
+    this.ctx.save();
+    this.renderer.drawTimeScale(this.containerWidth, this.calendar);
+    this.renderer.drawTodayMarker(this.containerHeight);
     this.ctx.restore();
 
     // Draw selection count badge
