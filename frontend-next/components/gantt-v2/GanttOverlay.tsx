@@ -27,7 +27,8 @@ interface OverlayPosition {
   rowIndex: number;
   y: number;
   checkboxes: Array<{
-    x: number;
+    x: number;      // Column left position
+    width: number;  // Column width
     field: string;
     checked: boolean;
   }>;
@@ -172,6 +173,7 @@ function RowOverlay({ position, rowHeight, onCheckboxToggle }: RowOverlayProps) 
           field={checkbox.field}
           checked={checkbox.checked}
           x={checkbox.x}
+          width={checkbox.width}
           y={position.y}
           rowHeight={rowHeight}
           onToggle={onCheckboxToggle}
@@ -190,6 +192,7 @@ interface CheckboxOverlayProps {
   field: string;
   checked: boolean;
   x: number;
+  width: number;
   y: number;
   rowHeight: number;
   onToggle?: (taskId: string, field: string, checked: boolean) => void;
@@ -200,12 +203,12 @@ function CheckboxOverlay({
   field,
   checked,
   x,
+  width,
   y,
   rowHeight,
   onToggle,
 }: CheckboxOverlayProps) {
   const config = CHECKBOX_CONFIGS[field];
-  const size = 14;
 
   const handleChange = (newChecked: boolean) => {
     onToggle?.(taskId, field, newChecked);
@@ -213,21 +216,34 @@ function CheckboxOverlay({
 
   return (
     <div
-      className="absolute pointer-events-auto"
+      className="absolute pointer-events-none flex items-center justify-center"
       style={{
-        left: x - size / 2,
-        top: y + (rowHeight - size) / 2,
-        width: size,
-        height: size,
+        left: x,
+        top: y,
+        width: width,
+        height: rowHeight,
       }}
     >
       <Checkbox
         checked={checked}
         onCheckedChange={handleChange}
         className={cn(
-          'w-[14px] h-[14px]',
-          checked ? config?.color.checked : config?.color.unchecked
+          'w-[14px] h-[14px] rounded-sm pointer-events-auto',
+          checked && config?.color.checked,
+          !checked && 'border-gray-300 bg-transparent'
         )}
+        style={checked ? {
+          backgroundColor: config?.color.checked.includes('emerald') ? '#10b981' :
+                          config?.color.checked.includes('amber') ? '#f59e0b' :
+                          config?.color.checked.includes('orange') ? '#f97316' :
+                          config?.color.checked.includes('purple') ? '#a855f7' :
+                          config?.color.checked.includes('gray') ? '#374151' : '#3b82f6',
+          borderColor: config?.color.checked.includes('emerald') ? '#10b981' :
+                       config?.color.checked.includes('amber') ? '#f59e0b' :
+                       config?.color.checked.includes('orange') ? '#f97316' :
+                       config?.color.checked.includes('purple') ? '#a855f7' :
+                       config?.color.checked.includes('gray') ? '#374151' : '#3b82f6',
+        } : undefined}
         title={config?.label}
       />
     </div>

@@ -177,6 +177,10 @@ interface SmScheduleMaster {
   po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
   // Linked non-PO tasks (visibility follows this PO task)
   linked_task_ids?: number[];
+  // Checklist and task linking
+  checklist_id?: number | { id: number; display: string } | null;
+  linked_po_task_id?: number | { id: number; display: string } | null;
+  spawn_scan_task_id?: number | { id: number; display: string } | null;
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -452,6 +456,10 @@ export function ScheduleMasterTab() {
   const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Header rows are rows with header=NULL (they ARE headers, no parent)
   const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: Checklists from Supervisor Checklist Template foundation
+  const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: All tasks for linked_po_task and spawn_scan_task lookups
+  const [availableTasks, setAvailableTasks] = React.useState<{ id: number; name: string }[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -493,6 +501,8 @@ export function ScheduleMasterTab() {
     loadRoles();
     loadCostCentres();
     loadHeaderRows();
+    loadChecklists();
+    loadAllTasks();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
 
@@ -648,6 +658,34 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load header rows:", error);
+    }
+  };
+
+  // SSoT: Load checklists from Supervisor Checklist Template foundation
+  const loadChecklists = async () => {
+    try {
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
+        "/api/v1/foundations/supervisor_checklist_templates/records?per_page=100"
+      );
+      if (data?.records) {
+        setAvailableChecklists(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load checklists:", error);
+    }
+  };
+
+  // SSoT: Load all tasks for linked_po_task and spawn_scan_task lookups
+  const loadAllTasks = async () => {
+    try {
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
+        "/api/v1/foundations/sm-schedule-master/records?per_page=500"
+      );
+      if (data?.records) {
+        setAvailableTasks(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load tasks:", error);
     }
   };
 
@@ -3116,6 +3154,63 @@ export function ScheduleMasterTab() {
                     emptyResults="No header rows found"
                     clearable
                     onClear={() => setEditRowForm({ ...editRowForm, header_gantt: null })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Checklist</Label>
+                  <ComboboxDropdown
+                    items={availableChecklists.map(c => ({ id: String(c.id), label: c.name }))}
+                    selectedItem={(() => {
+                      const checklistId = extractLookupId(editRowForm.checklist_id);
+                      if (!checklistId) return undefined;
+                      const checklistName = availableChecklists.find(c => String(c.id) === checklistId)?.name
+                        || extractLookupDisplay(editingRow?.checklist_id)
+                        || checklistId;
+                      return { id: checklistId, label: checklistName };
+                    })()}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, checklist_id: Number(item.id) })}
+                    placeholder="Select checklist..."
+                    emptyResults="No checklists found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, checklist_id: null })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Linked PO Task</Label>
+                  <ComboboxDropdown
+                    items={availableTasks.filter(t => t.id !== editingRow?.id).map(t => ({ id: String(t.id), label: t.name }))}
+                    selectedItem={(() => {
+                      const taskId = extractLookupId(editRowForm.linked_po_task_id);
+                      if (!taskId) return undefined;
+                      const taskName = availableTasks.find(t => String(t.id) === taskId)?.name
+                        || extractLookupDisplay(editingRow?.linked_po_task_id)
+                        || taskId;
+                      return { id: taskId, label: taskName };
+                    })()}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, linked_po_task_id: Number(item.id) })}
+                    placeholder="Select task..."
+                    emptyResults="No tasks found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, linked_po_task_id: null })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Spawn Scan Task</Label>
+                  <ComboboxDropdown
+                    items={availableTasks.filter(t => t.id !== editingRow?.id).map(t => ({ id: String(t.id), label: t.name }))}
+                    selectedItem={(() => {
+                      const taskId = extractLookupId(editRowForm.spawn_scan_task_id);
+                      if (!taskId) return undefined;
+                      const taskName = availableTasks.find(t => String(t.id) === taskId)?.name
+                        || extractLookupDisplay(editingRow?.spawn_scan_task_id)
+                        || taskId;
+                      return { id: taskId, label: taskName };
+                    })()}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, spawn_scan_task_id: Number(item.id) })}
+                    placeholder="Select task..."
+                    emptyResults="No tasks found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, spawn_scan_task_id: null })}
                   />
                 </div>
                 {/* Auto-save status indicator */}

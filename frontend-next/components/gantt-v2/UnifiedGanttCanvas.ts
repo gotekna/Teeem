@@ -2942,22 +2942,8 @@ export class UnifiedGanttCanvas {
           this.ctx.fillText(displayText, textX, textY);
         }
       } else if (column.type === 'checkbox') {
-        // Draw checkbox placeholder (actual checkbox rendered by React overlay)
-        const size = 14;
-        const checkX = cellX + (cellWidth - size) / 2;
-        const checkY = y + (rowHeight - size) / 2;
-
-        // Draw checkbox border
-        this.ctx.strokeStyle = '#9ca3af';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(checkX, checkY, size, size);
-
-        // Fill if checked
-        const isChecked = column.field && rowData?.[column.field];
-        if (isChecked) {
-          this.ctx.fillStyle = '#3b82f6';
-          this.ctx.fillRect(checkX + 2, checkY + 2, size - 4, size - 4);
-        }
+        // Checkboxes are rendered by React overlay (GanttOverlay.tsx)
+        // Canvas skips drawing to avoid double-render
       } else if (column.type === 'number') {
         const value = column.field ? rowData?.[column.field] : '';
         this.ctx.fillStyle = this.config.colors.textColor;
@@ -3648,7 +3634,8 @@ export class UnifiedGanttCanvas {
         if (column.type === 'checkbox' && column.field) {
           const isChecked = !!rowData?.[column.field];
           checkboxes.push({
-            x: columnX + column.width / 2,
+            x: columnX,           // Column left position
+            width: column.width,  // Column width
             field: column.field,
             checked: isChecked,
           });
