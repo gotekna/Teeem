@@ -282,6 +282,105 @@ export function GanttToolbar({
           </Button>
         )}
 
+        {/* Legend Popover */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Color Legend"
+              className="h-8 w-8"
+            >
+              <Info className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72">
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Task Bar Colors</h4>
+              <p className="text-xs text-muted-foreground">Based on checkbox status (priority order)</p>
+              <div className="grid gap-1.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(31, 41, 55, 0.4)' }} />
+                  <div className="flex items-center gap-1">
+                    <Check className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Done</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(168, 85, 247, 0.3)' }} />
+                  <div className="flex items-center gap-1">
+                    <Check className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Supplier Confirmed</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(249, 115, 22, 0.35)' }} />
+                  <div className="flex items-center gap-1">
+                    <Check className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Confirmed</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(212, 165, 116, 0.4)' }} />
+                  <div className="flex items-center gap-1">
+                    <Check className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">On Hold</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(16, 185, 129, 0.35)' }} />
+                  <div className="flex items-center gap-1">
+                    <Check className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Started</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#9ca3af' }} />
+                  <span className="text-muted-foreground">Not Started (default)</span>
+                </div>
+              </div>
+
+              <div className="border-t pt-2 mt-2">
+                <h4 className="font-medium text-sm mb-1.5">Special Indicators</h4>
+                <div className="grid gap-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#ef4444' }} />
+                    <span className="text-muted-foreground">Today marker</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }} />
+                    <span className="text-muted-foreground">Weekend</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(251, 191, 36, 0.15)', border: '1px solid rgba(251, 191, 36, 0.3)' }} />
+                    <span className="text-muted-foreground">Header row</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-2.5 rounded border border-red-400" style={{ boxShadow: '0 0 4px rgba(239, 68, 68, 0.5)' }} />
+                    <span className="text-muted-foreground">Critical path (press C)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-2 mt-2 text-xs text-muted-foreground">
+                <p className="font-medium mb-1">Keyboard Shortcuts</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  <span>T - Go to Today</span>
+                  <span>C - Critical Path</span>
+                  <span>B - Baseline</span>
+                  <span>M - Minimap</span>
+                  <span>+/- - Zoom In/Out</span>
+                  <span>V - Cycle Zoom</span>
+                  <span>1 - Day View</span>
+                  <span>2 - Week View</span>
+                  <span>3 - Month View</span>
+                  <span>↑↓ - Navigate</span>
+                </div>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
         {/* Column Visibility Toggle */}
         {columns && onColumnVisibilityChange && (
           <Popover>

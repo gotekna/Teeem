@@ -189,6 +189,7 @@ export function GanttUnified({
           onTaskClick?.(task);
         },
         onTaskDoubleClick: (task) => {
+          console.log('[GanttUnified] onTaskDoubleClick callback:', task.id, task.name);
           onTaskDoubleClick?.(task);
         },
         onColumnsChange: (newColumns) => {
@@ -521,6 +522,9 @@ export function GanttUnified({
           ref={canvasRef}
           className="absolute inset-0"
           style={{ touchAction: 'none' }} // Prevent browser touch gestures
+          onDoubleClick={(e) => {
+            console.log('[GanttUnified] React onDoubleClick fired at', e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+          }}
         />
 
         {/* Overlay Layer - React components for interactive elements */}

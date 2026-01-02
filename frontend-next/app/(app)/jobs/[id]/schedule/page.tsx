@@ -39,7 +39,8 @@ import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
-import type { GanttTask } from "@/lib/gantt/types";
+import { GanttUnified } from "@/components/gantt-v2";
+import type { GanttTask, GanttDependency } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -366,6 +367,9 @@ export default function SchedulePage() {
   // Check if Gantt should auto-open from URL param
   const shouldOpenGantt = searchParams.get('gantt') === 'true';
 
+  // Feature flag: Use Gantt V2 (new unified canvas) when ?v2=true
+  const useGanttV2 = searchParams.get('v2') === 'true';
+
   // SSoT: Path-based view URLs for embedded tables
   // Handles: /jobs/123/schedule/po-tasks-only → viewSlug = "po-tasks-only"
   // Reserved: /jobs/123/schedule/gantt → isReservedPath = true, viewSlug = null
@@ -676,15 +680,15 @@ export default function SchedulePage() {
   // Build dependencies from API data
   // SSoT: Backend GanttDataService returns { id, fromId, toId, type, lag } format
   // where fromId/toId are task.id values (not task_number)
-  const ganttDependencies = React.useMemo(() => {
+  const ganttDependencies: GanttDependency[] = React.useMemo(() => {
     console.log('[SchedulePage] 🔗 Building dependencies', {
       ganttApiDepsCount: ganttApiDeps.length
     });
-    const deps = ganttApiDeps.map(dep => ({
+    const deps: GanttDependency[] = ganttApiDeps.map(dep => ({
       id: dep.id,
       fromId: dep.fromId,
       toId: dep.toId,
-      type: dep.type || "FS",
+      type: (dep.type || "FS") as GanttDependency['type'],
       lag: dep.lag || 0,
     }));
     console.log('[SchedulePage] ✅ Dependencies built', {
@@ -1240,30 +1244,56 @@ export default function SchedulePage() {
             </>
           ) : (
             <>
-              {console.log('[SchedulePage] 🎨 Rendering GanttCanvasView', {
+              {console.log('[SchedulePage] 🎨 Rendering Gantt', {
+                useGanttV2,
                 tasksCount: ganttTasksFormatted.length,
                 depsCount: ganttDependencies.length
               })}
-              <GanttCanvasView
-              staticTasks={ganttTasksFormatted}
-              staticDependencies={ganttDependencies}
-              showToolbar={true}
-              onTaskDrag={handleTaskDrag}
-              onTaskClick={(task) => {
-                  console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
-                  setSelectedGanttTask(task);
-                }}
-              onTaskDoubleClick={(task) => {
-                  // Find the SmTask from ganttTasks and open the task edit sheet
-                  const smTask = ganttTasks.find(t => String(t.id) === task.id);
-                  if (smTask) {
-                    handleOpenTaskEdit(smTask);
-                  }
-                }}
-                className="h-full"
-                jobId={Number(jobId)}
-                onDataChange={refetchGanttData}
-              />
+              {useGanttV2 ? (
+                <GanttUnified
+                  tasks={ganttTasksFormatted}
+                  dependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
+                  onTaskClick={(task) => {
+                    console.log('Gantt V2 task clicked:', task.id, task.name);
+                    setSelectedGanttTask(task);
+                  }}
+                  onTaskDoubleClick={(task) => {
+                    console.log('[SchedulePage] Gantt V2 double-click received:', task.id, task.name);
+                    // Find the SmTask from ganttTasks and open the task edit sheet
+                    const smTask = ganttTasks.find(t => String(t.id) === task.id);
+                    console.log('[SchedulePage] Found smTask:', smTask?.id, smTask?.name);
+                    if (smTask) {
+                      handleOpenTaskEdit(smTask);
+                    }
+                  }}
+                  className="h-full"
+                  jobId={Number(jobId)}
+                  onDataChange={refetchGanttData}
+                />
+              ) : (
+                <GanttCanvasView
+                  staticTasks={ganttTasksFormatted}
+                  staticDependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
+                  onTaskClick={(task) => {
+                    console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
+                    setSelectedGanttTask(task);
+                  }}
+                  onTaskDoubleClick={(task) => {
+                    // Find the SmTask from ganttTasks and open the task edit sheet
+                    const smTask = ganttTasks.find(t => String(t.id) === task.id);
+                    if (smTask) {
+                      handleOpenTaskEdit(smTask);
+                    }
+                  }}
+                  className="h-full"
+                  jobId={Number(jobId)}
+                  onDataChange={refetchGanttData}
+                />
+              )}
             </>
           )}
         </div>
@@ -1829,26 +1859,50 @@ export default function SchedulePage() {
                 <Spinner size={32} className="text-muted-foreground" />
               </div>
             ) : ganttTasks.length > 0 ? (
-              <GanttCanvasView
-                staticTasks={ganttTasksFormatted}
-                staticDependencies={ganttDependencies}
-                showToolbar={true}
-                onTaskDrag={handleTaskDrag}
-                onTaskClick={(task) => {
-                  console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
-                  setSelectedGanttTask(task);
-                }}
-                onTaskDoubleClick={(task) => {
-                  // Open task edit sheet on double-click
-                  const smTask = ganttTasks.find(t => String(t.id) === task.id);
-                  if (smTask) {
-                    handleOpenTaskEdit(smTask);
-                  }
-                }}
-                className="h-full"
-                jobId={Number(jobId)}
-                onDataChange={refetchGanttData}
-              />
+              useGanttV2 ? (
+                <GanttUnified
+                  tasks={ganttTasksFormatted}
+                  dependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
+                  onTaskClick={(task) => {
+                    console.log('Gantt V2 sheet task clicked:', task.id, task.name);
+                    setSelectedGanttTask(task);
+                  }}
+                  onTaskDoubleClick={(task) => {
+                    console.log('[SchedulePage] Gantt V2 sheet double-click:', task.id, task.name);
+                    // Open task edit sheet on double-click
+                    const smTask = ganttTasks.find(t => String(t.id) === task.id);
+                    if (smTask) {
+                      handleOpenTaskEdit(smTask);
+                    }
+                  }}
+                  className="h-full"
+                  jobId={Number(jobId)}
+                  onDataChange={refetchGanttData}
+                />
+              ) : (
+                <GanttCanvasView
+                  staticTasks={ganttTasksFormatted}
+                  staticDependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
+                  onTaskClick={(task) => {
+                    console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
+                    setSelectedGanttTask(task);
+                  }}
+                  onTaskDoubleClick={(task) => {
+                    // Open task edit sheet on double-click
+                    const smTask = ganttTasks.find(t => String(t.id) === task.id);
+                    if (smTask) {
+                      handleOpenTaskEdit(smTask);
+                    }
+                  }}
+                  className="h-full"
+                  jobId={Number(jobId)}
+                  onDataChange={refetchGanttData}
+                />
+              )
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No tasks to display</p>

@@ -693,6 +693,52 @@ export class UnifiedGanttCanvas {
     this.markDirty();
   }
 
+  /** Zoom preset: Day view (detailed) */
+  zoomToDay(): void {
+    this.zoom = 1.0;
+    this.emitViewportChange();
+    this.markDirty();
+  }
+
+  /** Zoom preset: Week view */
+  zoomToWeek(): void {
+    this.zoom = 0.15;
+    this.emitViewportChange();
+    this.markDirty();
+  }
+
+  /** Zoom preset: Month view */
+  zoomToMonth(): void {
+    this.zoom = 0.05;
+    this.emitViewportChange();
+    this.markDirty();
+  }
+
+  /** Get current zoom level name */
+  getZoomLevel(): 'day' | 'week' | 'month' | 'custom' {
+    if (this.zoom >= 0.8) return 'day';
+    if (this.zoom >= 0.1 && this.zoom < 0.25) return 'week';
+    if (this.zoom < 0.1) return 'month';
+    return 'custom';
+  }
+
+  /** Cycle through zoom presets: Day → Week → Month → Day */
+  cycleZoomLevel(): void {
+    const current = this.getZoomLevel();
+    switch (current) {
+      case 'day':
+        this.zoomToWeek();
+        break;
+      case 'week':
+        this.zoomToMonth();
+        break;
+      case 'month':
+      case 'custom':
+        this.zoomToDay();
+        break;
+    }
+  }
+
   /** Get all columns */
   getColumns(): TableColumn[] {
     return [...this.columns];
@@ -1819,6 +1865,39 @@ export class UnifiedGanttCanvas {
         }
         break;
       }
+      case 'v':
+      case 'V': {
+        // V: Cycle zoom level (Day → Week → Month)
+        if (!modKey) {
+          e.preventDefault();
+          this.cycleZoomLevel();
+        }
+        break;
+      }
+      case '1': {
+        // 1: Day view
+        if (!modKey) {
+          e.preventDefault();
+          this.zoomToDay();
+        }
+        break;
+      }
+      case '2': {
+        // 2: Week view
+        if (!modKey) {
+          e.preventDefault();
+          this.zoomToWeek();
+        }
+        break;
+      }
+      case '3': {
+        // 3: Month view
+        if (!modKey) {
+          e.preventDefault();
+          this.zoomToMonth();
+        }
+        break;
+      }
     }
   };
 
@@ -1915,13 +1994,13 @@ export class UnifiedGanttCanvas {
   };
 
   private handleDoubleClick = (e: MouseEvent): void => {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const task = this.getTaskAtPosition(x, y);
+    // Use offsetX/offsetY directly (like old GanttCanvas) for accurate hit testing
+    const task = this.getTaskAtPosition(e.offsetX, e.offsetY);
     if (task) {
+      console.log('[UnifiedGanttCanvas] Double-click on task:', task.id, task.name);
       this.callbacks.onTaskDoubleClick?.(task, e);
+    } else {
+      console.log('[UnifiedGanttCanvas] Double-click on empty area at', e.offsetX, e.offsetY);
     }
   };
 
