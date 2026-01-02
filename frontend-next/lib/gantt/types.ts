@@ -125,6 +125,8 @@ export interface SmScheduleMaster {
   // Manual positioning (held dates)
   hold: boolean | null;
   hold_date: string | null;
+  // Task status tracking
+  started?: boolean | null;
   // Completion tracking
   is_completed: boolean | null;
   completed_at: string | null;

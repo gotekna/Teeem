@@ -456,13 +456,17 @@ export default function SchedulePage() {
   const [availableRoles, setAvailableRoles] = React.useState<Array<{ id: string; display_name: string }>>([]);
 
   React.useEffect(() => {
+    console.log('[SchedulePage] 🔄 Fetch job effect triggered', { jobId });
     const fetchJob = async () => {
       try {
+        console.log('[SchedulePage] 📡 Fetching job data...', { jobId });
         const jobData = await api.get<Job>(`/api/v1/jobs/${jobId}`);
+        console.log('[SchedulePage] ✅ Job data received', jobData);
         setJob(jobData);
       } catch (error) {
-        console.error("Failed to fetch job:", error);
+        console.error("[SchedulePage] ❌ Failed to fetch job:", error);
       } finally {
+        console.log('[SchedulePage] 🏁 Job fetch complete, setting loading=false');
         setLoading(false);
       }
     };
@@ -517,9 +521,11 @@ export default function SchedulePage() {
 
   // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
+    console.log('[SchedulePage] 📊 handleOpenGantt called');
     setGanttOpen(true);
     setLoadingGantt(true);
     try {
+      console.log('[SchedulePage] 🔄 Validating dates and running rollover...');
       // SSoT: Validate dates first (safety net - runs rollover for this job)
       // Uses SmRolloverJob as THE ONE source of truth for rollover logic
       try {
@@ -527,8 +533,10 @@ export default function SchedulePage() {
           `/api/v1/jobs/${jobId}/sm_tasks/validate_dates`
         );
         if (validateResult) {
+          console.log('[SchedulePage] ✅ Validation result:', validateResult);
           const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
           if (fixCount > 0) {
+            console.log('[SchedulePage] 📅 Tasks updated:', { fixCount });
             toast({
               title: "Schedule Updated",
               description: `${fixCount} task(s) with past dates moved forward`,
@@ -537,37 +545,57 @@ export default function SchedulePage() {
         }
       } catch (validateError) {
         // Don't block loading if validation fails - just log it
-        console.warn("Failed to validate dates:", validateError);
+        console.warn("[SchedulePage] ⚠️  Failed to validate dates:", validateError);
       }
 
+      console.log('[SchedulePage] 📡 Fetching Gantt data...', { jobId });
       // SSoT: Use ?for=gantt to get filtered tasks (po_required without PO = invisible)
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       const tasks = response.gantt_data?.tasks || [];
       const deps = response.gantt_data?.dependencies || [];
+      console.log('[SchedulePage] ✅ Gantt data received', {
+        tasksCount: tasks.length,
+        depsCount: deps.length,
+        tasks: tasks.slice(0, 3), // Log first 3 tasks
+        deps: deps.slice(0, 3)     // Log first 3 deps
+      });
       setGanttTasks(tasks);
       setGanttApiDeps(deps);
     } catch (error) {
-      console.error("Failed to fetch tasks for Gantt:", error);
+      console.error("[SchedulePage] ❌ Failed to fetch tasks for Gantt:", error);
       toast({ title: "Error", description: "Failed to load Gantt data", variant: "destructive" });
     } finally {
+      console.log('[SchedulePage] 🏁 handleOpenGantt complete, setting loadingGantt=false');
       setLoadingGantt(false);
     }
   }, [jobId, toast]);
 
   // Refetch Gantt data (called after dependency changes, task updates, etc.)
   const refetchGanttData = React.useCallback(async () => {
+    console.log('[SchedulePage] 🔄 Refetching Gantt data...');
     try {
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
+      console.log('[SchedulePage] ✅ Gantt data refetched', {
+        tasksCount: response.gantt_data?.tasks?.length || 0,
+        depsCount: response.gantt_data?.dependencies?.length || 0
+      });
       setGanttTasks(response.gantt_data?.tasks || []);
       setGanttApiDeps(response.gantt_data?.dependencies || []);
     } catch (error) {
-      console.error("Failed to refetch Gantt data:", error);
+      console.error("[SchedulePage] ❌ Failed to refetch Gantt data:", error);
     }
   }, [jobId]);
 
   // Auto-open Gantt in fullscreen when path is /schedule/gantt or ?gantt=true is in URL
   React.useEffect(() => {
+    console.log('[SchedulePage] 🎬 Auto-open Gantt effect', {
+      isGanttMode,
+      loading,
+      hasJob: !!job,
+      ganttFullscreen
+    });
     if (isGanttMode && !loading && job && !ganttFullscreen) {
+      console.log('[SchedulePage] 🚀 Auto-opening Gantt in fullscreen mode');
       setGanttFullscreen(true);
       handleOpenGantt();
     }
@@ -585,7 +613,13 @@ export default function SchedulePage() {
   // SSoT: Use actual dates from database (set by SmRolloverJob)
   // NOT recalculated - SmTasks have their own start_date/end_date columns
   const ganttTasksFormatted = React.useMemo(() => {
-    if (ganttTasks.length === 0) return [];
+    console.log('[SchedulePage] 🎨 Formatting Gantt tasks', {
+      ganttTasksCount: ganttTasks.length
+    });
+    if (ganttTasks.length === 0) {
+      console.log('[SchedulePage] ⚠️  No Gantt tasks to format');
+      return [];
+    }
 
     const formatted = ganttTasks.map(task => {
       // Parse dates from API response (format: "YYYY-MM-DD")
@@ -632,6 +666,10 @@ export default function SchedulePage() {
         shape: undefined, // Let Gantt decide based on duration
       } as GanttTask;
     });
+    console.log('[SchedulePage] ✅ Gantt tasks formatted', {
+      formattedCount: formatted.length,
+      firstTask: formatted[0]
+    });
     return formatted;
   }, [ganttTasks]);
 
@@ -639,6 +677,9 @@ export default function SchedulePage() {
   // SSoT: Backend GanttDataService returns { id, fromId, toId, type, lag } format
   // where fromId/toId are task.id values (not task_number)
   const ganttDependencies = React.useMemo(() => {
+    console.log('[SchedulePage] 🔗 Building dependencies', {
+      ganttApiDepsCount: ganttApiDeps.length
+    });
     const deps = ganttApiDeps.map(dep => ({
       id: dep.id,
       fromId: dep.fromId,
@@ -646,6 +687,10 @@ export default function SchedulePage() {
       type: dep.type || "FS",
       lag: dep.lag || 0,
     }));
+    console.log('[SchedulePage] ✅ Dependencies built', {
+      depsCount: deps.length,
+      firstDep: deps[0]
+    });
     return deps;
   }, [ganttApiDeps]);
 
@@ -1065,7 +1110,17 @@ export default function SchedulePage() {
 
   // SSoT: Show skeleton layout during loading to prevent flash/CLS
   // The skeleton matches the actual page structure so there's no jarring layout shift
+  console.log('[SchedulePage] 🎬 Render phase', {
+    loading,
+    ganttFullscreen,
+    ganttOpen,
+    hasJob: !!job,
+    ganttTasksFormattedLength: ganttTasksFormatted.length,
+    ganttDependenciesLength: ganttDependencies.length
+  });
+
   if (loading) {
+    console.log('[SchedulePage] 🔄 Rendering loading skeleton');
     return (
       <div className="flex flex-col h-full -mt-4">
         {/* Skeleton header - matches actual layout */}
@@ -1120,6 +1175,10 @@ export default function SchedulePage() {
 
   // Fullscreen Gantt View
   if (ganttFullscreen) {
+    console.log('[SchedulePage] 📊 Rendering fullscreen Gantt view', {
+      loadingGantt,
+      ganttTasksFormattedLength: ganttTasksFormatted.length
+    });
     return (
     <>
       <div className="flex flex-col h-full">
@@ -1164,16 +1223,27 @@ export default function SchedulePage() {
         {/* Gantt View - fills remaining space */}
         <div className="flex-1">
           {loadingGantt ? (
-            <div className="flex items-center justify-center h-full">
-              <Spinner />
-            </div>
+            <>
+              {console.log('[SchedulePage] ⏳ Rendering Gantt loading spinner')}
+              <div className="flex items-center justify-center h-full">
+                <Spinner />
+              </div>
+            </>
           ) : ganttTasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <BarChart3 className="h-12 w-12 mb-2" />
-              <p>No tasks found for this job</p>
-            </div>
+            <>
+              {console.log('[SchedulePage] ⚠️  Rendering "no tasks" message')}
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <BarChart3 className="h-12 w-12 mb-2" />
+                <p>No tasks found for this job</p>
+              </div>
+            </>
           ) : (
-            <GanttCanvasView
+            <>
+              {console.log('[SchedulePage] 🎨 Rendering GanttCanvasView', {
+                tasksCount: ganttTasksFormatted.length,
+                depsCount: ganttDependencies.length
+              })}
+              <GanttCanvasView
               staticTasks={ganttTasksFormatted}
               staticDependencies={ganttDependencies}
               showToolbar={true}
@@ -1193,6 +1263,7 @@ export default function SchedulePage() {
               jobId={Number(jobId)}
               onDataChange={refetchGanttData}
             />
+            </>
           )}
         </div>
       </div>
@@ -1670,6 +1741,11 @@ export default function SchedulePage() {
     </>
     );
   }
+
+  console.log('[SchedulePage] 📋 Rendering main schedule view (table)', {
+    jobName: job?.name,
+    refreshKey
+  });
 
   return (
     <div className="flex flex-col h-full -mt-4">
