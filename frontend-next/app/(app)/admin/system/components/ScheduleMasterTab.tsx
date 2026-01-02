@@ -74,7 +74,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas";
-import { GanttUnified } from "@/components/gantt-v2";
+import { GanttUnified, GanttDependencyEditor } from "@/components/gantt-v2";
 import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
@@ -321,6 +321,15 @@ export function ScheduleMasterTab() {
   const [ganttV2Dependencies, setGanttV2Dependencies] = React.useState<GanttDependency[]>([]);
   const [ganttV2Loading, setGanttV2Loading] = React.useState(false);
 
+  // Gantt V2 undo history - stores previous task states for Ctrl+Z undo
+  const [ganttV2UndoHistory, setGanttV2UndoHistory] = React.useState<Map<string, {
+    startDate: Date;
+    endDate: Date;
+    duration: number;
+    hold: boolean;
+    holdDate: string | null;
+  }>>(new Map());
+
   // Cascade dialog state (for Gantt V2 task moves with successors)
   const [cascadeDialog, setCascadeDialog] = React.useState<{
     isOpen: boolean;
@@ -352,6 +361,15 @@ export function ScheduleMasterTab() {
     task: null,
     isChecking: false,
     affectedSuccessors: []
+  });
+
+  // Dependency editor state (for Gantt V2)
+  const [dependencyEditorState, setDependencyEditorState] = React.useState<{
+    isOpen: boolean;
+    task: GanttTask | null;
+  }>({
+    isOpen: false,
+    task: null
   });
 
   // Row Edit Sheet state
@@ -1050,6 +1068,9 @@ export function ScheduleMasterTab() {
   const handleGanttV2TaskDrag = async (task: GanttTask, newStartDate: Date) => {
     if (!ganttV2TemplateId) return;
 
+    // Store undo state before making changes
+    storeGanttV2UndoState(task);
+
     console.log('[Gantt V2] Task dragged:', task.id, 'to', newStartDate);
 
     // Find the row for this task
@@ -1171,6 +1192,9 @@ export function ScheduleMasterTab() {
   const handleGanttV2TaskResize = async (task: GanttTask, _newStartDate: Date, newEndDate: Date) => {
     if (!ganttV2TemplateId) return;
 
+    // Store undo state before making changes
+    storeGanttV2UndoState(task);
+
     // Calculate new duration in days
     const startDate = task.startDate;
     const diffTime = newEndDate.getTime() - startDate.getTime();
@@ -1288,6 +1312,166 @@ export function ScheduleMasterTab() {
       console.error('[Gantt V2] Failed to delete dependency:', error);
       toast({ title: "Error", description: "Failed to delete dependency", variant: "destructive" });
     }
+  };
+
+  // Gantt V2: Handle reset manual position (clear hold and hold_date)
+  const handleGanttV2ResetManualPosition = async (task: GanttTask) => {
+    if (!ganttV2TemplateId) return;
+
+    console.log('[Gantt V2] Reset manual position:', task.id);
+
+    const row = task.rowData as GanttSmScheduleMaster | undefined;
+    if (!row) {
+      console.error('[Gantt V2] No row data for task:', task.id);
+      return;
+    }
+
+    try {
+      // Clear hold and hold_date
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${row.id}`, {
+        row: {
+          hold: false,
+          hold_date: null
+        }
+      });
+
+      // Refresh data
+      loadGanttV2Data(ganttV2TemplateId);
+      toast({ title: "Success", description: "Manual position reset" });
+    } catch (error) {
+      console.error('[Gantt V2] Failed to reset manual position:', error);
+      toast({ title: "Error", description: "Failed to reset manual position", variant: "destructive" });
+    }
+  };
+
+  // Gantt V2: Store task state before making changes (for undo)
+  const storeGanttV2UndoState = (task: GanttTask) => {
+    const row = task.rowData as GanttSmScheduleMaster | undefined;
+    if (!row) return;
+
+    // Only store if we don't already have an undo state for this task
+    if (ganttV2UndoHistory.has(task.id)) return;
+
+    setGanttV2UndoHistory(prev => {
+      const next = new Map(prev);
+      next.set(task.id, {
+        startDate: task.startDate,
+        endDate: task.endDate,
+        duration: row.duration_days || 1,
+        hold: row.hold || false,
+        holdDate: row.hold_date || null
+      });
+      return next;
+    });
+
+    console.log('[Gantt V2] Stored undo state for task:', task.id);
+  };
+
+  // Gantt V2: Handle undo (Ctrl+Z)
+  const handleGanttV2Undo = async (selectedTaskId: string) => {
+    if (!ganttV2TemplateId) return;
+
+    const previousState = ganttV2UndoHistory.get(selectedTaskId);
+    if (!previousState) {
+      console.log('[Gantt V2] No undo history for task:', selectedTaskId);
+      return;
+    }
+
+    // Find the task to get the row id
+    const task = ganttV2Tasks.find(t => t.id === selectedTaskId);
+    if (!task) {
+      console.error('[Gantt V2] Task not found for undo:', selectedTaskId);
+      return;
+    }
+
+    const row = task.rowData as GanttSmScheduleMaster | undefined;
+    if (!row) {
+      console.error('[Gantt V2] No row data for task:', selectedTaskId);
+      return;
+    }
+
+    try {
+      console.log('[Gantt V2] Undoing task:', selectedTaskId, 'to state:', previousState);
+
+      // Restore to previous state via API
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${row.id}`, {
+        row: {
+          hold: previousState.hold,
+          hold_date: previousState.holdDate,
+          duration_days: previousState.duration
+        }
+      });
+
+      // Clear from undo history
+      setGanttV2UndoHistory(prev => {
+        const next = new Map(prev);
+        next.delete(selectedTaskId);
+        return next;
+      });
+
+      // Refresh data
+      loadGanttV2Data(ganttV2TemplateId);
+      toast({ title: "Undo", description: "Change undone" });
+    } catch (error) {
+      console.error('[Gantt V2] Failed to undo:', error);
+      toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
+    }
+  };
+
+  // Gantt V2: Open dependency editor
+  const handleGanttV2EditDependencies = (task: GanttTask) => {
+    setDependencyEditorState({ isOpen: true, task });
+  };
+
+  // Gantt V2: Get predecessor info for dependency editor
+  const getDependencyEditorPredecessors = React.useMemo(() => {
+    if (!dependencyEditorState.task) return [];
+    const row = dependencyEditorState.task.rowData as GanttSmScheduleMaster | undefined;
+    if (!row?.predecessor_ids) return [];
+
+    return row.predecessor_ids.map((pred: { id: number; type?: string; lag?: number }) => {
+      const predTask = ganttV2Tasks.find(t => {
+        const r = t.rowData as GanttSmScheduleMaster | undefined;
+        return r?.task_number === pred.id;
+      });
+      const predRow = predTask?.rowData as GanttSmScheduleMaster | undefined;
+      return {
+        id: pred.id,
+        taskNumber: pred.id,
+        name: predRow?.name || `Task ${pred.id}`,
+        type: pred.type || 'FS',
+        lag: pred.lag || 0
+      };
+    });
+  }, [dependencyEditorState.task, ganttV2Tasks]);
+
+  // Gantt V2: Get available tasks for dependency editor
+  const getDependencyEditorAvailableTasks = React.useMemo(() => {
+    return ganttV2Tasks.map(t => {
+      const row = t.rowData as GanttSmScheduleMaster | undefined;
+      return {
+        id: row?.id || 0,
+        taskNumber: row?.task_number || 0,
+        name: row?.name || 'Unknown'
+      };
+    }).filter(t => t.taskNumber > 0);
+  }, [ganttV2Tasks]);
+
+  // Gantt V2: Add predecessor via dependency editor
+  const handleDependencyEditorAddPredecessor = async (taskId: string, predecessorTaskNumber: number, type: string) => {
+    await handleGanttV2DependencyCreate(String(predecessorTaskNumber), taskId, type);
+  };
+
+  // Gantt V2: Remove predecessor via dependency editor
+  const handleDependencyEditorRemovePredecessor = async (taskId: string, predecessorTaskNumber: number) => {
+    // Get the row id from the task
+    const task = ganttV2Tasks.find(t => t.id === taskId);
+    const row = task?.rowData as GanttSmScheduleMaster | undefined;
+    if (!row) return;
+
+    // Create dependency ID format: "dep-{predecessor_task_number}-{row_id}"
+    const dependencyId = `dep-${predecessorTaskNumber}-${row.id}`;
+    await handleGanttV2DependencyDelete(dependencyId);
   };
 
   // Save row from edit sheet (supports both manual and auto-save)
@@ -1905,6 +2089,9 @@ export function ScheduleMasterTab() {
                   onCheckboxToggle={handleGanttV2CheckboxToggle}
                   onDependencyCreate={handleGanttV2DependencyCreate}
                   onDependencyDelete={handleGanttV2DependencyDelete}
+                  onResetManualPosition={handleGanttV2ResetManualPosition}
+                  onUndo={handleGanttV2Undo}
+                  onEditDependencies={handleGanttV2EditDependencies}
                   onDataChange={() => {
                     // Refresh data when something changes
                     if (ganttV2TemplateId) {
@@ -3602,6 +3789,17 @@ export function ScheduleMasterTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dependency Editor - shown when editing dependencies in Gantt V2 */}
+      <GanttDependencyEditor
+        isOpen={dependencyEditorState.isOpen}
+        onClose={() => setDependencyEditorState({ isOpen: false, task: null })}
+        task={dependencyEditorState.task}
+        predecessors={getDependencyEditorPredecessors}
+        availableTasks={getDependencyEditorAvailableTasks}
+        onAddPredecessor={handleDependencyEditorAddPredecessor}
+        onRemovePredecessor={handleDependencyEditorRemovePredecessor}
+      />
 
       {/* NOTE: Trades/Stages are managed in Tables tab (SSoT: Foundation SM Trades ID 542, SM Stages ID 543) */}
       {/* NOTE: Roles are managed in Admin > System > Company > Security > Roles (SSoT) */}

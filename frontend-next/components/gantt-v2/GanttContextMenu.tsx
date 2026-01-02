@@ -21,6 +21,8 @@ import {
   PauseCircle,
   CheckCircle,
   MoreHorizontal,
+  RotateCcw,
+  Link2,
 } from 'lucide-react';
 
 // =============================================================================
@@ -41,11 +43,13 @@ export interface GanttContextMenuProps {
   onDelete?: (task: GanttTask) => void;
   onDuplicate?: (task: GanttTask) => void;
   onAddDependency?: (task: GanttTask) => void;
+  onEditDependencies?: (task: GanttTask) => void;
   onExpandChildren?: (task: GanttTask) => void;
   onCollapseChildren?: (task: GanttTask) => void;
   onMarkStarted?: (task: GanttTask) => void;
   onMarkOnHold?: (task: GanttTask) => void;
   onMarkCompleted?: (task: GanttTask) => void;
+  onResetManualPosition?: (task: GanttTask) => void;
 }
 
 // =============================================================================
@@ -59,11 +63,13 @@ export function GanttContextMenu({
   onDelete,
   onDuplicate,
   onAddDependency,
+  onEditDependencies,
   onExpandChildren,
   onCollapseChildren,
   onMarkStarted,
   onMarkOnHold,
   onMarkCompleted,
+  onResetManualPosition,
 }: GanttContextMenuProps) {
   const menuRef = React.useRef<HTMLDivElement>(null);
 
@@ -180,6 +186,15 @@ export function GanttContextMenu({
             />
           )}
 
+          {/* Edit Dependencies */}
+          {onEditDependencies && (
+            <MenuItem
+              icon={<Link2 className="h-4 w-4" />}
+              label="Edit Dependencies"
+              onClick={() => handleAction(() => onEditDependencies(task))}
+            />
+          )}
+
           <div className="-mx-1 my-1 h-px bg-border" />
 
           {/* Status Actions */}
@@ -204,6 +219,15 @@ export function GanttContextMenu({
               icon={<CheckCircle className="h-4 w-4" />}
               label={rowData?.is_completed ? 'Mark Incomplete' : 'Mark Completed'}
               onClick={() => handleAction(() => onMarkCompleted(task))}
+            />
+          )}
+
+          {/* Reset Manual Position - only show if task has hold or hold_date */}
+          {onResetManualPosition && (rowData?.hold || rowData?.hold_date) && (
+            <MenuItem
+              icon={<RotateCcw className="h-4 w-4" />}
+              label="Reset Manual Position"
+              onClick={() => handleAction(() => onResetManualPosition(task))}
             />
           )}
 

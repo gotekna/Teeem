@@ -53,6 +53,9 @@ export interface GanttUnifiedProps {
   onCheckboxToggle?: (taskId: string, field: string, checked: boolean) => void;
   onProgressChange?: (taskId: string, newProgress: number) => void;
   onDataChange?: () => void;
+  onResetManualPosition?: (task: GanttTask) => void;
+  onUndo?: (selectedTaskId: string) => void;
+  onEditDependencies?: (task: GanttTask) => void;
 
   // View options
   viewSlug?: string;
@@ -110,6 +113,9 @@ export function GanttUnified({
   onCheckboxToggle,
   onProgressChange,
   onDataChange,
+  onResetManualPosition,
+  onUndo,
+  onEditDependencies,
   viewSlug,
   onViewClear,
 }: GanttUnifiedProps) {
@@ -451,6 +457,16 @@ export function GanttUnified({
     ganttEngineRef.current?.toggleHeaderCollapse(task.id);
   }, []);
 
+  const handleContextMenuResetManualPosition = React.useCallback((task: GanttTask) => {
+    console.log('[GanttUnified] Reset manual position:', task.id);
+    onResetManualPosition?.(task);
+  }, [onResetManualPosition]);
+
+  const handleContextMenuEditDependencies = React.useCallback((task: GanttTask) => {
+    console.log('[GanttUnified] Edit dependencies:', task.id);
+    onEditDependencies?.(task);
+  }, [onEditDependencies]);
+
   // Column visibility handler
   const handleColumnVisibilityChange = React.useCallback(
     (columnId: string, visible: boolean) => {
@@ -479,6 +495,32 @@ export function GanttUnified({
       resizeObserver.disconnect();
     };
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // Keyboard Handlers (Undo/Redo)
+  // ---------------------------------------------------------------------------
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Z or Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+
+        // Get selected task from selection state
+        if (selectedTaskIds.size === 0) return;
+
+        // Undo the first selected task
+        const firstSelectedId = Array.from(selectedTaskIds)[0];
+        if (firstSelectedId && onUndo) {
+          console.log('[GanttUnified] Undo requested for task:', firstSelectedId);
+          onUndo(firstSelectedId);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedTaskIds, onUndo]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -522,6 +564,7 @@ export function GanttUnified({
           columns={columns}
           onColumnVisibilityChange={handleColumnVisibilityChange}
           onExportPNG={handleExportPNG}
+          onRefresh={onDataChange}
         />
       )}
 
@@ -584,6 +627,8 @@ export function GanttUnified({
         onMarkCompleted={handleContextMenuMarkCompleted}
         onExpandChildren={handleContextMenuExpandChildren}
         onCollapseChildren={handleContextMenuCollapseChildren}
+        onResetManualPosition={handleContextMenuResetManualPosition}
+        onEditDependencies={handleContextMenuEditDependencies}
       />
     </div>
   );

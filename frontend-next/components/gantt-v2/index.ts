@@ -19,6 +19,9 @@ export { GanttOverlay, InputOverlay, DependencyPopup } from './GanttOverlay';
 // Context menu
 export { GanttContextMenu, type ContextMenuState, type GanttContextMenuProps } from './GanttContextMenu';
 
+// Dependency editor
+export { GanttDependencyEditor, type GanttDependencyEditorProps } from './GanttDependencyEditor';
+
 // Canvas engine
 export {
   UnifiedGanttCanvas,

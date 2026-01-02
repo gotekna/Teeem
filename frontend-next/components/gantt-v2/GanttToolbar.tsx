@@ -32,6 +32,7 @@ import {
   Camera,
   Info,
   Check,
+  RefreshCw,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { TableColumn } from './UnifiedGanttCanvas';
@@ -88,6 +89,9 @@ interface GanttToolbarProps {
 
   // Export
   onExportPNG?: () => void;
+
+  // Refresh
+  onRefresh?: () => void;
 }
 
 // =============================================================================
@@ -121,6 +125,7 @@ export function GanttToolbar({
   columns,
   onColumnVisibilityChange,
   onExportPNG,
+  onRefresh,
 }: GanttToolbarProps) {
   return (
     <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b bg-muted/30">
@@ -174,6 +179,19 @@ export function GanttToolbar({
         >
           <Maximize2 className="h-4 w-4" />
         </Button>
+
+        {/* Refresh Button */}
+        {onRefresh && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRefresh}
+            title="Refresh Data"
+            className="h-8 w-8"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        )}
 
         <div className="w-px h-4 bg-border mx-1" />
 

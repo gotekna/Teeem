@@ -40,6 +40,181 @@ import { useNavigation, useToggleNavCollapse, type NavigationItem, type Navigati
 import { getIcon } from "@/lib/icon-map";
 import { SIDEBAR_NAVIGATION_EVENT } from "@/contexts/BreadcrumbContext";
 
+// Props interface for SidebarContent - extracted to maintain stable component identity
+interface SidebarContentProps {
+  mobile?: boolean;
+  isExpanded: boolean;
+  navRef: React.RefObject<HTMLElement | null>;
+  navLoading: boolean;
+  navError: boolean;
+  apiNavigation: { items: NavigationItem[] } | undefined;
+  renderNavItem: (item: NavigationItem, mobile: boolean) => React.ReactNode;
+  backendVersion: string | null;
+  herokuRelease: string | null;
+  deployedAt: string | null;
+  user: { name?: string; email?: string } | null;
+  mounted: boolean;
+  resolvedTheme: string | undefined;
+  setTheme: (theme: string) => void;
+  handleLogout: () => void;
+}
+
+// SidebarContent extracted OUTSIDE Sidebar to maintain stable React component identity
+// This prevents unmount/remount of the nav element on every render
+function SidebarContent({
+  mobile = false,
+  isExpanded,
+  navRef,
+  navLoading,
+  navError,
+  apiNavigation,
+  renderNavItem,
+  backendVersion,
+  herokuRelease,
+  deployedAt,
+  user,
+  mounted,
+  resolvedTheme,
+  setTheme,
+  handleLogout,
+}: SidebarContentProps) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Logo - only on mobile sheet */}
+      {mobile && (
+        <div className="h-[70px] flex items-center border-b border-border px-4">
+          <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+            <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+              t
+            </div>
+            <span className="font-serif">teeem</span>
+          </Link>
+        </div>
+      )}
+
+      {/* Main Navigation - SSoT from NavigationItem table */}
+      <nav ref={navRef} className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
+        {navLoading ? (
+          /* Loading state */
+          <div className="flex items-center justify-center py-8">
+            <Spinner size={20} className="text-muted-foreground" />
+          </div>
+        ) : navError ? (
+          /* Error state */
+          <div className="px-3 py-2 text-sm text-muted-foreground">
+            Failed to load navigation
+          </div>
+        ) : apiNavigation?.items ? (
+          /* API-driven navigation with nested items */
+          apiNavigation.items.map((item) => renderNavItem(item, mobile))
+        ) : null}
+      </nav>
+
+      {/* Version Info */}
+      {(backendVersion || process.env.NEXT_PUBLIC_BUILD_NUMBER) && (
+        <div
+          className={cn(
+            "px-3 py-2 text-[10px] text-muted-foreground border-t border-border",
+            !isExpanded && !mobile && "text-center"
+          )}
+        >
+          {isExpanded || mobile ? (
+            <div className="flex flex-col gap-0.5">
+              {backendVersion && <span>Backend: {backendVersion}</span>}
+              {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
+                <span>Frontend: v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
+              )}
+              {herokuRelease && <span>Heroku: {herokuRelease}</span>}
+              {deployedAt && <span>D: {deployedAt}</span>}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-0.5">
+              {backendVersion && <span>{backendVersion}</span>}
+              {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
+                <span>v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
+              )}
+              {herokuRelease && <span>{herokuRelease}</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* User Profile */}
+      <div className="p-2 border-t border-border">
+        <Popover>
+          <PopoverTrigger asChild>
+            <div
+              className={cn(
+                "flex items-center gap-3 p-2 hover:bg-secondary/50 transition-colors cursor-pointer rounded-md",
+                !isExpanded && !mobile && "justify-center"
+              )}
+            >
+              <Avatar className="w-8 h-8">
+                <AvatarImage src="" />
+                <AvatarFallback>
+                  {user?.name
+                    ?.split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              {(isExpanded || mobile) && (
+                <div className="flex flex-col overflow-hidden flex-1">
+                  <span className="text-sm font-medium truncate">{user?.name || "User"}</span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {user?.email || ""}
+                  </span>
+                </div>
+              )}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent side="right" align="end" className="w-56 p-2 ml-2">
+            <div className="flex flex-col gap-1">
+              <Link
+                href="/profile"
+                prefetch={false}
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+              >
+                <Users className="h-4 w-4" />
+                Profile
+              </Link>
+              <Link
+                href="/settings"
+                prefetch={false}
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+              >
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+              <div className="my-1 border-t border-border" />
+              <button
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left"
+              >
+                {mounted && resolvedTheme === "dark" ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+                {mounted ? (resolvedTheme === "dark" ? "Light mode" : "Dark mode") : "Toggle theme"}
+              </button>
+              <div className="my-1 border-t border-border" />
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left text-destructive"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const { isExpanded, setIsExpanded } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
@@ -67,23 +242,31 @@ export function Sidebar() {
   // Prevent duplicate fetches (React StrictMode double-mount)
   const badgeFetchingRef = useRef(false);
 
-  // Refs for preserving sidebar scroll position during React re-renders
-  const navRef = useRef<HTMLElement>(null);
-  const savedScrollTopRef = useRef<number>(0);
+  // Ref for the nav element - stable now that SidebarContent is outside the component
+  const navRef = useRef<HTMLElement | null>(null);
+  const savedScrollRef = useRef<number>(0);
+
+  // Restore scroll position after pathname changes (navigation completes)
+  // Use multiple attempts because something may reset scroll after first restore
+  useLayoutEffect(() => {
+    if (navRef.current && savedScrollRef.current > 0) {
+      const scrollTo = savedScrollRef.current;
+      navRef.current.scrollTop = scrollTo;
+
+      // Restore again after React finishes rendering
+      requestAnimationFrame(() => {
+        if (navRef.current) navRef.current.scrollTop = scrollTo;
+        requestAnimationFrame(() => {
+          if (navRef.current) navRef.current.scrollTop = scrollTo;
+        });
+      });
+    }
+  }, [pathname]);
 
   // Clear loading state when navigation completes
   useEffect(() => {
     setLoadingHref(null);
   }, [pathname]);
-
-  // Restore scroll position AFTER re-render but BEFORE browser paints
-  // This prevents visible scroll jump when clicking nav items
-  useLayoutEffect(() => {
-    if (navRef.current && savedScrollTopRef.current > 0) {
-      navRef.current.scrollTop = savedScrollTopRef.current;
-      savedScrollTopRef.current = 0; // Reset to avoid stale restoration
-    }
-  }, [loadingHref, pathname]);
 
   // Load persona from localStorage on mount
   useEffect(() => {
@@ -262,16 +445,17 @@ export function Sidebar() {
     return pathname.startsWith(href);
   };
 
-  // Handle navigation click - saves scroll position BEFORE state change triggers re-render
+  // Handle navigation click
   const handleNavClick = (href: string, isActiveItem: boolean) => {
+    // Save scroll position BEFORE navigation triggers re-render
+    if (navRef.current) {
+      savedScrollRef.current = navRef.current.scrollTop;
+    }
+
     // Always reset breadcrumb trail when clicking sidebar - starting new navigation flow
     window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
 
     if (!isActiveItem) {
-      // Save scroll position BEFORE setLoadingHref triggers re-render
-      if (navRef.current) {
-        savedScrollTopRef.current = navRef.current.scrollTop;
-      }
       setLoadingHref(href);
     }
   };
@@ -528,141 +712,23 @@ export function Sidebar() {
     );
   };
 
-  const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => (
-    <div className="flex flex-col h-full">
-      {/* Logo - only on mobile sheet */}
-      {mobile && (
-        <div className="h-[70px] flex items-center border-b border-border px-4">
-          <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
-            <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-              t
-            </div>
-            <span className="font-serif">teeem</span>
-          </Link>
-        </div>
-      )}
-
-      {/* Main Navigation - SSoT from NavigationItem table */}
-      <nav ref={navRef} className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
-        {navLoading ? (
-          /* Loading state */
-          <div className="flex items-center justify-center py-8">
-            <Spinner size={20} className="text-muted-foreground" />
-          </div>
-        ) : navError ? (
-          /* Error state */
-          <div className="px-3 py-2 text-sm text-muted-foreground">
-            Failed to load navigation
-          </div>
-        ) : apiNavigation?.items ? (
-          /* API-driven navigation with nested items */
-          apiNavigation.items.map((item) => renderNavItem(item, mobile))
-        ) : null}
-      </nav>
-
-      {/* Version Info */}
-      {(backendVersion || process.env.NEXT_PUBLIC_BUILD_NUMBER) && (
-        <div
-          className={cn(
-            "px-3 py-2 text-[10px] text-muted-foreground border-t border-border",
-            !isExpanded && !mobile && "text-center"
-          )}
-        >
-          {isExpanded || mobile ? (
-            <div className="flex flex-col gap-0.5">
-              {backendVersion && <span>Backend: {backendVersion}</span>}
-              {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
-                <span>Frontend: v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
-              )}
-              {herokuRelease && <span>Heroku: {herokuRelease}</span>}
-              {deployedAt && <span>D: {deployedAt}</span>}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-0.5">
-              {backendVersion && <span>{backendVersion}</span>}
-              {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
-                <span>v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
-              )}
-              {herokuRelease && <span>{herokuRelease}</span>}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* User Profile */}
-      <div className="p-2 border-t border-border">
-        <Popover>
-          <PopoverTrigger asChild>
-            <div
-              className={cn(
-                "flex items-center gap-3 p-2 hover:bg-secondary/50 transition-colors cursor-pointer rounded-md",
-                !isExpanded && !mobile && "justify-center"
-              )}
-            >
-              <Avatar className="w-8 h-8">
-                <AvatarImage src="" />
-                <AvatarFallback>
-                  {user?.name
-                    ?.split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              {(isExpanded || mobile) && (
-                <div className="flex flex-col overflow-hidden flex-1">
-                  <span className="text-sm font-medium truncate">{user?.name || "User"}</span>
-                  <span className="text-xs text-muted-foreground truncate">
-                    {user?.email || ""}
-                  </span>
-                </div>
-              )}
-            </div>
-          </PopoverTrigger>
-          <PopoverContent side="right" align="end" className="w-56 p-2 ml-2">
-            <div className="flex flex-col gap-1">
-              <Link
-                href="/profile"
-                prefetch={false}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
-              >
-                <Users className="h-4 w-4" />
-                Profile
-              </Link>
-              <Link
-                href="/settings"
-                prefetch={false}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
-              >
-                <Settings className="h-4 w-4" />
-                Settings
-              </Link>
-              <div className="my-1 border-t border-border" />
-              <button
-                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left"
-              >
-                {mounted && resolvedTheme === "dark" ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
-                {mounted ? (resolvedTheme === "dark" ? "Light mode" : "Dark mode") : "Toggle theme"}
-              </button>
-              <div className="my-1 border-t border-border" />
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left text-destructive"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign out
-              </button>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-    </div>
-  );
+  // Common props for SidebarContent
+  const sidebarContentProps = {
+    isExpanded,
+    navRef,
+    navLoading,
+    navError,
+    apiNavigation,
+    renderNavItem,
+    backendVersion,
+    herokuRelease,
+    deployedAt,
+    user,
+    mounted,
+    resolvedTheme,
+    setTheme,
+    handleLogout,
+  };
 
   return (
     <>
@@ -681,7 +747,7 @@ export function Sidebar() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-[280px]">
-            <SidebarContent mobile />
+            <SidebarContent {...sidebarContentProps} mobile />
           </SheetContent>
         </Sheet>
       </div>
@@ -693,7 +759,7 @@ export function Sidebar() {
           isExpanded ? "w-[240px]" : "w-[70px]"
         )}
       >
-        <SidebarContent />
+        <SidebarContent {...sidebarContentProps} />
         {/* Chevron Toggle Button */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
