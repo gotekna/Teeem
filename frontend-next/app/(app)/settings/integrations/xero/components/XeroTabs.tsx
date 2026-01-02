@@ -540,34 +540,53 @@ export function XeroContactSync() {
 
       const response = await api.post<{
         success: boolean;
-        data: { success: number; failed: number; errors: Array<{ link_id: number; error: string }> };
+        data: {
+          success: number;
+          failed: number;
+          errors: Array<{
+            link_id: number;
+            contact_name: string;
+            error: string;
+            error_type: string;
+          }>;
+        };
       }>("/api/v1/xero/push_contact_names", {
         xero_link_ids: xeroLinkIds,
       });
 
-      if (response?.success) {
-        const { success: successCount, failed: failedCount } = response.data;
+      if (response?.data) {
+        const { success: successCount, failed: failedCount, errors } = response.data;
+
         if (failedCount === 0) {
           toast({
             title: "Success",
             description: `Updated ${successCount} contact name${successCount !== 1 ? "s" : ""} in Xero`,
           });
-        } else {
+        } else if (successCount > 0) {
+          // Partial success - show first error for context
+          const firstError = errors?.[0];
           toast({
-            title: "Partial Success",
-            description: `Updated ${successCount}, failed ${failedCount}`,
+            title: `Updated ${successCount}, failed ${failedCount}`,
+            description: firstError?.error || "Some contacts failed to update",
             variant: "default",
           });
+        } else {
+          // All failed - show specific error
+          const firstError = errors?.[0];
+          toast({
+            title: "Failed to Update",
+            description: firstError?.error || "Could not update contacts in Xero",
+            variant: "destructive",
+          });
         }
-        // Just clear selection - no need to refresh since local data didn't change
-        // (we only pushed TEEEM names TO Xero)
+        // Clear selection after operation
         clearSelection();
       }
     } catch (error) {
       console.error("Push to Xero failed:", error);
       toast({
         title: "Error",
-        description: "Failed to push contact names to Xero",
+        description: error instanceof Error ? error.message : "Failed to push contact names to Xero",
         variant: "destructive",
       });
     } finally {

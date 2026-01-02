@@ -177,3 +177,76 @@ export function useGetXeroDuplicateCount() {
   const { data } = useGetXeroDuplicates();
   return data?.data?.total_groups ?? 0;
 }
+
+// ============================================
+// Stale Xero Links (Xero contacts that were merged/deleted)
+// ============================================
+
+export interface StaleXeroInvoice {
+  number: string;
+  contact_name: string;
+  date: string | null;
+  total: number;
+}
+
+export interface StaleXeroLink {
+  link_id: number;
+  xero_contact_name: string;
+  xero_contact_id: string;
+  tenant_id: string;
+  tenant_name: string | null;
+  sync_error: string | null;
+  teeem_contact_id: number | null;
+  teeem_contact_name: string | null;
+  invoice_count: number;
+  invoices: StaleXeroInvoice[];
+}
+
+export interface StaleXeroLinksResponse {
+  success: boolean;
+  data: {
+    stale_links: StaleXeroLink[];
+    total: number;
+  };
+}
+
+/**
+ * Fetch stale Xero links (contacts that no longer exist in Xero)
+ * These need to have their invoices updated in Xero
+ */
+export function useGetStaleXeroLinks() {
+  return useQuery<StaleXeroLinksResponse>({
+    queryKey: ['xero-stale-links'],
+    queryFn: async () => {
+      const response = await api.get<StaleXeroLinksResponse>('/api/v1/xero/stale_xero_links');
+      return response;
+    },
+  });
+}
+
+/**
+ * Get count of stale Xero links (for badge)
+ */
+export function useGetStaleXeroLinkCount() {
+  const { data } = useGetStaleXeroLinks();
+  return data?.data?.total ?? 0;
+}
+
+/**
+ * Delete a stale Xero link
+ */
+export function useDeleteStaleXeroLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (linkId: number) => {
+      const response = await api.delete(`/api/v1/xero/stale_xero_links/${linkId}`);
+      return response;
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['xero-stale-links'] });
+      // Also refresh the sync contacts view
+      queryClient.invalidateQueries({ queryKey: ['xero-contacts'] });
+    },
+  });
+}

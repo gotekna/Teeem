@@ -133,16 +133,6 @@ export default function SystemAdminLayout({
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
-                  ref={(el) => {
-                    // Auto-scroll active tab into view on mount
-                    if (isActive && el) {
-                      el.scrollIntoView({
-                        behavior: "smooth",
-                        block: "nearest",
-                        inline: "center",
-                      });
-                    }
-                  }}
                   className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 data-[state=active]:bg-background"
                 >
                   <Icon className="h-4 w-4" />

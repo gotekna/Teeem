@@ -2479,26 +2479,50 @@ module Api
               ]
             }
 
-            # Push to Xero
-            result = xero_client.post("Contacts", xero_payload, tenant_id: link.tenant_id)
+            # Push to Xero - wrap in per-contact exception handling
+            begin
+              result = xero_client.post("Contacts", xero_payload, tenant_id: link.tenant_id)
 
-            if result[:success]
-              # Update the external_name to match what we pushed
-              link.update!(
-                external_name: contact.display_name,
-                match_confidence: 1.0,
-                last_synced_at: Time.current
-              )
-              results[:success] += 1
-              Rails.logger.info("[Xero] Pushed name '#{contact.display_name}' to Xero contact #{link.external_contact_id}")
-            else
+              if result[:success]
+                # Update the external_name to match what we pushed
+                link.update!(
+                  external_name: contact.display_name,
+                  match_confidence: 1.0,
+                  last_synced_at: Time.current
+                )
+                results[:success] += 1
+                Rails.logger.info("[Xero] Pushed name '#{contact.display_name}' to Xero contact #{link.external_contact_id}")
+              else
+                results[:failed] += 1
+                results[:errors] << {
+                  link_id: link_id,
+                  contact_name: contact.display_name,
+                  error: result[:error] || "Failed to update Xero contact",
+                  error_type: "api_error"
+                }
+                Rails.logger.error("[Xero] Failed to push name for link #{link_id}: #{result[:error]}")
+              end
+            rescue XeroApiClient::ApiError => e
+              # Handle Xero validation errors (400 responses) per-contact
               results[:failed] += 1
               results[:errors] << {
                 link_id: link_id,
                 contact_name: contact.display_name,
-                error: result[:error] || "Failed to update Xero contact"
+                error: humanize_xero_push_error(e.message),
+                error_type: classify_xero_push_error(e.message)
               }
-              Rails.logger.error("[Xero] Failed to push name for link #{link_id}: #{result[:error]}")
+              Rails.logger.error("[Xero] API error pushing name for link #{link_id}: #{e.message}")
+            rescue XeroApiClient::RateLimitError => e
+              # Stop processing on rate limit
+              results[:failed] += 1
+              results[:errors] << {
+                link_id: link_id,
+                contact_name: contact.display_name,
+                error: "Rate limit exceeded - try again later",
+                error_type: "rate_limit"
+              }
+              Rails.logger.warn("[Xero] Rate limit hit during push_contact_names")
+              break
             end
           end
 
@@ -2581,14 +2605,24 @@ module Api
             end
 
             # Email comparison (from Xero EmailAddress field)
+            # Check both primary email AND secondary emails (contact_emails table)
             xero_email = xero_contact["EmailAddress"]
-            if xero_email.present? && xero_email != contact.email
-              differences << {
-                field: "email",
-                label: "Email",
-                teeem_value: contact.email,
-                xero_value: xero_email
-              }
+            if xero_email.present?
+              xero_email_normalized = xero_email.downcase.strip
+              primary_email_normalized = contact.email&.downcase&.strip
+
+              # Check if Xero email matches primary or any secondary email
+              email_already_in_teeem = (xero_email_normalized == primary_email_normalized) ||
+                                       contact.contact_emails.exists?(["LOWER(email) = ?", xero_email_normalized])
+
+              unless email_already_in_teeem
+                differences << {
+                  field: "email",
+                  label: "Email",
+                  teeem_value: contact.email,
+                  xero_value: xero_email
+                }
+              end
             end
 
             # Phone comparison (normalize by removing spaces, dashes, parentheses)
@@ -2935,7 +2969,116 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/stale_xero_links
+      # Returns links to Xero contacts that no longer exist (merged/deleted in Xero)
+      # along with the invoices that still reference them
+      def stale_xero_links
+        begin
+          # Find all ContactExternalLinks where xero_contact_status = 'not_found'
+          stale_links = ContactExternalLink
+            .where(source: 'xero', xero_contact_status: 'not_found')
+            .includes(:contact)
+
+          result = stale_links.map do |link|
+            # Find invoices still pointing to this stale Xero contact
+            invoices = ExternalInvoice
+              .where(tenant_id: link.tenant_id, external_contact_id: link.external_contact_id)
+              .order(invoice_date: :desc)
+              .limit(10)
+
+            {
+              link_id: link.id,
+              xero_contact_name: link.external_contact_name,
+              xero_contact_id: link.external_contact_id,
+              tenant_id: link.tenant_id,
+              tenant_name: XeroCredential.find_by(tenant_id: link.tenant_id)&.tenant_name,
+              sync_error: link.sync_error,
+              teeem_contact_id: link.contact_id,
+              teeem_contact_name: link.contact&.display_name,
+              invoice_count: invoices.count,
+              invoices: invoices.map do |inv|
+                {
+                  number: inv.invoice_number,
+                  contact_name: inv.contact_name,
+                  date: inv.invoice_date&.to_s,
+                  total: inv.total
+                }
+              end
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              stale_links: result,
+              total: result.size
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero stale_xero_links error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to get stale Xero links: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # DELETE /api/v1/xero/stale_xero_links/:id
+      # Deletes a stale link (user acknowledges they'll fix the invoices in Xero)
+      def delete_stale_link
+        begin
+          link = ContactExternalLink.find(params[:id])
+
+          unless link.xero_contact_status == 'not_found'
+            return render json: {
+              success: false,
+              error: "This link is not stale - cannot delete"
+            }, status: :bad_request
+          end
+
+          link.destroy!
+
+          render json: {
+            success: true,
+            message: "Stale link deleted. Update the invoices in Xero to prevent it from reappearing."
+          }
+        rescue ActiveRecord::RecordNotFound
+          render json: { success: false, error: "Link not found" }, status: :not_found
+        rescue StandardError => e
+          Rails.logger.error("Xero delete_stale_link error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to delete stale link: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       private
+
+      # Humanize Xero push errors to user-friendly messages
+      def humanize_xero_push_error(message)
+        case message
+        when /already assigned to another contact/i
+          "This name is already used by another contact in Xero"
+        when /archived contact/i
+          "This contact is archived in Xero - restore it first"
+        when /validation/i
+          message.sub(/^.*?:\s*/, "")  # Remove prefix
+        else
+          message
+        end
+      end
+
+      # Classify Xero push errors by type for frontend handling
+      def classify_xero_push_error(message)
+        case message
+        when /archived/i then "archived"
+        when /already assigned|duplicate/i then "duplicate"
+        when /validation/i then "validation"
+        else "unknown"
+        end
+      end
 
       # Check if two names are likely duplicates (for xero_duplicates endpoint)
       # Returns true if one name is essentially contained in the other

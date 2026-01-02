@@ -67,19 +67,9 @@ export function Sidebar() {
   // Prevent duplicate fetches (React StrictMode double-mount)
   const badgeFetchingRef = useRef(false);
 
-  // Preserve sidebar scroll position across navigations
-  const navScrollRef = useRef<HTMLElement | null>(null);
-  const savedScrollPosition = useRef<number>(0);
-
-  // Clear loading state when navigation completes (pathname changes)
-  // Also restore sidebar scroll position
+  // Clear loading state when navigation completes
   useEffect(() => {
     setLoadingHref(null);
-
-    // Restore saved scroll position after navigation
-    if (navScrollRef.current) {
-      navScrollRef.current.scrollTop = savedScrollPosition.current;
-    }
   }, [pathname]);
 
   // Load persona from localStorage on mount
@@ -281,12 +271,8 @@ export function Sidebar() {
         key={item.href}
         href={item.href}
         prefetch={false}
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => {
-          // Save sidebar scroll position before navigation
-          if (navScrollRef.current) {
-            savedScrollPosition.current = navScrollRef.current.scrollTop;
-          }
-
           // Always reset breadcrumb trail when clicking sidebar - starting new navigation flow
           window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
           if (!active) {
@@ -393,12 +379,8 @@ export function Sidebar() {
           <Link
             href={item.href}
             prefetch={false}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
-              // Save sidebar scroll position before navigation
-              if (navScrollRef.current) {
-                savedScrollPosition.current = navScrollRef.current.scrollTop;
-              }
-
               // Always reset breadcrumb trail when clicking sidebar - starting new navigation flow
               window.dispatchEvent(new CustomEvent(SIDEBAR_NAVIGATION_EVENT));
               if (!active) {
@@ -548,10 +530,7 @@ export function Sidebar() {
       )}
 
       {/* Main Navigation - SSoT from NavigationItem table */}
-      <nav
-        ref={(el) => { if (!mobile) navScrollRef.current = el; }}
-        className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto"
-      >
+      <nav className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
         {navLoading ? (
           /* Loading state */
           <div className="flex items-center justify-center py-8">

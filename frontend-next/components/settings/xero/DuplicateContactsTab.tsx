@@ -1,21 +1,23 @@
 "use client";
 
-import { useGetDuplicateGroups } from "@/lib/hooks/useDuplicateContacts";
+import { useGetDuplicateGroups, useGetXeroDuplicates, useGetStaleXeroLinks } from "@/lib/hooks/useDuplicateContacts";
 import { DuplicateContactGroup } from "./DuplicateContactGroup";
 import { XeroDuplicatesSection } from "./XeroDuplicatesSection";
-import { CheckCircle } from "lucide-react";
+import { StaleXeroLinksSection } from "./StaleXeroLinksSection";
+import { CheckCircle, Ghost } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { useGetXeroDuplicates } from "@/lib/hooks/useDuplicateContacts";
 
 export function DuplicateContactsTab() {
   const { data, isLoading, error } = useGetDuplicateGroups();
   const { data: xeroDuplicates } = useGetXeroDuplicates();
+  const { data: staleLinks } = useGetStaleXeroLinks();
 
   const teeemDuplicateCount = data?.summary?.total_groups ?? 0;
   const xeroDuplicateCount = xeroDuplicates?.data?.total_groups ?? 0;
+  const staleLinksCount = staleLinks?.data?.total ?? 0;
 
   if (isLoading) {
     return (
@@ -61,6 +63,15 @@ export function DuplicateContactsTab() {
             {teeemDuplicateCount > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {teeemDuplicateCount}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="stale" className="flex items-center gap-2">
+            <Ghost className="h-4 w-4" />
+            Stale Links
+            {staleLinksCount > 0 && (
+              <Badge variant="destructive" className="ml-1">
+                {staleLinksCount}
               </Badge>
             )}
           </TabsTrigger>
@@ -114,6 +125,11 @@ export function DuplicateContactsTab() {
               </div>
             </div>
           )}
+        </TabsContent>
+
+        {/* Stale Links - Xero contacts that were merged/deleted */}
+        <TabsContent value="stale">
+          <StaleXeroLinksSection />
         </TabsContent>
       </Tabs>
     </div>
