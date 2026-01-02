@@ -250,6 +250,9 @@ export class UnifiedGanttCanvas {
   private baselineEnabled: boolean = false;
   private baselines: Map<string, { startDate: Date; endDate: Date }> = new Map();
 
+  // Holiday state
+  private holidays: Map<string, string> = new Map(); // date string (YYYY-MM-DD) -> holiday name
+
   // Minimap state
   private minimapEnabled: boolean = false;
   private minimapBounds: { x: number; y: number; width: number; height: number } | null = null;
@@ -539,6 +542,46 @@ export class UnifiedGanttCanvas {
     this.baselines.clear();
     this.baselineEnabled = false;
     this.markDirty();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Holiday Management
+  // ---------------------------------------------------------------------------
+
+  /** Add holidays to the calendar */
+  addHolidays(holidays: Array<{ date: Date; name: string }>): void {
+    for (const holiday of holidays) {
+      const dateKey = this.formatDateKey(holiday.date);
+      this.holidays.set(dateKey, holiday.name);
+    }
+    this.markDirty();
+  }
+
+  /** Clear all holidays */
+  clearHolidays(): void {
+    this.holidays.clear();
+    this.markDirty();
+  }
+
+  /** Check if a date is a holiday */
+  isHoliday(date: Date): boolean {
+    return this.holidays.has(this.formatDateKey(date));
+  }
+
+  /** Get holiday name for a date */
+  getHolidayName(date: Date): string | undefined {
+    return this.holidays.get(this.formatDateKey(date));
+  }
+
+  /** Format date as YYYY-MM-DD key */
+  private formatDateKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  /** Check if a date is a weekend */
+  isWeekend(date: Date): boolean {
+    const day = date.getDay();
+    return day === 0 || day === 6;
   }
 
   // ---------------------------------------------------------------------------
@@ -2291,6 +2334,7 @@ export class UnifiedGanttCanvas {
     this.drawBackground();
     this.drawWeekendShading();
     this.drawTableSection();
+    this.drawHeaderRowTimelineBackgrounds();
     this.drawTimelineSection();
     if (this.showDependencies) {
       this.drawDependencies();
@@ -2621,7 +2665,7 @@ export class UnifiedGanttCanvas {
     const startDayOffset = Math.floor(this.scrollX / dayWidth);
     const endDayOffset = Math.ceil((this.scrollX + this.width - this.tableWidth) / dayWidth);
 
-    // Draw weekend shading (body only - timeline area)
+    // Draw weekend and holiday shading (body only - timeline area)
     for (let i = startDayOffset; i <= endDayOffset; i++) {
       const x = this.tableWidth + i * dayWidth - this.scrollX;
 
@@ -2630,12 +2674,84 @@ export class UnifiedGanttCanvas {
 
       const currentDate = new Date(this.startDate);
       currentDate.setDate(currentDate.getDate() + i);
-      const dayOfWeek = currentDate.getDay();
 
-      // Saturday (6) or Sunday (0)
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
+      // Check holiday first (takes priority over weekend)
+      if (this.isHoliday(currentDate)) {
+        // Holiday shading - light pink/red tint
+        this.ctx.fillStyle = this.config.darkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(254, 226, 226, 0.8)'; // red-100
+        this.ctx.fillRect(x, headerHeight, dayWidth, this.height - headerHeight);
+      } else if (this.isWeekend(currentDate)) {
+        // Weekend shading - light gray
         this.ctx.fillStyle = this.config.colors.weekendBackground;
         this.ctx.fillRect(x, headerHeight, dayWidth, this.height - headerHeight);
+      }
+    }
+  }
+
+  /**
+   * Draw header/group row backgrounds on the timeline side
+   * These rows get amber tint, with darker amber on weekends/holidays
+   */
+  private drawHeaderRowTimelineBackgrounds(): void {
+    const { headerHeight, rowHeight } = this.config;
+    const dayWidth = this.config.dayWidth * this.zoom;
+
+    // Calculate visible day range for weekend/holiday detection
+    const startDayOffset = Math.floor(this.scrollX / dayWidth);
+    const endDayOffset = Math.ceil((this.scrollX + this.width - this.tableWidth) / dayWidth);
+
+    // Process each visible row
+    for (let i = 0; i < this.visibleTasks.length; i++) {
+      const task = this.visibleTasks[i];
+      const y = headerHeight + i * rowHeight - this.scrollY;
+
+      // Skip if not visible
+      if (y + rowHeight < headerHeight || y > this.height) continue;
+
+      // Check if this is a header/group row
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rowData = task.rowData as any;
+      const isHeader = rowData?.header_gantt === 'Header' || rowData?.allow_header;
+
+      // Also check if it's a child row in selected group (amber tint)
+      const isInSelectedGroup = this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id);
+
+      if (!isHeader && !isInSelectedGroup) continue;
+
+      // Draw base amber background across the timeline area
+      const baseAmberColor = isHeader
+        ? this.config.colors.headerRowBackground
+        : this.config.colors.childRowBackground;
+
+      this.ctx.fillStyle = baseAmberColor;
+      this.ctx.fillRect(this.tableWidth, y, this.width - this.tableWidth, rowHeight);
+
+      // Now draw darker overlays on weekend/holiday columns
+      for (let d = startDayOffset; d <= endDayOffset; d++) {
+        const x = this.tableWidth + d * dayWidth - this.scrollX;
+
+        // Skip if not visible
+        if (x + dayWidth < this.tableWidth || x > this.width) continue;
+
+        const currentDate = new Date(this.startDate);
+        currentDate.setDate(currentDate.getDate() + d);
+
+        const isWeekend = this.isWeekend(currentDate);
+        const isHoliday = this.isHoliday(currentDate);
+
+        if (isHoliday) {
+          // Holiday on group row - darkest amber with red tint
+          this.ctx.fillStyle = this.config.darkMode
+            ? 'rgba(217, 119, 6, 0.35)' // amber-600 with more opacity
+            : 'rgba(251, 146, 60, 0.4)'; // orange-400 with opacity
+          this.ctx.fillRect(x, y, dayWidth, rowHeight);
+        } else if (isWeekend) {
+          // Weekend on group row - darker amber
+          this.ctx.fillStyle = this.config.darkMode
+            ? 'rgba(251, 191, 36, 0.25)' // amber-400 with more opacity
+            : 'rgba(251, 191, 36, 0.3)'; // amber-400 with more opacity
+          this.ctx.fillRect(x, y, dayWidth, rowHeight);
+        }
       }
     }
   }
@@ -2945,6 +3061,28 @@ export class UnifiedGanttCanvas {
         this.ctx.fillStyle = barColor;
         this.ctx.fillRect(startX, barY, barWidth, taskBarHeight);
 
+        // Draw CHECKERED pattern when dependency is broken/removed
+        // This indicates the task is not following its predecessors as designed
+        if (rowData?.dependency_broken) {
+          this.ctx.save();
+          // Clip to task bar shape
+          this.ctx.beginPath();
+          this.ctx.rect(startX, barY, barWidth, taskBarHeight);
+          this.ctx.clip();
+
+          // Draw checkered pattern (alternating squares)
+          const squareSize = 6;
+          this.ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+          for (let x = 0; x < barWidth; x += squareSize * 2) {
+            for (let yy = 0; yy < taskBarHeight; yy += squareSize * 2) {
+              // Draw two squares in alternating positions
+              this.ctx.fillRect(startX + x, barY + yy, squareSize, squareSize);
+              this.ctx.fillRect(startX + x + squareSize, barY + yy + squareSize, squareSize, squareSize);
+            }
+          }
+          this.ctx.restore();
+        }
+
         // Draw progress bar (if task has progress)
         const progress = task.progress ?? rowData?.progress_percentage ?? 0;
         if (progress > 0 && progress < 100) {
@@ -3159,48 +3297,79 @@ export class UnifiedGanttCanvas {
 
   /** Draw task icon for Order, Call, Photo tasks */
   private drawTaskIcon(x: number, y: number, height: number, shape: string, color: string): void {
-    const size = height - 4;
+    const size = height - 2;
     const centerX = x + size / 2 + 2;
     const centerY = y + height / 2;
-
-    this.ctx.fillStyle = color;
-    this.ctx.strokeStyle = this.config.colors.taskBarBorder;
-    this.ctx.lineWidth = 1;
+    const halfSize = size / 2;
 
     if (shape === 'order') {
-      // Shopping cart icon (circle with cart symbol)
+      // Order: Orange diamond with "O" (matches old Gantt)
+      this.ctx.fillStyle = '#ea580c'; // orange-600
+      this.ctx.strokeStyle = '#9a3412'; // orange-800
+      this.ctx.lineWidth = 1;
+      // Draw diamond shape
       this.ctx.beginPath();
-      this.ctx.arc(centerX, centerY, size / 2, 0, Math.PI * 2);
+      this.ctx.moveTo(centerX, centerY - halfSize); // top
+      this.ctx.lineTo(centerX + halfSize, centerY); // right
+      this.ctx.lineTo(centerX, centerY + halfSize); // bottom
+      this.ctx.lineTo(centerX - halfSize, centerY); // left
+      this.ctx.closePath();
       this.ctx.fill();
       this.ctx.stroke();
-      // Cart symbol (simplified)
+      // Draw "O" letter
       this.ctx.fillStyle = '#fff';
-      this.ctx.font = `${size * 0.6}px sans-serif`;
+      this.ctx.font = `bold ${size * 0.5}px sans-serif`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText('🛒', centerX, centerY);
+      this.ctx.fillText('O', centerX, centerY + 1);
     } else if (shape === 'call') {
-      // Phone icon (circle with phone symbol)
+      // Call: Blue diamond with "C" (matches old Gantt)
+      this.ctx.fillStyle = '#2563eb'; // blue-600
+      this.ctx.strokeStyle = '#1e40af'; // blue-800
+      this.ctx.lineWidth = 1;
+      // Draw diamond shape
       this.ctx.beginPath();
-      this.ctx.arc(centerX, centerY, size / 2, 0, Math.PI * 2);
+      this.ctx.moveTo(centerX, centerY - halfSize); // top
+      this.ctx.lineTo(centerX + halfSize, centerY); // right
+      this.ctx.lineTo(centerX, centerY + halfSize); // bottom
+      this.ctx.lineTo(centerX - halfSize, centerY); // left
+      this.ctx.closePath();
       this.ctx.fill();
       this.ctx.stroke();
+      // Draw "C" letter
       this.ctx.fillStyle = '#fff';
-      this.ctx.font = `${size * 0.6}px sans-serif`;
+      this.ctx.font = `bold ${size * 0.5}px sans-serif`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText('📞', centerX, centerY);
+      this.ctx.fillText('C', centerX, centerY + 1);
     } else if (shape === 'photo') {
-      // Camera icon (circle with camera symbol)
+      // Photo: Purple camera icon (matches old Gantt)
+      this.ctx.fillStyle = '#9333ea'; // purple-600
+      this.ctx.strokeStyle = '#7c3aed'; // purple-500
+      this.ctx.lineWidth = 0.5;
+      // Camera body (rounded rectangle)
+      const bodyWidth = size * 0.9;
+      const bodyHeight = size * 0.6;
+      const bodyX = centerX - bodyWidth / 2;
+      const bodyY = centerY - bodyHeight / 2 + 1;
       this.ctx.beginPath();
-      this.ctx.arc(centerX, centerY, size / 2, 0, Math.PI * 2);
+      this.ctx.roundRect(bodyX, bodyY, bodyWidth, bodyHeight, 2);
       this.ctx.fill();
       this.ctx.stroke();
+      // Viewfinder bump
+      const bumpWidth = size * 0.3;
+      const bumpHeight = size * 0.15;
+      this.ctx.fillRect(centerX - bumpWidth / 2, bodyY - bumpHeight, bumpWidth, bumpHeight);
+      // Lens outer (white circle)
       this.ctx.fillStyle = '#fff';
-      this.ctx.font = `${size * 0.6}px sans-serif`;
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'middle';
-      this.ctx.fillText('📷', centerX, centerY);
+      this.ctx.beginPath();
+      this.ctx.arc(centerX, centerY + 1, size * 0.22, 0, Math.PI * 2);
+      this.ctx.fill();
+      // Lens inner (purple dot)
+      this.ctx.fillStyle = '#9333ea';
+      this.ctx.beginPath();
+      this.ctx.arc(centerX, centerY + 1, size * 0.1, 0, Math.PI * 2);
+      this.ctx.fill();
     }
   }
 
@@ -3214,6 +3383,9 @@ export class UnifiedGanttCanvas {
     this.visibleTasks.forEach((task, index) => {
       taskIndexMap.set(task.id, index);
     });
+
+    // Get first selected task for dependency highlighting
+    const selectedTaskId = this.selectedTaskIds.size > 0 ? Array.from(this.selectedTaskIds)[0] : null;
 
     for (const dep of this.dependencies) {
       const fromIndex = taskIndexMap.get(dep.fromId);
@@ -3249,6 +3421,61 @@ export class UnifiedGanttCanvas {
         this.criticalTaskIds.has(dep.fromId) &&
         this.criticalTaskIds.has(dep.toId);
 
+      // Check if this dependency is connected to the selected task
+      // Predecessor: selected task is the "to" task (depends on from task) - yellow/black
+      // Successor: selected task is the "from" task (to task depends on selected) - black/white
+      const isPredecessorDep = selectedTaskId && dep.toId === selectedTaskId;
+      const isSuccessorDep = selectedTaskId && dep.fromId === selectedTaskId;
+
+      // Check if this is a broken dependency
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const toRowData = toTask.rowData as any;
+      const isBroken = toRowData?.dependency_broken ||
+        (toRowData?.brokenPredecessorIds && toRowData.brokenPredecessorIds.includes(dep.fromId)) ||
+        (toTask as { brokenPredecessorIds?: string[] }).brokenPredecessorIds?.includes(dep.fromId);
+
+      // Determine colors based on highlighting priority
+      let strokeColor: string;
+      let fillColor: string;
+      let lineWidth: number;
+      let arrowSize: number;
+      let useDashPattern = false;
+
+      if (isBroken) {
+        // Broken dependency: red dashed with X instead of arrow
+        strokeColor = '#ef4444'; // red-500
+        fillColor = '#ef4444';
+        lineWidth = 2;
+        arrowSize = 5; // X mark size
+        useDashPattern = true;
+      } else if (isPredecessorDep) {
+        // Predecessor dependency: yellow/black dashed (matches old UI)
+        strokeColor = '#fbbf24'; // amber-400
+        fillColor = '#fbbf24';
+        lineWidth = 3;
+        arrowSize = 8;
+        useDashPattern = true;
+      } else if (isSuccessorDep) {
+        // Successor dependency: blue/black dashed (matches old UI)
+        strokeColor = '#60a5fa'; // blue-400
+        fillColor = '#60a5fa';
+        lineWidth = 3;
+        arrowSize = 8;
+        useDashPattern = true;
+      } else if (isCriticalDep) {
+        // Critical path: red
+        strokeColor = '#ef4444';
+        fillColor = '#ef4444';
+        lineWidth = 2.5;
+        arrowSize = 8;
+      } else {
+        // Default: gray
+        strokeColor = '#6b7280';
+        fillColor = '#6b7280';
+        lineWidth = 1.5;
+        arrowSize = 6;
+      }
+
       // Draw bezier curve
       this.ctx.beginPath();
       this.ctx.moveTo(fromX, fromY);
@@ -3256,27 +3483,53 @@ export class UnifiedGanttCanvas {
       const midX = (fromX + toX) / 2;
       this.ctx.bezierCurveTo(midX, fromY, midX, toY, toX, toY);
 
-      // Critical path dependencies are red and thicker
-      this.ctx.strokeStyle = isCriticalDep ? '#ef4444' : '#6b7280';
-      this.ctx.lineWidth = isCriticalDep ? 2.5 : 1.5;
-      this.ctx.stroke();
+      // Use dash pattern for predecessor/successor highlighting
+      if (useDashPattern) {
+        // Draw black base line first
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = lineWidth;
+        this.ctx.stroke();
 
-      // Draw arrow head
-      const arrowSize = isCriticalDep ? 8 : 6;
-      const angle = Math.atan2(toY - fromY, toX - midX);
-      this.ctx.beginPath();
-      this.ctx.moveTo(toX, toY);
-      this.ctx.lineTo(
-        toX - arrowSize * Math.cos(angle - Math.PI / 6),
-        toY - arrowSize * Math.sin(angle - Math.PI / 6)
-      );
-      this.ctx.lineTo(
-        toX - arrowSize * Math.cos(angle + Math.PI / 6),
-        toY - arrowSize * Math.sin(angle + Math.PI / 6)
-      );
-      this.ctx.closePath();
-      this.ctx.fillStyle = isCriticalDep ? '#ef4444' : '#6b7280';
-      this.ctx.fill();
+        // Draw colored dashed line on top
+        this.ctx.setLineDash([6, 6]);
+        this.ctx.strokeStyle = strokeColor;
+        this.ctx.stroke();
+        this.ctx.setLineDash([]); // Reset dash pattern
+      } else {
+        this.ctx.strokeStyle = strokeColor;
+        this.ctx.lineWidth = lineWidth;
+        this.ctx.stroke();
+      }
+
+      // Draw arrow head or X mark for broken dependencies
+      if (isBroken) {
+        // Draw X mark instead of arrow to indicate broken
+        const xSize = arrowSize;
+        this.ctx.strokeStyle = fillColor;
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(toX - xSize, toY - xSize);
+        this.ctx.lineTo(toX + xSize, toY + xSize);
+        this.ctx.moveTo(toX + xSize, toY - xSize);
+        this.ctx.lineTo(toX - xSize, toY + xSize);
+        this.ctx.stroke();
+      } else {
+        // Draw regular arrow head
+        const angle = Math.atan2(toY - fromY, toX - midX);
+        this.ctx.beginPath();
+        this.ctx.moveTo(toX, toY);
+        this.ctx.lineTo(
+          toX - arrowSize * Math.cos(angle - Math.PI / 6),
+          toY - arrowSize * Math.sin(angle - Math.PI / 6)
+        );
+        this.ctx.lineTo(
+          toX - arrowSize * Math.cos(angle + Math.PI / 6),
+          toY - arrowSize * Math.sin(angle + Math.PI / 6)
+        );
+        this.ctx.closePath();
+        this.ctx.fillStyle = fillColor;
+        this.ctx.fill();
+      }
     }
   }
 

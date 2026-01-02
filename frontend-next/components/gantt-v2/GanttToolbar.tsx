@@ -382,7 +382,7 @@ export function GanttToolbar({
               </div>
 
               <div className="border-t pt-2 mt-2">
-                <h4 className="font-medium text-sm mb-1.5">Special Indicators</h4>
+                <h4 className="font-medium text-sm mb-1.5">Background Shading</h4>
                 <div className="grid gap-1.5 text-xs">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#ef4444' }} />
@@ -393,12 +393,103 @@ export function GanttToolbar({
                     <span className="text-muted-foreground">Weekend</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(254, 226, 226, 0.8)', border: '1px solid rgba(239, 68, 68, 0.2)' }} />
+                    <span className="text-muted-foreground">Holiday</span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(251, 191, 36, 0.15)', border: '1px solid rgba(251, 191, 36, 0.3)' }} />
-                    <span className="text-muted-foreground">Header row</span>
+                    <span className="text-muted-foreground">Group row</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(251, 191, 36, 0.3)', border: '1px solid rgba(251, 191, 36, 0.4)' }} />
+                    <span className="text-muted-foreground">Weekend on group</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(251, 146, 60, 0.4)', border: '1px solid rgba(217, 119, 6, 0.4)' }} />
+                    <span className="text-muted-foreground">Holiday on group</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-2.5 rounded border border-red-400" style={{ boxShadow: '0 0 4px rgba(239, 68, 68, 0.5)' }} />
                     <span className="text-muted-foreground">Critical path (press C)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-2 mt-2">
+                <h4 className="font-medium text-sm mb-1.5">Dependency Lines</h4>
+                <div className="grid gap-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #fbbf24 3px, #fbbf24 6px)' }} />
+                    <span className="text-muted-foreground">Predecessor (on click)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #60a5fa 3px, #60a5fa 6px)' }} />
+                    <span className="text-muted-foreground">Successor (on click)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center">
+                      <div className="w-6 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #ef4444 3px, #ef4444 6px)' }} />
+                      <span className="text-red-500 text-[10px] font-bold">✕</span>
+                    </div>
+                    <span className="text-muted-foreground">Broken dependency</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-2 mt-2">
+                <h4 className="font-medium text-sm mb-1.5">Task Shapes</h4>
+                <div className="grid gap-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#9ca3af' }} />
+                    <span className="text-muted-foreground">Regular task (bar)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg width="16" height="12" viewBox="0 0 16 12">
+                      <polygon points="8,1 15,6 8,11 1,6" fill="#ea580c" stroke="#9a3412" strokeWidth="1" />
+                      <text x="8" y="7" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">O</text>
+                    </svg>
+                    <span className="text-muted-foreground">Order task (spawned)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg width="16" height="12" viewBox="0 0 16 12">
+                      <polygon points="8,1 15,6 8,11 1,6" fill="#2563eb" stroke="#1e40af" strokeWidth="1" />
+                      <text x="8" y="7" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">C</text>
+                    </svg>
+                    <span className="text-muted-foreground">Call task (spawned)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg width="16" height="12" viewBox="0 0 16 12">
+                      {/* Camera body */}
+                      <rect x="2" y="3" width="12" height="8" rx="1.5" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" />
+                      {/* Viewfinder bump */}
+                      <rect x="6" y="1" width="4" height="2" rx="0.5" fill="#9333ea" />
+                      {/* Lens outer */}
+                      <circle cx="8" cy="7" r="3" fill="white" />
+                      {/* Lens inner */}
+                      <circle cx="8" cy="7" r="1.5" fill="#9333ea" />
+                    </svg>
+                    <span className="text-muted-foreground">Photo task (spawned)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-4 h-2.5 rounded overflow-hidden relative"
+                      style={{ backgroundColor: '#a855f7' }}
+                    >
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          backgroundImage: `
+                            linear-gradient(45deg, rgba(255,255,255,0.3) 25%, transparent 25%),
+                            linear-gradient(-45deg, rgba(255,255,255,0.3) 25%, transparent 25%),
+                            linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.3) 75%),
+                            linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.3) 75%)
+                          `,
+                          backgroundSize: '4px 4px',
+                          backgroundPosition: '0 0, 0 2px, 2px -2px, -2px 0px'
+                        }}
+                      />
+                    </div>
+                    <span className="text-muted-foreground">Broken dependency (checkered)</span>
                   </div>
                 </div>
               </div>

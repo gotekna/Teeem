@@ -179,16 +179,18 @@ const DEFAULT_CHILD_VIEWS: Record<string, string> = {
  *
  * @param pathname - URL pathname (e.g., "/jobs/123")
  * @param searchParams - Optional query params
+ * @param skipDefaultTab - If true, don't append default tab (used when tab is separate breadcrumb)
  * @returns Human-readable display name
  */
 export function resolveDisplayName(
   pathname: string,
-  searchParams?: URLSearchParams | null
+  searchParams?: URLSearchParams | null,
+  skipDefaultTab?: boolean
 ): string {
   // Get tab or view from query params, or use default tab for known pages
   // Some pages use ?tab=xxx, others use ?view=xxx
   const tab = searchParams?.get('tab') || searchParams?.get('view');
-  const defaultTab = PAGES_WITH_DEFAULT_TAB[pathname];
+  const defaultTab = skipDefaultTab ? undefined : PAGES_WITH_DEFAULT_TAB[pathname];
   const effectiveTab = tab || defaultTab;
 
   // 1. Check exact match in known routes
@@ -399,19 +401,26 @@ export function buildBreadcrumbsFromUrl(
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
     const isNumericId = /^\d+$/.test(segment);
+    const isLast = i === segments.length - 1;
+    const nextSegment = i < segments.length - 1 ? segments[i + 1] : null;
 
     // Build path up to this point
     currentPath += '/' + segment;
 
+    // Check if next segment is the default tab for this path
+    // e.g., /dashboard when next segment is "overview"
+    // In this case, don't append the default tab to display name (it will be a separate breadcrumb)
+    const defaultTab = PAGES_WITH_DEFAULT_TAB[currentPath];
+    const skipDefaultTab = !isLast && !!defaultTab && nextSegment === defaultTab.toLowerCase();
+
     // If this is a numeric ID, create combined "Entity #ID" item
     // e.g., segment "46" after "jobs" → "Job #46" with path /jobs/46
     if (isNumericId) {
-      const isLast = i === segments.length - 1;
       const item = {
         id: `${currentPath}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         pathname: currentPath,
         searchParams: isLast ? searchParams?.toString() : undefined,
-        displayName: resolveDisplayName(currentPath, isLast ? searchParams : null),
+        displayName: resolveDisplayName(currentPath, isLast ? searchParams : null, skipDefaultTab),
         icon: resolveIcon(currentPath),
         timestamp: Date.now(),
       };
@@ -421,12 +430,11 @@ export function buildBreadcrumbsFromUrl(
 
     // Non-numeric segment (e.g., /jobs, /schedule, /setup)
     // Add as separate breadcrumb item
-    const isLast = i === segments.length - 1;
     const item = {
       id: `${currentPath}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       pathname: currentPath,
       searchParams: isLast ? searchParams?.toString() : undefined,
-      displayName: resolveDisplayName(currentPath, isLast ? searchParams : null),
+      displayName: resolveDisplayName(currentPath, isLast ? searchParams : null, skipDefaultTab),
       icon: resolveIcon(currentPath),
       timestamp: Date.now(),
     };

@@ -352,6 +352,72 @@ export function GanttUnified({
   }, [dependencies]);
 
   // ---------------------------------------------------------------------------
+  // Holiday Loading
+  // ---------------------------------------------------------------------------
+
+  React.useEffect(() => {
+    if (!ganttEngineRef.current) return;
+
+    const loadHolidays = async () => {
+      const currentYear = new Date().getFullYear();
+
+      try {
+        // Try to load from API first
+        const response = await fetch(
+          `/api/v1/public_holidays/dates?year_start=${currentYear}&year_end=${currentYear + 2}&region=QLD`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.dates && Array.isArray(data.dates)) {
+            const holidays = data.dates.map((dateStr: string) => ({
+              date: new Date(dateStr),
+              name: 'Public Holiday',
+            }));
+            console.log('[GanttUnified] Loaded holidays from API:', holidays.length);
+            ganttEngineRef.current?.addHolidays(holidays);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[GanttUnified] Failed to load holidays from API, using fallback:', err);
+      }
+
+      // Fallback: Australian QLD public holidays
+      const getAustralianHolidays = (year: number) => {
+        const holidays = [
+          { date: new Date(year, 0, 1), name: "New Year's Day" },
+          { date: new Date(year, 0, 26), name: 'Australia Day' },
+          { date: new Date(year, 3, 25), name: 'ANZAC Day' },
+          { date: new Date(year, 11, 25), name: 'Christmas Day' },
+          { date: new Date(year, 11, 26), name: 'Boxing Day' },
+        ];
+        // Easter dates vary - add approximate ones
+        if (year === 2025) {
+          holidays.push({ date: new Date(2025, 3, 18), name: 'Good Friday' });
+          holidays.push({ date: new Date(2025, 3, 19), name: 'Easter Saturday' });
+          holidays.push({ date: new Date(2025, 3, 21), name: 'Easter Monday' });
+        } else if (year === 2026) {
+          holidays.push({ date: new Date(2026, 3, 3), name: 'Good Friday' });
+          holidays.push({ date: new Date(2026, 3, 4), name: 'Easter Saturday' });
+          holidays.push({ date: new Date(2026, 3, 6), name: 'Easter Monday' });
+        }
+        return holidays;
+      };
+
+      const fallbackHolidays = [
+        ...getAustralianHolidays(currentYear),
+        ...getAustralianHolidays(currentYear + 1),
+        ...getAustralianHolidays(currentYear + 2),
+      ];
+      console.log('[GanttUnified] Using fallback holidays:', fallbackHolidays.length);
+      ganttEngineRef.current?.addHolidays(fallbackHolidays);
+    };
+
+    loadHolidays();
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Event Handlers
   // ---------------------------------------------------------------------------
 

@@ -2238,6 +2238,13 @@ module Api
 
             names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
 
+            # Pre-compute TEEEM links for all Xero contacts in this tenant
+            teeem_links = {}
+            names.each do |contact|
+              link = ContactExternalLink.find_by(external_contact_id: contact[:xero_id])
+              teeem_links[contact[:xero_id]] = link&.contact_id
+            end
+
             # Compare each pair of names to find real duplicates
             # Real duplicate = one name is essentially contained in the other (ignoring suffixes)
             checked_pairs = Set.new
@@ -2247,6 +2254,14 @@ module Api
                 pair_key = [ a[:xero_id], b[:xero_id] ].sort.join("-")
                 next if checked_pairs.include?(pair_key)
                 checked_pairs.add(pair_key)
+
+                # Skip if both contacts are linked to DIFFERENT TEEEM contacts
+                # (user has already determined these are separate people)
+                teeem_id_a = teeem_links[a[:xero_id]]
+                teeem_id_b = teeem_links[b[:xero_id]]
+                if teeem_id_a.present? && teeem_id_b.present? && teeem_id_a != teeem_id_b
+                  next
+                end
 
                 if likely_duplicate?(a[:name], b[:name], suffixes)
                   # Find or create group for this pair
