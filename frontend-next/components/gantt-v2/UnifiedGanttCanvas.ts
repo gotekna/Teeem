@@ -52,6 +52,10 @@ export interface UnifiedGanttCallbacks {
   onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
   /** Called when task progress is changed via drag */
   onProgressChange?: (task: GanttTask, newProgress: number) => void;
+  /** Called when dependency popup should be shown (dragging over target task) */
+  onDependencyPopupShow?: (fromTaskId: string, toTaskId: string, x: number, y: number) => void;
+  /** Called when dependency popup should be hidden */
+  onDependencyPopupHide?: () => void;
 }
 
 /** Drag operation type */
@@ -226,6 +230,9 @@ export class UnifiedGanttCanvas {
   // Drag state
   private dragOperation: DragOperation = { type: 'none' };
 
+  // Pending dependency creation (waiting for popup type selection)
+  private pendingDependency: { fromTaskId: string; toTaskId: string } | null = null;
+
   // Header collapse state
   private collapsedHeaderIds: Set<string> = new Set();
 
@@ -285,6 +292,9 @@ export class UnifiedGanttCanvas {
       onDependencyClick: options.onDependencyClick,
       onContextMenu: options.onContextMenu,
       onDependencyCreate: options.onDependencyCreate,
+      onProgressChange: options.onProgressChange,
+      onDependencyPopupShow: options.onDependencyPopupShow,
+      onDependencyPopupHide: options.onDependencyPopupHide,
     };
 
     // Build config with defaults
@@ -802,6 +812,41 @@ export class UnifiedGanttCanvas {
     this.columns = columns;
     this.recalculateTableWidth();
     this.markDirty();
+  }
+
+  /** Complete pending dependency creation with selected type */
+  completeDependencyCreation(type: 'FS' | 'SS' | 'FF' | 'SF'): void {
+    if (this.pendingDependency) {
+      console.log('[UnifiedGanttCanvas] Completing dependency:', this.pendingDependency.fromTaskId, '->', this.pendingDependency.toTaskId, 'type:', type);
+      this.callbacks.onDependencyCreate?.(
+        this.pendingDependency.fromTaskId,
+        this.pendingDependency.toTaskId,
+        type
+      );
+      this.pendingDependency = null;
+    }
+  }
+
+  /** Cancel pending dependency creation */
+  cancelDependencyCreation(): void {
+    if (this.pendingDependency) {
+      console.log('[UnifiedGanttCanvas] Cancelling dependency creation');
+      this.pendingDependency = null;
+      this.callbacks.onDependencyPopupHide?.();
+    }
+  }
+
+  /** Get the currently hovered task ID */
+  getHoveredTask(): string | null {
+    return this.hoveredTaskId;
+  }
+
+  /** Set the hovered task programmatically */
+  setHoveredTask(taskId: string | null): void {
+    if (this.hoveredTaskId !== taskId) {
+      this.hoveredTaskId = taskId;
+      this.markDirty();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1649,10 +1694,16 @@ export class UnifiedGanttCanvas {
       const targetTask = this.getTaskBarAtPosition(op.currentX, y);
 
       if (targetTask && targetTask.id !== op.fromTaskId) {
-        // Create dependency from source to target
-        // Default to Finish-to-Start (FS) type
-        console.log('[UnifiedGanttCanvas] Creating dependency:', op.fromTaskId, '->', targetTask.id);
-        this.callbacks.onDependencyCreate?.(op.fromTaskId, targetTask.id, 'FS');
+        // Show popup for dependency type selection (if callback provided)
+        if (this.callbacks.onDependencyPopupShow) {
+          console.log('[UnifiedGanttCanvas] Showing dependency popup:', op.fromTaskId, '->', targetTask.id);
+          this.pendingDependency = { fromTaskId: op.fromTaskId, toTaskId: targetTask.id };
+          this.callbacks.onDependencyPopupShow(op.fromTaskId, targetTask.id, e.clientX, e.clientY);
+        } else {
+          // No popup callback - create directly with default FS type
+          console.log('[UnifiedGanttCanvas] Creating dependency:', op.fromTaskId, '->', targetTask.id);
+          this.callbacks.onDependencyCreate?.(op.fromTaskId, targetTask.id, 'FS');
+        }
       }
     } else if (op.type === 'progress-drag') {
       // Emit progress change callback

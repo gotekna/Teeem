@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 import { GanttTask, GanttDependency, GanttConfig } from '@/lib/gantt/types';
 import { UnifiedGanttCanvas, TableColumn } from './UnifiedGanttCanvas';
-import { GanttOverlay } from './GanttOverlay';
+import { GanttOverlay, DependencyPopup } from './GanttOverlay';
 import { GanttToolbar } from './GanttToolbar';
 import { GanttContextMenu, ContextMenuState } from './GanttContextMenu';
 import { Spinner } from '@/components/ui/spinner';
@@ -60,6 +60,10 @@ export interface GanttUnifiedProps {
   // View options
   viewSlug?: string;
   onViewClear?: () => void;
+
+  // Photo panel (job-specific)
+  showPhotoPanel?: boolean;
+  onTogglePhotoPanel?: () => void;
 }
 
 interface ViewportState {
@@ -118,6 +122,8 @@ export function GanttUnified({
   onEditDependencies,
   viewSlug,
   onViewClear,
+  showPhotoPanel,
+  onTogglePhotoPanel,
 }: GanttUnifiedProps) {
   // ---------------------------------------------------------------------------
   // Refs
@@ -171,6 +177,21 @@ export function GanttUnified({
     x: 0,
     y: 0,
     task: null,
+  });
+
+  // Dependency popup state (for type selection when creating dependencies)
+  const [dependencyPopup, setDependencyPopup] = React.useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    fromTaskId: string;
+    toTaskId: string;
+  }>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    fromTaskId: '',
+    toTaskId: '',
   });
 
   // Column visibility state
@@ -260,6 +281,20 @@ export function GanttUnified({
         onProgressChange: (task, newProgress) => {
           console.log('[GanttUnified] Progress changed:', task.id, 'to', newProgress);
           onProgressChange?.(task.id, newProgress);
+        },
+        onDependencyPopupShow: (fromTaskId, toTaskId, x, y) => {
+          console.log('[GanttUnified] Dependency popup show:', fromTaskId, '->', toTaskId, 'at', x, y);
+          setDependencyPopup({
+            isOpen: true,
+            x,
+            y,
+            fromTaskId,
+            toTaskId,
+          });
+        },
+        onDependencyPopupHide: () => {
+          console.log('[GanttUnified] Dependency popup hide');
+          setDependencyPopup((prev) => ({ ...prev, isOpen: false }));
         },
       });
 
@@ -475,6 +510,31 @@ export function GanttUnified({
     []
   );
 
+  // Column reorder handler
+  const handleColumnReorder = React.useCallback(
+    (fromIndex: number, toIndex: number) => {
+      console.log('[GanttUnified] Column reorder:', fromIndex, '->', toIndex);
+      ganttEngineRef.current?.reorderColumns(fromIndex, toIndex);
+    },
+    []
+  );
+
+  // Dependency popup handlers
+  const handleDependencyPopupSelectType = React.useCallback(
+    (type: 'FS' | 'SS' | 'FF' | 'SF') => {
+      console.log('[GanttUnified] Dependency type selected:', type);
+      ganttEngineRef.current?.completeDependencyCreation(type);
+      setDependencyPopup((prev) => ({ ...prev, isOpen: false }));
+    },
+    []
+  );
+
+  const handleDependencyPopupCancel = React.useCallback(() => {
+    console.log('[GanttUnified] Dependency creation cancelled');
+    ganttEngineRef.current?.cancelDependencyCreation();
+    setDependencyPopup((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Resize Observer
   // ---------------------------------------------------------------------------
@@ -563,8 +623,12 @@ export function GanttUnified({
           onViewClear={onViewClear}
           columns={columns}
           onColumnVisibilityChange={handleColumnVisibilityChange}
+          onColumnReorder={handleColumnReorder}
           onExportPNG={handleExportPNG}
           onRefresh={onDataChange}
+          jobId={jobId}
+          showPhotoPanel={showPhotoPanel}
+          onTogglePhotoPanel={onTogglePhotoPanel}
         />
       )}
 
@@ -630,6 +694,17 @@ export function GanttUnified({
         onResetManualPosition={handleContextMenuResetManualPosition}
         onEditDependencies={handleContextMenuEditDependencies}
       />
+
+      {/* Dependency Type Popup (shown when dragging to create dependency) */}
+      {dependencyPopup.isOpen && (
+        <DependencyPopup
+          x={dependencyPopup.x}
+          y={dependencyPopup.y}
+          fromTaskId={dependencyPopup.fromTaskId}
+          onSelectType={handleDependencyPopupSelectType}
+          onCancel={handleDependencyPopupCancel}
+        />
+      )}
     </div>
   );
 }

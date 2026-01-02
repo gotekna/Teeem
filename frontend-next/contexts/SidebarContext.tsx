@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 interface SidebarContextType {
@@ -48,15 +48,24 @@ function saveState(baseRoute: string, expanded: boolean): void {
   }
 }
 
-// Inner component that handles state for a specific route
-// Using key={baseRoute} on this component causes it to remount when route changes,
-// which resets state to the stored value for the new route (avoids setState in useEffect)
-function SidebarStateProvider({ baseRoute, children }: { baseRoute: string; children: ReactNode }) {
-  // Initialize state with stored value for this route
+export function SidebarProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const baseRoute = getBaseRoute(pathname);
+  const prevBaseRouteRef = useRef(baseRoute);
+
+  // Initialize state with stored value for initial route
   const [isExpanded, setIsExpandedState] = useState(() => getStoredState(baseRoute));
 
-  // Wrapper to save state when changed - stable reference since baseRoute doesn't change
-  // (component remounts with new key when baseRoute changes)
+  // When base route changes, update expanded state from storage
+  // This replaces the key={baseRoute} pattern which caused remounts
+  useEffect(() => {
+    if (prevBaseRouteRef.current !== baseRoute) {
+      prevBaseRouteRef.current = baseRoute;
+      setIsExpandedState(getStoredState(baseRoute));
+    }
+  }, [baseRoute]);
+
+  // Wrapper to save state when changed
   const setIsExpanded = useMemo(
     () => (expanded: boolean) => {
       setIsExpandedState(expanded);
@@ -76,20 +85,6 @@ function SidebarStateProvider({ baseRoute, children }: { baseRoute: string; chil
     <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
-  );
-}
-
-export function SidebarProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const baseRoute = getBaseRoute(pathname);
-
-  // Key forces remount when route changes, resetting state to stored value
-  // This is the React-recommended pattern to reset state on prop change
-  // without using useEffect + setState (PATTERN-005)
-  return (
-    <SidebarStateProvider key={baseRoute} baseRoute={baseRoute}>
-      {children}
-    </SidebarStateProvider>
   );
 }
 
