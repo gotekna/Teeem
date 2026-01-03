@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus,
   Settings,
@@ -50,6 +51,7 @@ import {
 } from "@/components/ui/accordion";
 import type { TableColumn } from "./types";
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
+import type { LookupOption } from "./utils/lookup-cache";
 
 interface CreateRecordDialogProps {
   open: boolean;
@@ -156,6 +158,10 @@ export function CreateRecordDialog({
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
 
+  // Lookup column state
+  const [lookupOptions, setLookupOptions] = useState<Record<string, LookupOption[]>>({});
+  const [lookupLoading, setLookupLoading] = useState<Record<string, boolean>>({});
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -211,8 +217,47 @@ export function CreateRecordDialog({
       setShowMoreFields(false);
       setShowFieldConfig(false);
       setValidationErrors(new Set());
+
+      // Fetch lookup options for all lookup columns
+      const lookupColumns = filteredColumns.filter(
+        (col) =>
+          col.column_type === "lookup" ||
+          col.column_type === "multiple_lookups" ||
+          col.column_type === "relation" ||
+          col.lookup_foundation_id
+      );
+
+      lookupColumns.forEach(async (col) => {
+        // SSoT: Use slug for API calls (portable), fallback to ID
+        const targetFoundation = col.lookup_foundation_slug || col.lookup_foundation_id;
+        if (!targetFoundation) return;
+
+        // Skip if already loaded
+        const cacheKey = col.key;
+        if (lookupOptions[cacheKey]) return;
+
+        setLookupLoading((prev) => ({ ...prev, [cacheKey]: true }));
+        try {
+          // Fetch directly using api - Foundation API accepts both IDs and slugs
+          const response = await api.get<{ records: Record<string, unknown>[] }>(
+            `/api/v1/foundations/${targetFoundation}/records`,
+            { params: { per_page: 500 } }
+          );
+          const displayColumn = col.lookup_display_column || "name";
+          const options: LookupOption[] = (response.records || []).map((record) => ({
+            id: Number(record.id),
+            display: String(record[displayColumn] || record.name || record.title || record.id || ""),
+          }));
+          setLookupOptions((prev) => ({ ...prev, [cacheKey]: options }));
+        } catch (error) {
+          console.error(`Failed to fetch lookup options for ${col.key}:`, error);
+          setLookupOptions((prev) => ({ ...prev, [cacheKey]: [] }));
+        } finally {
+          setLookupLoading((prev) => ({ ...prev, [cacheKey]: false }));
+        }
+      });
     }
-  }, [open]);
+  }, [open, filteredColumns]);
 
   // Get sorted columns based on field order
   const getSortedColumns = () => {
@@ -321,6 +366,93 @@ export function CreateRecordDialog({
       hasError ? (
         <p className="text-xs text-destructive mt-1">This field is required</p>
       ) : null;
+
+    // Check if column is a lookup type
+    const isLookup = col.column_type === "lookup" || col.column_type === "relation" || col.lookup_foundation_id;
+    const isMultipleLookup = col.column_type === "multiple_lookups";
+
+    // Handle multiple lookups (checkboxes for multi-select)
+    if (isMultipleLookup) {
+      const options = lookupOptions[col.key] || [];
+      const isLoading = lookupLoading[col.key];
+      // Value is an array of IDs
+      const selectedIds = Array.isArray(value) ? value.map(String) : [];
+
+      return (
+        <div className="space-y-2">
+          <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
+          <div className={cn(
+            "border rounded-md p-3 max-h-[150px] overflow-y-auto space-y-2",
+            hasError && "border-destructive"
+          )}>
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Spinner size={16} />
+                <span className="text-sm">Loading options...</span>
+              </div>
+            ) : options.length === 0 ? (
+              <span className="text-sm text-muted-foreground">No options available</span>
+            ) : (
+              options.map((opt) => (
+                <div key={opt.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`${col.key}_${opt.id}`}
+                    checked={selectedIds.includes(String(opt.id))}
+                    onCheckedChange={(checked) => {
+                      const newIds = checked
+                        ? [...selectedIds, String(opt.id)]
+                        : selectedIds.filter((id) => id !== String(opt.id));
+                      handleFieldChange(col.key, newIds.map(Number));
+                    }}
+                  />
+                  <Label htmlFor={`${col.key}_${opt.id}`} className="text-sm cursor-pointer">
+                    {opt.display}
+                  </Label>
+                </div>
+              ))
+            )}
+          </div>
+          <ErrorMessage />
+        </div>
+      );
+    }
+
+    // Handle single lookup (dropdown)
+    if (isLookup) {
+      const options = lookupOptions[col.key] || [];
+      const isLoading = lookupLoading[col.key];
+
+      return (
+        <div className="space-y-2">
+          <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
+          <Select
+            value={value ? String(value) : ""}
+            onValueChange={(val) => handleFieldChange(col.key, val ? Number(val) : null)}
+          >
+            <SelectTrigger className={cn(hasError && "border-destructive")}>
+              <SelectValue placeholder={isLoading ? "Loading..." : "Select..."} />
+            </SelectTrigger>
+            <SelectContent>
+              {isLoading ? (
+                <div className="flex items-center gap-2 p-2 text-muted-foreground">
+                  <Spinner size={16} />
+                  <span className="text-sm">Loading...</span>
+                </div>
+              ) : options.length === 0 ? (
+                <div className="p-2 text-sm text-muted-foreground">No options available</div>
+              ) : (
+                options.map((opt) => (
+                  <SelectItem key={opt.id} value={String(opt.id)}>
+                    {opt.display}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+          <ErrorMessage />
+        </div>
+      );
+    }
 
     switch (col.column_type) {
       case "boolean":
@@ -460,7 +592,71 @@ export function CreateRecordDialog({
           </div>
         );
 
+      case "choice":
+      case "single_select":
+        // Handle choice columns with predefined options
+        if (col.choices && col.choices.length > 0) {
+          return (
+            <div className="space-y-2">
+              <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
+              <Select
+                value={value ? String(value) : ""}
+                onValueChange={(val) => handleFieldChange(col.key, val)}
+              >
+                <SelectTrigger className={cn(hasError && "border-destructive")}>
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {col.choices.map((choice) => (
+                    <SelectItem key={choice} value={choice}>
+                      {choice}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ErrorMessage />
+            </div>
+          );
+        }
+        // Fall through to default if no choices
+        return (
+          <div className="space-y-2">
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
+            <Input
+              id={col.key}
+              value={String(value || "")}
+              onChange={(e) => handleFieldChange(col.key, e.target.value)}
+              className={cn(hasError && "border-destructive focus-visible:ring-destructive")}
+            />
+            <ErrorMessage />
+          </div>
+        );
+
       default:
+        // Check if column has choices even if type isn't explicitly "choice"
+        if (col.choices && col.choices.length > 0) {
+          return (
+            <div className="space-y-2">
+              <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
+              <Select
+                value={value ? String(value) : ""}
+                onValueChange={(val) => handleFieldChange(col.key, val)}
+              >
+                <SelectTrigger className={cn(hasError && "border-destructive")}>
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {col.choices.map((choice) => (
+                    <SelectItem key={choice} value={choice}>
+                      {choice}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ErrorMessage />
+            </div>
+          );
+        }
         return (
           <div className="space-y-2">
             <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
