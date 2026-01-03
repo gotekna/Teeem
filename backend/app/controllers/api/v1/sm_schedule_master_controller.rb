@@ -189,8 +189,8 @@ module Api
           # New Schedule Master fields
           :linked_po_task_id,
           :supplier_confirm,
-          # Manual positioning
-          :hold, :hold_date, :dependency_broken,
+          # Manual positioning and task status
+          :hold, :hold_date, :dependency_broken, :started,
           # Header and active status
           :allow_header, :is_active,
           predecessor_ids: [ :id, :type, :lag ],

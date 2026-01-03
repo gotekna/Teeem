@@ -6537,28 +6537,35 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
   end
 
   create_table "notebook_pages", force: :cascade do |t|
-    t.bigint "notebook_section_id", null: false
-    t.string "title"
+    t.bigint "section_id", null: false
+    t.string "title", default: "Untitled", null: false
     t.text "content"
-    t.jsonb "content_metadata"
-    t.integer "position"
+    t.jsonb "content_metadata", default: {}
+    t.integer "position", default: 0, null: false
     t.bigint "created_by_id"
     t.bigint "last_edited_by_id"
-    t.boolean "is_pinned"
+    t.boolean "is_pinned", default: false, null: false
     t.datetime "archived_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["notebook_section_id"], name: "index_notebook_pages_on_notebook_section_id"
+    t.index ["archived_at"], name: "index_notebook_pages_on_archived_at"
+    t.index ["created_by_id"], name: "index_notebook_pages_on_created_by_id"
+    t.index ["is_pinned"], name: "index_notebook_pages_on_is_pinned"
+    t.index ["last_edited_by_id"], name: "index_notebook_pages_on_last_edited_by_id"
+    t.index ["section_id", "position"], name: "index_notebook_pages_on_section_id_and_position"
+    t.index ["section_id"], name: "index_notebook_pages_on_section_id"
   end
 
   create_table "notebook_sections", force: :cascade do |t|
     t.bigint "notebook_id", null: false
-    t.string "name"
-    t.integer "position"
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
     t.string "color"
     t.datetime "archived_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_notebook_sections_on_archived_at"
+    t.index ["notebook_id", "position"], name: "index_notebook_sections_on_notebook_id_and_position"
     t.index ["notebook_id"], name: "index_notebook_sections_on_notebook_id"
   end
 
@@ -6579,18 +6586,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
   end
 
   create_table "notebooks", force: :cascade do |t|
-    t.string "name"
+    t.string "name", null: false
     t.text "description"
     t.string "icon_name"
     t.string "color"
-    t.bigint "owner_id"
+    t.bigint "owner_id", null: false
     t.string "notable_type"
     t.bigint "notable_id"
-    t.boolean "is_default"
+    t.boolean "is_default", default: false, null: false
     t.datetime "archived_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_notebooks_on_archived_at"
     t.index ["name"], name: "index_notebooks_on_name"
+    t.index ["notable_type", "notable_id"], name: "index_notebooks_on_notable_type_and_notable_id"
+    t.index ["owner_id"], name: "index_notebooks_on_owner_id"
   end
 
   create_table "notifications", force: :cascade do |t|
@@ -6878,7 +6888,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", force: :cascade do |t|
+  create_table "performance_requests", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -6956,7 +6967,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -10242,11 +10254,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
   add_foreign_key "notebook_activities", "users"
   add_foreign_key "notebook_page_attachments", "notebook_pages", column: "page_id"
   add_foreign_key "notebook_page_attachments", "users", column: "uploaded_by_id"
-  add_foreign_key "notebook_pages", "notebook_sections"
+  add_foreign_key "notebook_pages", "notebook_sections", column: "section_id"
+  add_foreign_key "notebook_pages", "users", column: "created_by_id"
+  add_foreign_key "notebook_pages", "users", column: "last_edited_by_id"
   add_foreign_key "notebook_sections", "notebooks"
   add_foreign_key "notebook_shares", "notebooks"
   add_foreign_key "notebook_shares", "users"
   add_foreign_key "notebook_shares", "users", column: "granted_by_id"
+  add_foreign_key "notebooks", "users", column: "owner_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
   add_foreign_key "organization_microsoft_app_credentials", "organizations"

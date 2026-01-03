@@ -855,6 +855,9 @@ export default function EmailPage() {
     }
   };
 
+  // Track if initial account load is complete (to handle cache vs URL param)
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
+
   const fetchAccounts = async () => {
     try {
       const response = await api.get<{ success: boolean; data: EmailAccount[] }>(
@@ -865,34 +868,35 @@ export default function EmailPage() {
 
       console.log('[Email] fetchAccounts - accountParam:', accountParam, 'activeAccounts:', activeAccounts.map(a => ({ id: a.id, email: a.email_address })));
 
-      // Check if URL has account param
-      // If no param (clicking Email tab at top), show All Inbox
-      // If param exists (clicking specific account in nav), show that account
+      // Determine which account to show based on URL param
+      let targetAccountId = "all";
+
       if (activeAccounts.length > 0) {
         if (accountParam) {
           // Find account matching URL param
           const accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
           console.log('[Email] Looking for account:', accountParam, 'found:', accountToSelect?.email_address || 'NOT FOUND');
           if (accountToSelect) {
-            const accountId = String(accountToSelect.id);
-            console.log('[Email] Setting selectedAccount to:', accountId);
-            setSelectedAccount(accountId);
-            setExpandedAccounts(new Set([accountId]));
+            targetAccountId = String(accountToSelect.id);
+            setExpandedAccounts(new Set([targetAccountId]));
             // Fetch folders for selected account (pass account for ms365 type)
-            fetchFolders(accountId, accountToSelect);
+            fetchFolders(targetAccountId, accountToSelect);
           } else {
-            // Account not found, fall back to All Inbox
             console.log('[Email] Account not found, falling back to all');
-            setSelectedAccount("all");
           }
         } else {
-          // No account param = show All Inbox (combined view)
           console.log('[Email] No account param, showing All Inbox');
-          setSelectedAccount("all");
         }
       }
+
+      // Always set the account and mark as loaded
+      // This triggers fetchEmails via the useEffect below
+      console.log('[Email] Setting selectedAccount to:', targetAccountId);
+      setSelectedAccount(targetAccountId);
+      setAccountsLoaded(true);
     } catch (error) {
       console.error("Failed to fetch accounts:", error);
+      setAccountsLoaded(true); // Mark loaded even on error to prevent infinite loops
     }
   };
 
@@ -921,9 +925,13 @@ export default function EmailPage() {
   }, [accountParam, accounts]);
 
   useEffect(() => {
-    // Fetch emails when account changes (including "all" for combined view)
-    fetchEmails();
-  }, [selectedAccount, fetchEmails]);
+    // Fetch emails when account changes OR when accounts finish loading
+    // The accountsLoaded check ensures we fetch even if cached selectedAccount matches URL param
+    if (accountsLoaded) {
+      console.log('[Email] Triggering fetchEmails - accountsLoaded:', accountsLoaded, 'selectedAccount:', selectedAccount);
+      fetchEmails();
+    }
+  }, [selectedAccount, fetchEmails, accountsLoaded]);
 
   // Cache email state for instant loading on next visit
   useEffect(() => {
