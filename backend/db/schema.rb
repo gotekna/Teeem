@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_03_121123) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_03_200719) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1554,9 +1554,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_121123) do
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
+    t.index ["display_name"], name: "idx_contacts_display_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["email"], name: "index_contacts_on_email"
+    t.index ["entity_type", "display_name"], name: "idx_contacts_entity_type_display_name"
+    t.index ["entity_type", "is_active"], name: "idx_contacts_entity_type_active"
+    t.index ["entity_type"], name: "index_contacts_on_entity_type"
     t.index ["is_active"], name: "index_contacts_on_is_active"
+    t.index ["is_family_member"], name: "index_contacts_on_is_family_member"
+    t.index ["is_potential_director"], name: "index_contacts_on_is_potential_director"
     t.index ["is_saas_customer"], name: "index_contacts_on_is_saas_customer"
+    t.index ["is_team_contact", "is_active"], name: "idx_contacts_team_contact_active"
     t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
