@@ -186,14 +186,18 @@ class CorporateCompany < ApplicationRecord
 
   def formatted_acn
     return nil unless acn.present?
-    # Format as XXX XXX XXX
-    acn.scan(/.{1,3}/).join(" ")
+    # Strip all non-digits first, then format as XXX XXX XXX
+    digits = acn.gsub(/\D/, "")
+    return acn if digits.length != 9
+    "#{digits[0..2]} #{digits[3..5]} #{digits[6..8]}"
   end
 
   def formatted_abn
     return nil unless abn.present?
-    # Format as XX XXX XXX XXX
-    "#{abn[0..1]} #{abn[2..4]} #{abn[5..7]} #{abn[8..10]}"
+    # Strip all non-digits first, then format as XX XXX XXX XXX
+    digits = abn.gsub(/\D/, "")
+    return abn if digits.length != 11
+    "#{digits[0..1]} #{digits[2..4]} #{digits[5..7]} #{digits[8..10]}"
   end
 
   def active?

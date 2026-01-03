@@ -727,6 +727,35 @@ export class UnifiedGanttCanvas {
     this.markDirty();
   }
 
+  /** Select a header and all its children (group selection) */
+  selectHeaderGroup(headerTaskId: string): void {
+    const headerTask = this.tasks.find((t) => t.id === headerTaskId);
+    if (!headerTask) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const headerRowData = headerTask.rowData as any;
+    const headerTaskNumber = headerRowData?.task_number;
+    if (!headerTaskNumber) return;
+
+    // Clear previous selection
+    this.selectedTaskIds.clear();
+
+    // Add header itself
+    this.selectedTaskIds.add(headerTaskId);
+
+    // Find all children of this header
+    for (const task of this.tasks) {
+      const parentNum = this.getParentHeaderTaskNumber(task);
+      if (parentNum === headerTaskNumber) {
+        this.selectedTaskIds.add(task.id);
+      }
+    }
+
+    this.lastSelectedTaskId = headerTaskId;
+    this.callbacks.onSelectionChange?.(new Set(this.selectedTaskIds));
+    this.markDirty();
+  }
+
   /** Get selected task IDs */
   getSelectedTaskIds(): Set<string> {
     return new Set(this.selectedTaskIds);
@@ -1389,20 +1418,21 @@ export class UnifiedGanttCanvas {
       }
     }
 
-    // Check for header row collapse toggle
+    // Check for header row collapse toggle - clicking anywhere in name column toggles collapse
+    // Also highlights all children of that header to show the group
     const task = this.getTaskAtRow(y);
     if (task && this.isHeaderTask(task) && x < this.tableWidth) {
-      // Check if click is on the collapse chevron (accounts for nesting indentation)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rowData = task.rowData as any;
-      const nestingLevel = rowData?.nesting_level ?? 0;
-      const nestingIndent = nestingLevel * 16;
-      const nameColumnStart = this.getColumnStartX('name');
-      const chevronStart = nameColumnStart + nestingIndent;
-      if (x >= chevronStart && x < chevronStart + 24) {
-        this.toggleHeaderCollapse(task.id);
-        e.preventDefault();
-        return;
+      const nameColumn = this.columns.find((c) => c.id === 'name');
+      if (nameColumn && nameColumn.visible) {
+        const nameColumnX = this.getColumnStartX('name');
+        const nameColumnEnd = nameColumnX + nameColumn.width;
+        if (x >= nameColumnX && x < nameColumnEnd) {
+          this.toggleHeaderCollapse(task.id);
+          // Highlight the header and all its children to show the group
+          this.selectHeaderGroup(task.id);
+          e.preventDefault();
+          return;
+        }
       }
     }
 
@@ -2113,20 +2143,21 @@ export class UnifiedGanttCanvas {
     // Skip header area
     if (y < this.config.headerHeight) return;
 
-    // Check for header row chevron click (collapse/expand) - accounts for nesting indentation
+    // Check for header row click - clicking anywhere in name column toggles collapse
+    // Also highlights all children of that header to show the group
     const nameColumn = this.columns.find((c) => c.id === 'name');
     if (nameColumn && nameColumn.visible) {
       const task = this.getTaskAtRow(y);
       if (task && this.isHeaderTask(task)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rowData = task.rowData as any;
-        const nestingLevel = rowData?.nesting_level ?? 0;
-        const nestingIndent = nestingLevel * 16;
+        // For header rows, clicking ANYWHERE in the name column toggles collapse
+        // This is much more user-friendly than requiring a click on the tiny chevron
         const nameColumnX = this.getColumnStartX('name');
-        const chevronArea = { x: nameColumnX + nestingIndent, width: 24 }; // Chevron position accounts for nesting
+        const nameColumnEnd = nameColumnX + nameColumn.width;
 
-        if (x >= chevronArea.x && x < chevronArea.x + chevronArea.width) {
+        if (x >= nameColumnX && x < nameColumnEnd) {
           this.toggleHeaderCollapse(task.id);
+          // Highlight the header and all its children to show the group
+          this.selectHeaderGroup(task.id);
           return;
         }
       }
