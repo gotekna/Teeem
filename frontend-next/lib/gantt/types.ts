@@ -49,6 +49,25 @@ export type HoldReason =
  */
 export type TaskShape = 'task' | 'milestone' | 'order' | 'call' | 'photo';
 
+// ============================================================================
+// SSoT: Header Detection
+// ============================================================================
+
+/**
+ * SSoT: Check if a row/task is a header (group parent)
+ *
+ * A row is a header if:
+ * - header_gantt === 'Header' (templates use this)
+ * - allow_header === true (schedule page uses this)
+ *
+ * USE THIS FUNCTION EVERYWHERE instead of inline checks!
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isHeaderRow(row: any): boolean {
+  if (!row) return false;
+  return row.header_gantt === 'Header' || row.allow_header === true;
+}
+
 /**
  * Dependency types between tasks
  * - FS: Finish-to-Start (default) - Task B starts when Task A finishes
@@ -597,12 +616,13 @@ export function sortRowsHierarchically<T extends {
   task_number: number;
   sequence_order: number;
   header_gantt: string | number | { id: number } | null;
+  allow_header?: boolean;
 }>(rows: T[]): T[] {
   if (rows.length === 0) return [];
 
   // Helper: get parent task_number from header_gantt
   const getParentTaskNumber = (row: T): number | null => {
-    if (row.header_gantt === 'Header') return null; // IS a header
+    if (isHeaderRow(row)) return null; // IS a header (SSoT)
     if (typeof row.header_gantt === 'number') return row.header_gantt;
     if (typeof row.header_gantt === 'object' && row.header_gantt?.id) return row.header_gantt.id;
     if (typeof row.header_gantt === 'string') {
@@ -612,9 +632,6 @@ export function sortRowsHierarchically<T extends {
     return null;
   };
 
-  // Helper: is this row a header?
-  const isHeader = (row: T) => row.header_gantt === 'Header';
-
   // Build sets and maps
   const headerTaskNumbers = new Set<number>();
   const childrenByParent = new Map<number, T[]>();
@@ -622,7 +639,7 @@ export function sortRowsHierarchically<T extends {
 
   // First pass: identify headers and group children
   for (const row of rows) {
-    if (isHeader(row)) {
+    if (isHeaderRow(row)) {
       headerTaskNumbers.add(row.task_number);
       if (!childrenByParent.has(row.task_number)) {
         childrenByParent.set(row.task_number, []);
@@ -649,7 +666,7 @@ export function sortRowsHierarchically<T extends {
   for (const row of sortedBySeq) {
     if (processed.has(row.task_number)) continue;
 
-    if (isHeader(row)) {
+    if (isHeaderRow(row)) {
       // Emit header + children block
       result.push(row);
       processed.add(row.task_number);
@@ -696,10 +713,10 @@ export function convertRowsToTasks(
   const tasks = sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
 
   // Third pass: update header tasks to span their children
-  // Header rows have header_gantt === 'Header'
+  // SSoT: Use isHeaderRow() for header detection
   // Children reference headers by task_number (not id), so we need to map task_number -> row
   // Use Number() to ensure consistent numeric types (API may return strings)
-  const headerRows = sortedRows.filter(r => r.header_gantt === 'Header');
+  const headerRows = sortedRows.filter(r => isHeaderRow(r));
   const headerTaskNumbers = new Set(headerRows.map(r => Number(r.task_number)));
   // Map task_number -> row.id for looking up header by task_number
   const taskNumberToId = new Map<number, number>();
@@ -716,8 +733,8 @@ export function convertRowsToTasks(
       const row = sortedRows[i];
       const task = tasks[i];
 
-      // Skip headers themselves
-      if (row.header_gantt === 'Header') continue;
+      // Skip headers themselves (SSoT: isHeaderRow)
+      if (isHeaderRow(row)) continue;
 
       // Get parent header task_number from header_gantt field
       // Can be: number, {id, display} object, or string number like "1407"
@@ -750,66 +767,66 @@ export function convertRowsToTasks(
     // If header has dependencies, shift children first
     for (const task of tasks) {
       const row = sortedRows.find(r => String(r.id) === task.id);
-      if (row?.header_gantt === 'Header') {
-        const children = headerChildrenMap.get(Number(row.id));
-        if (children && children.length > 0) {
-          // Find current min start from children
-          let minStart = children[0].startDate;
-          let maxEnd = children[0].endDate;
+      if (!row || !isHeaderRow(row)) continue;
+
+      const children = headerChildrenMap.get(Number(row.id));
+      if (!children || children.length === 0) continue;
+
+      // Find current min start from children
+      let minStart = children[0].startDate;
+      let maxEnd = children[0].endDate;
+      for (const child of children) {
+        if (child.startDate < minStart) minStart = child.startDate;
+        if (child.endDate > maxEnd) maxEnd = child.endDate;
+      }
+
+      // Check if header has dependencies - if so, calculate required start
+      if (row.predecessor_ids && row.predecessor_ids.length > 0) {
+        let latestRequiredStart: Date | null = null;
+
+        for (const pred of row.predecessor_ids) {
+          const predDates = taskDateMap.get(pred.id);
+          if (!predDates) continue;
+
+          const predType = pred.type || 'FS';
+          const lagDays = pred.lag || 0;
+          let requiredStart: Date;
+
+          if (predType === 'FS') {
+            // Finish-to-Start: start after predecessor finishes + lag
+            requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
+          } else if (predType === 'SS') {
+            // Start-to-Start: start when predecessor starts + lag
+            requiredStart = addWorkingDays(predDates.start, lagDays);
+          } else {
+            // Default to FS
+            requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
+          }
+
+          if (!latestRequiredStart || requiredStart > latestRequiredStart) {
+            latestRequiredStart = requiredStart;
+          }
+        }
+
+        // If header needs to start later due to dependencies, shift all children
+        if (latestRequiredStart && latestRequiredStart > minStart) {
+          const offsetMs = latestRequiredStart.getTime() - minStart.getTime();
           for (const child of children) {
-            if (child.startDate < minStart) minStart = child.startDate;
-            if (child.endDate > maxEnd) maxEnd = child.endDate;
+            child.startDate = new Date(child.startDate.getTime() + offsetMs);
+            child.endDate = new Date(child.endDate.getTime() + offsetMs);
           }
-
-          // Check if header has dependencies - if so, calculate required start
-          if (row.predecessor_ids && row.predecessor_ids.length > 0) {
-            let latestRequiredStart: Date | null = null;
-
-            for (const pred of row.predecessor_ids) {
-              const predDates = taskDateMap.get(pred.id);
-              if (!predDates) continue;
-
-              const predType = pred.type || 'FS';
-              const lagDays = pred.lag || 0;
-              let requiredStart: Date;
-
-              if (predType === 'FS') {
-                // Finish-to-Start: start after predecessor finishes + lag
-                requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
-              } else if (predType === 'SS') {
-                // Start-to-Start: start when predecessor starts + lag
-                requiredStart = addWorkingDays(predDates.start, lagDays);
-              } else {
-                // Default to FS
-                requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
-              }
-
-              if (!latestRequiredStart || requiredStart > latestRequiredStart) {
-                latestRequiredStart = requiredStart;
-              }
-            }
-
-            // If header needs to start later due to dependencies, shift all children
-            if (latestRequiredStart && latestRequiredStart > minStart) {
-              const offsetMs = latestRequiredStart.getTime() - minStart.getTime();
-              for (const child of children) {
-                child.startDate = new Date(child.startDate.getTime() + offsetMs);
-                child.endDate = new Date(child.endDate.getTime() + offsetMs);
-              }
-              // Recalculate min/max after shift
-              minStart = new Date(latestRequiredStart);
-              maxEnd = new Date(maxEnd.getTime() + offsetMs);
-            }
-          }
-
-          task.startDate = new Date(minStart);
-          task.endDate = new Date(maxEnd);
-
-          // CRITICAL: Update taskDateMap with the header's new dates
-          // so that subsequent headers depending on this one use the correct dates
-          taskDateMap.set(Number(row.task_number), { start: task.startDate, end: task.endDate });
+          // Recalculate min/max after shift
+          minStart = new Date(latestRequiredStart);
+          maxEnd = new Date(maxEnd.getTime() + offsetMs);
         }
       }
+
+      task.startDate = new Date(minStart);
+      task.endDate = new Date(maxEnd);
+
+      // CRITICAL: Update taskDateMap with the header's new dates
+      // so that subsequent headers depending on this one use the correct dates
+      taskDateMap.set(row.task_number, { start: task.startDate, end: task.endDate });
     }
 
     // Keep all tasks including headers with no children

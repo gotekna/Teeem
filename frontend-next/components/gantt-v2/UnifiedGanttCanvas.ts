@@ -14,7 +14,7 @@
  * @see TEEEM_DOCS/GANTT_BUSINESS_RULES.md - 31 rules that must not break
  */
 
-import { GanttTask, GanttDependency, GanttConfig, GanttColors } from '@/lib/gantt/types';
+import { GanttTask, GanttDependency, GanttConfig, GanttColors, isHeaderRow } from '@/lib/gantt/types';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 import { calculateCriticalPath, type CriticalPathResult } from '@/lib/gantt/engine/CriticalPath';
 
@@ -908,9 +908,8 @@ export class UnifiedGanttCanvas {
 
   /** Check if a task is a header row */
   private isHeaderTask(task: GanttTask): boolean {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rowData = task.rowData as any;
-    return rowData?.header_gantt === 'Header' || rowData?.allow_header === true;
+    // SSoT: Use isHeaderRow from lib/gantt/types
+    return isHeaderRow(task.rowData);
   }
 
   /** Get parent header task number for a child task */
@@ -2806,10 +2805,8 @@ export class UnifiedGanttCanvas {
       // Skip if not visible
       if (y + rowHeight < headerHeight || y > this.height) continue;
 
-      // Check if this is a header/group row
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rowData = task.rowData as any;
-      const isHeader = rowData?.header_gantt === 'Header' || rowData?.allow_header;
+      // Check if this is a header/group row (SSoT: isHeaderRow)
+      const isHeader = isHeaderRow(task.rowData);
 
       // Also check if it's a child row in selected group (amber tint)
       const isInSelectedGroup = this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id);
@@ -2871,10 +2868,8 @@ export class UnifiedGanttCanvas {
       const oddRowColor = this.config.darkMode ? '#263040' : '#fafafa';
       let bgColor = i % 2 === 0 ? this.config.colors.background : oddRowColor;
 
-      // Check if header row
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rowData = task.rowData as any;
-      const isHeader = rowData?.header_gantt === 'Header' || rowData?.allow_header;
+      // Check if header row (SSoT: isHeaderRow)
+      const isHeader = isHeaderRow(task.rowData);
       if (isHeader) {
         bgColor = this.config.colors.headerRowBackground;
       }
@@ -3143,10 +3138,10 @@ export class UnifiedGanttCanvas {
       const rowData = task.rowData as any;
       const barColor = this.getTaskBarColor(rowData);
 
-      // Check if this is a header/summary row (SSoT: same check as isHeaderTask)
-      const isHeaderRow = rowData?.header_gantt === 'Header' || rowData?.allow_header === true;
+      // Check if this is a header/summary row (SSoT: isHeaderRow from lib/gantt/types)
+      const isHeader = isHeaderRow(task.rowData);
 
-      if (isHeaderRow) {
+      if (isHeader) {
         // MS Project style summary bar: thin black bar with downward triangles at ends
         const summaryBarHeight = 6;
         const summaryY = barY + (taskBarHeight - summaryBarHeight) / 2;

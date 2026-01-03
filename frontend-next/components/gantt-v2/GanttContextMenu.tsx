@@ -9,7 +9,7 @@
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { GanttTask } from '@/lib/gantt/types';
+import { GanttTask, isHeaderRow } from '@/lib/gantt/types';
 import {
   Edit,
   Trash2,
@@ -131,9 +131,10 @@ export function GanttContextMenu({
   if (!state.isOpen) return null;
 
   const task = state.task;
-  // Use record access for rowData since it's a union type
-  const rowData = task?.rowData as Record<string, unknown> | undefined;
-  const isHeader = rowData?.header_gantt === 'Header' || rowData?.allow_header;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rowData = task?.rowData as any;
+  // SSoT: Use isHeaderRow from lib/gantt/types
+  const isHeader = isHeaderRow(rowData);
 
   const handleAction = (action: () => void) => {
     action();

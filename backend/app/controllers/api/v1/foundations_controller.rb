@@ -531,7 +531,7 @@ module Api
         # Key tables that the frontend needs to know about
         # Map frontend key -> database slug (MUST match actual Foundation.slug in database!)
         key_mapping = {
-          "gold-standard" => "gold_standard_table",
+          "gold-standard" => "gold-standard",
           "jobs" => "jobs",
           "tasks" => "sm-tasks",
           "pricebook" => "pricebook-items",
