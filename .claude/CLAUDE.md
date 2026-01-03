@@ -277,6 +277,22 @@ return (
 
 **Local:** Frontend port 3000, Backend port 3001
 
+## 🔴 Production Frontend (Vercel)
+
+| Environment | URL | Notes |
+|-------------|-----|-------|
+| Production | `https://teeemlive.vercel.app` | SSoT production URL (3 e's in teeem) |
+| Backend API | `https://teeemlive-ce8e2660a615.herokuapp.com` | Heroku |
+
+**Chrome DevTools MCP Access:**
+- Vercel team member `robert-8688` has been granted access
+- This allows Claude to use Chrome DevTools MCP for browser testing on production
+- If access expires, re-approve in Vercel Team Settings → Members
+
+**Login Credentials (for automated testing):**
+- Email: `robert@tekna.com.au`
+- Password: `Wisdom50-50`
+
 ## 🔴 Microsoft 365 (SSoT: MicrosoftCredential)
 
 ```ruby

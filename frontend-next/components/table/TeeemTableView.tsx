@@ -4768,10 +4768,15 @@ export default function TeeemTableView({
   const renderHierarchyTable = () => {
     // Build hierarchy from filtered entries
     // Need task_number, sequence_order, header_gantt, allow_header for hierarchy
-    const rowsWithHierarchyFields = filteredAndSortedEntries.filter(row =>
-      typeof row.task_number === 'number' &&
-      typeof row.sequence_order === 'number'
-    ) as Array<{
+    // API may return these as numbers OR strings, so check for existence not type
+    const rowsWithHierarchyFields = filteredAndSortedEntries
+      .filter(row => row.task_number != null && row.sequence_order != null)
+      .map(row => ({
+        ...row,
+        // Ensure numeric fields are numbers (API may return strings)
+        task_number: Number(row.task_number),
+        sequence_order: Number(row.sequence_order),
+      })) as Array<{
       id: number | string;
       task_number: number;
       sequence_order: number;
@@ -4785,7 +4790,7 @@ export default function TeeemTableView({
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <Layers className="h-8 w-8 mb-4 opacity-50" />
           <p className="text-sm font-medium">No hierarchy data</p>
-          <p className="text-xs mt-1">This table doesn't have header_gantt or task_number columns</p>
+          <p className="text-xs mt-1">This table doesn't have task_number or sequence_order columns</p>
         </div>
       );
     }
