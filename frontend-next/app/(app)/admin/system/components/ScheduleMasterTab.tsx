@@ -81,7 +81,7 @@ import { api } from "@/lib/api";
 import { convertRowsToTasks, isHeaderRow, type GanttTask, type GanttDependency, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle } from "lucide-react";
+import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch } from "lucide-react";
 
 // Copyable code component for column names
 function CopyableCode({ children }: { children: string }) {
@@ -376,6 +376,19 @@ export function ScheduleMasterTab() {
     isOpen: false,
     task: null,
     visibleTasks: []
+  });
+
+  // Start task dialog state (for starting tasks under headers)
+  const [startTaskDialog, setStartTaskDialog] = React.useState<{
+    isOpen: boolean;
+    task: GanttTask | null;
+    headerName: string | null;
+    hasPredecessors: boolean;
+  }>({
+    isOpen: false,
+    task: null,
+    headerName: null,
+    hasPredecessors: false
   });
 
   // Row Edit Sheet state
@@ -1029,6 +1042,49 @@ export function ScheduleMasterTab() {
 
     console.log('[Gantt V2] Checkbox toggle:', taskId, field, checked);
 
+    // For "started" field, check if task is under a header or has predecessors
+    if (field === 'started' && checked) {
+      const task = ganttV2Tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const row = task.rowData as GanttSmScheduleMaster | undefined;
+      if (!row) {
+        await executeGanttV2CheckboxToggle(taskId, field, checked);
+        return;
+      }
+
+      // Check if task is under a header (has header_gantt that references a parent)
+      const headerGanttValue = row.header_gantt;
+      const isUnderHeader = headerGanttValue !== null &&
+                            headerGanttValue !== undefined &&
+                            headerGanttValue !== 'Header'; // 'Header' means this IS a header
+
+      // Check if task has predecessors
+      const hasPredecessors = (row.predecessor_ids?.length ?? 0) > 0;
+
+      if (isUnderHeader || hasPredecessors) {
+        // Find header name for display
+        let headerName: string | null = null;
+        if (isUnderHeader) {
+          const headerTaskNumber = extractLookupId(headerGanttValue);
+          if (headerTaskNumber) {
+            // Find header row by task_number
+            const headerRow = ganttV2Rows.find(r => String(r.task_number) === headerTaskNumber);
+            headerName = headerRow?.name || extractLookupDisplay(headerGanttValue) || `Task #${headerTaskNumber}`;
+          }
+        }
+
+        // Show start task dialog
+        setStartTaskDialog({
+          isOpen: true,
+          task,
+          headerName,
+          hasPredecessors
+        });
+        return;
+      }
+    }
+
     // For supplier_confirm and confirm fields, show confirmation dialog first
     if (field === 'supplier_confirm' || field === 'confirm') {
       const task = ganttV2Tasks.find(t => t.id === taskId);
@@ -1101,6 +1157,56 @@ export function ScheduleMasterTab() {
     } catch (error) {
       console.error('[Gantt V2] Failed to toggle checkbox:', error);
       toast({ title: "Error", description: "Failed to update", variant: "destructive" });
+    }
+  };
+
+  // Gantt V2: Execute start task with break option (called from start task dialog)
+  const executeStartTask = async (
+    task: GanttTask,
+    option: 'break-header' | 'break-dependency'
+  ) => {
+    if (!ganttV2TemplateId) return;
+
+    const row = task.rowData as GanttSmScheduleMaster | undefined;
+    if (!row) return;
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    try {
+      const updateData: Record<string, unknown> = {
+        started: true,
+        hold: true,           // Lock position
+        hold_date: todayStr,  // Set start date to today
+      };
+
+      if (option === 'break-header') {
+        // Break out of header - task becomes standalone
+        updateData.header_gantt = null;
+        updateData.dependency_broken = true;  // Mark as broken for visual indicator
+      } else if (option === 'break-dependency') {
+        // Break dependencies - clear predecessors but stay under header
+        updateData.predecessor_ids = [];
+        updateData.dependency_broken = true;  // Mark as broken for visual indicator
+      }
+
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${task.id}`, {
+        row: updateData,
+      });
+
+      const actionText = option === 'break-header'
+        ? 'broken out of header'
+        : 'dependencies cleared';
+      toast({
+        title: "Task Started",
+        description: `Task ${actionText} and start date set to today`
+      });
+
+      // Refresh data
+      loadGanttV2Data(ganttV2TemplateId);
+    } catch (error) {
+      console.error('[Gantt V2] Failed to start task:', error);
+      toast({ title: "Error", description: "Failed to start task", variant: "destructive" });
     }
   };
 

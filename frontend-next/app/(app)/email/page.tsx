@@ -778,9 +778,9 @@ export default function EmailPage() {
         params.append("imap_credential_id", selectedAccount);
       }
 
-      // Filter by folder if one is selected
-      if (selectedFolderId) {
-        params.append("folder_id", selectedFolderId);
+      // Filter by folder name (warehouse stores human-readable names like "Inbox", not MS365 IDs)
+      if (selectedFolder) {
+        params.append("folder_name", selectedFolder);
       }
 
       const response = await api.get<{ emails: Email[]; pagination: Pagination }>(
@@ -794,7 +794,7 @@ export default function EmailPage() {
     } finally {
       setLoading(false);
     }
-  }, [toURLParams, selectedAccount, selectedFolderId]);
+  }, [toURLParams, selectedAccount, selectedFolder]);
 
   const fetchFolders = async (accountId: string, account?: EmailAccount) => {
     if (accountFolders[accountId] || loadingFolders.has(accountId)) {
