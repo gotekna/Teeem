@@ -33,7 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
   Plus,
   Settings,
@@ -417,38 +417,27 @@ export function CreateRecordDialog({
       );
     }
 
-    // Handle single lookup (dropdown)
+    // Handle single lookup (searchable dropdown)
     if (isLookup) {
       const options = lookupOptions[col.key] || [];
       const isLoading = lookupLoading[col.key];
+      const selectedOption = options.find(o => String(o.id) === String(value));
 
       return (
         <div className="space-y-2">
           <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
-          <Select
-            value={value ? String(value) : ""}
-            onValueChange={(val) => handleFieldChange(col.key, val ? Number(val) : null)}
-          >
-            <SelectTrigger className={cn(hasError && "border-destructive")}>
-              <SelectValue placeholder={isLoading ? "Loading..." : "Select..."} />
-            </SelectTrigger>
-            <SelectContent>
-              {isLoading ? (
-                <div className="flex items-center gap-2 p-2 text-muted-foreground">
-                  <Spinner size={16} />
-                  <span className="text-sm">Loading...</span>
-                </div>
-              ) : options.length === 0 ? (
-                <div className="p-2 text-sm text-muted-foreground">No options available</div>
-              ) : (
-                options.map((opt) => (
-                  <SelectItem key={opt.id} value={String(opt.id)}>
-                    {opt.display}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+          <ComboboxDropdown
+            items={options.map(o => ({ id: String(o.id), label: o.display }))}
+            selectedItem={selectedOption ? { id: String(selectedOption.id), label: selectedOption.display } : undefined}
+            onSelect={(item) => handleFieldChange(col.key, Number(item.id))}
+            placeholder="Search..."
+            searchPlaceholder="Type to search..."
+            isLoading={isLoading}
+            clearable
+            onClear={() => handleFieldChange(col.key, null)}
+            emptyResults="No options available"
+            className={cn(hasError && "border-destructive")}
+          />
           <ErrorMessage />
         </div>
       );
@@ -594,26 +583,23 @@ export function CreateRecordDialog({
 
       case "choice":
       case "single_select":
-        // Handle choice columns with predefined options
+        // Handle choice columns with predefined options (searchable)
         if (col.choices && col.choices.length > 0) {
+          const selectedChoice = col.choices.find(c => c === value);
           return (
             <div className="space-y-2">
               <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
-              <Select
-                value={value ? String(value) : ""}
-                onValueChange={(val) => handleFieldChange(col.key, val)}
-              >
-                <SelectTrigger className={cn(hasError && "border-destructive")}>
-                  <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {col.choices.map((choice) => (
-                    <SelectItem key={choice} value={choice}>
-                      {choice}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboboxDropdown
+                items={col.choices.map(c => ({ id: c, label: c }))}
+                selectedItem={selectedChoice ? { id: selectedChoice, label: selectedChoice } : undefined}
+                onSelect={(item) => handleFieldChange(col.key, item.id)}
+                placeholder="Search options..."
+                searchPlaceholder="Type to search..."
+                clearable
+                onClear={() => handleFieldChange(col.key, "")}
+                emptyResults="No options available"
+                className={cn(hasError && "border-destructive")}
+              />
               <ErrorMessage />
             </div>
           );

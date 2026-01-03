@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -230,25 +230,28 @@ export function SchemaModals({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Select Column</Label>
-              <Select value={selectedColumnToDelete} onValueChange={setSelectedColumnToDelete}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select column to delete" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COLUMNS.filter(
-                    (c) =>
-                      c.key !== "select" &&
-                      c.key !== "actions" &&
-                      c.key !== "id" &&
-                      c.key !== "created_at" &&
-                      c.key !== "updated_at"
-                  ).map((col) => (
-                    <SelectItem key={col.key} value={col.key}>
-                      {col.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboboxDropdown
+                items={COLUMNS.filter(
+                  (c) =>
+                    c.key !== "select" &&
+                    c.key !== "actions" &&
+                    c.key !== "id" &&
+                    c.key !== "created_at" &&
+                    c.key !== "updated_at"
+                ).map((col) => ({
+                  id: col.key,
+                  label: col.label,
+                }))}
+                selectedItem={selectedColumnToDelete ? {
+                  id: selectedColumnToDelete,
+                  label: COLUMNS.find(c => c.key === selectedColumnToDelete)?.label || selectedColumnToDelete
+                } : undefined}
+                onSelect={(item) => setSelectedColumnToDelete(item.id)}
+                placeholder="Search columns..."
+                searchPlaceholder="Type to search..."
+                clearable
+                onClear={() => setSelectedColumnToDelete("")}
+              />
             </div>
 
             {selectedColumnToDelete && (
