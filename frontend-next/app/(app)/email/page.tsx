@@ -32,6 +32,7 @@ import {
   ReplyAll,
   Forward,
   ArrowUpDown,
+  FolderPlus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -72,6 +73,7 @@ import { useEmailState } from "@/components/emails/EmailActions";
 import { useEmailWebSocket } from "@/hooks/useEmailWebSocket";
 import { ClassificationBadge, type EmailClassificationType } from "@/components/emails/ClassificationBadge";
 import { ReadingPaneToggle, useReadingPanePosition, type ReadingPanePosition } from "@/components/emails/ReadingPaneToggle";
+import { CreateFolderDialog } from "@/components/emails/FolderManagementDialog";
 import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
 import { cn } from "@/lib/utils";
 import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
@@ -480,6 +482,7 @@ export default function EmailPage() {
   );
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -1275,6 +1278,16 @@ To: ${email.to_emails?.join(", ") || ""}
                         />
                       ))
                     )}
+                    {/* Create Folder button - only for IMAP accounts */}
+                    {account.type === "imap" && (
+                      <button
+                        onClick={() => setCreateFolderOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-sm mt-1"
+                      >
+                        <FolderPlus className="h-3.5 w-3.5" />
+                        <span>Create Folder</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -1717,6 +1730,21 @@ To: ${email.to_emails?.join(", ") || ""}
         onSent={() => {
           fetchEmails();
           setReplyTo(null);
+        }}
+      />
+
+      {/* Create Folder Dialog - for IMAP accounts */}
+      <CreateFolderDialog
+        open={createFolderOpen}
+        onOpenChange={setCreateFolderOpen}
+        accountId={selectedAccount}
+        onFolderCreated={() => {
+          // Refresh folders for the current account
+          const account = accounts.find(a => String(a.id) === selectedAccount);
+          if (account) {
+            setAccountFolders(prev => ({ ...prev, [selectedAccount]: [] }));
+            fetchFolders(selectedAccount, account);
+          }
         }}
       />
 
