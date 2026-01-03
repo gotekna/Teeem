@@ -91,6 +91,7 @@ class SmScheduleMaster < ApplicationRecord
 
   # Callbacks
   before_validation :set_task_number, on: :create
+  before_validation :set_sequence_order, on: :create
   before_validation :clean_invalid_predecessors
   before_validation :uppercase_name_if_header
   before_save :clear_spawn_tasks_if_not_po
@@ -187,6 +188,14 @@ class SmScheduleMaster < ApplicationRecord
     # Task numbers are now globally unique (not per-template)
     max_number = SmScheduleMaster.maximum(:task_number) || 0
     self.task_number = max_number + 1
+  end
+
+  def set_sequence_order
+    return if sequence_order.present?
+
+    # Auto-generate sequence order at the end of the list
+    max_order = SmScheduleMaster.maximum(:sequence_order) || 0
+    self.sequence_order = max_order + 1
   end
 
   # Force uppercase name for header rows
