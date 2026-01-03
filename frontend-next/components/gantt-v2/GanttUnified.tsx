@@ -58,6 +58,8 @@ export interface GanttUnifiedProps {
   onUndo?: (selectedTaskId: string) => void;
   onEditDependencies?: (task: GanttTask) => void;
   onDurationChange?: (taskId: string, newDuration: number) => void;
+  /** Called when user clicks on a predecessor in the Deps column - opens predecessor's lightbox */
+  onPredecessorClick?: (predecessorTaskNumber: number) => void;
 
   // Rollover - SSoT: POST /api/v1/jobs/{jobId}/sm_tasks/validate_dates
   onRollover?: () => Promise<{ rolled_over: number; extended: number; cascaded: number } | null>;
@@ -130,6 +132,7 @@ export function GanttUnified({
   onUndo,
   onEditDependencies,
   onDurationChange,
+  onPredecessorClick,
   onRollover,
   viewSlug,
   onViewClear,

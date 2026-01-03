@@ -10,7 +10,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Filter to only current user's emails (my_emails mode)
     # Skip this filter if microsoft_credential_id is provided (we'll filter by that instead)
     if params[:my_emails] == "true" && params[:microsoft_credential_id].blank?
-      user_imap_ids = current_user.imap_credentials.pluck(:id)
+      # SSoT: Use accessible_by scope which includes owned AND shared credentials
+      user_imap_ids = ImapCredential.accessible_by(current_user).pluck(:id)
 
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
@@ -355,13 +356,14 @@ class Api::V1::EmailWarehouseController < ApplicationController
     begin
       # Get emails user has access to (same logic as index my_emails)
       emails = EmailWarehouse.all
-      user_imap_credentials = current_user.imap_credentials
+      # SSoT: Use accessible_by scope which includes owned AND shared credentials
+      user_imap_credentials = ImapCredential.accessible_by(current_user)
       user_imap_ids = user_imap_credentials.pluck(:id)
 
       # Build list of all email accounts user has access to
       all_accounts = []
 
-      # IMAP accounts
+      # IMAP accounts (owned + shared)
       user_imap_credentials.each do |cred|
         all_accounts << cred.email_address if cred.email_address.present?
       end

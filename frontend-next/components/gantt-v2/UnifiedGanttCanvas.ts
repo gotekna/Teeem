@@ -181,8 +181,8 @@ const DEFAULT_COLUMNS: TableColumn[] = [
   { id: 'confirm', label: '✓', width: 24, visible: false, type: 'checkbox', field: 'confirm' },
   { id: 'supplier_confirm', label: 'S✓', width: 24, visible: false, type: 'checkbox', field: 'supplier_confirm' },
   { id: 'is_completed', label: '✓', width: 24, visible: false, type: 'checkbox', field: 'is_completed' },
-  // Dependencies (action column - opens modal)
-  { id: 'dependencies', label: 'Deps', width: 80, visible: true, type: 'action', field: 'predecessor_display' },
+  // Dependencies (action column - click opens predecessor) - Show task names, not IDs
+  { id: 'dependencies', label: 'Deps', width: 120, visible: true, type: 'action', field: 'predecessor_display_names' },
   // Duration (editable number)
   { id: 'duration', label: 'Days', width: 50, visible: true, type: 'number', field: 'duration_days' },
   // Supplier info
