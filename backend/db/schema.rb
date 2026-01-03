@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_04_064751) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1306,7 +1306,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
     t.integer "position", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["contact_id"], name: "idx_contact_emails_unique_primary", unique: true, where: "(is_primary = true)"
   end
 
   create_table "contact_external_links", force: :cascade do |t|
@@ -1392,7 +1391,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
     t.datetime "updated_at", null: false
     t.index ["contact_id", "is_primary"], name: "index_contact_phones_on_primary", where: "(is_primary = true)"
     t.index ["contact_id", "position"], name: "index_contact_phones_on_contact_id_and_position"
-    t.index ["contact_id"], name: "idx_contact_phones_unique_primary", unique: true, where: "(is_primary = true)"
     t.index ["contact_id"], name: "index_contact_phones_on_contact_id"
   end
 
@@ -1489,7 +1487,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
     t.boolean "portal_enabled", default: false
     t.string "company_name_or_trust"
     t.bigint "primary_company_id"
-    t.string "entity_type", null: false
+    t.string "entity_type"
     t.string "place_of_birth"
     t.string "birth_state"
     t.string "birth_country"
@@ -1584,7 +1582,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
     t.index ["upline_contact_id"], name: "index_contacts_on_upline_contact_id"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
-    t.check_constraint "entity_type::text = ANY (ARRAY['person'::character varying, 'company'::character varying, 'trust'::character varying, 'sole_trader'::character varying, 'price_only'::character varying]::text[])", name: "check_contacts_entity_type"
   end
 
   create_table "corporate_companies", force: :cascade do |t|
@@ -2564,7 +2561,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
     t.index ["user_id"], name: "index_email_labels_on_user_id"
   end
 
-  create_table "email_recipients", id: :bigint, default: nil, force: :cascade do |t|
+  create_table "email_recipients", force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.bigint "user_id"
     t.bigint "contact_id"
@@ -6908,8 +6905,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_requests", force: :cascade do |t|
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -6987,8 +6983,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_vitals", force: :cascade do |t|
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -9051,6 +9046,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064750) do
     t.datetime "last_seen_at"
     t.boolean "can_view_confidential_fields", default: false, null: false
     t.jsonb "email_nav_positions", default: {}
+    t.string "preferred_theme", default: "light"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
