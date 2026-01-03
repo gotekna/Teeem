@@ -88,14 +88,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       {/* pt-12 = 48px for header, add BREADCRUMB_BAR_HEIGHT when trail exists (except fullscreen) */}
       {/* Always reserve breadcrumb space to prevent CLS - bar visibility handled via CSS */}
       <main
-        className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-all duration-300 ease-in-out border-4 border-lime-500`}
+        className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-all duration-300 ease-in-out`}
         style={{ paddingTop: (hasTrail && !shouldHideSidebar) ? 48 + BREADCRUMB_BAR_HEIGHT : 48 }}
       >
-        {/* DEBUG LABEL */}
-        <div className="bg-lime-600 text-white px-2 py-1 text-xs font-bold">[-3] MAIN (LIME) - sidebar-content-area</div>
-        <div className={`h-full overflow-auto ${contentClassName} border-4 border-teal-500`}>
-          {/* DEBUG LABEL */}
-          <div className="bg-teal-600 text-white px-2 py-1 text-xs font-bold">[-2] CONTENT (TEAL) - {contentClassName}</div>
+        <div className={`h-full overflow-auto ${contentClassName}`}>
           {children}
         </div>
       </main>

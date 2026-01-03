@@ -57,6 +57,7 @@ export interface GanttUnifiedProps {
   onResetManualPosition?: (task: GanttTask) => void;
   onUndo?: (selectedTaskId: string) => void;
   onEditDependencies?: (task: GanttTask) => void;
+  onDurationChange?: (taskId: string, newDuration: number) => void;
 
   // View options
   viewSlug?: string;
@@ -65,6 +66,9 @@ export interface GanttUnifiedProps {
   // Photo panel (job-specific)
   showPhotoPanel?: boolean;
   onTogglePhotoPanel?: () => void;
+
+  // Feature toggles
+  showBaselineControls?: boolean; // Hide baseline capture in template views
 }
 
 interface ViewportState {
@@ -122,10 +126,12 @@ export function GanttUnified({
   onResetManualPosition,
   onUndo,
   onEditDependencies,
+  onDurationChange,
   viewSlug,
   onViewClear,
   showPhotoPanel,
   onTogglePhotoPanel,
+  showBaselineControls = true,
 }: GanttUnifiedProps) {
   // ---------------------------------------------------------------------------
   // Refs
@@ -195,6 +201,24 @@ export function GanttUnified({
     fromTaskId: '',
     toTaskId: '',
   });
+
+  // Inline cell edit state (for Days column editing)
+  const [inlineEdit, setInlineEdit] = React.useState<{
+    isOpen: boolean;
+    taskId: string;
+    columnId: string;
+    field: string;
+    value: string;
+    rect: { x: number; y: number; width: number; height: number };
+  }>({
+    isOpen: false,
+    taskId: '',
+    columnId: '',
+    field: '',
+    value: '',
+    rect: { x: 0, y: 0, width: 0, height: 0 },
+  });
+  const inlineEditInputRef = React.useRef<HTMLInputElement>(null);
 
   // Column visibility state
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
@@ -297,6 +321,17 @@ export function GanttUnified({
         onDependencyPopupHide: () => {
           console.log('[GanttUnified] Dependency popup hide');
           setDependencyPopup((prev) => ({ ...prev, isOpen: false }));
+        },
+        onCellEdit: (task, columnId, field, currentValue, cellRect) => {
+          console.log('[GanttUnified] Cell edit requested:', task.id, columnId, field, currentValue);
+          setInlineEdit({
+            isOpen: true,
+            taskId: task.id,
+            columnId,
+            field,
+            value: currentValue?.toString() || '',
+            rect: cellRect,
+          });
         },
       });
 
@@ -570,6 +605,51 @@ export function GanttUnified({
     setDependencyPopup((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
+  // Inline edit handlers
+  const handleInlineEditSubmit = React.useCallback(() => {
+    if (!inlineEdit.isOpen) return;
+
+    const newValue = parseInt(inlineEdit.value, 10);
+    if (!isNaN(newValue) && newValue > 0) {
+      console.log('[GanttUnified] Inline edit submit:', inlineEdit.taskId, inlineEdit.field, newValue);
+
+      // Update canvas immediately for visual feedback
+      ganttEngineRef.current?.updateTaskField(inlineEdit.taskId, inlineEdit.field, newValue);
+
+      // Call parent callback to save
+      if (inlineEdit.field === 'duration_days') {
+        onDurationChange?.(inlineEdit.taskId, newValue);
+      }
+    }
+
+    setInlineEdit((prev) => ({ ...prev, isOpen: false }));
+  }, [inlineEdit, onDurationChange]);
+
+  const handleInlineEditCancel = React.useCallback(() => {
+    setInlineEdit((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const handleInlineEditKeyDown = React.useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleInlineEditSubmit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleInlineEditCancel();
+      }
+    },
+    [handleInlineEditSubmit, handleInlineEditCancel]
+  );
+
+  // Focus inline edit input when opened
+  React.useEffect(() => {
+    if (inlineEdit.isOpen && inlineEditInputRef.current) {
+      inlineEditInputRef.current.focus();
+      inlineEditInputRef.current.select();
+    }
+  }, [inlineEdit.isOpen]);
+
   // ---------------------------------------------------------------------------
   // Resize Observer
   // ---------------------------------------------------------------------------
@@ -625,15 +705,11 @@ export function GanttUnified({
   return (
     <div
       className={cn(
-        'flex flex-col h-full overflow-hidden bg-background',
-        'border-4 border-blue-500', // DEBUG
+        'flex flex-col h-full overflow-hidden bg-background border-l border-border',
         isFullscreen && 'fixed inset-0 z-50',
         className
       )}
     >
-      {/* DEBUG LABEL */}
-      <div className="bg-blue-600 text-white px-2 py-1 text-xs font-bold">[1] GANTT UNIFIED (BLUE)</div>
-
       {/* Toolbar - hide during loading/error */}
       {showToolbar && !isLoading && !error && (
         <GanttToolbar
@@ -655,9 +731,9 @@ export function GanttUnified({
           taskCount={tasks.length}
           showCriticalPath={showCriticalPath}
           onToggleCriticalPath={handleToggleCriticalPath}
-          showBaseline={showBaseline}
-          onToggleBaseline={handleToggleBaseline}
-          onCaptureBaseline={handleCaptureBaseline}
+          showBaseline={showBaselineControls ? showBaseline : undefined}
+          onToggleBaseline={showBaselineControls ? handleToggleBaseline : undefined}
+          onCaptureBaseline={showBaselineControls ? handleCaptureBaseline : undefined}
           viewSlug={viewSlug}
           onViewClear={onViewClear}
           columns={columns}
@@ -672,27 +748,20 @@ export function GanttUnified({
       )}
 
       {/* Main Content: Canvas + Overlays */}
-      <div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden border-4 border-green-500">
-        {/* DEBUG LABEL */}
-        <div className="absolute top-0 left-0 z-50 bg-green-600 text-white px-2 py-1 text-xs font-bold">[2] CANVAS CONTAINER (GREEN)</div>
-
+      <div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden">
         {/* Canvas Layer - ALWAYS rendered (so refs are available for initialization) */}
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 border-2 border-purple-500"
+          className="absolute inset-0"
           style={{ touchAction: 'none' }} // Prevent browser touch gestures
           onDoubleClick={(e) => {
             console.log('[GanttUnified] React onDoubleClick fired at', e.nativeEvent.offsetX, e.nativeEvent.offsetY);
           }}
         />
-        {/* DEBUG LABEL */}
-        <div className="absolute top-6 left-0 z-50 bg-purple-600 text-white px-2 py-1 text-xs font-bold">[3] CANVAS (PURPLE)</div>
 
         {/* Overlay Layer - React components for interactive elements */}
         {!isLoading && !error && (
           <>
-            {/* DEBUG LABEL */}
-            <div className="absolute top-12 left-0 z-50 bg-orange-600 text-white px-2 py-1 text-xs font-bold">[4] OVERLAY (ORANGE)</div>
             <GanttOverlay
               overlayPositions={overlayPositions}
               visibleRange={visibleRange}
@@ -700,6 +769,31 @@ export function GanttUnified({
               rowHeight={DEFAULT_CONFIG.rowHeight!}
               onCheckboxToggle={handleCheckboxToggle}
             />
+
+            {/* Inline Edit Input (for Days column) */}
+            {inlineEdit.isOpen && (
+              <div
+                className="absolute z-50"
+                style={{
+                  left: inlineEdit.rect.x,
+                  top: inlineEdit.rect.y,
+                  width: inlineEdit.rect.width,
+                  height: inlineEdit.rect.height,
+                }}
+              >
+                <input
+                  ref={inlineEditInputRef}
+                  type="number"
+                  min="1"
+                  value={inlineEdit.value}
+                  onChange={(e) => setInlineEdit((prev) => ({ ...prev, value: e.target.value }))}
+                  onKeyDown={handleInlineEditKeyDown}
+                  onBlur={handleInlineEditSubmit}
+                  className="w-full h-full px-1 text-sm text-center border-2 border-primary bg-background focus:outline-none focus:ring-0"
+                  style={{ boxSizing: 'border-box' }}
+                />
+              </div>
+            )}
           </>
         )}
 

@@ -1255,6 +1255,27 @@ export function ScheduleMasterTab() {
     }
   };
 
+  // Gantt V2: Handle inline duration change (from Days column double-click edit)
+  const handleGanttV2DurationChange = async (taskId: string, newDuration: number) => {
+    if (!ganttV2TemplateId) return;
+
+    console.log('[Gantt V2] Duration changed via inline edit:', taskId, 'new duration:', newDuration);
+
+    try {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskId}`, {
+        row: { duration_days: newDuration },
+      });
+
+      toast({ title: "Duration updated", description: `${newDuration} days` });
+
+      // Refresh data
+      loadGanttV2Data(ganttV2TemplateId);
+    } catch (error) {
+      console.error('[Gantt V2] Failed to save duration:', error);
+      toast({ title: "Error", description: "Failed to update duration", variant: "destructive" });
+    }
+  };
+
   // Gantt V2: Handle dependency create
   const handleGanttV2DependencyCreate = async (fromId: string, toId: string, type: string) => {
     if (!ganttV2TemplateId) return;
@@ -1819,12 +1840,8 @@ export function ScheduleMasterTab() {
   }
 
   return (
-    <div className="h-full w-full flex flex-col border-4 border-pink-500">
-      {/* DEBUG: Pink border shows outermost wrapper */}
-      <div className="bg-pink-600 text-white px-2 py-1 text-xs font-bold">[-1] OUTER WRAPPER (PINK)</div>
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col relative border-4 border-cyan-500">
-        {/* DEBUG: Cyan border shows Tabs component */}
-        <div className="bg-cyan-600 text-white px-2 py-1 text-xs font-bold">[-0.5] TABS (CYAN)</div>
+    <div className="h-full w-full flex flex-col">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col relative">
         <TabsList className="shrink-0 mx-4">
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
@@ -2064,12 +2081,8 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
           {/* Gantt V2 Tab - For debugging the new Gantt implementation */}
-          <TabsContent value="gantt-v2" className="absolute inset-0 overflow-hidden data-[state=inactive]:hidden border-4 border-red-500">
-          {/* DEBUG: Red border shows TabsContent */}
-          <div className="absolute top-0 left-0 z-50 bg-red-600 text-white px-2 py-1 text-xs font-bold">[0] TABS CONTENT (RED)</div>
-          <div className="flex flex-col h-full border-4 border-yellow-500">
-          {/* DEBUG: Yellow border shows inner flex */}
-          <div className="absolute top-6 left-0 z-50 bg-yellow-600 text-white px-2 py-1 text-xs font-bold">[0.5] FLEX (YELLOW)</div>
+          <TabsContent value="gantt-v2" className="absolute top-0 right-0 bottom-0 left-4 overflow-hidden data-[state=inactive]:hidden">
+          <div className="flex flex-col h-full">
             {/* Template selector header */}
             <div className="flex items-center gap-4 px-4 py-2 border-b bg-background">
               <Select
@@ -2122,6 +2135,7 @@ export function ScheduleMasterTab() {
                   dependencies={ganttV2Dependencies}
                   templateId={ganttV2TemplateId}
                   showToolbar={true}
+                  showBaselineControls={false}
                   className="h-full"
                   onTaskClick={(task) => {
                     console.log('[Gantt V2 Debug] Task clicked:', task);
@@ -2138,6 +2152,7 @@ export function ScheduleMasterTab() {
                   onResetManualPosition={handleGanttV2ResetManualPosition}
                   onUndo={handleGanttV2Undo}
                   onEditDependencies={handleGanttV2EditDependencies}
+                  onDurationChange={handleGanttV2DurationChange}
                   onDataChange={() => {
                     // Refresh data when something changes
                     if (ganttV2TemplateId) {

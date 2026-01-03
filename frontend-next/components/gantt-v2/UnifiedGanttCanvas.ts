@@ -56,6 +56,8 @@ export interface UnifiedGanttCallbacks {
   onDependencyPopupShow?: (fromTaskId: string, toTaskId: string, x: number, y: number) => void;
   /** Called when dependency popup should be hidden */
   onDependencyPopupHide?: () => void;
+  /** Called when a cell should be edited (double-click on editable column) */
+  onCellEdit?: (task: GanttTask, columnId: string, field: string, currentValue: unknown, cellRect: { x: number; y: number; width: number; height: number }) => void;
 }
 
 /** Drag operation type */
@@ -165,17 +167,20 @@ const DARK_COLORS: GanttColors = {
 
 const DEFAULT_COLORS = LIGHT_COLORS;
 
+/** Left padding for table area to prevent left edge clipping */
+const TABLE_LEFT_PADDING = 4;
+
 const DEFAULT_COLUMNS: TableColumn[] = [
   // Row number (not in original but useful)
   { id: 'row_number', label: '#', width: 40, visible: true, type: 'text' },
   // Name - always visible (permanent)
   { id: 'name', label: 'Name', width: 242, minWidth: 100, visible: true, type: 'text', field: 'name' },
-  // Status checkboxes
-  { id: 'started', label: '▶', width: 24, visible: true, type: 'checkbox', field: 'started' },
-  { id: 'hold', label: '📌', width: 24, visible: true, type: 'checkbox', field: 'hold' },
-  { id: 'confirm', label: '✓', width: 24, visible: true, type: 'checkbox', field: 'confirm' },
-  { id: 'supplier_confirm', label: 'S✓', width: 24, visible: true, type: 'checkbox', field: 'supplier_confirm' },
-  { id: 'is_completed', label: '✓', width: 24, visible: true, type: 'checkbox', field: 'is_completed' },
+  // Status checkboxes - hidden by default
+  { id: 'started', label: '▶', width: 24, visible: false, type: 'checkbox', field: 'started' },
+  { id: 'hold', label: '📌', width: 24, visible: false, type: 'checkbox', field: 'hold' },
+  { id: 'confirm', label: '✓', width: 24, visible: false, type: 'checkbox', field: 'confirm' },
+  { id: 'supplier_confirm', label: 'S✓', width: 24, visible: false, type: 'checkbox', field: 'supplier_confirm' },
+  { id: 'is_completed', label: '✓', width: 24, visible: false, type: 'checkbox', field: 'is_completed' },
   // Dependencies (action column - opens modal)
   { id: 'dependencies', label: 'Deps', width: 80, visible: true, type: 'action', field: 'predecessor_display' },
   // Duration (editable number)
@@ -318,9 +323,10 @@ export class UnifiedGanttCanvas {
 
     this.columns = options.columns ?? [...DEFAULT_COLUMNS];
     // Calculate table width from visible columns (or use override)
-    this.tableWidth = options.tableWidth ?? this.columns
+    // Add TABLE_LEFT_PADDING to account for left edge spacing
+    this.tableWidth = (options.tableWidth ?? this.columns
       .filter((c) => c.visible)
-      .reduce((sum, c) => sum + c.width, 0);
+      .reduce((sum, c) => sum + c.width, 0)) + TABLE_LEFT_PADDING;
 
     // Initialize start date to today
     this.startDate = getTodayInCompanyTimezone();
@@ -824,7 +830,7 @@ export class UnifiedGanttCanvas {
   private recalculateTableWidth(): void {
     this.tableWidth = this.columns
       .filter((c) => c.visible)
-      .reduce((sum, c) => sum + c.width, 0);
+      .reduce((sum, c) => sum + c.width, 0) + TABLE_LEFT_PADDING;
   }
 
   /** Reorder columns */
@@ -1071,7 +1077,7 @@ export class UnifiedGanttCanvas {
   private getColumnAt(x: number): TableColumn | null {
     if (x >= this.tableWidth) return null;
 
-    let columnX = 0;
+    let columnX = TABLE_LEFT_PADDING;
     for (const column of this.columns) {
       if (!column.visible) continue;
       if (x >= columnX && x < columnX + column.width) {
@@ -1088,7 +1094,7 @@ export class UnifiedGanttCanvas {
     if (x >= this.tableWidth) return null;
 
     const handleWidth = 8; // Pixels from edge to detect resize
-    let columnX = 0;
+    let columnX = TABLE_LEFT_PADDING;
 
     for (const column of this.columns) {
       if (!column.visible) continue;
@@ -1115,7 +1121,7 @@ export class UnifiedGanttCanvas {
 
   /** Get start X position for a column */
   private getColumnStartX(columnId: string): number {
-    let x = 0;
+    let x = TABLE_LEFT_PADDING;
     for (const column of this.columns) {
       if (!column.visible) continue;
       if (column.id === columnId) {
@@ -1755,6 +1761,7 @@ export class UnifiedGanttCanvas {
           }
 
           // Emit callback for parent to handle API update
+          console.log('[Canvas] Task resize complete:', task.id, 'edge:', edge, 'daysDelta:', daysDelta, 'newStart:', task.startDate, 'newEnd:', task.endDate);
           this.callbacks.onTaskResize?.(task, task.startDate, task.endDate);
         } else {
           // No change - reset task dates to original
@@ -2123,13 +2130,43 @@ export class UnifiedGanttCanvas {
   };
 
   private handleDoubleClick = (e: MouseEvent): void => {
-    // Use offsetX/offsetY directly (like old GanttCanvas) for accurate hit testing
-    const task = this.getTaskAtPosition(e.offsetX, e.offsetY);
+    const x = e.offsetX;
+    const y = e.offsetY;
+
+    // Check if double-click is in the table area (for inline editing)
+    if (x < this.tableWidth && y > this.config.headerHeight) {
+      const column = this.getColumnAt(x);
+      const task = this.getTaskAtRow(y);
+
+      // Handle editable columns (duration/Days)
+      if (column && task && column.type === 'number' && column.field) {
+        // Calculate cell rectangle for positioning the edit input
+        const columnX = this.getColumnStartX(column.id);
+        const rowIndex = this.visibleTasks.indexOf(task);
+        const cellY = this.config.headerHeight + rowIndex * this.config.rowHeight - this.scrollY;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rowData = task.rowData as any;
+        const currentValue = rowData?.[column.field];
+
+        console.log('[UnifiedGanttCanvas] Double-click on editable cell:', column.id, task.id, currentValue);
+        this.callbacks.onCellEdit?.(task, column.id, column.field, currentValue, {
+          x: columnX,
+          y: cellY,
+          width: column.width,
+          height: this.config.rowHeight,
+        });
+        return;
+      }
+    }
+
+    // Otherwise, handle task bar double-click
+    const task = this.getTaskAtPosition(x, y);
     if (task) {
       console.log('[UnifiedGanttCanvas] Double-click on task:', task.id, task.name);
       this.callbacks.onTaskDoubleClick?.(task, e);
     } else {
-      console.log('[UnifiedGanttCanvas] Double-click on empty area at', e.offsetX, e.offsetY);
+      console.log('[UnifiedGanttCanvas] Double-click on empty area at', x, y);
     }
   };
 
@@ -2217,7 +2254,7 @@ export class UnifiedGanttCanvas {
 
     const dayWidth = this.config.dayWidth * this.zoom;
     const { rowHeight, taskBarHeight, taskBarPadding, headerHeight } = this.config;
-    const edgeThreshold = 8; // Pixels near edge to trigger resize
+    const edgeThreshold = 15; // Pixels near edge to trigger resize (increased for easier grabbing)
 
     for (let i = 0; i < this.visibleTasks.length; i++) {
       const task = this.visibleTasks[i];
@@ -2840,7 +2877,7 @@ export class UnifiedGanttCanvas {
     }
 
     // Draw vertical grid lines for columns
-    let columnX = 0;
+    let columnX = TABLE_LEFT_PADDING;
     for (const column of this.columns) {
       if (!column.visible) continue;
       columnX += column.width;
@@ -2881,7 +2918,7 @@ export class UnifiedGanttCanvas {
     const isHeader = this.isHeaderTask(task);
     const isCollapsed = this.collapsedHeaderIds.has(task.id);
 
-    let columnX = 0;
+    let columnX = TABLE_LEFT_PADDING;
     for (const column of this.columns) {
       if (!column.visible) continue;
 
@@ -3160,19 +3197,21 @@ export class UnifiedGanttCanvas {
 
         // Draw visual resize handles on hover (grip lines on edges)
         if (this.hoveredTaskId === task.id && !isLocked && barWidth >= 30) {
-          const gripColor = this.config.darkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.4)';
-          const gripWidth = 2;
-          const gripGap = 3;
-          const gripHeight = 6;
+          const gripColor = this.config.darkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.5)';
+          const gripWidth = 3;
+          const gripGap = 4;
+          const gripHeight = 10;
           const centerY = barY + taskBarHeight / 2;
 
-          // Left edge grip lines
+          // Left edge grip lines (3 lines)
           this.ctx.fillStyle = gripColor;
-          this.ctx.fillRect(startX + 2, centerY - gripHeight / 2, gripWidth, gripHeight);
-          this.ctx.fillRect(startX + 2 + gripGap, centerY - gripHeight / 2, gripWidth, gripHeight);
+          this.ctx.fillRect(startX + 3, centerY - gripHeight / 2, gripWidth, gripHeight);
+          this.ctx.fillRect(startX + 3 + gripGap, centerY - gripHeight / 2, gripWidth, gripHeight);
+          this.ctx.fillRect(startX + 3 + gripGap * 2, centerY - gripHeight / 2, gripWidth, gripHeight);
 
-          // Right edge grip lines
-          const rightX = startX + barWidth - 4 - gripWidth;
+          // Right edge grip lines (3 lines)
+          const rightX = startX + barWidth - 6 - gripWidth;
+          this.ctx.fillRect(rightX - gripGap * 2, centerY - gripHeight / 2, gripWidth, gripHeight);
           this.ctx.fillRect(rightX - gripGap, centerY - gripHeight / 2, gripWidth, gripHeight);
           this.ctx.fillRect(rightX, centerY - gripHeight / 2, gripWidth, gripHeight);
         }
@@ -3588,7 +3627,7 @@ export class UnifiedGanttCanvas {
     this.ctx.fillRect(0, 0, this.tableWidth, headerHeight);
 
     // Draw table column headers
-    let columnX = 0;
+    let columnX = TABLE_LEFT_PADDING;
     for (const column of this.columns) {
       if (!column.visible) continue;
 
@@ -3668,7 +3707,7 @@ export class UnifiedGanttCanvas {
 
       // Calculate checkbox positions
       const checkboxes: OverlayPosition['checkboxes'] = [];
-      let columnX = 0;
+      let columnX = TABLE_LEFT_PADDING;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
