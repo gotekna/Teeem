@@ -305,6 +305,18 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <GraduationCap className="h-4 w-4" />
           </Link>
 
+          {/* Notes Icon */}
+          <Link prefetch={false}
+            href="/notebooks"
+            className="p-1.5 text-gray-400 hover:text-amber-500 dark:hover:text-amber-400 rounded-md"
+            title="Notes"
+          >
+            <span className="sr-only">Notes</span>
+            <div className="h-4 w-4 flex items-center justify-center font-bold text-xs border border-current rounded">
+              N
+            </div>
+          </Link>
+
           {/* Workflow Tasks */}
           <Link prefetch={false}
             href="/tasks/workflow"

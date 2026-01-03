@@ -1970,6 +1970,15 @@ export function ScheduleMasterTab() {
           }
         }
 
+        // DEBUG: Log header-children relationships
+        console.log('[updateHeaderDates] Header-Children map:');
+        for (const [taskNumber, children] of childrenByHeader.entries()) {
+          const headerRow = rows.find(r => r.task_number === taskNumber);
+          console.log(`  Header "${headerRow?.name}" (task_number: ${taskNumber}): ${children.length} children`,
+            children.slice(0, 3).map(c => rows.find(r => String(r.id) === c.id)?.name));
+        }
+        console.log('[updateHeaderDates] taskByTaskNumber contains', taskByTaskNumber.size, 'entries');
+
         // Update header dates to span their children AND respect predecessors
         // Run multiple passes because headers can depend on other headers
         // (e.g., SLAB depends on PRE CONSTRUCTION)
@@ -1991,10 +2000,22 @@ export function ScheduleMasterTab() {
               if (child.endDate > maxEnd) maxEnd = child.endDate;
             }
 
+            // DEBUG: Log header predecessor info
+            console.log(`[updateHeaderDates] Header "${row.name}" (task_number: ${row.task_number})`, {
+              predecessor_ids: row.predecessor_ids,
+              childMinStart: minStart.toISOString().slice(0, 10),
+              childCount: children.length
+            });
+
             // If header has predecessors, ensure it doesn't start before they finish
             if (row.predecessor_ids && Array.isArray(row.predecessor_ids)) {
               for (const pred of row.predecessor_ids) {
                 const predTask = taskByTaskNumber.get(pred.id);
+                console.log(`[updateHeaderDates] Looking up pred.id=${pred.id}`, {
+                  found: !!predTask,
+                  predTaskName: predTask ? rows.find(r => String(r.id) === predTask.id)?.name : 'not found',
+                  predTaskEnd: predTask?.endDate.toISOString().slice(0, 10)
+                });
                 if (predTask) {
                   const predType = pred.type || 'FS';
                   const lag = pred.lag || 0;
@@ -2011,7 +2032,9 @@ export function ScheduleMasterTab() {
                     requiredStart.setDate(requiredStart.getDate() + 1 + lag);
                   }
 
+                  console.log(`[updateHeaderDates] Calculated requiredStart=${requiredStart.toISOString().slice(0, 10)} (type=${predType}, lag=${lag})`);
                   if (requiredStart > minStart) {
+                    console.log(`[updateHeaderDates] Updating minStart from ${minStart.toISOString().slice(0, 10)} to ${requiredStart.toISOString().slice(0, 10)}`);
                     minStart = requiredStart;
                   }
                 }
@@ -2027,6 +2050,7 @@ export function ScheduleMasterTab() {
             // If header needs to start later than children currently do, shift children
             if (minStart > actualChildMinStart) {
               const shiftDays = Math.ceil((minStart.getTime() - actualChildMinStart.getTime()) / (1000 * 60 * 60 * 24));
+              console.log(`[updateHeaderDates] SHIFTING "${row.name}" children forward by ${shiftDays} days`);
 
               // Shift all children forward
               for (const child of children) {

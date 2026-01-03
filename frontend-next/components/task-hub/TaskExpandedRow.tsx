@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SmTask, TaskAttachment, TaskActionItem, useTaskHub } from '@/contexts/TaskHubContext';
+import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub } from '@/contexts/TaskHubContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +24,8 @@ import {
   Paperclip,
   Plus,
   Trash2,
+  UserPlus,
+  Users,
   X,
 } from "lucide-react";
 import { cn } from '@/lib/utils';
@@ -43,6 +45,11 @@ const statusColors = {
   completed: 'data-[state=checked]:bg-gray-500 data-[state=checked]:border-gray-500',
 };
 
+interface User {
+  id: number;
+  name: string;
+}
+
 export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const {
     updateTask,
@@ -56,6 +63,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     toggleActionItem,
     removeActionItem,
     setTaskPrivacy,
+    getFollowers,
+    addFollower,
+    removeFollower,
   } = useTaskHub();
 
   const [loading, setLoading] = useState<string | null>(null);
@@ -79,8 +89,59 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [newActionItemText, setNewActionItemText] = useState('');
   const [actionItemLoading, setActionItemLoading] = useState<number | 'new' | null>(null);
 
+  // Share/Followers state
+  const [shareOpen, setShareOpen] = useState(false);
+  const [followers, setFollowers] = useState<TaskFollower[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [followersLoading, setFollowersLoading] = useState(false);
+
   // Check if this is a PO task
   const isPOTask = !!task.purchase_order_id;
+
+  // Load followers when share popover opens
+  const handleShareOpen = async (open: boolean) => {
+    setShareOpen(open);
+    if (open) {
+      setFollowersLoading(true);
+      try {
+        const [followersData, usersResponse] = await Promise.all([
+          getFollowers(task.id),
+          api.get<{ users?: User[] } | User[]>('/api/v1/users'),
+        ]);
+        setFollowers(followersData);
+        const userList = Array.isArray(usersResponse) ? usersResponse : usersResponse?.users || [];
+        setAvailableUsers(userList);
+      } catch (error) {
+        console.error('Failed to load followers:', error);
+      } finally {
+        setFollowersLoading(false);
+      }
+    }
+  };
+
+  const handleAddFollower = async (userId: number) => {
+    setFollowersLoading(true);
+    try {
+      const newFollower = await addFollower(task.id, userId);
+      setFollowers(prev => [...prev, newFollower]);
+    } catch (error) {
+      console.error('Failed to add follower:', error);
+    } finally {
+      setFollowersLoading(false);
+    }
+  };
+
+  const handleRemoveFollower = async (userId: number) => {
+    setFollowersLoading(true);
+    try {
+      await removeFollower(task.id, userId);
+      setFollowers(prev => prev.filter(f => f.user_id !== userId));
+    } catch (error) {
+      console.error('Failed to remove follower:', error);
+    } finally {
+      setFollowersLoading(false);
+    }
+  };
 
   // Handler for started checkbox
   const handleStartedChange = async (checked: boolean) => {
@@ -261,6 +322,73 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             )}
             <span className="text-xs">{task.is_private ? 'Private' : 'Public'}</span>
           </Button>
+
+          {/* Share Button (only for private tasks) */}
+          {task.is_private && (
+            <Popover open={shareOpen} onOpenChange={handleShareOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 gap-1"
+                  title="Share with others"
+                >
+                  <Users className="h-3 w-3" />
+                  <span className="text-xs">Share</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64" align="start">
+                <div className="space-y-3">
+                  <div className="font-medium text-sm">Share with</div>
+
+                  {followersLoading ? (
+                    <div className="flex justify-center py-4">
+                      <Spinner size={20} />
+                    </div>
+                  ) : (
+                    <>
+                      {/* Current followers */}
+                      {followers.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground">Current followers</div>
+                          {followers.map((follower) => (
+                            <div key={follower.id} className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted">
+                              <span className="text-sm">{follower.user_name}</span>
+                              <button
+                                onClick={() => handleRemoveFollower(follower.user_id)}
+                                className="text-muted-foreground hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add new follower */}
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Add follower</div>
+                        <div className="max-h-32 overflow-y-auto space-y-1">
+                          {availableUsers
+                            .filter(u => !followers.some(f => f.user_id === u.id))
+                            .map((user) => (
+                              <button
+                                key={user.id}
+                                onClick={() => handleAddFollower(user.id)}
+                                className="w-full flex items-center gap-2 py-1 px-2 rounded hover:bg-muted text-left text-sm"
+                              >
+                                <UserPlus className="h-3 w-3 text-muted-foreground" />
+                                {user.name}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
         <Button variant="ghost" size="sm" onClick={handleClose} className="h-6 px-2">
           <ChevronUp className="h-4 w-4" />

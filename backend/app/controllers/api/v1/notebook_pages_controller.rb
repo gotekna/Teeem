@@ -190,6 +190,31 @@ module Api
         }
       end
 
+      # GET /api/v1/notebook_pages/search
+      # Search pages across all accessible notebooks
+      def search
+        query = params[:q].to_s.strip
+        if query.blank?
+          return render json: { success: true, pages: [] }
+        end
+
+        notebooks = Notebook.accessible_by(current_user).active
+
+        pages = NotebookPage
+                .joins(section: :notebook)
+                .where(notebook_sections: { notebook_id: notebooks.select(:id) })
+                .active
+                .where("notebook_pages.title ILIKE :query OR notebook_pages.content ILIKE :query", query: "%#{query}%")
+                .order(updated_at: :desc)
+                .includes(:section, :created_by, :last_edited_by, section: :notebook)
+                .limit(50)
+
+        render json: {
+          success: true,
+          pages: pages.map { |p| page_json(p, include_notebook: true) }
+        }
+      end
+
       private
 
       def set_page

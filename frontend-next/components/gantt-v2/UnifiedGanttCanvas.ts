@@ -956,6 +956,11 @@ export class UnifiedGanttCanvas {
     }
   }
 
+  /** Get the visible tasks (after filtering and collapsing) - used for row number lookups */
+  getVisibleTasks(): GanttTask[] {
+    return [...this.visibleTasks];
+  }
+
   // ---------------------------------------------------------------------------
   // Helper Methods
   // ---------------------------------------------------------------------------

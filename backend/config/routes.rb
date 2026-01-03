@@ -1426,6 +1426,8 @@ Rails.application.routes.draw do
           post :follow
           delete :unfollow
           get :followers
+          post :followers, action: :add_follower
+          delete "followers/:user_id", action: :remove_follower
           # Action items (checkable items)
           post :action_items, action: :create_action_item
           post "action_items/:item_id/toggle", action: :toggle_action_item
@@ -1787,6 +1789,7 @@ Rails.application.routes.draw do
         end
         collection do
           get :recent
+          get :search
         end
         resources :attachments, controller: "notebook_page_attachments", only: [ :index, :create ]
       end

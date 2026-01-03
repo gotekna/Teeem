@@ -200,6 +200,31 @@ export function useRecentPages() {
   };
 }
 
+// Hook for searching pages
+export function useSearchPages(query: string) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["notebook-pages-search", query],
+    queryFn: async () => {
+      if (!query.trim()) return { pages: [] };
+      const response = await api.get<PagesResponse>("/notebook_pages/search", {
+        params: { q: query },
+      });
+      if (!response?.success) {
+        throw new Error("Failed to search pages");
+      }
+      return response;
+    },
+    enabled: query.trim().length >= 2,
+  });
+
+  return {
+    pages: data?.pages ?? [],
+    isLoading,
+    error,
+    mutate: refetch,
+  };
+}
+
 // Page API actions
 export const pageActions = {
   async create(

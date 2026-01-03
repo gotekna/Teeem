@@ -10,6 +10,7 @@ import {
   NotebooksSidebar,
   NotebookEditor,
   NotebookCreateModal,
+  RecentNotesWidget,
   useNotebooks,
 } from "@/components/notebooks";
 
@@ -69,9 +70,15 @@ export default function NotebooksPage() {
           />
         </Card>
 
-        {/* Editor */}
+        {/* Editor or Recent Notes */}
         <Card className="col-span-9 flex flex-col min-h-0">
-          <NotebookEditor pageId={selectedPageId} className="h-full" />
+          {selectedPageId ? (
+            <NotebookEditor pageId={selectedPageId} className="h-full" />
+          ) : (
+            <div className="p-6 h-full overflow-auto">
+              <RecentNotesWidget onSelectPage={handleSelectPage} />
+            </div>
+          )}
         </Card>
       </div>
 

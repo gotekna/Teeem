@@ -10,7 +10,7 @@ module Api
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
         :attachments, :add_attachment, :remove_attachment, :upload_attachment,
-        :follow, :unfollow, :followers,
+        :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :compare_to_template, :sync_from_template
       ]
 
@@ -803,6 +803,45 @@ module Api
           },
           following: @task.followed_by?(current_user)
         }
+      end
+
+      # POST /api/v1/sm_tasks/:id/followers
+      # Add a specific user as a follower (for sharing private tasks)
+      def add_follower
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized to share this task" }, status: :forbidden
+        end
+
+        user = User.find(params[:user_id])
+        follower = @task.follow_by(user)
+
+        render json: {
+          success: true,
+          follower: {
+            id: follower.id,
+            user_id: user.id,
+            user_name: user.name,
+            followed_at: follower.followed_at
+          }
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "User not found" }, status: :not_found
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/followers/:user_id
+      # Remove a follower from the task
+      def remove_follower
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        follower = @task.task_followers.find_by(user_id: params[:user_id])
+        if follower
+          follower.destroy
+          render json: { success: true }
+        else
+          render json: { success: false, error: "Follower not found" }, status: :not_found
+        end
       end
 
       # ============================================

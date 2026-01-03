@@ -43,6 +43,13 @@ export interface TaskActionItem {
   checked_at?: string;
 }
 
+export interface TaskFollower {
+  id: number;
+  user_id: number;
+  user_name: string;
+  followed_at: string;
+}
+
 export interface SmTask {
   id: number;
   task_number: number;
@@ -189,6 +196,11 @@ export interface TaskHubContextType extends TaskHubState {
 
   // Privacy
   setTaskPrivacy: (taskId: number, isPrivate: boolean) => Promise<void>;
+
+  // Followers (for sharing private tasks)
+  getFollowers: (taskId: number) => Promise<TaskFollower[]>;
+  addFollower: (taskId: number, userId: number) => Promise<TaskFollower>;
+  removeFollower: (taskId: number, userId: number) => Promise<void>;
 
   // Refresh
   refresh: () => Promise<void>;
@@ -908,6 +920,29 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     }
   }, [tasks]);
 
+  // Follower methods for sharing private tasks
+  const getFollowers = useCallback(async (taskId: number): Promise<TaskFollower[]> => {
+    const response = await api.get<{ followers: TaskFollower[]; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/followers`
+    );
+    return response?.followers || [];
+  }, []);
+
+  const addFollower = useCallback(async (taskId: number, userId: number): Promise<TaskFollower> => {
+    const response = await api.post<{ follower: TaskFollower; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/followers`,
+      { user_id: userId }
+    );
+    if (!response?.success || !response.follower) {
+      throw new Error('Failed to add follower');
+    }
+    return response.follower;
+  }, []);
+
+  const removeFollower = useCallback(async (taskId: number, userId: number): Promise<void> => {
+    await api.delete(`/api/v1/sm_tasks/${taskId}/followers/${userId}`);
+  }, []);
+
   const setActiveView = useCallback((view: ViewType) => {
     setActiveViewState(view);
   }, []);
@@ -1050,6 +1085,10 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     removeActionItem,
     // Privacy
     setTaskPrivacy,
+    // Followers
+    getFollowers,
+    addFollower,
+    removeFollower,
     refresh,
   };
 

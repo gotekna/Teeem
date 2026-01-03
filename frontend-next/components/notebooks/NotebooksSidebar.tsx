@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,26 @@ import {
   Pencil,
   Trash2,
   FolderPlus,
+  Search,
+  X,
+  GripVertical,
 } from "lucide-react";
+import debounce from "lodash/debounce";
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { createDndSensors } from "@/components/ui/dnd/dnd-config";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +53,7 @@ import {
   type NotebookSection,
   type NotebookPageSummary,
 } from "./hooks/useNotebooks";
-import { pageActions } from "./hooks/useNotebookPage";
+import { pageActions, useSearchPages, type NotebookPage } from "./hooks/useNotebookPage";
 
 interface NotebooksSidebarProps {
   selectedNotebookId: number | null;
@@ -58,6 +77,28 @@ export function NotebooksSidebar({
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [editingSection, setEditingSection] = useState<number | null>(null);
   const [newSectionName, setNewSectionName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  // Debounce search query
+  const debouncedSetQuery = useMemo(
+    () => debounce((q: string) => setDebouncedQuery(q), 300),
+    []
+  );
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    debouncedSetQuery(value);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setDebouncedQuery("");
+  };
+
+  const { pages: searchResults, isLoading: isSearching } = useSearchPages(debouncedQuery);
+  const isSearchMode = debouncedQuery.trim().length >= 2;
 
   const toggleSection = (sectionId: number) => {
     setExpandedSections((prev) => {
@@ -134,6 +175,24 @@ export function NotebooksSidebar({
     }
   };
 
+  const handleReorderSection = async (notebookId: number, sectionId: number, newPosition: number) => {
+    try {
+      await sectionActions.reorder(notebookId, sectionId, newPosition);
+      mutateNotebook();
+    } catch (err) {
+      console.error("Failed to reorder section:", err);
+    }
+  };
+
+  const handleReorderPage = async (pageId: number, newPosition: number) => {
+    try {
+      await pageActions.move(pageId, { position: newPosition });
+      mutateNotebook();
+    } catch (err) {
+      console.error("Failed to reorder page:", err);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className={cn("flex items-center justify-center h-40", className)}>
@@ -152,11 +211,68 @@ export function NotebooksSidebar({
         </Button>
       </div>
 
-      {/* Notebook List */}
-      <div className="flex-1 overflow-auto">
-        <div className="py-2">
-          {notebooks.map((notebook) => (
-            <NotebookItem
+      {/* Search */}
+      <div className="px-3 py-2 border-b">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={handleSearchChange}
+            placeholder="Search notes..."
+            className="h-8 pl-8 pr-8 text-sm"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+              onClick={clearSearch}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Search Results */}
+      {isSearchMode && (
+        <div className="flex-1 overflow-auto">
+          <div className="py-2">
+            {isSearching ? (
+              <div className="flex items-center justify-center py-8">
+                <Spinner className="h-5 w-5" />
+              </div>
+            ) : searchResults.length > 0 ? (
+              <div className="space-y-1 px-2">
+                {searchResults.map((page) => (
+                  <SearchResultItem
+                    key={page.id}
+                    page={page}
+                    isSelected={selectedPageId === page.id}
+                    onSelect={() => {
+                      if (page.notebook?.id) {
+                        onSelectPage(page.id, page.notebook.id);
+                        clearSearch();
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-sm text-muted-foreground py-8">
+                No results found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Notebook List - hidden when searching */}
+      {!isSearchMode && (
+        <div className="flex-1 overflow-auto">
+          <div className="py-2">
+            {notebooks.map((notebook) => (
+              <NotebookItem
               key={notebook.id}
               notebook={notebook}
               isSelected={selectedNotebookId === notebook.id}
@@ -181,6 +297,8 @@ export function NotebooksSidebar({
               onCreatePage={(sectionId) => handleCreatePage(notebook.id, sectionId)}
               onDeletePage={handleDeletePage}
               onTogglePin={handleTogglePin}
+              onReorderSection={(sectionId, newPosition) => handleReorderSection(notebook.id, sectionId, newPosition)}
+              onReorderPage={handleReorderPage}
             />
           ))}
 
@@ -200,6 +318,7 @@ export function NotebooksSidebar({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -223,6 +342,8 @@ interface NotebookItemProps {
   onCreatePage: (sectionId: number) => void;
   onDeletePage: (pageId: number) => void;
   onTogglePin: (pageId: number) => void;
+  onReorderSection: (sectionId: number, newPosition: number) => void;
+  onReorderPage: (pageId: number, newPosition: number) => void;
 }
 
 function NotebookItem({
@@ -244,8 +365,30 @@ function NotebookItem({
   onCreatePage,
   onDeletePage,
   onTogglePin,
+  onReorderSection,
+  onReorderPage,
 }: NotebookItemProps) {
   const sections = selectedNotebook?.sections ?? [];
+  const sensors = createDndSensors();
+  const [activeSectionId, setActiveSectionId] = React.useState<number | null>(null);
+
+  const handleSectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveSectionId(null);
+
+    if (over && active.id !== over.id) {
+      const oldIndex = sections.findIndex((s) => s.id === active.id);
+      const newIndex = sections.findIndex((s) => s.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        // Position is 1-indexed
+        onReorderSection(Number(active.id), newIndex + 1);
+      }
+    }
+  };
+
+  const handleSectionDragStart = (event: DragStartEvent) => {
+    setActiveSectionId(Number(event.active.id));
+  };
 
   return (
     <div className="mb-1">
@@ -279,28 +422,75 @@ function NotebookItem({
 
       {/* Sections (only show when notebook is selected) */}
       {isSelected && sections.length > 0 && (
-        <div className="ml-4 mt-1">
-          {sections.map((section) => (
-            <SectionItem
-              key={section.id}
-              section={section}
-              isExpanded={expandedSections.has(section.id)}
-              isEditing={editingSection === section.id}
-              editName={newSectionName}
-              selectedPageId={selectedPageId}
-              onToggle={() => onToggleSection(section.id)}
-              onSelectPage={onSelectPage}
-              onStartEdit={() => onStartEditSection(section.id, section.name)}
-              onNameChange={onSectionNameChange}
-              onFinishEdit={() => onFinishEditSection(section.id)}
-              onDelete={() => onDeleteSection(section.id)}
-              onCreatePage={() => onCreatePage(section.id)}
-              onDeletePage={onDeletePage}
-              onTogglePin={onTogglePin}
-            />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleSectionDragStart}
+          onDragEnd={handleSectionDragEnd}
+        >
+          <SortableContext
+            items={sections.map((s) => s.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="ml-4 mt-1">
+              {sections.map((section) => (
+                <SortableSectionItem
+                  key={section.id}
+                  section={section}
+                  isExpanded={expandedSections.has(section.id)}
+                  isEditing={editingSection === section.id}
+                  editName={newSectionName}
+                  selectedPageId={selectedPageId}
+                  onToggle={() => onToggleSection(section.id)}
+                  onSelectPage={onSelectPage}
+                  onStartEdit={() => onStartEditSection(section.id, section.name)}
+                  onNameChange={onSectionNameChange}
+                  onFinishEdit={() => onFinishEditSection(section.id)}
+                  onDelete={() => onDeleteSection(section.id)}
+                  onCreatePage={() => onCreatePage(section.id)}
+                  onDeletePage={onDeletePage}
+                  onTogglePin={onTogglePin}
+                  onReorderPage={onReorderPage}
+                />
+              ))}
+            </div>
+          </SortableContext>
+          <DragOverlay>
+            {activeSectionId && (
+              <div className="px-2 py-1 bg-background border rounded shadow-md text-xs">
+                {sections.find((s) => s.id === activeSectionId)?.name}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
+    </div>
+  );
+}
+
+interface SortableSectionItemProps extends SectionItemProps {
+  // Same as SectionItemProps but used with useSortable
+}
+
+function SortableSectionItem(props: SortableSectionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.section.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <SectionItem {...props} dragHandleProps={{ ...attributes, ...listeners }} />
     </div>
   );
 }
@@ -320,6 +510,8 @@ interface SectionItemProps {
   onCreatePage: () => void;
   onDeletePage: (pageId: number) => void;
   onTogglePin: (pageId: number) => void;
+  onReorderPage?: (pageId: number, newPosition: number) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
 function SectionItem({
@@ -337,6 +529,8 @@ function SectionItem({
   onCreatePage,
   onDeletePage,
   onTogglePin,
+  onReorderPage,
+  dragHandleProps,
 }: SectionItemProps) {
   const pages = section.pages ?? [];
 
@@ -344,6 +538,15 @@ function SectionItem({
     <div className="mb-0.5">
       {/* Section Header */}
       <div className="flex items-center gap-1 group">
+        {/* Drag Handle */}
+        {dragHandleProps && (
+          <div
+            {...dragHandleProps}
+            className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <GripVertical className="h-3 w-3 text-muted-foreground" />
+          </div>
+        )}
         <button
           className="p-0.5 hover:bg-muted rounded"
           onClick={onToggle}
@@ -483,6 +686,47 @@ function PageItem({ page, isSelected, onSelect, onDelete, onTogglePin }: PageIte
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+    </div>
+  );
+}
+
+interface SearchResultItemProps {
+  page: NotebookPage;
+  isSelected: boolean;
+  onSelect: () => void;
+}
+
+function SearchResultItem({ page, isSelected, onSelect }: SearchResultItemProps) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-0.5 px-3 py-2 cursor-pointer hover:bg-muted/50 rounded-md",
+        isSelected && "bg-primary/10"
+      )}
+      onClick={onSelect}
+    >
+      <div className="flex items-center gap-2">
+        {page.is_pinned ? (
+          <Pin className="h-3.5 w-3.5 shrink-0 text-primary" />
+        ) : (
+          <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        )}
+        <span className="text-sm font-medium truncate">{page.title}</span>
+      </div>
+      {page.notebook && (
+        <div className="flex items-center gap-1 ml-5 text-xs text-muted-foreground">
+          <Notebook className="h-3 w-3" />
+          <span className="truncate">
+            {page.notebook.name}
+            {page.section && ` / ${page.section.name}`}
+          </span>
+        </div>
+      )}
+      {page.preview && (
+        <p className="text-xs text-muted-foreground ml-5 line-clamp-1">
+          {page.preview}
+        </p>
+      )}
     </div>
   );
 }
