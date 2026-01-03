@@ -641,24 +641,37 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   // Computed: filtered tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
+      // Helper to get display value from lookup or string
+      const getDisplayValue = (value: unknown): string | null => {
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object' && value !== null && 'display' in value) {
+          return String((value as { display: unknown }).display);
+        }
+        return String(value);
+      };
+
       // Search filter
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
+        const tradeDisplay = getDisplayValue(task.trade);
         const matchesSearch =
           task.name.toLowerCase().includes(searchLower) ||
           task.job_name?.toLowerCase().includes(searchLower) ||
-          task.trade?.toLowerCase().includes(searchLower) ||
+          tradeDisplay?.toLowerCase().includes(searchLower) ||
           task.assigned_user_name?.toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
       }
 
       // Trade filter
-      if (filters.trades.length > 0 && task.trade && !filters.trades.includes(task.trade)) {
+      const tradeValue = getDisplayValue(task.trade);
+      if (filters.trades.length > 0 && tradeValue && !filters.trades.includes(tradeValue)) {
         return false;
       }
 
       // Stage filter
-      if (filters.stages.length > 0 && task.stage && !filters.stages.includes(task.stage)) {
+      const stageValue = getDisplayValue(task.stage);
+      if (filters.stages.length > 0 && stageValue && !filters.stages.includes(stageValue)) {
         return false;
       }
 

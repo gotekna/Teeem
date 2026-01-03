@@ -464,8 +464,10 @@ module Api
             # The GROUP BY on primary_company_id misses employees linked via contact_relationships
             # Natural/Human sort: "2Code" < "7 Eleven" < "12 Tulum" (not "12" < "14" < "2" < "7")
             all_companies = query.where(entity_type: %w[company trust sole_trader]).to_a.sort_by do |company|
-              # Split name into chunks: digits vs non-digits, then compare numerically/alphabetically
-              (company.display_name || "").scan(/\d+|\D+/).map { |chunk| chunk.match?(/\d+/) ? chunk.to_i : chunk.downcase }
+              # Natural/Human sort: Split name into chunks (digits vs non-digits)
+              # Pad numbers with zeros so they sort correctly as strings: "2" -> "00000002" < "00000012"
+              # This avoids mixed-type array comparison errors (Integer <=> String = nil)
+              (company.display_name || "").scan(/\d+|\D+/).map { |chunk| chunk.match?(/\d+/) ? chunk.rjust(10, "0") : chunk.downcase }
             end
 
             # Build company groups from actual company records (not GROUP BY results)
