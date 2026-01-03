@@ -492,10 +492,16 @@ module Api
         date_map = {}
 
         rows.each do |row|
-          # Calculate start date based on predecessors
+          # Calculate start date based on hold_date or predecessors
           row_start = start_date
 
-          if row.predecessor_ids.present?
+          # SSoT: If task is held/locked with a hold_date, use that as the fixed start date
+          # This respects manual positioning from "Start Task" feature
+          if row.hold && row.hold_date.present?
+            # Use hold_date as fixed start, ensure it's a working day
+            row_start = row.hold_date.to_date
+            row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+          elsif row.predecessor_ids.present?
             # Get the latest end date from all predecessors
             latest_pred_end = nil
             row.predecessor_ids.each do |pred|
@@ -511,10 +517,13 @@ module Api
               # Start day after predecessor ends (FS dependency)
               row_start = calendar.add_working_days(latest_pred_end, 1)
             end
-          end
 
-          # Ensure start is a working day
-          row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+            # Ensure start is a working day
+            row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+          else
+            # No hold_date, no predecessors - use default start
+            row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+          end
 
           # Calculate end date based on duration
           duration = row.duration_days || 1

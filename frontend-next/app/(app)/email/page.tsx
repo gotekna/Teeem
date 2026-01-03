@@ -863,6 +863,8 @@ export default function EmailPage() {
       const activeAccounts = (response.data || []).filter(a => a.is_active);
       setAccounts(activeAccounts);
 
+      console.log('[Email] fetchAccounts - accountParam:', accountParam, 'activeAccounts:', activeAccounts.map(a => ({ id: a.id, email: a.email_address })));
+
       // Check if URL has account param
       // If no param (clicking Email tab at top), show All Inbox
       // If param exists (clicking specific account in nav), show that account
@@ -870,18 +872,22 @@ export default function EmailPage() {
         if (accountParam) {
           // Find account matching URL param
           const accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
+          console.log('[Email] Looking for account:', accountParam, 'found:', accountToSelect?.email_address || 'NOT FOUND');
           if (accountToSelect) {
             const accountId = String(accountToSelect.id);
+            console.log('[Email] Setting selectedAccount to:', accountId);
             setSelectedAccount(accountId);
             setExpandedAccounts(new Set([accountId]));
             // Fetch folders for selected account (pass account for ms365 type)
             fetchFolders(accountId, accountToSelect);
           } else {
             // Account not found, fall back to All Inbox
+            console.log('[Email] Account not found, falling back to all');
             setSelectedAccount("all");
           }
         } else {
           // No account param = show All Inbox (combined view)
+          console.log('[Email] No account param, showing All Inbox');
           setSelectedAccount("all");
         }
       }
@@ -896,14 +902,21 @@ export default function EmailPage() {
 
   // Handle URL account param changes (e.g., clicking different mailbox in nav)
   useEffect(() => {
+    console.log('[Email] URL param change effect - accountParam:', accountParam, 'accounts.length:', accounts.length, 'currentSelectedAccount:', selectedAccount);
     if (accountParam && accounts.length > 0) {
       const matchingAccount = accounts.find(a => String(a.id) === accountParam);
+      console.log('[Email] URL effect - looking for:', accountParam, 'found:', matchingAccount?.email_address || 'NOT FOUND', 'currentSelected:', selectedAccount);
       if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
         const accountId = String(matchingAccount.id);
+        console.log('[Email] URL effect - switching to account:', accountId);
         setSelectedAccount(accountId);
         setExpandedAccounts(new Set([accountId]));
         fetchFolders(accountId, matchingAccount);
       }
+    } else if (!accountParam && accounts.length > 0 && selectedAccount !== "all") {
+      // No account param but we have a specific account selected - switch to All Inbox
+      console.log('[Email] URL effect - no param, switching to All Inbox');
+      setSelectedAccount("all");
     }
   }, [accountParam, accounts]);
 
