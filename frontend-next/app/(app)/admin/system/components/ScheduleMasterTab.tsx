@@ -1974,15 +1974,6 @@ export function ScheduleMasterTab() {
           }
         }
 
-        // DEBUG: Log header-children relationships
-        console.log('[updateHeaderDates] Header-Children map:');
-        for (const [taskNumber, children] of childrenByHeader.entries()) {
-          const headerRow = rows.find(r => r.task_number === taskNumber);
-          console.log(`  Header "${headerRow?.name}" (task_number: ${taskNumber}): ${children.length} children`,
-            children.slice(0, 3).map(c => rows.find(r => String(r.id) === c.id)?.name));
-        }
-        console.log('[updateHeaderDates] taskByTaskNumber contains', taskByTaskNumber.size, 'entries');
-
         // Update header dates to span their children AND respect predecessors
         // Run multiple passes because headers can depend on other headers
         // (e.g., SLAB depends on PRE CONSTRUCTION)
@@ -2003,13 +1994,6 @@ export function ScheduleMasterTab() {
               if (child.startDate < minStart) minStart = child.startDate;
               if (child.endDate > maxEnd) maxEnd = child.endDate;
             }
-
-            // DEBUG: Log header predecessor info
-            console.log(`[updateHeaderDates] Header "${row.name}" (task_number: ${row.task_number})`, {
-              predecessor_ids: row.predecessor_ids,
-              childMinStart: minStart.toISOString().slice(0, 10),
-              childCount: children.length
-            });
 
             // If header has predecessors, ensure it doesn't start before they finish
             if (row.predecessor_ids && Array.isArray(row.predecessor_ids)) {

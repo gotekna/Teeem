@@ -657,14 +657,6 @@ export function sortRowsHierarchically<T extends {
     }
   }
 
-  // DEBUG: Log header-children relationships
-  console.log('[sortRowsHierarchically] Headers:', Array.from(headerTaskNumbers));
-  for (const [taskNum, children] of childrenByParent.entries()) {
-    const headerRow = rows.find(r => r.task_number === taskNum);
-    console.log(`  Header "${(headerRow as {name?: string})?.name}" (${taskNum}): ${children.length} children`,
-      children.slice(0, 5).map(c => `${(c as {name?: string}).name} (parent: ${getParentTaskNumber(c)})`));
-  }
-
   // Sort children within each header by sequence_order
   for (const children of childrenByParent.values()) {
     children.sort((a, b) => a.sequence_order - b.sequence_order);
@@ -680,34 +672,25 @@ export function sortRowsHierarchically<T extends {
     if (isHeaderRow(row)) {
       // Level 2+ headers: don't emit standalone, let parent emit them
       const parentNum = getParentTaskNumber(row);
-      console.log(`[sortRows] Processing header "${(row as {name?: string}).name}" (${row.task_number}), parentNum=${parentNum}, inHeaderSet=${parentNum ? headerTaskNumbers.has(parentNum) : 'N/A'}`);
       // Skip if has a DIFFERENT parent header (not self-referencing)
       if (parentNum !== null && parentNum !== row.task_number && headerTaskNumbers.has(parentNum)) {
-        console.log(`  → SKIP (will be emitted by parent ${parentNum})`);
         continue; // Skip - parent will emit this row as a child
       }
 
       // Top-level header: emit with children (recursively for nested headers)
-      console.log(`  → EMIT as top-level header`);
       result.push(row);
       processed.add(row.task_number);
 
       // Recursive function to emit children and their descendants
-      const emitChildren = (headerTaskNum: number, depth: number = 0) => {
+      const emitChildren = (headerTaskNum: number) => {
         const children = childrenByParent.get(headerTaskNum) || [];
-        const indent = '  '.repeat(depth + 2);
-        console.log(`${indent}emitChildren(${headerTaskNum}): found ${children.length} children`);
         for (const child of children) {
-          if (processed.has(child.task_number)) {
-            console.log(`${indent}  SKIP child "${(child as {name?: string}).name}" (${child.task_number}) - already processed`);
-            continue;
-          }
-          console.log(`${indent}  EMIT child "${(child as {name?: string}).name}" (${child.task_number})`);
+          if (processed.has(child.task_number)) continue;
           result.push(child);
           processed.add(child.task_number);
           // If this child is also a header, emit ITS children too (nested hierarchy)
           if (isHeaderRow(child)) {
-            emitChildren(child.task_number, depth + 1);
+            emitChildren(child.task_number);
           }
         }
       };

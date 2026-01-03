@@ -470,15 +470,29 @@ class ImapEmailService
       text_part = mail.text_part
       text_part&.decoded rescue text_part&.body&.to_s
     else
-      mail.body.decoded rescue mail.body.to_s
+      # Single-part email - only return as text if it's not HTML
+      content_type = mail.content_type&.to_s&.downcase || ""
+      if content_type.include?("text/html")
+        nil  # HTML content goes to body_html, not body_text
+      else
+        mail.body.decoded rescue mail.body.to_s
+      end
     end
   end
 
   def extract_html_body(mail)
-    return nil unless mail.multipart?
-
-    html_part = mail.html_part
-    html_part&.decoded rescue html_part&.body&.to_s
+    if mail.multipart?
+      html_part = mail.html_part
+      html_part&.decoded rescue html_part&.body&.to_s
+    else
+      # Single-part email - check if it's HTML
+      content_type = mail.content_type&.to_s&.downcase || ""
+      if content_type.include?("text/html")
+        mail.body.decoded rescue mail.body.to_s
+      else
+        nil
+      end
+    end
   end
 
   def extract_attachments(mail)
