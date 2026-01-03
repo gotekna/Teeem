@@ -109,7 +109,9 @@ export default function SystemAdminLayout({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full border-4 border-indigo-500">
+      {/* DEBUG LABEL */}
+      <div className="bg-indigo-600 text-white px-2 py-1 text-xs font-bold">[-1.5] SYSTEM LAYOUT (INDIGO)</div>
       {/* Header - hidden for compact tabs like Schedule Master */}
       {!isCompactTab && (
         <div className="shrink-0 mb-4">
@@ -145,7 +147,9 @@ export default function SystemAdminLayout({
       )}
 
       {/* Content */}
-      <div className={`${isCompactTab ? "mt-0" : ""} flex-1 min-h-0 overflow-auto`}>
+      <div className={`${isCompactTab ? "mt-0" : ""} flex-1 min-h-0 overflow-auto border-4 border-rose-500`}>
+        {/* DEBUG LABEL */}
+        <div className="bg-rose-600 text-white px-2 py-1 text-xs font-bold">[-1.2] SYS CONTENT (ROSE)</div>
         {children}
       </div>
     </div>

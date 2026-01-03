@@ -84,6 +84,7 @@ export interface OverlayPosition {
   y: number;
   checkboxes: Array<{
     x: number;
+    width: number;
     field: string;
     checked: boolean;
   }>;
@@ -166,7 +167,7 @@ const DEFAULT_COLORS = LIGHT_COLORS;
 
 const DEFAULT_COLUMNS: TableColumn[] = [
   // Row number (not in original but useful)
-  { id: 'row_number', label: '#', width: 32, visible: true, type: 'text' },
+  { id: 'row_number', label: '#', width: 40, visible: true, type: 'text' },
   // Name - always visible (permanent)
   { id: 'name', label: 'Name', width: 242, minWidth: 100, visible: true, type: 'text', field: 'name' },
   // Status checkboxes
@@ -960,6 +961,18 @@ export class UnifiedGanttCanvas {
       }
     }
 
+    // Build parent-child map for headers (to check grandparent collapse for 2-level nesting)
+    const headerParentMap = new Map<number, number | null>();
+    for (const task of this.tasks) {
+      if (this.isHeaderTask(task)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rowData = task.rowData as any;
+        if (rowData?.task_number) {
+          headerParentMap.set(rowData.task_number, this.getParentHeaderTaskNumber(task));
+        }
+      }
+    }
+
     for (const task of this.tasks) {
       // Check search filter
       if (this.searchQuery) {
@@ -977,10 +990,23 @@ export class UnifiedGanttCanvas {
         }
       }
 
-      // Check if parent is collapsed
+      // Check if any ancestor is collapsed (2-level nesting support)
+      // - Check direct parent
+      // - If parent is a Level 2 header, also check if Level 1 grandparent is collapsed
       const parentNum = this.getParentHeaderTaskNumber(task);
-      if (parentNum !== null && collapsedTaskNumbers.has(parentNum)) {
-        continue; // Hidden by collapsed parent
+      if (parentNum !== null) {
+        // Direct parent is collapsed
+        if (collapsedTaskNumbers.has(parentNum)) {
+          continue; // Hidden by collapsed parent
+        }
+
+        // Check if parent is a Level 2 header and its Level 1 grandparent is collapsed
+        const grandparentNum = headerParentMap.get(parentNum);
+        if (grandparentNum !== null && grandparentNum !== undefined) {
+          if (collapsedTaskNumbers.has(grandparentNum)) {
+            continue; // Hidden by collapsed grandparent
+          }
+        }
       }
 
       visible.push(task);
@@ -1358,9 +1384,14 @@ export class UnifiedGanttCanvas {
     // Check for header row collapse toggle
     const task = this.getTaskAtRow(y);
     if (task && this.isHeaderTask(task) && x < this.tableWidth) {
-      // Check if click is on the collapse chevron (first 24px of name column)
+      // Check if click is on the collapse chevron (accounts for nesting indentation)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rowData = task.rowData as any;
+      const nestingLevel = rowData?.nesting_level ?? 0;
+      const nestingIndent = nestingLevel * 16;
       const nameColumnStart = this.getColumnStartX('name');
-      if (x >= nameColumnStart && x < nameColumnStart + 24) {
+      const chevronStart = nameColumnStart + nestingIndent;
+      if (x >= chevronStart && x < chevronStart + 24) {
         this.toggleHeaderCollapse(task.id);
         e.preventDefault();
         return;
@@ -2050,15 +2081,19 @@ export class UnifiedGanttCanvas {
     // Skip header area
     if (y < this.config.headerHeight) return;
 
-    // Check for header row chevron click (collapse/expand)
+    // Check for header row chevron click (collapse/expand) - accounts for nesting indentation
     const nameColumn = this.columns.find((c) => c.id === 'name');
     if (nameColumn && nameColumn.visible) {
-      const nameColumnX = this.getColumnStartX('name');
-      const chevronArea = { x: nameColumnX, width: 24 }; // Chevron is in first 24px of name column
+      const task = this.getTaskAtRow(y);
+      if (task && this.isHeaderTask(task)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rowData = task.rowData as any;
+        const nestingLevel = rowData?.nesting_level ?? 0;
+        const nestingIndent = nestingLevel * 16;
+        const nameColumnX = this.getColumnStartX('name');
+        const chevronArea = { x: nameColumnX + nestingIndent, width: 24 }; // Chevron position accounts for nesting
 
-      if (x >= chevronArea.x && x < chevronArea.x + chevronArea.width) {
-        const task = this.getTaskAtRow(y);
-        if (task && this.isHeaderTask(task)) {
+        if (x >= chevronArea.x && x < chevronArea.x + chevronArea.width) {
           this.toggleHeaderCollapse(task.id);
           return;
         }
@@ -2864,9 +2899,18 @@ export class UnifiedGanttCanvas {
         }
         // Draw chevron for name column on header rows
         let textOffsetX = 0;
+
+        // Calculate nesting indentation (2-level nesting support)
+        // Level 0: top-level headers (no indent)
+        // Level 1: sub-headers or children of L1 headers (16px indent)
+        // Level 2: children of L2 headers (32px indent)
+        const nestingLevel = rowData?.nesting_level ?? 0;
+        const nestingIndent = column.id === 'name' ? nestingLevel * 16 : 0;
+        textOffsetX = nestingIndent;
+
         if (column.id === 'name' && isHeader) {
           // Draw collapse/expand chevron
-          const chevronX = cellX + 8;
+          const chevronX = cellX + 8 + nestingIndent;
           const chevronY = y + rowHeight / 2;
           const chevronSize = 6;
 
@@ -2885,7 +2929,7 @@ export class UnifiedGanttCanvas {
           }
           this.ctx.closePath();
           this.ctx.fill();
-          textOffsetX = 16; // Space after chevron
+          textOffsetX = nestingIndent + 16; // Nesting indent + space after chevron
         }
 
         // Draw text

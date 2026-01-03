@@ -79,6 +79,7 @@ interface OverlayPosition {
   y: number;
   checkboxes: Array<{
     x: number;
+    width: number;
     field: string;
     checked: boolean;
   }>;
@@ -625,10 +626,14 @@ export function GanttUnified({
     <div
       className={cn(
         'flex flex-col h-full overflow-hidden bg-background',
+        'border-4 border-blue-500', // DEBUG
         isFullscreen && 'fixed inset-0 z-50',
         className
       )}
     >
+      {/* DEBUG LABEL */}
+      <div className="bg-blue-600 text-white px-2 py-1 text-xs font-bold">[1] GANTT UNIFIED (BLUE)</div>
+
       {/* Toolbar - hide during loading/error */}
       {showToolbar && !isLoading && !error && (
         <GanttToolbar
@@ -667,26 +672,35 @@ export function GanttUnified({
       )}
 
       {/* Main Content: Canvas + Overlays */}
-      <div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden">
+      <div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden border-4 border-green-500">
+        {/* DEBUG LABEL */}
+        <div className="absolute top-0 left-0 z-50 bg-green-600 text-white px-2 py-1 text-xs font-bold">[2] CANVAS CONTAINER (GREEN)</div>
+
         {/* Canvas Layer - ALWAYS rendered (so refs are available for initialization) */}
         <canvas
           ref={canvasRef}
-          className="absolute inset-0"
+          className="absolute inset-0 border-2 border-purple-500"
           style={{ touchAction: 'none' }} // Prevent browser touch gestures
           onDoubleClick={(e) => {
             console.log('[GanttUnified] React onDoubleClick fired at', e.nativeEvent.offsetX, e.nativeEvent.offsetY);
           }}
         />
+        {/* DEBUG LABEL */}
+        <div className="absolute top-6 left-0 z-50 bg-purple-600 text-white px-2 py-1 text-xs font-bold">[3] CANVAS (PURPLE)</div>
 
         {/* Overlay Layer - React components for interactive elements */}
         {!isLoading && !error && (
-          <GanttOverlay
-            overlayPositions={overlayPositions}
-            visibleRange={visibleRange}
-            viewport={viewport}
-            rowHeight={DEFAULT_CONFIG.rowHeight!}
-            onCheckboxToggle={handleCheckboxToggle}
-          />
+          <>
+            {/* DEBUG LABEL */}
+            <div className="absolute top-12 left-0 z-50 bg-orange-600 text-white px-2 py-1 text-xs font-bold">[4] OVERLAY (ORANGE)</div>
+            <GanttOverlay
+              overlayPositions={overlayPositions}
+              visibleRange={visibleRange}
+              viewport={viewport}
+              rowHeight={DEFAULT_CONFIG.rowHeight!}
+              onCheckboxToggle={handleCheckboxToggle}
+            />
+          </>
         )}
 
         {/* Loading overlay */}

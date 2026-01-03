@@ -1819,8 +1819,12 @@ export function ScheduleMasterTab() {
   }
 
   return (
-    <div className="h-full w-full flex flex-col">
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col">
+    <div className="h-full w-full flex flex-col border-4 border-pink-500">
+      {/* DEBUG: Pink border shows outermost wrapper */}
+      <div className="bg-pink-600 text-white px-2 py-1 text-xs font-bold">[-1] OUTER WRAPPER (PINK)</div>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col relative border-4 border-cyan-500">
+        {/* DEBUG: Cyan border shows Tabs component */}
+        <div className="bg-cyan-600 text-white px-2 py-1 text-xs font-bold">[-0.5] TABS (CYAN)</div>
         <TabsList className="shrink-0 mx-4">
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
@@ -2060,8 +2064,12 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
           {/* Gantt V2 Tab - For debugging the new Gantt implementation */}
-          <TabsContent value="gantt-v2" className="absolute inset-0 overflow-hidden data-[state=inactive]:hidden">
-          <div className="flex flex-col h-full">
+          <TabsContent value="gantt-v2" className="absolute inset-0 overflow-hidden data-[state=inactive]:hidden border-4 border-red-500">
+          {/* DEBUG: Red border shows TabsContent */}
+          <div className="absolute top-0 left-0 z-50 bg-red-600 text-white px-2 py-1 text-xs font-bold">[0] TABS CONTENT (RED)</div>
+          <div className="flex flex-col h-full border-4 border-yellow-500">
+          {/* DEBUG: Yellow border shows inner flex */}
+          <div className="absolute top-6 left-0 z-50 bg-yellow-600 text-white px-2 py-1 text-xs font-bold">[0.5] FLEX (YELLOW)</div>
             {/* Template selector header */}
             <div className="flex items-center gap-4 px-4 py-2 border-b bg-background">
               <Select

@@ -7,6 +7,11 @@
 #
 # This is THE SINGLE conversion point - frontend receives ready-to-render data.
 #
+# Supports 2-level nested headers:
+#   Level 1: Stage headers (SLAB, FRAME, etc.) - allow_header=true, no parent
+#   Level 2: Group headers (DRIVEWAY, LANDSCAPING) - allow_header=true, parent is a Level 1 header
+#   Level 3: Tasks - allow_header=false, parent can be Level 1 or Level 2 header
+#
 # Usage:
 #   # For SmScheduleMaster templates
 #   service = GanttDataService.new(template.sm_schedule_masters.ordered)
@@ -18,7 +23,7 @@
 #
 # Response format:
 #   {
-#     tasks: [{ id: "123", name: "Task", start_date: "2024-01-01", ... }],
+#     tasks: [{ id: "123", name: "Task", start_date: "2024-01-01", nesting_level: 0|1|2, ... }],
 #     dependencies: [{ id: "100-123", fromId: "100", toId: "123", type: "FS", lag: 0 }]
 #   }
 #
@@ -205,14 +210,13 @@ class GanttDataService
       supplier_id: record.try(:supplier_id) || record.try(:po_supplier_id),
       supplier_name: record.try(:supplier)&.name || record.try(:po_supplier)&.name,
       purchase_order_id: record.respond_to?(:linked_purchase_order) ? record.linked_purchase_order&.id : nil,
-      # Header/parent info
-      # SSoT: allow_header = true means this IS a header → return "Header"
-      # Otherwise, return the parent's task_number from header_gantt column
-      # SmTask doesn't have header_gantt column - look it up from linked sm_schedule_master
+      # Header/parent info - now supports 2-level nesting
       header_gantt: determine_header_gantt(record),
       # SSoT: Explicit allow_header flag for canvas renderer header detection
       allow_header: is_header?(record),
       parent_id: record.try(:parent_task_id),
+      # Nesting level for 2-level hierarchy (0=Level1 header, 1=Level2 header/child of L1, 2=child of L2)
+      nesting_level: calculate_nesting_level(record, @header_task_numbers || Set.new, @header_by_task_number || {}),
       # Ordering
       sequence_order: record.try(:sequence_order) || 0,
       # Additional fields
@@ -228,17 +232,19 @@ class GanttDataService
     date.respond_to?(:strftime) ? date.strftime("%Y-%m-%d") : date.to_s
   end
 
-  # SSoT: Sort records hierarchically - headers followed by their children
+  # SSoT: Sort hierarchically with 2-level nesting support
+  # Structure: Level 1 Header → Level 2 Header (optional) → Tasks
   # ALL rows sorted by start_date for intuitive Gantt display
   # Headers appear at the position of their earliest child
   def sort_hierarchically(records)
     return records if records.empty?
 
-    # Identify headers and build parent map
+    # Build maps for headers and their relationships
     header_task_numbers = Set.new
-    children_by_parent = Hash.new { |h, k| h[k] = [] }
     header_by_task_number = {}
+    children_by_parent = Hash.new { |h, k| h[k] = [] }
 
+    # First pass: identify all headers
     records.each do |r|
       if is_header?(r)
         header_task_numbers.add(r.task_number)
@@ -246,7 +252,8 @@ class GanttDataService
       end
     end
 
-    # Group children by their parent's task_number
+    # Second pass: group all records by their parent
+    # This now includes Level 2 headers under Level 1 headers
     records.each do |r|
       parent_num = get_parent_task_number(r)
       if parent_num && header_task_numbers.include?(parent_num)
@@ -254,40 +261,95 @@ class GanttDataService
       end
     end
 
-    # Sort children within each header by start_date
+    # Identify Level 1 headers (no parent) vs Level 2 headers (have parent)
+    level1_headers = []
+    level2_headers = []
+
+    header_by_task_number.each do |_task_num, header|
+      parent_num = get_parent_task_number(header)
+      if parent_num.nil?
+        level1_headers << header
+      else
+        level2_headers << header
+      end
+    end
+
+    # Sort children within each parent by start_date
     children_by_parent.each_value do |children|
       children.sort_by! { |c| [c.try(:start_date) || Date.new(9999), c.try(:sequence_order) || 0] }
     end
 
-    # Calculate effective start date for headers (min of children's start dates)
+    # Calculate effective start dates for all headers (recursive)
     header_start_dates = {}
-    header_by_task_number.each do |task_num, header|
-      children = children_by_parent[task_num]
+
+    # First, calculate start dates for Level 2 headers (from their task children)
+    level2_headers.each do |header|
+      children = children_by_parent[header.task_number].reject { |c| is_header?(c) }
       if children.any?
-        header_start_dates[task_num] = children.map { |c| c.try(:start_date) || Date.new(9999) }.min
+        header_start_dates[header.task_number] = children.map { |c| c.try(:start_date) || Date.new(9999) }.min
       else
-        header_start_dates[task_num] = header.try(:start_date) || Date.new(9999)
+        header_start_dates[header.task_number] = header.try(:start_date) || Date.new(9999)
       end
     end
 
-    # Collect standalone/orphaned tasks
+    # Then, calculate start dates for Level 1 headers (from Level 2 headers + direct task children)
+    level1_headers.each do |header|
+      all_children = children_by_parent[header.task_number]
+      child_dates = all_children.map do |child|
+        if is_header?(child)
+          header_start_dates[child.task_number] || child.try(:start_date) || Date.new(9999)
+        else
+          child.try(:start_date) || Date.new(9999)
+        end
+      end
+
+      if child_dates.any?
+        header_start_dates[header.task_number] = child_dates.min
+      else
+        header_start_dates[header.task_number] = header.try(:start_date) || Date.new(9999)
+      end
+    end
+
+    # Collect standalone/orphaned tasks (no parent, not a header)
     standalone_tasks = records.reject do |r|
       is_header?(r) || (get_parent_task_number(r) && header_task_numbers.include?(get_parent_task_number(r)))
     end
 
-    # Build sortable blocks: each header with children is a block, each standalone is a block
+    # Build sortable blocks
+    # Each Level 1 header is a block containing: header, then nested structure
     blocks = []
 
-    # Add header blocks
-    header_by_task_number.each do |task_num, header|
+    # Add Level 1 header blocks with nested content
+    level1_headers.each do |l1_header|
+      block_items = [l1_header]
+
+      # Get all children of this Level 1 header
+      l1_children = children_by_parent[l1_header.task_number]
+
+      # Sort children: by start_date
+      l1_children.sort_by! { |c| [c.try(:start_date) || Date.new(9999), c.try(:sequence_order) || 0] }
+
+      l1_children.each do |child|
+        if is_header?(child)
+          # This is a Level 2 header - add it and its children
+          block_items << child
+          l2_children = children_by_parent[child.task_number]
+          l2_children.sort_by! { |c| [c.try(:start_date) || Date.new(9999), c.try(:sequence_order) || 0] }
+          block_items.concat(l2_children)
+        else
+          # Direct task child of Level 1 header
+          block_items << child
+        end
+      end
+
       blocks << {
-        start_date: header_start_dates[task_num],
-        sequence_order: header.try(:sequence_order) || 0,
-        items: [header] + children_by_parent[task_num]
+        start_date: header_start_dates[l1_header.task_number],
+        sequence_order: l1_header.try(:sequence_order) || 0,
+        items: block_items
       }
     end
 
-    # Add standalone blocks
+    # Add standalone task blocks
     standalone_tasks.each do |task|
       blocks << {
         start_date: task.try(:start_date) || Date.new(9999),
@@ -299,6 +361,10 @@ class GanttDataService
     # Sort all blocks by start_date, then sequence_order as tiebreaker
     blocks.sort_by! { |b| [b[:start_date], b[:sequence_order]] }
 
+    # Store header maps for nesting_level calculation
+    @header_task_numbers = header_task_numbers
+    @header_by_task_number = header_by_task_number
+
     # Flatten blocks into result
     blocks.flat_map { |b| b[:items] }
   end
@@ -309,9 +375,8 @@ class GanttDataService
   end
 
   # Get parent task_number from header_gantt field
+  # Now supports nested headers - headers CAN have parents (2-level nesting)
   def get_parent_task_number(record)
-    return nil if is_header?(record)
-
     header_gantt = record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt
     return nil if header_gantt.nil? || header_gantt == "Header"
 
@@ -320,18 +385,61 @@ class GanttDataService
   end
 
   # SSoT: Determine header_gantt value for frontend
-  # Returns "Header" if this row IS a header (allow_header = true)
-  # Returns parent task_number if this row has a parent header
-  # Returns nil otherwise
+  # For 2-level nesting:
+  #   - Level 1 headers (no parent): returns "Header"
+  #   - Level 2 headers (has parent): returns parent task_number (they ARE headers but HAVE a parent)
+  #   - Tasks: returns parent task_number
+  # Returns nil if no parent
   def determine_header_gantt(record)
-    # Check allow_header on record itself or linked sm_schedule_master
+    header_gantt = record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt
     is_header = record.try(:allow_header) || record.try(:sm_schedule_master)&.allow_header
 
+    # If header_gantt has a numeric parent, return it (even for Level 2 headers)
+    if header_gantt.present? && header_gantt != "Header" && header_gantt.to_s.match?(/^\d+$/)
+      return header_gantt
+    end
+
+    # Level 1 header (no parent) - return "Header"
     if is_header
       "Header"
     else
-      # Return parent task_number from header_gantt column
-      record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt
+      # Regular task with no parent
+      nil
+    end
+  end
+
+  # Calculate nesting level for a record
+  # Level 0: Top-level headers (allow_header=true, no parent)
+  # Level 1: Sub-headers or direct children of Level 0 headers
+  # Level 2: Children of Level 1 headers (tasks under sub-headers)
+  def calculate_nesting_level(record, header_task_numbers, header_by_task_number)
+    parent_num = get_parent_task_number(record)
+    is_header = is_header?(record)
+
+    if is_header && parent_num.nil?
+      # Level 1 header (top-level)
+      0
+    elsif is_header && parent_num.present?
+      # Level 2 header (sub-header under a Level 1 header)
+      1
+    elsif parent_num.present?
+      # Task with a parent - check if parent is Level 1 or Level 2
+      parent_header = header_by_task_number[parent_num]
+      if parent_header
+        parent_parent_num = get_parent_task_number(parent_header)
+        if parent_parent_num.nil?
+          # Parent is Level 1 header, so this task is Level 1
+          1
+        else
+          # Parent is Level 2 header, so this task is Level 2
+          2
+        end
+      else
+        1 # Default to Level 1 if parent not found
+      end
+    else
+      # Orphan task (no parent)
+      0
     end
   end
 end
