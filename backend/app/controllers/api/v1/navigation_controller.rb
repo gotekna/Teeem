@@ -53,15 +53,17 @@ module Api
       # Get email accounts with their ordering (IMAP + MS365)
       def email_accounts
         accounts = []
-        position = 0
+        saved_positions = current_user.email_nav_positions || {}
+        fallback_position = 1000  # High number for unsorted items
 
         # IMAP accounts for current user
-        current_user.imap_credentials.where(is_active: true).order(:nav_position, :id).each do |cred|
+        current_user.imap_credentials.where(is_active: true).each do |cred|
+          account_id = cred.id.to_s
           accounts << {
             id: cred.id,
             type: "imap",
             name: cred.email_address || cred.name,
-            nav_position: cred.nav_position || (position += 1)
+            nav_position: saved_positions[account_id] || (fallback_position += 1)
           }
         end
 
@@ -80,29 +82,44 @@ module Api
 
           (auto_emails + configured_emails).uniq.compact.each do |email|
             next if email.blank?
+            account_id = "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}"
             accounts << {
-              id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+              id: account_id,
               type: "ms365",
               name: email,
               org_name: org_cred.name,
-              nav_position: position += 1
+              nav_position: saved_positions[account_id] || (fallback_position += 1)
             }
           end
         end
+
+        # Sort by saved position
+        accounts.sort_by! { |a| a[:nav_position] }
 
         render json: { success: true, email_accounts: accounts }
       end
 
       # POST /api/v1/navigation/reorder_email_accounts
-      # Reorder email accounts
+      # Reorder email accounts (saves positions for IMAP + MS365)
       def reorder_email_accounts
+        email_positions = {}
+
         params[:accounts].each_with_index do |account, index|
-          if account[:type] == "imap"
-            ImapCredential.where(id: account[:id], user_id: current_user.id)
+          account_id = account[:id].to_s
+          account_type = account[:type]
+
+          if account_type == "imap"
+            # IMAP: save to nav_position column
+            ImapCredential.where(id: account_id, user_id: current_user.id)
                          .update_all(nav_position: index)
           end
-          # MS365 accounts would need different handling (stored in sync_config)
+
+          # All accounts: save position to user's email_nav_positions JSON
+          email_positions[account_id] = index
         end
+
+        # Save all positions to user (works for both IMAP and MS365)
+        current_user.update!(email_nav_positions: email_positions)
 
         render json: { success: true }
       end
@@ -167,17 +184,19 @@ module Api
 
       def build_email_account_nav_items
         accounts = []
-        position = 0
+        saved_positions = current_user.email_nav_positions || {}
+        fallback_position = 1000  # High number for unsorted items
 
-        # IMAP accounts for current user (ordered by nav_position)
-        current_user.imap_credentials.where(is_active: true).order(:nav_position, :id).each do |cred|
+        # IMAP accounts for current user
+        current_user.imap_credentials.where(is_active: true).each do |cred|
+          account_id = cred.id.to_s
           accounts << {
             id: "imap_#{cred.id}",
             name: cred.email_address || cred.name,
             href: "/email?account=#{cred.id}",
             icon: "mail",
             badge_key: nil,
-            position: cred.nav_position || (position += 1),
+            position: saved_positions[account_id] || (fallback_position += 1),
             has_children: false,
             children: []
           }
@@ -200,20 +219,22 @@ module Api
 
           user_emails.each do |email|
             next if email.blank?
+            account_id = "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}"
             accounts << {
-              id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+              id: account_id,
               name: email,
-              href: "/email?account=ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+              href: "/email?account=#{account_id}",
               icon: "mail",
               badge_key: nil,
-              position: position += 1,
+              position: saved_positions[account_id] || (fallback_position += 1),
               has_children: false,
               children: []
             }
           end
         end
 
-        accounts
+        # Sort by saved position
+        accounts.sort_by { |a| a[:position] }
       end
     end
   end

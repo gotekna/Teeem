@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_03_073434) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_03_084922) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9016,6 +9016,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_073434) do
     t.bigint "user_group_id"
     t.datetime "last_seen_at"
     t.boolean "can_view_confidential_fields", default: false, null: false
+    t.jsonb "email_nav_positions", default: {}
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
