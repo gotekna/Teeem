@@ -16,8 +16,12 @@ module Api
       # GET /api/v1/contacts
 
       def index
-        # Show all active contacts
-        @contacts = Contact.all
+        # Show all active contacts by default (unless include_inactive=true)
+        @contacts = if params[:include_inactive] == "true"
+          Contact.all
+        else
+          Contact.where(is_active: true)
+        end
 
         # Filter to only show actual company directors
         # Performance: Uses cached column instead of joining corporate_company_directors
