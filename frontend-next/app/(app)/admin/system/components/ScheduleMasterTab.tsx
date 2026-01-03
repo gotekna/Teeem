@@ -1859,11 +1859,18 @@ export function ScheduleMasterTab() {
       let tasks = convertRowsToTasks(rows, projectStartDate);
 
       // SSoT: Apply backend-calculated dates (WorkingDaysCalculator ensures no weekends/holidays)
+      // IMPORTANT: Skip headers - their dates are calculated from spanning children in convertRowsToTasks
       if (dateMap) {
-        console.log('[Gantt V2] 📅 Applying backend date_map to tasks');
+        console.log('[Gantt V2] 📅 Applying backend date_map to tasks (skipping headers)');
         tasks = tasks.map(task => {
           // Find row by task.id (which is row.id as string)
           const row = rows.find(r => String(r.id) === task.id);
+
+          // Skip headers - they get dates from spanning their children, not from date_map
+          if (isHeaderRow(row)) {
+            return task;
+          }
+
           if (row && dateMap[row.task_number]) {
             const dates = dateMap[row.task_number];
             return {
