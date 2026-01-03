@@ -2867,16 +2867,6 @@ export class UnifiedGanttCanvas {
       // Also check if it's a child row in selected group (amber tint)
       const isInSelectedGroup = this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id);
 
-      // DEBUG: Log for SITE OTHER
-      const rowData = task.rowData as any;
-      if (rowData?.name?.includes('SITE OTHER')) {
-        console.log('[drawHeaderRowTimelineBackgrounds] SITE OTHER:', {
-          isHeader,
-          isInSelectedGroup,
-          willDraw: isHeader || isInSelectedGroup,
-        });
-      }
-
       if (!isHeader && !isInSelectedGroup) continue;
 
       // Draw base amber background across the timeline area
@@ -2936,77 +2926,29 @@ export class UnifiedGanttCanvas {
 
       // Check if header row (SSoT: isHeaderRow)
       const isHeader = isHeaderRow(task.rowData);
-      // DEBUG: Log header detection for rows with "SITE OTHER" in name
-      const rowData = task.rowData as any;
-      const isSiteOther = rowData?.name?.includes('SITE OTHER');
-      if (isSiteOther) {
-        console.log('[drawTableSection] SITE OTHER - INITIAL:', {
-          name: rowData.name,
-          allow_header: rowData.allow_header,
-          isHeader,
-          bgColor_initial: bgColor,
-        });
-      }
       if (isHeader) {
         bgColor = this.config.colors.headerRowBackground;
-        if (isSiteOther) {
-          console.log('[drawTableSection] SITE OTHER - AFTER HEADER CHECK:', {
-            bgColor_afterHeader: bgColor,
-            headerRowBackground: this.config.colors.headerRowBackground,
-          });
-        }
       }
 
       // Check if in selected group (amber highlight) - but don't override header backgrounds
       // Nested headers should keep their header styling even when they're children of another header
-      const inSelectedGroup = this.isTaskInSelectedGroup(task);
-      const isSelectedTask = this.selectedTaskIds.has(task.id);
-      if (isSiteOther) {
-        console.log('[drawTableSection] SITE OTHER - GROUP CHECK:', {
-          inSelectedGroup,
-          isSelectedTask,
-          isHeader,
-          willApplyChildBg: inSelectedGroup && !isSelectedTask && !isHeader,
-        });
-      }
-      if (inSelectedGroup && !isSelectedTask && !isHeader) {
+      if (this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id) && !isHeader) {
         bgColor = this.config.colors.childRowBackground;
       }
 
       // Check if selected
       if (this.selectedTaskIds.has(task.id)) {
         bgColor = this.config.colors.selectedRow;
-        if (isSiteOther) {
-          console.log('[drawTableSection] SITE OTHER - SELECTED OVERRIDE:', { bgColor });
-        }
       }
 
       // Check if hovered
       if (this.hoveredTaskId === task.id) {
         bgColor = this.config.colors.hoverRow;
-        if (isSiteOther) {
-          console.log('[drawTableSection] SITE OTHER - HOVER OVERRIDE:', { bgColor });
-        }
-      }
-
-      if (isSiteOther) {
-        console.log('[drawTableSection] SITE OTHER - FINAL bgColor:', {
-          bgColor,
-          expectedHeaderBg: this.config.colors.headerRowBackground,
-          isCorrectColor: bgColor === this.config.colors.headerRowBackground,
-          y,
-          rowHeight,
-          tableWidth,
-        });
       }
 
       // Draw row background
       this.ctx.fillStyle = bgColor;
       this.ctx.fillRect(0, y, tableWidth, rowHeight);
-
-      if (isSiteOther) {
-        console.log('[drawTableSection] SITE OTHER - DREW RECT at y:', y);
-      }
 
       // Draw row content (text)
       this.drawTableRow(task, i, y);
