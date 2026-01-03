@@ -917,11 +917,11 @@ export default function TeeemTableView({
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { limit: 100 };
-        // ULTRA Solution: Include ALL filters in API call (base + cascade/view)
-        // This ensures server-side filtering for much better performance
-        const allFilters = [...baseFilters, ...safeFilters.filter(sf => !baseFilters.some(bf => bf.id === sf.id))];
-        if (allFilters.length > 0) {
-          params.filters = JSON.stringify(allFilters.map(f => ({
+        // ULTRA FIX: Only include BASE filters in API call (not view/cascade filters)
+        // This enables instant view switching - data loads once, views filter client-side
+        // View filters are applied by filteredAndSortedEntries via applyFilters()
+        if (baseFilters.length > 0) {
+          params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,
             operator: f.operator,
             value: f.value,
@@ -943,9 +943,10 @@ export default function TeeemTableView({
     fetchInitialRecords();
     // SSR props (initialRecords, initialHasMore) intentionally excluded from deps
     // They're applied one-time via hasAppliedInitialRecordsRef, not on prop changes
-    // Also re-fetch when view/cascade filters change (safeFilters) for server-side filtering
+    // ULTRA FIX: safeFilters (view filters) REMOVED from deps - enables instant view switching
+    // View filters are now applied client-side by filteredAndSortedEntries
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey, safeFilters]);
+  }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey]);
 
   // Auto-load more records in background after initial render
   // ULTRA Solution: Include base filters to ensure consistent data loading
@@ -971,10 +972,10 @@ export default function TeeemTableView({
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { cursor, limit: 100 };
-        // ULTRA Solution: Include ALL filters in load-more (base + cascade/view)
-        const allFilters = [...baseFilters, ...safeFilters.filter(sf => !baseFilters.some(bf => bf.id === sf.id))];
-        if (allFilters.length > 0) {
-          params.filters = JSON.stringify(allFilters.map(f => ({
+        // ULTRA FIX: Only include BASE filters in load-more (not view/cascade filters)
+        // This enables instant view switching - all data loads regardless of current view
+        if (baseFilters.length > 0) {
+          params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,
             operator: f.operator,
             value: f.value,
@@ -1000,7 +1001,8 @@ export default function TeeemTableView({
     }, 2000); // Wait 2 seconds before auto-loading more
 
     return () => clearTimeout(timer);
-  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId, baseFilters, safeFilters]);
+    // ULTRA FIX: safeFilters removed from deps - view filters are client-side only
+  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId, baseFilters]);
 
   // Server-side search for auto-fetch mode
   // Supports all search modes: contains (default), exact, starts_with, fuzzy, regex
@@ -5971,11 +5973,13 @@ export default function TeeemTableView({
           </div>
         )}
         {/* Show skeleton while columns are loading */}
+        {/* ULTRA FIX: Pass grouped prop to prevent CLS when table will render with grouping */}
         {columnsLoading ? (
           <TableSkeleton
             rowCount={10}
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
             showHeader
+            grouped={!!groupByColumn}
           />
         ) : filteredAndSortedEntries.length === 0 && effectiveLoadingMore ? (
           /* Show skeleton while initial records are loading - prevents CLS */
@@ -5983,6 +5987,7 @@ export default function TeeemTableView({
             rowCount={10}
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
             showHeader
+            grouped={!!groupByColumn}
           />
         ) : filteredAndSortedEntries.length === 0 && search ? (
           /* Show no results message when search is active but no matches */
