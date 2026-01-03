@@ -6001,6 +6001,16 @@ export default function TeeemTableView({
             <p className="text-sm font-medium">No results found</p>
             <p className="text-xs mt-1">No records match "{search}"</p>
           </div>
+        ) : initialView?.group_by_columns?.length && !groupedEntries ? (
+          /* CLS FIX: SSR grouped view pending - show skeleton until groupedEntries is computed
+           * This prevents flat → grouped transition which causes layout shift */
+          <TableSkeleton
+            rowCount={10}
+            columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
+            showHeader
+            grouped
+            groupCount={initialGroupCounts?.groups?.length || 4}
+          />
         ) : activeView?.view_display_type === 'hierarchy' ? (
           renderHierarchyTable()
         ) : (
