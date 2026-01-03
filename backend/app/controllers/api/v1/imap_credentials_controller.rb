@@ -245,12 +245,19 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # These use Application permissions to access mailboxes
     # SSoT: Use MicrosoftCredential for app credentials
     MicrosoftCredential.app_credentials.connected.order(:name).each do |org_cred|
-      # SSoT: Check sync_config.user_mailbox_access for configured access
-      # Format: { "user_id" => ["email1@org.com", "email2@org.com"] }
+      # SSoT: User automatically gets access to their own mailbox
+      # Plus any additional mailboxes granted via user_mailbox_access config
       user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
-      user_emails = user_mailbox_access[current_user.id.to_s] || []
+      configured_emails = user_mailbox_access[current_user.id.to_s] || []
 
-      # Add each mailbox the user has been granted access to
+      # Auto-include user's own email (always try - API will verify access)
+      user_email = current_user.email
+      auto_emails = user_email.present? ? [user_email] : []
+
+      # Combine auto + configured, remove duplicates
+      user_emails = (auto_emails + configured_emails).uniq
+
+      # Add each mailbox the user has access to
       user_emails.each_with_index do |email, index|
         accounts << {
           id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
@@ -263,9 +270,6 @@ class Api::V1::ImapCredentialsController < ApplicationController
           org_credential_id: org_cred.id
         }
       end
-
-      # Note: We no longer fall back to showing all mailboxes or guessing by name.
-      # Admins must configure access in Admin > System > Email Accounts.
     end
 
     # Add IMAP accounts
@@ -530,7 +534,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # GET /api/v1/imap_credentials/shareable_users
   # List users who can be granted access to email credentials
   def shareable_users
-    users = User.active.order(:name).map do |user|
+    users = User.order(:name).map do |user|
       {
         id: user.id,
         name: user.name,
@@ -660,7 +664,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       email_signature: credential.email_signature,
       # Sharing fields
       user_id: credential.user_id,
-      shared_with_user_ids: credential.shared_with_user_ids || []
+      shared_with_user_ids: credential.shared_with_user_ids || [],
+      shared_with_users: User.where(id: credential.shared_with_user_ids || []).map { |u| { id: u.id, name: u.name } }
     }
 
     if include_folders

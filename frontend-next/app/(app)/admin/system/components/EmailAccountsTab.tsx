@@ -73,6 +73,7 @@ interface ImapCredential {
   created_at: string;
   email_signature: string | null;
   shared_with_user_ids: number[];
+  shared_with_users: { id: number; name: string }[];
   user_id: number;
 }
 
@@ -997,6 +998,17 @@ export function EmailAccountsTab() {
                     </span>
                   </div>
 
+                  {/* Sharing Info */}
+                  {cred.shared_with_users?.length > 0 && (
+                    <button
+                      onClick={() => handleOpenShareDialog(cred)}
+                      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      <Users className="h-4 w-4" />
+                      <span>Shared with {cred.shared_with_users.map(u => u.name).join(", ")}</span>
+                    </button>
+                  )}
+
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     <Button
@@ -1005,12 +1017,7 @@ export function EmailAccountsTab() {
                       onClick={() => handleOpenShareDialog(cred)}
                     >
                       <Share2 className="h-4 w-4 mr-1" />
-                      Share
-                      {cred.shared_with_user_ids?.length > 0 && (
-                        <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                          {cred.shared_with_user_ids.length}
-                        </Badge>
-                      )}
+                      {cred.shared_with_users?.length > 0 ? `Sharing (${cred.shared_with_users.length})` : "Share"}
                     </Button>
                     <Button
                       variant="outline"

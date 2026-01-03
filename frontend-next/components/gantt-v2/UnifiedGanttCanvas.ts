@@ -3082,19 +3082,21 @@ export class UnifiedGanttCanvas {
         if (column.id === 'dependencies' && rowData?.predecessor_ids) {
           const predIds = rowData.predecessor_ids as Array<{ id: number; type?: string; lag?: number }>;
           if (predIds && predIds.length > 0) {
-            // Build task_number -> row index map
+            // Build task_number -> row index map (convert to number for consistent lookup)
             const taskNumToRowIdx = new Map<number, number>();
             this.tasks.forEach((t, idx) => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const r = t.rowData as any;
-              if (r?.task_number) {
-                taskNumToRowIdx.set(r.task_number, idx + 1); // 1-based row number
+              if (r?.task_number != null) {
+                taskNumToRowIdx.set(Number(r.task_number), idx + 1); // 1-based row number
               }
             });
 
             // Convert each predecessor to "rowNum TYPE" format
             displayText = predIds.map(pred => {
-              const rowNum = taskNumToRowIdx.get(pred.id) || pred.id;
+              // Convert pred.id to number for consistent Map lookup
+              const predTaskNum = Number(pred.id);
+              const rowNum = taskNumToRowIdx.get(predTaskNum) || pred.id;
               const type = pred.type || 'FS';
               const lag = pred.lag || 0;
               let result = `${rowNum} ${type}`;
@@ -3563,6 +3565,11 @@ export class UnifiedGanttCanvas {
       const fromTask = this.visibleTasks[fromIndex];
       const toTask = this.visibleTasks[toIndex];
 
+      // Skip if tasks don't have valid dates
+      if (!fromTask.startDate || !fromTask.endDate || !toTask.startDate || !toTask.endDate) {
+        continue;
+      }
+
       // Calculate connection points based on dependency type
       let fromX: number;
       let toX: number;
@@ -3577,6 +3584,16 @@ export class UnifiedGanttCanvas {
         toX = timelineX + this.daysBetween(this.startDate, toTask.startDate) * dayWidth - this.scrollX;
       } else {
         toX = timelineX + this.daysBetween(this.startDate, toTask.endDate) * dayWidth + dayWidth - this.scrollX;
+      }
+
+      // Skip if coordinates are invalid (NaN or way out of bounds)
+      if (isNaN(fromX) || isNaN(toX) || fromX < -1000 || toX < -1000 || fromX > this.width + 1000 || toX > this.width + 1000) {
+        continue;
+      }
+
+      // Skip if both points are in the table area (nothing to draw in timeline)
+      if (fromX < timelineX && toX < timelineX) {
+        continue;
       }
 
       const fromY = headerHeight + fromIndex * rowHeight - this.scrollY + taskBarPadding + taskBarHeight / 2;

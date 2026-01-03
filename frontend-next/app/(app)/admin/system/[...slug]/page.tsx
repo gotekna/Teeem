@@ -58,8 +58,8 @@ const COMPANY_TABS = [
   { id: "doc-templates", label: "Doc Templates" },
 ];
 
-// SSoT: Tabs that need full-height table layout
-const FULL_HEIGHT_TABS = ["components", "schedule-master", "email-accounts"];
+// SSoT: Tabs that need full-height table layout (overflow-hidden)
+const FULL_HEIGHT_TABS = ["components", "schedule-master"];
 
 function PlaceholderTab({
   title,
