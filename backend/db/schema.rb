@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_03_084922) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2706,10 +2706,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_084922) do
     t.bigint "imap_credential_id"
     t.string "labels", default: [], array: true
     t.bigint "uid"
+    t.string "direction"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
+    t.index ["direction"], name: "index_email_warehouses_on_direction"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
     t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"

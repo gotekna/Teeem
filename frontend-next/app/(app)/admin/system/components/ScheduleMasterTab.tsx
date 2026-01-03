@@ -1078,10 +1078,28 @@ export function ScheduleMasterTab() {
           }
         }
 
-        // Check if today is a working day
+        // Fetch holidays from API to check working days
         const today = new Date();
-        const isTodayWorking = isWorkingDay(today);
-        const lastWorking = isTodayWorking ? null : skipToPreviousWorkingDay(today);
+        const currentYear = today.getFullYear();
+        let holidayDates: Set<string> | undefined;
+
+        try {
+          const holidayResponse = await api.get<{ dates: string[] }>(
+            `/public_holidays/dates?year_start=${currentYear - 1}&year_end=${currentYear + 1}&region=QLD`
+          );
+          if (holidayResponse?.dates) {
+            holidayDates = new Set(holidayResponse.dates);
+            console.log('[Start Task] Fetched holidays from API:', holidayResponse.dates.filter(d => d.startsWith('2026-01')));
+          }
+        } catch (err) {
+          console.warn('[Gantt V2] Failed to fetch holidays, using fallback:', err);
+        }
+
+        console.log('[Start Task] Today:', today.toISOString().split('T')[0], 'isWorkingDay:', isWorkingDay(today, holidayDates));
+
+        // Check if today is a working day
+        const isTodayWorking = isWorkingDay(today, holidayDates);
+        const lastWorking = isTodayWorking ? null : skipToPreviousWorkingDay(today, holidayDates);
 
         // Show start task dialog
         setStartTaskDialog({

@@ -505,24 +505,28 @@ export function skipToNextWorkingDay(date: Date): Date {
 
 /**
  * Check if a date is a working day (not weekend, not holiday)
+ * @param date - The date to check
+ * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
  */
-export function isWorkingDay(date: Date): boolean {
-  const holidays = getAustralianHolidays(date.getFullYear());
+export function isWorkingDay(date: Date, holidayDates?: Set<string>): boolean {
+  const holidays = holidayDates || getAustralianHolidays(date.getFullYear());
   return !isWeekend(date) && !isHoliday(date, holidays);
 }
 
 /**
  * Skip to previous working day if current date is weekend/holiday
+ * @param date - The date to start from
+ * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
  */
-export function skipToPreviousWorkingDay(date: Date): Date {
+export function skipToPreviousWorkingDay(date: Date, holidayDates?: Set<string>): Date {
   const result = new Date(date);
-  const holidays = getAustralianHolidays(result.getFullYear());
+  const holidays = holidayDates || getAustralianHolidays(result.getFullYear());
 
   while (isWeekend(result) || isHoliday(result, holidays)) {
     result.setDate(result.getDate() - 1);
 
-    // Check if we crossed into a previous year
-    if (result.getMonth() === 11 && result.getDate() === 31) {
+    // Check if we crossed into a previous year (only relevant if using fallback holidays)
+    if (!holidayDates && result.getMonth() === 11 && result.getDate() === 31) {
       const prevYearHolidays = getAustralianHolidays(result.getFullYear());
       prevYearHolidays.forEach(h => holidays.add(h));
     }

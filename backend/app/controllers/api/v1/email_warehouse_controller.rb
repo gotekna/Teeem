@@ -134,7 +134,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     # Filter by direction (sent, received, cc, bcc)
-    if params[:direction].present?
+    # Note: direction column may not exist yet (pending migration)
+    if params[:direction].present? && EmailWarehouse.column_names.include?("direction")
       emails = emails.where(direction: params[:direction])
     end
 
@@ -840,8 +841,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       source_type: email.source_type || "outlook",
       imap_credential_id: email.imap_credential_id,
       mailbox: email.mailbox_owner_email,
-      # Direction and importance
-      direction: email.direction,
+      # Direction and importance (direction column may not exist yet)
+      direction: email.respond_to?(:direction) ? email.direction : nil,
       importance: email.importance,
       # Classification
       email_classification: email.email_classification,
