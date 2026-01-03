@@ -131,8 +131,13 @@ module Api
           user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
           configured_emails = user_mailbox_access[current_user.id.to_s] || []
 
-          # SSoT: Auto-include user's own email (same logic as all_accounts)
-          auto_emails = current_user.email.present? ? [current_user.email] : []
+          # SSoT: Auto-include user's own email ONLY if it exists in this tenant
+          tenant_emails = org_cred.list_tenant_users.map { |u| u[:email]&.downcase }.compact
+          auto_emails = if current_user.email.present? && tenant_emails.include?(current_user.email.downcase)
+            [current_user.email]
+          else
+            []
+          end
           user_emails = (auto_emails + configured_emails).uniq
 
           user_emails.each do |email|

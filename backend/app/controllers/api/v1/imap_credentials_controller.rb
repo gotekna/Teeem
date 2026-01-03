@@ -250,9 +250,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
       user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
       configured_emails = user_mailbox_access[current_user.id.to_s] || []
 
-      # Auto-include user's own email (always try - API will verify access)
-      user_email = current_user.email
-      auto_emails = user_email.present? ? [user_email] : []
+      # SSoT: Auto-include user's own email ONLY if it exists in this tenant
+      tenant_emails = org_cred.list_tenant_users.map { |u| u[:email]&.downcase }.compact
+      auto_emails = if current_user.email.present? && tenant_emails.include?(current_user.email.downcase)
+        [current_user.email]
+      else
+        []
+      end
 
       # Combine auto + configured, remove duplicates
       user_emails = (auto_emails + configured_emails).uniq
