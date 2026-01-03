@@ -129,7 +129,11 @@ module Api
         # SSoT: Use MicrosoftCredential for app credentials
         MicrosoftCredential.app_credentials.connected.each do |org_cred|
           user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
-          user_emails = user_mailbox_access[current_user.id.to_s] || []
+          configured_emails = user_mailbox_access[current_user.id.to_s] || []
+
+          # SSoT: Auto-include user's own email (same logic as all_accounts)
+          auto_emails = current_user.email.present? ? [current_user.email] : []
+          user_emails = (auto_emails + configured_emails).uniq
 
           user_emails.each do |email|
             accounts << {
