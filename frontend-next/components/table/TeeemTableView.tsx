@@ -902,6 +902,15 @@ export default function TeeemTableView({
         return;
       }
 
+      // ULTRA FIX: Skip API call if all records already loaded (hasMore === false)
+      // When all records are in memory, view filters can be applied client-side instantly
+      // via filteredAndSortedEntries - no need for network roundtrip
+      // This makes view switching instant when all records are loaded
+      if (!hasMore && autoFetchedRecords.length > 0) {
+        console.log('[TeeemTableView] All records loaded, applying filters client-side');
+        return; // Client-side filtering in filteredAndSortedEntries handles this
+      }
+
       setIsLoadingMore(true);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
