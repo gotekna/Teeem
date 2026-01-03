@@ -126,11 +126,12 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     # Filter by folder name or ID (e.g., "Sent Items", "Inbox", etc.)
+    # Use case-insensitive matching since folder names vary by provider (INBOX vs Inbox vs inbox)
     if params[:folder_id].present?
-      emails = emails.where(folder_name: params[:folder_id])
+      emails = emails.where("LOWER(folder_name) = LOWER(?)", params[:folder_id])
     end
     if params[:folder_name].present?
-      emails = emails.where(folder_name: params[:folder_name])
+      emails = emails.where("LOWER(folder_name) = LOWER(?)", params[:folder_name])
     end
 
     # Filter by direction (sent, received, cc, bcc)
