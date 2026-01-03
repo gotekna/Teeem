@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_01_080549) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_03_025758) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5444,6 +5444,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_080549) do
     t.datetime "updated_at", null: false
     t.text "email_signature"
     t.text "email_aliases", default: [], array: true
+    t.integer "shared_with_user_ids", default: [], array: true
     t.index ["is_active"], name: "index_imap_credentials_on_is_active"
     t.index ["user_id", "email_address"], name: "index_imap_credentials_on_user_id_and_email_address", unique: true
     t.index ["user_id"], name: "index_imap_credentials_on_user_id"

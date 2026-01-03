@@ -1,5 +1,5 @@
 class Api::V1::ImapCredentialsController < ApplicationController
-  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
 
   # GET /api/v1/imap_credentials
   # List user's IMAP accounts
@@ -22,8 +22,23 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # POST /api/v1/imap_credentials
   # Add a new IMAP account
+  # SSoT: Email owner is the credential owner, creator gets full shared access
   def create
-    credential = current_user.imap_credentials.build(credential_params)
+    email_address = params[:imap_credential][:email_address]
+    email_owner = User.find_by(email: email_address)
+
+    if email_owner
+      # SSoT: Email owner becomes the credential owner
+      credential = email_owner.imap_credentials.build(credential_params)
+
+      # Creator (if different) gets full shared access
+      if current_user.id != email_owner.id
+        credential.shared_with_user_ids = [current_user.id]
+      end
+    else
+      # No matching user in system - creator is owner (external email account)
+      credential = current_user.imap_credentials.build(credential_params)
+    end
 
     # Apply provider preset if specified
     credential.apply_provider_preset! if credential.provider.present?
@@ -487,6 +502,48 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }, status: :unprocessable_entity
   end
 
+  # PUT /api/v1/imap_credentials/:id/update_sharing
+  # Update which users have access to this credential's emails
+  def update_sharing
+    shared_user_ids = params[:shared_with_user_ids] || []
+
+    # Validate all IDs are valid user IDs
+    valid_users = User.where(id: shared_user_ids).pluck(:id)
+
+    # Don't include the owner in shared list
+    valid_users.delete(@credential.user_id)
+
+    @credential.update!(shared_with_user_ids: valid_users)
+
+    render json: {
+      success: true,
+      data: credential_json(@credential),
+      message: "Sharing updated successfully"
+    }
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to update sharing: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # GET /api/v1/imap_credentials/shareable_users
+  # List users who can be granted access to email credentials
+  def shareable_users
+    users = User.active.order(:name).map do |user|
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email
+      }
+    end
+
+    render json: {
+      success: true,
+      data: users
+    }
+  end
+
   # POST /api/v1/imap_credentials/:id/move_email
   # Move an email to a different folder
   def move_email
@@ -538,7 +595,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   def set_credential
-    @credential = current_user.imap_credentials.find(params[:id])
+    # SSoT: Both owner and shared users have full access
+    @credential = ImapCredential.accessible_by(current_user).find(params[:id])
   end
 
   # Infer account type from credential_id format
@@ -599,7 +657,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
       last_sync_status: credential.last_sync_status,
       last_sync_error: credential.last_sync_error,
       created_at: credential.created_at,
-      email_signature: credential.email_signature
+      email_signature: credential.email_signature,
+      # Sharing fields
+      user_id: credential.user_id,
+      shared_with_user_ids: credential.shared_with_user_ids || []
     }
 
     if include_folders

@@ -181,8 +181,8 @@ const DEFAULT_COLUMNS: TableColumn[] = [
   { id: 'confirm', label: '✓', width: 24, visible: false, type: 'checkbox', field: 'confirm' },
   { id: 'supplier_confirm', label: 'S✓', width: 24, visible: false, type: 'checkbox', field: 'supplier_confirm' },
   { id: 'is_completed', label: '✓', width: 24, visible: false, type: 'checkbox', field: 'is_completed' },
-  // Dependencies (action column - click opens predecessor) - Show task names, not IDs
-  { id: 'dependencies', label: 'Deps', width: 120, visible: true, type: 'action', field: 'predecessor_display_names' },
+  // Dependencies (action column - click opens editor) - Show "34 FS, 35 SS" format
+  { id: 'dependencies', label: 'Deps', width: 80, visible: true, type: 'action', field: 'predecessor_display' },
   // Duration (editable number)
   { id: 'duration', label: 'Days', width: 50, visible: true, type: 'number', field: 'duration_days' },
   // Supplier info
@@ -2953,7 +2953,13 @@ export class UnifiedGanttCanvas {
         if (column.id === 'row_number') {
           text = String(rowIndex + 1);
         } else if (column.field) {
-          text = String(rowData?.[column.field] ?? task[column.field as keyof GanttTask] ?? '');
+          const rawValue = rowData?.[column.field] ?? task[column.field as keyof GanttTask];
+          // Handle object values with display property (e.g., { id: 1, display: "Name" })
+          if (rawValue && typeof rawValue === 'object' && 'display' in rawValue) {
+            text = String(rawValue.display ?? '');
+          } else {
+            text = String(rawValue ?? '');
+          }
         }
         // Draw chevron for name column on header rows
         let textOffsetX = 0;
@@ -3069,16 +3075,47 @@ export class UnifiedGanttCanvas {
         this.ctx.textAlign = 'left';
         this.ctx.fillText(dateStr, cellX + 4, y + rowHeight / 2);
       } else if (column.type === 'action') {
-        // Draw action column (e.g., dependencies) - just show text, click handled by overlay
-        const value = column.field ? rowData?.[column.field] : '';
-        if (value) {
+        // Draw action column (e.g., dependencies) - convert task IDs to row numbers
+        let displayText = '';
+
+        // Special handling for dependencies column - show row numbers not task IDs
+        if (column.id === 'dependencies' && rowData?.predecessor_ids) {
+          const predIds = rowData.predecessor_ids as Array<{ id: number; type?: string; lag?: number }>;
+          if (predIds && predIds.length > 0) {
+            // Build task_number -> row index map
+            const taskNumToRowIdx = new Map<number, number>();
+            this.tasks.forEach((t, idx) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const r = t.rowData as any;
+              if (r?.task_number) {
+                taskNumToRowIdx.set(r.task_number, idx + 1); // 1-based row number
+              }
+            });
+
+            // Convert each predecessor to "rowNum TYPE" format
+            displayText = predIds.map(pred => {
+              const rowNum = taskNumToRowIdx.get(pred.id) || pred.id;
+              const type = pred.type || 'FS';
+              const lag = pred.lag || 0;
+              let result = `${rowNum} ${type}`;
+              if (lag !== 0) {
+                result += lag > 0 ? `+${lag}` : `${lag}`;
+              }
+              return result;
+            }).join(', ');
+          }
+        } else {
+          const value = column.field ? rowData?.[column.field] : '';
+          displayText = value ? String(value) : '';
+        }
+
+        if (displayText) {
           this.ctx.fillStyle = '#3b82f6'; // Blue text for clickable
           this.ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
           this.ctx.textBaseline = 'middle';
           this.ctx.textAlign = 'left';
 
           // Truncate if needed
-          let displayText = String(value);
           const maxWidth = cellWidth - 8;
           if (this.ctx.measureText(displayText).width > maxWidth) {
             while (this.ctx.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {

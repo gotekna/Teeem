@@ -58,8 +58,6 @@ export interface GanttUnifiedProps {
   onUndo?: (selectedTaskId: string) => void;
   onEditDependencies?: (task: GanttTask) => void;
   onDurationChange?: (taskId: string, newDuration: number) => void;
-  /** Called when user clicks on a predecessor in the Deps column - opens predecessor's lightbox */
-  onPredecessorClick?: (predecessorTaskNumber: number) => void;
 
   // Rollover - SSoT: POST /api/v1/jobs/{jobId}/sm_tasks/validate_dates
   onRollover?: () => Promise<{ rolled_over: number; extended: number; cascaded: number } | null>;
@@ -132,7 +130,6 @@ export function GanttUnified({
   onUndo,
   onEditDependencies,
   onDurationChange,
-  onPredecessorClick,
   onRollover,
   viewSlug,
   onViewClear,
@@ -271,23 +268,22 @@ export function GanttUnified({
         onColumnsChange: (newColumns) => {
           // Update local state
           setColumns([...newColumns]);
-          // Save to localStorage for persistence
-          if (jobId) {
+          // Save to localStorage for persistence (use jobId or templateId)
+          const storageKey = jobId ? `gantt-columns-${jobId}` : templateId ? `gantt-columns-template-${templateId}` : null;
+          if (storageKey) {
             try {
-              localStorage.setItem(`gantt-columns-${jobId}`, JSON.stringify(newColumns));
+              localStorage.setItem(storageKey, JSON.stringify(newColumns));
             } catch {
               // Ignore localStorage errors
             }
           }
         },
         onCollapsedChange: (collapsedIds) => {
-          // Save to localStorage for persistence
-          if (jobId) {
+          // Save to localStorage for persistence (use jobId or templateId)
+          const storageKey = jobId ? `gantt-collapsed-${jobId}` : templateId ? `gantt-collapsed-template-${templateId}` : null;
+          if (storageKey) {
             try {
-              localStorage.setItem(
-                `gantt-collapsed-${jobId}`,
-                JSON.stringify(Array.from(collapsedIds))
-              );
+              localStorage.setItem(storageKey, JSON.stringify(Array.from(collapsedIds)));
             } catch {
               // Ignore localStorage errors
             }
@@ -295,7 +291,10 @@ export function GanttUnified({
         },
         onDependencyClick: (task) => {
           console.log('[GanttUnified] Dependency clicked:', task.id);
-          // TODO: Open dependency editor modal
+          // Open the Dependency Editor for this task (same as old Gantt behavior)
+          if (onEditDependencies) {
+            onEditDependencies(task);
+          }
         },
         onTaskDrag: (task, newStartDate) => {
           console.log('[GanttUnified] Task dragged:', task.id, 'to', newStartDate);
@@ -351,10 +350,11 @@ export function GanttUnified({
 
       ganttEngineRef.current = engine;
 
-      // Restore saved column config
-      if (jobId) {
+      // Restore saved column config (use jobId or templateId)
+      const storageKey = jobId ? `gantt-columns-${jobId}` : templateId ? `gantt-columns-template-${templateId}` : null;
+      if (storageKey) {
         try {
-          const savedColumns = localStorage.getItem(`gantt-columns-${jobId}`);
+          const savedColumns = localStorage.getItem(storageKey);
           if (savedColumns) {
             engine.setColumns(JSON.parse(savedColumns));
           }

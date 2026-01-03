@@ -1176,6 +1176,7 @@ Rails.application.routes.draw do
           get :scheduled_emails
           get :folders  # Fetch folders for a specific account (pass account_id param)
           post :sync_all  # Sync ALL user's IMAP accounts
+          get :shareable_users  # List users who can be granted access
         end
         member do
           post :sync
@@ -1183,6 +1184,7 @@ Rails.application.routes.draw do
           post :create_folder
           delete :delete_folder
           post :move_email
+          put :update_sharing  # Update who has access to this credential's emails
         end
       end
 

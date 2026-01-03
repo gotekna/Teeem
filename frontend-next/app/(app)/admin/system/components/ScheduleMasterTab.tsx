@@ -1515,55 +1515,95 @@ export function ScheduleMasterTab() {
     setDependencyEditorState({ isOpen: true, task });
   };
 
-  // Gantt V2: Get predecessor info for dependency editor
-  const getDependencyEditorPredecessors = React.useMemo(() => {
-    if (!dependencyEditorState.task) return [];
-    const row = dependencyEditorState.task.rowData as GanttSmScheduleMaster | undefined;
-    if (!row?.predecessor_ids) return [];
+  // Gantt V2: Save dependencies from full dependency editor (predecessors + successors)
+  const handleDependencyEditorSave = async (
+    taskId: string,
+    predecessors: Array<{ taskNumber: number; type: string; lag: number }>,
+    successors: Array<{ taskNumber: number; type: string; lag: number }>
+  ) => {
+    if (!ganttV2TemplateId) return;
 
-    return row.predecessor_ids.map((pred: { id: number; type?: string; lag?: number }) => {
-      const predTask = ganttV2Tasks.find(t => {
-        const r = t.rowData as GanttSmScheduleMaster | undefined;
-        return r?.task_number === pred.id;
-      });
-      const predRow = predTask?.rowData as GanttSmScheduleMaster | undefined;
-      return {
-        id: pred.id,
-        taskNumber: pred.id,
-        name: predRow?.name || `Task ${pred.id}`,
-        type: pred.type || 'FS',
-        lag: pred.lag || 0
-      };
-    });
-  }, [dependencyEditorState.task, ganttV2Tasks]);
-
-  // Gantt V2: Get available tasks for dependency editor
-  const getDependencyEditorAvailableTasks = React.useMemo(() => {
-    return ganttV2Tasks.map(t => {
-      const row = t.rowData as GanttSmScheduleMaster | undefined;
-      return {
-        id: row?.id || 0,
-        taskNumber: row?.task_number || 0,
-        name: row?.name || 'Unknown'
-      };
-    }).filter(t => t.taskNumber > 0);
-  }, [ganttV2Tasks]);
-
-  // Gantt V2: Add predecessor via dependency editor
-  const handleDependencyEditorAddPredecessor = async (taskId: string, predecessorTaskNumber: number, type: string) => {
-    await handleGanttV2DependencyCreate(String(predecessorTaskNumber), taskId, type);
-  };
-
-  // Gantt V2: Remove predecessor via dependency editor
-  const handleDependencyEditorRemovePredecessor = async (taskId: string, predecessorTaskNumber: number) => {
-    // Get the row id from the task
     const task = ganttV2Tasks.find(t => t.id === taskId);
-    const row = task?.rowData as GanttSmScheduleMaster | undefined;
-    if (!row) return;
+    const taskRow = task?.rowData as GanttSmScheduleMaster | undefined;
+    if (!taskRow) return;
 
-    // Create dependency ID format: "dep-{predecessor_task_number}-{row_id}"
-    const dependencyId = `dep-${predecessorTaskNumber}-${row.id}`;
-    await handleGanttV2DependencyDelete(dependencyId);
+    const currentTaskNumber = taskRow.task_number;
+
+    try {
+      // 1. Update the current task's predecessors
+      const newPredecessorIds = predecessors.map(p => ({
+        id: p.taskNumber,
+        type: p.type,
+        lag: p.lag
+      }));
+
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskRow.id}`, {
+        row: { predecessor_ids: newPredecessorIds }
+      });
+
+      // 2. Update successors - each successor needs this task as a predecessor
+      // Get current successors (tasks that have this task in their predecessor_ids)
+      const currentSuccessors = ganttV2Tasks.filter(t => {
+        const r = t.rowData as GanttSmScheduleMaster | undefined;
+        return r?.predecessor_ids?.some((p: { id: number }) => p.id === currentTaskNumber);
+      });
+
+      // Tasks that should be successors now
+      const newSuccessorTaskNumbers = new Set(successors.map(s => s.taskNumber));
+
+      // For each new successor that isn't already a successor, add this task as predecessor
+      for (const succ of successors) {
+        const succTask = ganttV2Tasks.find(t => {
+          const r = t.rowData as GanttSmScheduleMaster | undefined;
+          return r?.task_number === succ.taskNumber;
+        });
+        const succRow = succTask?.rowData as GanttSmScheduleMaster | undefined;
+        if (!succRow) continue;
+
+        // Check if this task is already in successor's predecessors
+        const alreadyHasPred = succRow.predecessor_ids?.some((p: { id: number }) => p.id === currentTaskNumber);
+        if (!alreadyHasPred) {
+          // Add this task as a predecessor to the successor
+          const updatedPreds = [...(succRow.predecessor_ids || []), {
+            id: currentTaskNumber,
+            type: succ.type,
+            lag: succ.lag
+          }];
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${succRow.id}`, {
+            row: { predecessor_ids: updatedPreds }
+          });
+        } else {
+          // Update the existing predecessor entry (type/lag might have changed)
+          const updatedPreds = (succRow.predecessor_ids || []).map((p: { id: number; type?: string; lag?: number }) =>
+            p.id === currentTaskNumber ? { id: currentTaskNumber, type: succ.type, lag: succ.lag } : p
+          );
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${succRow.id}`, {
+            row: { predecessor_ids: updatedPreds }
+          });
+        }
+      }
+
+      // For each current successor that is no longer in the new list, remove this task from their predecessors
+      for (const currSucc of currentSuccessors) {
+        const r = currSucc.rowData as GanttSmScheduleMaster | undefined;
+        if (!r) continue;
+        if (!newSuccessorTaskNumbers.has(r.task_number)) {
+          // Remove this task from successor's predecessors
+          const updatedPreds = (r.predecessor_ids || []).filter((p: { id: number }) => p.id !== currentTaskNumber);
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${r.id}`, {
+            row: { predecessor_ids: updatedPreds }
+          });
+        }
+      }
+
+      // Refresh data
+      loadGanttV2Data(ganttV2TemplateId);
+      toast({ title: "Success", description: "Dependencies updated" });
+    } catch (error) {
+      console.error('[Gantt V2] Failed to save dependencies:', error);
+      toast({ title: "Error", description: "Failed to save dependencies", variant: "destructive" });
+      throw error; // Re-throw so the editor knows it failed
+    }
   };
 
   // Save row from edit sheet (supports both manual and auto-save)
@@ -1880,6 +1920,69 @@ export function ScheduleMasterTab() {
             };
           }
           return task;
+        });
+
+        // CRITICAL: Recalculate header spans AFTER applying date_map
+        // Headers need to span their children's ROLLED OVER dates, not original dates
+        const headerTaskNumbers = new Set<number>();
+        const childrenByHeader = new Map<number, typeof tasks>();
+
+        // Find headers and build children map
+        for (const row of rows) {
+          if (isHeaderRow(row)) {
+            headerTaskNumbers.add(row.task_number);
+            childrenByHeader.set(row.task_number, []);
+          }
+        }
+
+        // Group children under their headers
+        // IMPORTANT: tasks array is sorted differently than rows, so match by id
+        for (const task of tasks) {
+          const row = rows.find(r => String(r.id) === task.id);
+          if (!row || isHeaderRow(row)) continue;
+
+          // Get parent header task_number from header_gantt
+          let parentTaskNumber: number | null = null;
+          if (typeof row.header_gantt === 'number') {
+            parentTaskNumber = row.header_gantt;
+          } else if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
+            parentTaskNumber = row.header_gantt.id;
+          }
+
+          if (parentTaskNumber && headerTaskNumbers.has(parentTaskNumber)) {
+            childrenByHeader.get(parentTaskNumber)!.push(task);
+          }
+        }
+
+        // Update header dates to span their children's rolled-over dates
+        tasks = tasks.map(task => {
+          const row = rows.find(r => String(r.id) === task.id);
+          if (!row || !isHeaderRow(row)) return task;
+
+          const children = childrenByHeader.get(row.task_number);
+          if (!children || children.length === 0) return task;
+
+          let minStart = children[0].startDate;
+          let maxEnd = children[0].endDate;
+          for (const child of children) {
+            if (child.startDate < minStart) minStart = child.startDate;
+            if (child.endDate > maxEnd) maxEnd = child.endDate;
+          }
+
+          return {
+            ...task,
+            startDate: new Date(minStart),
+            endDate: new Date(maxEnd),
+          };
+        });
+
+        // Filter out headers with no active children
+        tasks = tasks.filter(task => {
+          const row = rows.find(r => String(r.id) === task.id);
+          if (!row || !isHeaderRow(row)) return true; // Keep non-headers
+
+          const children = childrenByHeader.get(row.task_number);
+          return children && children.length > 0; // Only keep headers WITH children
         });
       }
       // Extract dependencies from tasks (predecessor_ids are embedded in tasks)
@@ -4037,10 +4140,8 @@ export function ScheduleMasterTab() {
         isOpen={dependencyEditorState.isOpen}
         onClose={() => setDependencyEditorState({ isOpen: false, task: null })}
         task={dependencyEditorState.task}
-        predecessors={getDependencyEditorPredecessors}
-        availableTasks={getDependencyEditorAvailableTasks}
-        onAddPredecessor={handleDependencyEditorAddPredecessor}
-        onRemovePredecessor={handleDependencyEditorRemovePredecessor}
+        tasks={ganttV2Tasks}
+        onSave={handleDependencyEditorSave}
       />
 
       {/* NOTE: Trades/Stages are managed in Tables tab (SSoT: Foundation SM Trades ID 542, SM Stages ID 543) */}

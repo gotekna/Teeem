@@ -41,6 +41,7 @@ import {
   Building2,
   Users,
   Save,
+  Share2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -71,6 +72,8 @@ interface ImapCredential {
   last_sync_error: string | null;
   created_at: string;
   email_signature: string | null;
+  shared_with_user_ids: number[];
+  user_id: number;
 }
 
 interface Provider {
@@ -109,6 +112,12 @@ interface MS365Organization {
 }
 
 interface TeeemUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface ShareableUser {
   id: number;
   name: string;
   email: string;
@@ -476,6 +485,7 @@ function TeamEmailDomainsConfig() {
 }
 
 export function EmailAccountsTab() {
+  const { toast } = useToast();
   const [credentials, setCredentials] = useState<ImapCredential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -487,6 +497,12 @@ export function EmailAccountsTab() {
   const [showPassword, setShowPassword] = useState(false);
   const [syncingId, setSyncingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  // Sharing state
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [sharingCredential, setSharingCredential] = useState<ImapCredential | null>(null);
+  const [shareableUsers, setShareableUsers] = useState<ShareableUser[]>([]);
+  const [selectedSharedUsers, setSelectedSharedUsers] = useState<number[]>([]);
+  const [savingSharing, setSavingSharing] = useState(false);
 
   // Fetch credentials and providers on mount
   useEffect(() => {
@@ -626,6 +642,63 @@ export function EmailAccountsTab() {
       setEditingId(null);
       setFormData(DEFAULT_FORM);
       setTestResult(null);
+    }
+  };
+
+  // Sharing functions
+  const handleOpenShareDialog = async (cred: ImapCredential) => {
+    setSharingCredential(cred);
+    setSelectedSharedUsers(cred.shared_with_user_ids || []);
+    setShareDialogOpen(true);
+
+    // Fetch shareable users if not already loaded
+    if (shareableUsers.length === 0) {
+      try {
+        const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
+          "/api/v1/imap_credentials/shareable_users"
+        );
+        if (response.success) {
+          setShareableUsers(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch shareable users:", error);
+      }
+    }
+  };
+
+  const handleToggleUserAccess = (userId: number) => {
+    setSelectedSharedUsers((prev) => {
+      if (prev.includes(userId)) {
+        return prev.filter((id) => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
+
+  const handleSaveSharing = async () => {
+    if (!sharingCredential) return;
+
+    setSavingSharing(true);
+    try {
+      await api.put(`/api/v1/imap_credentials/${sharingCredential.id}/update_sharing`, {
+        shared_with_user_ids: selectedSharedUsers,
+      });
+      toast({
+        title: "Sharing updated",
+        description: "Email access permissions have been saved.",
+      });
+      setShareDialogOpen(false);
+      fetchData(); // Refresh the list
+    } catch (error) {
+      console.error("Failed to update sharing:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update sharing permissions.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingSharing(false);
     }
   };
 
@@ -929,6 +1002,19 @@ export function EmailAccountsTab() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => handleOpenShareDialog(cred)}
+                    >
+                      <Share2 className="h-4 w-4 mr-1" />
+                      Share
+                      {cred.shared_with_user_ids?.length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                          {cred.shared_with_user_ids.length}
+                        </Badge>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleEdit(cred)}
                     >
                       <Pencil className="h-4 w-4 mr-1" />
@@ -988,6 +1074,78 @@ export function EmailAccountsTab() {
         </div>
         <TeamEmailDomainsConfig />
       </div>
+
+      {/* Share Email Access Dialog */}
+      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              Share Email Access
+            </DialogTitle>
+            <DialogDescription>
+              {sharingCredential && (
+                <>
+                  Grant other team members access to view emails from{" "}
+                  <strong>{sharingCredential.email_address}</strong>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-3 max-h-[400px] overflow-y-auto">
+            {shareableUsers.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <Spinner />
+              </div>
+            ) : (
+              shareableUsers
+                .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
+                .map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <Checkbox
+                      checked={selectedSharedUsers.includes(user.id)}
+                      onCheckedChange={() => handleToggleUserAccess(user.id)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{user.name}</div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {user.email}
+                      </div>
+                    </div>
+                    {user.email === sharingCredential?.email_address && (
+                      <Badge variant="secondary" className="text-xs">
+                        Email owner
+                      </Badge>
+                    )}
+                  </div>
+                ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveSharing} disabled={savingSharing}>
+              {savingSharing ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

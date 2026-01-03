@@ -3,8 +3,8 @@ class ImapCredential < ApplicationRecord
   has_many :email_warehouse, dependent: :nullify
   has_many :email_rules, dependent: :destroy
 
-  # Auto-share with email owner when credential is created
-  after_create :auto_share_with_email_owner
+  # SSoT: Ownership is determined at creation time by controller
+  # Email owner becomes user_id, creator (if different) is added to shared_with_user_ids
 
   # Encrypt password at rest
   encrypts :encrypted_password
@@ -174,19 +174,4 @@ class ImapCredential < ApplicationRecord
     where(user_id: user.id).or(where("? = ANY(shared_with_user_ids)", user.id))
   end
 
-  private
-
-  # Auto-share with the user whose email address this is
-  # e.g., if Rachel sets up robert@teeem.au, Robert automatically gets access
-  def auto_share_with_email_owner
-    return unless email_address.present?
-
-    # Find user whose email matches this credential's email
-    email_owner = User.find_by(email: email_address)
-    return unless email_owner && email_owner.id != user_id
-
-    # Grant them access
-    grant_access_to!(email_owner)
-    Rails.logger.info "[ImapCredential] Auto-shared #{email_address} with #{email_owner.name} (owner of that email)"
-  end
 end

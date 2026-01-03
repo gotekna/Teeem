@@ -611,10 +611,16 @@ class XeroContactSyncService
     updates = {}
 
     # Get field mappings from sync config
-    field_mappings = @sync_config&.field_mappings || SyncConfiguration::DEFAULT_FIELD_MAPPINGS
+    # Merge DEFAULT with database config so new fields added to DEFAULT are picked up
+    # Database config takes precedence over defaults for existing fields
+    field_mappings = SyncConfiguration::DEFAULT_FIELD_MAPPINGS.merge(@sync_config&.field_mappings || {})
 
     # Only import fields where direction is 'import' or 'bidirectional'
-    importable_fields = field_mappings.select { |_, dir| [ "import", "bidirectional" ].include?(dir) }.keys
+    # Note: field_mappings values can be either a Hash with "direction" key or a string
+    importable_fields = field_mappings.select { |_, config|
+      direction = config.is_a?(Hash) ? config["direction"] : config
+      [ "import", "bidirectional" ].include?(direction)
+    }.keys
 
     # Extract Xero contact types (Customer/Supplier) - can be both!
     # NOTE: Do NOT set roles field - "customer"/"supplier" are NOT valid TEEEM roles
