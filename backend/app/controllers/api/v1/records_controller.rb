@@ -269,6 +269,10 @@ module Api
                 conn = ActiveRecord::Base.connection
                 quoted_column = conn.quote_column_name(column)
 
+                # Get actual database column type for type-safe operations
+                db_column = model.columns.find { |c| c.name == column }
+                db_column_type = db_column&.type
+
                 # Convert boolean string values ("Yes"/"No"/"true"/"false") to actual booleans
                 # Frontend dropdowns send string values for boolean columns
                 col_def = @foundation.columns.find_by(column_name: column)
@@ -319,13 +323,43 @@ module Api
                 when "<="
                   ["#{quoted_column} <= ?", value]
                 when "contains"
-                  ["#{quoted_column} ILIKE ?", "%#{value}%"]
+                  # Skip ILIKE for boolean columns (doesn't make semantic sense)
+                  # Cast other non-text columns to TEXT for ILIKE to work
+                  if db_column_type == :boolean
+                    Rails.logger.warn "[FILTER] Skipping 'contains' operator for boolean column #{column}"
+                    nil
+                  elsif [:integer, :bigint, :decimal, :float, :date, :datetime, :jsonb, :json].include?(db_column_type)
+                    ["CAST(#{quoted_column} AS TEXT) ILIKE ?", "%#{value}%"]
+                  else
+                    ["#{quoted_column} ILIKE ?", "%#{value}%"]
+                  end
                 when "not_contains"
-                  ["#{quoted_column} NOT ILIKE ? OR #{quoted_column} IS NULL", "%#{value}%"]
+                  if db_column_type == :boolean
+                    Rails.logger.warn "[FILTER] Skipping 'not_contains' operator for boolean column #{column}"
+                    nil
+                  elsif [:integer, :bigint, :decimal, :float, :date, :datetime, :jsonb, :json].include?(db_column_type)
+                    ["CAST(#{quoted_column} AS TEXT) NOT ILIKE ? OR #{quoted_column} IS NULL", "%#{value}%"]
+                  else
+                    ["#{quoted_column} NOT ILIKE ? OR #{quoted_column} IS NULL", "%#{value}%"]
+                  end
                 when "starts_with"
-                  ["#{quoted_column} ILIKE ?", "#{value}%"]
+                  if db_column_type == :boolean
+                    Rails.logger.warn "[FILTER] Skipping 'starts_with' operator for boolean column #{column}"
+                    nil
+                  elsif [:integer, :bigint, :decimal, :float, :date, :datetime, :jsonb, :json].include?(db_column_type)
+                    ["CAST(#{quoted_column} AS TEXT) ILIKE ?", "#{value}%"]
+                  else
+                    ["#{quoted_column} ILIKE ?", "#{value}%"]
+                  end
                 when "ends_with"
-                  ["#{quoted_column} ILIKE ?", "%#{value}"]
+                  if db_column_type == :boolean
+                    Rails.logger.warn "[FILTER] Skipping 'ends_with' operator for boolean column #{column}"
+                    nil
+                  elsif [:integer, :bigint, :decimal, :float, :date, :datetime, :jsonb, :json].include?(db_column_type)
+                    ["CAST(#{quoted_column} AS TEXT) ILIKE ?", "%#{value}"]
+                  else
+                    ["#{quoted_column} ILIKE ?", "%#{value}"]
+                  end
                 when "is_empty"
                   ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
                 when "is_not_empty"
