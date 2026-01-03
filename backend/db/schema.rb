@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_03_121123) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2572,8 +2572,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
     t.datetime "last_matched_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "microsoft_credential_id"
+    t.string "mailbox_email"
     t.index ["imap_credential_id", "is_active"], name: "index_email_rules_on_imap_credential_id_and_is_active"
     t.index ["imap_credential_id"], name: "index_email_rules_on_imap_credential_id"
+    t.index ["microsoft_credential_id"], name: "index_email_rules_on_microsoft_credential_id"
     t.index ["user_id", "priority"], name: "index_email_rules_on_user_id_and_priority"
     t.index ["user_id"], name: "index_email_rules_on_user_id"
   end
@@ -9864,6 +9867,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_091951) do
   add_foreign_key "email_label_assignments", "email_warehouses"
   add_foreign_key "email_labels", "users"
   add_foreign_key "email_rules", "imap_credentials"
+  add_foreign_key "email_rules", "microsoft_credentials", on_delete: :cascade
   add_foreign_key "email_rules", "users"
   add_foreign_key "email_snoozes", "email_warehouses"
   add_foreign_key "email_snoozes", "users"

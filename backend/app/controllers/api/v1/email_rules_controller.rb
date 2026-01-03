@@ -3,9 +3,11 @@ class Api::V1::EmailRulesController < ApplicationController
 
   # GET /api/v1/email_rules
   # List user's email rules
+  # SSoT: Supports both IMAP and MS365 account filtering
   def index
     rules = current_user.email_rules.by_priority
     rules = rules.where(imap_credential_id: params[:account_id]) if params[:account_id].present?
+    rules = rules.where(microsoft_credential_id: params[:microsoft_credential_id]) if params[:microsoft_credential_id].present?
 
     render json: {
       success: true,
@@ -68,11 +70,13 @@ class Api::V1::EmailRulesController < ApplicationController
 
   # POST /api/v1/email_rules/:id/apply
   # Apply rule to existing emails
+  # SSoT: Supports both IMAP and MS365 credentials
   def apply
     ApplyEmailRulesJob.perform_later(
       current_user.id,
       rule_id: @rule.id,
-      credential_id: params[:account_id]
+      credential_id: @rule.imap_credential_id,
+      microsoft_credential_id: @rule.microsoft_credential_id
     )
 
     render json: {
@@ -164,6 +168,8 @@ class Api::V1::EmailRulesController < ApplicationController
       :is_active,
       :stop_processing,
       :imap_credential_id,
+      :microsoft_credential_id,
+      :mailbox_email,
       conditions: {},
       actions: {}
     )
@@ -177,6 +183,8 @@ class Api::V1::EmailRulesController < ApplicationController
       is_active: rule.is_active,
       stop_processing: rule.stop_processing,
       imap_credential_id: rule.imap_credential_id,
+      microsoft_credential_id: rule.microsoft_credential_id,
+      mailbox_email: rule.mailbox_email,
       conditions: rule.conditions,
       actions: rule.actions,
       emails_matched: rule.emails_matched,

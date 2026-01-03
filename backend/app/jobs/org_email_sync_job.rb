@@ -302,6 +302,9 @@ class OrgEmailSyncJob < ApplicationJob
         Rails.logger.error "[OrgEmailSync] Failed to build recipients for email #{email.id}: #{e.message}"
         # Continue even if recipient building fails - email is still saved
       end
+
+      # Apply email rules (SSoT: same pattern as IMAP sync)
+      apply_rules_to_email(email)
     end
 
     email
@@ -401,5 +404,24 @@ class OrgEmailSyncJob < ApplicationJob
   # Impact: Avoids repeated blacklist queries during sync
   def cached_blacklist
     @blacklist_cache ||= EmailBlacklistItem.active.pluck(:pattern_type, :pattern)
+  end
+
+  # Apply email rules to a newly synced email
+  # SSoT: Uses EmailRuleService.apply_rules which handles MS365 via for_email scope
+  def apply_rules_to_email(email)
+    # Find a user to apply rules with - use synced_by_user if available, else org admin
+    user = email.synced_by_user || find_org_admin_user
+    return unless user
+
+    service = EmailRuleService.new(user)
+    service.apply_rules(email)
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to apply rules to email #{email.id}: #{e.message}"
+    # Don't fail the sync if rules fail
+  end
+
+  # Find an admin user for applying rules when no specific user is matched
+  def find_org_admin_user
+    @org_admin_user ||= User.where(role: "admin").first
   end
 end

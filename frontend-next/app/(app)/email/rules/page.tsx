@@ -51,6 +51,8 @@ interface EmailRule {
   is_active: boolean;
   stop_processing: boolean;
   imap_credential_id: number | null;
+  microsoft_credential_id: number | null;
+  mailbox_email: string | null;
   conditions: Record<string, string | boolean>;
   actions: Record<string, string | boolean>;
   emails_matched: number;
@@ -62,7 +64,8 @@ interface EmailAccount {
   id: number | string;
   name: string;
   email_address: string | null;
-  type: string;
+  type: "imap" | "ms365";
+  org_credential_id?: number; // For MS365 accounts
 }
 
 interface ConditionType {
@@ -131,9 +134,8 @@ export default function EmailRulesPage() {
         setRules(rulesRes.data);
       }
       if (accountsRes.success) {
-        // Filter to IMAP accounts only since rules only work for IMAP
-        const imapAccounts = accountsRes.data.filter((a: EmailAccount) => a.type === "imap");
-        setAccounts(imapAccounts);
+        // SSoT: Include both IMAP and MS365 accounts - rules now work for both
+        setAccounts(accountsRes.data);
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -156,7 +158,16 @@ export default function EmailRulesPage() {
   const openEditDialog = (rule: EmailRule) => {
     setEditingRule(rule);
     setFormName(rule.name);
-    setFormAccountId(rule.imap_credential_id?.toString() || "");
+    // SSoT: Handle both IMAP and MS365 account IDs
+    if (rule.imap_credential_id) {
+      setFormAccountId(rule.imap_credential_id.toString());
+    } else if (rule.microsoft_credential_id && rule.mailbox_email) {
+      // Reconstruct MS365 account ID format: ms365_{cred_id}_{hash}
+      const hash = rule.mailbox_email.split("").reduce((a, b) => (((a << 5) - a) + b.charCodeAt(0)) | 0, 0).toString(16).slice(0, 8);
+      setFormAccountId(`ms365_${rule.microsoft_credential_id}_${hash}`);
+    } else {
+      setFormAccountId("");
+    }
     setFormStopProcessing(rule.stop_processing);
 
     // Convert conditions object to array
@@ -250,10 +261,31 @@ export default function EmailRulesPage() {
       }
     });
 
+    // SSoT: Determine account type and set appropriate credential fields
+    let imap_credential_id: number | null = null;
+    let microsoft_credential_id: number | null = null;
+    let mailbox_email: string | null = null;
+
+    if (formAccountId) {
+      const selectedAccount = accounts.find(a => String(a.id) === formAccountId);
+      if (selectedAccount) {
+        if (selectedAccount.type === "ms365" && selectedAccount.org_credential_id) {
+          microsoft_credential_id = selectedAccount.org_credential_id;
+          mailbox_email = selectedAccount.email_address;
+        } else if (selectedAccount.type === "imap") {
+          imap_credential_id = typeof selectedAccount.id === "number"
+            ? selectedAccount.id
+            : parseInt(selectedAccount.id as string);
+        }
+      }
+    }
+
     const payload = {
       email_rule: {
         name: formName,
-        imap_credential_id: formAccountId ? parseInt(formAccountId) : null,
+        imap_credential_id,
+        microsoft_credential_id,
+        mailbox_email,
         stop_processing: formStopProcessing,
         conditions,
         actions,
@@ -514,13 +546,18 @@ export default function EmailRulesPage() {
               <Label>Apply to Account</Label>
               <Select value={formAccountId || "__all__"} onValueChange={(v) => setFormAccountId(v === "__all__" ? "" : v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All IMAP accounts" />
+                  <SelectValue placeholder="All accounts" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All IMAP accounts</SelectItem>
+                  <SelectItem value="__all__">All accounts (global rule)</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={String(account.id)} value={String(account.id)}>
-                      {account.name} ({account.email_address})
+                      <span className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] px-1">
+                          {account.type === "ms365" ? "365" : "IMAP"}
+                        </Badge>
+                        {account.name} ({account.email_address})
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
