@@ -12,7 +12,7 @@ import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { LayoutModeProvider, useLayoutMode } from "@/contexts/LayoutModeContext";
 import { BreadcrumbProvider } from "@/contexts/BreadcrumbContext";
 import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/BreadcrumbTrail";
-import { breadcrumbPinnedAtom, breadcrumbTrailAtom, breadcrumbVisibleAtom } from "@/lib/breadcrumb-atoms";
+import { breadcrumbTrailAtom } from "@/lib/breadcrumb-atoms";
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 
@@ -25,15 +25,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const vitalsInitialized = useRef(false);
 
   // Breadcrumb state for content push-down
-  // Note: We always read these atoms even if not used directly, to keep subscriptions consistent
-  const isPinned = useAtomValue(breadcrumbPinnedAtom);
-  const isVisible = useAtomValue(breadcrumbVisibleAtom);
   const trail = useAtomValue(breadcrumbTrailAtom);
-  // Always reserve space when trail exists to prevent CLS (layout shift)
-  // The breadcrumb bar itself handles visibility via opacity/transform
+  // Always reserve space when trail exists (breadcrumbs are always visible now)
   const hasTrail = trail.length >= 1;
-  // Keeping this for backwards compatibility but no longer used for layout
-  const _shouldShowBreadcrumbSpace = hasTrail && (isPinned || isVisible);
 
   // Initialize Performance Observatory Web Vitals collection
   useEffect(() => {

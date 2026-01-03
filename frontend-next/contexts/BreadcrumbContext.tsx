@@ -25,7 +25,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useAtom, useSetAtom } from "jotai";
 import {
   breadcrumbTrailAtom,
-  breadcrumbVisibleAtom,
   generateBreadcrumbId,
   MAX_TRAIL_LENGTH,
   type BreadcrumbItem,
@@ -54,7 +53,6 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [trail, setTrail] = useAtom(breadcrumbTrailAtom);
-  const setVisible = useSetAtom(breadcrumbVisibleAtom);
   const setSearchQuery = useSetAtom(searchQueryAtom);
 
   // Track previous pathname to detect changes
