@@ -268,6 +268,14 @@ class Contact < ApplicationRecord
   validates :entity_type, presence: { message: "must be selected" },
                           inclusion: { in: ENTITY_TYPES, allow_nil: true }
 
+  # SSoT: Unique company display_name (prevents duplicates from concurrent syncs)
+  # DB-enforced via partial unique index: idx_contacts_unique_company_name
+  validates :display_name, uniqueness: {
+    case_sensitive: false,
+    conditions: -> { where(is_active: true, entity_type: "company") },
+    message: "already exists for another company"
+  }, if: -> { entity_type == "company" && is_active? }
+
   # Entity-type specific name validations
   validate :validate_name_fields_for_entity_type
   validate :validate_name_casing          # Block ALL CAPS and lowercase names

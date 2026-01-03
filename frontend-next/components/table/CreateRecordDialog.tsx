@@ -154,6 +154,7 @@ export function CreateRecordDialog({
   const [showFieldConfig, setShowFieldConfig] = useState(false);
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
+  const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
 
   // DnD sensors
   const sensors = useSensors(
@@ -176,15 +177,27 @@ export function CreateRecordDialog({
   // Initialize visible fields and order on first render or when columns change
   React.useEffect(() => {
     if (filteredColumns.length > 0 && visibleFields.size === 0) {
-      // Show first 8 fields by default
-      const initialVisible = new Set(
+      // Find required fields - they MUST be visible
+      const requiredFields = filteredColumns.filter((col) => col.required);
+
+      // Show first 8 fields by default, but always include required fields
+      const firstEight = new Set(
         filteredColumns.slice(0, 8).map((col) => col.key)
       );
+      const initialVisible = new Set([
+        ...Array.from(firstEight),
+        ...requiredFields.map((col) => col.key),
+      ]);
       setVisibleFields(initialVisible);
 
-      // Set initial order
+      // Set initial order: required fields first, then others by original order
+      const requiredKeys = new Set(requiredFields.map((col) => col.key));
+      const orderedCols = [
+        ...requiredFields,
+        ...filteredColumns.filter((col) => !requiredKeys.has(col.key)),
+      ];
       const initialOrder: Record<string, number> = {};
-      filteredColumns.forEach((col, index) => {
+      orderedCols.forEach((col, index) => {
         initialOrder[col.key] = index + 1;
       });
       setFieldOrder(initialOrder);
@@ -197,6 +210,7 @@ export function CreateRecordDialog({
       setFormData({});
       setShowMoreFields(false);
       setShowFieldConfig(false);
+      setValidationErrors(new Set());
     }
   }, [open]);
 
@@ -268,10 +282,45 @@ export function CreateRecordDialog({
     }
   };
 
+  // Helper to check if a field value is empty
+  const isFieldEmpty = (value: unknown): boolean => {
+    if (value === undefined || value === null) return true;
+    if (typeof value === "string" && value.trim() === "") return true;
+    if (Array.isArray(value) && value.length === 0) return true;
+    return false;
+  };
+
+  // Clear validation error when field is filled
+  const handleFieldChange = (key: string, value: unknown) => {
+    setFormData({ ...formData, [key]: value });
+    // Clear error for this field if it now has a value
+    if (validationErrors.has(key) && !isFieldEmpty(value)) {
+      const newErrors = new Set(validationErrors);
+      newErrors.delete(key);
+      setValidationErrors(newErrors);
+    }
+  };
+
   // Render form field based on column type
   const renderFormField = (col: TableColumn) => {
     const value = formData[col.key];
     const label = col.label || col.key;
+    const isRequired = col.required === true;
+    const hasError = validationErrors.has(col.key);
+
+    // Label component with required asterisk
+    const FieldLabel = ({ htmlFor, children, className }: { htmlFor: string; children: React.ReactNode; className?: string }) => (
+      <Label htmlFor={htmlFor} className={cn(className, hasError && "text-destructive")}>
+        {children}
+        {isRequired && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+    );
+
+    // Error message
+    const ErrorMessage = () =>
+      hasError ? (
+        <p className="text-xs text-destructive mt-1">This field is required</p>
+      ) : null;
 
     switch (col.column_type) {
       case "boolean":
@@ -281,12 +330,12 @@ export function CreateRecordDialog({
               id={col.key}
               checked={value === true}
               onCheckedChange={(checked) =>
-                setFormData({ ...formData, [col.key]: checked === true })
+                handleFieldChange(col.key, checked === true)
               }
             />
-            <Label htmlFor={col.key} className="cursor-pointer">
+            <FieldLabel htmlFor={col.key} className="cursor-pointer">
               {label}
-            </Label>
+            </FieldLabel>
           </div>
         );
 
@@ -294,16 +343,18 @@ export function CreateRecordDialog({
       case "long_text":
         return (
           <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
             <textarea
               id={col.key}
               value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
+              onChange={(e) => handleFieldChange(col.key, e.target.value)}
               rows={3}
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className={cn(
+                "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
+                hasError && "border-destructive focus-visible:ring-destructive"
+              )}
             />
+            <ErrorMessage />
           </div>
         );
 
@@ -313,116 +364,113 @@ export function CreateRecordDialog({
       case "percentage":
         return (
           <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
             <Input
               id={col.key}
               type="number"
               step={col.column_type === "whole_number" ? "1" : "any"}
               value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
+              onChange={(e) => handleFieldChange(col.key, e.target.value)}
+              className={cn(hasError && "border-destructive focus-visible:ring-destructive")}
             />
+            <ErrorMessage />
           </div>
         );
 
       case "date":
         return (
           <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
             <Input
               id={col.key}
               type="date"
               value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
+              onChange={(e) => handleFieldChange(col.key, e.target.value)}
+              className={cn(hasError && "border-destructive focus-visible:ring-destructive")}
             />
+            <ErrorMessage />
           </div>
         );
 
       case "date_and_time":
         return (
           <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
             <Input
               id={col.key}
               type="datetime-local"
               value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
+              onChange={(e) => handleFieldChange(col.key, e.target.value)}
+              className={cn(hasError && "border-destructive focus-visible:ring-destructive")}
             />
+            <ErrorMessage />
           </div>
         );
 
       case "email":
         return (
           <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
             <Input
               id={col.key}
               type="email"
               value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
+              onChange={(e) => handleFieldChange(col.key, e.target.value)}
+              className={cn(hasError && "border-destructive focus-visible:ring-destructive")}
             />
+            <ErrorMessage />
           </div>
         );
 
       case "url":
         return (
           <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
             <Input
               id={col.key}
               type="url"
               value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
+              onChange={(e) => handleFieldChange(col.key, e.target.value)}
+              className={cn(hasError && "border-destructive focus-visible:ring-destructive")}
             />
+            <ErrorMessage />
           </div>
         );
 
       case "color_picker":
         return (
           <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
             <div className="flex items-center gap-2">
               <Input
                 id={col.key}
                 type="color"
                 value={String(value || "#000000")}
-                onChange={(e) =>
-                  setFormData({ ...formData, [col.key]: e.target.value })
-                }
-                className="w-16 h-10 p-1"
+                onChange={(e) => handleFieldChange(col.key, e.target.value)}
+                className={cn("w-16 h-10 p-1", hasError && "border-destructive")}
               />
               <Input
                 value={String(value || "")}
-                onChange={(e) =>
-                  setFormData({ ...formData, [col.key]: e.target.value })
-                }
+                onChange={(e) => handleFieldChange(col.key, e.target.value)}
                 placeholder="#000000"
-                className="flex-1"
+                className={cn("flex-1", hasError && "border-destructive focus-visible:ring-destructive")}
               />
             </div>
+            <ErrorMessage />
           </div>
         );
 
       default:
         return (
           <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
+            <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
             <Input
               id={col.key}
               value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
+              onChange={(e) => handleFieldChange(col.key, e.target.value)}
+              className={cn(hasError && "border-destructive focus-visible:ring-destructive")}
             />
+            <ErrorMessage />
           </div>
         );
     }
@@ -430,6 +478,31 @@ export function CreateRecordDialog({
 
   // Handle form submission
   const handleCreate = async () => {
+    // Validate required fields
+    const requiredColumns = filteredColumns.filter((col) => col.required === true);
+    const missingFields = requiredColumns.filter((col) => isFieldEmpty(formData[col.key]));
+
+    if (missingFields.length > 0) {
+      // Set validation errors
+      setValidationErrors(new Set(missingFields.map((col) => col.key)));
+
+      // Show toast with missing field names
+      const fieldNames = missingFields.map((col) => col.label || col.key).join(", ");
+      toast({
+        title: "Required Fields Missing",
+        description: `Please fill in: ${fieldNames}`,
+        variant: "destructive",
+      });
+
+      // Ensure missing fields are visible by expanding hidden fields if needed
+      const hiddenMissing = missingFields.filter((col) => !visibleFields.has(col.key));
+      if (hiddenMissing.length > 0) {
+        setShowMoreFields(true);
+      }
+
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {

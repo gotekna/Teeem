@@ -932,24 +932,51 @@ class XeroContactSyncService
       end
     end
 
-    new_contact = Contact.create!(contact_data.compact)
-    Rails.logger.info("Created TEEEM contact from Xero: #{xero_contact['Name']}")
+    # SSoT: For companies, use find_or_create_by! with DB constraint protection
+    # This prevents race conditions where concurrent syncs create duplicate contacts
+    # before the xero_link is saved. DB index idx_contacts_unique_company_name enforces uniqueness.
+    if is_company
+      new_contact = Contact.find_or_create_by!(
+        entity_type: "company",
+        display_name: contact_data[:display_name]&.strip
+      ) do |c|
+        # Only set these attributes if creating (not finding)
+        contact_data.compact.each { |k, v| c.send("#{k}=", v) if c.respond_to?("#{k}=") }
+      end
+      was_created = new_contact.previous_changes.key?("id")
+    else
+      new_contact = Contact.create!(contact_data.compact)
+      was_created = true
+    end
 
-    # Create the xero link
+    Rails.logger.info("#{was_created ? 'Created' : 'Found existing'} TEEEM contact from Xero: #{xero_contact['Name']}")
+
+    # Create the xero link (works for both new and existing contacts)
     create_or_update_xero_link(new_contact, xero_contact, tenant_id)
 
     # Sync contact persons from Xero
     sync_contact_persons(new_contact, xero_contact)
 
     # Log activity for new contact creation
-    ContactActivity.log_xero_sync(
-      contact: new_contact,
-      action: "created",
-      changes: {},
-      xero_data: xero_contact
-    )
+    if was_created
+      ContactActivity.log_xero_sync(
+        contact: new_contact,
+        action: "created",
+        changes: {},
+        xero_data: xero_contact
+      )
+    end
 
     new_contact
+  rescue ActiveRecord::RecordNotUnique => e
+    # DB constraint caught a duplicate (concurrent sync created it between find and create)
+    Rails.logger.warn("[XeroSync] Duplicate prevented by DB constraint, finding existing: #{contact_data[:display_name]}")
+    existing = Contact.find_by(entity_type: "company", display_name: contact_data[:display_name]&.strip, is_active: true)
+    if existing
+      create_or_update_xero_link(existing, xero_contact, tenant_id)
+      sync_contact_persons(existing, xero_contact)
+    end
+    existing
   rescue StandardError => e
     error_msg = "Failed to create TEEEM contact from Xero: #{e.message}"
     Rails.logger.error(error_msg)
