@@ -5955,6 +5955,7 @@ export default function TeeemTableView({
       {/* Table - scrollable container with max height so scrollbar stays visible */}
       {/* Account for: nav(64) + page header(80) + data health(60 collapsed/40vh expanded) + toolbar(50) + footer(30) */}
       {/* Keyboard navigation: Arrow keys, Enter, Space, Escape, / (search) */}
+      {/* CLS FIX: contain: layout prevents reflows from propagating */}
       <div
         ref={tableContainerRef}
         className={cn(
@@ -5962,6 +5963,7 @@ export default function TeeemTableView({
           tableHasFocus && "ring-2 ring-primary/20 ring-inset",
           debugGrid && "border-4 border-orange-500 bg-orange-50 dark:bg-orange-950/20"
         )}
+        style={{ contain: 'layout' }}
         role="region"
         aria-label={`${tableName} table with ${filteredAndSortedEntries.length} rows`}
         aria-busy={columnsLoading || serverSearchLoading || loadingMore}
@@ -5973,13 +5975,15 @@ export default function TeeemTableView({
           </div>
         )}
         {/* Show skeleton while columns are loading */}
-        {/* ULTRA FIX: Pass grouped prop to prevent CLS when table will render with grouping */}
+        {/* ULTRA FIX: Pass grouped prop AND groupCount to prevent CLS when table will render with grouping */}
+        {/* CLS FIX: Use actual group count from SSR data to match skeleton height to real content */}
         {columnsLoading ? (
           <TableSkeleton
             rowCount={10}
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
             showHeader
             grouped={!!groupByColumn}
+            groupCount={serverGroupCounts?.length || initialGroupCounts?.groups?.length || 4}
           />
         ) : filteredAndSortedEntries.length === 0 && effectiveLoadingMore ? (
           /* Show skeleton while initial records are loading - prevents CLS */
@@ -5988,6 +5992,7 @@ export default function TeeemTableView({
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
             showHeader
             grouped={!!groupByColumn}
+            groupCount={serverGroupCounts?.length || initialGroupCounts?.groups?.length || 4}
           />
         ) : filteredAndSortedEntries.length === 0 && search ? (
           /* Show no results message when search is active but no matches */

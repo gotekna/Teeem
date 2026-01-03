@@ -66,9 +66,10 @@ export function TableSkeleton({
           )}
           <TableBody>
             {/* Render group header skeletons (collapsed groups) */}
+            {/* CLS FIX: Use py-1 to match real group headers in TeeemTableView.tsx line 4501 */}
             {Array.from({ length: groupCount }).map((_, groupIndex) => (
               <TableRow key={groupIndex} className="bg-muted/30">
-                <TableCell colSpan={columnCount} className="py-2">
+                <TableCell colSpan={columnCount} className="py-1">
                   <div className="flex items-center gap-2">
                     {/* Expand/collapse chevron skeleton */}
                     <div className="h-4 w-4 rounded bg-muted animate-pulse" />
