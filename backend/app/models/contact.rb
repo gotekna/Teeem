@@ -52,7 +52,16 @@ class Contact < ApplicationRecord
            foreign_key: :related_contact_id, dependent: :destroy
   has_many :related_contacts, through: :outgoing_relationships, source: :related_contact
 
-  # Primary company relationship (person works for company)
+  # ============================================
+  # DEPRECATED: primary_company_id (Legacy Field)
+  # ============================================
+  # SSoT: Use ContactRelationship with relationship_type="employee_of" instead
+  # This column is kept for backwards compatibility but is scheduled for removal.
+  # Changes to primary_company_id are automatically synced to ContactRelationship via callbacks.
+  # For new code, use:
+  #   - employers method (reads from relationships)
+  #   - outgoing_relationships.where(relationship_type: "employee_of")
+  # See: lib/tasks/ensure_contact_relationships.rake for audit/backfill tools
   belongs_to :primary_company, class_name: "Contact", optional: true, counter_cache: :employees_count
   has_many :employees, class_name: "Contact", foreign_key: :primary_company_id, dependent: :nullify
 
