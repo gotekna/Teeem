@@ -6001,9 +6001,10 @@ export default function TeeemTableView({
             <p className="text-sm font-medium">No results found</p>
             <p className="text-xs mt-1">No records match "{search}"</p>
           </div>
-        ) : initialView?.group_by_columns?.length && !groupedEntries ? (
+        ) : (initialView?.group_by_columns?.length || initialView?.group_by_column) && !groupedEntries ? (
           /* CLS FIX: SSR grouped view pending - show skeleton until groupedEntries is computed
-           * This prevents flat → grouped transition which causes layout shift */
+           * This prevents flat → grouped transition which causes layout shift
+           * Check both group_by_columns (plural) and group_by_column (singular) */
           <TableSkeleton
             rowCount={10}
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
