@@ -1276,6 +1276,39 @@ export function ScheduleMasterTab() {
     }
   };
 
+  // Gantt V2: Handle rollover (move tasks off weekends/holidays)
+  // SSoT: POST /api/v1/sm_schedule_master_templates/:id/validate_dates
+  const handleGanttV2Rollover = async () => {
+    if (!ganttV2TemplateId) return null;
+
+    console.log('[Gantt V2] Rollover: validating dates for template:', ganttV2TemplateId);
+
+    try {
+      const result = await api.post<{
+        success: boolean;
+        updated: number;
+        date_map: Record<number, { start_date: string; end_date: string }>;
+      }>(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/validate_dates`);
+
+      if (result?.success) {
+        toast({
+          title: "Schedule Updated",
+          description: `${result.updated} task(s) recalculated to working days`,
+        });
+
+        // Refresh data to show new dates
+        loadGanttV2Data(ganttV2TemplateId);
+
+        return { rolled_over: result.updated, extended: 0, cascaded: 0 };
+      }
+      return null;
+    } catch (error) {
+      console.error('[Gantt V2] Rollover failed:', error);
+      toast({ title: "Error", description: "Failed to validate dates", variant: "destructive" });
+      return null;
+    }
+  };
+
   // Gantt V2: Handle dependency create
   const handleGanttV2DependencyCreate = async (fromId: string, toId: string, type: string) => {
     if (!ganttV2TemplateId) return;
@@ -1798,13 +1831,50 @@ export function ScheduleMasterTab() {
     setGanttV2TemplateId(templateId);
     setGanttV2Loading(true);
     try {
+      // SSoT: Get validated dates from backend (skips weekends/holidays using WorkingDaysCalculator)
+      let dateMap: Record<number, { start_date: string; end_date: string }> | null = null;
+      try {
+        console.log('[Gantt V2] 🔄 Running auto-rollover on template load...');
+        const validateResult = await api.post<{
+          success: boolean;
+          updated: number;
+          date_map: Record<number, { start_date: string; end_date: string }>;
+        }>(
+          `/api/v1/sm_schedule_master_templates/${templateId}/validate_dates`
+        );
+        if (validateResult?.updated && validateResult.updated > 0) {
+          console.log(`[Gantt V2] ✅ Auto-rollover calculated ${validateResult.updated} task(s) to working days`);
+        }
+        dateMap = validateResult?.date_map || null;
+      } catch (rolloverErr) {
+        console.warn('[Gantt V2] Auto-rollover failed (continuing anyway):', rolloverErr);
+      }
+
       const data = await api.get<{ success: boolean; rows: GanttSmScheduleMaster[] }>(
         `/api/v1/sm_schedule_master_templates/${templateId}/rows`
       );
       const rows = data.rows || [];
       // Convert to GanttTask[] format using SSoT converter
       const projectStartDate = new Date(); // Use today as project start for template preview
-      const tasks = convertRowsToTasks(rows, projectStartDate);
+      let tasks = convertRowsToTasks(rows, projectStartDate);
+
+      // SSoT: Apply backend-calculated dates (WorkingDaysCalculator ensures no weekends/holidays)
+      if (dateMap) {
+        console.log('[Gantt V2] 📅 Applying backend date_map to tasks');
+        tasks = tasks.map(task => {
+          // Find row by task.id (which is row.id as string)
+          const row = rows.find(r => String(r.id) === task.id);
+          if (row && dateMap[row.task_number]) {
+            const dates = dateMap[row.task_number];
+            return {
+              ...task,
+              startDate: new Date(dates.start_date + 'T00:00:00'), // Parse as local date
+              endDate: new Date(dates.end_date + 'T00:00:00'),
+            };
+          }
+          return task;
+        });
+      }
       // Extract dependencies from tasks (predecessor_ids are embedded in tasks)
       const dependencies: GanttDependency[] = [];
       for (const row of rows) {
@@ -2153,6 +2223,7 @@ export function ScheduleMasterTab() {
                   onUndo={handleGanttV2Undo}
                   onEditDependencies={handleGanttV2EditDependencies}
                   onDurationChange={handleGanttV2DurationChange}
+                  onRollover={handleGanttV2Rollover}
                   onDataChange={() => {
                     // Refresh data when something changes
                     if (ganttV2TemplateId) {
@@ -2939,15 +3010,30 @@ export function ScheduleMasterTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Row Edit Sheet - Compact 2-column layout to avoid scrolling */}
-      <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <SheetContent side="right-xl">
-          <SheetHeader className="pb-2">
-            <SheetTitle>Edit Row</SheetTitle>
-            <SheetDescription>
+      {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
+      <Dialog open={showEditSheet} onOpenChange={setShowEditSheet}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Edit Row
+              {/* Show parent header if this task is part of one */}
+              {editingRow && editingRow.header_gantt && (() => {
+                const parentTaskNumber = extractLookupId(editingRow.header_gantt);
+                const parentHeader = parentTaskNumber ? dataViewRows.find(r => String(r.task_number) === String(parentTaskNumber)) : null;
+                if (parentHeader) {
+                  return (
+                    <Badge variant="outline" className="text-xs font-normal">
+                      Part of: {parentHeader.name}
+                    </Badge>
+                  );
+                }
+                return null;
+              })()}
+            </DialogTitle>
+            <DialogDescription>
               {editingRow?.name} (Task #{editingRow?.task_number})
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
           <div className="py-3 space-y-3">
             {/* Row 1: Name + Duration + Sequence - full width */}
             <div className="grid grid-cols-[1fr_80px_80px] gap-3">
@@ -2993,10 +3079,11 @@ export function ScheduleMasterTab() {
                 placeholder="Optional description..."
               />
             </div>
-            {/* Two-column layout for dropdowns and settings */}
-            <div className="grid grid-cols-2 gap-6">
-              {/* Left Column */}
+            {/* Three-column layout for wider modal */}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Column 1: Basic Settings */}
               <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Basic Settings</h4>
                 <div className="space-y-1">
                   <Label className="text-xs">Trade</Label>
                   <ComboboxDropdown
@@ -3134,8 +3221,9 @@ export function ScheduleMasterTab() {
                 </div>
               </div>
 
-              {/* Right Column */}
+              {/* Column 2: Classification */}
               <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Classification</h4>
                 <div className="space-y-1">
                   <Label className="text-xs">Stage</Label>
                   <ComboboxDropdown
@@ -3160,6 +3248,11 @@ export function ScheduleMasterTab() {
                     onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
                   />
                 </div>
+              </div>
+
+              {/* Column 3: Relationships & Header */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Relationships</h4>
                 <div className="space-y-1">
                   <Label className="text-xs">Header Gantt</Label>
                   <ComboboxDropdown
@@ -3281,19 +3374,41 @@ export function ScheduleMasterTab() {
                     </Label>
                     <p className="text-[10px] text-muted-foreground">Can be selected as parent for other tasks</p>
                   </div>
-                  {editRowForm.allow_header && (
-                    <Badge className="text-[10px] bg-blue-500">Header</Badge>
-                  )}
+                  {editRowForm.allow_header && editingRow && (() => {
+                    const children = dataViewRows.filter(r => {
+                      const parentId = extractLookupId(r.header_gantt);
+                      return parentId && String(parentId) === String(editingRow.task_number);
+                    });
+                    const childCount = children.length;
+                    const subHeaderCount = children.filter(c => c.allow_header).length;
+
+                    return (
+                      <div className="flex items-center gap-1">
+                        <Badge className="text-[10px] bg-blue-500">Header</Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {childCount} {childCount === 1 ? 'child' : 'children'}
+                        </Badge>
+                        {subHeaderCount > 0 && (
+                          <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-500">
+                            {subHeaderCount} sub-header{subHeaderCount !== 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 {/* Child Tasks - shown when Allow Header is enabled */}
                 {editRowForm.allow_header && editingRow && (
                   <div className="pt-2 border-t">
-                    <Label className="text-xs">Child Tasks (tasks grouped under this header)</Label>
+                    <Label className="text-xs">Child Tasks ({dataViewRows.filter(r => {
+                      const parentId = extractLookupId(r.header_gantt);
+                      return parentId && String(parentId) === String(editingRow.task_number);
+                    }).length} grouped under this header)</Label>
                     <MultipleSelector
                       value={dataViewRows
                         .filter(r => {
                           const parentId = extractLookupId(r.header_gantt);
-                          return parentId && String(parentId) === String(editingRow.id);
+                          return parentId && String(parentId) === String(editingRow.task_number);
                         })
                         .map(r => ({ value: String(r.id), label: r.name }))}
                       onChange={async (options) => {
@@ -3301,7 +3416,7 @@ export function ScheduleMasterTab() {
                         const currentChildIds = dataViewRows
                           .filter(r => {
                             const parentId = extractLookupId(r.header_gantt);
-                            return parentId && String(parentId) === String(editingRow.id);
+                            return parentId && String(parentId) === String(editingRow.task_number);
                           })
                           .map(r => r.id);
                         const newChildIds = options.map(o => parseInt(o.value));
@@ -3337,12 +3452,12 @@ export function ScheduleMasterTab() {
                       }}
                       defaultOptions={dataViewRows
                         .filter(r => {
-                          // Exclude: this task, other headers, and tasks that already have a different header
+                          // Exclude: this task and tasks that already have a different header
                           if (r.id === editingRow.id) return false;
-                          if (r.allow_header) return false;  // Headers can't be children
+                          // Note: Headers CAN be children (sub-headers) - e.g., DRIVEWAY under SITE COSTS
                           const parentId = extractLookupId(r.header_gantt);
                           // Include if no parent or parent is this task
-                          return !parentId || String(parentId) === String(editingRow.id);
+                          return !parentId || String(parentId) === String(editingRow.task_number);
                         })
                         .map(r => ({
                           value: String(r.id),
@@ -3411,13 +3526,13 @@ export function ScheduleMasterTab() {
               </div>
             )}
           </div>
-          <SheetFooter className="flex items-center justify-end">
+          <DialogFooter className="flex items-center justify-end">
             <Button variant="outline" onClick={() => setShowEditSheet(false)}>
               Close
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Auto-PO Configuration Dialog */}
       <Dialog open={showAutoPODialog} onOpenChange={setShowAutoPODialog}>

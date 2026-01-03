@@ -39,6 +39,7 @@ import { XeroHealthTab } from "../components/XeroHealthTab";
 import { CostTab } from "../components/CostTab";
 import { UnrealEngineTab } from "../components/UnrealEngineTab";
 import { ConnectionsTab } from "../components/ConnectionsTab";
+import { AgentsTab } from "../components/AgentsTab";
 import CompanyInfoTab from "../components/CompanyInfoTab";
 
 // Company subtabs
@@ -261,6 +262,9 @@ export default function SystemAdminCatchAllPage({
 
       case "unreal-engine":
         return <UnrealEngineTab />;
+
+      case "agents":
+        return <AgentsTab />;
 
       default:
         return (

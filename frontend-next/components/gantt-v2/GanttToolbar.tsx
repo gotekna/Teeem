@@ -34,6 +34,7 @@ import {
   Check,
   RefreshCw,
   GripVertical,
+  FastForward,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { TableColumn } from './UnifiedGanttCanvas';
@@ -95,6 +96,10 @@ interface GanttToolbarProps {
   // Refresh
   onRefresh?: () => void;
 
+  // Rollover - SSoT: POST /api/v1/jobs/{jobId}/sm_tasks/validate_dates
+  onRollover?: () => void;
+  isRollingOver?: boolean;
+
   // Job-specific: Photo panel toggle
   jobId?: number;
   showPhotoPanel?: boolean;
@@ -134,6 +139,8 @@ export function GanttToolbar({
   onColumnReorder,
   onExportPNG,
   onRefresh,
+  onRollover,
+  isRollingOver = false,
   jobId,
   showPhotoPanel,
   onTogglePhotoPanel,
@@ -204,6 +211,20 @@ export function GanttToolbar({
             className="h-8 w-8"
           >
             <RefreshCw className="h-4 w-4" />
+          </Button>
+        )}
+
+        {/* Rollover Button - SSoT: moves past-due tasks forward */}
+        {onRollover && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRollover}
+            disabled={isRollingOver}
+            title="Rollover: Move past-due tasks to today"
+            className="h-8 w-8"
+          >
+            <FastForward className={`h-4 w-4 ${isRollingOver ? 'animate-pulse' : ''}`} />
           </Button>
         )}
 

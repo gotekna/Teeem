@@ -59,6 +59,9 @@ export interface GanttUnifiedProps {
   onEditDependencies?: (task: GanttTask) => void;
   onDurationChange?: (taskId: string, newDuration: number) => void;
 
+  // Rollover - SSoT: POST /api/v1/jobs/{jobId}/sm_tasks/validate_dates
+  onRollover?: () => Promise<{ rolled_over: number; extended: number; cascaded: number } | null>;
+
   // View options
   viewSlug?: string;
   onViewClear?: () => void;
@@ -127,6 +130,7 @@ export function GanttUnified({
   onUndo,
   onEditDependencies,
   onDurationChange,
+  onRollover,
   viewSlug,
   onViewClear,
   showPhotoPanel,
@@ -141,6 +145,12 @@ export function GanttUnified({
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const ganttEngineRef = React.useRef<UnifiedGanttCanvas | null>(null);
 
+  // Callback refs - use refs to avoid engine recreation when callbacks change
+  const onTaskClickRef = React.useRef(onTaskClick);
+  const onTaskDoubleClickRef = React.useRef(onTaskDoubleClick);
+  React.useEffect(() => { onTaskClickRef.current = onTaskClick; }, [onTaskClick]);
+  React.useEffect(() => { onTaskDoubleClickRef.current = onTaskDoubleClick; }, [onTaskDoubleClick]);
+
   // ---------------------------------------------------------------------------
   // Theme
   // ---------------------------------------------------------------------------
@@ -154,6 +164,7 @@ export function GanttUnified({
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [isRollingOver, setIsRollingOver] = React.useState(false);
 
   // Viewport state (scroll position, zoom)
   const [viewport, setViewport] = React.useState<ViewportState>({
@@ -248,11 +259,11 @@ export function GanttUnified({
           setSelectedTaskIds(ids);
         },
         onTaskClick: (task) => {
-          onTaskClick?.(task);
+          onTaskClickRef.current?.(task);
         },
         onTaskDoubleClick: (task) => {
           console.log('[GanttUnified] onTaskDoubleClick callback:', task.id, task.name);
-          onTaskDoubleClick?.(task);
+          onTaskDoubleClickRef.current?.(task);
         },
         onColumnsChange: (newColumns) => {
           // Update local state
@@ -356,6 +367,31 @@ export function GanttUnified({
       engine.setTasks(tasks);
       engine.setDependencies(dependencies);
 
+      // Load holidays immediately after engine creation
+      const loadHolidays = async () => {
+        const currentYear = new Date().getFullYear();
+        try {
+          const data = await api.get<{ dates: string[] }>(
+            `/api/v1/public_holidays/dates?year_start=${currentYear}&year_end=${currentYear + 2}&region=QLD`
+          );
+          if (data.dates && Array.isArray(data.dates)) {
+            const holidays = data.dates.map((dateStr: string) => {
+              // Parse date string as local date (not UTC) to avoid timezone shift
+              const [year, month, day] = dateStr.split('-').map(Number);
+              return {
+                date: new Date(year, month - 1, day), // month is 0-indexed
+                name: 'Public Holiday',
+              };
+            });
+            console.log('[GanttUnified] Loaded holidays from API:', holidays.length, holidays.slice(0, 3));
+            engine.addHolidays(holidays);
+          }
+        } catch (err) {
+          console.warn('[GanttUnified] Failed to load holidays from API:', err);
+        }
+      };
+      loadHolidays();
+
       setIsLoading(false);
     } catch (err) {
       console.error('[GanttUnified] Failed to initialize canvas:', err);
@@ -370,7 +406,7 @@ export function GanttUnified({
         ganttEngineRef.current = null;
       }
     };
-  }, [jobId, isDarkMode, onTaskClick, onTaskDoubleClick]); // Include callbacks and theme to prevent stale closures
+  }, [jobId, isDarkMode]); // Callbacks use refs to avoid engine recreation
 
   // ---------------------------------------------------------------------------
   // Data Updates
@@ -387,39 +423,6 @@ export function GanttUnified({
       ganttEngineRef.current.setDependencies(dependencies);
     }
   }, [dependencies]);
-
-  // ---------------------------------------------------------------------------
-  // Holiday Loading
-  // ---------------------------------------------------------------------------
-
-  React.useEffect(() => {
-    if (!ganttEngineRef.current) return;
-
-    const loadHolidays = async () => {
-      const currentYear = new Date().getFullYear();
-
-      try {
-        // Try to load from API first (using api client for proper base URL)
-        const data = await api.get<{ dates: string[] }>(
-          `/api/v1/public_holidays/dates?year_start=${currentYear}&year_end=${currentYear + 2}&region=QLD`
-        );
-
-        if (data.dates && Array.isArray(data.dates)) {
-          const holidays = data.dates.map((dateStr: string) => ({
-            date: new Date(dateStr),
-            name: 'Public Holiday',
-          }));
-          console.log('[GanttUnified] Loaded holidays from API:', holidays.length);
-          ganttEngineRef.current?.addHolidays(holidays);
-          return;
-        }
-      } catch (err) {
-        console.warn('[GanttUnified] Failed to load holidays from API:', err);
-      }
-    };
-
-    loadHolidays();
-  }, []);
 
   // ---------------------------------------------------------------------------
   // Event Handlers
@@ -510,6 +513,20 @@ export function GanttUnified({
       ganttEngineRef.current.downloadPNG(filename);
     }
   }, [jobId, templateId]);
+
+  // Rollover handler - SSoT: POST /api/v1/jobs/{jobId}/sm_tasks/validate_dates
+  const handleRollover = React.useCallback(async () => {
+    if (!onRollover) return;
+
+    setIsRollingOver(true);
+    try {
+      const result = await onRollover();
+      // Parent handles toast/refresh
+      return result;
+    } finally {
+      setIsRollingOver(false);
+    }
+  }, [onRollover]);
 
   // Checkbox toggle handler (called from overlay)
   const handleCheckboxToggle = React.useCallback(
@@ -741,6 +758,8 @@ export function GanttUnified({
           onColumnReorder={handleColumnReorder}
           onExportPNG={handleExportPNG}
           onRefresh={onDataChange}
+          onRollover={onRollover ? handleRollover : undefined}
+          isRollingOver={isRollingOver}
           jobId={jobId}
           showPhotoPanel={showPhotoPanel}
           onTogglePhotoPanel={onTogglePhotoPanel}

@@ -194,13 +194,13 @@ export default function PortalPayNow() {
 
   const getStatusBadgeClass = (status: string) => {
     const classes: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      approved: "bg-green-100 text-green-800",
-      paid: "bg-blue-100 text-blue-800",
-      rejected: "bg-red-100 text-red-800",
-      cancelled: "bg-gray-100 text-gray-800",
+      pending: "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300",
+      approved: "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300",
+      paid: "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300",
+      rejected: "bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300",
+      cancelled: "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300",
     };
-    return classes[status] || "bg-gray-100 text-gray-800";
+    return classes[status] || "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300";
   };
 
   const formatCurrency = (amount: number | string): string => {
@@ -238,8 +238,8 @@ export default function PortalPayNow() {
       {/* Header */}
       <div className="sm:flex sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pay Now</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pay Now</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Request early payment with a 5% discount
           </p>
         </div>
@@ -254,18 +254,18 @@ export default function PortalPayNow() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
+        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <BanknotesIcon className="h-6 w-6 text-gray-400" />
+                <BanknotesIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                     Total Requests
                   </dt>
-                  <dd className="text-lg font-medium text-gray-900">
+                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
                     {stats.total_requests || 0}
                   </dd>
                 </dl>
@@ -274,7 +274,7 @@ export default function PortalPayNow() {
           </div>
         </div>
 
-        <div className="bg-white overflow-hidden shadow rounded-lg">
+        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -282,10 +282,10 @@ export default function PortalPayNow() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                     Total Paid
                   </dt>
-                  <dd className="text-lg font-medium text-gray-900">
+                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
                     {formatCurrency(stats.total_paid || 0)}
                   </dd>
                 </dl>
@@ -294,7 +294,7 @@ export default function PortalPayNow() {
           </div>
         </div>
 
-        <div className="bg-white overflow-hidden shadow rounded-lg">
+        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -302,10 +302,10 @@ export default function PortalPayNow() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                     Total Savings
                   </dt>
-                  <dd className="text-lg font-medium text-gray-900">
+                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
                     {formatCurrency(stats.total_savings || 0)}
                   </dd>
                 </dl>
@@ -314,7 +314,7 @@ export default function PortalPayNow() {
           </div>
         </div>
 
-        <div className="bg-white overflow-hidden shadow rounded-lg">
+        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -322,10 +322,10 @@ export default function PortalPayNow() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                     This Week
                   </dt>
-                  <dd className="text-lg font-medium text-gray-900">
+                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
                     {stats.this_week_requests || 0} requests
                   </dd>
                 </dl>
@@ -337,16 +337,16 @@ export default function PortalPayNow() {
 
       {/* Weekly Limit Info */}
       {weeklyLimit && weeklyLimit.remaining_amount && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-indigo-800">
+              <h3 className="text-sm font-medium text-indigo-800 dark:text-indigo-200">
                 Weekly Limit Available
               </h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-900">
+              <p className="mt-1 text-2xl font-semibold text-indigo-900 dark:text-indigo-100">
                 {weeklyLimit.remaining_amount}
               </p>
-              <p className="mt-1 text-xs text-indigo-600">
+              <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-300">
                 {weeklyLimit.utilization_percentage}% of {weeklyLimit.total_limit}{" "}
                 used
               </p>
@@ -361,7 +361,7 @@ export default function PortalPayNow() {
                     stroke="currentColor"
                     strokeWidth="8"
                     fill="transparent"
-                    className="text-indigo-200"
+                    className="text-indigo-200 dark:text-indigo-800"
                   />
                   <circle
                     cx="64"
@@ -373,11 +373,11 @@ export default function PortalPayNow() {
                     strokeDasharray={`${
                       (weeklyLimit.utilization_percentage || 0) * 3.52
                     } 352`}
-                    className="text-indigo-600"
+                    className="text-indigo-600 dark:text-indigo-400"
                   />
                 </svg>
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                  <span className="text-xl font-bold text-indigo-900">
+                  <span className="text-xl font-bold text-indigo-900 dark:text-indigo-100">
                     {Math.round(weeklyLimit.utilization_percentage || 0)}%
                   </span>
                 </div>
@@ -388,7 +388,7 @@ export default function PortalPayNow() {
       )}
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -400,8 +400,8 @@ export default function PortalPayNow() {
                 className={`
                   ${
                     isActive
-                      ? "border-indigo-500 text-indigo-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
+                      : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                   }
                   group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm
                 `}
@@ -410,8 +410,8 @@ export default function PortalPayNow() {
                   className={`
                     ${
                       isActive
-                        ? "text-indigo-500"
-                        : "text-gray-400 group-hover:text-gray-500"
+                        ? "text-indigo-500 dark:text-indigo-400"
+                        : "text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400"
                     }
                     -ml-0.5 mr-2 h-5 w-5
                   `}
@@ -422,8 +422,8 @@ export default function PortalPayNow() {
                     className={`
                     ${
                       isActive
-                        ? "bg-indigo-100 text-indigo-600"
-                        : "bg-gray-100 text-gray-900"
+                        ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-300"
                     }
                     hidden ml-3 py-0.5 px-2.5 rounded-full text-xs font-medium md:inline-block
                   `}
@@ -438,14 +438,14 @@ export default function PortalPayNow() {
       </div>
 
       {/* Requests List */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
+      <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
         {currentRequests.length === 0 ? (
           <div className="text-center py-12">
-            <BanknotesIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">
+            <BanknotesIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
               No requests
             </h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {activeTab === "pending"
                 ? "You have no pending payment requests."
                 : `No ${activeTab} payment requests found.`}
@@ -463,17 +463,17 @@ export default function PortalPayNow() {
             )}
           </div>
         ) : (
-          <ul className="divide-y divide-gray-200">
+          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
             {currentRequests.map((request) => (
               <li key={request.id}>
                 <div
-                  className="px-4 py-4 sm:px-6 hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                   onClick={() => handleViewDetails(request)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-indigo-600 truncate">
+                        <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 truncate">
                           PO #{request.purchase_order_number}
                         </p>
                         <div className="ml-2 flex-shrink-0 flex">
@@ -487,22 +487,22 @@ export default function PortalPayNow() {
                         </div>
                       </div>
                       <div className="mt-2 flex justify-between">
-                        <div className="flex items-center text-sm text-gray-500">
-                          <BanknotesIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                          <span className="font-medium text-gray-900">
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          <BanknotesIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
+                          <span className="font-medium text-gray-900 dark:text-white">
                             {request.discounted_amount}
                           </span>
                           <span className="ml-1">
                             (saved {request.discount_amount})
                           </span>
                         </div>
-                        <div className="flex items-center text-sm text-gray-500">
-                          <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
                           {formatDate(request.requested_at)}
                         </div>
                       </div>
                       {request.rejection_reason && (
-                        <div className="mt-2 flex items-start text-sm text-red-600">
+                        <div className="mt-2 flex items-start text-sm text-red-600 dark:text-red-400">
                           <XCircleIcon className="flex-shrink-0 mr-1.5 h-5 w-5" />
                           <span>{request.rejection_reason}</span>
                         </div>
@@ -516,7 +516,7 @@ export default function PortalPayNow() {
                           e.stopPropagation();
                           handleCancelRequest(request.id);
                         }}
-                        className="text-sm text-red-600 hover:text-red-800"
+                        className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                       >
                         Cancel Request
                       </button>

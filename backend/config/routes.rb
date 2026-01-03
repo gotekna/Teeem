@@ -1467,6 +1467,7 @@ Rails.application.routes.draw do
           post :copy             # Copy entire template (versioned)
           post :import_rows      # Import rows from another template
           get :gantt_data        # SSoT: Gantt-formatted data with row.id dependencies
+          post :validate_dates   # SSoT: Recalculate dates to skip weekends/holidays
         end
         collection do
           get :default

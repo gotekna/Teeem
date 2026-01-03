@@ -28,6 +28,7 @@ import {
   Settings2,
   Receipt,
   Box,
+  Bot,
 } from "lucide-react";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
@@ -54,6 +55,7 @@ const MAIN_TABS = [
   { id: "ai-processing", label: "AI Processing", icon: Brain },
   { id: "xero-health", label: "Xero Health", icon: Activity },
   { id: "unreal-engine", label: "Unreal Engine", icon: Box },
+  { id: "agents", label: "Agents", icon: Bot },
 ];
 
 // Tabs that hide the header for more space

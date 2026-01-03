@@ -1332,7 +1332,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_080549) do
     t.datetime "last_verified_at"
     t.string "external_name"
     t.index ["contact_id", "source", "created_at"], name: "idx_cel_contact_source_created"
-    t.index ["contact_id", "source", "tenant_id"], name: "idx_contact_external_links_unique", unique: true
     t.index ["contact_id"], name: "index_contact_external_links_on_contact_id"
     t.index ["last_verified_at"], name: "index_contact_external_links_on_last_verified_at"
     t.index ["needs_review"], name: "idx_contact_external_links_needs_review", where: "(needs_review = true)"
@@ -8901,8 +8900,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_080549) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "versions", force: :cascade do |t|
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

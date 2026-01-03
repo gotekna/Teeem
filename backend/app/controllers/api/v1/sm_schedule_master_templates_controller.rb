@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmScheduleMasterTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows, :gantt_data ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job, :analyze_matches, :apply_links, :delete_orphans, :copy, :import_rows, :gantt_data, :validate_dates ]
 
       # GET /api/v1/sm_schedule_master_templates
       # Params: include_inactive=true to include inactive templates
@@ -469,6 +469,74 @@ module Api
           success: false,
           errors: [ "Server error: #{e.message}" ]
         }, status: :internal_server_error
+      end
+
+      # POST /api/v1/sm_schedule_master_templates/:id/validate_dates
+      # Recalculates template row dates to ensure they fall on working days
+      # SSoT: Uses WorkingDaysCalculator (same as SmRolloverJob)
+      #
+      # Params:
+      #   start_date: Base start date for calculations (optional, defaults to today)
+      #
+      def validate_dates
+        start_date = params[:start_date].present? ? Date.parse(params[:start_date]) : Date.current
+        calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+
+        # Ensure start_date is a working day
+        start_date = calendar.next_working_day(start_date) unless calendar.working_day?(start_date)
+
+        updated = 0
+        rows = @template.sm_schedule_master_rows.in_sequence
+
+        # Build a map of task_number -> dates for predecessor lookups
+        date_map = {}
+
+        rows.each do |row|
+          # Calculate start date based on predecessors
+          row_start = start_date
+
+          if row.predecessor_ids.present?
+            # Get the latest end date from all predecessors
+            latest_pred_end = nil
+            row.predecessor_ids.each do |pred|
+              pred_id = pred.is_a?(Hash) ? pred["id"] : pred
+              pred_dates = date_map[pred_id.to_i]
+              next unless pred_dates
+
+              pred_end = pred_dates[:end_date]
+              latest_pred_end = pred_end if latest_pred_end.nil? || pred_end > latest_pred_end
+            end
+
+            if latest_pred_end
+              # Start day after predecessor ends (FS dependency)
+              row_start = calendar.add_working_days(latest_pred_end, 1)
+            end
+          end
+
+          # Ensure start is a working day
+          row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+
+          # Calculate end date based on duration
+          duration = row.duration_days || 1
+          row_end = calendar.add_working_days(row_start, duration - 1)
+
+          # Store dates for successor lookups
+          date_map[row.task_number] = { start_date: row_start, end_date: row_end }
+
+          # Update the row's calculated dates (stored in transient fields for display)
+          # Note: Templates don't persist start/end dates, they're calculated on the fly
+          updated += 1
+        end
+
+        render json: {
+          success: true,
+          message: "Validated #{updated} rows",
+          updated: updated,
+          start_date: start_date,
+          date_map: date_map.transform_values { |v| { start_date: v[:start_date].to_s, end_date: v[:end_date].to_s } }
+        }
+      rescue ArgumentError => e
+        render json: { success: false, error: "Invalid date: #{e.message}" }, status: :unprocessable_entity
       end
 
       # GET /api/v1/sm_schedule_master_templates/default

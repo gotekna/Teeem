@@ -296,6 +296,8 @@ export class UnifiedGanttCanvas {
       onSelectionChange: options.onSelectionChange,
       onTaskClick: options.onTaskClick,
       onTaskDoubleClick: options.onTaskDoubleClick,
+      onTaskDrag: options.onTaskDrag,
+      onTaskResize: options.onTaskResize,
       onColumnsChange: options.onColumnsChange,
       onCollapsedChange: options.onCollapsedChange,
       onDependencyClick: options.onDependencyClick,
@@ -304,6 +306,7 @@ export class UnifiedGanttCanvas {
       onProgressChange: options.onProgressChange,
       onDependencyPopupShow: options.onDependencyPopupShow,
       onDependencyPopupHide: options.onDependencyPopupHide,
+      onCellEdit: options.onCellEdit,
     };
 
     // Build config with defaults
@@ -1649,6 +1652,14 @@ export class UnifiedGanttCanvas {
             task.endDate = newEnd;
           }
         }
+
+        // Update rowData.duration_days for Days column display
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rowData = task.rowData as any;
+        if (rowData) {
+          const newDuration = Math.max(1, this.daysBetween(task.startDate, task.endDate) + 1);
+          rowData.duration_days = newDuration;
+        }
       }
       this.markDirty();
     } else if (this.dragOperation.type === 'dependency-create') {
@@ -1760,13 +1771,28 @@ export class UnifiedGanttCanvas {
             task.endDate = newEnd;
           }
 
+          // Update rowData.duration_days for Days column display
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rowData = task.rowData as any;
+          if (rowData) {
+            const newDuration = Math.max(1, this.daysBetween(task.startDate, task.endDate) + 1);
+            rowData.duration_days = newDuration;
+          }
+
           // Emit callback for parent to handle API update
-          console.log('[Canvas] Task resize complete:', task.id, 'edge:', edge, 'daysDelta:', daysDelta, 'newStart:', task.startDate, 'newEnd:', task.endDate);
           this.callbacks.onTaskResize?.(task, task.startDate, task.endDate);
         } else {
           // No change - reset task dates to original
           task.startDate = new Date(op.originalStart);
           task.endDate = new Date(op.originalEnd);
+
+          // Reset rowData.duration_days too
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rowData = task.rowData as any;
+          if (rowData) {
+            const originalDuration = Math.max(1, this.daysBetween(op.originalStart, op.originalEnd) + 1);
+            rowData.duration_days = originalDuration;
+          }
         }
       }
     } else if (op.type === 'dependency-create') {
@@ -3116,6 +3142,45 @@ export class UnifiedGanttCanvas {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const barColor = this.getTaskBarColor(rowData);
+
+      // Check if this is a header/summary row (SSoT: same check as isHeaderTask)
+      const isHeaderRow = rowData?.header_gantt === 'Header' || rowData?.allow_header === true;
+
+      if (isHeaderRow) {
+        // MS Project style summary bar: thin black bar with downward triangles at ends
+        const summaryBarHeight = 6;
+        const summaryY = barY + (taskBarHeight - summaryBarHeight) / 2;
+        const triangleSize = 8;
+
+        // Draw the thin bar (gray-800 in light mode, gray-200 in dark mode)
+        this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#1f2937';
+        this.ctx.fillRect(startX, summaryY, barWidth, summaryBarHeight);
+
+        // Draw downward triangle at start
+        this.ctx.beginPath();
+        this.ctx.moveTo(startX, summaryY);
+        this.ctx.lineTo(startX + triangleSize, summaryY);
+        this.ctx.lineTo(startX, summaryY + triangleSize + summaryBarHeight);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Draw downward triangle at end
+        this.ctx.beginPath();
+        this.ctx.moveTo(startX + barWidth - triangleSize, summaryY);
+        this.ctx.lineTo(startX + barWidth, summaryY);
+        this.ctx.lineTo(startX + barWidth, summaryY + triangleSize + summaryBarHeight);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Draw header name to the right of the bar
+        this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#1f2937';
+        this.ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(task.name, startX + barWidth + 8, barY + taskBarHeight / 2);
+
+        continue; // Skip normal task bar rendering for headers
+      }
 
       // Check task shape (Order, Call, Photo get special icons)
       const taskShape = task.shape || 'task';

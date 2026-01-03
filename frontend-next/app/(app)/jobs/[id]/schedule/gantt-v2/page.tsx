@@ -80,7 +80,28 @@ export default function GanttV2Page() {
           setJob(jobResponse);
         }
 
-        // Fetch Gantt data
+        // SSoT: Run rollover on page load (same as old Gantt)
+        // Ensures no tasks are on past dates, weekends, or holidays
+        try {
+          console.log('[GanttV2] 🔄 Running rollover on page load...');
+          const validateResult = await api.post<{ success: boolean; rolled_over: number; extended: number; cascaded: number }>(
+            `/api/v1/jobs/${jobId}/sm_tasks/validate_dates`
+          );
+          if (validateResult) {
+            const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
+            if (fixCount > 0) {
+              console.log('[GanttV2] ✅ Rollover updated tasks:', fixCount);
+              toast({
+                title: 'Schedule Updated',
+                description: `${fixCount} task(s) with past dates moved forward`,
+              });
+            }
+          }
+        } catch (rolloverErr) {
+          console.warn('[GanttV2] Rollover failed (continuing anyway):', rolloverErr);
+        }
+
+        // Fetch Gantt data (after rollover ensures dates are valid)
         const ganttResponse = await api.get<GanttDataResponse>(
           `/api/v1/jobs/${jobId}/sm_tasks/gantt_data`
         );
@@ -175,6 +196,59 @@ export default function GanttV2Page() {
     });
   };
 
+  // SSoT: POST /api/v1/jobs/{jobId}/sm_tasks/validate_dates
+  // Reuses SmRolloverJob (THE ONE rollover implementation)
+  const handleRollover = async () => {
+    try {
+      const result = await api.post<{ success: boolean; rolled_over: number; extended: number; cascaded: number }>(
+        `/api/v1/jobs/${jobId}/sm_tasks/validate_dates`
+      );
+
+      if (result) {
+        const fixCount = (result.rolled_over || 0) + (result.extended || 0);
+        if (fixCount > 0) {
+          toast({
+            title: 'Schedule Updated',
+            description: `${fixCount} task(s) with past dates moved forward`,
+          });
+          // Reload data to reflect changes
+          const ganttResponse = await api.get<GanttDataResponse>(
+            `/api/v1/jobs/${jobId}/sm_tasks/gantt_data`
+          );
+          if (ganttResponse) {
+            const data = (ganttResponse as any).gantt_data || ganttResponse;
+            const rows = data.tasks || data.rows || [];
+            const deps = data.dependencies || [];
+            const today = getTodayInCompanyTimezone();
+            setTasks(convertRowsToTasks(rows as SmScheduleMaster[], today));
+            setDependencies(deps.map((dep: { id: string; from_id: string; to_id: string; type: 'FS' | 'SS' | 'FF' | 'SF'; lag?: number }) => ({
+              id: dep.id,
+              fromId: dep.from_id,
+              toId: dep.to_id,
+              type: dep.type,
+              lag: dep.lag,
+            })));
+          }
+        } else {
+          toast({
+            title: 'Schedule Up to Date',
+            description: 'No tasks needed to be rolled over',
+          });
+        }
+        return result;
+      }
+      return null;
+    } catch (err) {
+      console.error('[GanttV2] Rollover failed:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to run rollover',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
   const handleOpenOldGantt = () => {
     window.open(`/jobs/${jobId}/schedule`, '_blank');
   };
@@ -225,6 +299,7 @@ export default function GanttV2Page() {
           onTaskClick={handleTaskClick}
           onTaskDoubleClick={handleTaskDoubleClick}
           onCheckboxToggle={handleCheckboxToggle}
+          onRollover={handleRollover}
         />
       </div>
 

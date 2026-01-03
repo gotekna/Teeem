@@ -137,10 +137,18 @@ export default function ChatPage() {
       const apiParams: Record<string, string | number> = {};
 
       // Handle DM format: "dm-34-45" or "dm-new-45"
+      // Format is dm-{smallerId}-{largerId}, need to find the OTHER user's ID
       if (typeof conversationId === "string" && conversationId.startsWith("dm-")) {
         const parts = conversationId.split("-");
-        const userId = parts[parts.length - 1];
-        apiParams.user_id = userId;
+        if (parts[1] === "new") {
+          // New conversation: "dm-new-36" → recipient is 36
+          apiParams.user_id = parts[2];
+        } else {
+          // Existing conversation: "dm-34-36" → find the ID that's NOT current user
+          const userId1 = parseInt(parts[1], 10);
+          const userId2 = parseInt(parts[2], 10);
+          apiParams.user_id = userId1 === user.id ? userId2 : userId1;
+        }
       }
       // Handle numeric conversation ID
       else if (typeof conversationId === "number") {

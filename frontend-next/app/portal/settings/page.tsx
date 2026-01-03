@@ -162,8 +162,8 @@ export default function PortalSettings() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Manage your account and integrations
         </p>
       </div>
@@ -181,8 +181,8 @@ export default function PortalSettings() {
                   className={`
                     ${
                       isActive
-                        ? "bg-indigo-50 border-indigo-500 text-indigo-700"
-                        : "border-transparent text-gray-900 hover:bg-gray-50 hover:text-gray-900"
+                        ? "bg-indigo-50 dark:bg-indigo-900/50 border-indigo-500 text-indigo-700 dark:text-indigo-400"
+                        : "border-transparent text-gray-900 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
                     }
                     group border-l-4 px-3 py-2 flex items-center text-sm font-medium w-full
                   `}
@@ -191,8 +191,8 @@ export default function PortalSettings() {
                     className={`
                       ${
                         isActive
-                          ? "text-indigo-500"
-                          : "text-gray-400 group-hover:text-gray-500"
+                          ? "text-indigo-500 dark:text-indigo-400"
+                          : "text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400"
                       }
                       flex-shrink-0 -ml-1 mr-3 h-6 w-6
                     `}
@@ -208,34 +208,34 @@ export default function PortalSettings() {
         <div className="space-y-6 sm:px-6 lg:col-span-9 lg:px-0">
           {/* Profile Section */}
           {activeSection === "profile" && (
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
                   Profile Information
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Name
                     </label>
-                    <div className="mt-1 text-sm text-gray-900">
+                    <div className="mt-1 text-sm text-gray-900 dark:text-white">
                       {portalUser?.contact_name}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Email
                     </label>
-                    <div className="mt-1 text-sm text-gray-900">
+                    <div className="mt-1 text-sm text-gray-900 dark:text-white">
                       {portalUser?.email}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Portal Type
                     </label>
                     <div className="mt-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 capitalize">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 capitalize">
                         {portalUser?.portal_type}
                       </span>
                     </div>
@@ -247,37 +247,37 @@ export default function PortalSettings() {
 
           {/* Company Section */}
           {activeSection === "company" && (
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
                   Company Information
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Company Name
                     </label>
-                    <div className="mt-1 text-sm text-gray-900">
+                    <div className="mt-1 text-sm text-gray-900 dark:text-white">
                       {portalUser?.company_name || "Not set"}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Kudos Score
                     </label>
                     <div className="mt-1">
-                      <span className="text-2xl font-bold text-indigo-600">
+                      <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                         {portalUser?.kudos_score?.toFixed(0) || 0}
                       </span>
-                      <span className="ml-2 text-sm text-gray-500">/ 1000</span>
+                      <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">/ 1000</span>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Account Tier
                     </label>
                     <div className="mt-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 uppercase">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 uppercase">
                         {portalUser?.account_tier || "Free"}
                       </span>
                     </div>
@@ -289,25 +289,25 @@ export default function PortalSettings() {
 
           {/* Security Section */}
           {activeSection === "security" && (
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
                   Security Settings
                 </h3>
                 <div className="space-y-4">
                   <div>
                     <button
                       type="button"
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
                     >
                       Change Password
                     </button>
                   </div>
-                  <div className="border-t border-gray-200 pt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Last Login
                     </label>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
                       {portalUser?.last_login_at
                         ? new Date(portalUser.last_login_at).toLocaleString("en-AU")
                         : "Never"}
@@ -321,12 +321,12 @@ export default function PortalSettings() {
           {/* Accounting Section */}
           {activeSection === "accounting" && (
             <div className="space-y-6">
-              <div className="bg-white shadow rounded-lg">
+              <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
-                  <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                  <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
                     Accounting Integrations
                   </h3>
-                  <p className="text-sm text-gray-500 mb-6">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                     Connect your accounting software to automatically sync invoices
                     and track payments.
                   </p>
@@ -337,38 +337,38 @@ export default function PortalSettings() {
                       {accountingIntegrations.map((integration) => (
                         <div
                           key={integration.id}
-                          className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                          className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
                         >
                           <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center text-2xl">
+                            <div className="h-10 w-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-2xl">
                               {accountingSystems.find(
                                 (s) => s.key === integration.system_type
                               )?.logo || "📊"}
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-900 capitalize">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">
                                 {integration.system_type}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {integration.organization_name || "Connected"}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
                             {integration.is_active ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300">
                                 <CheckCircleIcon className="h-4 w-4 mr-1" />
                                 Active
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300">
                                 <XCircleIcon className="h-4 w-4 mr-1" />
                                 Inactive
                               </span>
                             )}
                             <button
                               onClick={() => handleDisconnect(integration.id)}
-                              className="text-sm text-red-600 hover:text-red-800"
+                              className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                             >
                               Disconnect
                             </button>
@@ -388,17 +388,17 @@ export default function PortalSettings() {
                       return (
                         <div
                           key={system.key}
-                          className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors"
+                          className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
                         >
                           <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center text-2xl">
+                            <div className="h-10 w-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-2xl">
                               {system.logo}
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-900">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
                                 {system.name}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {system.description}
                               </p>
                             </div>
@@ -412,8 +412,8 @@ export default function PortalSettings() {
                               inline-flex items-center px-4 py-2 border rounded-md text-sm font-medium
                               ${
                                 isConnected
-                                  ? "border-gray-300 text-gray-400 cursor-not-allowed"
-                                  : "border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                                  ? "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                  : "border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50"
                               }
                             `}
                           >
@@ -434,16 +434,16 @@ export default function PortalSettings() {
               </div>
 
               {/* Info Box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <ArrowPathIcon className="h-5 w-5 text-blue-400" />
+                    <ArrowPathIcon className="h-5 w-5 text-blue-400 dark:text-blue-300" />
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">
+                    <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
                       Automatic Invoice Syncing
                     </h3>
-                    <div className="mt-2 text-sm text-blue-700">
+                    <div className="mt-2 text-sm text-blue-700 dark:text-blue-300">
                       <p>
                         Once connected, all invoices you create will automatically
                         sync to your accounting software. Payment status will be
