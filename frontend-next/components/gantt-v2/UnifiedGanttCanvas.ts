@@ -231,7 +231,7 @@ export class UnifiedGanttCanvas {
   private lastSelectedTaskId: string | null = null; // For shift+click range selection
   private hoveredTaskId: string | null = null;
   private hoveredColumnEdge: { columnId: string; edge: 'left' | 'right' } | null = null;
-  private showDependencies: boolean = true;
+  private showDependencies: boolean = false;
 
   // Drag state
   private dragOperation: DragOperation = { type: 'none' };

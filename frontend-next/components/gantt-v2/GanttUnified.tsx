@@ -183,7 +183,7 @@ export function GanttUnified({
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<Set<string>>(new Set());
 
   // UI state
-  const [showDependencies, setShowDependencies] = React.useState(true);
+  const [showDependencies, setShowDependencies] = React.useState(false);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showGroupedOnly, setShowGroupedOnly] = React.useState(false);
