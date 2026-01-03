@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   NotebookCreateModal,
   RecentNotesWidget,
   useNotebooks,
+  type NotebooksSidebarRef,
 } from "@/components/notebooks";
 
 export default function NotebooksPage() {
@@ -22,6 +23,36 @@ export default function NotebooksPage() {
   const [selectedNotebookId, setSelectedNotebookId] = useState<number | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<number | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const sidebarRef = useRef<NotebooksSidebarRef>(null);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + Shift + N: New notebook
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "N") {
+        e.preventDefault();
+        setShowCreateModal(true);
+        return;
+      }
+
+      // Ctrl/Cmd + N: New page (only if notebook is selected)
+      if ((e.ctrlKey || e.metaKey) && e.key === "n" && selectedNotebookId) {
+        e.preventDefault();
+        sidebarRef.current?.createNewPage();
+        return;
+      }
+
+      // Escape: Close modal
+      if (e.key === "Escape" && showCreateModal) {
+        e.preventDefault();
+        setShowCreateModal(false);
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedNotebookId, showCreateModal]);
 
   const handleSelectNotebook = useCallback((notebookId: number) => {
     setSelectedNotebookId(notebookId);
@@ -61,6 +92,7 @@ export default function NotebooksPage() {
         {/* Sidebar */}
         <Card className="col-span-3 flex flex-col min-h-0">
           <NotebooksSidebar
+            ref={sidebarRef}
             selectedNotebookId={selectedNotebookId}
             selectedPageId={selectedPageId}
             onSelectNotebook={handleSelectNotebook}

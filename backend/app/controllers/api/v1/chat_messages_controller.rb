@@ -168,7 +168,7 @@ class Api::V1::ChatMessagesController < ApplicationController
     count = ChatMessage.where("created_at > ?", last_read)
                       .where(recipient_user_id: current_user.id)
                       .count
-    render json: { count: count }
+    render json: { unread_count: count }
   end
 
   # POST /api/v1/chat_messages/mark_as_read

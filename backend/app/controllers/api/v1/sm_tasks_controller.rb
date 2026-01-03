@@ -1446,6 +1446,8 @@ module Api
           # Privacy
           is_private: task.is_private,
           created_by_id: task.created_by_id,
+          # Following status (for current user)
+          is_following: task.followed_by?(current_user),
           # Action items (checkable checklist items)
           action_items: task.action_items.map { |item| action_item_to_json(item) }
         }

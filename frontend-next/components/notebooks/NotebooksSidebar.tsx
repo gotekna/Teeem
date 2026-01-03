@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useImperativeHandle, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,14 +64,18 @@ interface NotebooksSidebarProps {
   className?: string;
 }
 
-export function NotebooksSidebar({
+export interface NotebooksSidebarRef {
+  createNewPage: () => Promise<void>;
+}
+
+export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebarProps>(function NotebooksSidebar({
   selectedNotebookId,
   selectedPageId,
   onSelectNotebook,
   onSelectPage,
   onCreateNotebook,
   className,
-}: NotebooksSidebarProps) {
+}: NotebooksSidebarProps, ref) {
   const { notebooks, isLoading, mutate: mutateNotebooks } = useNotebooks({ global: true });
   const { notebook: selectedNotebook, mutate: mutateNotebook } = useNotebook(selectedNotebookId);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
@@ -192,6 +196,24 @@ export function NotebooksSidebar({
       console.error("Failed to reorder page:", err);
     }
   };
+
+  // Expose methods via ref for keyboard shortcuts
+  useImperativeHandle(ref, () => ({
+    createNewPage: async () => {
+      // Find the first expanded section, or the first section of the selected notebook
+      if (!selectedNotebookId || !selectedNotebook) return;
+      const sections = selectedNotebook.sections ?? [];
+      if (sections.length === 0) {
+        // Create a section first
+        await handleCreateSection(selectedNotebookId);
+        return;
+      }
+      // Use the first expanded section, or the first section
+      const expandedSectionIds = Array.from(expandedSections);
+      const targetSectionId = expandedSectionIds.length > 0 ? expandedSectionIds[0] : sections[0].id;
+      await handleCreatePage(selectedNotebookId, targetSectionId);
+    },
+  }), [selectedNotebookId, selectedNotebook, expandedSections]);
 
   if (isLoading) {
     return (
@@ -321,7 +343,7 @@ export function NotebooksSidebar({
       )}
     </div>
   );
-}
+});
 
 interface NotebookItemProps {
   notebook: NotebookType;

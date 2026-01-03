@@ -10,6 +10,7 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronRight,
+  Eye,
   Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,7 @@ function TaskRow({ task }: TaskRowProps) {
           'grid grid-cols-[20px_1fr_90px_16px_140px_60px_60px] gap-1 py-1.5 px-2 hover:bg-muted/50 rounded text-sm group cursor-pointer items-center',
           selectedTaskIds.has(task.id) && 'bg-primary/5',
           task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/20',
+          task.is_following && !task.is_overdue && 'bg-violet-50/50 dark:bg-violet-950/20 border-l-2 border-l-violet-400',
           isExpanded && 'bg-muted/50'
         )}
       >
@@ -68,6 +70,12 @@ function TaskRow({ task }: TaskRowProps) {
           </span>
           {(task.attachments_count ?? 0) > 0 && (
             <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+          )}
+          {task.is_following && (
+            <Badge variant="outline" className="h-4 px-1 text-[10px] gap-0.5 shrink-0 border-violet-300 text-violet-600 dark:border-violet-600 dark:text-violet-400">
+              <Eye className="h-2.5 w-2.5" />
+              Following
+            </Badge>
           )}
         </div>
 

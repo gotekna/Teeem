@@ -1,5 +1,5 @@
 // Notebook components
-export { NotebooksSidebar } from "./NotebooksSidebar";
+export { NotebooksSidebar, type NotebooksSidebarRef } from "./NotebooksSidebar";
 export { NotebookEditor } from "./NotebookEditor";
 export { NotebookCreateModal } from "./NotebookCreateModal";
 export { NotebookShareModal } from "./NotebookShareModal";

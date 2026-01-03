@@ -111,6 +111,7 @@ export interface SmTask {
   // Privacy
   is_private?: boolean;
   created_by_id?: number;
+  is_following?: boolean;
 
   // Action Items (checkable items within task)
   action_items?: TaskActionItem[];

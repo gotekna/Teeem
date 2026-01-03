@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub } from '@/contexts/TaskHubContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,6 +95,14 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [followers, setFollowers] = useState<TaskFollower[]>([]);
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [followersLoading, setFollowersLoading] = useState(false);
+
+  // Direct drag-and-drop state for attachments section
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+  // Load followers on mount for all tasks
+  useEffect(() => {
+    getFollowers(task.id).then(setFollowers).catch(console.error);
+  }, [task.id, getFollowers]);
 
   // Check if this is a PO task
   const isPOTask = !!task.purchase_order_id;
@@ -285,6 +293,54 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Direct file drop handler for attachments section
+  const handleFileDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    // Upload each file
+    for (const file of Array.from(files)) {
+      setAttachmentLoading(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment; error?: string }>(
+          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
+          formData
+        );
+
+        if (response?.success && response.attachment) {
+          setLocalAttachments((prev) => [...prev, response.attachment]);
+        } else {
+          console.error('Upload failed:', response?.error);
+        }
+      } catch (error) {
+        console.error('Failed to upload file:', error);
+      }
+    }
+    setAttachmentLoading(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only show drag state if dragging files
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDraggingFile(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+  };
+
   return (
     <div className="bg-muted/30 border-t border-b px-3 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
       {/* Header with close button */}
@@ -324,20 +380,33 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <span className="text-xs">{task.is_private ? 'Private' : 'Public'}</span>
           </Button>
 
+          {/* Show followers for public tasks (no share button needed) */}
+          {!task.is_private && followers.length > 0 && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span>→</span>
+              {followers.map((f, idx) => (
+                <span key={f.id}>
+                  {f.user_name.split(' ')[0]}{idx < followers.length - 1 ? ',' : ''}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Share Button (only for private tasks) */}
           {task.is_private && (
-            <Popover open={shareOpen} onOpenChange={handleShareOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 gap-1"
-                  title="Share with others"
-                >
-                  <Users className="h-3 w-3" />
-                  <span className="text-xs">Share</span>
-                </Button>
-              </PopoverTrigger>
+            <>
+              <Popover open={shareOpen} onOpenChange={handleShareOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 gap-1"
+                    title="Share with others"
+                  >
+                    <Users className="h-3 w-3" />
+                    <span className="text-xs">Share</span>
+                  </Button>
+                </PopoverTrigger>
               <PopoverContent className="w-64" align="start">
                 <div className="space-y-3">
                   <div className="font-medium text-sm">Share with</div>
@@ -389,6 +458,19 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                 </div>
               </PopoverContent>
             </Popover>
+
+            {/* Show followers to the right of Share button */}
+            {followers.length > 0 && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span>→</span>
+                {followers.map((f, idx) => (
+                  <span key={f.id}>
+                    {f.user_name.split(' ')[0]}{idx < followers.length - 1 ? ',' : ''}
+                  </span>
+                ))}
+              </div>
+            )}
+            </>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -718,13 +800,24 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
       </div>
 
-      {/* Attachments Section */}
-      <div className="border-t pt-3">
+      {/* Attachments Section - Drop Zone */}
+      <div
+        className={cn(
+          "border-t pt-3 transition-colors rounded-lg",
+          isDraggingFile && "bg-primary/10 border-2 border-dashed border-primary"
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleFileDrop}
+      >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Paperclip className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground">
-              Attachments {localAttachments.length > 0 && `(${localAttachments.length})`}
+            <span className={cn(
+              "text-xs font-medium",
+              isDraggingFile ? "text-primary" : "text-muted-foreground"
+            )}>
+              {isDraggingFile ? "Drop files here to attach" : `Attachments ${localAttachments.length > 0 ? `(${localAttachments.length})` : ""}`}
             </span>
           </div>
           <Button
@@ -813,9 +906,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           </div>
         )}
 
-        {localAttachments.length === 0 && !showAttachmentPicker && (
+        {localAttachments.length === 0 && !showAttachmentPicker && !isDraggingFile && (
           <p className="text-xs text-muted-foreground text-center py-2">
-            No attachments yet
+            No attachments yet • Drag files here or click Add
           </p>
         )}
       </div>

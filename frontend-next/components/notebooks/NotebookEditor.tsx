@@ -41,7 +41,24 @@ export function NotebookEditor({ pageId, className }: NotebookEditorProps) {
     hasUnsavedChanges,
     updateContent,
     updateTitle,
+    saveNow,
   } = useNotebookPage(pageId);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + S to save
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        if (pageId && hasUnsavedChanges) {
+          saveNow();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pageId, hasUnsavedChanges, saveNow]);
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");

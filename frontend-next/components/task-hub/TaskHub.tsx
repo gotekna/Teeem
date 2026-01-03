@@ -24,9 +24,11 @@ import { ListView } from './views/ListView';
 import { MyTasksView } from './views/MyTasksView';
 import { WorkflowTasksView } from './views/WorkflowTasksView';
 import { CreateTaskDialog } from './CreateTaskDialog';
+import { TaskColorSettingsDialog } from './TaskColorSettings';
 
 export function TaskHub() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [colorSettingsKey, setColorSettingsKey] = useState(0); // Force re-render when colors change
   const {
     activeView,
     setActiveView,
@@ -40,6 +42,11 @@ export function TaskHub() {
     deselectAll,
     bulkUpdateStatus,
   } = useTaskHub();
+
+  // Called when color settings change to trigger re-render
+  const handleColorSettingsChange = () => {
+    setColorSettingsKey((k) => k + 1);
+  };
 
   if (loading) {
     return (
@@ -86,6 +93,7 @@ export function TaskHub() {
               className="pl-7 h-8 text-sm"
             />
           </div>
+          <TaskColorSettingsDialog onSettingsChange={handleColorSettingsChange} />
           <Button variant="ghost" size="sm" onClick={refresh} className="h-8 w-8 p-0">
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
@@ -139,11 +147,11 @@ export function TaskHub() {
         </TabsList>
 
         <TabsContent value="my-tasks" className="mt-3">
-          <MyTasksView />
+          <MyTasksView key={`my-${colorSettingsKey}`} />
         </TabsContent>
 
         <TabsContent value="all" className="mt-3">
-          <ListView />
+          <ListView key={`all-${colorSettingsKey}`} />
         </TabsContent>
 
         <TabsContent value="workflow" className="mt-3">
@@ -151,11 +159,11 @@ export function TaskHub() {
         </TabsContent>
 
         <TabsContent value="board" className="mt-3">
-          <BoardView />
+          <BoardView key={`board-${colorSettingsKey}`} />
         </TabsContent>
 
         <TabsContent value="list" className="mt-3">
-          <ListView />
+          <ListView key={`list-${colorSettingsKey}`} />
         </TabsContent>
       </Tabs>
 

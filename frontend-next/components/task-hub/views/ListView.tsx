@@ -18,6 +18,7 @@ import {
   CheckCircle,
   Pause,
   AlertTriangle,
+  Eye,
   Lock,
   ChevronDown,
   ChevronRight,
@@ -155,6 +156,7 @@ export function ListView() {
                   'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30 cursor-pointer',
                   selectedTaskIds.has(task.id) && 'bg-primary/5',
                   task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/20',
+                  task.is_following && !task.is_overdue && 'bg-violet-50/50 dark:bg-violet-950/20 border-l-2 border-l-violet-400',
                   isExpanded && 'bg-muted/50'
                 )}
               >
@@ -181,6 +183,12 @@ export function ListView() {
                   )}
                   {task.locked && (
                     <Lock className="h-3 w-3 text-orange-500 shrink-0" />
+                  )}
+                  {task.is_following && (
+                    <Badge variant="outline" className="h-4 px-1 text-[10px] gap-0.5 shrink-0 border-violet-300 text-violet-600 dark:border-violet-600 dark:text-violet-400">
+                      <Eye className="h-2.5 w-2.5" />
+                      Following
+                    </Badge>
                   )}
                 </div>
 
