@@ -40,6 +40,9 @@ class SmScheduleMaster < ApplicationRecord
   # Spawn scan task - which task template to spawn on completion
   belongs_to :spawn_scan_task, class_name: "SmScheduleMaster", optional: true
 
+  # SmTasks created from this template - nullify on delete so tasks remain but lose template link
+  has_many :sm_tasks, dependent: :nullify
+
   # Photo storage EntityTab
   belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
 
