@@ -14,7 +14,14 @@ import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Phone, Shield, Calendar, Clock } from "lucide-react";
+import { User, Mail, Phone, Shield, Calendar, Clock, Sun, Moon } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { format } from "date-fns";
 
 interface Role {
@@ -35,6 +42,7 @@ interface UserData {
   status?: string;
   presence_status?: string;
   integrations?: string[];
+  preferred_theme?: string;
   [key: string]: unknown;
 }
 
@@ -77,6 +85,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         mobile_phone: user.mobile_phone || "",
         // SSoT: Always ensure role_ids is an array to prevent .map errors
         role_ids: Array.isArray(user.role_ids) ? user.role_ids : [],
+        preferred_theme: user.preferred_theme || "light",
       });
     }
   }, [user]);
@@ -99,6 +108,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             email: editData.email,
             mobile_phone: editData.mobile_phone,
             role_ids: roleIds,
+            preferred_theme: editData.preferred_theme,
           },
         }
       );
@@ -239,6 +249,49 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             />
             <p className="text-xs text-muted-foreground">
               Users can have multiple roles. Roles determine permissions and access levels.
+            </p>
+          </div>
+
+          {/* Theme Preference */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              {editData.preferred_theme === "dark" ? (
+                <Moon className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Sun className="h-4 w-4 text-muted-foreground" />
+              )}
+              Theme Preference
+            </Label>
+            <Select
+              value={editData.preferred_theme || "light"}
+              onValueChange={(value) => setEditData({ ...editData, preferred_theme: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select theme" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">
+                  <div className="flex items-center gap-2">
+                    <Sun className="h-4 w-4" />
+                    Light
+                  </div>
+                </SelectItem>
+                <SelectItem value="dark">
+                  <div className="flex items-center gap-2">
+                    <Moon className="h-4 w-4" />
+                    Dark
+                  </div>
+                </SelectItem>
+                <SelectItem value="system">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">💻</span>
+                    System
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Theme applied when user logs in.
             </p>
           </div>
 
