@@ -1074,7 +1074,7 @@ function MessageBubble({
                   />
                 )}
                 {message.content && message.content !== "[Image]" && (
-                  <p className="text-sm px-3 py-2 break-words">{message.content}</p>
+                  <p className="text-sm px-3 py-2 break-words whitespace-pre-wrap">{message.content}</p>
                 )}
               </div>
             ) : message.message_type === "file" ? (
@@ -1083,7 +1083,7 @@ function MessageBubble({
                 <span className="text-sm break-words">{message.file_name}</span>
               </div>
             ) : (
-              <p className="text-sm break-words">{message.content}</p>
+              <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
             )}
           </div>
           <div

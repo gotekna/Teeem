@@ -623,6 +623,7 @@ module Api
           assigned_role: role_value,
           cost_centre: cost_centre_value,
           header_gantt: header_value,
+          allow_header: row.allow_header,
           require_photo: row.require_photo,
           confirm: row.confirm,
           po_required: row.po_required,

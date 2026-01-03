@@ -3012,29 +3012,36 @@ export function ScheduleMasterTab() {
 
       {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
       <Dialog open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              Edit Row
-              {/* Show parent header if this task is part of one */}
-              {editingRow && editingRow.header_gantt && (() => {
-                const parentTaskNumber = extractLookupId(editingRow.header_gantt);
-                const parentHeader = parentTaskNumber ? dataViewRows.find(r => String(r.task_number) === String(parentTaskNumber)) : null;
-                if (parentHeader) {
-                  return (
-                    <Badge variant="outline" className="text-xs font-normal">
-                      Part of: {parentHeader.name}
-                    </Badge>
-                  );
-                }
-                return null;
-              })()}
-            </DialogTitle>
-            <DialogDescription>
-              {editingRow?.name} (Task #{editingRow?.task_number})
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-3 space-y-3">
+        <DialogContent className="max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col p-0">
+          {/* Sticky Header */}
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+                Edit Row
+                {/* Show parent header if this task is part of one */}
+                {editingRow && editingRow.header_gantt && (() => {
+                  const parentTaskNumber = extractLookupId(editingRow.header_gantt);
+                  const parentHeader = parentTaskNumber ? dataViewRows.find(r => String(r.task_number) === String(parentTaskNumber)) : null;
+                  if (parentHeader) {
+                    return (
+                      <Badge variant="outline" className="text-xs font-normal">
+                        Part of: {parentHeader.name}
+                      </Badge>
+                    );
+                  }
+                  return null;
+                })()}
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {editingRow?.name} (Task #{editingRow?.task_number})
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => setShowEditSheet(false)}>
+              Close
+            </Button>
+          </div>
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
             {/* Row 1: Name + Duration + Sequence - full width */}
             <div className="grid grid-cols-[1fr_80px_80px] gap-3">
               <div className="space-y-1">
@@ -3526,11 +3533,6 @@ export function ScheduleMasterTab() {
               </div>
             )}
           </div>
-          <DialogFooter className="flex items-center justify-end">
-            <Button variant="outline" onClick={() => setShowEditSheet(false)}>
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
