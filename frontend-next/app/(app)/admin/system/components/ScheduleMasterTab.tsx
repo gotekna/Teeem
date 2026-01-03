@@ -1096,10 +1096,12 @@ export function ScheduleMasterTab() {
         }
 
         console.log('[Start Task] Today:', today.toISOString().split('T')[0], 'isWorkingDay:', isWorkingDay(today, holidayDates));
+        console.log('[Start Task] Holiday dates in set:', holidayDates ? [...holidayDates].filter(d => d.startsWith('2025-12') || d.startsWith('2026-01')).sort() : 'using fallback');
 
         // Check if today is a working day
         const isTodayWorking = isWorkingDay(today, holidayDates);
         const lastWorking = isTodayWorking ? null : skipToPreviousWorkingDay(today, holidayDates);
+        console.log('[Start Task] isTodayWorking:', isTodayWorking, 'lastWorkingDay:', lastWorking?.toISOString().split('T')[0] || 'N/A');
 
         // Show start task dialog
         setStartTaskDialog({
@@ -1202,6 +1204,8 @@ export function ScheduleMasterTab() {
 
     const dateToUse = startDate || new Date();
     const dateStr = dateToUse.toISOString().split('T')[0];
+
+    console.log('[Start Task] Saving task:', task.name, 'with hold_date:', dateStr, 'option:', option);
 
     try {
       const updateData: Record<string, unknown> = {
