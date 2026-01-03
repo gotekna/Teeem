@@ -303,6 +303,7 @@ import {
 } from "./utils/table-data-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
 import { fetchColumnsForFoundation, getCachedColumns, invalidateColumnsCache } from "./utils/columns-cache";
+import { buildHierarchyRows, filterCollapsedRows, isHeaderRow, type HierarchyRow } from "@/lib/table/hierarchy-utils";
 
 // Jotai atoms for centralized state management (SSoT)
 import { useAtom, useSetAtom, useAtomValue } from 'jotai';
@@ -1398,6 +1399,8 @@ export default function TeeemTableView({
   collapsedGroupsRef.current = collapsedGroups;
   // groupViewMode managed by atom (SSoT)
   const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
+  // Collapsed hierarchy headers (for "Header Hierarchy" display mode)
+  const [collapsedHierarchyHeaders, setCollapsedHierarchyHeaders] = useState<Set<number>>(new Set());
 
   // Initialize groupByColumns from initialView (SSR) or initialGroupByColumn prop on mount
   // Priority: SSR initialView > initialGroupByColumn prop
@@ -4760,6 +4763,181 @@ export default function TeeemTableView({
     return result;
   };
 
+  // Render hierarchy table for "Header Hierarchy" display mode
+  // Shows cascading nested headers based on header_gantt relationships
+  const renderHierarchyTable = () => {
+    // Build hierarchy from filtered entries
+    // Need task_number, sequence_order, header_gantt, allow_header for hierarchy
+    const rowsWithHierarchyFields = filteredAndSortedEntries.filter(row =>
+      typeof row.task_number === 'number' &&
+      typeof row.sequence_order === 'number'
+    ) as Array<{
+      id: number | string;
+      task_number: number;
+      sequence_order: number;
+      header_gantt: string | number | { id: number } | null;
+      allow_header?: boolean;
+      [key: string]: unknown;
+    }>;
+
+    if (rowsWithHierarchyFields.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+          <Layers className="h-8 w-8 mb-4 opacity-50" />
+          <p className="text-sm font-medium">No hierarchy data</p>
+          <p className="text-xs mt-1">This table doesn't have header_gantt or task_number columns</p>
+        </div>
+      );
+    }
+
+    // Build and filter hierarchy rows
+    const hierarchyRows = buildHierarchyRows(rowsWithHierarchyFields);
+    const visibleHierarchyRows = filterCollapsedRows(hierarchyRows, collapsedHierarchyHeaders);
+
+    // Toggle collapse handler
+    const toggleHierarchyCollapse = (taskNumber: number) => {
+      setCollapsedHierarchyHeaders(prev => {
+        const next = new Set(prev);
+        if (next.has(taskNumber)) {
+          next.delete(taskNumber);
+        } else {
+          next.add(taskNumber);
+        }
+        return next;
+      });
+    };
+
+    return (
+      <Table className="w-full" style={{ tableLayout: 'fixed' }}>
+        {renderTableHeader()}
+        <TableBody>
+          {visibleHierarchyRows.map((hr, index) => {
+            const row = hr.row;
+            const isSelected = selectedRows.has(row.id);
+            const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
+            const isCollapsed = collapsedHierarchyHeaders.has(row.task_number);
+
+            // Header rows get special styling
+            if (hr.isHeader) {
+              const indentPx = hr.nestingLevel * 24;
+              const bgOpacity = Math.max(0.5, 0.95 - hr.nestingLevel * 0.15);
+
+              return (
+                <TableRow
+                  key={`hierarchy-${row.id}`}
+                  className="cursor-pointer hover:opacity-80"
+                  onClick={() => toggleHierarchyCollapse(row.task_number)}
+                >
+                  {/* First cell with chevron and name */}
+                  <TableCell
+                    colSpan={2}
+                    className="py-1"
+                    style={{
+                      paddingLeft: `${16 + indentPx}px`,
+                      backgroundColor: `rgba(251, 191, 36, ${bgOpacity * 0.3})`, // amber tint
+                    }}
+                  >
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <ExpandChevron
+                        expanded={!isCollapsed}
+                        size={16}
+                      />
+                      <span className="font-semibold text-sm">
+                        {String(row.name || row.task_number)}
+                      </span>
+                      {hr.hasChildren && (
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          {hierarchyRows.filter(h => h.parentTaskNumber === row.task_number).length}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  {/* Fill remaining columns */}
+                  <TableCell
+                    colSpan={Math.max(1, visibleColumnsInOrder.length - 2)}
+                    style={{
+                      backgroundColor: `rgba(251, 191, 36, ${bgOpacity * 0.3})`,
+                    }}
+                  />
+                </TableRow>
+              );
+            }
+
+            // Regular data row with indentation
+            const indentPx = hr.nestingLevel * 24;
+
+            return (
+              <TableRow
+                key={`hierarchy-row-${row.id}`}
+                data-row-id={row.id}
+                className={cn(
+                  isSelected && "bg-blue-50 dark:bg-blue-950/30",
+                  "hover:bg-muted/50 cursor-pointer"
+                )}
+                onClick={() => {
+                  if (!isEditMode && onRowClick) {
+                    onRowClick(row);
+                  }
+                }}
+                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
+                onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
+              >
+                {visibleColumnsInOrder.map((column, colIndex) => {
+                  const isFirstDataCol = colIndex === 1; // After select column
+                  const stickyStyles = getStickyColumnStyles(column.key, false);
+
+                  return (
+                    <TableCell
+                      key={`${column.key}-${colIndex}`}
+                      title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(row[column.key]) : undefined}
+                      style={{
+                        width: columnWidths[column.key],
+                        minWidth: columnWidths[column.key],
+                        ...stickyStyles,
+                        ...(isFirstDataCol && { paddingLeft: `${16 + indentPx}px` }),
+                        ...(column.key === "select" && {
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }),
+                      }}
+                      className={cn(
+                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "actions" && "!border-l-0",
+                      )}
+                      onClick={(e) => {
+                        if (column.key === "select") {
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      {column.key === "select" ? (
+                        <div
+                          className="flex items-center justify-center h-full"
+                          onMouseDown={(e) => handleSelectMouseDown(row.id, globalIndex, e)}
+                        >
+                          <SelectCheckbox
+                            checked={isSelected}
+                            onCheckedChange={getToggleCallback(row.id)}
+                          />
+                        </div>
+                      ) : column.key === "actions" ? (
+                        renderCellValue(row, column)
+                      ) : (
+                        <div className="truncate">
+                          {renderCellValue(row, column)}
+                        </div>
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  };
+
   // Render grouped table with choice of inline or panel mode
   const renderGroupedTable = () => {
     if (!groupedEntries) return null;
@@ -5808,6 +5986,8 @@ export default function TeeemTableView({
             <p className="text-sm font-medium">No results found</p>
             <p className="text-xs mt-1">No records match "{search}"</p>
           </div>
+        ) : activeView?.view_display_type === 'hierarchy' ? (
+          renderHierarchyTable()
         ) : (
           groupedEntries ? renderGroupedTable() : renderFlatTable()
         )}

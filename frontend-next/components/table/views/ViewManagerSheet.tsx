@@ -203,7 +203,7 @@ export function ViewManagerSheet({
   // Edit state
   const [editName, setEditName] = React.useState("");
   const [editIsGlobal, setEditIsGlobal] = React.useState(false);
-  const [editViewType, setEditViewType] = React.useState<"table" | "relational" | "grouped">("table");
+  const [editViewType, setEditViewType] = React.useState<"table" | "relational" | "grouped" | "hierarchy">("table");
   const [editFilters, setEditFilters] = React.useState<CascadeFilter[]>([]);
   const [editFilterGroups, setEditFilterGroups] = React.useState<FilterGroup[]>([{ id: "default", logic: "AND" }]);
   const [editInterGroupLogic, setEditInterGroupLogic] = React.useState<"AND" | "OR">("OR");
@@ -1281,16 +1281,17 @@ export function ViewManagerSheet({
                           </Label>
                           <Select
                             value={editViewType}
-                            onValueChange={(value: "table" | "relational" | "grouped") => setEditViewType(value)}
+                            onValueChange={(value: "table" | "relational" | "grouped" | "hierarchy") => setEditViewType(value)}
                             disabled={!isEditing}
                           >
-                            <SelectTrigger id="view-type-select" className="w-[160px] h-8">
+                            <SelectTrigger id="view-type-select" className="w-[180px] h-8">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="table">Table View</SelectItem>
                               <SelectItem value="grouped">By Company</SelectItem>
                               <SelectItem value="relational">Relational View</SelectItem>
+                              <SelectItem value="hierarchy">Header Hierarchy</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
