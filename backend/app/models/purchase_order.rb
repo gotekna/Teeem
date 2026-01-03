@@ -110,6 +110,10 @@ class PurchaseOrder < ApplicationRecord
   after_save :sync_supplier_to_sm_task
   after_destroy :update_job_profit
 
+  # SSoT: Update contact's cached supplier flag when PO changes
+  after_commit :refresh_supplier_cached_flag, on: [:create, :destroy]
+  after_commit :refresh_supplier_cached_flag_on_supplier_change, on: :update, if: :saved_change_to_supplier_id?
+
   # Scopes
   scope :by_status, ->(status) { where(status: status) if status.present? }
   scope :by_construction, ->(job_id) { where(job_id: job_id) if job_id.present? }
@@ -504,5 +508,30 @@ class PurchaseOrder < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error "Failed to log PO activity (#{action}): #{e.message}"
+  end
+
+  # SSoT: Refresh contact's is_supplier_cached flag
+  def refresh_supplier_cached_flag
+    return unless supplier_id.present?
+    supplier&.refresh_supplier_flag!
+  rescue StandardError => e
+    Rails.logger.error("PurchaseOrder##{id}: Failed to refresh supplier flag - #{e.message}")
+  end
+
+  # SSoT: Handle supplier_id change - refresh both old and new supplier
+  def refresh_supplier_cached_flag_on_supplier_change
+    old_supplier_id, new_supplier_id = saved_change_to_supplier_id
+
+    # Refresh old supplier (may no longer be a supplier)
+    if old_supplier_id.present?
+      Contact.find_by(id: old_supplier_id)&.refresh_supplier_flag!
+    end
+
+    # Refresh new supplier
+    if new_supplier_id.present?
+      Contact.find_by(id: new_supplier_id)&.refresh_supplier_flag!
+    end
+  rescue StandardError => e
+    Rails.logger.error("PurchaseOrder##{id}: Failed to refresh supplier flag on change - #{e.message}")
   end
 end

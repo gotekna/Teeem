@@ -147,7 +147,8 @@ export default function SystemAdminLayout({
       )}
 
       {/* Content */}
-      <div className={`${isCompactTab ? "mt-0" : ""} flex-1 min-h-0 overflow-auto`}>
+      {/* SSoT: Compact tabs (schedule-master) handle their own overflow via TeeemTableView */}
+      <div className={`flex-1 min-h-0 ${isCompactTab ? "overflow-hidden" : "overflow-auto"}`}>
         {children}
       </div>
     </div>

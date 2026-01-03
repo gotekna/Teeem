@@ -414,15 +414,13 @@ class Contact < ApplicationRecord
     has_role?("land_agent")
   end
 
+  # SSoT: Use cached columns for performance (updated via callbacks on related models)
   def is_customer?
-    jobs.exists? || job_contacts.exists?
+    is_customer_cached
   end
 
   def is_supplier?
-    purchase_orders.exists? ||
-    pricebook_items.exists? ||
-    price_histories.exists? ||
-    external_invoices.bills.exists?
+    is_supplier_cached
   end
 
   # Calculate task duration from PO amount based on team capacity
@@ -459,8 +457,53 @@ class Contact < ApplicationRecord
   end
 
   # Family/Director helpers
+  # SSoT: Use cached column for performance (updated via callbacks on CorporateCompanyDirector)
   def is_director?
-    current_directorships.any?
+    is_director_cached
+  end
+
+  # ============================================
+  # Cached Boolean Flags (Performance Optimization)
+  # ============================================
+  # These cached columns avoid expensive EXISTS queries on every request.
+  # They're updated via callbacks on related models when data changes.
+  # SSoT: is_customer_cached, is_supplier_cached, is_director_cached
+  #
+  # Call refresh_cached_flags! when related data changes:
+  # - JobContact created/destroyed → is_customer_cached
+  # - PurchaseOrder/Pricebook/PriceHistory/ExternalInvoice(ACCPAY) created/destroyed → is_supplier_cached
+  # - CorporateCompanyDirector created/updated/destroyed → is_director_cached
+
+  # Refresh all cached flags from source data (call after related records change)
+  def refresh_cached_flags!
+    update_columns(
+      is_customer_cached: job_contacts.exists?,
+      is_supplier_cached: purchase_orders.exists? ||
+                          pricebook_items.exists? ||
+                          price_histories.exists? ||
+                          external_invoices.bills.exists?,
+      is_director_cached: current_directorships.exists?
+    )
+  end
+
+  # Refresh only customer flag (called by JobContact callbacks)
+  def refresh_customer_flag!
+    update_column(:is_customer_cached, job_contacts.exists?)
+  end
+
+  # Refresh only supplier flag (called by PO/Pricebook/PriceHistory/ExternalInvoice callbacks)
+  def refresh_supplier_flag!
+    update_column(:is_supplier_cached,
+      purchase_orders.exists? ||
+      pricebook_items.exists? ||
+      price_histories.exists? ||
+      external_invoices.bills.exists?
+    )
+  end
+
+  # Refresh only director flag (called by CorporateCompanyDirector callbacks)
+  def refresh_director_flag!
+    update_column(:is_director_cached, current_directorships.exists?)
   end
 
   def director_companies

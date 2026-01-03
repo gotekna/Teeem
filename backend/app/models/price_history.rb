@@ -4,6 +4,10 @@ class PriceHistory < ApplicationRecord
   belongs_to :pricebook_item, class_name: "PricebookItem"
   belongs_to :supplier, class_name: "Contact", foreign_key: "supplier_id", optional: true
 
+  # SSoT: Update contact's cached supplier flag when price history changes
+  after_commit :refresh_supplier_cached_flag, on: [:create, :destroy]
+  after_commit :refresh_supplier_cached_flag_on_supplier_change, on: :update, if: :saved_change_to_supplier_id?
+
   # Validations
   validates :pricebook_item_id, presence: true
   validates :new_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
@@ -100,5 +104,32 @@ class PriceHistory < ApplicationRecord
 
   def supplier_name
     supplier&.name || "Unknown"
+  end
+
+  private
+
+  # SSoT: Refresh contact's is_supplier_cached flag
+  def refresh_supplier_cached_flag
+    return unless supplier_id.present?
+    supplier&.refresh_supplier_flag!
+  rescue StandardError => e
+    Rails.logger.error("PriceHistory##{id}: Failed to refresh supplier flag - #{e.message}")
+  end
+
+  # SSoT: Handle supplier_id change - refresh both old and new supplier
+  def refresh_supplier_cached_flag_on_supplier_change
+    old_supplier_id, new_supplier_id = saved_change_to_supplier_id
+
+    # Refresh old supplier (may no longer be a supplier)
+    if old_supplier_id.present?
+      Contact.find_by(id: old_supplier_id)&.refresh_supplier_flag!
+    end
+
+    # Refresh new supplier
+    if new_supplier_id.present?
+      Contact.find_by(id: new_supplier_id)&.refresh_supplier_flag!
+    end
+  rescue StandardError => e
+    Rails.logger.error("PriceHistory##{id}: Failed to refresh supplier flag on change - #{e.message}")
   end
 end

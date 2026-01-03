@@ -263,7 +263,7 @@ export async function fetchFoundationForSSR(
   }
 
   try {
-    // Build parallel fetch promises
+    // Build parallel fetch promises - always fetch views to enable default view SSR
     const fetchPromises: Promise<Response>[] = [
       fetch(`${API_BASE_URL}/api/v1/foundations/${slug}`, {
         headers: {
@@ -279,20 +279,15 @@ export async function fetchFoundationForSSR(
         },
         cache: 'no-store',
       }),
+      // Always fetch views to enable default view SSR (eliminates CLS from view loading)
+      fetch(`${API_BASE_URL}/api/v1/foundation_views?foundation_id=${slug}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      }),
     ];
-
-    // Add view fetch if viewSlug is provided (for SSR view pre-loading)
-    if (viewSlug) {
-      fetchPromises.push(
-        fetch(`${API_BASE_URL}/api/v1/foundation_views?foundation_id=${slug}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          cache: 'no-store',
-        })
-      );
-    }
 
     // Parallel fetch for all resources
     const responses = await Promise.all(fetchPromises);
@@ -306,10 +301,11 @@ export async function fetchFoundationForSSR(
     }
 
     // Parse responses in parallel
-    const parsePromises = [foundationRes.json(), recordsRes.json()];
-    if (viewsRes) {
-      parsePromises.push(viewsRes.ok ? viewsRes.json() : Promise.resolve({ views: [] }));
-    }
+    const parsePromises = [
+      foundationRes.json(),
+      recordsRes.json(),
+      viewsRes.ok ? viewsRes.json() : Promise.resolve({ views: [] }),
+    ];
 
     const [foundationData, recordsData, viewsData] = await Promise.all(parsePromises);
 
@@ -320,19 +316,40 @@ export async function fetchFoundationForSSR(
 
     const columns = transformColumns(foundation);
 
-    // Find the requested view by slug
+    // Find view: either by URL slug or auto-select default view
+    // SSR CLS Fix: Always select a view to prevent client-side default view loading flash
     let view: ViewData | null = null;
-    if (viewSlug && viewsData?.views) {
-      const views = viewsData.views as ViewData[];
+    const views = (viewsData?.views || []) as ViewData[];
+
+    if (viewSlug) {
+      // Priority 1: URL-specified view
       view = views.find(v =>
         v.slug?.toLowerCase() === viewSlug.toLowerCase() ||
         String(v.id) === viewSlug
       ) || null;
 
       if (view) {
-        console.log('[SSR] Pre-loaded view:', view.name, 'with grouping:', view.group_by_columns);
+        console.log('[SSR] Pre-loaded URL view:', view.name, 'with grouping:', view.group_by_columns);
       } else {
-        console.log('[SSR] View not found for slug:', viewSlug);
+        console.log('[SSR] View not found for slug:', viewSlug, '- falling back to default');
+      }
+    }
+
+    // If no URL view, select default view (matches client-side selectDefaultView logic)
+    if (!view && views.length > 0) {
+      // Priority 2: Explicit default global view
+      view = views.find(v => v.is_default && v.is_global) || null;
+      // Priority 3: Any explicit default view
+      if (!view) view = views.find(v => v.is_default) || null;
+      // Priority 4: First global view at display_order 0
+      if (!view) view = views.find(v => v.is_global && v.display_order === 0) || null;
+      // Priority 5: First view at display_order 0
+      if (!view) view = views.find(v => v.display_order === 0) || null;
+      // Priority 6: First view
+      if (!view) view = views[0] || null;
+
+      if (view) {
+        console.log('[SSR] Pre-loaded default view:', view.name, 'with grouping:', view.group_by_columns);
       }
     }
 

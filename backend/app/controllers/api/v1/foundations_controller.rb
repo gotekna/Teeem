@@ -385,13 +385,29 @@ module Api
                   when "is_not_empty"
                     query = query.where("#{conn.quote_column_name(column)} IS NOT NULL AND #{conn.quote_column_name(column)} != ''")
                   when "array_contains"
-                    # Handle array columns (e.g., sm_template_ids which is integer[])
-                    # PostgreSQL: value = ANY(column)
-                    # This works for integer[] columns where we check if a single value is in the array
-                    query = query.where("? = ANY(#{conn.quote_column_name(column)})", value.to_i)
+                    # Handle array columns - detect JSONB vs native PostgreSQL array
+                    # JSONB: column @> '[value]'::jsonb
+                    # PostgreSQL array: value = ANY(column)
+                    col_type = model.columns_hash[column]&.type
+                    quoted_col = conn.quote_column_name(column)
+                    if col_type == :jsonb
+                      # JSONB array containment check
+                      query = query.where("#{quoted_col} @> ?::jsonb", [value.to_i].to_json)
+                    else
+                      # Native PostgreSQL array (integer[], text[], etc.)
+                      query = query.where("? = ANY(#{quoted_col})", value.to_i)
+                    end
                   when "array_not_contains"
-                    # Inverse: NOT (value = ANY(column)) or column IS NULL
-                    query = query.where("NOT (? = ANY(#{conn.quote_column_name(column)})) OR #{conn.quote_column_name(column)} IS NULL", value.to_i)
+                    # Inverse of array_contains - detect JSONB vs native PostgreSQL array
+                    col_type = model.columns_hash[column]&.type
+                    quoted_col = conn.quote_column_name(column)
+                    if col_type == :jsonb
+                      # JSONB: NOT contains OR null
+                      query = query.where("NOT (#{quoted_col} @> ?::jsonb) OR #{quoted_col} IS NULL", [value.to_i].to_json)
+                    else
+                      # Native PostgreSQL array
+                      query = query.where("NOT (? = ANY(#{quoted_col})) OR #{quoted_col} IS NULL", value.to_i)
+                    end
                   end
                 end
               end
