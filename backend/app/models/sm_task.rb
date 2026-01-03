@@ -157,6 +157,9 @@ class SmTask < ApplicationRecord
   # Action Items (checkable items within a task)
   has_many :action_items, class_name: "TaskActionItem", dependent: :destroy
 
+  # Activity Logs (history of changes)
+  has_many :activity_logs, class_name: "TaskActivityLog", dependent: :destroy
+
   # SaaS Customer association (for tickets and customer-linked tasks)
   belongs_to :saas_customer, class_name: "Contact", optional: true
 
@@ -267,6 +270,10 @@ class SmTask < ApplicationRecord
   before_validation :snap_end_date_to_working_day, if: -> { end_date_changed? && !start_date_changed? && !duration_days_changed? }
   before_validation :calculate_end_date, if: -> { start_date_changed? || duration_days_changed? }
   before_save :clear_spawn_tasks_if_not_po
+
+  # Activity logging callbacks
+  after_create :log_task_created
+  after_update :log_task_changes
 
   # Lock hierarchy check (Rule 9.22)
   # Priority: supplier_confirm > confirm > started > completed > hold
@@ -583,4 +590,56 @@ class SmTask < ApplicationRecord
   # NOTE: sync_supplier_from_po removed as part of SSoT cleanup
   # SSoT: PO-Task link is now via PurchaseOrder.sm_task_id only
   # Supplier sync happens via PurchaseOrder model when sm_task_id is set
+
+  # ============================================
+  # Activity Logging Methods
+  # ============================================
+
+  def log_task_created
+    TaskActivityLog.log_created(self, created_by)
+  rescue => e
+    Rails.logger.error("[SmTask] Failed to log task creation: #{e.message}")
+  end
+
+  def log_task_changes
+    # Log assignment changes
+    if saved_change_to_assigned_user_id?
+      old_id, new_id = saved_change_to_assigned_user_id
+      old_user = old_id ? User.find_by(id: old_id) : nil
+      new_user = new_id ? User.find_by(id: new_id) : nil
+      TaskActivityLog.log_assignment_change(self, updated_by, old_user, new_user)
+    end
+
+    # Log status changes
+    if saved_change_to_status?
+      old_status, new_status = saved_change_to_status
+      TaskActivityLog.log_status_change(self, updated_by, old_status, new_status)
+    end
+
+    # Log privacy changes
+    if saved_change_to_is_private?
+      old_private, new_private = saved_change_to_is_private
+      TaskActivityLog.log_privacy_change(self, updated_by, old_private, new_private)
+    end
+
+    # Log hold changes
+    if saved_change_to_hold?
+      old_hold, new_hold = saved_change_to_hold
+      TaskActivityLog.log_hold_change(self, updated_by, old_hold, new_hold)
+    end
+
+    # Log confirm changes
+    if saved_change_to_confirm?
+      old_confirm, new_confirm = saved_change_to_confirm
+      TaskActivityLog.log_confirm_change(self, updated_by, 'confirm', old_confirm, new_confirm)
+    end
+
+    # Log supplier confirm changes
+    if saved_change_to_supplier_confirm?
+      old_confirm, new_confirm = saved_change_to_supplier_confirm
+      TaskActivityLog.log_confirm_change(self, updated_by, 'supplier_confirm', old_confirm, new_confirm)
+    end
+  rescue => e
+    Rails.logger.error("[SmTask] Failed to log task changes: #{e.message}")
+  end
 end

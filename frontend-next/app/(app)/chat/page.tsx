@@ -222,8 +222,22 @@ export default function ChatPage() {
       }
     }
 
+    // Mark conversation as read when viewed
+    async function markAsRead() {
+      try {
+        await api.post("/api/v1/chat_messages/mark_as_read", {});
+        // Update local unread count to 0 for this conversation
+        setConversations(prev => prev.map(c =>
+          c.id === conversationId ? { ...c, unread_count: 0 } : c
+        ));
+      } catch (error) {
+        console.error("Failed to mark as read:", error);
+      }
+    }
+
     // Initial fetch with loading spinner
     fetchMessages();
+    markAsRead();
 
     // Poll for new messages every 10 seconds (silent updates, avoid rate limiting)
     const pollInterval = setInterval(() => {

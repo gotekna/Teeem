@@ -622,7 +622,9 @@ export function sortRowsHierarchically<T extends {
 
   // Helper: get parent task_number from header_gantt
   const getParentTaskNumber = (row: T): number | null => {
-    if (isHeaderRow(row)) return null; // IS a header (SSoT)
+    // Only top-level headers have no parent (header_gantt === 'Header')
+    // Level 2 headers ARE children of other headers (header_gantt = {id, display})
+    if (row.header_gantt === 'Header') return null;
     if (typeof row.header_gantt === 'number') return row.header_gantt;
     if (typeof row.header_gantt === 'object' && row.header_gantt?.id) return row.header_gantt.id;
     if (typeof row.header_gantt === 'string') {
@@ -733,8 +735,9 @@ export function convertRowsToTasks(
       const row = sortedRows[i];
       const task = tasks[i];
 
-      // Skip headers themselves (SSoT: isHeaderRow)
-      if (isHeaderRow(row)) continue;
+      // Only skip top-level headers (header_gantt === 'Header')
+      // Level 2 headers ARE children of other headers (have header_gantt = {id, display})
+      if (row.header_gantt === 'Header') continue;
 
       // Get parent header task_number from header_gantt field
       // Can be: number, {id, display} object, or string number like "1407"

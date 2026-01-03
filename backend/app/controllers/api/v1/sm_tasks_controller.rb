@@ -11,6 +11,7 @@ module Api
         :working_drawings, :process_working_drawings, :override_page_category,
         :attachments, :add_attachment, :remove_attachment, :upload_attachment,
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
+        :history,
         :compare_to_template, :sync_from_template
       ]
 
@@ -108,6 +109,9 @@ module Api
         @task.created_by = current_user
 
         if @task.save
+          # Create notification if task was created with an assignee
+          notify_new_task_assignment(@task)
+
           render json: {
             success: true,
             message: "Task created successfully",
@@ -845,6 +849,32 @@ module Api
       end
 
       # ============================================
+      # Task History/Activity Log
+      # ============================================
+
+      # GET /api/v1/sm_tasks/:id/history
+      def history
+        logs = @task.activity_logs.recent.includes(:user).limit(50)
+
+        render json: {
+          success: true,
+          history: logs.map { |log|
+            {
+              id: log.id,
+              activity_type: log.activity_type,
+              field_name: log.field_name,
+              old_value: log.old_value,
+              new_value: log.new_value,
+              description: log.description,
+              user_id: log.user_id,
+              user_name: log.user&.name,
+              created_at: log.created_at
+            }
+          }
+        }
+      end
+
+      # ============================================
       # Action Items Endpoints
       # ============================================
 
@@ -1298,6 +1328,7 @@ module Api
         "#{base_name} #{max_number + 1}"
       end
 
+      # Notify when an existing task's assignee changes (on update)
       def notify_task_assignment(task)
         # Only notify if assigned_user_id changed and there's a new assignee
         return unless task.saved_change_to_assigned_user_id?
@@ -1318,6 +1349,27 @@ module Api
       rescue StandardError => e
         Rails.logger.error("Failed to create task assignment notification: #{e.message}")
         # Don't fail the update if notification fails
+      end
+
+      # Notify when a new task is created with an assignee
+      def notify_new_task_assignment(task)
+        return if task.assigned_user_id.blank?
+
+        # Don't notify if the user assigned it to themselves
+        return if task.assigned_user_id == current_user&.id
+
+        job_name = task.job&.name || "Unknown Job"
+
+        Notification.create!(
+          user_id: task.assigned_user_id,
+          notification_type: "task_assigned",
+          notifiable: task,
+          title: "New task assigned: #{task.name}",
+          message: "You've been assigned the task \"#{task.name}\" on job \"#{job_name}\"#{current_user ? " by #{current_user.name}" : ''}."
+        )
+      rescue StandardError => e
+        Rails.logger.error("Failed to create task assignment notification: #{e.message}")
+        # Don't fail the create if notification fails
       end
 
       # Recalculate task dates based on predecessor dependencies

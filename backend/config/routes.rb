@@ -141,6 +141,8 @@ Rails.application.routes.draw do
       get "navigation", to: "navigation#index"
       post "navigation/reset", to: "navigation#reset"
       patch "navigation/:id/toggle_collapse", to: "navigation#toggle_collapse"
+      get "navigation/email_accounts", to: "navigation#email_accounts"
+      post "navigation/reorder_email_accounts", to: "navigation#reorder_email_accounts"
 
       # Admin: Navigation system config
       resources :navigation_groups, only: [ :index, :create, :update, :destroy ] do
@@ -1428,6 +1430,8 @@ Rails.application.routes.draw do
           get :followers
           post :followers, action: :add_follower
           delete "followers/:user_id", action: :remove_follower
+          # Task history/activity log
+          get :history
           # Action items (checkable items)
           post :action_items, action: :create_action_item
           post "action_items/:item_id/toggle", action: :toggle_action_item

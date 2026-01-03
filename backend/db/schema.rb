@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_03_060238) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_03_073434) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5445,6 +5445,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_060238) do
     t.text "email_signature"
     t.text "email_aliases", default: [], array: true
     t.integer "shared_with_user_ids", default: [], array: true
+    t.integer "nav_position", default: 0
     t.index ["is_active"], name: "index_imap_credentials_on_is_active"
     t.index ["user_id", "email_address"], name: "index_imap_credentials_on_user_id_and_email_address", unique: true
     t.index ["user_id"], name: "index_imap_credentials_on_user_id"
@@ -8778,6 +8779,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_060238) do
     t.index ["sm_task_id"], name: "index_task_action_items_on_sm_task_id"
   end
 
+  create_table "task_activity_logs", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "user_id"
+    t.string "activity_type", null: false
+    t.string "field_name"
+    t.text "old_value"
+    t.text "new_value"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_task_activity_logs_on_activity_type"
+    t.index ["sm_task_id", "created_at"], name: "index_task_activity_logs_on_sm_task_id_and_created_at"
+    t.index ["sm_task_id"], name: "index_task_activity_logs_on_sm_task_id"
+    t.index ["user_id"], name: "index_task_activity_logs_on_user_id"
+  end
+
   create_table "task_followers", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "sm_task_id", null: false
@@ -10411,6 +10428,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_060238) do
   add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "users", column: "checked_by_id"
+  add_foreign_key "task_activity_logs", "sm_tasks"
+  add_foreign_key "task_activity_logs", "users"
   add_foreign_key "task_followers", "sm_tasks", on_delete: :cascade
   add_foreign_key "task_followers", "users", on_delete: :cascade
   add_foreign_key "unreal_measurements", "job_colour_selections"

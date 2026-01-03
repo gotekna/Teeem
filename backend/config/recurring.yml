@@ -380,6 +380,16 @@ sm_recurring_task_generation:
   queue: default
   schedule: at 6:30am every day
 
+# Send notifications for overdue tasks
+# Runs at 8am Brisbane time (after work starts, before standup)
+# - Finds tasks with end_date < today that aren't completed
+# - Only sends ONE notification per task (won't spam daily)
+# - Notifies assigned user
+task_overdue_notifications:
+  class: TaskOverdueNotificationJob
+  queue: default
+  schedule: at 8am every day
+
 # Nightly rollover of past-due tasks
 # Runs at midnight Brisbane time to:
 # - Find all not_started tasks with start_date < today

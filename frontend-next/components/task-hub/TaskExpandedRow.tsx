@@ -16,9 +16,12 @@ import { api } from '@/lib/api';
 import {
   AlertTriangle,
   Calendar as CalendarIcon,
+  ChevronDown,
   ChevronUp,
+  Clock,
   ExternalLink,
   FileText,
+  History,
   Lock,
   Mail,
   Paperclip,
@@ -48,6 +51,17 @@ const statusColors = {
 interface User {
   id: number;
   name: string;
+}
+
+interface TaskHistoryEntry {
+  id: number;
+  activity_type: string;
+  field_name: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  description: string | null;
+  user_name: string | null;
+  created_at: string;
 }
 
 export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
@@ -99,6 +113,11 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   // Direct drag-and-drop state for attachments section
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
+  // History state
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [history, setHistory] = useState<TaskHistoryEntry[]>([]);
+
   // Load followers on mount for all tasks
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
@@ -125,6 +144,63 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       } finally {
         setFollowersLoading(false);
       }
+    }
+  };
+
+  // Fetch history when expanded
+  const handleHistoryToggle = async () => {
+    const newExpanded = !historyExpanded;
+    setHistoryExpanded(newExpanded);
+
+    if (newExpanded && history.length === 0) {
+      setHistoryLoading(true);
+      try {
+        const response = await api.get<{ success: boolean; history: TaskHistoryEntry[] }>(
+          `/api/v1/sm_tasks/${task.id}/history`
+        );
+        if (response?.success) {
+          setHistory(response.history || []);
+        }
+      } catch (error) {
+        console.error('Failed to load history:', error);
+      } finally {
+        setHistoryLoading(false);
+      }
+    }
+  };
+
+  // Format activity type for display
+  const formatActivityType = (type: string): string => {
+    const labels: Record<string, string> = {
+      'created': 'Created',
+      'assignment_changed': 'Reassigned',
+      'status_changed': 'Status changed',
+      'privacy_changed': 'Privacy changed',
+      'follower_added': 'Follower added',
+      'follower_removed': 'Follower removed',
+      'hold_changed': 'Hold changed',
+      'confirm_changed': 'Confirmation changed',
+      'dates_changed': 'Dates changed',
+    };
+    return labels[type] || type;
+  };
+
+  // Get icon for activity type
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'assignment_changed':
+        return <Users className="h-3 w-3" />;
+      case 'status_changed':
+      case 'hold_changed':
+      case 'confirm_changed':
+        return <Clock className="h-3 w-3" />;
+      case 'privacy_changed':
+        return <Lock className="h-3 w-3" />;
+      case 'follower_added':
+      case 'follower_removed':
+        return <UserPlus className="h-3 w-3" />;
+      default:
+        return <History className="h-3 w-3" />;
     }
   };
 
@@ -910,6 +986,54 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           <p className="text-xs text-muted-foreground text-center py-2">
             No attachments yet • Drag files here or click Add
           </p>
+        )}
+      </div>
+
+      {/* History Section */}
+      <div className="border-t pt-3">
+        <button
+          onClick={handleHistoryToggle}
+          className="flex items-center gap-2 w-full hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors"
+        >
+          <History className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">History</span>
+          {historyLoading ? (
+            <Spinner size={12} />
+          ) : (
+            historyExpanded ? (
+              <ChevronUp className="h-3 w-3 text-muted-foreground ml-auto" />
+            ) : (
+              <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto" />
+            )
+          )}
+        </button>
+
+        {historyExpanded && (
+          <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
+            {history.length === 0 && !historyLoading && (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No history yet
+              </p>
+            )}
+            {history.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex items-start gap-2 p-2 bg-background/50 rounded border text-xs"
+              >
+                <div className="mt-0.5 text-muted-foreground">
+                  {getActivityIcon(entry.activity_type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-foreground">
+                    {entry.description || formatActivityType(entry.activity_type)}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    {format(new Date(entry.created_at), 'dd MMM yyyy, HH:mm')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

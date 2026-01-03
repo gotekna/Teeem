@@ -49,6 +49,38 @@ module Api
         render json: { success: true }
       end
 
+      # GET /api/v1/navigation/email_accounts
+      # Get email accounts with their ordering
+      def email_accounts
+        accounts = []
+
+        # IMAP accounts for current user
+        current_user.imap_credentials.where(is_active: true).order(:nav_position, :id).each do |cred|
+          accounts << {
+            id: cred.id,
+            type: "imap",
+            name: cred.email_address || cred.name,
+            nav_position: cred.nav_position || 0
+          }
+        end
+
+        render json: { success: true, email_accounts: accounts }
+      end
+
+      # POST /api/v1/navigation/reorder_email_accounts
+      # Reorder email accounts
+      def reorder_email_accounts
+        params[:accounts].each_with_index do |account, index|
+          if account[:type] == "imap"
+            ImapCredential.where(id: account[:id], user_id: current_user.id)
+                         .update_all(nav_position: index)
+          end
+          # MS365 accounts would need different handling (stored in sync_config)
+        end
+
+        render json: { success: true }
+      end
+
       private
 
       def item_with_children_json(item, collapse_prefs)
@@ -109,17 +141,16 @@ module Api
 
       def build_email_account_nav_items
         accounts = []
-        position = 0
 
-        # IMAP accounts for current user
-        current_user.imap_credentials.where(is_active: true).each do |cred|
+        # IMAP accounts for current user (ordered by nav_position)
+        current_user.imap_credentials.where(is_active: true).order(:nav_position, :id).each do |cred|
           accounts << {
             id: "imap_#{cred.id}",
             name: cred.email_address || cred.name,
             href: "/email?account=#{cred.id}",
             icon: "mail",
             badge_key: nil,
-            position: position += 1,
+            position: cred.nav_position || 0,
             has_children: false,
             children: []
           }

@@ -1941,7 +1941,9 @@ export function ScheduleMasterTab() {
         // IMPORTANT: tasks array is sorted differently than rows, so match by id
         for (const task of tasks) {
           const row = rows.find(r => String(r.id) === task.id);
-          if (!row || isHeaderRow(row)) continue;
+          // Only skip top-level headers (header_gantt === 'Header')
+          // Level 2 headers have allow_header=true but ARE children of other headers
+          if (!row || row.header_gantt === 'Header') continue;
 
           // Get parent header task_number from header_gantt
           // Can be: number, {id, display} object, or string number like "1407"
@@ -2117,7 +2119,9 @@ export function ScheduleMasterTab() {
         // Second pass: assign children to their headers
         for (const task of taskList) {
           const row = rows.find(r => String(r.id) === task.id);
-          if (isHeaderRow(row)) continue;
+          // Only skip top-level headers (header_gantt === 'Header')
+          // Level 2 headers ARE children of other headers
+          if (row?.header_gantt === 'Header') continue;
 
           // Find parent header
           let parentTaskNumber: number | null = null;

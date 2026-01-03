@@ -31,6 +31,7 @@ import {
   ChevronDown,
   ChevronRight,
   CornerDownRight,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +62,7 @@ interface NavigationItem {
 
 export function NavigationTab() {
   const [items, setItems] = React.useState<NavigationItem[]>([]);
+  const [emailAccounts, setEmailAccounts] = React.useState<{ id: number; type: string; name: string; nav_position: number }[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set());
@@ -96,9 +98,35 @@ export function NavigationTab() {
     }
   }, []);
 
+  // Load email accounts
+  const loadEmailAccounts = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ email_accounts: typeof emailAccounts }>(
+        "/api/v1/navigation/email_accounts"
+      );
+      setEmailAccounts(res.email_accounts || []);
+    } catch (error) {
+      console.error("Failed to load email accounts:", error);
+    }
+  }, []);
+
   React.useEffect(() => {
     loadNavigation();
-  }, [loadNavigation]);
+    loadEmailAccounts();
+  }, [loadNavigation, loadEmailAccounts]);
+
+  // Reorder email accounts
+  const handleReorderEmailAccounts = async (newAccounts: typeof emailAccounts) => {
+    setEmailAccounts(newAccounts);
+    try {
+      await api.post("/api/v1/navigation/reorder_email_accounts", {
+        accounts: newAccounts.map((a, i) => ({ id: a.id, type: a.type, position: i })),
+      });
+    } catch (error) {
+      console.error("Failed to reorder email accounts:", error);
+      loadEmailAccounts();
+    }
+  };
 
   // Get top-level items (no parent)
   const topLevelItems = React.useMemo(() => {
@@ -461,6 +489,46 @@ export function NavigationTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Email Accounts */}
+      {emailAccounts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              <span>Email Accounts ({emailAccounts.length})</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Drag to reorder email accounts in the sidebar. These appear under the Email navigation item.
+            </p>
+            <SortableList
+              items={emailAccounts.map((a, i) => ({ ...a, id: a.id }))}
+              onReorder={handleReorderEmailAccounts}
+              className="space-y-1"
+            >
+              {emailAccounts.map((account, index) => (
+                <SortableItem
+                  key={`${account.type}_${account.id}`}
+                  id={account.id}
+                  position={index + 1}
+                  maxPosition={emailAccounts.length}
+                  variant="card"
+                >
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{account.name}</span>
+                    <Badge variant="outline" className="text-[10px] py-0 px-1">
+                      {account.type.toUpperCase()}
+                    </Badge>
+                  </div>
+                </SortableItem>
+              ))}
+            </SortableList>
+          </CardContent>
+        </Card>
+      )}
 
       {/* New Item Dialog */}
       <Dialog open={showNewItem} onOpenChange={setShowNewItem}>
