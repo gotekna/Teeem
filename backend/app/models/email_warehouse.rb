@@ -100,6 +100,11 @@ class EmailWarehouse < ApplicationRecord
   scope :from_imap, -> { where(source_type: "imap") }
   scope :for_imap_credential, ->(credential_id) { where(imap_credential_id: credential_id) }
 
+  # SSoT: Folder name filtering (case-insensitive)
+  # ALWAYS use this scope instead of .where(folder_name: x) to handle provider variations
+  # Gmail uses INBOX, Outlook uses Inbox, others may use inbox - this handles all cases
+  scope :in_folder, ->(name) { where("LOWER(folder_name) = LOWER(?)", name) }
+
   # Full-text search scope
   scope :search_text, ->(query) {
     where("searchable @@ plainto_tsquery('english', ?)", query)
