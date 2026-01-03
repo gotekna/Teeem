@@ -66,6 +66,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     getFollowers,
     addFollower,
     removeFollower,
+    deleteTask,
   } = useTaskHub();
 
   const [loading, setLoading] = useState<string | null>(null);
@@ -390,9 +391,32 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             </Popover>
           )}
         </div>
-        <Button variant="ghost" size="sm" onClick={handleClose} className="h-6 px-2">
-          <ChevronUp className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* Delete Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-muted-foreground hover:text-destructive"
+            onClick={async () => {
+              if (window.confirm(`Delete task "${task.name}"? This cannot be undone.`)) {
+                setLoading('delete');
+                try {
+                  await deleteTask(task.id);
+                  handleClose();
+                } finally {
+                  setLoading(null);
+                }
+              }
+            }}
+            disabled={!!loading}
+            title="Delete task"
+          >
+            {loading === 'delete' ? <Spinner size={12} /> : <Trash2 className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleClose} className="h-6 px-2">
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Status checkboxes - Always visible */}

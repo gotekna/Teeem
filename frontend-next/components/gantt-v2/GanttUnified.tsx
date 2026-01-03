@@ -56,7 +56,7 @@ export interface GanttUnifiedProps {
   onDataChange?: () => void;
   onResetManualPosition?: (task: GanttTask) => void;
   onUndo?: (selectedTaskId: string) => void;
-  onEditDependencies?: (task: GanttTask) => void;
+  onEditDependencies?: (task: GanttTask, visibleTasks: GanttTask[]) => void;
   onDurationChange?: (taskId: string, newDuration: number) => void;
 
   // Rollover - SSoT: POST /api/v1/jobs/{jobId}/sm_tasks/validate_dates
@@ -292,8 +292,9 @@ export function GanttUnified({
         onDependencyClick: (task) => {
           console.log('[GanttUnified] Dependency clicked:', task.id);
           // Open the Dependency Editor for this task (same as old Gantt behavior)
-          if (onEditDependencies) {
-            onEditDependencies(task);
+          if (onEditDependencies && ganttEngineRef.current) {
+            const visibleTasks = ganttEngineRef.current.getVisibleTasks();
+            onEditDependencies(task, visibleTasks);
           }
         },
         onTaskDrag: (task, newStartDate) => {
@@ -589,7 +590,10 @@ export function GanttUnified({
 
   const handleContextMenuEditDependencies = React.useCallback((task: GanttTask) => {
     console.log('[GanttUnified] Edit dependencies:', task.id);
-    onEditDependencies?.(task);
+    if (onEditDependencies && ganttEngineRef.current) {
+      const visibleTasks = ganttEngineRef.current.getVisibleTasks();
+      onEditDependencies(task, visibleTasks);
+    }
   }, [onEditDependencies]);
 
   // Column visibility handler

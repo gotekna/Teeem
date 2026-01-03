@@ -371,9 +371,11 @@ export function ScheduleMasterTab() {
   const [dependencyEditorState, setDependencyEditorState] = React.useState<{
     isOpen: boolean;
     task: GanttTask | null;
+    visibleTasks: GanttTask[];
   }>({
     isOpen: false,
-    task: null
+    task: null,
+    visibleTasks: []
   });
 
   // Row Edit Sheet state
@@ -1511,8 +1513,8 @@ export function ScheduleMasterTab() {
   };
 
   // Gantt V2: Open dependency editor
-  const handleGanttV2EditDependencies = (task: GanttTask) => {
-    setDependencyEditorState({ isOpen: true, task });
+  const handleGanttV2EditDependencies = (task: GanttTask, visibleTasks: GanttTask[]) => {
+    setDependencyEditorState({ isOpen: true, task, visibleTasks });
   };
 
   // Gantt V2: Save dependencies from full dependency editor (predecessors + successors)
@@ -4318,9 +4320,9 @@ export function ScheduleMasterTab() {
       {/* Dependency Editor - shown when editing dependencies in Gantt V2 */}
       <GanttDependencyEditor
         isOpen={dependencyEditorState.isOpen}
-        onClose={() => setDependencyEditorState({ isOpen: false, task: null })}
+        onClose={() => setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] })}
         task={dependencyEditorState.task}
-        tasks={ganttV2Tasks}
+        tasks={dependencyEditorState.visibleTasks.length > 0 ? dependencyEditorState.visibleTasks : ganttV2Tasks}
         onSave={handleDependencyEditorSave}
       />
 

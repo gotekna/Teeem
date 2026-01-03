@@ -2930,8 +2930,9 @@ export class UnifiedGanttCanvas {
         bgColor = this.config.colors.headerRowBackground;
       }
 
-      // Check if in selected group (amber highlight)
-      if (this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id)) {
+      // Check if in selected group (amber highlight) - but don't override header backgrounds
+      // Nested headers should keep their header styling even when they're children of another header
+      if (this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id) && !isHeader) {
         bgColor = this.config.colors.childRowBackground;
       }
 
