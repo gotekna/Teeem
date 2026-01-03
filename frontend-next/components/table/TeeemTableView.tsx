@@ -242,6 +242,7 @@ import { RowEditingCell } from "./core/cell-components/RowEditingCell";
 import { HighlightedText } from "./components/HighlightedText";
 import { EmptyState, getEmptyStateVariant } from "./components/EmptyState";
 import { TableSkeleton } from "./components/TableSkeleton";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 
 // Column renderer registry (Phase 4 refactoring)
 import { renderCell as renderCellWithRegistry } from "./core/column-renderer/ColumnRenderer";
@@ -4216,10 +4217,8 @@ export default function TeeemTableView({
             <div className="flex items-center gap-2 whitespace-nowrap">
               {isLoadingThisGroup ? (
                 <Spinner size={16} className="shrink-0" />
-              ) : isCollapsed ? (
-                <ChevronRight className="h-4 w-4 shrink-0" />
               ) : (
-                <ChevronDown className="h-4 w-4 shrink-0" />
+                <ExpandChevron expanded={!isCollapsed} size={16} />
               )}
               <span className="font-bold text-[13px]">
                 {isEmptyGroup(groupKey) && (currentColKey?.includes('company') || currentColKey?.includes('employer'))
@@ -4508,10 +4507,8 @@ export default function TeeemTableView({
             <div className="flex items-center gap-2 whitespace-nowrap">
               {isLoadingThisGroup ? (
                 <Spinner size={16} className="shrink-0" />
-              ) : isCollapsed ? (
-                <ChevronRight className="h-4 w-4 shrink-0" />
               ) : (
-                <ChevronDown className="h-4 w-4 shrink-0" />
+                <ExpandChevron expanded={!isCollapsed} size={16} />
               )}
               <span className="font-bold text-[13px]">
                 {groupKey === "(Empty)" && isGroupingByCompany

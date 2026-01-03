@@ -263,6 +263,18 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     usageCount: 0,
   },
   {
+    id: "expand-chevron",
+    name: "ExpandChevron",
+    displayName: "Expand Chevron",
+    category: "navigation",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/expand-chevron",
+    description: "Single chevron that rotates 90° when expanded. SSoT for all expand/collapse indicators.",
+    whenToUse: "Expandable sections, tree views, grouped tables, accordions. Provides consistent animation across the app.",
+    usageCount: 5,
+  },
+  {
     id: "table",
     name: "Table",
     displayName: "Table Primitives",

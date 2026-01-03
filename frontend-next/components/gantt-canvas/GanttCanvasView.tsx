@@ -100,6 +100,7 @@ import {
 import { initCompanySettings, getTodayInCompanyTimezone } from "@/lib/stores/company-settings-store";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import type { PhotoItem } from "@/components/ui/photo-gallery";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 
 // ============================================================================
 // Types
@@ -3354,11 +3355,7 @@ export function GanttCanvasView({
                           }}
                           className="mr-1 hover:bg-muted rounded p-0.5 flex-shrink-0"
                         >
-                          {collapsedHeaders.has(stickyHeader.id) ? (
-                            <ChevronRight className="h-3 w-3" />
-                          ) : (
-                            <ChevronDown className="h-3 w-3" />
-                          )}
+                          <ExpandChevron expanded={!collapsedHeaders.has(stickyHeader.id)} size={12} />
                         </button>
                         <span className="text-amber-700 dark:text-amber-300">{stickyHeader.name}</span>
                         <span className="text-muted-foreground text-[10px] ml-2">
@@ -3403,11 +3400,7 @@ export function GanttCanvasView({
                                 }}
                                 className="mr-1 hover:bg-muted rounded p-0.5 flex-shrink-0"
                               >
-                                {isCollapsed ? (
-                                  <ChevronRight className="h-3 w-3" />
-                                ) : (
-                                  <ChevronDown className="h-3 w-3" />
-                                )}
+                                <ExpandChevron expanded={!isCollapsed} size={12} />
                               </button>
                             ) : (
                               <span className="text-muted-foreground mr-1">{index + 1}.</span>

@@ -73,6 +73,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { GanttCanvasView } from "@/components/gantt-canvas";
 import { GanttUnified, GanttDependencyEditor } from "@/components/gantt-v2";
 import { SMGanttTab } from "./SMGanttTab";
@@ -2455,11 +2456,7 @@ export function ScheduleMasterTab() {
                         className="flex items-center gap-3 cursor-pointer flex-1"
                         onClick={() => toggleExpand(template.id)}
                       >
-                        {expandedTemplate === template.id ? (
-                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        )}
+                        <ExpandChevron expanded={expandedTemplate === template.id} size={20} className="text-muted-foreground" />
                         <div>
                           <div className="flex items-center gap-2">
                             <CardTitle className="text-base">{template.name}</CardTitle>
