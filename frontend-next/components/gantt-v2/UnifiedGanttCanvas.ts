@@ -3082,15 +3082,22 @@ export class UnifiedGanttCanvas {
         if (column.id === 'dependencies' && rowData?.predecessor_ids) {
           const predIds = rowData.predecessor_ids as Array<{ id: number; type?: string; lag?: number }>;
           if (predIds && predIds.length > 0) {
-            // Build task_number -> row index map (convert to number for consistent lookup)
+            // Build task_number -> visual row index map (use visibleTasks for correct row numbers)
             const taskNumToRowIdx = new Map<number, number>();
-            this.tasks.forEach((t, idx) => {
+            this.visibleTasks.forEach((t, idx) => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const r = t.rowData as any;
               if (r?.task_number != null) {
-                taskNumToRowIdx.set(Number(r.task_number), idx + 1); // 1-based row number
+                taskNumToRowIdx.set(Number(r.task_number), idx + 1); // 1-based visual row number
               }
             });
+
+            // Debug: log first lookup attempt
+            if (predIds[0]) {
+              const firstPred = Number(predIds[0].id);
+              const lookup = taskNumToRowIdx.get(firstPred);
+              console.log('[Deps] Looking for task_number:', firstPred, 'Found row:', lookup, 'Map size:', taskNumToRowIdx.size);
+            }
 
             // Convert each predecessor to "rowNum TYPE" format
             displayText = predIds.map(pred => {

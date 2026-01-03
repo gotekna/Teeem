@@ -217,7 +217,13 @@ module Api
         body = extract_body(content)
 
         name = frontmatter["name"] || extract_header(body) || filename.titleize
-        description = frontmatter["description"] || extract_purpose(body)
+        # Prefer body description if frontmatter has ASCII art box
+        fm_desc = frontmatter["description"]
+        description = if fm_desc.present? && fm_desc.include?("╔")
+                        extract_purpose(body)
+                      else
+                        fm_desc || extract_purpose(body)
+                      end
         description = clean_description(description)
 
         {
