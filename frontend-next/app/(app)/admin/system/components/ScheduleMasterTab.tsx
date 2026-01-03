@@ -2107,41 +2107,68 @@ export function ScheduleMasterTab() {
         const ungroupedTasks: typeof tasks = [];
         const headerTasks: typeof tasks = [];
 
-        // First pass: identify headers and group children
+        // First pass: identify TOP-LEVEL headers only
+        // Top-level headers have: header_gantt === null OR header_gantt === 'Header'
+        // Level 2+ headers have: header_gantt === {id, display} pointing to parent
         for (const task of taskList) {
           const row = rows.find(r => String(r.id) === task.id);
-          if (isHeaderRow(row)) {
+          // Top-level header: isHeaderRow AND (header_gantt is null or 'Header')
+          const isTopLevelHeader = row && isHeaderRow(row) &&
+            (row.header_gantt === null || row.header_gantt === 'Header');
+          if (isTopLevelHeader) {
             headerTasks.push(task);
             headerChildren.set(task.id, []);
           }
         }
 
-        // Second pass: assign children to their headers
+        // Helper to get parent task_number from a row
+        const getParentTaskNumber = (r: typeof rows[0] | undefined): number | null => {
+          if (!r) return null;
+          if (typeof r.header_gantt === 'number') return r.header_gantt;
+          if (typeof r.header_gantt === 'object' && r.header_gantt?.id) return r.header_gantt.id;
+          if (typeof r.header_gantt === 'string' && r.header_gantt !== 'Header') {
+            const parsed = parseInt(r.header_gantt, 10);
+            return isNaN(parsed) ? null : parsed;
+          }
+          return null;
+        };
+
+        // Helper to find top-level header ancestor (walks up the hierarchy)
+        const findTopLevelHeader = (taskNumber: number | null): typeof headerTasks[0] | null => {
+          if (!taskNumber) return null;
+
+          // Check if this task_number is a top-level header
+          const directHeader = headerTasks.find(h => {
+            const hRow = rows.find(r => String(r.id) === h.id);
+            return hRow?.task_number === taskNumber;
+          });
+          if (directHeader) return directHeader;
+
+          // Not a top-level header - find the row and look at its parent
+          const row = rows.find(r => r.task_number === taskNumber);
+          if (!row) return null;
+
+          const parentNum = getParentTaskNumber(row);
+          if (!parentNum || parentNum === taskNumber) return null; // Avoid infinite loop
+
+          return findTopLevelHeader(parentNum);
+        };
+
+        // Second pass: assign children to their TOP-LEVEL header ancestors
         for (const task of taskList) {
           const row = rows.find(r => String(r.id) === task.id);
-          // Only skip top-level headers (header_gantt === 'Header')
+          // Skip top-level headers (header_gantt === null or 'Header')
           // Level 2 headers ARE children of other headers
-          if (row?.header_gantt === 'Header') continue;
+          const isTopLevel = row && isHeaderRow(row) &&
+            (row.header_gantt === null || row.header_gantt === 'Header');
+          if (isTopLevel) continue;
 
-          // Find parent header
-          let parentTaskNumber: number | null = null;
-          if (typeof row?.header_gantt === 'number') {
-            parentTaskNumber = row.header_gantt;
-          } else if (typeof row?.header_gantt === 'object' && row.header_gantt?.id) {
-            parentTaskNumber = row.header_gantt.id;
-          } else if (typeof row?.header_gantt === 'string' && row.header_gantt !== 'Header') {
-            const parsed = parseInt(row.header_gantt, 10);
-            if (!isNaN(parsed)) parentTaskNumber = parsed;
-          }
+          // Find top-level header ancestor (may be parent, grandparent, etc.)
+          const parentTaskNumber = getParentTaskNumber(row);
+          const topLevelHeader = findTopLevelHeader(parentTaskNumber);
 
-          // Find header task by task_number
-          const parentHeader = parentTaskNumber ? headerTasks.find(h => {
-            const hRow = rows.find(r => String(r.id) === h.id);
-            return hRow?.task_number === parentTaskNumber;
-          }) : null;
-
-          if (parentHeader) {
-            headerChildren.get(parentHeader.id)!.push(task);
+          if (topLevelHeader) {
+            headerChildren.get(topLevelHeader.id)!.push(task);
           } else {
             ungroupedTasks.push(task);
           }

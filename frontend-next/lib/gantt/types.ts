@@ -693,15 +693,21 @@ export function sortRowsHierarchically<T extends {
       processed.add(row.task_number);
 
       // Recursive function to emit children and their descendants
-      const emitChildren = (headerTaskNum: number) => {
+      const emitChildren = (headerTaskNum: number, depth: number = 0) => {
         const children = childrenByParent.get(headerTaskNum) || [];
+        const indent = '  '.repeat(depth + 2);
+        console.log(`${indent}emitChildren(${headerTaskNum}): found ${children.length} children`);
         for (const child of children) {
-          if (processed.has(child.task_number)) continue;
+          if (processed.has(child.task_number)) {
+            console.log(`${indent}  SKIP child "${(child as {name?: string}).name}" (${child.task_number}) - already processed`);
+            continue;
+          }
+          console.log(`${indent}  EMIT child "${(child as {name?: string}).name}" (${child.task_number})`);
           result.push(child);
           processed.add(child.task_number);
           // If this child is also a header, emit ITS children too (nested hierarchy)
           if (isHeaderRow(child)) {
-            emitChildren(child.task_number);
+            emitChildren(child.task_number, depth + 1);
           }
         }
       };
