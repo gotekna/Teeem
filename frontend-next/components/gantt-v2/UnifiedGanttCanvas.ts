@@ -384,15 +384,12 @@ export class UnifiedGanttCanvas {
 
   /** Toggle header collapse state */
   toggleHeaderCollapse(taskId: string): void {
-    const wasCollapsed = this.collapsedHeaderIds.has(taskId);
-    if (wasCollapsed) {
+    if (this.collapsedHeaderIds.has(taskId)) {
       this.collapsedHeaderIds.delete(taskId);
     } else {
       this.collapsedHeaderIds.add(taskId);
     }
-    console.log('[Gantt] toggleHeaderCollapse:', taskId, 'was:', wasCollapsed, 'now:', !wasCollapsed, 'collapsedIds:', Array.from(this.collapsedHeaderIds));
     this.recalculateVisibleTasks();
-    console.log('[Gantt] After recalculate:', 'visibleTasks:', this.visibleTasks.length, 'totalTasks:', this.tasks.length);
     this.callbacks.onCollapsedChange?.(new Set(this.collapsedHeaderIds));
     this.markDirty();
   }
@@ -730,7 +727,7 @@ export class UnifiedGanttCanvas {
     this.markDirty();
   }
 
-  /** Select a header and all its children (group selection) */
+  /** Select a header and all its children (group selection) - includes grandchildren */
   selectHeaderGroup(headerTaskId: string): void {
     const headerTask = this.tasks.find((t) => t.id === headerTaskId);
     if (!headerTask) return;
@@ -746,10 +743,35 @@ export class UnifiedGanttCanvas {
     // Add header itself
     this.selectedTaskIds.add(headerTaskId);
 
-    // Find all children of this header
+    // Build map of task_number -> parent task_number for recursive lookup
+    const parentMap = new Map<number, number | null>();
     for (const task of this.tasks) {
-      const parentNum = this.getParentHeaderTaskNumber(task);
-      if (parentNum === headerTaskNumber) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rowData = task.rowData as any;
+      if (rowData?.task_number) {
+        parentMap.set(rowData.task_number, this.getParentHeaderTaskNumber(task));
+      }
+    }
+
+    // Check if a task is a descendant of the header (any level, with cycle detection)
+    const isDescendant = (taskNumber: number): boolean => {
+      const visited = new Set<number>();
+      let current = parentMap.get(taskNumber);
+      while (current !== null && current !== undefined) {
+        if (visited.has(current)) return false; // Cycle detected, stop
+        visited.add(current);
+        if (current === headerTaskNumber) return true;
+        current = parentMap.get(current);
+      }
+      return false;
+    };
+
+    // Find all descendants of this header
+    for (const task of this.tasks) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rowData = task.rowData as any;
+      const taskNum = rowData?.task_number;
+      if (taskNum && isDescendant(taskNum)) {
         this.selectedTaskIds.add(task.id);
       }
     }
@@ -1001,17 +1023,28 @@ export class UnifiedGanttCanvas {
       }
     }
 
-    // Build parent-child map for headers (to check grandparent collapse for 2-level nesting)
-    const headerParentMap = new Map<number, number | null>();
+    // Build parent map for ALL tasks (to check any ancestor collapse)
+    const parentMap = new Map<number, number | null>();
     for (const task of this.tasks) {
-      if (this.isHeaderTask(task)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rowData = task.rowData as any;
-        if (rowData?.task_number) {
-          headerParentMap.set(rowData.task_number, this.getParentHeaderTaskNumber(task));
-        }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rowData = task.rowData as any;
+      if (rowData?.task_number) {
+        parentMap.set(rowData.task_number, this.getParentHeaderTaskNumber(task));
       }
     }
+
+    // Check if any ancestor of a task is collapsed (with cycle detection)
+    const hasCollapsedAncestor = (taskNumber: number): boolean => {
+      const visited = new Set<number>();
+      let current = parentMap.get(taskNumber);
+      while (current !== null && current !== undefined) {
+        if (visited.has(current)) return false; // Cycle detected, stop
+        visited.add(current);
+        if (collapsedTaskNumbers.has(current)) return true;
+        current = parentMap.get(current);
+      }
+      return false;
+    };
 
     for (const task of this.tasks) {
       // Check search filter
@@ -1030,23 +1063,12 @@ export class UnifiedGanttCanvas {
         }
       }
 
-      // Check if any ancestor is collapsed (2-level nesting support)
-      // - Check direct parent
-      // - If parent is a Level 2 header, also check if Level 1 grandparent is collapsed
-      const parentNum = this.getParentHeaderTaskNumber(task);
-      if (parentNum !== null) {
-        // Direct parent is collapsed
-        if (collapsedTaskNumbers.has(parentNum)) {
-          continue; // Hidden by collapsed parent
-        }
-
-        // Check if parent is a Level 2 header and its Level 1 grandparent is collapsed
-        const grandparentNum = headerParentMap.get(parentNum);
-        if (grandparentNum !== null && grandparentNum !== undefined) {
-          if (collapsedTaskNumbers.has(grandparentNum)) {
-            continue; // Hidden by collapsed grandparent
-          }
-        }
+      // Check if any ancestor is collapsed (supports unlimited nesting levels)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rowData = task.rowData as any;
+      const taskNum = rowData?.task_number;
+      if (taskNum && hasCollapsedAncestor(taskNum)) {
+        continue; // Hidden by collapsed ancestor
       }
 
       visible.push(task);

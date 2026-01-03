@@ -1763,6 +1763,33 @@ Rails.application.routes.draw do
       end
 
       # ============================================
+      # Notebooks (OneNote-like note system)
+      # ============================================
+
+      resources :notebooks do
+        member do
+          post :share
+          delete :unshare
+        end
+        resources :sections, controller: "notebook_sections" do
+          member do
+            post :reorder
+          end
+          resources :pages, controller: "notebook_pages", only: [ :index, :create ]
+        end
+      end
+
+      resources :notebook_pages, only: [ :show, :update, :destroy ] do
+        member do
+          post :move
+          post :toggle_pin
+        end
+        collection do
+          get :recent
+        end
+      end
+
+      # ============================================
       # SM Gantt - Advanced Analytics
       # ============================================
 
