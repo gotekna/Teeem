@@ -674,6 +674,8 @@ export function sortRowsHierarchically<T extends {
       processed.add(row.task_number);
       const children = childrenByParent.get(row.task_number) || [];
       for (const child of children) {
+        // Skip if already processed (e.g., Level 2 header already emitted its own block)
+        if (processed.has(child.task_number)) continue;
         result.push(child);
         processed.add(child.task_number);
       }

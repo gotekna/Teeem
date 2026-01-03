@@ -141,6 +141,7 @@ module Api
 
       def build_email_account_nav_items
         accounts = []
+        position = 0
 
         # IMAP accounts for current user (ordered by nav_position)
         current_user.imap_credentials.where(is_active: true).order(:nav_position, :id).each do |cred|
@@ -150,7 +151,7 @@ module Api
             href: "/email?account=#{cred.id}",
             icon: "mail",
             badge_key: nil,
-            position: cred.nav_position || 0,
+            position: cred.nav_position || (position += 1),
             has_children: false,
             children: []
           }
@@ -169,9 +170,10 @@ module Api
           else
             []
           end
-          user_emails = (auto_emails + configured_emails).uniq
+          user_emails = (auto_emails + configured_emails).uniq.compact
 
           user_emails.each do |email|
+            next if email.blank?
             accounts << {
               id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
               name: email,
