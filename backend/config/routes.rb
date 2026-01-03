@@ -1420,6 +1420,7 @@ Rails.application.routes.draw do
           # Task attachments
           get :attachments
           post :attachments, action: :add_attachment
+          post "attachments/upload", action: :upload_attachment
           delete "attachments/:attachment_id", action: :remove_attachment
           # Task followers
           post :follow

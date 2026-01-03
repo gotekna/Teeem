@@ -2017,6 +2017,44 @@ export function ScheduleMasterTab() {
             }
           }
 
+          // If header's required start (from predecessors) is later than children's earliest start,
+          // we need to shift ALL children forward by the difference
+          const childMinStart = children[0].startDate;
+          for (const child of children) {
+            if (child.startDate < childMinStart) {
+              // This won't execute since we already set childMinStart to children[0].startDate
+              // and then compared, but keeping for safety
+            }
+          }
+
+          // Calculate actual earliest child start
+          let actualChildMinStart = children[0].startDate;
+          for (const child of children) {
+            if (child.startDate < actualChildMinStart) actualChildMinStart = child.startDate;
+          }
+
+          // If header needs to start later than children currently do, shift children
+          if (minStart > actualChildMinStart) {
+            const shiftDays = Math.ceil((minStart.getTime() - actualChildMinStart.getTime()) / (1000 * 60 * 60 * 24));
+            console.log(`[Gantt] Shifting children of ${row.name} by ${shiftDays} days due to header predecessors`);
+
+            // Shift all children forward
+            for (const child of children) {
+              const newStart = new Date(child.startDate);
+              newStart.setDate(newStart.getDate() + shiftDays);
+              const newEnd = new Date(child.endDate);
+              newEnd.setDate(newEnd.getDate() + shiftDays);
+              child.startDate = newStart;
+              child.endDate = newEnd;
+            }
+
+            // Recalculate maxEnd after shifting
+            maxEnd = children[0].endDate;
+            for (const child of children) {
+              if (child.endDate > maxEnd) maxEnd = child.endDate;
+            }
+          }
+
           return {
             ...task,
             startDate: new Date(minStart),

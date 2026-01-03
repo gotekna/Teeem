@@ -179,25 +179,38 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   // Handler for adding an attachment
   const handleAddAttachment = async (attachment: PendingAttachment) => {
-    if (!attachment.id || attachment.type === 'upload') {
-      // For file uploads, just add to pending (would need file upload API)
-      setPendingAttachments((prev) => [...prev, attachment]);
-      return;
-    }
-
     setAttachmentLoading(true);
     try {
-      const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
-        `/api/v1/sm_tasks/${task.id}/attachments`,
-        {
-          attachment_type: attachment.type,
-          attachable_id: attachment.id,
-        }
-      );
+      if (attachment.type === 'upload' && attachment.file) {
+        // Upload file using multipart form data
+        const formData = new FormData();
+        formData.append('file', attachment.file);
 
-      if (response?.success && response.attachment) {
-        setLocalAttachments((prev) => [...prev, response.attachment]);
-        setShowAttachmentPicker(false);
+        const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment; error?: string }>(
+          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
+          formData
+        );
+
+        if (response?.success && response.attachment) {
+          setLocalAttachments((prev) => [...prev, response.attachment]);
+          setShowAttachmentPicker(false);
+        } else {
+          console.error('Upload failed:', response?.error);
+        }
+      } else if (attachment.id) {
+        // Link existing email/document
+        const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
+          `/api/v1/sm_tasks/${task.id}/attachments`,
+          {
+            attachment_type: attachment.type,
+            attachable_id: attachment.id,
+          }
+        );
+
+        if (response?.success && response.attachment) {
+          setLocalAttachments((prev) => [...prev, response.attachment]);
+          setShowAttachmentPicker(false);
+        }
       }
     } catch (error) {
       console.error('Failed to add attachment:', error);

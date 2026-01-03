@@ -9,7 +9,7 @@ module Api
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
-        :attachments, :add_attachment, :remove_attachment,
+        :attachments, :add_attachment, :remove_attachment, :upload_attachment,
         :follow, :unfollow, :followers,
         :compare_to_template, :sync_from_template
       ]
@@ -696,6 +696,68 @@ module Api
         render json: { success: true, message: "Attachment removed" }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Attachment not found" }, status: :not_found
+      end
+
+      # POST /api/v1/sm_tasks/:id/attachments/upload
+      # Upload a file and attach it to the task
+      def upload_attachment
+        unless params[:file].present?
+          return render json: { success: false, error: "No file provided" }, status: :bad_request
+        end
+
+        file = params[:file]
+        filename = file.original_filename
+        content = file.read
+
+        # Determine folder path - use job folder if task has job, otherwise general tasks folder
+        if @task.job.present?
+          folder_path = "TEEEM Jobs/#{@task.job.name}/Task Attachments"
+        else
+          folder_path = "TEEEM Tasks/Task #{@task.task_number}"
+        end
+
+        # Upload to SharePoint
+        begin
+          graph_client = MicrosoftAppGraphClient.for_org(current_user.organization)
+          site_id = graph_client.default_site_id
+          drive_id = graph_client.default_drive_id
+
+          upload_result = graph_client.upload_file_content(
+            site_id,
+            drive_id,
+            folder_path,
+            filename,
+            content
+          )
+
+          # Create a CorporateCompanyDocument record
+          document = CorporateCompanyDocument.create!(
+            file_name: filename,
+            file_url: upload_result[:web_url],
+            file_size: content.bytesize,
+            mime_type: file.content_type,
+            sharepoint_item_id: upload_result[:id],
+            sharepoint_url: upload_result[:web_url],
+            user: current_user,
+            folder: "Task Attachments"
+          )
+
+          # Create the attachment link
+          attachment = @task.sm_task_attachments.create!(
+            attachable: document,
+            attachment_type: "document",
+            notes: params[:notes],
+            added_by: current_user
+          )
+
+          render json: {
+            success: true,
+            attachment: attachment_to_json(attachment)
+          }
+        rescue => e
+          Rails.logger.error "[SmTasksController#upload_attachment] Failed: #{e.message}"
+          render json: { success: false, error: "Upload failed: #{e.message}" }, status: :unprocessable_entity
+        end
       end
 
       # ===== Task Followers =====
