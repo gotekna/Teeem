@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -104,6 +105,9 @@ export function KeyboardShortcutsHelp({
           <DialogTitle className="flex items-center gap-2">
             <span>Keyboard Shortcuts</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Available keyboard shortcuts for navigating and managing emails
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
