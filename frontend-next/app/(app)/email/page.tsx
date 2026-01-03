@@ -824,11 +824,16 @@ export default function EmailPage() {
           [accountId]: response.data
         }));
 
-        // Auto-select inbox folder if this is the selected account and no folder is selected
-        // (Don't override cached folder selection)
-        if (accountId === selectedAccount && !selectedFolderId) {
+        // Auto-select inbox folder if this is the selected account and:
+        // - No folder is selected, OR
+        // - The folder ID is the default "INBOX" (IMAP) but doesn't match any real folder
+        //   (MS365/Outlook use different folder IDs like "AAMkAGQ0...")
+        if (accountId === selectedAccount) {
           const inboxFolder = response.data.find(f => f.type === "inbox");
-          if (inboxFolder) {
+          const currentFolderExists = response.data.some(f => f.id === selectedFolderId);
+
+          // Update to real inbox folder if current folder doesn't exist in this account
+          if (inboxFolder && (!selectedFolderId || !currentFolderExists)) {
             setSelectedFolder(inboxFolder.name);
             setSelectedFolderId(inboxFolder.id);
           }

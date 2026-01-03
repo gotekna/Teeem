@@ -669,16 +669,31 @@ export function sortRowsHierarchically<T extends {
     if (processed.has(row.task_number)) continue;
 
     if (isHeaderRow(row)) {
-      // Emit header + children block
+      // Level 2+ headers: don't emit standalone, let parent emit them
+      const parentNum = getParentTaskNumber(row);
+      if (parentNum !== null && headerTaskNumbers.has(parentNum)) {
+        continue; // Skip - parent will emit this row as a child
+      }
+
+      // Top-level header: emit with children (recursively for nested headers)
       result.push(row);
       processed.add(row.task_number);
-      const children = childrenByParent.get(row.task_number) || [];
-      for (const child of children) {
-        // Skip if already processed (e.g., Level 2 header already emitted its own block)
-        if (processed.has(child.task_number)) continue;
-        result.push(child);
-        processed.add(child.task_number);
-      }
+
+      // Recursive function to emit children and their descendants
+      const emitChildren = (headerTaskNum: number) => {
+        const children = childrenByParent.get(headerTaskNum) || [];
+        for (const child of children) {
+          if (processed.has(child.task_number)) continue;
+          result.push(child);
+          processed.add(child.task_number);
+          // If this child is also a header, emit ITS children too (nested hierarchy)
+          if (isHeaderRow(child)) {
+            emitChildren(child.task_number);
+          }
+        }
+      };
+
+      emitChildren(row.task_number);
     } else {
       const parentNum = getParentTaskNumber(row);
       if (parentNum === null || !headerTaskNumbers.has(parentNum)) {
