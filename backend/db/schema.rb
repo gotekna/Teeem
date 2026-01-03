@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_04_064742) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_04_064748) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1477,12 +1477,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064742) do
     t.string "bank_bsb"
     t.string "bank_account_number"
     t.string "bank_account_name"
-    t.string "default_purchase_account"
+    t.integer "default_purchase_account"
     t.integer "bill_due_day"
     t.string "bill_due_type"
     t.string "xero_contact_number"
     t.string "xero_account_number"
-    t.string "default_sales_account"
+    t.integer "default_sales_account"
     t.decimal "default_discount", precision: 5, scale: 2
     t.integer "sales_due_day"
     t.string "sales_due_type"
@@ -5386,7 +5386,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064742) do
     t.text "file_upload"
     t.boolean "boolean"
     t.string "choice", limit: 50
-    t.string "lookup", limit: 255
+    t.integer "lookup"
     t.text "multiple_lookups"
     t.integer "user"
     t.string "computed", limit: 255
@@ -8131,9 +8131,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064742) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "linked_po_task_id"
-    t.string "cost_centre"
+    t.integer "cost_centre"
     t.boolean "supplier_confirm", default: false
-    t.string "header_gantt"
+    t.integer "header_gantt"
     t.jsonb "sm_template_ids", default: []
     t.boolean "hold"
     t.date "hold_date"
@@ -8346,7 +8346,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064742) do
     t.string "color"
     t.boolean "is_active", default: true
     t.integer "linked_po_task_id"
-    t.string "cost_centre"
+    t.integer "cost_centre"
     t.boolean "completed", default: false
     t.date "previous_manual_start_date"
     t.datetime "confirmed_at"
