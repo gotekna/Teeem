@@ -92,24 +92,23 @@ module HealthChecks
       )
     end
 
-    # Headers should be clean - no duration, trade, stage, assigned_role, cost_centre, or parent header
+    # Headers should be clean - no duration > 0, trade, assigned_role, or cost_centre
+    # NOTE: stage and header_gantt are intentionally ALLOWED on headers for Gantt grouping
     def check_dirty_headers
       rows = SmScheduleMaster.active
                              .where(allow_header: true)
                              .where(<<~SQL)
                                (duration_days IS NOT NULL AND duration_days > 0)
                                OR trade IS NOT NULL
-                               OR stage IS NOT NULL
                                OR assigned_role IS NOT NULL
                                OR cost_centre IS NOT NULL
-                               OR header_gantt IS NOT NULL
                              SQL
                              .select(:id, :name, :task_number, :sequence_order)
 
       build_result(
         name: "Headers With Data",
         check_name: "dirty_headers",
-        description: "Header rows should be clean (no duration, trade, stage, assigned_role, cost_centre, header_gantt). Click Fix All to clear.",
+        description: "Header rows should be clean (no duration > 0, trade, assigned_role, cost_centre). Click Fix All to clear.",
         severity: :warning,
         items: rows,
         icon: "exclamation-triangle",
@@ -120,24 +119,21 @@ module HealthChecks
     end
 
     # Class method to fix dirty headers
+    # NOTE: Preserves stage and header_gantt (intentional for Gantt grouping)
     def self.fix_dirty_headers!
       count = SmScheduleMaster.active
                               .where(allow_header: true)
                               .where(<<~SQL)
                                 (duration_days IS NOT NULL AND duration_days > 0)
                                 OR trade IS NOT NULL
-                                OR stage IS NOT NULL
                                 OR assigned_role IS NOT NULL
                                 OR cost_centre IS NOT NULL
-                                OR header_gantt IS NOT NULL
                               SQL
                               .update_all(
                                 duration_days: 0,  # NOT NULL constraint - use 0 for headers
                                 trade: nil,
-                                stage: nil,
                                 assigned_role: nil,
-                                cost_centre: nil,
-                                header_gantt: nil
+                                cost_centre: nil
                               )
       { fixed: count }
     end

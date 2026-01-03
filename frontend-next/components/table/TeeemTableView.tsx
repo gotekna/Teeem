@@ -4151,8 +4151,8 @@ export default function TeeemTableView({
     const result: React.ReactNode[] = [];
 
     // Sort groups alphabetically by display name
-    // "(Empty)" / "No Value" group always goes last
-    const isEmptyGroup = (key: string) => key === "(Empty)" || key === "No Value";
+    // "(Empty)" group always goes last (SSoT: all null/undefined values use "(Empty)")
+    const isEmptyGroup = (key: string) => key === "(Empty)";
     const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
 
     // Collect all group keys to filter companies from "No Employees Assigned" group
@@ -4441,8 +4441,8 @@ export default function TeeemTableView({
     const groupKeysAtRoot = allGroupKeys || new Set(Object.keys(groups));
 
     // Sort groups alphabetically by display name
-    // "(Empty)" / "No Value" group always goes last
-    const isEmptyGroup = (key: string) => key === "(Empty)" || key === "No Value";
+    // "(Empty)" group always goes last (SSoT: all null/undefined values use "(Empty)")
+    const isEmptyGroup = (key: string) => key === "(Empty)";
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
       if (isEmptyGroup(keyA)) return 1;
       if (isEmptyGroup(keyB)) return -1;
@@ -4514,7 +4514,7 @@ export default function TeeemTableView({
                 <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
-                {(groupKey === "(Empty)" || groupKey === "No Value") && isGroupingByCompany
+                {groupKey === "(Empty)" && isGroupingByCompany
                   ? "No Employees Assigned"
                   : combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
               </span>
@@ -4576,7 +4576,7 @@ export default function TeeemTableView({
 
           // Filter rows for rendering:
           // - For named groups: exclude the company row (it's rendered first)
-          // - For "(Empty)" / "No Value" group: exclude records that appear as group headers
+          // - For "(Empty)" group: exclude records that appear as group headers
           let rowsToRender = effectiveRows;
           if (companyRow) {
             rowsToRender = effectiveRows.filter(r => r.id !== companyRow.id);

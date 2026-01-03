@@ -449,7 +449,8 @@ interface ServerGroupCount {
  * Extract display value from a cell for grouping
  */
 export function getGroupDisplayValue(value: unknown): string {
-  if (value === null || value === undefined) return "No Value";
+  // SSoT: Use "(Empty)" to match server convention (server returns null key which becomes "(Empty)")
+  if (value === null || value === undefined) return "(Empty)";
   // Handle arrays - join as comma-separated string
   if (Array.isArray(value)) {
     if (value.length === 0) return "—";
@@ -463,7 +464,7 @@ export function getGroupDisplayValue(value: unknown): string {
     if (obj.id !== undefined) {
       return String(obj.id);
     }
-    return String(obj.display || obj.display_value || obj.name || "No Value");
+    return String(obj.display || obj.display_value || obj.name || "(Empty)");
   }
   return String(value);
 }
@@ -574,8 +575,8 @@ export function buildGroupedEntries(
         if (unsortedGroups[companyId]) {
           continue; // Company is a group header via its employees
         }
-        // Company has NO employees in current data - add to "No Value" (No Employees Assigned)
-        const noValueKey = "No Value";
+        // Company has NO employees in current data - add to "(Empty)" (No Employees Assigned)
+        const noValueKey = "(Empty)";
         if (!unsortedGroups[noValueKey]) {
           unsortedGroups[noValueKey] = { rows: [] };
         }
