@@ -421,12 +421,18 @@ class ImapEmailService
     uid = msg.attr["UID"]
     internal_date = msg.attr["INTERNALDATE"]
 
-    # Extract message ID
+    # Extract message ID - generate fallback if missing
     message_id = mail.message_id || envelope&.message_id
-    return nil unless message_id.present?
 
     # Clean message ID (remove angle brackets if present)
-    message_id = message_id.gsub(/[<>]/, "")
+    if message_id.present?
+      message_id = message_id.gsub(/[<>]/, "")
+    else
+      # Generate a unique fallback message ID for emails without one
+      # Using UID + folder + credential ensures uniqueness within the mailbox
+      message_id = "imap-#{uid}-#{folder_name.parameterize}@#{credential.email_address.split('@').last}"
+      Rails.logger.info "[ImapEmailService] Generated fallback message_id: #{message_id}"
+    end
 
     # Extract body
     body_text = extract_text_body(mail)

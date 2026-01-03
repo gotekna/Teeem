@@ -250,6 +250,7 @@ module Api
           trade_name: trades_map[row.trade.to_i] || row.trade,
           stage_name: stages_map[row.stage.to_i] || row.stage,
           header_gantt: header_value,
+          allow_header: row.allow_header,  # SSoT: Needed for Gantt V2 header bar rendering
           cost_centre: cost_centre_value,
           assigned_role: role_value,
           checklist_id: row.checklist_id,
