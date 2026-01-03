@@ -471,9 +471,10 @@ export default function EmailPage() {
   };
   const cachedState = getCachedEmailState();
 
-  const [selectedAccount, setSelectedAccount] = useState<string>(cachedState?.accountId || "");
+  // "all" = combined view from all accounts, "" = select mailbox, otherwise = specific account id
+  const [selectedAccount, setSelectedAccount] = useState<string>(cachedState?.accountId || "all");
   const [selectedFolder, setSelectedFolder] = useState<string>(cachedState?.folderName || "Inbox");
-  const [selectedFolderId, setSelectedFolderId] = useState<string>(cachedState?.folderId || "INBOX");
+  const [selectedFolderId, setSelectedFolderId] = useState<string>(cachedState?.folderId || "ALL_INBOX");
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(
     cachedState?.accountId ? new Set([cachedState.accountId]) : new Set()
   );
@@ -754,12 +755,6 @@ export default function EmailPage() {
 
   const fetchEmails = useCallback(async (page = 1) => {
     console.log('[Email] fetchEmails called', { selectedAccount, selectedFolder, page });
-    if (!selectedAccount) {
-      console.log('[Email] No selectedAccount, returning early');
-      setEmails([]);
-      setLoading(false);
-      return;
-    }
 
     setLoading(true);
     try {
@@ -769,18 +764,21 @@ export default function EmailPage() {
       params.set("per_page", "50");
       params.set("my_emails", "true");
 
-      // Filter by specific account
-      if (selectedAccount === "outlook") {
-        params.append("source_type", "outlook");
-      } else if (selectedAccount.startsWith("ms365_")) {
-        // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
-        const parts = selectedAccount.split("_");
-        params.append("microsoft_credential_id", parts[1]);
-      } else {
-        params.append("imap_credential_id", selectedAccount);
+      // Filter by specific account (skip filtering if "all" for combined view)
+      if (selectedAccount && selectedAccount !== "all") {
+        if (selectedAccount === "outlook") {
+          params.append("source_type", "outlook");
+        } else if (selectedAccount.startsWith("ms365_")) {
+          // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
+          const parts = selectedAccount.split("_");
+          params.append("microsoft_credential_id", parts[1]);
+        } else {
+          params.append("imap_credential_id", selectedAccount);
+        }
       }
 
       // Filter by folder name (warehouse stores human-readable names like "Inbox", not MS365 IDs)
+      // For "All Inbox", just filter by Inbox folder name across all accounts
       if (selectedFolder) {
         params.append("folder_name", selectedFolder);
       }
@@ -908,9 +906,8 @@ export default function EmailPage() {
   }, [accountParam, accounts]);
 
   useEffect(() => {
-    if (selectedAccount) {
-      fetchEmails();
-    }
+    // Fetch emails when account changes (including "all" for combined view)
+    fetchEmails();
   }, [selectedAccount, fetchEmails]);
 
   // Cache email state for instant loading on next visit
@@ -1140,6 +1137,7 @@ To: ${email.to_emails?.join(", ") || ""}
   }, [selectedAccount]);
 
   const getSelectedAccountName = () => {
+    if (selectedAccount === "all") return "All Accounts";
     const account = accounts.find(a => String(a.id) === selectedAccount);
     if (!account) return "Select mailbox";
     if (account.type === "ms365") {
@@ -1170,13 +1168,50 @@ To: ${email.to_emails?.join(", ") || ""}
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
-          {!selectedAccount ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Select a mailbox</p>
-              <p className="text-xs mt-1">Choose from Email in the sidebar</p>
-            </div>
-          ) : (
+          {/* All Inbox - Combined view from all accounts */}
+          <button
+            onClick={() => {
+              setSelectedAccount("all");
+              setSelectedFolder("Inbox");
+              setSelectedFolderId("ALL_INBOX");
+            }}
+            className={cn(
+              "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 rounded-sm font-medium",
+              selectedAccount === "all" && "bg-primary/10 text-primary"
+            )}
+          >
+            <Inbox className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">All Inbox</span>
+          </button>
+
+          <div className="border-b my-2" />
+
+          {/* Mailbox list - always show */}
+          <div className="px-2 mb-2">
+            <div className="text-xs text-muted-foreground px-1 py-1 font-medium">Mailboxes</div>
+            {accounts.map((account) => (
+              <button
+                key={account.id}
+                onClick={() => {
+                  const accountId = String(account.id);
+                  setSelectedAccount(accountId);
+                  setExpandedAccounts(new Set([accountId]));
+                  fetchFolders(accountId, account);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted/50 rounded-sm",
+                  selectedAccount === String(account.id) && "bg-primary/10 text-primary font-medium"
+                )}
+              >
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1 text-left truncate text-xs">
+                  {account.email_address || account.name}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {selectedAccount && selectedAccount !== "all" ? (
             (() => {
               const account = accounts.find(a => String(a.id) === selectedAccount);
               if (!account) return null;
@@ -1221,7 +1256,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 </div>
               );
             })()
-          )}
+          ) : null}
         </div>
 
         {/* Rules & Settings Links */}
@@ -1467,12 +1502,7 @@ To: ${email.to_emails?.join(", ") || ""}
             )
           ) : (
             // Folder View
-            !selectedAccount ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Mail className="h-8 w-8 mb-2 opacity-50" />
-                <p className="text-sm">Select a mailbox</p>
-              </div>
-            ) : loading ? (
+            loading ? (
               <div className="flex items-center justify-center py-12">
                 <Spinner />
               </div>
