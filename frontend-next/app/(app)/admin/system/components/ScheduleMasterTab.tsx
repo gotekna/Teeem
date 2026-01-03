@@ -1942,11 +1942,18 @@ export function ScheduleMasterTab() {
           if (!row || isHeaderRow(row)) continue;
 
           // Get parent header task_number from header_gantt
+          // Can be: number, {id, display} object, or string number like "1407"
           let parentTaskNumber: number | null = null;
           if (typeof row.header_gantt === 'number') {
             parentTaskNumber = row.header_gantt;
           } else if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
             parentTaskNumber = row.header_gantt.id;
+          } else if (typeof row.header_gantt === 'string' && row.header_gantt !== 'Header') {
+            // Parse string number (e.g., "1407" -> 1407)
+            const parsed = parseInt(row.header_gantt, 10);
+            if (!isNaN(parsed)) {
+              parentTaskNumber = parsed;
+            }
           }
 
           if (parentTaskNumber && headerTaskNumbers.has(parentTaskNumber)) {
@@ -1954,7 +1961,17 @@ export function ScheduleMasterTab() {
           }
         }
 
+        // Build task_number -> task map for predecessor lookups
+        const taskByTaskNumber = new Map<number, typeof tasks[0]>();
+        for (const task of tasks) {
+          const row = rows.find(r => String(r.id) === task.id);
+          if (row?.task_number) {
+            taskByTaskNumber.set(row.task_number, task);
+          }
+        }
+
         // Update header dates to span their children's rolled-over dates
+        // Also respect header's own predecessors (header can't start before predecessor finishes)
         tasks = tasks.map(task => {
           const row = rows.find(r => String(r.id) === task.id);
           if (!row || !isHeaderRow(row)) return task;
@@ -1962,11 +1979,42 @@ export function ScheduleMasterTab() {
           const children = childrenByHeader.get(row.task_number);
           if (!children || children.length === 0) return task;
 
+          // Calculate span from children
           let minStart = children[0].startDate;
           let maxEnd = children[0].endDate;
           for (const child of children) {
             if (child.startDate < minStart) minStart = child.startDate;
             if (child.endDate > maxEnd) maxEnd = child.endDate;
+          }
+
+          // If header has predecessors, ensure it doesn't start before they finish
+          if (row.predecessor_ids && Array.isArray(row.predecessor_ids)) {
+            for (const pred of row.predecessor_ids) {
+              const predTask = taskByTaskNumber.get(pred.id);
+              if (predTask) {
+                const predType = pred.type || 'FS';
+                const lag = pred.lag || 0;
+                let requiredStart: Date;
+
+                if (predType === 'FS') {
+                  // Finish-to-Start: header can't start until predecessor finishes + lag
+                  requiredStart = new Date(predTask.endDate);
+                  requiredStart.setDate(requiredStart.getDate() + 1 + lag);
+                } else if (predType === 'SS') {
+                  // Start-to-Start: header can't start until predecessor starts + lag
+                  requiredStart = new Date(predTask.startDate);
+                  requiredStart.setDate(requiredStart.getDate() + lag);
+                } else {
+                  // Default to FS behavior
+                  requiredStart = new Date(predTask.endDate);
+                  requiredStart.setDate(requiredStart.getDate() + 1 + lag);
+                }
+
+                if (requiredStart > minStart) {
+                  minStart = requiredStart;
+                }
+              }
+            }
           }
 
           return {
@@ -1985,6 +2033,77 @@ export function ScheduleMasterTab() {
           return children && children.length > 0; // Only keep headers WITH children
         });
       }
+
+      // Sort tasks by start date while keeping header groups together
+      // Headers sorted by their start date, children sorted within each header
+      const sortTasksChronologically = (taskList: typeof tasks): typeof tasks => {
+        // Build header -> children map using task objects
+        const headerChildren = new Map<string, typeof tasks>();
+        const ungroupedTasks: typeof tasks = [];
+        const headerTasks: typeof tasks = [];
+
+        // First pass: identify headers and group children
+        for (const task of taskList) {
+          const row = rows.find(r => String(r.id) === task.id);
+          if (isHeaderRow(row)) {
+            headerTasks.push(task);
+            headerChildren.set(task.id, []);
+          }
+        }
+
+        // Second pass: assign children to their headers
+        for (const task of taskList) {
+          const row = rows.find(r => String(r.id) === task.id);
+          if (isHeaderRow(row)) continue;
+
+          // Find parent header
+          let parentTaskNumber: number | null = null;
+          if (typeof row?.header_gantt === 'number') {
+            parentTaskNumber = row.header_gantt;
+          } else if (typeof row?.header_gantt === 'object' && row.header_gantt?.id) {
+            parentTaskNumber = row.header_gantt.id;
+          } else if (typeof row?.header_gantt === 'string' && row.header_gantt !== 'Header') {
+            const parsed = parseInt(row.header_gantt, 10);
+            if (!isNaN(parsed)) parentTaskNumber = parsed;
+          }
+
+          // Find header task by task_number
+          const parentHeader = parentTaskNumber ? headerTasks.find(h => {
+            const hRow = rows.find(r => String(r.id) === h.id);
+            return hRow?.task_number === parentTaskNumber;
+          }) : null;
+
+          if (parentHeader) {
+            headerChildren.get(parentHeader.id)!.push(task);
+          } else {
+            ungroupedTasks.push(task);
+          }
+        }
+
+        // Sort headers by start date
+        headerTasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+        // Sort children within each header by start date
+        for (const children of headerChildren.values()) {
+          children.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+        }
+
+        // Sort ungrouped tasks by start date
+        ungroupedTasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+        // Rebuild task list: headers with their children, then ungrouped tasks
+        const result: typeof tasks = [];
+        for (const header of headerTasks) {
+          result.push(header);
+          result.push(...headerChildren.get(header.id)!);
+        }
+        result.push(...ungroupedTasks);
+
+        return result;
+      };
+
+      tasks = sortTasksChronologically(tasks);
+
       // Extract dependencies from tasks (predecessor_ids are embedded in tasks)
       const dependencies: GanttDependency[] = [];
       for (const row of rows) {

@@ -3092,13 +3092,6 @@ export class UnifiedGanttCanvas {
               }
             });
 
-            // Debug: log first lookup attempt
-            if (predIds[0]) {
-              const firstPred = Number(predIds[0].id);
-              const lookup = taskNumToRowIdx.get(firstPred);
-              console.log('[Deps] Looking for task_number:', firstPred, 'Found row:', lookup, 'Map size:', taskNumToRowIdx.size);
-            }
-
             // Convert each predecessor to "rowNum TYPE" format
             displayText = predIds.map(pred => {
               // Convert pred.id to number for consistent Map lookup
