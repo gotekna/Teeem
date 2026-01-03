@@ -78,7 +78,7 @@ import { GanttUnified, GanttDependencyEditor } from "@/components/gantt-v2";
 import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
-import { convertRowsToTasks, isHeaderRow, type GanttTask, type GanttDependency, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
+import { convertRowsToTasks, isHeaderRow, isWorkingDay, skipToPreviousWorkingDay, type GanttTask, type GanttDependency, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch } from "lucide-react";
@@ -384,11 +384,15 @@ export function ScheduleMasterTab() {
     task: GanttTask | null;
     headerName: string | null;
     hasPredecessors: boolean;
+    isTodayWorkingDay: boolean;
+    lastWorkingDay: Date | null;
   }>({
     isOpen: false,
     task: null,
     headerName: null,
-    hasPredecessors: false
+    hasPredecessors: false,
+    isTodayWorkingDay: true,
+    lastWorkingDay: null
   });
 
   // Row Edit Sheet state
@@ -1069,17 +1073,24 @@ export function ScheduleMasterTab() {
           const headerTaskNumber = extractLookupId(headerGanttValue);
           if (headerTaskNumber) {
             // Find header row by task_number
-            const headerRow = ganttV2Rows.find(r => String(r.task_number) === headerTaskNumber);
+            const headerRow = ganttRows.find((r: SmScheduleMaster) => String(r.task_number) === headerTaskNumber);
             headerName = headerRow?.name || extractLookupDisplay(headerGanttValue) || `Task #${headerTaskNumber}`;
           }
         }
+
+        // Check if today is a working day
+        const today = new Date();
+        const isTodayWorking = isWorkingDay(today);
+        const lastWorking = isTodayWorking ? null : skipToPreviousWorkingDay(today);
 
         // Show start task dialog
         setStartTaskDialog({
           isOpen: true,
           task,
           headerName,
-          hasPredecessors
+          hasPredecessors,
+          isTodayWorkingDay: isTodayWorking,
+          lastWorkingDay: lastWorking
         });
         return;
       }
@@ -1163,21 +1174,22 @@ export function ScheduleMasterTab() {
   // Gantt V2: Execute start task with break option (called from start task dialog)
   const executeStartTask = async (
     task: GanttTask,
-    option: 'break-header' | 'break-dependency'
+    option: 'break-header' | 'break-dependency' | 'start-only',
+    startDate?: Date
   ) => {
     if (!ganttV2TemplateId) return;
 
     const row = task.rowData as GanttSmScheduleMaster | undefined;
     if (!row) return;
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const dateToUse = startDate || new Date();
+    const dateStr = dateToUse.toISOString().split('T')[0];
 
     try {
       const updateData: Record<string, unknown> = {
         started: true,
         hold: true,           // Lock position
-        hold_date: todayStr,  // Set start date to today
+        hold_date: dateStr,   // Set start date
       };
 
       if (option === 'break-header') {
@@ -1189,17 +1201,22 @@ export function ScheduleMasterTab() {
         updateData.predecessor_ids = [];
         updateData.dependency_broken = true;  // Mark as broken for visual indicator
       }
+      // 'start-only' doesn't change header or dependencies
 
       await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${task.id}`, {
         row: updateData,
       });
 
-      const actionText = option === 'break-header'
-        ? 'broken out of header'
-        : 'dependencies cleared';
+      const dateLabel = dateToUse.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+      let actionText = `start date set to ${dateLabel}`;
+      if (option === 'break-header') {
+        actionText = `broken out of header, ${actionText}`;
+      } else if (option === 'break-dependency') {
+        actionText = `dependencies cleared, ${actionText}`;
+      }
       toast({
         title: "Task Started",
-        description: `Task ${actionText} and start date set to today`
+        description: actionText
       });
 
       // Refresh data
@@ -4425,6 +4442,139 @@ export function ScheduleMasterTab() {
               }}
             >
               {confirmDialog.isChecking ? 'Confirm' : 'Unlock'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Start Task Dialog - shown when starting a task that's under a header or has predecessors */}
+      <Dialog open={startTaskDialog.isOpen} onOpenChange={(open) => setStartTaskDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+              Start Task
+            </DialogTitle>
+            <DialogDescription>
+              Starting this task will set its start date to today and lock its position.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 space-y-3">
+            {/* Task info */}
+            <div className="p-2 bg-muted rounded text-sm">
+              <span className="font-medium">{startTaskDialog.task?.name}</span>
+            </div>
+
+            {/* Context info */}
+            {startTaskDialog.headerName && (
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs">
+                <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">
+                  This task is under header:
+                </p>
+                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-[11px]">
+                  {startTaskDialog.headerName}
+                </span>
+              </div>
+            )}
+
+            {startTaskDialog.hasPredecessors && (
+              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                <p className="font-medium text-yellow-800 dark:text-yellow-200">
+                  This task has predecessor dependencies
+                </p>
+              </div>
+            )}
+
+            {/* Non-working day warning */}
+            {!startTaskDialog.isTodayWorkingDay && startTaskDialog.lastWorkingDay && (
+              <div className="p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded text-xs">
+                <p className="font-medium text-orange-800 dark:text-orange-200">
+                  Today is a weekend or holiday
+                </p>
+                <p className="text-orange-700 dark:text-orange-300 mt-0.5">
+                  Last working day: {startTaskDialog.lastWorkingDay.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' })}
+                </p>
+              </div>
+            )}
+
+            {/* Options */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">How do you want to start this task?</p>
+
+              {startTaskDialog.headerName && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2 h-auto py-2"
+                  onClick={async () => {
+                    if (startTaskDialog.task) {
+                      const dateToUse = startTaskDialog.isTodayWorkingDay ? new Date() : startTaskDialog.lastWorkingDay!;
+                      await executeStartTask(startTaskDialog.task, 'break-header', dateToUse);
+                      setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                    }
+                  }}
+                >
+                  <GitBranch className="h-4 w-4 rotate-180 shrink-0" />
+                  <div className="text-left">
+                    <div className="font-medium">Break out of header</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      Task becomes standalone, start {startTaskDialog.isTodayWorkingDay ? 'today' : startTaskDialog.lastWorkingDay?.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </div>
+                  </div>
+                </Button>
+              )}
+
+              {startTaskDialog.hasPredecessors && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2 h-auto py-2"
+                  onClick={async () => {
+                    if (startTaskDialog.task) {
+                      const dateToUse = startTaskDialog.isTodayWorkingDay ? new Date() : startTaskDialog.lastWorkingDay!;
+                      await executeStartTask(startTaskDialog.task, 'break-dependency', dateToUse);
+                      setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                    }
+                  }}
+                >
+                  <Link2Off className="h-4 w-4 shrink-0" />
+                  <div className="text-left">
+                    <div className="font-medium">Break dependencies</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      Clear predecessors, start {startTaskDialog.isTodayWorkingDay ? 'today' : startTaskDialog.lastWorkingDay?.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </div>
+                  </div>
+                </Button>
+              )}
+
+              {/* If today is not a working day, offer to start on the holiday/weekend */}
+              {!startTaskDialog.isTodayWorkingDay && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2 h-auto py-2 border-orange-300 dark:border-orange-700"
+                  onClick={async () => {
+                    if (startTaskDialog.task) {
+                      // Start on today (weekend/holiday) anyway
+                      await executeStartTask(startTaskDialog.task, 'start-only', new Date());
+                      setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                    }
+                  }}
+                >
+                  <PlayCircle className="h-4 w-4 shrink-0 text-orange-500" />
+                  <div className="text-left">
+                    <div className="font-medium">Start on weekend/holiday</div>
+                    <div className="text-[10px] text-muted-foreground">Start today anyway (non-working day)</div>
+                  </div>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setStartTaskDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>

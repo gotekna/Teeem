@@ -504,6 +504,34 @@ export function skipToNextWorkingDay(date: Date): Date {
 }
 
 /**
+ * Check if a date is a working day (not weekend, not holiday)
+ */
+export function isWorkingDay(date: Date): boolean {
+  const holidays = getAustralianHolidays(date.getFullYear());
+  return !isWeekend(date) && !isHoliday(date, holidays);
+}
+
+/**
+ * Skip to previous working day if current date is weekend/holiday
+ */
+export function skipToPreviousWorkingDay(date: Date): Date {
+  const result = new Date(date);
+  const holidays = getAustralianHolidays(result.getFullYear());
+
+  while (isWeekend(result) || isHoliday(result, holidays)) {
+    result.setDate(result.getDate() - 1);
+
+    // Check if we crossed into a previous year
+    if (result.getMonth() === 11 && result.getDate() === 31) {
+      const prevYearHolidays = getAustralianHolidays(result.getFullYear());
+      prevYearHolidays.forEach(h => holidays.add(h));
+    }
+  }
+
+  return result;
+}
+
+/**
  * Convert SmScheduleMaster to GanttTask
  * Calculates dates based on sequence order and duration
  * Skips weekends and Australian public holidays
