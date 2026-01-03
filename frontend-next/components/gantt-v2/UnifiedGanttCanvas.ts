@@ -133,7 +133,7 @@ const LIGHT_COLORS: GanttColors = {
   taskBarText: '#1f2937',
   headerBackground: '#f3f4f6',
   headerText: '#374151',
-  selectedRow: '#dbeafe',
+  selectedRow: '#fef3c7',  // amber-100 (yellow)
   hoverRow: '#f3f4f6',
   borderColor: '#e5e7eb',
   textColor: '#1f2937',
@@ -157,7 +157,7 @@ const DARK_COLORS: GanttColors = {
   taskBarText: '#f9fafb',
   headerBackground: '#111827',
   headerText: '#e5e7eb',
-  selectedRow: '#1e3a5f',
+  selectedRow: '#78350f',  // amber-900 (dark yellow)
   hoverRow: '#374151',
   borderColor: '#4b5563',
   textColor: '#e5e7eb',
@@ -384,12 +384,15 @@ export class UnifiedGanttCanvas {
 
   /** Toggle header collapse state */
   toggleHeaderCollapse(taskId: string): void {
-    if (this.collapsedHeaderIds.has(taskId)) {
+    const wasCollapsed = this.collapsedHeaderIds.has(taskId);
+    if (wasCollapsed) {
       this.collapsedHeaderIds.delete(taskId);
     } else {
       this.collapsedHeaderIds.add(taskId);
     }
+    console.log('[Gantt] toggleHeaderCollapse:', taskId, 'was:', wasCollapsed, 'now:', !wasCollapsed, 'collapsedIds:', Array.from(this.collapsedHeaderIds));
     this.recalculateVisibleTasks();
+    console.log('[Gantt] After recalculate:', 'visibleTasks:', this.visibleTasks.length, 'totalTasks:', this.tasks.length);
     this.callbacks.onCollapsedChange?.(new Set(this.collapsedHeaderIds));
     this.markDirty();
   }
@@ -2143,21 +2146,16 @@ export class UnifiedGanttCanvas {
     // Skip header area
     if (y < this.config.headerHeight) return;
 
-    // Check for header row click - clicking anywhere in name column toggles collapse
-    // Also highlights all children of that header to show the group
+    // Header row clicks in name column are handled by mousedown (toggles collapse + selects group)
+    // We just need to prevent further click handling here to avoid double-processing
     const nameColumn = this.columns.find((c) => c.id === 'name');
     if (nameColumn && nameColumn.visible) {
       const task = this.getTaskAtRow(y);
       if (task && this.isHeaderTask(task)) {
-        // For header rows, clicking ANYWHERE in the name column toggles collapse
-        // This is much more user-friendly than requiring a click on the tiny chevron
         const nameColumnX = this.getColumnStartX('name');
         const nameColumnEnd = nameColumnX + nameColumn.width;
-
         if (x >= nameColumnX && x < nameColumnEnd) {
-          this.toggleHeaderCollapse(task.id);
-          // Highlight the header and all its children to show the group
-          this.selectHeaderGroup(task.id);
+          // Already handled by mousedown - just return to prevent double-toggle
           return;
         }
       }
@@ -3435,9 +3433,9 @@ export class UnifiedGanttCanvas {
         this.ctx.restore();
       }
 
-      // Draw selection highlight
+      // Draw selection highlight (amber/yellow)
       if (this.selectedTaskIds.has(task.id)) {
-        this.ctx.strokeStyle = '#3b82f6';
+        this.ctx.strokeStyle = '#f59e0b';  // amber-500
         this.ctx.lineWidth = 2;
         this.ctx.strokeRect(startX - 1, barY - 1, barWidth + 2, taskBarHeight + 2);
       }

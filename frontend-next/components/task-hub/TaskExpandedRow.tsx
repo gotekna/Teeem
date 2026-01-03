@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SmTask, TaskAttachment, useTaskHub } from '@/contexts/TaskHubContext';
+import { SmTask, TaskAttachment, TaskActionItem, useTaskHub } from '@/contexts/TaskHubContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,9 +19,12 @@ import {
   ChevronUp,
   ExternalLink,
   FileText,
+  Lock,
   Mail,
   Paperclip,
   Plus,
+  Trash2,
+  X,
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -49,6 +52,10 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     confirmTask,
     supplierConfirmTask,
     collapseTask,
+    addActionItem,
+    toggleActionItem,
+    removeActionItem,
+    setTaskPrivacy,
   } = useTaskHub();
 
   const [loading, setLoading] = useState<string | null>(null);
@@ -67,6 +74,10 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [localAttachments, setLocalAttachments] = useState<TaskAttachment[]>(task.attachments || []);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
+
+  // Action items state
+  const [newActionItemText, setNewActionItemText] = useState('');
+  const [actionItemLoading, setActionItemLoading] = useState<number | 'new' | null>(null);
 
   // Check if this is a PO task
   const isPOTask = !!task.purchase_order_id;
@@ -211,6 +222,32 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               Overdue
             </Badge>
           )}
+          {/* Privacy Toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-6 px-2 gap-1",
+              task.is_private && "text-amber-600 dark:text-amber-400"
+            )}
+            onClick={async () => {
+              setLoading('privacy');
+              try {
+                await setTaskPrivacy(task.id, !task.is_private);
+              } finally {
+                setLoading(null);
+              }
+            }}
+            disabled={!!loading}
+            title={task.is_private ? "Task is private - click to make public" : "Click to make private"}
+          >
+            {loading === 'privacy' ? (
+              <Spinner size={12} />
+            ) : (
+              <Lock className={cn("h-3 w-3", task.is_private ? "fill-current" : "")} />
+            )}
+            <span className="text-xs">{task.is_private ? 'Private' : 'Public'}</span>
+          </Button>
         </div>
         <Button variant="ghost" size="sm" onClick={handleClose} className="h-6 px-2">
           <ChevronUp className="h-4 w-4" />
@@ -348,6 +385,109 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             {loading === 'completed' && <Spinner size={12} />}
           </div>
         </div>
+
+      {/* Description Section */}
+      {task.description && (
+        <div className="p-2 bg-background/50 rounded border">
+          <div className="text-xs text-muted-foreground mb-1">Description</div>
+          <p className="text-sm whitespace-pre-wrap">{task.description}</p>
+        </div>
+      )}
+
+      {/* Action Items Section */}
+      {(task.action_items?.length || 0) > 0 || true ? (
+        <div className="p-2 bg-background/50 rounded border">
+          <div className="text-xs text-muted-foreground mb-2">Action Items</div>
+          <div className="space-y-1">
+            {task.action_items?.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 group"
+              >
+                <Checkbox
+                  checked={item.checked}
+                  onCheckedChange={async () => {
+                    setActionItemLoading(item.id);
+                    try {
+                      await toggleActionItem(task.id, item.id);
+                    } finally {
+                      setActionItemLoading(null);
+                    }
+                  }}
+                  disabled={actionItemLoading === item.id}
+                  className="h-4 w-4"
+                />
+                <span className={cn(
+                  "flex-1 text-sm",
+                  item.checked && "line-through text-muted-foreground"
+                )}>
+                  {item.text}
+                </span>
+                {actionItemLoading === item.id ? (
+                  <Spinner size={12} />
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setActionItemLoading(item.id);
+                      try {
+                        await removeActionItem(task.id, item.id);
+                      } finally {
+                        setActionItemLoading(null);
+                      }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {/* Add new action item */}
+            <div className="flex items-center gap-2 pt-1">
+              <Input
+                placeholder="Add action item..."
+                value={newActionItemText}
+                onChange={(e) => setNewActionItemText(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter' && newActionItemText.trim()) {
+                    setActionItemLoading('new');
+                    try {
+                      await addActionItem(task.id, newActionItemText.trim());
+                      setNewActionItemText('');
+                    } finally {
+                      setActionItemLoading(null);
+                    }
+                  }
+                }}
+                className="flex-1 h-7 text-sm"
+                disabled={actionItemLoading === 'new'}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={async () => {
+                  if (!newActionItemText.trim()) return;
+                  setActionItemLoading('new');
+                  try {
+                    await addActionItem(task.id, newActionItemText.trim());
+                    setNewActionItemText('');
+                  } finally {
+                    setActionItemLoading(null);
+                  }
+                }}
+                disabled={actionItemLoading === 'new' || !newActionItemText.trim()}
+              >
+                {actionItemLoading === 'new' ? (
+                  <Spinner size={12} />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Duration and Assignment */}
       <div className="flex flex-wrap items-end gap-4">

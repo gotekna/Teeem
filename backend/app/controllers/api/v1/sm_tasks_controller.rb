@@ -19,8 +19,12 @@ module Api
       def index
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
+          :action_items,
           sm_task_attachments: :attachable
         )
+
+        # Privacy filter - only show tasks visible to current user
+        @tasks = @tasks.visible_to(current_user)
 
         # Apply filters
         @tasks = @tasks.where(construction_id: params[:job_id]) if params[:job_id].present?
@@ -739,6 +743,74 @@ module Api
         }
       end
 
+      # ============================================
+      # Action Items Endpoints
+      # ============================================
+
+      # POST /api/v1/sm_tasks/:id/action_items
+      def create_action_item
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        item = @task.action_items.create!(
+          text: params[:text],
+          position: params[:position] || @task.action_items.maximum(:position).to_i + 1
+        )
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item)
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/toggle
+      def toggle_action_item
+        @task = SmTask.find(params[:id])
+        item = @task.action_items.find(params[:item_id])
+
+        item.toggle!(current_user)
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item)
+        }
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/action_items/:item_id
+      def destroy_action_item
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        item = @task.action_items.find(params[:item_id])
+        item.destroy
+
+        render json: { success: true }
+      end
+
+      # PATCH /api/v1/sm_tasks/:id/privacy
+      def update_privacy
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        @task.update!(is_private: params[:is_private])
+
+        render json: {
+          success: true,
+          is_private: @task.is_private
+        }
+      end
+
       # GET /api/v1/sm_tasks/:id/compare_to_template
       # Compare a task to its linked template row
       def compare_to_template
@@ -1020,6 +1092,7 @@ module Api
 
           # Other
           :searchable,
+          :is_private,
 
           # Arrays
           documentation_category_ids: [],
@@ -1065,6 +1138,18 @@ module Api
         else
           base
         end
+      end
+
+      def action_item_to_json(item)
+        {
+          id: item.id,
+          text: item.text,
+          checked: item.checked,
+          position: item.position,
+          checked_by_id: item.checked_by_id,
+          checked_by_name: item.checked_by&.name,
+          checked_at: item.checked_at
+        }
       end
 
       def save_temp_file(uploaded_file)
@@ -1256,7 +1341,12 @@ module Api
           # Use .size instead of .count to use preloaded data (avoids N+1)
           attachments_count: task.sm_task_attachments.size,
           # Include full attachments for task detail view (uses preloaded association)
-          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) }
+          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },
+          # Privacy
+          is_private: task.is_private,
+          created_by_id: task.created_by_id,
+          # Action items (checkable checklist items)
+          action_items: task.action_items.map { |item| action_item_to_json(item) }
         }
 
         if include_dependencies

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_03_025758) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_03_060238) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6502,6 +6502,94 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_025758) do
     t.index ["document_type"], name: "index_ndis_addendums_on_document_type"
   end
 
+  create_table "notebook_activities", force: :cascade do |t|
+    t.bigint "notebook_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "page_id"
+    t.bigint "section_id"
+    t.string "activity_type", null: false
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_notebook_activities_on_activity_type"
+    t.index ["created_at"], name: "index_notebook_activities_on_created_at"
+    t.index ["notebook_id"], name: "index_notebook_activities_on_notebook_id"
+    t.index ["page_id"], name: "index_notebook_activities_on_page_id"
+    t.index ["section_id"], name: "index_notebook_activities_on_section_id"
+    t.index ["user_id"], name: "index_notebook_activities_on_user_id"
+  end
+
+  create_table "notebook_page_attachments", force: :cascade do |t|
+    t.bigint "page_id", null: false
+    t.bigint "uploaded_by_id"
+    t.string "file_name", null: false
+    t.string "content_type"
+    t.string "storage_key", null: false
+    t.integer "file_size"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["page_id"], name: "index_notebook_page_attachments_on_page_id"
+    t.index ["storage_key"], name: "index_notebook_page_attachments_on_storage_key", unique: true
+    t.index ["uploaded_by_id"], name: "index_notebook_page_attachments_on_uploaded_by_id"
+  end
+
+  create_table "notebook_pages", force: :cascade do |t|
+    t.bigint "notebook_section_id", null: false
+    t.string "title"
+    t.text "content"
+    t.jsonb "content_metadata"
+    t.integer "position"
+    t.bigint "created_by_id"
+    t.bigint "last_edited_by_id"
+    t.boolean "is_pinned"
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["notebook_section_id"], name: "index_notebook_pages_on_notebook_section_id"
+  end
+
+  create_table "notebook_sections", force: :cascade do |t|
+    t.bigint "notebook_id", null: false
+    t.string "name"
+    t.integer "position"
+    t.string "color"
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["notebook_id"], name: "index_notebook_sections_on_notebook_id"
+  end
+
+  create_table "notebook_shares", force: :cascade do |t|
+    t.bigint "notebook_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "granted_by_id"
+    t.string "permission", default: "view", null: false
+    t.datetime "expires_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["expires_at"], name: "index_notebook_shares_on_expires_at"
+    t.index ["granted_by_id"], name: "index_notebook_shares_on_granted_by_id"
+    t.index ["notebook_id", "user_id"], name: "index_notebook_shares_on_notebook_id_and_user_id", unique: true
+    t.index ["notebook_id"], name: "index_notebook_shares_on_notebook_id"
+    t.index ["permission"], name: "index_notebook_shares_on_permission"
+    t.index ["user_id"], name: "index_notebook_shares_on_user_id"
+  end
+
+  create_table "notebooks", force: :cascade do |t|
+    t.string "name"
+    t.text "description"
+    t.string "icon_name"
+    t.string "color"
+    t.bigint "owner_id"
+    t.string "notable_type"
+    t.bigint "notable_id"
+    t.boolean "is_default"
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_notebooks_on_name"
+  end
+
   create_table "notifications", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "notification_type", null: false
@@ -8230,6 +8318,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_025758) do
     t.integer "po_supplier_id"
     t.jsonb "po_line_items", default: "[]"
     t.boolean "allow_header", default: false, null: false
+    t.boolean "is_private", default: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"
@@ -8238,6 +8327,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_025758) do
     t.index ["hold_released_by_id"], name: "index_sm_tasks_on_hold_released_by_id"
     t.index ["hold_started_by_id"], name: "index_sm_tasks_on_hold_started_by_id"
     t.index ["is_hold_task"], name: "index_sm_tasks_on_is_hold_task", where: "(is_hold_task = true)"
+    t.index ["is_private"], name: "index_sm_tasks_on_is_private"
     t.index ["is_ticket"], name: "index_sm_tasks_on_is_ticket"
     t.index ["job_id", "status", "start_date"], name: "idx_tasks_job_status_start"
     t.index ["job_id", "status"], name: "idx_tasks_job_status"
@@ -8672,6 +8762,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_025758) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
+  end
+
+  create_table "task_action_items", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.string "text", null: false
+    t.boolean "checked", default: false
+    t.integer "position", default: 0
+    t.bigint "checked_by_id"
+    t.datetime "checked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["checked_by_id"], name: "index_task_action_items_on_checked_by_id"
+    t.index ["sm_task_id", "position"], name: "index_task_action_items_on_sm_task_id_and_position"
+    t.index ["sm_task_id"], name: "index_task_action_items_on_sm_task_id"
   end
 
   create_table "task_followers", force: :cascade do |t|
@@ -10112,6 +10216,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_025758) do
   add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
   add_foreign_key "navigation_items", "navigation_groups", name: "navigation_items_navigation_group_id_fkey"
   add_foreign_key "navigation_items", "navigation_items", column: "parent_id", name: "fk_navigation_items_parent"
+  add_foreign_key "notebook_activities", "notebook_pages", column: "page_id"
+  add_foreign_key "notebook_activities", "notebook_sections", column: "section_id"
+  add_foreign_key "notebook_activities", "notebooks"
+  add_foreign_key "notebook_activities", "users"
+  add_foreign_key "notebook_page_attachments", "notebook_pages", column: "page_id"
+  add_foreign_key "notebook_page_attachments", "users", column: "uploaded_by_id"
+  add_foreign_key "notebook_pages", "notebook_sections"
+  add_foreign_key "notebook_sections", "notebooks"
+  add_foreign_key "notebook_shares", "notebooks"
+  add_foreign_key "notebook_shares", "users"
+  add_foreign_key "notebook_shares", "users", column: "granted_by_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
   add_foreign_key "organization_microsoft_app_credentials", "organizations"
@@ -10294,6 +10409,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_025758) do
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
   add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "task_action_items", "sm_tasks"
+  add_foreign_key "task_action_items", "users", column: "checked_by_id"
   add_foreign_key "task_followers", "sm_tasks", on_delete: :cascade
   add_foreign_key "task_followers", "users", on_delete: :cascade
   add_foreign_key "unreal_measurements", "job_colour_selections"

@@ -301,9 +301,9 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
 
 function FileUploadPanel({ onSelect }: { onSelect: (att: PendingAttachment) => void }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  const handleFiles = (files: FileList | null) => {
     if (!files) return;
 
     Array.from(files).forEach((file) => {
@@ -321,8 +321,40 @@ function FileUploadPanel({ onSelect }: { onSelect: (att: PendingAttachment) => v
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(e.target.files);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
   return (
-    <div className="border-2 border-dashed rounded-lg p-4 text-center dark:border-gray-700">
+    <div
+      className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+        isDragging
+          ? 'border-primary bg-primary/10 dark:bg-primary/20'
+          : 'dark:border-gray-700'
+      }`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -332,8 +364,10 @@ function FileUploadPanel({ onSelect }: { onSelect: (att: PendingAttachment) => v
         id="task-file-upload"
       />
       <label htmlFor="task-file-upload" className="cursor-pointer block">
-        <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
-        <p className="text-sm text-muted-foreground">Click to upload files</p>
+        <Upload className={`h-6 w-6 mx-auto mb-2 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
+        <p className={`text-sm ${isDragging ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+          {isDragging ? 'Drop files here' : 'Drag files here or click to upload'}
+        </p>
         <p className="text-xs text-muted-foreground mt-1">PDF, Word, Excel, Images</p>
       </label>
     </div>

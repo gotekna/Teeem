@@ -154,6 +154,9 @@ class SmTask < ApplicationRecord
   has_many :task_followers, dependent: :destroy
   has_many :followers, through: :task_followers, source: :user
 
+  # Action Items (checkable items within a task)
+  has_many :action_items, class_name: "TaskActionItem", dependent: :destroy
+
   # SaaS Customer association (for tickets and customer-linked tasks)
   belongs_to :saas_customer, class_name: "Contact", optional: true
 
@@ -168,6 +171,22 @@ class SmTask < ApplicationRecord
 
   def followed_by?(user)
     task_followers.exists?(user: user)
+  end
+
+  # Check if a user can view this task (for permission checks)
+  def visible_to?(user)
+    return true if user&.admin?
+    return true unless is_private  # Non-private tasks visible to all
+    # Private task - only owner, assigned user, or followers can see
+    return true if created_by_id == user&.id
+    return true if assigned_user_id == user&.id
+    followed_by?(user)
+  end
+
+  # Check if user can manage (add followers, toggle privacy) this task
+  def manageable_by?(user)
+    return true if user&.admin?
+    created_by_id == user&.id
   end
 
   # Validations
@@ -223,6 +242,24 @@ class SmTask < ApplicationRecord
   }
   scope :by_ticket_priority, ->(priority) { tickets.where(ticket_priority: priority) }
   scope :by_ticket_category, ->(category) { tickets.where(ticket_category: category) }
+
+  # ============================================
+  # Privacy & Visibility Scopes
+  # ============================================
+  # User can see tasks that are:
+  # 1. Not private (is_private = false or nil)
+  # 2. Private AND created by them (owner)
+  # 3. Private AND they are a follower
+  # 4. Assigned to them directly
+  scope :visible_to, ->(user) {
+    return all if user&.admin?
+    return none if user.nil?
+
+    where(is_private: [false, nil])
+      .or(where(is_private: true, created_by_id: user.id))
+      .or(where(is_private: true, id: TaskFollower.where(user_id: user.id).select(:sm_task_id)))
+      .or(where(assigned_user_id: user.id))
+  }
 
   # Callbacks
   before_validation :set_task_number, on: :create

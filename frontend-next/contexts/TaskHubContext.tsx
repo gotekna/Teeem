@@ -33,6 +33,16 @@ export interface TaskAttachment {
   document?: TaskAttachmentDocument;
 }
 
+export interface TaskActionItem {
+  id: number;
+  text: string;
+  checked: boolean;
+  position: number;
+  checked_by_id?: number;
+  checked_by_name?: string;
+  checked_at?: string;
+}
+
 export interface SmTask {
   id: number;
   task_number: number;
@@ -90,6 +100,13 @@ export interface SmTask {
   // Attachments
   attachments_count?: number;
   attachments?: TaskAttachment[];
+
+  // Privacy
+  is_private?: boolean;
+  created_by_id?: number;
+
+  // Action Items (checkable items within task)
+  action_items?: TaskActionItem[];
 }
 
 export interface TaskFilters {
@@ -164,6 +181,14 @@ export interface TaskHubContextType extends TaskHubState {
   setTaskHold: (taskId: number, hold: boolean) => Promise<void>;
   confirmTask: (taskId: number, date: string) => Promise<void>;
   supplierConfirmTask: (taskId: number, date: string) => Promise<void>;
+
+  // Action items
+  addActionItem: (taskId: number, text: string) => Promise<TaskActionItem>;
+  toggleActionItem: (taskId: number, itemId: number) => Promise<void>;
+  removeActionItem: (taskId: number, itemId: number) => Promise<void>;
+
+  // Privacy
+  setTaskPrivacy: (taskId: number, isPrivate: boolean) => Promise<void>;
 
   // Refresh
   refresh: () => Promise<void>;
@@ -823,6 +848,66 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     }
   }, [tasks]);
 
+  // Action Items methods
+  const addActionItem = useCallback(async (taskId: number, text: string): Promise<TaskActionItem> => {
+    const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items`,
+      { text }
+    );
+    if (response?.success && response?.action_item) {
+      // Update local task state
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, action_items: [...(t.action_items || []), response.action_item] }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to add action item');
+  }, []);
+
+  const toggleActionItem = useCallback(async (taskId: number, itemId: number) => {
+    const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/toggle`
+    );
+    if (response?.success && response?.action_item) {
+      // Update local task state
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+    }
+  }, []);
+
+  const removeActionItem = useCallback(async (taskId: number, itemId: number) => {
+    await api.delete(`/api/v1/sm_tasks/${taskId}/action_items/${itemId}`);
+    // Update local task state
+    setTasks(prev => prev.map(t =>
+      t.id === taskId
+        ? { ...t, action_items: (t.action_items || []).filter(item => item.id !== itemId) }
+        : t
+    ));
+  }, []);
+
+  const setTaskPrivacy = useCallback(async (taskId: number, isPrivate: boolean) => {
+    const originalTasks = [...tasks];
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, is_private: isPrivate } : t));
+
+    try {
+      await api.patch(`/api/v1/sm_tasks/${taskId}/privacy`, { is_private: isPrivate });
+    } catch (err) {
+      console.error('Failed to update task privacy:', err);
+      setTasks(originalTasks);
+      throw err;
+    }
+  }, [tasks]);
+
   const setActiveView = useCallback((view: ViewType) => {
     setActiveViewState(view);
   }, []);
@@ -959,6 +1044,12 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     setTaskHold,
     confirmTask,
     supplierConfirmTask,
+    // Action items
+    addActionItem,
+    toggleActionItem,
+    removeActionItem,
+    // Privacy
+    setTaskPrivacy,
     refresh,
   };
 

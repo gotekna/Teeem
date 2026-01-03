@@ -1425,6 +1425,12 @@ Rails.application.routes.draw do
           post :follow
           delete :unfollow
           get :followers
+          # Action items (checkable items)
+          post :action_items, action: :create_action_item
+          post "action_items/:item_id/toggle", action: :toggle_action_item
+          delete "action_items/:item_id", action: :destroy_action_item
+          # Privacy
+          patch :privacy, action: :update_privacy
           # Row-level template sync
           get :compare_to_template
           post :sync_from_template

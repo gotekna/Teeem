@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { api } from '@/lib/api';
-import { Plus } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
 import { TaskAssignmentField } from './TaskAssignmentField';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { useToast } from '@/components/ui/use-toast';
@@ -67,6 +67,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     started: false,
     required_by: '',
     follow: false,
+    is_private: false,
   });
 
   // Track pending attachments (before task is created)
@@ -155,6 +156,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             duration_days: parseInt(formData.duration_days) || 1,
             status: status,
             required_by: formData.required_by || null,
+            is_private: formData.is_private,
           },
         }
       );
@@ -208,6 +210,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           started: false,
           required_by: '',
           follow: false,
+          is_private: false,
         });
         setPendingAttachments([]);
         onOpenChange(false);
@@ -378,18 +381,20 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                   </Button>
                 </div>
 
-                {/* Required By & Started */}
-                <div className="grid grid-cols-2 gap-4 items-end">
-                  <div className="space-y-2">
-                    <Label htmlFor="required_by">Required By</Label>
-                    <Input
-                      id="required_by"
-                      type="date"
-                      value={formData.required_by}
-                      onChange={(e) => handleChange('required_by', e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2 pb-2">
+                {/* Required By */}
+                <div className="space-y-2">
+                  <Label htmlFor="required_by">Required By</Label>
+                  <Input
+                    id="required_by"
+                    type="date"
+                    value={formData.required_by}
+                    onChange={(e) => handleChange('required_by', e.target.value)}
+                  />
+                </div>
+
+                {/* Started & Private checkboxes */}
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center space-x-2">
                     <Checkbox
                       id="started"
                       checked={formData.started}
@@ -400,6 +405,20 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                       className="text-sm font-medium leading-none cursor-pointer"
                     >
                       Mark as Started
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="is_private"
+                      checked={formData.is_private}
+                      onCheckedChange={(checked) => handleChange('is_private', checked === true)}
+                    />
+                    <Label
+                      htmlFor="is_private"
+                      className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
+                    >
+                      <Lock className="h-3 w-3" />
+                      Private
                     </Label>
                   </div>
                 </div>
