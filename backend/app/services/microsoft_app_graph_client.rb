@@ -180,18 +180,47 @@ class MicrosoftAppGraphClient
     response.body.to_s
   end
 
-  # List mail folders for a user
-  def get_user_mail_folders(user_identifier)
-    response = get("/users/#{CGI.escape(user_identifier)}/mailFolders", { "$top" => 100 })
-    (response["value"] || []).map do |folder|
-      {
+  # List mail folders for a user (including nested subfolders)
+  def get_user_mail_folders(user_identifier, max_depth: 3)
+    folders = []
+    fetch_folders_recursive(user_identifier, nil, folders, 0, max_depth)
+    folders
+  end
+
+  private
+
+  def fetch_folders_recursive(user_identifier, parent_folder_id, folders, depth, max_depth)
+    return if depth > max_depth
+
+    # Build endpoint - top level or child folders
+    endpoint = if parent_folder_id
+      "/users/#{CGI.escape(user_identifier)}/mailFolders/#{parent_folder_id}/childFolders"
+    else
+      "/users/#{CGI.escape(user_identifier)}/mailFolders"
+    end
+
+    response = get(endpoint, { "$top" => 100 })
+    (response["value"] || []).each do |folder|
+      folders << {
         id: folder["id"],
         name: folder["displayName"],
-        total_count: folder["totalItemCount"],
-        unread_count: folder["unreadItemCount"]
+        total_items: folder["totalItemCount"],
+        unread_count: folder["unreadItemCount"],
+        depth: depth,
+        parent_id: parent_folder_id,
+        child_folder_count: folder["childFolderCount"] || 0
       }
+
+      # Recursively fetch child folders if they exist
+      if (folder["childFolderCount"] || 0) > 0
+        fetch_folders_recursive(user_identifier, folder["id"], folders, depth + 1, max_depth)
+      end
     end
+  rescue => e
+    Rails.logger.warn "[MicrosoftAppGraphClient] Failed to fetch folders at depth #{depth}: #{e.message}"
   end
+
+  public
 
   # Search emails across a user's mailbox
   def search_user_emails(user_identifier, query, top: 50)
