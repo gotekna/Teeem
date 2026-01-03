@@ -15,6 +15,9 @@ class NotebookPageAttachment < ApplicationRecord
   has_one :section, through: :page
   has_one :notebook, through: :section
 
+  # ActiveStorage file attachment
+  has_one_attached :file
+
   # Validations
   validates :file_name, presence: true, length: { maximum: 255 }
   validates :storage_key, presence: true, uniqueness: true

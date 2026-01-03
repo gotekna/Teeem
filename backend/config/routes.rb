@@ -1788,6 +1788,13 @@ Rails.application.routes.draw do
         collection do
           get :recent
         end
+        resources :attachments, controller: "notebook_page_attachments", only: [ :index, :create ]
+      end
+
+      resources :notebook_page_attachments, only: [ :show, :destroy ] do
+        member do
+          get :download
+        end
       end
 
       # ============================================

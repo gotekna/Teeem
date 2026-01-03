@@ -250,3 +250,50 @@ export const pageActions = {
     return response.page;
   },
 };
+
+// Attachment API actions
+export const attachmentActions = {
+  async list(pageId: number): Promise<NotebookPageAttachment[]> {
+    const response = await api.get<{ attachments: NotebookPageAttachment[] }>(
+      `/notebook_pages/${pageId}/attachments`
+    );
+    return response?.attachments ?? [];
+  },
+
+  async upload(pageId: number, file: File): Promise<NotebookPageAttachment> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`/api/v1/notebook_pages/${pageId}/attachments`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to upload attachment");
+    }
+
+    const data = await response.json();
+    return data.attachment;
+  },
+
+  async delete(attachmentId: number): Promise<void> {
+    const response = await api.delete<{ success: boolean }>(
+      `/notebook_page_attachments/${attachmentId}`
+    );
+    if (!response?.success) {
+      throw new Error("Failed to delete attachment");
+    }
+  },
+
+  async getDownloadUrl(attachmentId: number): Promise<{ url: string; file_name: string }> {
+    const response = await api.get<{ url: string; file_name: string }>(
+      `/notebook_page_attachments/${attachmentId}/download`
+    );
+    if (!response?.url) {
+      throw new Error("Failed to get download URL");
+    }
+    return response;
+  },
+};

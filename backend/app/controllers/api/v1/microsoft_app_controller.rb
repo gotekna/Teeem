@@ -434,8 +434,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can view organization mailboxes" }, status: :forbidden
     end
 
-    # Get all TEEEM users for the mapping UI (filter to users who have logged in)
-    teeem_users = User.where.not(last_login_at: nil).order(:name).map do |u|
+    # Get all TEEEM users for the mapping UI (include all users so admins can pre-configure access)
+    teeem_users = User.order(:name).map do |u|
       { id: u.id, name: u.name, email: u.email }
     end
 

@@ -1970,97 +1970,96 @@ export function ScheduleMasterTab() {
           }
         }
 
-        // Update header dates to span their children's rolled-over dates
-        // Also respect header's own predecessors (header can't start before predecessor finishes)
-        tasks = tasks.map(task => {
-          const row = rows.find(r => String(r.id) === task.id);
-          if (!row || !isHeaderRow(row)) return task;
+        // Update header dates to span their children AND respect predecessors
+        // Run multiple passes because headers can depend on other headers
+        // (e.g., SLAB depends on PRE CONSTRUCTION)
+        const updateHeaderDates = () => {
+          let changed = false;
 
-          const children = childrenByHeader.get(row.task_number);
-          if (!children || children.length === 0) return task;
+          for (const task of tasks) {
+            const row = rows.find(r => String(r.id) === task.id);
+            if (!row || !isHeaderRow(row)) continue;
 
-          // Calculate span from children
-          let minStart = children[0].startDate;
-          let maxEnd = children[0].endDate;
-          for (const child of children) {
-            if (child.startDate < minStart) minStart = child.startDate;
-            if (child.endDate > maxEnd) maxEnd = child.endDate;
-          }
+            const children = childrenByHeader.get(row.task_number);
+            if (!children || children.length === 0) continue;
 
-          // If header has predecessors, ensure it doesn't start before they finish
-          if (row.predecessor_ids && Array.isArray(row.predecessor_ids)) {
-            for (const pred of row.predecessor_ids) {
-              const predTask = taskByTaskNumber.get(pred.id);
-              if (predTask) {
-                const predType = pred.type || 'FS';
-                const lag = pred.lag || 0;
-                let requiredStart: Date;
+            // Calculate span from children
+            let minStart = children[0].startDate;
+            let maxEnd = children[0].endDate;
+            for (const child of children) {
+              if (child.startDate < minStart) minStart = child.startDate;
+              if (child.endDate > maxEnd) maxEnd = child.endDate;
+            }
 
-                if (predType === 'FS') {
-                  // Finish-to-Start: header can't start until predecessor finishes + lag
-                  requiredStart = new Date(predTask.endDate);
-                  requiredStart.setDate(requiredStart.getDate() + 1 + lag);
-                } else if (predType === 'SS') {
-                  // Start-to-Start: header can't start until predecessor starts + lag
-                  requiredStart = new Date(predTask.startDate);
-                  requiredStart.setDate(requiredStart.getDate() + lag);
-                } else {
-                  // Default to FS behavior
-                  requiredStart = new Date(predTask.endDate);
-                  requiredStart.setDate(requiredStart.getDate() + 1 + lag);
-                }
+            // If header has predecessors, ensure it doesn't start before they finish
+            if (row.predecessor_ids && Array.isArray(row.predecessor_ids)) {
+              for (const pred of row.predecessor_ids) {
+                const predTask = taskByTaskNumber.get(pred.id);
+                if (predTask) {
+                  const predType = pred.type || 'FS';
+                  const lag = pred.lag || 0;
+                  let requiredStart: Date;
 
-                if (requiredStart > minStart) {
-                  minStart = requiredStart;
+                  if (predType === 'FS') {
+                    requiredStart = new Date(predTask.endDate);
+                    requiredStart.setDate(requiredStart.getDate() + 1 + lag);
+                  } else if (predType === 'SS') {
+                    requiredStart = new Date(predTask.startDate);
+                    requiredStart.setDate(requiredStart.getDate() + lag);
+                  } else {
+                    requiredStart = new Date(predTask.endDate);
+                    requiredStart.setDate(requiredStart.getDate() + 1 + lag);
+                  }
+
+                  if (requiredStart > minStart) {
+                    minStart = requiredStart;
+                  }
                 }
               }
             }
-          }
 
-          // If header's required start (from predecessors) is later than children's earliest start,
-          // we need to shift ALL children forward by the difference
-          const childMinStart = children[0].startDate;
-          for (const child of children) {
-            if (child.startDate < childMinStart) {
-              // This won't execute since we already set childMinStart to children[0].startDate
-              // and then compared, but keeping for safety
-            }
-          }
-
-          // Calculate actual earliest child start
-          let actualChildMinStart = children[0].startDate;
-          for (const child of children) {
-            if (child.startDate < actualChildMinStart) actualChildMinStart = child.startDate;
-          }
-
-          // If header needs to start later than children currently do, shift children
-          if (minStart > actualChildMinStart) {
-            const shiftDays = Math.ceil((minStart.getTime() - actualChildMinStart.getTime()) / (1000 * 60 * 60 * 24));
-            console.log(`[Gantt] Shifting children of ${row.name} by ${shiftDays} days due to header predecessors`);
-
-            // Shift all children forward
+            // Calculate actual earliest child start
+            let actualChildMinStart = children[0].startDate;
             for (const child of children) {
-              const newStart = new Date(child.startDate);
-              newStart.setDate(newStart.getDate() + shiftDays);
-              const newEnd = new Date(child.endDate);
-              newEnd.setDate(newEnd.getDate() + shiftDays);
-              child.startDate = newStart;
-              child.endDate = newEnd;
+              if (child.startDate < actualChildMinStart) actualChildMinStart = child.startDate;
             }
 
-            // Recalculate maxEnd after shifting
-            maxEnd = children[0].endDate;
-            for (const child of children) {
-              if (child.endDate > maxEnd) maxEnd = child.endDate;
+            // If header needs to start later than children currently do, shift children
+            if (minStart > actualChildMinStart) {
+              const shiftDays = Math.ceil((minStart.getTime() - actualChildMinStart.getTime()) / (1000 * 60 * 60 * 24));
+
+              // Shift all children forward
+              for (const child of children) {
+                child.startDate = new Date(child.startDate.getTime() + shiftDays * 24 * 60 * 60 * 1000);
+                child.endDate = new Date(child.endDate.getTime() + shiftDays * 24 * 60 * 60 * 1000);
+              }
+
+              // Recalculate maxEnd after shifting
+              maxEnd = children[0].endDate;
+              for (const child of children) {
+                if (child.endDate > maxEnd) maxEnd = child.endDate;
+              }
+
+              changed = true;
+            }
+
+            // Update task dates if changed
+            const oldStart = task.startDate.getTime();
+            const oldEnd = task.endDate.getTime();
+            if (minStart.getTime() !== oldStart || maxEnd.getTime() !== oldEnd) {
+              task.startDate = new Date(minStart);
+              task.endDate = new Date(maxEnd);
+              changed = true;
             }
           }
 
-          return {
-            ...task,
-            startDate: new Date(minStart),
-            endDate: new Date(maxEnd),
-          };
-        });
+          return changed;
+        };
+
+        // Run up to 10 passes to handle header dependency chains
+        for (let pass = 0; pass < 10; pass++) {
+          if (!updateHeaderDates()) break;
+        }
 
         // Filter out headers with no active children
         tasks = tasks.filter(task => {
