@@ -452,7 +452,8 @@ class EmailToCaseService
       if party["contact_id"].present?
         contact = Contact.find_by(id: party["contact_id"])
       elsif email.present?
-        contact = Contact.find_by(email: email)
+        # SSoT: Case-insensitive email lookup to prevent duplicates
+        contact = Contact.find_by("LOWER(email) = ?", email.downcase)
       elsif party["name"].present?
         # Try to find by exact name match
         contact = Contact.find_by(display_name: party["name"])
@@ -517,26 +518,28 @@ class EmailToCaseService
     return nil if company_name.blank?
 
     # Try to find existing company by name (case-insensitive)
-    company = Contact.where(entity_type: "company")
+    company = Contact.where(entity_type: "company", is_active: true)
                      .where("LOWER(display_name) = LOWER(?)", company_name.strip)
                      .first
 
     # Also check trading_name and company_name_or_trust
-    company ||= Contact.where(entity_type: "company")
+    company ||= Contact.where(entity_type: "company", is_active: true)
                        .where("LOWER(trading_name) = LOWER(?) OR LOWER(company_name_or_trust) = LOWER(?)",
                               company_name.strip, company_name.strip)
                        .first
 
-    # Create if not found
-    if company.nil?
-      company = Contact.create(
-        display_name: company_name.strip,
-        entity_type: "company"
-      )
-      Rails.logger.info "[EmailToCase] Created new company contact: #{company.display_name} (ID: #{company.id})"
-    end
+    return company if company
 
+    # SSoT: Use find_or_create_by! with RecordNotUnique rescue for race condition protection
+    company = Contact.find_or_create_by!(
+      display_name: company_name.strip,
+      entity_type: "company"
+    )
+    Rails.logger.info "[EmailToCase] Created new company contact: #{company.display_name} (ID: #{company.id})"
     company
+  rescue ActiveRecord::RecordNotUnique
+    # DB constraint caught concurrent creation - find and return existing
+    Contact.find_by(entity_type: "company", display_name: company_name.strip, is_active: true)
   end
 
   def map_relationship_to_role(relationship_type)

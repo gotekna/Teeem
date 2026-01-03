@@ -112,21 +112,24 @@ class ContactQualityActionService
   def create_company_and_link!
     raise ActionError, "Contact is not a person" unless @contact.entity_type == "person"
 
+    # Derive company name before transaction (needed in rescue)
+    company_name = @review.derived_company_name.presence ||
+                   derive_company_name_from_abr ||
+                   derive_company_name_from_domain
+
+    raise ActionError, "Cannot determine company name" if company_name.blank?
+
     ActiveRecord::Base.transaction do
-      # Create new company contact
-      company_name = @review.derived_company_name.presence ||
-                     derive_company_name_from_abr ||
-                     derive_company_name_from_domain
 
-      raise ActionError, "Cannot determine company name" if company_name.blank?
-
-      company = Contact.create!(
+      # SSoT: Use find_or_create_by! to prevent duplicates (DB unique index enforces)
+      company = Contact.find_or_create_by!(
         entity_type: "company",
-        company_name_or_trust: company_name,
-        display_name: company_name,
-        email_domains: [@review.email_domain].compact,
-        tax_number: @review.abr_data&.dig("abn")
-      )
+        display_name: company_name.strip
+      ) do |c|
+        c.company_name_or_trust = company_name
+        c.email_domains = [@review.email_domain].compact
+        c.tax_number = @review.abr_data&.dig("abn")
+      end
 
       # Create employee_of relationship
       ContactRelationship.create!(
@@ -144,6 +147,36 @@ class ContactQualityActionService
       @review.update!(suggested_company_id: company.id)
 
       Rails.logger.info "Quality action: Created company #{company.id} (#{company_name}) and linked contact #{@contact.id}"
+    end
+  rescue ActiveRecord::RecordNotUnique => e
+    # SSoT: DB unique index caught a race condition - find existing company and link
+    Rails.logger.warn "Quality action: Duplicate company caught by DB constraint, finding existing: #{e.message}"
+    company = Contact.find_by(entity_type: "company", display_name: company_name&.strip, is_active: true)
+    raise ActionError, "Company '#{company_name}' already exists but could not be found" unless company
+
+    # Link to the existing company
+    link_person_to_company!(company)
+  end
+
+  def link_person_to_company!(company)
+    ActiveRecord::Base.transaction do
+      # Create employee_of relationship
+      ContactRelationship.find_or_create_by!(
+        source_contact_id: @contact.id,
+        related_contact_id: company.id,
+        relationship_type: "employee_of"
+      ) do |r|
+        r.is_active = true
+        r.notes = "Auto-created from quality review (domain: #{@review.email_domain})"
+      end
+
+      # Update primary_company_id
+      @contact.update!(primary_company_id: company.id)
+
+      # Update review with the company reference
+      @review.update!(suggested_company_id: company.id)
+
+      Rails.logger.info "Quality action: Linked contact #{@contact.id} to existing company #{company.id} (#{company.display_name})"
     end
   end
 

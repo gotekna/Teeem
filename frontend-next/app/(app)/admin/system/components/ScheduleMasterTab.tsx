@@ -3492,9 +3492,35 @@ export function ScheduleMasterTab() {
                 {editingRow?.name} (Task #{editingRow?.task_number})
               </p>
             </div>
-            <Button variant="outline" onClick={() => setShowEditSheet(false)}>
-              Close
-            </Button>
+            <div className="flex items-center gap-4">
+              {/* Auto-save status indicator */}
+              <div className="flex items-center text-sm">
+                {autoSaveStatus === 'saving' && (
+                  <span className="flex items-center text-muted-foreground">
+                    <Spinner size={16} className="mr-2" />
+                    Saving...
+                  </span>
+                )}
+                {autoSaveStatus === 'saved' && (
+                  <span className="flex items-center text-green-600 dark:text-green-500">
+                    <Check className="h-4 w-4 mr-2" />
+                    Saved
+                  </span>
+                )}
+                {autoSaveStatus === 'error' && (
+                  <span className="flex items-center text-red-600 dark:text-red-500">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Save failed
+                  </span>
+                )}
+                {autoSaveStatus === 'idle' && (
+                  <span className="text-muted-foreground">Auto-save enabled</span>
+                )}
+              </div>
+              <Button variant="outline" onClick={() => setShowEditSheet(false)}>
+                Close
+              </Button>
+            </div>
           </div>
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
@@ -3791,30 +3817,6 @@ export function ScheduleMasterTab() {
                     clearable
                     onClear={() => setEditRowForm({ ...editRowForm, spawn_scan_task_id: null })}
                   />
-                </div>
-                {/* Auto-save status indicator */}
-                <div className="flex items-center text-sm pt-2">
-                  {autoSaveStatus === 'saving' && (
-                    <span className="flex items-center text-muted-foreground">
-                      <Spinner size={16} className="mr-2" />
-                      Saving...
-                    </span>
-                  )}
-                  {autoSaveStatus === 'saved' && (
-                    <span className="flex items-center text-green-600 dark:text-green-500">
-                      <Check className="h-4 w-4 mr-2" />
-                      Saved
-                    </span>
-                  )}
-                  {autoSaveStatus === 'error' && (
-                    <span className="flex items-center text-red-600 dark:text-red-500">
-                      <AlertCircle className="h-4 w-4 mr-2" />
-                      Save failed
-                    </span>
-                  )}
-                  {autoSaveStatus === 'idle' && (
-                    <span className="text-muted-foreground">Auto-save enabled</span>
-                  )}
                 </div>
                 {/* Allow Header */}
                 <div className="flex items-center gap-2 pt-2 border-t">
