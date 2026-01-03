@@ -415,6 +415,35 @@ class MicrosoftCredential < ApplicationRecord
     false
   end
 
+  # Get list of users in the tenant (for sync configuration and mailbox access)
+  # Returns array of { id:, name:, email: } hashes
+  def list_tenant_users
+    return [] unless status == "connected"
+
+    token = valid_access_token
+    return [] if token.blank?
+
+    response = HTTP.auth("Bearer #{token}")
+                   .get("https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName")
+
+    if response.status.success?
+      data = response.parse
+      data["value"].map do |user|
+        {
+          id: user["id"],
+          name: user["displayName"],
+          email: user["mail"] || user["userPrincipalName"]
+        }
+      end
+    else
+      Rails.logger.error "[MicrosoftCredential] Failed to list users for #{name}: #{response.body}"
+      []
+    end
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftCredential] Error listing users for #{name}: #{e.message}"
+    []
+  end
+
   private
 
   def extract_error_code(error_message)
