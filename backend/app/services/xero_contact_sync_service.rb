@@ -945,8 +945,19 @@ class XeroContactSyncService
       end
       was_created = new_contact.previous_changes.key?("id")
     else
-      new_contact = Contact.create!(contact_data.compact)
-      was_created = true
+      # FRC: For persons, check for existing contact by email to prevent duplicates
+      # Multiple "John Smith" are valid, but same email = same person
+      email = contact_data[:email]&.strip&.downcase
+      existing_by_email = email.present? ? Contact.find_by("LOWER(email) = ? AND is_active = true", email) : nil
+
+      if existing_by_email
+        new_contact = existing_by_email
+        was_created = false
+        Rails.logger.info("[XeroSync] Found existing person by email: #{email} -> Contact ##{new_contact.id}")
+      else
+        new_contact = Contact.create!(contact_data.compact)
+        was_created = true
+      end
     end
 
     Rails.logger.info("#{was_created ? 'Created' : 'Found existing'} TEEEM contact from Xero: #{xero_contact['Name']}")
