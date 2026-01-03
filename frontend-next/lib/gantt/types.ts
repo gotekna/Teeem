@@ -725,6 +725,8 @@ export function convertRowsToTasks(
   }
 
   if (headerRows.length > 0) {
+    console.log('[convertRowsToTasks] Found headers:', headerRows.map(r => ({ name: r.name, task_number: r.task_number, id: r.id, allow_header: r.allow_header, header_gantt: r.header_gantt })));
+
     // Build map of header row.id -> child tasks
     const headerChildrenMap = new Map<number, GanttTask[]>();
 
@@ -751,6 +753,11 @@ export function convertRowsToTasks(
         }
       }
 
+      // Debug: Log first 5 children detection
+      if (i < 5) {
+        console.log(`[convertRowsToTasks] Row "${row.name}" header_gantt:`, row.header_gantt, 'parentTaskNumber:', parentTaskNumber, 'headerTaskNumbers has it:', parentTaskNumber ? headerTaskNumbers.has(parentTaskNumber) : false);
+      }
+
       // Convert task_number to row.id for the map
       if (parentTaskNumber && headerTaskNumbers.has(parentTaskNumber)) {
         const headerId = taskNumberToId.get(parentTaskNumber);
@@ -763,6 +770,14 @@ export function convertRowsToTasks(
       }
     }
 
+    // Debug: Log children counts
+    console.log('[convertRowsToTasks] Children per header:',
+      Array.from(headerChildrenMap.entries()).map(([headerId, children]) => {
+        const header = sortedRows.find(r => r.id === headerId);
+        return { headerName: header?.name, headerId, childCount: children.length };
+      })
+    );
+
     // Update header task dates to span their children
     // If header has dependencies, shift children first
     for (const task of tasks) {
@@ -770,6 +785,7 @@ export function convertRowsToTasks(
       if (!row || !isHeaderRow(row)) continue;
 
       const children = headerChildrenMap.get(Number(row.id));
+      console.log(`[convertRowsToTasks] Header "${row.name}" (id=${row.id}) has ${children?.length || 0} children`);
       if (!children || children.length === 0) continue;
 
       // Find current min start from children

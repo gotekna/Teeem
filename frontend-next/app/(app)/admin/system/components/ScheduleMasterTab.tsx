@@ -78,7 +78,7 @@ import { GanttUnified, GanttDependencyEditor } from "@/components/gantt-v2";
 import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
-import { convertRowsToTasks, type GanttTask, type GanttDependency, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
+import { convertRowsToTasks, isHeaderRow, type GanttTask, type GanttDependency, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle } from "lucide-react";

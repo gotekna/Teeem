@@ -189,15 +189,30 @@ function SidebarContent({
               </Link>
               <div className="my-1 border-t border-border" />
               <button
-                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                onClick={() => {
+                  // Only toggle if we have a resolved theme to avoid race conditions
+                  if (mounted && resolvedTheme) {
+                    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+                  }
+                }}
                 className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left"
               >
-                {mounted && resolvedTheme === "dark" ? (
-                  <Sun className="h-4 w-4" />
+                {/* Show consistent icon based on actual resolved theme, with fallback for SSR */}
+                {mounted && resolvedTheme ? (
+                  resolvedTheme === "dark" ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )
                 ) : (
-                  <Moon className="h-4 w-4" />
+                  // Neutral placeholder during hydration to prevent flash
+                  <div className="h-4 w-4" />
                 )}
-                {mounted ? (resolvedTheme === "dark" ? "Light mode" : "Dark mode") : "Toggle theme"}
+                {mounted && resolvedTheme
+                  ? resolvedTheme === "dark"
+                    ? "Light mode"
+                    : "Dark mode"
+                  : "Loading..."}
               </button>
               <div className="my-1 border-t border-border" />
               <button
