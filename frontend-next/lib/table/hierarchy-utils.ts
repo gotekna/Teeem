@@ -85,6 +85,21 @@ function naturalCompare(a: string, b: string): number {
 }
 
 /**
+ * Check if a row is a top-level header (no parent)
+ * header_gantt can be 'Header' string or {id, display: 'Header'} object
+ */
+function isTopLevelHeader(row: { header_gantt: string | number | { id: number; display?: string } | null; allow_header?: boolean }): boolean {
+  if (row.header_gantt === 'Header') return true;
+  if (typeof row.header_gantt === 'object' && row.header_gantt !== null) {
+    // Check if display is 'Header' (some APIs return it this way)
+    if ('display' in row.header_gantt && row.header_gantt.display === 'Header') return true;
+  }
+  // Also consider rows with allow_header=true but no parent as top-level
+  if (row.allow_header === true && row.header_gantt == null) return true;
+  return false;
+}
+
+/**
  * Get display name from row for sorting
  */
 function getRowName(row: { name?: unknown }): string {
@@ -131,7 +146,7 @@ export function buildHierarchyRows<T extends {
 
   for (const row of rows) {
     // Skip top-level headers (they're parents, not children)
-    if (row.header_gantt === 'Header') continue;
+    if (isTopLevelHeader(row)) continue;
 
     const parentNum = getParentTaskNumber(row);
 
@@ -152,9 +167,9 @@ export function buildHierarchyRows<T extends {
   // Sort orphans alphabetically
   orphanRows.sort((a, b) => naturalCompare(getRowName(a), getRowName(b)));
 
-  // Get top-level headers (header_gantt === 'Header') and sort alphabetically
+  // Get top-level headers and sort alphabetically
   const topLevelHeaders = rows
-    .filter(r => r.header_gantt === 'Header')
+    .filter(r => isTopLevelHeader(r))
     .sort((a, b) => naturalCompare(getRowName(a), getRowName(b)));
 
   // Build result array with proper ordering
