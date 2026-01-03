@@ -1085,7 +1085,7 @@ export function ScheduleMasterTab() {
 
         try {
           const holidayResponse = await api.get<{ dates: string[] }>(
-            `/public_holidays/dates?year_start=${currentYear - 1}&year_end=${currentYear + 1}&region=QLD`
+            `/api/v1/public_holidays/dates?year_start=${currentYear - 1}&year_end=${currentYear + 1}&region=QLD`
           );
           if (holidayResponse?.dates) {
             holidayDates = new Set(holidayResponse.dates);
@@ -2291,16 +2291,28 @@ export function ScheduleMasterTab() {
           }
         }
 
-        // Sort headers by start date
-        headerTasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+        // Sort headers by start date, then by end date if same start
+        headerTasks.sort((a, b) => {
+          const startDiff = a.startDate.getTime() - b.startDate.getTime();
+          if (startDiff !== 0) return startDiff;
+          return a.endDate.getTime() - b.endDate.getTime();
+        });
 
-        // Sort children within each header by start date
+        // Sort children within each header by start date, then by end date if same start
         for (const children of headerChildren.values()) {
-          children.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+          children.sort((a, b) => {
+            const startDiff = a.startDate.getTime() - b.startDate.getTime();
+            if (startDiff !== 0) return startDiff;
+            return a.endDate.getTime() - b.endDate.getTime();
+          });
         }
 
-        // Sort ungrouped tasks by start date
-        ungroupedTasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+        // Sort ungrouped tasks by start date, then by end date if same start
+        ungroupedTasks.sort((a, b) => {
+          const startDiff = a.startDate.getTime() - b.startDate.getTime();
+          if (startDiff !== 0) return startDiff;
+          return a.endDate.getTime() - b.endDate.getTime();
+        });
 
         // Rebuild task list: headers with their children, then ungrouped tasks
         const result: typeof tasks = [];

@@ -863,25 +863,27 @@ export default function EmailPage() {
       const activeAccounts = (response.data || []).filter(a => a.is_active);
       setAccounts(activeAccounts);
 
-      // Check if URL has account param, otherwise use default
+      // Check if URL has account param
+      // If no param (clicking Email tab at top), show All Inbox
+      // If param exists (clicking specific account in nav), show that account
       if (activeAccounts.length > 0) {
-        let accountToSelect: EmailAccount | undefined;
-
         if (accountParam) {
           // Find account matching URL param
-          accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
+          const accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
+          if (accountToSelect) {
+            const accountId = String(accountToSelect.id);
+            setSelectedAccount(accountId);
+            setExpandedAccounts(new Set([accountId]));
+            // Fetch folders for selected account (pass account for ms365 type)
+            fetchFolders(accountId, accountToSelect);
+          } else {
+            // Account not found, fall back to All Inbox
+            setSelectedAccount("all");
+          }
+        } else {
+          // No account param = show All Inbox (combined view)
+          setSelectedAccount("all");
         }
-
-        if (!accountToSelect) {
-          // Fall back to default or first account
-          accountToSelect = activeAccounts.find(a => a.is_default) || activeAccounts[0];
-        }
-
-        const accountId = String(accountToSelect.id);
-        setSelectedAccount(accountId);
-        setExpandedAccounts(new Set([accountId]));
-        // Fetch folders for selected account (pass account for ms365 type)
-        fetchFolders(accountId, accountToSelect);
       }
     } catch (error) {
       console.error("Failed to fetch accounts:", error);
