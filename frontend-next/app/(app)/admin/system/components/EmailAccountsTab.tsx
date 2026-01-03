@@ -207,6 +207,11 @@ function MS365MailboxAccessConfig() {
     return localAccess[orgId]?.[userId]?.includes(mailbox) || false;
   };
 
+  // SSoT: Check if user has auto-access to mailbox (their own email)
+  const isAutoAccess = (userEmail: string, mailbox: string): boolean => {
+    return userEmail?.toLowerCase() === mailbox?.toLowerCase();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -309,16 +314,22 @@ function MS365MailboxAccessConfig() {
                           <div className="font-medium">{user.name}</div>
                           <div className="text-xs text-muted-foreground">{user.email}</div>
                         </TableCell>
-                        {org.mailboxes.map(mailbox => (
-                          <TableCell key={mailbox} className="text-center px-2 py-2">
-                            <Checkbox
-                              checked={hasUserAccess(org.id, user.id.toString(), mailbox)}
-                              onCheckedChange={() =>
-                                toggleMailboxAccess(org.id, user.id.toString(), mailbox)
-                              }
-                            />
-                          </TableCell>
-                        ))}
+                        {org.mailboxes.map(mailbox => {
+                          const autoAccess = isAutoAccess(user.email, mailbox);
+                          const hasAccess = hasUserAccess(org.id, user.id.toString(), mailbox) || autoAccess;
+                          return (
+                            <TableCell key={mailbox} className="text-center px-2 py-2">
+                              <Checkbox
+                                checked={hasAccess}
+                                disabled={autoAccess}
+                                onCheckedChange={() =>
+                                  toggleMailboxAccess(org.id, user.id.toString(), mailbox)
+                                }
+                                title={autoAccess ? "Auto-access: user's own mailbox" : undefined}
+                              />
+                            </TableCell>
+                          );
+                        })}
                       </TableRow>
                     ))}
                   </TableBody>
