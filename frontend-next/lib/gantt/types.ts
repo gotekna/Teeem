@@ -651,9 +651,18 @@ export function sortRowsHierarchically<T extends {
 
   for (const row of rows) {
     const parentNum = getParentTaskNumber(row);
-    if (parentNum !== null && headerTaskNumbers.has(parentNum)) {
+    // Don't add self-referencing rows as children of themselves
+    if (parentNum !== null && parentNum !== row.task_number && headerTaskNumbers.has(parentNum)) {
       childrenByParent.get(parentNum)!.push(row);
     }
+  }
+
+  // DEBUG: Log header-children relationships
+  console.log('[sortRowsHierarchically] Headers:', Array.from(headerTaskNumbers));
+  for (const [taskNum, children] of childrenByParent.entries()) {
+    const headerRow = rows.find(r => r.task_number === taskNum);
+    console.log(`  Header "${(headerRow as {name?: string})?.name}" (${taskNum}): ${children.length} children`,
+      children.slice(0, 5).map(c => `${(c as {name?: string}).name} (parent: ${getParentTaskNumber(c)})`));
   }
 
   // Sort children within each header by sequence_order
@@ -671,11 +680,15 @@ export function sortRowsHierarchically<T extends {
     if (isHeaderRow(row)) {
       // Level 2+ headers: don't emit standalone, let parent emit them
       const parentNum = getParentTaskNumber(row);
-      if (parentNum !== null && headerTaskNumbers.has(parentNum)) {
+      console.log(`[sortRows] Processing header "${(row as {name?: string}).name}" (${row.task_number}), parentNum=${parentNum}, inHeaderSet=${parentNum ? headerTaskNumbers.has(parentNum) : 'N/A'}`);
+      // Skip if has a DIFFERENT parent header (not self-referencing)
+      if (parentNum !== null && parentNum !== row.task_number && headerTaskNumbers.has(parentNum)) {
+        console.log(`  → SKIP (will be emitted by parent ${parentNum})`);
         continue; // Skip - parent will emit this row as a child
       }
 
       // Top-level header: emit with children (recursively for nested headers)
+      console.log(`  → EMIT as top-level header`);
       result.push(row);
       processed.add(row.task_number);
 
@@ -772,7 +785,8 @@ export function convertRowsToTasks(
       }
 
       // Convert task_number to row.id for the map
-      if (parentTaskNumber && headerTaskNumbers.has(parentTaskNumber)) {
+      // Skip self-referencing (row is its own parent)
+      if (parentTaskNumber && parentTaskNumber !== Number(row.task_number) && headerTaskNumbers.has(parentTaskNumber)) {
         const headerId = taskNumberToId.get(parentTaskNumber);
         if (headerId) {
           if (!headerChildrenMap.has(headerId)) {

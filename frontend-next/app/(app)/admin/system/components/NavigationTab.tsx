@@ -62,7 +62,7 @@ interface NavigationItem {
 
 export function NavigationTab() {
   const [items, setItems] = React.useState<NavigationItem[]>([]);
-  const [emailAccounts, setEmailAccounts] = React.useState<{ id: number; type: string; name: string; nav_position: number }[]>([]);
+  const [emailAccounts, setEmailAccounts] = React.useState<{ id: number | string; type: string; name: string; nav_position: number; org_name?: string }[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set());
@@ -504,14 +504,14 @@ export function NavigationTab() {
               Drag to reorder email accounts in the sidebar. These appear under the Email navigation item.
             </p>
             <SortableList
-              items={emailAccounts.map((a, i) => ({ ...a, id: a.id }))}
+              items={emailAccounts.map((a) => ({ ...a, id: String(a.id) }))}
               onReorder={handleReorderEmailAccounts}
               className="space-y-1"
             >
               {emailAccounts.map((account, index) => (
                 <SortableItem
                   key={`${account.type}_${account.id}`}
-                  id={account.id}
+                  id={String(account.id)}
                   position={index + 1}
                   maxPosition={emailAccounts.length}
                   variant="card"
@@ -522,6 +522,9 @@ export function NavigationTab() {
                     <Badge variant="outline" className="text-[10px] py-0 px-1">
                       {account.type.toUpperCase()}
                     </Badge>
+                    {account.org_name && (
+                      <span className="text-xs text-muted-foreground">({account.org_name})</span>
+                    )}
                   </div>
                 </SortableItem>
               ))}

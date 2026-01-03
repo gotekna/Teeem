@@ -50,9 +50,10 @@ module Api
       end
 
       # GET /api/v1/navigation/email_accounts
-      # Get email accounts with their ordering
+      # Get email accounts with their ordering (IMAP + MS365)
       def email_accounts
         accounts = []
+        position = 0
 
         # IMAP accounts for current user
         current_user.imap_credentials.where(is_active: true).order(:nav_position, :id).each do |cred|
@@ -60,8 +61,33 @@ module Api
             id: cred.id,
             type: "imap",
             name: cred.email_address || cred.name,
-            nav_position: cred.nav_position || 0
+            nav_position: cred.nav_position || (position += 1)
           }
+        end
+
+        # MS365 accounts (from sync_config user_mailbox_access)
+        MicrosoftCredential.app_credentials.connected.each do |org_cred|
+          user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
+          configured_emails = user_mailbox_access[current_user.id.to_s] || []
+
+          # Auto-include user's own email if it exists in this tenant
+          tenant_emails = org_cred.list_tenant_users.map { |u| u[:email]&.downcase }.compact
+          auto_emails = if current_user.email.present? && tenant_emails.include?(current_user.email.downcase)
+            [current_user.email]
+          else
+            []
+          end
+
+          (auto_emails + configured_emails).uniq.compact.each do |email|
+            next if email.blank?
+            accounts << {
+              id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+              type: "ms365",
+              name: email,
+              org_name: org_cred.name,
+              nav_position: position += 1
+            }
+          end
         end
 
         render json: { success: true, email_accounts: accounts }
