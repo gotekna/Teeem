@@ -621,24 +621,21 @@ export function CreateRecordDialog({
       default:
         // Check if column has choices even if type isn't explicitly "choice"
         if (col.choices && col.choices.length > 0) {
+          const selectedChoice = col.choices.find(c => c === value);
           return (
             <div className="space-y-2">
               <FieldLabel htmlFor={col.key}>{label}</FieldLabel>
-              <Select
-                value={value ? String(value) : ""}
-                onValueChange={(val) => handleFieldChange(col.key, val)}
-              >
-                <SelectTrigger className={cn(hasError && "border-destructive")}>
-                  <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {col.choices.map((choice) => (
-                    <SelectItem key={choice} value={choice}>
-                      {choice}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboboxDropdown
+                items={col.choices.map(c => ({ id: c, label: c }))}
+                selectedItem={selectedChoice ? { id: selectedChoice, label: selectedChoice } : undefined}
+                onSelect={(item) => handleFieldChange(col.key, item.id)}
+                placeholder="Search options..."
+                searchPlaceholder="Type to search..."
+                clearable
+                onClear={() => handleFieldChange(col.key, "")}
+                emptyResults="No options available"
+                className={cn(hasError && "border-destructive")}
+              />
               <ErrorMessage />
             </div>
           );
