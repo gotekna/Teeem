@@ -4492,82 +4492,137 @@ export function ScheduleMasterTab() {
                 <p className="font-medium text-orange-800 dark:text-orange-200">
                   Today is a weekend or holiday
                 </p>
-                <p className="text-orange-700 dark:text-orange-300 mt-0.5">
-                  Last working day: {startTaskDialog.lastWorkingDay.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' })}
-                </p>
               </div>
             )}
 
-            {/* Options */}
+            {/* Options - different layout based on working day */}
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">How do you want to start this task?</p>
 
-              {startTaskDialog.headerName && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start gap-2 h-auto py-2"
-                  onClick={async () => {
-                    if (startTaskDialog.task) {
-                      const dateToUse = startTaskDialog.isTodayWorkingDay ? new Date() : startTaskDialog.lastWorkingDay!;
-                      await executeStartTask(startTaskDialog.task, 'break-header', dateToUse);
-                      setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
-                    }
-                  }}
-                >
-                  <GitBranch className="h-4 w-4 rotate-180 shrink-0" />
-                  <div className="text-left">
-                    <div className="font-medium">Break out of header</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      Task becomes standalone, start {startTaskDialog.isTodayWorkingDay ? 'today' : startTaskDialog.lastWorkingDay?.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
-                    </div>
-                  </div>
-                </Button>
+              {/* If today is a working day - simple options */}
+              {startTaskDialog.isTodayWorkingDay && (
+                <>
+                  {startTaskDialog.headerName && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start gap-2 h-auto py-2"
+                      onClick={async () => {
+                        if (startTaskDialog.task) {
+                          await executeStartTask(startTaskDialog.task, 'break-header', new Date());
+                          setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                        }
+                      }}
+                    >
+                      <GitBranch className="h-4 w-4 rotate-180 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-medium">Break out of header</div>
+                        <div className="text-[10px] text-muted-foreground">Task becomes standalone, start today</div>
+                      </div>
+                    </Button>
+                  )}
+
+                  {startTaskDialog.hasPredecessors && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start gap-2 h-auto py-2"
+                      onClick={async () => {
+                        if (startTaskDialog.task) {
+                          await executeStartTask(startTaskDialog.task, 'break-dependency', new Date());
+                          setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                        }
+                      }}
+                    >
+                      <Link2Off className="h-4 w-4 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-medium">Break dependencies</div>
+                        <div className="text-[10px] text-muted-foreground">Clear predecessors, start today</div>
+                      </div>
+                    </Button>
+                  )}
+                </>
               )}
 
-              {startTaskDialog.hasPredecessors && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start gap-2 h-auto py-2"
-                  onClick={async () => {
-                    if (startTaskDialog.task) {
-                      const dateToUse = startTaskDialog.isTodayWorkingDay ? new Date() : startTaskDialog.lastWorkingDay!;
-                      await executeStartTask(startTaskDialog.task, 'break-dependency', dateToUse);
-                      setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
-                    }
-                  }}
-                >
-                  <Link2Off className="h-4 w-4 shrink-0" />
-                  <div className="text-left">
-                    <div className="font-medium">Break dependencies</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      Clear predecessors, start {startTaskDialog.isTodayWorkingDay ? 'today' : startTaskDialog.lastWorkingDay?.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+              {/* If NOT a working day - show date choice for each action */}
+              {!startTaskDialog.isTodayWorkingDay && startTaskDialog.lastWorkingDay && (
+                <>
+                  {/* Break out of header options */}
+                  {startTaskDialog.headerName && (
+                    <div className="border rounded-md p-2 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-medium">
+                        <GitBranch className="h-3.5 w-3.5 rotate-180" />
+                        Break out of header
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8"
+                          onClick={async () => {
+                            if (startTaskDialog.task && startTaskDialog.lastWorkingDay) {
+                              await executeStartTask(startTaskDialog.task, 'break-header', startTaskDialog.lastWorkingDay);
+                              setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                            }
+                          }}
+                        >
+                          {startTaskDialog.lastWorkingDay.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8 border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400"
+                          onClick={async () => {
+                            if (startTaskDialog.task) {
+                              await executeStartTask(startTaskDialog.task, 'break-header', new Date());
+                              setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                            }
+                          }}
+                        >
+                          Today (weekend)
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </Button>
-              )}
+                  )}
 
-              {/* If today is not a working day, offer to start on the holiday/weekend */}
-              {!startTaskDialog.isTodayWorkingDay && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start gap-2 h-auto py-2 border-orange-300 dark:border-orange-700"
-                  onClick={async () => {
-                    if (startTaskDialog.task) {
-                      // Start on today (weekend/holiday) anyway
-                      await executeStartTask(startTaskDialog.task, 'start-only', new Date());
-                      setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
-                    }
-                  }}
-                >
-                  <PlayCircle className="h-4 w-4 shrink-0 text-orange-500" />
-                  <div className="text-left">
-                    <div className="font-medium">Start on weekend/holiday</div>
-                    <div className="text-[10px] text-muted-foreground">Start today anyway (non-working day)</div>
-                  </div>
-                </Button>
+                  {/* Break dependencies options */}
+                  {startTaskDialog.hasPredecessors && (
+                    <div className="border rounded-md p-2 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-medium">
+                        <Link2Off className="h-3.5 w-3.5" />
+                        Break dependencies
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8"
+                          onClick={async () => {
+                            if (startTaskDialog.task && startTaskDialog.lastWorkingDay) {
+                              await executeStartTask(startTaskDialog.task, 'break-dependency', startTaskDialog.lastWorkingDay);
+                              setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                            }
+                          }}
+                        >
+                          {startTaskDialog.lastWorkingDay.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8 border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400"
+                          onClick={async () => {
+                            if (startTaskDialog.task) {
+                              await executeStartTask(startTaskDialog.task, 'break-dependency', new Date());
+                              setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                            }
+                          }}
+                        >
+                          Today (weekend)
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

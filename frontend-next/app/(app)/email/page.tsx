@@ -753,7 +753,9 @@ export default function EmailPage() {
   const toURLParams = emailFilters.toURLParams;
 
   const fetchEmails = useCallback(async (page = 1) => {
+    console.log('[Email] fetchEmails called', { selectedAccount, selectedFolder, page });
     if (!selectedAccount) {
+      console.log('[Email] No selectedAccount, returning early');
       setEmails([]);
       setLoading(false);
       return;
@@ -783,9 +785,9 @@ export default function EmailPage() {
         params.append("folder_name", selectedFolder);
       }
 
-      const response = await api.get<{ emails: Email[]; pagination: Pagination }>(
-        `/api/v1/email_warehouse?${params.toString()}`
-      );
+      const url = `/api/v1/email_warehouse?${params.toString()}`;
+      console.log('[Email] Fetching:', url);
+      const response = await api.get<{ emails: Email[]; pagination: Pagination }>(url);
 
       setEmails(response.emails || []);
       setPagination(response.pagination);
