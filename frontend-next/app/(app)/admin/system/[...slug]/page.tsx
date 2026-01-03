@@ -166,7 +166,9 @@ export default function SystemAdminCatchAllPage({
   // Get CSS class for tab content
   const getContentClass = () => {
     if (FULL_HEIGHT_TABS.includes(tab)) {
-      return "h-full overflow-hidden -mx-4";
+      // SSoT: Children handle their own overflow (TeeemTableView has overflow-auto)
+      // overflow-hidden was clipping table content
+      return "h-full -mx-4";
     }
     return "overflow-auto";
   };

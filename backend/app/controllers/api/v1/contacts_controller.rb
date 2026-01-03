@@ -19,10 +19,10 @@ module Api
         # Show all active contacts
         @contacts = Contact.all
 
-        # Filter to only show actual company directors (from company_directors table)
+        # Filter to only show actual company directors
+        # Performance: Uses cached column instead of joining corporate_company_directors
         if params[:is_director] == "true"
-          director_contact_ids = CorporateCompanyDirector.where(is_current: true).pluck(:contact_id).uniq
-          @contacts = @contacts.where(id: director_contact_ids)
+          @contacts = @contacts.where(is_director_cached: true)
         end
 
         # Filter to only show family members
@@ -95,29 +95,19 @@ module Api
           @contacts = @contacts.with_role(params[:role])
         end
 
-        # Filter by contact type (supplier/customer based on relationships)
+        # Filter by contact type (supplier/customer)
+        # Performance: Uses cached boolean columns (is_supplier_cached, is_customer_cached)
+        # instead of expensive JOINs that caused cartesian products
         if params[:type].present? && params[:role].blank?
           case params[:type]
           when "suppliers"
-            # Suppliers: contacts who have purchase orders, pricebook entries, price histories, or bills
-            # Note: purchase_orders, pricebooks, price_histories use supplier_id foreign key
-            supplier_ids = Contact
-              .joins("LEFT JOIN purchase_orders ON purchase_orders.supplier_id = contacts.id")
-              .joins("LEFT JOIN pricebooks ON pricebooks.supplier_id = contacts.id")
-              .joins("LEFT JOIN price_histories ON price_histories.supplier_id = contacts.id")
-              .joins("LEFT JOIN external_invoices ON external_invoices.contact_id = contacts.id AND external_invoices.invoice_type = 'ACCPAY'")
-              .where("purchase_orders.id IS NOT NULL OR pricebooks.id IS NOT NULL OR price_histories.id IS NOT NULL OR external_invoices.id IS NOT NULL")
-              .distinct
-              .pluck(:id)
-            @contacts = @contacts.where(id: supplier_ids)
+            # Suppliers: contacts with is_supplier_cached=true
+            # Cached column is updated when contacts get POs, pricebooks, price histories, or bills
+            @contacts = @contacts.where(is_supplier_cached: true)
           when "customers"
-            # Customers: contacts who have jobs or customer invoices
-            customer_ids = Contact.left_joins(:jobs)
-              .joins("LEFT JOIN external_invoices ON external_invoices.contact_id = contacts.id AND external_invoices.invoice_type = 'ACCREC'")
-              .where("jobs.id IS NOT NULL OR external_invoices.id IS NOT NULL")
-              .distinct
-              .pluck(:id)
-            @contacts = @contacts.where(id: customer_ids)
+            # Customers: contacts with is_customer_cached=true
+            # Cached column is updated when contacts get jobs
+            @contacts = @contacts.where(is_customer_cached: true)
           when "both"
             # All contacts (no filter)
           end
@@ -1402,45 +1392,24 @@ module Api
       end
 
       # Performance: Pre-compute is_customer?, is_supplier?, is_director? via SQL
-      # Replaces ~1,130 individual EXISTS queries with 4 batch queries
+      # Performance: Reads cached boolean columns directly (single query)
+      # Previously ran 6 separate queries, now reads from is_*_cached columns
       # Returns: { contact_id => { is_customer: bool, is_supplier: bool, is_director: bool } }
       def precompute_contact_flags(contact_ids)
         return {} if contact_ids.blank?
 
-        flags = Hash.new { |h, k| h[k] = {} }
+        flags = {}
 
-        # is_customer: has job_contacts
-        JobContact.where(contact_id: contact_ids)
-          .distinct
-          .pluck(:contact_id)
-          .each { |id| flags[id][:is_customer] = true }
-
-        # is_supplier: has purchase_orders, pricebook_items, price_histories, or bills
-        PurchaseOrder.where(supplier_id: contact_ids)
-          .distinct
-          .pluck(:supplier_id)
-          .each { |id| flags[id][:is_supplier] = true }
-
-        PricebookItem.where(supplier_id: contact_ids)
-          .distinct
-          .pluck(:supplier_id)
-          .each { |id| flags[id][:is_supplier] = true }
-
-        PriceHistory.where(supplier_id: contact_ids)
-          .distinct
-          .pluck(:supplier_id)
-          .each { |id| flags[id][:is_supplier] = true }
-
-        ExternalInvoice.bills.where(contact_id: contact_ids)
-          .distinct
-          .pluck(:contact_id)
-          .each { |id| flags[id][:is_supplier] = true }
-
-        # is_director: has current directorships
-        CorporateCompanyDirector.where(contact_id: contact_ids, is_current: true)
-          .distinct
-          .pluck(:contact_id)
-          .each { |id| flags[id][:is_director] = true }
+        # Single query to get all cached flags
+        Contact.where(id: contact_ids)
+          .pluck(:id, :is_customer_cached, :is_supplier_cached, :is_director_cached)
+          .each do |id, is_customer, is_supplier, is_director|
+            flags[id] = {
+              is_customer: is_customer,
+              is_supplier: is_supplier,
+              is_director: is_director
+            }
+          end
 
         flags
       end

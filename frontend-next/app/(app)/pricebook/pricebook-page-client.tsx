@@ -12,12 +12,21 @@ import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
 import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
 import type { TableRow, TableColumn } from "@/components/table/types";
+import type { ViewData } from "@/lib/server/foundation-api";
 
 interface PricebookPageClientProps {
   // SSR data from server component
   initialColumns: TableColumn[];
   initialRecords: TableRow[];
   initialHasMore: boolean;
+  // SSR view data to prevent CLS on hydration
+  initialView?: ViewData | null;
+  // SSR group counts for grouped views (matches TeeemTableView.initialGroupCounts type)
+  initialGroupCounts?: {
+    groups: Array<{ key: string | null; count: number; displayValue: string }>;
+    totalRecords: number;
+    displayValuesMap: Record<string, Record<number, string>>;
+  } | null;
 }
 
 /**
@@ -25,11 +34,16 @@ interface PricebookPageClientProps {
  *
  * Receives SSR data from server component for fast LCP.
  * TeeemTableView renders immediately without waiting for client fetch.
+ *
+ * When initialView is provided, TeeemTableView initializes with the view's
+ * column configuration, preventing CLS from view loading on hydration.
  */
 export default function PricebookPageClient({
   initialColumns,
   initialRecords,
   initialHasMore,
+  initialView,
+  initialGroupCounts,
 }: PricebookPageClientProps) {
   const router = useRouter();
 
@@ -125,6 +139,10 @@ export default function PricebookPageClient({
         initialColumns={initialColumns}
         initialRecords={initialRecords}
         initialHasMore={initialHasMore}
+        // SSR View Props - prevents CLS from view loading on hydration
+        initialView={initialView}
+        // SSR Group Counts - prevents CLS from group count loading
+        initialGroupCounts={initialGroupCounts}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
       />

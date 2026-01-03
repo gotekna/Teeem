@@ -2693,7 +2693,7 @@ export function ScheduleMasterTab() {
         </TabsContent>
 
           {/* Data View Tab - Full TeeemTableView */}
-          <TabsContent value="data-view" className="absolute inset-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent value="data-view" className="absolute inset-0 flex flex-col data-[state=inactive]:hidden">
           {/* SSoT: Fullscreen now handled by TeeemTableView via enableFullscreen prop */}
           <div className="flex flex-col h-full">
             <TeeemTableView

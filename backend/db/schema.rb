@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_03_200719) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_03_201004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1306,6 +1306,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_200719) do
     t.integer "position", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "idx_contact_emails_unique_primary", unique: true, where: "(is_primary = true)"
   end
 
   create_table "contact_external_links", force: :cascade do |t|
@@ -1391,6 +1392,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_200719) do
     t.datetime "updated_at", null: false
     t.index ["contact_id", "is_primary"], name: "index_contact_phones_on_primary", where: "(is_primary = true)"
     t.index ["contact_id", "position"], name: "index_contact_phones_on_contact_id_and_position"
+    t.index ["contact_id"], name: "idx_contact_phones_unique_primary", unique: true, where: "(is_primary = true)"
     t.index ["contact_id"], name: "index_contact_phones_on_contact_id"
   end
 
@@ -1487,7 +1489,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_200719) do
     t.boolean "portal_enabled", default: false
     t.string "company_name_or_trust"
     t.bigint "primary_company_id"
-    t.string "entity_type"
+    t.string "entity_type", null: false
     t.string "place_of_birth"
     t.string "birth_state"
     t.string "birth_country"
@@ -1549,6 +1551,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_200719) do
     t.decimal "total_commissions_earned", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_commissions_paid", precision: 12, scale: 2, default: "0.0"
     t.string "direct_line"
+    t.boolean "is_customer_cached", default: false, null: false
+    t.boolean "is_supplier_cached", default: false, null: false
+    t.boolean "is_director_cached", default: false, null: false
     t.index "lower((email)::text)", name: "idx_contacts_lower_email"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1560,9 +1565,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_200719) do
     t.index ["entity_type", "is_active"], name: "idx_contacts_entity_type_active"
     t.index ["entity_type"], name: "index_contacts_on_entity_type"
     t.index ["is_active"], name: "index_contacts_on_is_active"
+    t.index ["is_customer_cached"], name: "index_contacts_on_is_customer_cached"
+    t.index ["is_director_cached"], name: "index_contacts_on_is_director_cached"
     t.index ["is_family_member"], name: "index_contacts_on_is_family_member"
     t.index ["is_potential_director"], name: "index_contacts_on_is_potential_director"
     t.index ["is_saas_customer"], name: "index_contacts_on_is_saas_customer"
+    t.index ["is_supplier_cached"], name: "index_contacts_on_is_supplier_cached"
     t.index ["is_team_contact", "is_active"], name: "idx_contacts_team_contact_active"
     t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
@@ -1575,6 +1583,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_03_200719) do
     t.index ["upline_contact_id"], name: "index_contacts_on_upline_contact_id"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
+    t.check_constraint "entity_type::text = ANY (ARRAY['person'::character varying, 'company'::character varying, 'trust'::character varying, 'sole_trader'::character varying, 'price_only'::character varying]::text[])", name: "check_contacts_entity_type"
   end
 
   create_table "corporate_companies", force: :cascade do |t|

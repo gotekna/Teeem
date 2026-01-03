@@ -1182,17 +1182,27 @@ module Api
       end
 
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
+      # Performance: Uses SQL HAVING instead of loading ALL contacts into memory
+      # Previously: O(n) memory usage, now: O(d) where d = number of duplicate names
       def find_duplicate_contact_ids
-        contacts_by_name = Contact.where(deleted: [ false, nil ])
-          .group_by { |c| normalize_contact_name(c.display_name) }
+        # Step 1: Find normalized names that appear more than once (using SQL HAVING)
+        duplicate_names = Contact
+          .where(is_active: true)
+          .where.not(display_name: [nil, ""])
+          .group(Arel.sql("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g')))"))
+          .having("COUNT(*) > 1")
+          .pluck(Arel.sql("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g')))"))
 
-        duplicate_ids = []
-        contacts_by_name.each do |normalized_name, contacts|
-          next if normalized_name.blank?
-          next if contacts.size < 2
-          duplicate_ids.concat(contacts.map(&:id))
-        end
-        duplicate_ids
+        return [] if duplicate_names.empty?
+
+        # Step 2: Get all contact IDs with those normalized names
+        Contact
+          .where(is_active: true)
+          .where(
+            "LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) IN (?)",
+            duplicate_names
+          )
+          .pluck(:id)
       end
 
       def normalize_contact_name(name)
