@@ -238,13 +238,17 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # GET /api/v1/imap_credentials/all_accounts
   # List ALL email accounts (IMAP + connected Microsoft 365 tenants)
+  # SSoT: Uses same ordering as navigation (email_nav_positions)
   def all_accounts
     accounts = []
+    # SSoT: Use same positions as navigation sidebar for consistent ordering
+    saved_positions = current_user.email_nav_positions || {}
+    fallback_position = 1000
 
     # Add connected Microsoft 365 organization accounts
     # These use Application permissions to access mailboxes
     # SSoT: Use MicrosoftCredential for app credentials
-    MicrosoftCredential.app_credentials.connected.order(:name).each do |org_cred|
+    MicrosoftCredential.app_credentials.connected.each do |org_cred|
       # SSoT: User automatically gets access to their own mailbox
       # Plus any additional mailboxes granted via user_mailbox_access config
       user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
@@ -263,21 +267,24 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
       # Add each mailbox the user has access to
       user_emails.each_with_index do |email, index|
+        account_id = "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}"
         accounts << {
-          id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+          id: account_id,
           type: "ms365",
           name: "#{org_cred.name}",
           email_address: email,
           provider: "microsoft365",
           is_active: org_cred.status == "connected",
           is_default: index == 0 && accounts.empty?,
-          org_credential_id: org_cred.id
+          org_credential_id: org_cred.id,
+          position: saved_positions[account_id] || (fallback_position += 1)
         }
       end
     end
 
     # Add IMAP accounts
-    current_user.imap_credentials.where(is_active: true).order(created_at: :desc).each do |cred|
+    current_user.imap_credentials.where(is_active: true).each do |cred|
+      account_id = cred.id.to_s
       accounts << {
         id: cred.id,
         type: "imap",
@@ -287,9 +294,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
         is_active: cred.is_active,
         is_default: false,
         email_signature: cred.email_signature,
-        email_aliases: cred.email_aliases || []
+        email_aliases: cred.email_aliases || [],
+        position: saved_positions[account_id] || (fallback_position += 1)
       }
     end
+
+    # Sort by position to match navigation sidebar order
+    accounts.sort_by! { |a| a[:position] }
 
     render json: {
       success: true,
