@@ -985,15 +985,51 @@ function sortTasksByDate(tasks: GanttTask[], rows: SmScheduleMaster[]): GanttTas
     children.sort(dateCompare);
   }
 
-  // Reassemble: headers with children, then orphans
-  const result: GanttTask[] = [];
-  for (const header of headers) {
-    result.push(header);
-    const children = childrenByHeader.get(header.id) || [];
-    result.push(...children);
-  }
+  // Sort orphans by date
   orphans.sort(dateCompare);
-  result.push(...orphans);
+
+  // Build header blocks (header + its children)
+  const headerBlocks: { task: GanttTask; children: GanttTask[] }[] = headers.map(h => ({
+    task: h,
+    children: childrenByHeader.get(h.id) || [],
+  }));
+
+  // Merge headers and orphans by start date (interleaved)
+  const result: GanttTask[] = [];
+  let headerIdx = 0;
+  let orphanIdx = 0;
+
+  while (headerIdx < headerBlocks.length || orphanIdx < orphans.length) {
+    const nextHeader = headerBlocks[headerIdx];
+    const nextOrphan = orphans[orphanIdx];
+
+    if (!nextHeader) {
+      // No more headers, add remaining orphans
+      result.push(...orphans.slice(orphanIdx));
+      break;
+    }
+    if (!nextOrphan) {
+      // No more orphans, add remaining header blocks
+      for (let i = headerIdx; i < headerBlocks.length; i++) {
+        result.push(headerBlocks[i].task);
+        result.push(...headerBlocks[i].children);
+      }
+      break;
+    }
+
+    // Compare header vs orphan by start date (then end date)
+    const cmp = dateCompare(nextHeader.task, nextOrphan);
+    if (cmp <= 0) {
+      // Header comes first (or same date - headers before orphans)
+      result.push(nextHeader.task);
+      result.push(...nextHeader.children);
+      headerIdx++;
+    } else {
+      // Orphan comes first
+      result.push(nextOrphan);
+      orphanIdx++;
+    }
+  }
 
   return result;
 }
