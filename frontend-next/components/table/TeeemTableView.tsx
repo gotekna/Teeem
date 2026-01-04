@@ -1475,25 +1475,33 @@ export default function TeeemTableView({
       console.log('[SSR] Initializing savedViews from preloadedViews:', preloadedViews.length, 'views', savedViewsAreStale ? '(replacing stale views)' : '');
       // Map preloaded views to SavedView format
       // Handle both ViewData (from SSR) and SavedView (from client) formats
-      const mappedViews: SavedView[] = preloadedViews.map((v) => ({
-        id: v.id ?? 0,
-        name: v.name ?? 'Untitled',
-        slug: v.slug || '',
-        is_global: v.is_global || false,
-        isDefault: v.isDefault || false,
-        foundation_id: v.foundation_id || 0,
-        // Handle both array filters (SavedView) and object filters (ViewData from SSR)
-        filters: Array.isArray(v.filters) ? v.filters : [],
-        visibleColumns: v.visibleColumns || {},
-        columnOrder: v.columnOrder || [],
-        columnWidths: v.columnWidths || {},
-        sortColumns: v.sortColumns || [],
-        groupByColumns: v.groupByColumns || (v.groupByColumn ? [v.groupByColumn] : []),
-        groupByColumn: v.groupByColumn,
-        display_order: v.display_order || 0,
-        view_type: v.view_type as SavedView['view_type'],
-        view_display_type: v.view_display_type as SavedView['view_display_type'],
-      }));
+      // SSR ViewData uses nested format: columns.visible, columns.order, columns.widths
+      // Client SavedView uses flat format: visibleColumns, columnOrder, columnWidths
+      const mappedViews: SavedView[] = preloadedViews.map((v) => {
+        // Type assertion to handle both formats
+        const viewAny = v as typeof v & { columns?: { visible?: Record<string, boolean>; order?: string[]; widths?: Record<string, number> } };
+
+        return {
+          id: v.id ?? 0,
+          name: v.name ?? 'Untitled',
+          slug: v.slug || '',
+          is_global: v.is_global || false,
+          isDefault: v.isDefault || false,
+          foundation_id: v.foundation_id || 0,
+          // Handle both array filters (SavedView) and object filters (ViewData from SSR)
+          filters: Array.isArray(v.filters) ? v.filters : [],
+          // FRC Fix: Handle both SSR (columns.visible) and client (visibleColumns) formats
+          visibleColumns: v.visibleColumns || viewAny.columns?.visible || {},
+          columnOrder: v.columnOrder || viewAny.columns?.order || [],
+          columnWidths: v.columnWidths || viewAny.columns?.widths || {},
+          sortColumns: v.sortColumns || [],
+          groupByColumns: v.groupByColumns || (v.groupByColumn ? [v.groupByColumn] : []),
+          groupByColumn: v.groupByColumn,
+          display_order: v.display_order || 0,
+          view_type: v.view_type as SavedView['view_type'],
+          view_display_type: v.view_display_type as SavedView['view_display_type'],
+        };
+      });
       setSavedViews(mappedViews);
       // Also mark as loaded to prevent duplicate API call
       initialViewLoadedRef.current = true;
