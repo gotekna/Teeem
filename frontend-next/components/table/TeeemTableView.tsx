@@ -1436,11 +1436,14 @@ export default function TeeemTableView({
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
   // effectiveColumns comes from Foundation API which only has database columns
+  // SSR FIX: Also check initialColumns as fallback (effectiveColumns set via useEffect, not available on first render)
   const validGroupByColumnForApi = useMemo(() => {
     if (!groupByColumn) return null;
-    // Check if the column exists in effectiveColumns (Foundation columns = database columns)
+    // SSR FIX: Use effectiveColumns if available, otherwise fall back to initialColumns for first render
+    const columnsToCheck = effectiveColumns || initialColumns;
+    // Check if the column exists in columns (Foundation columns = database columns)
     // Ignore system columns like 'select' and 'actions' which are UI-only
-    const isValidDbColumn = effectiveColumns?.some(
+    const isValidDbColumn = columnsToCheck?.some(
       (col) => col.key === groupByColumn && col.key !== 'select' && col.key !== 'actions'
     );
     if (!isValidDbColumn) {
@@ -1449,7 +1452,7 @@ export default function TeeemTableView({
       return null;
     }
     return groupByColumn;
-  }, [groupByColumn, effectiveColumns]);
+  }, [groupByColumn, effectiveColumns, initialColumns]);
 
   // Server-side group counts for accurate totals (not limited by pagination)
   // This fetches GROUP BY counts from the database for the current groupByColumn
