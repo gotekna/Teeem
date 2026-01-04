@@ -8351,6 +8351,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.jsonb "po_line_items", default: "[]"
     t.boolean "allow_header", default: false, null: false
     t.boolean "is_private", default: false
+    t.boolean "started", default: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"
