@@ -1498,7 +1498,7 @@ export default function TeeemTableView({
       // Also mark as loaded to prevent duplicate API call
       initialViewLoadedRef.current = true;
     }
-  }, [preloadedViews, savedViews, setSavedViews, foundationId, resolvedFoundationId]);
+  }, [preloadedViews, savedViews, setSavedViews, foundationId, effectiveFoundationId]);
 
   // Row rendering limit for performance (render rows initially, load more on demand)
   // SSoT: Uses TABLE_ROW_LIMIT from pagination-constants.ts
