@@ -82,6 +82,8 @@ export interface DependencyEditorState {
   isOpen: boolean;
   task: GanttTask | null;
   visibleTasks: GanttTask[];
+  /** Pending predecessor from drag-create (not yet saved) */
+  pendingPredecessor?: { taskNumber: number; type: string; lag: number };
 }
 
 export interface StartTaskDialogState {
@@ -987,8 +989,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // Dependency Create/Delete (direct canvas interactions)
   // ---------------------------------------------------------------------------
 
-  const handleDependencyCreate = React.useCallback(async (fromId: string, toId: string, type: string) => {
-    if (!apiConfig) return;
+  const handleDependencyCreate = React.useCallback((fromId: string, toId: string, type: string) => {
     console.log('[GanttDataManager] Dependency create:', fromId, '->', toId, 'type:', type);
 
     // Canvas passes row.id (not task_number), so find tasks by id
@@ -1006,37 +1007,24 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       return;
     }
 
-    const targetRow = targetTask.rowData as SmScheduleMaster;
     const fromRow = fromTask.rowData as SmScheduleMaster;
 
-    // Get current predecessor_ids and add the new one
-    // predecessor_ids stores task_number, not row.id
-    const currentPreds = targetRow.predecessor_ids || [];
-    const newPred = {
-      id: fromRow.task_number,  // Use task_number, not row.id
+    // Create pending predecessor to pass to the editor
+    const pendingPredecessor = {
+      taskNumber: fromRow.task_number,
       type: type || 'FS',
       lag: 0
     };
 
-    // Check if already exists
-    if (currentPreds.some((p: { id: number }) => p.id === newPred.id)) {
-      toast({ title: 'Info', description: 'Dependency already exists' });
-      return;
-    }
-
-    try {
-      await api.patch(
-        apiConfig.updateUrl(targetRow.id),
-        wrapPayload(apiConfig, { predecessor_ids: [...currentPreds, newPred] })
-      );
-
-      loadData();
-      toast({ title: 'Success', description: 'Dependency created' });
-    } catch (error) {
-      console.error('[GanttDataManager] Failed to create dependency:', error);
-      toast({ title: 'Error', description: 'Failed to create dependency', variant: 'destructive' });
-    }
-  }, [tasks, apiConfig, loadData, toast]);
+    // Open the dependency editor with the target task and pending predecessor
+    // User will review and click Save to confirm
+    setDependencyEditorState({
+      isOpen: true,
+      task: targetTask,
+      visibleTasks: tasks,
+      pendingPredecessor
+    });
+  }, [tasks, toast]);
 
   const handleDependencyDelete = React.useCallback(async (dependencyId: string) => {
     if (!apiConfig) return;

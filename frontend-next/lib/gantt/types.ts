@@ -904,7 +904,31 @@ export function convertRowsToTasks(
     // Headers remain visible regardless of whether they have children
   }
 
-  // Fourth pass: Sort by calculated dates
+  // Fourth pass: Recalculate dates for tasks that depend on headers
+  // Now that headers have their correct spans, recalculate any task depending on a header
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    const row = sortedRows[i];
+
+    // Skip headers (they already have correct dates)
+    if (isHeaderRow(row)) continue;
+
+    // Check if this task depends on any header
+    if (!row.predecessor_ids || row.predecessor_ids.length === 0) continue;
+
+    const dependsOnHeader = row.predecessor_ids.some(pred => headerTaskNumbers.has(pred.id));
+    if (!dependsOnHeader) continue;
+
+    // Recalculate this task's dates now that headers have correct dates
+    const recalculated = convertRowToTask(row, projectStartDate, taskDateMap, holidayDates);
+    task.startDate = recalculated.startDate;
+    task.endDate = recalculated.endDate;
+
+    // Update taskDateMap so subsequent tasks (that might depend on this one) use correct dates
+    taskDateMap.set(row.task_number, { start: task.startDate, end: task.endDate });
+  }
+
+  // Fifth pass: Sort by calculated dates
   // Headers sorted by start date, children within headers sorted by start date,
   // and if start dates equal, sort by end date (earlier finish first)
   return sortTasksByDate(tasks, sortedRows);
