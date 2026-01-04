@@ -496,7 +496,7 @@ export function EntityTabsConfig({
       tab_key: "",
       display_name: "",
       description: "",
-      tab_group: group,
+      tab_group: group || 'documents',  // Default to documents (most common use case)
       entity_filters: [],
       enabled: true,
       has_sharepoint_folder: false,
@@ -1462,6 +1462,34 @@ export function EntityTabsConfig({
                   />
                 </div>
               )}
+
+              {/* Tab Group - determines if this is a document tab */}
+              <div className="space-y-2">
+                <Label htmlFor="tab_group">Tab Group</Label>
+                <Select
+                  value={formData.tab_group || "documents"}
+                  onValueChange={(value: TabGroup) =>
+                    setFormData((prev) => ({ ...prev, tab_group: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select tab group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="overview">Overview</SelectItem>
+                    <SelectItem value="documents">Documents (enables Document Types)</SelectItem>
+                    <SelectItem value="reports">Reports</SelectItem>
+                    <SelectItem value="data">Data</SelectItem>
+                    <SelectItem value="setup">Setup</SelectItem>
+                    <SelectItem value="main">Main</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {formData.tab_group === 'documents'
+                    ? "Document tabs can link to Document Types"
+                    : "Only 'Documents' group enables Document Types linking"}
+                </p>
+              </div>
 
               {/* Description */}
               <div className="space-y-2">

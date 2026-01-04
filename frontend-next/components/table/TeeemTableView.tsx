@@ -879,6 +879,14 @@ export default function TeeemTableView({
   // Only include base filters in the key since user filters change frequently
   const baseFiltersKey = useMemo(() => JSON.stringify(baseFilters), [baseFilters]);
 
+  // ULTRA FIX: Create stable key for ALL filters (not just base) to trigger client-side filtering
+  // This ensures filteredAndSortedEntries recalculates when any filter changes (view, quick, user)
+  // Without this, the useMemo dependency on cascadeFilters array reference may not detect content changes
+  const allFiltersKey = useMemo(
+    () => JSON.stringify(cascadeFilters.map(f => ({ c: f.column, o: f.operator, v: f.value }))),
+    [cascadeFilters]
+  );
+
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
   // CRITICAL: Include filters in API call - backend needs to know about base filters
   useEffect(() => {
@@ -3436,7 +3444,7 @@ export default function TeeemTableView({
     onServerSearch,
     effectiveOnServerSearch,
     COLUMNS,
-    cascadeFilters,
+    allFiltersKey,  // Use stable key to detect filter content changes, not just reference
     filterGroups,
     interGroupLogic,
     sortColumns,
