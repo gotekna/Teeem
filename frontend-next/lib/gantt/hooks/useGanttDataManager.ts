@@ -34,6 +34,10 @@ export interface GanttDataManagerConfig {
   mode: GanttMode;
   templateId?: number;
   jobId?: number;
+  /** SSoT: Rows from TeeemTableView - if provided, hook won't load its own data */
+  rows?: SmScheduleMaster[];
+  /** SSoT: Callback to refresh the source (TeeemTableView) after edits */
+  onRefresh?: () => void;
 }
 
 export interface EditRowForm {
@@ -138,8 +142,11 @@ function extractLookupDisplay(value: unknown): string | undefined {
 // =============================================================================
 
 export function useGanttDataManager(config: GanttDataManagerConfig) {
-  const { mode, templateId, jobId } = config;
+  const { mode, templateId, jobId, rows: externalRows, onRefresh } = config;
   const { toast } = useToast();
+
+  // SSoT: Check if we're using external rows (from TeeemTableView)
+  const useExternalData = externalRows !== undefined;
 
   // Check if we have a valid ID for the mode
   const hasValidId = (mode === 'template' && templateId) || (mode === 'job' && jobId);
@@ -154,12 +161,24 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // State
   // ---------------------------------------------------------------------------
 
-  // Core data
-  const [tasks, setTasks] = React.useState<GanttTask[]>([]);
-  const [dependencies, setDependencies] = React.useState<GanttDependency[]>([]);
-  const [rows, setRows] = React.useState<SmScheduleMaster[]>([]);
+  // Core data - internal state only used when NOT using external rows
+  const [internalTasks, setInternalTasks] = React.useState<GanttTask[]>([]);
+  const [internalDependencies, setInternalDependencies] = React.useState<GanttDependency[]>([]);
+  const [internalRows, setInternalRows] = React.useState<SmScheduleMaster[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // SSoT: Convert external rows to tasks when using external data
+  const externalTasks = React.useMemo(() => {
+    if (!useExternalData || !externalRows?.length) return [];
+    const projectStartDate = getTodayInCompanyTimezone();
+    return convertRowsToTasks(externalRows, projectStartDate);
+  }, [useExternalData, externalRows]);
+
+  // Use external or internal data
+  const tasks = useExternalData ? externalTasks : internalTasks;
+  const rows = useExternalData ? (externalRows || []) : internalRows;
+  const dependencies = internalDependencies; // Dependencies still loaded internally for now
 
   // Undo history
   const [undoHistory, setUndoHistory] = React.useState<Map<string, UndoState>>(new Map());
@@ -218,11 +237,18 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const loadData = React.useCallback(async () => {
+    // SSoT: If using external data, just call onRefresh to tell parent to reload
+    if (useExternalData) {
+      console.log('[GanttDataManager] SSoT: Calling onRefresh to reload external data');
+      onRefresh?.();
+      return;
+    }
+
     if (!apiConfig) {
       // No valid ID, can't load data
-      setTasks([]);
-      setDependencies([]);
-      setRows([]);
+      setInternalTasks([]);
+      setInternalDependencies([]);
+      setInternalRows([]);
       return;
     }
 
@@ -309,7 +335,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         (a.sequence_order || 0) - (b.sequence_order || 0)
       );
 
-      setRows(fetchedRows);
+      setInternalRows(fetchedRows);
 
       // Convert to GanttTask format
       const projectStartDate = getTodayInCompanyTimezone();
@@ -321,7 +347,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         convertedTasks = applyDateMap(convertedTasks, fetchedRows, dateMap);
       }
 
-      setTasks(convertedTasks);
+      setInternalTasks(convertedTasks);
 
       // Convert dependencies
       const convertedDeps: GanttDependency[] = fetchedDeps.map((dep) => ({
@@ -331,7 +357,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         type: dep.type,
         lag: dep.lag,
       }));
-      setDependencies(convertedDeps);
+      setInternalDependencies(convertedDeps);
 
     } catch (err) {
       console.error('[GanttDataManager] Failed to load:', err);

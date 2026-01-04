@@ -1429,6 +1429,33 @@ export default function TeeemTableView({
     }
   }, [initialView, setViewFilters, setFilterGroups, setInterGroupLogic]);
 
+  // SSR COLUMN CONFIG: Apply column order/visibility from initialView immediately
+  // This ensures the view's column layout renders correctly on first paint (SSoT)
+  const ssrColumnsInitializedRef = useRef(false);
+  useEffect(() => {
+    if (ssrColumnsInitializedRef.current) return;
+    if (initialView?.columns) {
+      const { order, visible, widths } = initialView.columns;
+      if (order?.length || (visible && Object.keys(visible).length)) {
+        ssrColumnsInitializedRef.current = true;
+        console.log('[SSR] Applying initialView columns:', {
+          order: order?.length || 0,
+          visible: visible ? Object.keys(visible).length : 0,
+          widths: widths ? Object.keys(widths).length : 0
+        });
+        if (order?.length) {
+          setColumnOrder(order);
+        }
+        if (visible && Object.keys(visible).length) {
+          setVisibleColumns(visible);
+        }
+        if (widths && Object.keys(widths).length) {
+          setColumnWidths(widths);
+        }
+      }
+    }
+  }, [initialView, setColumnOrder, setVisibleColumns, setColumnWidths]);
+
   // SSR FIX: Initialize savedViews from preloadedViews immediately
   // This eliminates the flash where view buttons don't show until API call completes
   const preloadedViewsInitializedRef = useRef(false);

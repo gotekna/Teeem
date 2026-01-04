@@ -334,9 +334,18 @@ export function ScheduleMasterTab() {
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
 
   // SSoT: Use shared hook for all Gantt V2 behavior
+  // When Gantt template matches Data View template, use the same data (true SSoT)
+  const ganttUsesExternalData = ganttV2TemplateId === dataViewTemplateId && dataViewTemplateId !== null;
   const gantt = useGanttDataManager({
     mode: 'template',
     templateId: ganttV2TemplateId ?? undefined,
+    // SSoT: Pass rows from Data View when viewing the same template
+    rows: ganttUsesExternalData ? dataViewRows : undefined,
+    // SSoT: Refresh callback - updates both TeeemTableView and dataViewRows
+    onRefresh: ganttUsesExternalData ? () => {
+      setDataViewRefreshKey(prev => prev + 1);
+      loadDataViewRows(dataViewTemplateId);
+    } : undefined,
   });
 
   // Aliases for backward compatibility during transition
