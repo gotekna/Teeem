@@ -468,8 +468,16 @@ module Api
         # Build lookup cache to prevent N+1 queries (for all foundations with lookup columns)
         lookup_cache = build_lookup_cache(records)
 
+        # Pre-fetch employer_ids for person contacts (prevents N+1 in record_to_json)
+        # This fetches ALL relationships in ONE query instead of per-contact
+        employer_ids_cache = if @foundation.slug == "contacts"
+          build_employer_ids_cache(records)
+        else
+          {}
+        end
+
         # Serialize records to JSON
-        serialized_records = records.map { |r| record_to_json(r, lookup_cache) }
+        serialized_records = records.map { |r| record_to_json(r, lookup_cache, employer_ids_cache) }
 
         # DEBUG: Log if we're finding duplicates in the query result
         record_ids = records.map(&:id)
@@ -920,7 +928,7 @@ module Api
         attrs
       end
 
-      def record_to_json(record, lookup_cache = nil)
+      def record_to_json(record, lookup_cache = nil, employer_ids_cache = nil)
         json = {
           id: record.id,
           created_at: record.created_at,
@@ -1066,19 +1074,19 @@ module Api
             json[:display_name] = record.display_name  # Computed: includes company name for team contacts
 
             # SSoT: Xero link data from contact_external_links (not legacy xero_id)
+            # Use cached columns (xero_linked_count, xero_tenant_names) - NOT xero_link_summary
+            # xero_link_summary triggers N+1 queries and is only needed on detail views
             json[:xero_linked_count] = record.xero_linked_count
             json[:xero_tenant_names] = record.xero_tenant_names
-            json[:xero_link_summary] = record.xero_link_summary
 
             # SSoT: employer_ids - all companies this person works for
             # Used by Company/Role view to group employees under multiple employers
             # Combines primary_company_id AND contact_relationships (employee_of)
+            # PERFORMANCE: Uses pre-fetched cache instead of per-contact query
             entity_type = record.entity_type
             if entity_type == "person" || entity_type.nil?
               employer_ids_from_primary = record.primary_company_id ? [record.primary_company_id] : []
-              employer_ids_from_relationships = ContactRelationship
-                .where(source_contact_id: record.id, relationship_type: "employee_of")
-                .pluck(:related_contact_id)
+              employer_ids_from_relationships = employer_ids_cache&.dig(record.id) || []
               json[:employer_ids] = (employer_ids_from_primary + employer_ids_from_relationships).uniq
             end
           end
@@ -1213,6 +1221,34 @@ module Api
         end
 
         lookup_cache
+      end
+
+      # Build cache of employer_ids for person contacts
+      # Fetches ALL relationships in ONE query instead of per-contact
+      # Returns: { contact_id => [employer_id, ...], ... }
+      def build_employer_ids_cache(records)
+        return {} if records.empty?
+
+        # Get IDs of person contacts (not companies/trusts)
+        person_contact_ids = records.select do |r|
+          r.entity_type == "person" || r.entity_type.nil?
+        end.map(&:id)
+
+        return {} if person_contact_ids.empty?
+
+        # Fetch ALL employer relationships in ONE query
+        relationships = ContactRelationship
+          .where(source_contact_id: person_contact_ids, relationship_type: "employee_of")
+          .pluck(:source_contact_id, :related_contact_id)
+
+        # Build cache: { contact_id => [employer_ids] }
+        cache = {}
+        relationships.each do |source_id, related_id|
+          cache[source_id] ||= []
+          cache[source_id] << related_id
+        end
+
+        cache
       end
 
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
