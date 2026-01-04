@@ -1836,7 +1836,7 @@ export default function SchedulePage() {
                 onClick={() => router.push(`/jobs/${jobId}/schedule/gantt`)}
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
-                Open Gantt
+                Open Gantt v2
               </Button>
             </div>
           }
