@@ -2864,12 +2864,14 @@ export class UnifiedGanttCanvas {
       // Check if this is a header/group row (SSoT: isHeaderRow)
       const isHeader = isHeaderRow(task.rowData);
 
-      // Also check if it's a child row in selected group (amber tint)
+      // Check if it's in selected group (amber tint) - headers only get amber when in selected group
       const isInSelectedGroup = this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id);
 
-      if (!isHeader && !isInSelectedGroup) continue;
+      // Only draw amber for rows in selected group (headers no longer get unconditional amber)
+      if (!isInSelectedGroup) continue;
 
       // Draw base amber background across the timeline area
+      // Use darker amber for headers in selected group, lighter for children
       const baseAmberColor = isHeader
         ? this.config.colors.headerRowBackground
         : this.config.colors.childRowBackground;
@@ -2926,14 +2928,12 @@ export class UnifiedGanttCanvas {
 
       // Check if header row (SSoT: isHeaderRow)
       const isHeader = isHeaderRow(task.rowData);
-      if (isHeader) {
-        bgColor = this.config.colors.headerRowBackground;
-      }
+      // Headers only get background when selected/in selected group (bold text only otherwise)
 
-      // Check if in selected group (amber highlight) - but don't override header backgrounds
-      // Nested headers should keep their header styling even when they're children of another header
-      if (this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id) && !isHeader) {
-        bgColor = this.config.colors.childRowBackground;
+      // Check if in selected group (amber highlight)
+      if (this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id)) {
+        // Use darker amber for headers in selected group, lighter for children
+        bgColor = isHeader ? this.config.colors.headerRowBackground : this.config.colors.childRowBackground;
       }
 
       // Check if selected
