@@ -466,11 +466,8 @@ export class Renderer {
             this.ctx.fillStyle = this.config.colors.childRowBackground;  // amber-100 (lighter)
           }
           this.ctx.fillRect(0, y, 100000, rowHeight);
-        } else if (isHeaderRow && !isSelected) {
-          // Non-selected header rows get gray background
-          this.ctx.fillStyle = this.config.darkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.06)';
-          this.ctx.fillRect(0, y, 100000, rowHeight);
         }
+        // Non-selected headers: no background (bold text only)
 
         // Then draw selection/hover on top (ONLY for the clicked row)
         if (isSelected) {
@@ -496,11 +493,8 @@ export class Renderer {
           this.ctx.fillStyle = this.config.colors.childRowBackground;  // amber-100 (lighter)
         }
         this.ctx.fillRect(0, y, 100000, rowHeight);
-      } else if (isHeaderRow && !isSelected && task.id !== hoveredTaskId) {
-        // Not selected header: gray/muted background
-        this.ctx.fillStyle = this.config.darkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.06)';
-        this.ctx.fillRect(0, y, 100000, rowHeight);
       }
+      // Non-selected headers: no background (bold text only)
 
       // Then draw selection/hover on top (ONLY for the clicked row)
       if (isSelected) {
