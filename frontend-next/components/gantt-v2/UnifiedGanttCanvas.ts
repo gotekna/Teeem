@@ -2864,19 +2864,28 @@ export class UnifiedGanttCanvas {
       // Check if this is a header/group row (SSoT: isHeaderRow)
       const isHeader = isHeaderRow(task.rowData);
 
-      // Check if it's in selected group (amber tint) - headers only get amber when in selected group
-      const isInSelectedGroup = this.isTaskInSelectedGroup(task) && !this.selectedTaskIds.has(task.id);
+      // Check if directly selected
+      const isSelected = this.selectedTaskIds.has(task.id);
 
-      // Only draw amber for rows in selected group (headers no longer get unconditional amber)
-      if (!isInSelectedGroup) continue;
+      // Check if it's in selected group (amber tint)
+      const isInSelectedGroup = this.isTaskInSelectedGroup(task) && !isSelected;
 
-      // Draw base amber background across the timeline area
-      // Use darker amber for headers in selected group, lighter for children
-      const baseAmberColor = isHeader
-        ? this.config.colors.headerRowBackground
-        : this.config.colors.childRowBackground;
+      // Skip if not selected and not in selected group
+      if (!isSelected && !isInSelectedGroup) continue;
 
-      this.ctx.fillStyle = baseAmberColor;
+      // Determine background color:
+      // - Selected row: use selectedRow color (same as sidebar)
+      // - In selected group: use amber (darker for headers, lighter for children)
+      let baseColor: string;
+      if (isSelected) {
+        baseColor = this.config.colors.selectedRow;
+      } else if (isHeader) {
+        baseColor = this.config.colors.headerRowBackground;
+      } else {
+        baseColor = this.config.colors.childRowBackground;
+      }
+
+      this.ctx.fillStyle = baseColor;
       this.ctx.fillRect(this.tableWidth, y, this.width - this.tableWidth, rowHeight);
 
       // Now draw darker overlays on weekend/holiday columns
