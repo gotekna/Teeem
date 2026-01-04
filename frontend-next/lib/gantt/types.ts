@@ -154,6 +154,21 @@ export interface SmScheduleMaster {
   predecessor_ids_backup: ApiPredecessor[] | null;
   // Broken dependency indicator (locked task that had its dependency removed)
   dependency_broken: boolean | null;
+  // Workflow triggers
+  start_workflow_enabled?: boolean;
+  start_workflow_id?: number | null;
+  start_workflow_name?: string | null;
+  complete_workflow_enabled?: boolean;
+  complete_workflow_id?: number | null;
+  complete_workflow_name?: string | null;
+  // Document types for GET task spawning
+  document_types?: Array<{
+    id: number;
+    document_type_id: number;
+    document_type_name: string;
+    lag_days: number;
+    assigned_role: string | null;
+  }>;
   created_at: string;
   updated_at: string;
 }

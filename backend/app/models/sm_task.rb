@@ -72,6 +72,14 @@ class SmTask < ApplicationRecord
   # Recurring task support
   belongs_to :recurring_task_definition, class_name: "SmRecurringTaskDefinition", optional: true
 
+  # Workflow triggers
+  belongs_to :start_workflow, class_name: "BpmnProcess", optional: true
+  belongs_to :complete_workflow, class_name: "BpmnProcess", optional: true
+
+  # Document types for GET task spawning on completion
+  has_many :sm_task_document_types, dependent: :destroy
+  has_many :document_types, through: :sm_task_document_types
+
   # SSoT: predecessor_ids jsonb column (synced from SmScheduleMaster)
   # Format: [{id: task_number, lag: 0, type: "FS"}, ...]
   # NOTE: We explicitly define predecessor_ids reader/writer to use the jsonb column
@@ -479,15 +487,6 @@ class SmTask < ApplicationRecord
         active: true
       )
     end.compact
-  end
-
-  # Documentation categories helper
-  def documentation_categories
-    return [] if documentation_category_ids.blank?
-    ConstructionDocumentationTab.where(
-      construction_id: construction_id,
-      id: documentation_category_ids
-    )
   end
 
   # SSoT: PO-Task link is via PurchaseOrder.sm_task_id

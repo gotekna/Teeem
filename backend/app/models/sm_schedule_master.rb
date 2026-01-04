@@ -52,6 +52,15 @@ class SmScheduleMaster < ApplicationRecord
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
 
+  # Workflow triggers
+  belongs_to :start_workflow, class_name: "BpmnProcess", optional: true
+  belongs_to :complete_workflow, class_name: "BpmnProcess", optional: true
+
+  # Document types for GET task spawning on completion
+  has_many :sm_schedule_master_document_types, dependent: :destroy
+  has_many :document_types, through: :sm_schedule_master_document_types
+  accepts_nested_attributes_for :sm_schedule_master_document_types, allow_destroy: true
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   # Note: task_number uniqueness is per-template, not global

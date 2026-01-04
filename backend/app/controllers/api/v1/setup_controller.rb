@@ -21,7 +21,6 @@ module Api
             message: "Setup data successfully pulled from local and deployed",
             counts: {
               users: User.count,
-              documentation_categories: DocumentationCategory.count,
               supervisor_checklist_templates: SupervisorChecklistTemplate.count,
               sm_schedule_master_templates: SmScheduleMasterTemplate.count,
               sm_schedule_master: SmScheduleMaster.count
@@ -53,17 +52,12 @@ module Api
       end
 
       # POST /api/v1/setup/sync_documentation_categories
+      # DEPRECATED: DocumentationCategory has been replaced by DocumentType + SmScheduleMasterDocumentType
       def sync_documentation_categories
-        begin
-          sync_data_type("documentation_categories")
-          render json: {
-            success: true,
-            message: "Documentation categories successfully synced",
-            count: DocumentationCategory.count
-          }
-        rescue StandardError => e
-          handle_sync_error("documentation categories", e)
-        end
+        render json: {
+          success: false,
+          message: "DEPRECATED: DocumentationCategory has been replaced by DocumentType. Use DocumentType with workflow triggers and GET task spawning instead."
+        }, status: :gone
       end
 
       # POST /api/v1/setup/sync_supervisor_checklists
@@ -104,11 +98,10 @@ module Api
         case type
         when "users"
           sync_users_data
-        when "documentation_categories"
-          sync_documentation_categories_data
         when "supervisor_checklists"
           sync_supervisor_checklists_data
         # NOTE: folder_templates removed - SSoT: EntityTab is now the source of truth
+        # NOTE: documentation_categories removed - SSoT: DocumentType with SmScheduleMasterDocumentType
         end
       end
 
@@ -144,23 +137,7 @@ module Api
         Rails.logger.info("Created #{user_count} new users, updated #{updated_count} existing users")
       end
 
-      def sync_documentation_categories_data
-        doc_categories_file = Rails.root.join("db", "import_data", "documentation_categories.csv")
-        raise "Documentation categories file not found" unless File.exist?(doc_categories_file)
-
-        DocumentationCategory.delete_all
-
-        CSV.foreach(doc_categories_file, headers: true, header_converters: :symbol) do |row|
-          DocumentationCategory.create!(
-            name: row[:name],
-            icon: row[:icon],
-            color: row[:color],
-            description: row[:description],
-            sequence_order: row[:sequence_order].to_i,
-            is_active: row[:is_active] == "true"
-          )
-        end
-      end
+      # NOTE: sync_documentation_categories_data removed - SSoT: DocumentType with SmScheduleMasterDocumentType
 
       def sync_supervisor_checklists_data
         checklist_templates_file = Rails.root.join("db", "import_data", "supervisor_checklist_templates.csv")

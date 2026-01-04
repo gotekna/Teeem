@@ -51,6 +51,7 @@ import {
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import TaskDependencyEditor from "@/components/schedule-master/TaskDependencyEditor";
+import { DocumentTypeLinker } from "@/components/schedule-master/DocumentTypeLinker";
 
 // Types
 interface SmScheduleMasterTemplate {
@@ -96,12 +97,27 @@ interface SmScheduleMaster {
   pass_fail_enabled: boolean;
   order_time_days: number | null;
   call_time_days: number | null;
-  documentation_category_ids: number[];
   linked_task_ids: number[];
   price_book_item_ids: number[];
   tags: string[];
   color: string | null;
   is_active: boolean;
+  // Workflow triggers
+  start_workflow_enabled: boolean;
+  start_workflow_id: number | null;
+  start_workflow_name: string | null;
+  complete_workflow_enabled: boolean;
+  complete_workflow_id: number | null;
+  complete_workflow_name: string | null;
+  // Document types for GET task spawning
+  document_types: Array<{
+    id?: number;
+    document_type_id: number;
+    document_type_name?: string;
+    lag_days: number;
+    assigned_role: string | null;
+    _destroy?: boolean;
+  }>;
   // Schedule Master fields
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
@@ -275,19 +291,25 @@ export default function ScheduleTemplateDetailPage() {
   const [selectedSupplierId, setSelectedSupplierId] = React.useState<string>("");
   const [savingAutoPO, setSavingAutoPO] = React.useState(false);
 
+  // Workflow and document type options
+  const [workflows, setWorkflows] = React.useState<{ id: number; name: string }[]>([]);
+  const [documentTypes, setDocumentTypes] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
+
   // Load data
   const loadData = React.useCallback(async () => {
     try {
       setLoading(true);
 
-      // Load template, rows, plan types, entity tabs, trades, and stages in parallel
-      const [templateData, rowsData, planTypesData, entityTabsData, tradesData, stagesData] = await Promise.all([
+      // Load template, rows, plan types, entity tabs, trades, stages, workflows, and document types in parallel
+      const [templateData, rowsData, planTypesData, entityTabsData, tradesData, stagesData, workflowsData, documentTypesData] = await Promise.all([
         api.get<{ success: boolean; sm_schedule_master_template: SmScheduleMasterTemplate }>(`/api/v1/sm_schedule_master_templates/${templateId}`),
         api.get<{ success: boolean; rows: SmScheduleMaster[] }>(`/api/v1/sm_schedule_master_templates/${templateId}/rows`),
         api.get<{ success: boolean; data: PlanType[] }>("/api/v1/plan_types"),
         api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs/for_scope/job"),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades"),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages"),
+        api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/bpmn_processes?status=published"),
+        api.get<{ success: boolean; data: { id: number; name: string; display_name: string }[] }>("/api/v1/document_types?scope=job"),
       ]);
 
       setTemplate(templateData.sm_schedule_master_template);
@@ -296,6 +318,8 @@ export default function ScheduleTemplateDetailPage() {
       setEntityTabs(entityTabsData.data?.tabs || []);
       setTrades(tradesData.data || []);
       setStages(stagesData.data || []);
+      setWorkflows(workflowsData.data || []);
+      setDocumentTypes(documentTypesData.data || []);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast({
@@ -327,6 +351,13 @@ export default function ScheduleTemplateDetailPage() {
       require_photo: row.require_photo,
       linked_po_task_id: row.linked_po_task_id,
       supplier_confirm: row.supplier_confirm,
+      // Workflow fields
+      start_workflow_enabled: row.start_workflow_enabled,
+      start_workflow_id: row.start_workflow_id,
+      complete_workflow_enabled: row.complete_workflow_enabled,
+      complete_workflow_id: row.complete_workflow_id,
+      // Document types for GET task spawning
+      document_types: row.document_types || [],
     });
     setShowEditDialog(true);
   };
@@ -337,8 +368,41 @@ export default function ScheduleTemplateDetailPage() {
 
     setSaving(true);
     try {
+      // Transform document_types into nested attributes format for Rails
+      const { document_types, ...restForm } = editForm;
+
+      // Build sm_schedule_master_document_types_attributes for nested update
+      // Include existing ones (with id), new ones (without id), and mark deleted ones with _destroy
+      const existingDocTypeIds = new Set((editingRow.document_types || []).map((dt) => dt.id));
+      const currentDocTypeIds = new Set(
+        (document_types || [])
+          .filter((dt) => dt.id)
+          .map((dt) => dt.id)
+      );
+
+      // Build the nested attributes
+      const sm_schedule_master_document_types_attributes = [
+        // Current document types (update existing or create new)
+        ...(document_types || []).map((dt) => ({
+          id: dt.id || undefined, // Only include id if it exists (for update)
+          document_type_id: dt.document_type_id,
+          lag_days: dt.lag_days,
+          assigned_role: dt.assigned_role,
+        })),
+        // Mark deleted ones with _destroy
+        ...(editingRow.document_types || [])
+          .filter((dt) => !currentDocTypeIds.has(dt.id))
+          .map((dt) => ({
+            id: dt.id,
+            _destroy: true,
+          })),
+      ];
+
       await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${editingRow.id}`, {
-        row: editForm,
+        row: {
+          ...restForm,
+          sm_schedule_master_document_types_attributes,
+        },
       });
       toast({ title: "Success", description: "Row updated successfully" });
       setShowEditDialog(false);
@@ -981,6 +1045,85 @@ export default function ScheduleTemplateDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Workflow Triggers Section */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Workflow Triggers</h4>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Workflow on Start */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="start_workflow_enabled"
+                      checked={editForm.start_workflow_enabled ?? false}
+                      onCheckedChange={(checked) => setEditForm({
+                        ...editForm,
+                        start_workflow_enabled: !!checked,
+                        start_workflow_id: checked ? editForm.start_workflow_id : null
+                      })}
+                    />
+                    <Label htmlFor="start_workflow_enabled" className="text-sm">Workflow on Start</Label>
+                  </div>
+                  {editForm.start_workflow_enabled && (
+                    <Select
+                      value={editForm.start_workflow_id ? String(editForm.start_workflow_id) : ""}
+                      onValueChange={(value) => setEditForm({ ...editForm, start_workflow_id: value ? parseInt(value) : null })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select workflow..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {workflows.map((wf) => (
+                          <SelectItem key={wf.id} value={String(wf.id)}>
+                            {wf.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {/* Workflow on Complete */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="complete_workflow_enabled"
+                      checked={editForm.complete_workflow_enabled ?? false}
+                      onCheckedChange={(checked) => setEditForm({
+                        ...editForm,
+                        complete_workflow_enabled: !!checked,
+                        complete_workflow_id: checked ? editForm.complete_workflow_id : null
+                      })}
+                    />
+                    <Label htmlFor="complete_workflow_enabled" className="text-sm">Workflow on Complete</Label>
+                  </div>
+                  {editForm.complete_workflow_enabled && (
+                    <Select
+                      value={editForm.complete_workflow_id ? String(editForm.complete_workflow_id) : ""}
+                      onValueChange={(value) => setEditForm({ ...editForm, complete_workflow_id: value ? parseInt(value) : null })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select workflow..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {workflows.map((wf) => (
+                          <SelectItem key={wf.id} value={String(wf.id)}>
+                            {wf.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Document Types for GET Tasks */}
+            <DocumentTypeLinker
+              linkedDocumentTypes={editForm.document_types || []}
+              documentTypes={documentTypes}
+              onChange={(linkedDocTypes) => setEditForm({ ...editForm, document_types: linkedDocTypes })}
+            />
 
           </div>
 

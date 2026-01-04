@@ -13,7 +13,7 @@
 class SmTaskCompletionService
   attr_reader :task, :user, :errors
 
-  SPAWN_TYPES = %w[photo scan office inspection_retry].freeze
+  SPAWN_TYPES = %w[photo scan office inspection_retry document_get].freeze
 
   def initialize(task, user: nil)
     @task = task
@@ -104,7 +104,61 @@ class SmTaskCompletionService
   end
 
   def spawn_follow_up_tasks
+    # Fire completion workflow if configured
+    fire_complete_workflow if task.complete_workflow_enabled? && task.complete_workflow_id.present?
+
+    # Spawn scan task (existing functionality)
     spawn_scan_task if task.spawn_scan_task_id.present?
+
+    # Spawn GET tasks for linked document types
+    spawn_document_get_tasks if task.sm_task_document_types.any?
+  end
+
+  def fire_complete_workflow
+    workflow = task.complete_workflow
+    return unless workflow
+
+    Bpmn::EngineService.start_process(
+      process_id: workflow.id,
+      subject: task.job,
+      variables: {
+        task_id: task.id,
+        task_name: task.name,
+        task_number: task.task_number,
+        job_id: task.job_id,
+        job_code: task.job&.job_code,
+        completed_by_user_id: user&.id,
+        completed_at: Time.current.iso8601
+      },
+      triggered_by: "task_complete"
+    )
+
+    Rails.logger.info("[SmTaskCompletionService] Fired workflow '#{workflow.name}' for task #{task.id} (#{task.name})")
+  end
+
+  def spawn_document_get_tasks
+    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+
+    task.sm_task_document_types.includes(:document_type).each do |doc_type_link|
+      doc_type = doc_type_link.document_type
+      next unless doc_type
+
+      # Calculate start date using working days
+      lag_days = doc_type_link.lag_days || 0
+      start_date = calendar.add_working_days(task.completed_at.to_date, lag_days)
+
+      spawned = create_spawned_task(
+        name: "GET - #{doc_type.display_name || doc_type.name}",
+        description: "Collect document: #{doc_type.display_name || doc_type.name}",
+        spawn_type: "document_get",
+        duration_days: 1,
+        start_date: start_date,
+        end_date: start_date,
+        assigned_role: doc_type_link.assigned_role
+      )
+
+      log_spawn(spawned, "document_get", "parent_complete") if spawned
+    end
   end
 
   def spawn_scan_task
@@ -122,8 +176,7 @@ class SmTaskCompletionService
       start_date: start_date,
       end_date: start_date + (scan_template.duration_days || 1).days,
       trade: scan_template.trade,
-      checklist_id: scan_template.checklist_id,
-      documentation_category_ids: scan_template.documentation_category_ids
+      checklist_id: scan_template.checklist_id
     )
     log_spawn(spawned, "scan", "parent_complete") if spawned
   end

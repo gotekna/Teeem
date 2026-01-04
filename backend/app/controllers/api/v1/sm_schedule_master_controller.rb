@@ -193,6 +193,9 @@ module Api
           :spawn_order_task, :spawn_call_task, :pass_fail_enabled,
           :order_time_days, :call_time_days,
           :color,
+          # Workflow triggers
+          :start_workflow_enabled, :start_workflow_id,
+          :complete_workflow_enabled, :complete_workflow_id,
           # New Schedule Master fields
           :linked_po_task_id,
           :supplier_confirm,
@@ -202,11 +205,12 @@ module Api
           :allow_header, :is_active,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
-          documentation_category_ids: [],
           subtask_names: [],
           tags: [],
           # PO line items with quantities
-          po_line_items: [ :pricebook_item_id, :qty ]
+          po_line_items: [ :pricebook_item_id, :qty ],
+          # Document types for GET task spawning
+          sm_schedule_master_document_types_attributes: [ :id, :document_type_id, :lag_days, :assigned_role, :_destroy ]
         )
       end
 
@@ -280,8 +284,24 @@ module Api
           pass_fail_enabled: row.pass_fail_enabled,
           order_time_days: row.order_time_days,
           call_time_days: row.call_time_days,
-          documentation_category_ids: row.documentation_category_ids,
           linked_task_ids: row.linked_task_ids,
+          # Workflow triggers
+          start_workflow_enabled: row.start_workflow_enabled,
+          start_workflow_id: row.start_workflow_id,
+          start_workflow_name: row.start_workflow&.name,
+          complete_workflow_enabled: row.complete_workflow_enabled,
+          complete_workflow_id: row.complete_workflow_id,
+          complete_workflow_name: row.complete_workflow&.name,
+          # Document types for GET task spawning
+          document_types: row.sm_schedule_master_document_types.includes(:document_type).map { |dt|
+            {
+              id: dt.id,
+              document_type_id: dt.document_type_id,
+              document_type_name: dt.document_type&.display_name || dt.document_type&.name,
+              lag_days: dt.lag_days,
+              assigned_role: dt.assigned_role
+            }
+          },
           tags: row.tags,
           color: row.color,
           is_active: row.is_active,

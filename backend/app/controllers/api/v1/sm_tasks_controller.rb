@@ -347,6 +347,9 @@ module Api
       # POST /api/v1/sm_tasks/:id/start
       def start
         if @task.start!
+          # Fire start workflow if configured
+          SmTaskStartService.new(@task, user: current_user).start!
+
           render json: {
             success: true,
             message: "Task started",
@@ -1225,8 +1228,11 @@ module Api
           :searchable,
           :is_private,
 
+          # Workflow triggers
+          :start_workflow_enabled, :start_workflow_id,
+          :complete_workflow_enabled, :complete_workflow_id,
+
           # Arrays
-          documentation_category_ids: [],
           linked_task_ids: [],
           # predecessor_ids is JSONB array of {id, type, lag} objects
           predecessor_ids: [:id, :type, :lag]
@@ -1484,6 +1490,14 @@ module Api
           parent_task_id: task.parent_task_id,
           sequence_order: task.sequence_order,
           sm_schedule_master_id: task.sm_schedule_master_id,
+          # Workflow triggers
+          start_workflow_enabled: task.start_workflow_enabled,
+          start_workflow_id: task.start_workflow_id,
+          start_workflow_name: task.start_workflow&.name,
+          start_workflow_fired: task.start_workflow_fired,
+          complete_workflow_enabled: task.complete_workflow_enabled,
+          complete_workflow_id: task.complete_workflow_id,
+          complete_workflow_name: task.complete_workflow&.name,
           # Computed
           started_at: task.started_at,
           completed_at: task.completed_at,

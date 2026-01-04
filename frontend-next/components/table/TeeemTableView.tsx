@@ -883,7 +883,7 @@ export default function TeeemTableView({
   // This ensures filteredAndSortedEntries recalculates when any filter changes (view, quick, user)
   // Without this, the useMemo dependency on cascadeFilters array reference may not detect content changes
   const allFiltersKey = useMemo(
-    () => JSON.stringify(cascadeFilters.map(f => ({ c: f.column, o: f.operator, v: f.value }))),
+    () => JSON.stringify((cascadeFilters || []).map(f => ({ c: f.column, o: f.operator, v: f.value }))),
     [cascadeFilters]
   );
 
@@ -1358,28 +1358,81 @@ export default function TeeemTableView({
     });
   }, [entries, effectiveEntries, setSelectedRows]);
 
-  // CRITICAL FIX: Clear view/user filters when foundation changes to prevent cross-table pollution
-  // Since filter atoms are GLOBAL, filters from one foundation would otherwise affect all tables.
+  // CRITICAL FIX: Clear ALL view state when foundation changes to prevent cross-table pollution
+  // Since atoms are GLOBAL, state from one foundation would otherwise affect all tables.
   // This must run BEFORE loading views for the new foundation.
-  // ALSO clear on initial mount (prevFoundationRef.current === null) to prevent stale filters
+  // ALSO clear on initial mount (prevFoundationRef.current === null) to prevent stale state
   // from previous navigation sessions from affecting this table.
+  //
+  // FRC ROOT CAUSE: Atoms like currentGroupByColumnsAtom persist between navigations.
+  // When navigating from Contacts (groupBy: primary_company_id) to Jobs, the stale groupBy
+  // would cause effectiveGroupByColumns to return wrong value, breaking view selection.
   const prevFoundationRef = useRef<string | number | null>(null);
-  useEffect(() => {
+  // Get setters for view state atoms that need reset on foundation change
+  const resetGroupByColumns = useSetAtom(currentGroupByColumnsAtom);
+  const resetActiveViewId = useSetAtom(activeViewIdAtom);
+  const resetCollapsedGroups = useSetAtom(collapsedGroupsAtom);
+  const resetGroupViewMode = useSetAtom(groupViewModeAtom);
+
+  // CRITICAL: Use useLayoutEffect to run BEFORE browser paint
+  // This prevents the flash of stale data when navigating between pages
+  // useEffect runs AFTER paint, causing visible flash of wrong filters/grouping
+  useLayoutEffect(() => {
     if (effectiveFoundationId) {
       const isInitialMount = prevFoundationRef.current === null;
       const isFoundationChange = prevFoundationRef.current !== null && prevFoundationRef.current !== effectiveFoundationId;
 
       if (isInitialMount || isFoundationChange) {
-        // Clear all non-base filters to start fresh
-        setViewFilters([]);
+        // Clear user filters to prevent cross-foundation pollution
+        // View filters will be re-applied from initialView if present
+        console.log('[Foundation Change] Resetting for:', effectiveFoundationId,
+          isInitialMount ? '(initial mount)' : `(from ${prevFoundationRef.current})`);
         clearAllUserFilters();
-        // Also reset filterGroups to prevent cross-table pollution
-        // filterGroups is stored separately from cascadeFilters and must be reset explicitly
-        setFilterGroups([{ id: "default", logic: "AND" }]);
+
+        // For view state: If we have an initialView from SSR, APPLY it instead of resetting
+        // This preserves the correct filters, panel/table mode, grouping, etc from SSR
+        if (initialView) {
+          console.log('[Foundation Change] Applying SSR initialView:', {
+            viewId: initialView.id,
+            viewName: initialView.name,
+            viewDisplayType: initialView.view_display_type,
+            groupByColumns: initialView.group_by_columns,
+            filterCount: initialView.filters?.cascadeFilters?.length || 0,
+          });
+
+          // Apply filters from initialView (CRITICAL: This is what makes LIVE filter work)
+          if (initialView.filters?.cascadeFilters?.length) {
+            setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
+          } else {
+            setViewFilters([]);
+          }
+          if (initialView.filters?.filterGroups?.length) {
+            setFilterGroups(initialView.filters.filterGroups);
+          } else {
+            setFilterGroups([{ id: "default", logic: "AND" }]);
+          }
+
+          // Set view state from initialView
+          resetActiveViewId(initialView.id);
+          resetGroupByColumns(initialView.group_by_columns || (initialView.group_by_column ? [initialView.group_by_column] : []));
+          resetCollapsedGroups(new Set());
+          // Set panel mode for grouped views
+          resetGroupViewMode(initialView.view_display_type === 'grouped' ? 'panel' : 'inline');
+        } else {
+          // No initialView - reset to defaults
+          console.log('[Foundation Change] No initialView, resetting to defaults');
+          setViewFilters([]);
+          setFilterGroups([{ id: "default", logic: "AND" }]);
+          resetGroupByColumns([]);
+          resetActiveViewId(null);
+          resetCollapsedGroups(new Set());
+          resetGroupViewMode('inline');
+        }
       }
     }
     prevFoundationRef.current = effectiveFoundationId;
-  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters, setFilterGroups]);
+  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters, setFilterGroups,
+      resetGroupByColumns, resetActiveViewId, resetCollapsedGroups, resetGroupViewMode, initialView]);
 
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
   // Also clear view filters to prevent pollution from other tables with initialFilters

@@ -120,8 +120,8 @@ interface DocumentType {
 }
 
 export default function DocumentTypeDetailPage() {
-  // Use full-height layout mode - container provides h-full
-  useSetLayoutMode("full-height");
+  // Use fullscreen layout mode - hides sidebar for focused editing
+  useSetLayoutMode("fullscreen");
 
   const router = useRouter();
   const params = useParams();
@@ -1096,9 +1096,9 @@ export default function DocumentTypeDetailPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col px-6 pt-8">
       {/* Header - Fixed at top */}
-      <div className="flex items-start justify-between p-2 shrink-0">
+      <div className="flex items-start justify-between pb-4 shrink-0">
         <div className="flex items-start gap-4">
           <BackButton fallbackHref="/admin/system/document-types" />
           {/* Previous/Next navigation - filtered by scope (hidden for new) */}
@@ -1177,118 +1177,187 @@ export default function DocumentTypeDetailPage() {
         </div>
       </div>
 
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto space-y-6 p-2">
+      {/* 3-Column Layout - All info visible without collapsing */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-3 gap-4 h-full">
 
-      {/* Basic Info */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
-          onClick={() => setBasicInfoExpanded(!basicInfoExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Basic Information</CardTitle>
-            {basicInfoExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {basicInfoExpanded && (
-          <CardContent className="space-y-4 pt-2">
-          <div className="grid grid-cols-2 gap-4">
+          {/* ========== COLUMN 1: Basic Info ========== */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">Basic Information</h3>
+
             <div className="space-y-2">
-              <Label htmlFor="name">Document Type Name *</Label>
+              <Label htmlFor="name">Name *</Label>
               <Input
                 id="name"
                 value={documentType.name}
                 onChange={(e) => updateField("name", e.target.value)}
                 placeholder="Company Tax Return"
               />
-              <p className="text-xs text-muted-foreground">
-                How this document type appears in dropdowns and lists
-              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="abbreviation">Code / Abbreviation</Label>
-              <Input
-                id="abbreviation"
-                value={documentType.abbreviation || ""}
-                onChange={(e) => updateField("abbreviation", e.target.value.toUpperCase())}
-                placeholder="CTR"
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Short code for quick identification
-              </p>
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={documentType.description || ""}
-              onChange={(e) => updateField("description", e.target.value)}
-              placeholder="Brief description of this document type..."
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="scope">Scope</Label>
-              <Select
-                value={documentType.scope || "company"}
-                onValueChange={(value) => updateField("scope", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="abbreviation">Code</Label>
+                <Input
+                  id="abbreviation"
+                  value={documentType.abbreviation || ""}
+                  onChange={(e) => updateField("abbreviation", e.target.value.toUpperCase())}
+                  placeholder="CTR"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scope">Scope</Label>
+                <Select
+                  value={documentType.scope || "company"}
+                  onValueChange={(value) => updateField("scope", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
                   {SCOPE_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <div>
-                        <div className="font-medium">{opt.label}</div>
-                        <div className="text-xs text-muted-foreground">{opt.description}</div>
-                      </div>
-                    </SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                {SCOPE_OPTIONS.find(o => o.value === documentType.scope)?.description}
-              </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={documentType.description || ""}
+                onChange={(e) => updateField("description", e.target.value)}
+                placeholder="Brief description..."
+                rows={2}
+                className="text-sm"
+              />
+            </div>
+
+            {/* Tab View - Primary Tab */}
+            <div className="space-y-2">
+              <Label>Primary Tab</Label>
+              {(() => {
+                const selectedId = documentType.entity_tab_ids?.[0];
+                const findTabName = (items: any[]): string | null => {
+                  for (const item of items) {
+                    if (item.id === selectedId) return item.name;
+                    if (item.children?.length) {
+                      const found = findTabName(item.children);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+                return (
+                  <Select
+                    value={selectedId?.toString() || ""}
+                    onValueChange={(value) => {
+                      const newId = parseInt(value);
+                      const otherIds = (documentType.entity_tab_ids || []).slice(1);
+                      updateField("entity_tab_ids", [newId, ...otherIds]);
+                    }}
+                  >
+                    <SelectTrigger className="text-sm">
+                      <SelectValue placeholder="Select primary tab">
+                        {selectedId ? findTabName(folderHierarchy) || `Tab ${selectedId}` : "Select..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {folderHierarchy.filter(p => p.id).flatMap(parent => [
+                        <SelectItem key={parent.id} value={parent.id!.toString()}>{parent.name}</SelectItem>,
+                        ...(parent.children || []).filter((c: any) => c.id).map((child: any) => (
+                          <SelectItem key={child.id} value={child.id.toString()} className="pl-6">↳ {child.name}</SelectItem>
+                        ))
+                      ])}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
+            </div>
+
+            {/* File Extensions - Compact */}
+            <div className="space-y-2">
+              <Label>File Extensions</Label>
+              <div className="flex flex-wrap gap-1 min-h-[32px] p-2 border rounded-md bg-muted/20">
+                {(documentType.file_extensions || []).length === 0 ? (
+                  <span className="text-xs text-muted-foreground">All allowed</span>
+                ) : (
+                  documentType.file_extensions?.map((ext) => (
+                    <Badge key={ext} variant="secondary" className="font-mono text-xs">
+                      {ext}
+                      <button onClick={() => removeFileExtension(ext)} className="ml-1 hover:text-destructive">
+                        <X className="h-2 w-2" />
+                      </button>
+                    </Badge>
+                  ))
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {[".pdf", ".doc", ".docx", ".xls", ".xlsx"].map(ext => (
+                  <Button
+                    key={ext}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => addFileExtension(ext)}
+                    disabled={(documentType.file_extensions || []).includes(ext)}
+                    className="h-6 px-2 text-xs font-mono"
+                  >
+                    +{ext}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Compliance - Compact */}
+            <div className="space-y-2">
+              <Label>Compliance</Label>
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="requires_filing"
+                    checked={documentType.requires_filing || false}
+                    onCheckedChange={(checked) => updateField("requires_filing", checked)}
+                  />
+                  <Label htmlFor="requires_filing" className="text-xs cursor-pointer">Requires Filing</Label>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="retention" className="text-xs">Retain:</Label>
+                  <Input
+                    id="retention"
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={documentType.retention_years || ""}
+                    onChange={(e) => updateField("retention_years", parseInt(e.target.value) || null)}
+                    placeholder="7"
+                    className="w-14 h-7 text-xs"
+                  />
+                  <span className="text-xs text-muted-foreground">yrs</span>
+                </div>
+              </div>
+            </div>
+
+            {/* System Info - Compact */}
+            <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
+              <div className="flex justify-between">
+                <span>ID: {documentType.id}</span>
+                <span>{documentType.documents_count || 0} docs</span>
+              </div>
             </div>
           </div>
-          </CardContent>
-        )}
-      </Card>
+          {/* End Column 1 */}
 
-      {/* File Naming */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
-          onClick={() => setNamingOrgExpanded(!namingOrgExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">File Naming</CardTitle>
-            {namingOrgExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {namingOrgExpanded && (
-          <CardContent className="space-y-4 pt-2">
-          <div className="flex gap-4">
-            {/* Left side - File Name and Display Name */}
-            <div className="flex-1 space-y-4">
-              {/* Preview Data - Compact inline bar */}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4 p-2 bg-muted/30 rounded-md border">
-                <span className="font-medium shrink-0">Preview with:</span>
+          {/* ========== COLUMN 2: File Naming ========== */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">File Naming</h3>
+
+            {/* Preview Data - Compact */}
+            <div className="flex items-center gap-2 text-xs p-2 bg-muted/30 rounded-md border">
+              <span className="font-medium shrink-0">Preview:</span>
                 <Select
                   value={previewCompanyId?.toString() || "default"}
                   onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
@@ -1674,15 +1743,17 @@ export default function DocumentTypeDetailPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               {displayNameSameAsFileName
-                ? "Display Name will automatically match File Name. Uncheck to customize separately."
-                : "Override the document type name for specific display contexts. Drag to reorder, X to remove."}
+                ? "Display Name matches File Name automatically"
+                : "Drag placeholders to customize"}
             </p>
           </div>
-            </div>
-            {/* End left side */}
+          </div>
+          {/* End Column 2 */}
 
-            {/* Right side - Available Placeholders */}
-            <div className="w-[17rem] shrink-0 self-start sticky top-4">
+          {/* ========== COLUMN 3: Placeholders ========== */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">Placeholders</h3>
+            <div className="sticky top-0">
               <div className="space-y-1.5 p-2 bg-muted/30 rounded-lg border max-h-[600px] overflow-y-auto">
                 <div className="flex items-center gap-2 mb-1">
                   <Label className="text-[10px] font-semibold text-muted-foreground shrink-0">
@@ -1806,359 +1877,10 @@ export default function DocumentTypeDetailPage() {
               </div>
             </div>
           </div>
-        </CardContent>
-        )}
-      </Card>
+          {/* End Column 3 */}
 
-      {/* Tab View */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
-          onClick={() => setFilingOrgExpanded(!filingOrgExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Tab View</CardTitle>
-            {filingOrgExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {filingOrgExpanded && (
-          <CardContent className="space-y-4 pt-2">
-            {/* Primary Tab */}
-            <div className="space-y-2">
-              <Label>Primary Tab</Label>
-              {/* Show full parent path if selected tab has parents */}
-              {(() => {
-                const selectedId = documentType.entity_tab_ids?.[0];
-                if (!selectedId) return null;
-
-                // Recursively find the path to the selected tab
-                const findPath = (items: any[], path: string[] = []): string[] | null => {
-                  for (const item of items) {
-                    const currentPath = item.name ? [...path, item.name] : path;
-                    if (item.id === selectedId) {
-                      // Found it - return path WITHOUT the selected item itself
-                      return path.length > 0 ? path : null;
-                    }
-                    if (item.children?.length) {
-                      const found = findPath(item.children, currentPath);
-                      if (found) return found;
-                    }
-                  }
-                  return null;
-                };
-
-                const parentPath = findPath(folderHierarchy);
-                if (!parentPath || parentPath.length === 0) return null;
-
-                return (
-                  <p className="text-sm text-muted-foreground font-medium">
-                    {parentPath.join(" / ")}
-                  </p>
-                );
-              })()}
-              <Select
-                value={(documentType.entity_tab_ids?.[0] || "").toString()}
-                onValueChange={(value) => {
-                  const newId = parseInt(value);
-                  const currentIds = documentType.entity_tab_ids || [];
-                  updateField("entity_tab_ids", [newId, ...currentIds.slice(1)]);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tab..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {(() => {
-                    // Render all levels of hierarchy recursively with proper indentation
-                    const renderItems = (items: any[], depth: number = 0): React.ReactNode[] => {
-                      const result: React.ReactNode[] = [];
-                      for (const item of items) {
-                        // Create proper indentation: spaces + └ for children
-                        const spaces = "\u00A0\u00A0\u00A0\u00A0".repeat(depth); // 4 non-breaking spaces per level
-                        const prefix = depth === 0 ? "" : `${spaces}└ `;
-
-                        if (item.id) {
-                          // Selectable item
-                          result.push(
-                            <SelectItem key={item.id} value={item.id.toString()}>
-                              {prefix}{item.name}
-                            </SelectItem>
-                          );
-                        } else if (item.name) {
-                          // Non-selectable header (e.g., "Xero" wrapper)
-                          result.push(
-                            <div key={item.tab_key || item.name} className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                              {prefix}{item.name}
-                            </div>
-                          );
-                        }
-
-                        if (item.children?.length) {
-                          result.push(...renderItems(item.children, depth + 1));
-                        }
-                      }
-                      return result;
-                    };
-                    return renderItems(folderHierarchy);
-                  })()}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Also Display On - multi-select for view-only display on other tabs */}
-            <div className="space-y-2">
-              <Label>Also Display On</Label>
-              <p className="text-xs text-muted-foreground mb-1">View-only: show in additional tabs</p>
-              <MultipleSelector
-                placeholder="Select additional tabs..."
-                options={(() => {
-                  const opts: Array<{ value: string; label: string }> = [];
-                  const primaryId = documentType.entity_tab_ids?.[0];
-
-                  // Recursively collect all tabs at all depths with proper indentation
-                  const collectTabs = (items: any[], depth: number = 0) => {
-                    for (const item of items) {
-                      if (item.id && item.id !== primaryId) {
-                        // Create proper indentation: spaces + └ for children
-                        const spaces = "\u00A0\u00A0\u00A0\u00A0".repeat(depth); // 4 non-breaking spaces per level
-                        const prefix = depth === 0 ? "" : `${spaces}└ `;
-                        opts.push({ value: item.id.toString(), label: `${prefix}${item.name}` });
-                      }
-                      if (item.children?.length) {
-                        collectTabs(item.children, depth + 1);
-                      }
-                    }
-                  };
-                  collectTabs(folderHierarchy);
-                  return opts;
-                })()}
-                value={(documentType.entity_tab_ids || []).slice(1).map(tabId => {
-                  // Recursive search to find tab name at any depth
-                  const findTabName = (items: any[]): string | null => {
-                    for (const item of items) {
-                      if (item.id === tabId) return item.name;
-                      if (item.children?.length) {
-                        const found = findTabName(item.children);
-                        if (found) return found;
-                      }
-                    }
-                    return null;
-                  };
-                  const label = findTabName(folderHierarchy) || `Tab ${tabId}`;
-                  return { value: tabId.toString(), label };
-                })}
-                onChange={(options) => {
-                  const primaryId = documentType.entity_tab_ids?.[0];
-                  const additionalIds = options.map(o => parseInt(o.value));
-                  updateField("entity_tab_ids", primaryId ? [primaryId, ...additionalIds] : additionalIds);
-                }}
-              />
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* File Extensions */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => setFileExtensionsExpanded(!fileExtensionsExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle>Allowed File Extensions</CardTitle>
-            {fileExtensionsExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {fileExtensionsExpanded && (
-          <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Current Extensions</Label>
-            <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border rounded-md">
-              {(documentType.file_extensions || []).length === 0 ? (
-                <span className="text-sm text-muted-foreground">No extensions specified (all allowed)</span>
-              ) : (
-                documentType.file_extensions?.map((ext) => (
-                  <Badge key={ext} variant="secondary" className="font-mono">
-                    {ext}
-                    <button
-                      onClick={() => removeFileExtension(ext)}
-                      className="ml-2 hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Add Extensions</Label>
-            <div className="flex flex-wrap gap-2">
-              {FILE_EXTENSION_OPTIONS.map(ext => (
-                <Button
-                  key={ext}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addFileExtension(ext)}
-                  disabled={(documentType.file_extensions || []).includes(ext)}
-                  className="font-mono text-xs"
-                >
-                  {ext}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="custom-extension">Or Add Custom Extension</Label>
-            <div className="flex gap-2">
-              <Input
-                id="custom-extension"
-                value={newExtension}
-                onChange={(e) => setNewExtension(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addFileExtension(newExtension);
-                  }
-                }}
-                placeholder=".pdf or pdf"
-                className="font-mono text-sm"
-              />
-              <Button
-                type="button"
-                onClick={() => addFileExtension(newExtension)}
-                disabled={!newExtension.trim()}
-              >
-                Add
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Press Enter or click Add. Dot prefix optional.
-            </p>
-          </div>
-        </CardContent>
-        )}
-      </Card>
-
-      {/* Compliance */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => setComplianceExpanded(!complianceExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle>Compliance & Retention</CardTitle>
-            {complianceExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {complianceExpanded && (
-          <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="space-y-1">
-              <Label htmlFor="requires_filing" className="text-base font-medium">
-                Requires Filing with Authorities
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                Must be submitted to ASIC, ATO, or other regulatory bodies
-              </p>
-            </div>
-            <Switch
-              id="requires_filing"
-              checked={documentType.requires_filing || false}
-              onCheckedChange={(checked) => updateField("requires_filing", checked)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="retention_years">Retention Period (Years)</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                id="retention_years"
-                type="number"
-                min="0"
-                max="99"
-                value={documentType.retention_years || ""}
-                onChange={(e) => updateField("retention_years", parseInt(e.target.value) || null)}
-                placeholder="7"
-                className="w-32"
-              />
-              <span className="text-sm text-muted-foreground">
-                years (leave empty for indefinite)
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              How long to keep before archiving/deleting. Common: 7 years for tax, 5 for general records.
-            </p>
-          </div>
-        </CardContent>
-        )}
-      </Card>
-
-      {/* Metadata */}
-      <Card className="bg-muted/30">
-        <CardHeader>
-          <CardTitle className="text-base">System Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="font-medium text-muted-foreground">Document Type ID:</span>
-              <span className="ml-2 font-mono">{documentType.id}</span>
-            </div>
-            <div>
-              <span className="font-medium text-muted-foreground">Documents Count:</span>
-              <span className="ml-2">{documentType.documents_count || 0}</span>
-            </div>
-            <div>
-              <span className="font-medium text-muted-foreground">Created:</span>
-              <span className="ml-2">
-                {documentType.created_at ? new Date(documentType.created_at).toLocaleString() : "—"}
-              </span>
-            </div>
-            <div>
-              <span className="font-medium text-muted-foreground">Last Updated:</span>
-              <span className="ml-2">
-                {documentType.updated_at ? new Date(documentType.updated_at).toLocaleString() : "—"}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Save reminder at bottom */}
-      <div className="flex justify-end gap-2 pb-8">
-        <Button variant="outline" onClick={() => router.push("/admin/system/document-types")}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={saving} size="lg">
-          {saving ? (
-            <>
-              <Spinner size={16} className="mr-2" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save All Changes
-            </>
-          )}
-        </Button>
-      </div>
+        </div>
+        {/* End 3-column grid */}
       </div>
       {/* End scroll area */}
 

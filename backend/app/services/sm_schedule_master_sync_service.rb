@@ -1063,9 +1063,14 @@ class SmScheduleMasterSyncService
       order_time_days: calculate_order_time_days,
       call_time_days: calculate_call_time_days,
 
-      # Documentation (from template)
-      documentation_category_ids: template_row.documentation_category_ids,
+      # Linked tasks (from template)
       linked_task_ids: template_row.linked_task_ids,
+
+      # Workflow triggers (from template)
+      start_workflow_enabled: template_row.start_workflow_enabled,
+      start_workflow_id: template_row.start_workflow_id,
+      complete_workflow_enabled: template_row.complete_workflow_enabled,
+      complete_workflow_id: template_row.complete_workflow_id,
 
       # Automation (from template)
       spawn_scan_task_id: template_row.spawn_scan_task_id,
@@ -1086,6 +1091,9 @@ class SmScheduleMasterSyncService
 
     task.save!
 
+    # Copy document type links from template
+    sync_document_type_links(template_row, task)
+
     Rails.logger.info "[SmScheduleMasterSyncService] Created task #{task.id} (#{task.name}) from template row #{template_row.id}"
 
     {
@@ -1094,6 +1102,20 @@ class SmScheduleMasterSyncService
       action: :created,
       message: "Created new task from template"
     }
+  end
+
+  # Copy document type links from template row to task
+  def sync_document_type_links(template_row, task)
+    template_row.sm_schedule_master_document_types.each do |doc_type_link|
+      SmTaskDocumentType.create!(
+        sm_task_id: task.id,
+        document_type_id: doc_type_link.document_type_id,
+        lag_days: doc_type_link.lag_days,
+        assigned_role: doc_type_link.assigned_role
+      )
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.warn "[SmScheduleMasterSyncService] Failed to sync document type link: #{e.message}"
   end
 
   def failure(message)

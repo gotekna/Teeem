@@ -62,15 +62,13 @@ const MAIN_TABS = [
 const COMPACT_TABS = ["schedule-master"];
 
 // Full-page tabs that hide all navigation
-const FULL_PAGE_TABS = ["pdf-fields"];
+const FULL_PAGE_TABS = ["pdf-fields", "document-types"];
 
 export default function SystemAdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  useSetLayoutMode("full-height");
-
   const pathname = usePathname();
   const router = useRouter();
 
@@ -83,28 +81,36 @@ export default function SystemAdminLayout({
   const isCompactTab = COMPACT_TABS.includes(currentTab);
   const isFullPage = FULL_PAGE_TABS.includes(currentTab);
 
+  // Only set layout mode if NOT a full-page tab (those set their own mode)
+  useSetLayoutMode(isFullPage ? "fullscreen" : "full-height");
+
   const handleTabChange = (value: string) => {
     router.push(`/admin/system/${value}`);
   };
 
-  // Full-page mode for certain tabs (like PDF Fields)
+  // Full-page mode for certain tabs (like PDF Fields, Document Types)
   if (isFullPage) {
+    // Document types has its own back button in the page
+    const showMinimalHeader = currentTab !== "document-types";
+
     return (
       <div className="flex flex-col h-full -m-4 -mb-16">
-        {/* Minimal header with back button */}
-        <div className="shrink-0 px-2 py-0.5 border-b bg-background flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/admin/system/company")}
-            className="h-5 text-[10px] px-1"
-          >
-            ← Back
-          </Button>
-          <span className="text-[10px] text-muted-foreground">
-            {MAIN_TABS.find((t) => t.id === currentTab)?.label || currentTab}
-          </span>
-        </div>
+        {/* Minimal header with back button - hidden for document-types which has its own nav */}
+        {showMinimalHeader && (
+          <div className="shrink-0 px-2 py-0.5 border-b bg-background flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/admin/system/company")}
+              className="h-5 text-[10px] px-1"
+            >
+              ← Back
+            </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {MAIN_TABS.find((t) => t.id === currentTab)?.label || currentTab}
+            </span>
+          </div>
+        )}
         <div className="flex-1 overflow-hidden">{children}</div>
       </div>
     );

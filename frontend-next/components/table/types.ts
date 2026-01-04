@@ -221,6 +221,7 @@ export interface TeeemTableViewProps {
     id: number;
     name: string;
     slug?: string;
+    view_display_type?: 'table' | 'grouped' | 'relational' | 'hierarchy';
     group_by_columns?: string[];
     group_by_column?: string;
     filters?: {

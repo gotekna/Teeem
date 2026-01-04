@@ -434,6 +434,23 @@ export function DocumentTypesTab() {
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
+    // Make NAME column a clickable link to full-screen editor
+    if (columnKey === "name") {
+      const value = entry.name;
+      if (!value) return <span className="text-muted-foreground">-</span>;
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push(`/admin/system/document-types/${entry.id}`);
+          }}
+          className="text-left text-primary hover:underline font-medium"
+          title="Click to open full editor"
+        >
+          {value}
+        </button>
+      );
+    }
     if (columnKey === "scope") {
       const value = entry.scope || "company";
       return (

@@ -11,6 +11,7 @@
  */
 
 import type { GanttConfig, GanttTask, GanttDependency, GanttBaseline, ContextMenuItem } from './GanttCanvas';
+import type { SmScheduleMaster } from '../types';
 import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
@@ -814,6 +815,9 @@ export class Renderer {
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(rightLabel, rightLabelX, barY + barHeight / 2);
       }
+
+      // Draw workflow indicators (play icon at start, document icon at end)
+      this.drawWorkflowIndicators(task, startX, startX + taskWidth, barY, barHeight);
     }
   }
 
@@ -1576,6 +1580,107 @@ export class Renderer {
     this.ctx.beginPath();
     this.ctx.arc(x + size / 2, y - size / 4, size / 3, Math.PI, 0);
     this.ctx.stroke();
+  }
+
+  /**
+   * Draw workflow indicators on task bars:
+   * - Play icon (▶) at start for start_workflow_enabled
+   * - Document icon (📄) at end for complete_workflow_enabled or linked document_types
+   */
+  private drawWorkflowIndicators(
+    task: GanttTask,
+    startX: number,
+    endX: number,
+    barY: number,
+    barHeight: number
+  ): { startIndicatorWidth: number; endIndicatorWidth: number } {
+    const result = { startIndicatorWidth: 0, endIndicatorWidth: 0 };
+
+    // Access rowData for workflow fields (SmScheduleMaster)
+    const rowData = task.rowData as SmScheduleMaster | undefined;
+    if (!rowData) return result;
+
+    const centerY = barY + barHeight / 2;
+    const iconSize = 10;
+    const iconPadding = 6;
+
+    // Check for start workflow
+    const hasStartWorkflow = rowData.start_workflow_enabled && rowData.start_workflow_id;
+
+    // Check for complete workflow or document types
+    const hasCompleteWorkflow = rowData.complete_workflow_enabled && rowData.complete_workflow_id;
+    const hasDocumentTypes = rowData.document_types && rowData.document_types.length > 0;
+    const hasEndIndicator = hasCompleteWorkflow || hasDocumentTypes;
+
+    // Draw start workflow indicator (play icon ▶) to the left of task bar
+    if (hasStartWorkflow) {
+      const playX = startX - iconPadding - iconSize;
+      const playY = centerY;
+
+      // Draw play triangle (pointing right)
+      // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+      this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.emerald[500] : TAILWIND_COLORS.emerald[600];
+      this.ctx.beginPath();
+      this.ctx.moveTo(playX, playY - iconSize / 2);
+      this.ctx.lineTo(playX + iconSize, playY);
+      this.ctx.lineTo(playX, playY + iconSize / 2);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      result.startIndicatorWidth = iconSize + iconPadding;
+    }
+
+    // Draw end indicator (document/flag icon) to the right after task bar
+    if (hasEndIndicator) {
+      const docX = endX + iconPadding;
+      const docY = centerY - iconSize / 2;
+
+      // Draw document icon (simple rectangle with folded corner)
+      // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+      const docColor = hasCompleteWorkflow
+        ? (this.config.darkMode ? TAILWIND_COLORS.amber[400] : TAILWIND_COLORS.amber[600])
+        : (this.config.darkMode ? TAILWIND_COLORS.cyan[400] : TAILWIND_COLORS.cyan[500]);
+
+      this.ctx.fillStyle = docColor;
+
+      // Document body
+      this.ctx.beginPath();
+      this.ctx.moveTo(docX, docY);
+      this.ctx.lineTo(docX + iconSize - 3, docY);
+      this.ctx.lineTo(docX + iconSize, docY + 3);
+      this.ctx.lineTo(docX + iconSize, docY + iconSize);
+      this.ctx.lineTo(docX, docY + iconSize);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Folded corner
+      this.ctx.fillStyle = this.config.darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)';
+      this.ctx.beginPath();
+      this.ctx.moveTo(docX + iconSize - 3, docY);
+      this.ctx.lineTo(docX + iconSize - 3, docY + 3);
+      this.ctx.lineTo(docX + iconSize, docY + 3);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Add count badge if multiple document types
+      if (hasDocumentTypes && rowData.document_types!.length > 1) {
+        const count = rowData.document_types!.length;
+        const badgeX = docX + iconSize + 2;
+        const badgeY = centerY;
+
+        this.ctx.font = 'bold 8px Inter, system-ui, sans-serif';
+        this.ctx.fillStyle = docColor;
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`×${count}`, badgeX, badgeY);
+
+        result.endIndicatorWidth = iconSize + iconPadding + 16; // Extra space for count
+      } else {
+        result.endIndicatorWidth = iconSize + iconPadding;
+      }
+    }
+
+    return result;
   }
 
   private drawDependencyLine(

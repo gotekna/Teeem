@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_04_222612) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2275,6 +2275,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.string "file_extensions", default: [], array: true
     t.string "target_folder"
     t.boolean "skip_rename", default: false, null: false
+    t.boolean "supports_versioning", default: false, null: false
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
@@ -2283,6 +2284,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.index ["name", "scope"], name: "index_document_types_on_name_and_scope", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
     t.index ["scope"], name: "index_document_types_on_scope"
+    t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
   end
 
   create_table "document_verification_feedbacks", force: :cascade do |t|
@@ -5839,11 +5841,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.text "migration_error"
     t.string "source_provider"
     t.string "source_item_id"
+    t.bigint "parent_document_id"
+    t.string "version_status", default: "draft", null: false
+    t.integer "version_number", default: 1, null: false
+    t.datetime "signed_at"
+    t.bigint "signed_by_id"
     t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
     t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
     t.index ["company_id"], name: "index_job_documents_on_company_id"
     t.index ["contact_id"], name: "index_job_documents_on_contact_id"
     t.index ["content_hash"], name: "index_job_documents_on_content_hash"
+    t.index ["document_type_id", "version_status"], name: "index_job_documents_on_document_type_id_and_version_status"
     t.index ["document_type_id"], name: "index_job_documents_on_document_type_id"
     t.index ["external_id"], name: "index_job_documents_on_external_id"
     t.index ["file_type"], name: "index_job_documents_on_file_type"
@@ -5853,14 +5861,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.index ["job_id"], name: "index_job_documents_on_job_id"
     t.index ["legacy_corporate_document_id"], name: "index_job_documents_on_legacy_corporate_document_id"
     t.index ["migration_status"], name: "index_job_documents_on_migration_status"
+    t.index ["parent_document_id"], name: "index_job_documents_on_parent_document_id"
     t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
     t.index ["rename_status"], name: "index_job_documents_on_rename_status"
     t.index ["sharepoint_drive_id"], name: "index_job_documents_on_sharepoint_drive_id"
     t.index ["sharepoint_item_id"], name: "index_job_documents_on_sharepoint_item_id", unique: true
+    t.index ["signed_by_id"], name: "index_job_documents_on_signed_by_id"
     t.index ["storage_provider", "storage_item_id"], name: "index_job_documents_on_storage_provider_and_storage_item_id"
     t.index ["storage_provider"], name: "index_job_documents_on_storage_provider"
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
     t.index ["version_id"], name: "index_job_documents_on_version_id"
+    t.index ["version_status"], name: "index_job_documents_on_version_status"
   end
 
   create_table "job_people", force: :cascade do |t|
@@ -8078,6 +8089,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.index ["task_id"], name: "index_sm_rollover_logs_on_task_id"
   end
 
+  create_table "sm_schedule_master_document_types", force: :cascade do |t|
+    t.bigint "sm_schedule_master_id", null: false
+    t.bigint "document_type_id", null: false
+    t.integer "lag_days", default: 0
+    t.string "assigned_role"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type_id"], name: "index_sm_schedule_master_document_types_on_document_type_id"
+    t.index ["sm_schedule_master_id", "document_type_id"], name: "idx_sm_master_doc_type_unique", unique: true
+    t.index ["sm_schedule_master_id"], name: "idx_on_sm_schedule_master_id_ece8c53030"
+  end
+
   create_table "sm_schedule_master_templates", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -8104,7 +8127,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.jsonb "predecessor_ids", default: []
     t.integer "trade"
     t.integer "stage"
-    t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
     t.boolean "pass_fail_enabled", default: false
     t.bigint "checklist_id"
@@ -8149,7 +8171,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.boolean "allow_header", default: false, null: false
     t.integer "assigned_role"
     t.boolean "started", default: false
+    t.boolean "start_workflow_enabled", default: false
+    t.bigint "start_workflow_id"
+    t.boolean "complete_workflow_enabled", default: false
+    t.bigint "complete_workflow_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
+    t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
     t.index ["confirm"], name: "index_sm_schedule_masters_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_masters_on_cost_centre"
     t.index ["created_by_id"], name: "index_sm_schedule_masters_on_created_by_id"
@@ -8162,6 +8189,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
     t.index ["stage"], name: "index_sm_schedule_masters_on_stage"
+    t.index ["start_workflow_id"], name: "index_sm_schedule_masters_on_start_workflow_id"
     t.index ["started"], name: "index_sm_schedule_masters_on_started", where: "(started = true)"
     t.index ["supplier_confirm"], name: "index_sm_schedule_masters_on_supplier_confirm", where: "(supplier_confirm = true)"
     t.index ["task_number"], name: "index_sm_schedule_masters_on_task_number"
@@ -8221,6 +8249,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
     t.index ["sm_task_id", "attachable_type", "attachable_id"], name: "idx_sm_task_attachments_unique", unique: true
     t.index ["sm_task_id"], name: "index_sm_task_attachments_on_sm_task_id"
+  end
+
+  create_table "sm_task_document_types", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "document_type_id", null: false
+    t.integer "lag_days", default: 0
+    t.string "assigned_role"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type_id"], name: "index_sm_task_document_types_on_document_type_id"
+    t.index ["sm_task_id", "document_type_id"], name: "idx_sm_task_doc_type_unique", unique: true
+    t.index ["sm_task_id"], name: "index_sm_task_document_types_on_sm_task_id"
   end
 
   create_table "sm_task_photos", force: :cascade do |t|
@@ -8293,7 +8333,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.text "hold_release_reason"
     t.bigint "assigned_user_id"
     t.bigint "supplier_id"
-    t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
     t.boolean "pass_fail_enabled", default: false
     t.bigint "checklist_id"
@@ -8352,8 +8391,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.boolean "allow_header", default: false, null: false
     t.boolean "is_private", default: false
     t.boolean "started", default: false
+    t.boolean "start_workflow_enabled", default: false
+    t.bigint "start_workflow_id"
+    t.boolean "complete_workflow_enabled", default: false
+    t.bigint "complete_workflow_id"
+    t.boolean "start_workflow_fired", default: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
+    t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"
     t.index ["created_by_id"], name: "index_sm_tasks_on_created_by_id"
     t.index ["hold_reason_id"], name: "index_sm_tasks_on_hold_reason_id"
@@ -8376,6 +8421,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
     t.index ["sm_schedule_master_id"], name: "index_sm_tasks_on_sm_schedule_master_id"
     t.index ["source_type"], name: "index_sm_tasks_on_source_type"
     t.index ["start_date"], name: "index_sm_tasks_on_start_date"
+    t.index ["start_workflow_id"], name: "index_sm_tasks_on_start_workflow_id"
     t.index ["status"], name: "index_sm_tasks_on_status"
     t.index ["supplier_confirmed_by_id"], name: "index_sm_tasks_on_supplier_confirmed_by_id"
     t.index ["supplier_id"], name: "index_sm_tasks_on_supplier_id"
@@ -10207,8 +10253,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_documents", "document_types"
   add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
+  add_foreign_key "job_documents", "job_documents", column: "parent_document_id"
   add_foreign_key "job_documents", "jobs"
   add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
+  add_foreign_key "job_documents", "users", column: "signed_by_id"
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"
   add_foreign_key "job_plan_revisions", "job_plans"
@@ -10406,9 +10454,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_schedule_master_document_types", "document_types"
+  add_foreign_key "sm_schedule_master_document_types", "sm_schedule_masters"
   add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"
+  add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "complete_workflow_id"
+  add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "start_workflow_id"
   add_foreign_key "sm_schedule_masters", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_schedule_masters", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_schedule_masters", "users", column: "created_by_id"
@@ -10418,10 +10470,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
   add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
   add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "sm_task_document_types", "document_types"
+  add_foreign_key "sm_task_document_types", "sm_tasks"
   add_foreign_key "sm_task_photos", "jobs", on_delete: :cascade
   add_foreign_key "sm_task_photos", "sm_resources", column: "resource_id", on_delete: :nullify
   add_foreign_key "sm_task_photos", "sm_tasks", on_delete: :cascade
   add_foreign_key "sm_task_photos", "users", column: "uploaded_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "bpmn_processes", column: "complete_workflow_id"
+  add_foreign_key "sm_tasks", "bpmn_processes", column: "start_workflow_id"
   add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify

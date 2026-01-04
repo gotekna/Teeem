@@ -1261,16 +1261,13 @@ Rails.application.routes.draw do
       # Setup data management
       post "setup/pull_from_local", to: "setup#pull_from_local"
       post "setup/sync_users", to: "setup#sync_users"
+      # NOTE: sync_documentation_categories kept for backward compatibility (returns deprecation message)
       post "setup/sync_documentation_categories", to: "setup#sync_documentation_categories"
       post "setup/sync_supervisor_checklists", to: "setup#sync_supervisor_checklists"
       # NOTE: sync_folder_templates kept for backward compatibility (returns deprecation message)
 
-      # Documentation Categories (Global)
-      resources :documentation_categories do
-        collection do
-          post :reorder
-        end
-      end
+      # NOTE: Documentation Categories removed - SSoT: DocumentType with SmScheduleMasterDocumentType
+      # The documentation_categories routes have been removed. Use document_types instead.
 
       # Plan Categories and Types (Admin settings for Plans tab)
       resources :plan_categories do
