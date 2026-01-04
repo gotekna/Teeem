@@ -2115,7 +2115,7 @@ export function ScheduleMasterTab() {
                   onUndo={gantt.handleUndo}
                   onEditDependencies={gantt.openDependencyEditor}
                   onDurationChange={gantt.handleDurationChange}
-                  onRollover={gantt.handleRollover}
+                  onRollover={handleGanttV2Rollover}
                   onDataChange={gantt.loadData}
                 />
               )}

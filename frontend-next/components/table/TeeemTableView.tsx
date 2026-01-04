@@ -1418,7 +1418,7 @@ export default function TeeemTableView({
     if (initialView?.filters?.cascadeFilters?.length) {
       ssrFiltersInitializedRef.current = true;
       console.log('[SSR] Applying initialView filters:', initialView.filters.cascadeFilters.length, 'filters');
-      setViewFilters(initialView.filters.cascadeFilters);
+      setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
       // Also set filter groups and inter-group logic if present
       if (initialView.filters.filterGroups?.length) {
         setFilterGroups(initialView.filters.filterGroups);
