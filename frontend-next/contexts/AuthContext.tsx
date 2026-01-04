@@ -231,6 +231,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
     setToken(null);
     setUser(null);
+    // Reset theme to default so next login applies user's database preference
+    setTheme('light');
   };
 
   const refreshUser = async () => {

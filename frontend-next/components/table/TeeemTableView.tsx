@@ -1412,11 +1412,12 @@ export default function TeeemTableView({
 
   // SSR FLASH FIX: Initialize view filters from initialView immediately
   // This ensures the view's filters are applied on first render (eliminates wrong data flash)
-  const ssrFiltersInitializedRef = useRef(false);
+  // Track foundationId to handle navigation between foundations
+  const ssrFiltersInitializedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (ssrFiltersInitializedRef.current) return;
+    if (ssrFiltersInitializedRef.current === foundationId) return;
     if (initialView?.filters?.cascadeFilters?.length) {
-      ssrFiltersInitializedRef.current = true;
+      ssrFiltersInitializedRef.current = foundationId;
       console.log('[SSR] Applying initialView filters:', initialView.filters.cascadeFilters.length, 'filters');
       setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
       // Also set filter groups and inter-group logic if present
@@ -1427,17 +1428,18 @@ export default function TeeemTableView({
         setInterGroupLogic(initialView.filters.interGroupLogic);
       }
     }
-  }, [initialView, setViewFilters, setFilterGroups, setInterGroupLogic]);
+  }, [initialView, setViewFilters, setFilterGroups, setInterGroupLogic, foundationId]);
 
   // SSR COLUMN CONFIG: Apply column order/visibility from initialView immediately
   // This ensures the view's column layout renders correctly on first paint (SSoT)
-  const ssrColumnsInitializedRef = useRef(false);
+  // Track foundationId to handle navigation between foundations
+  const ssrColumnsInitializedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (ssrColumnsInitializedRef.current) return;
+    if (ssrColumnsInitializedRef.current === foundationId) return;
     if (initialView?.columns) {
       const { order, visible, widths } = initialView.columns;
       if (order?.length || (visible && Object.keys(visible).length)) {
-        ssrColumnsInitializedRef.current = true;
+        ssrColumnsInitializedRef.current = foundationId;
         console.log('[SSR] Applying initialView columns:', {
           order: order?.length || 0,
           visible: visible ? Object.keys(visible).length : 0,
@@ -1454,16 +1456,23 @@ export default function TeeemTableView({
         }
       }
     }
-  }, [initialView, setColumnOrder, setVisibleColumns, setColumnWidths]);
+  }, [initialView, setColumnOrder, setVisibleColumns, setColumnWidths, foundationId]);
 
   // SSR FIX: Initialize savedViews from preloadedViews immediately
   // This eliminates the flash where view buttons don't show until API call completes
-  const preloadedViewsInitializedRef = useRef(false);
+  // Also handles navigation between foundations - replaces stale views from wrong foundation
+  const preloadedViewsInitializedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (preloadedViewsInitializedRef.current) return;
-    if (preloadedViews && preloadedViews.length > 0 && savedViews.length === 0) {
-      preloadedViewsInitializedRef.current = true;
-      console.log('[SSR] Initializing savedViews from preloadedViews:', preloadedViews.length, 'views');
+    if (!preloadedViews || preloadedViews.length === 0) return;
+    // Check if we already initialized for THIS foundation
+    if (preloadedViewsInitializedRef.current === foundationId) return;
+    // Check if savedViews are from a DIFFERENT foundation (stale from navigation)
+    // Use effectiveFoundationId which resolves to numeric ID or slug
+    const savedViewsAreStale = savedViews.length > 0 && savedViews[0]?.foundation_id !== effectiveFoundationId;
+    const shouldInitialize = savedViews.length === 0 || savedViewsAreStale;
+    if (shouldInitialize) {
+      preloadedViewsInitializedRef.current = foundationId;
+      console.log('[SSR] Initializing savedViews from preloadedViews:', preloadedViews.length, 'views', savedViewsAreStale ? '(replacing stale views)' : '');
       // Map preloaded views to SavedView format
       // Handle both ViewData (from SSR) and SavedView (from client) formats
       const mappedViews: SavedView[] = preloadedViews.map((v) => ({
@@ -1489,7 +1498,7 @@ export default function TeeemTableView({
       // Also mark as loaded to prevent duplicate API call
       initialViewLoadedRef.current = true;
     }
-  }, [preloadedViews, savedViews.length, setSavedViews]);
+  }, [preloadedViews, savedViews, setSavedViews, foundationId, resolvedFoundationId]);
 
   // Row rendering limit for performance (render rows initially, load more on demand)
   // SSoT: Uses TABLE_ROW_LIMIT from pagination-constants.ts

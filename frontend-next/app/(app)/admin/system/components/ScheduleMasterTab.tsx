@@ -340,7 +340,8 @@ export function ScheduleMasterTab() {
     mode: 'template',
     templateId: ganttV2TemplateId ?? undefined,
     // SSoT: Pass rows from Data View when viewing the same template
-    rows: ganttUsesExternalData ? dataViewRows : undefined,
+    // Cast to GanttSmScheduleMaster[] - same data, different type definitions (TODO: unify types)
+    rows: ganttUsesExternalData ? (dataViewRows as unknown as GanttSmScheduleMaster[]) : undefined,
     // SSoT: Refresh callback - updates both TeeemTableView and dataViewRows
     onRefresh: ganttUsesExternalData ? () => {
       setDataViewRefreshKey(prev => prev + 1);
