@@ -301,8 +301,13 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       // Template: { rows: [...] }
       // Job: { gantt_data: { tasks: [...], dependencies: [...] } }
       const data = response.gantt_data || response;
-      const fetchedRows = data.tasks || data.rows || [];
+      const rawRows = data.tasks || data.rows || [];
       const fetchedDeps = data.dependencies || [];
+
+      // Sort by sequence_order (SSoT: same order as Data View)
+      const fetchedRows = [...rawRows].sort((a, b) =>
+        (a.sequence_order || 0) - (b.sequence_order || 0)
+      );
 
       setRows(fetchedRows);
 
