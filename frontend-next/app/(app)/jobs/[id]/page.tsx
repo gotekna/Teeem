@@ -1937,23 +1937,50 @@ export default function JobDetailPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Current choices list */}
+            {/* Current choices list - clickable to select */}
             <div className="space-y-2">
-              <Label>Current Choices</Label>
+              <Label>Click to select, or add/remove choices</Label>
               <div className="space-y-1">
-                {editingChoices?.choices.map((choice) => (
-                  <div key={choice} className="flex items-center justify-between p-2 bg-muted rounded-md">
-                    <span className="text-sm">{choice}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-destructive hover:text-destructive"
-                      onClick={() => removeChoice(choice)}
+                {editingChoices?.choices.map((choice) => {
+                  const currentValue = editingChoices.field === 'level' ? editForm.level : editForm.dwelling_type;
+                  const isSelected = currentValue === choice;
+                  return (
+                    <div
+                      key={choice}
+                      className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                      onClick={() => {
+                        // Select this choice and close the dialog
+                        if (editingChoices.field === 'level') {
+                          setEditForm({ ...editForm, level: choice });
+                        } else {
+                          setEditForm({ ...editForm, dwelling_type: choice });
+                        }
+                        // Enter edit mode if not already
+                        if (!isEditing) {
+                          setIsEditing(true);
+                        }
+                        setEditingChoices(null);
+                      }}
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ))}
+                      <span className="text-sm">{choice}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-6 w-6 ${isSelected ? 'text-primary-foreground hover:text-primary-foreground/80' : 'text-destructive hover:text-destructive'}`}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Don't trigger row click
+                          removeChoice(choice);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
                 {editingChoices?.choices.length === 0 && (
                   <p className="text-sm text-muted-foreground italic">No choices defined</p>
                 )}

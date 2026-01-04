@@ -11,7 +11,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
 import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
-import type { TableRow, TableColumn } from "@/components/table/types";
+import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import type { ViewData } from "@/lib/server/foundation-api";
 
 interface PricebookPageClientProps {
@@ -21,6 +21,8 @@ interface PricebookPageClientProps {
   initialHasMore: boolean;
   // SSR view data to prevent CLS on hydration
   initialView?: ViewData | null;
+  // SSR all views - for immediate toolbar button rendering
+  initialViews?: ViewData[];
   // SSR group counts for grouped views (matches TeeemTableView.initialGroupCounts type)
   initialGroupCounts?: {
     groups: Array<{ key: string | null; count: number; displayValue: string }>;
@@ -43,6 +45,7 @@ export default function PricebookPageClient({
   initialRecords,
   initialHasMore,
   initialView,
+  initialViews,
   initialGroupCounts,
 }: PricebookPageClientProps) {
   const router = useRouter();
@@ -141,6 +144,9 @@ export default function PricebookPageClient({
         initialHasMore={initialHasMore}
         // SSR View Props - prevents CLS from view loading on hydration
         initialView={initialView}
+        // SSR All Views - for immediate toolbar button rendering (no flash)
+        // Cast needed because ViewData has slightly different filter structure (handled by component)
+        preloadedViews={initialViews as unknown as SavedView[]}
         // SSR Group Counts - prevents CLS from group count loading
         initialGroupCounts={initialGroupCounts}
         // After refresh, autoFetchRecords takes over

@@ -25,7 +25,8 @@ export default async function PricebookPage({ searchParams }: PricebookPageProps
   // Fetch first 20 records on server for fast LCP
   // Also fetch view config if ?view= param is present to eliminate CLS
   // Also fetch group counts if view has grouping to eliminate CLS
-  const { columns, records, hasMore, view, groupCounts } = await fetchFoundationForSSR("pricebook-items", {
+  // Also fetch all views for immediate toolbar button rendering
+  const { columns, records, hasMore, view, views, groupCounts } = await fetchFoundationForSSR("pricebook-items", {
     limit: 20,
     viewSlug,
   });
@@ -36,6 +37,7 @@ export default async function PricebookPage({ searchParams }: PricebookPageProps
       initialRecords={records}
       initialHasMore={hasMore}
       initialView={view}
+      initialViews={views}
       initialGroupCounts={groupCounts}
     />
   );

@@ -1410,6 +1410,25 @@ export default function TeeemTableView({
     }
   }, [initialView, activeViewId, setActiveViewId]);
 
+  // SSR FLASH FIX: Initialize view filters from initialView immediately
+  // This ensures the view's filters are applied on first render (eliminates wrong data flash)
+  const ssrFiltersInitializedRef = useRef(false);
+  useEffect(() => {
+    if (ssrFiltersInitializedRef.current) return;
+    if (initialView?.filters?.cascadeFilters?.length) {
+      ssrFiltersInitializedRef.current = true;
+      console.log('[SSR] Applying initialView filters:', initialView.filters.cascadeFilters.length, 'filters');
+      setViewFilters(initialView.filters.cascadeFilters);
+      // Also set filter groups and inter-group logic if present
+      if (initialView.filters.filterGroups?.length) {
+        setFilterGroups(initialView.filters.filterGroups);
+      }
+      if (initialView.filters.interGroupLogic) {
+        setInterGroupLogic(initialView.filters.interGroupLogic);
+      }
+    }
+  }, [initialView, setViewFilters, setFilterGroups, setInterGroupLogic]);
+
   // SSR FIX: Initialize savedViews from preloadedViews immediately
   // This eliminates the flash where view buttons don't show until API call completes
   const preloadedViewsInitializedRef = useRef(false);
