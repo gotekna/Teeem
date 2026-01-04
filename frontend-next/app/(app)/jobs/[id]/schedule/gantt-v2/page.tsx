@@ -25,8 +25,10 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { GanttUnified, GanttDependencyEditor } from '@/components/gantt-v2';
 import { api } from '@/lib/api';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Camera, X, RefreshCw } from 'lucide-react';
 import type { GanttTask, GanttDependency, SmScheduleMaster } from '@/lib/gantt/types';
+import type { PhotoItem } from '@/components/ui/photo-gallery';
+import { ImageLightbox } from '@/components/ui/image-lightbox';
 import { convertRowsToTasks } from '@/lib/gantt/types';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 
@@ -96,6 +98,13 @@ export default function GanttV2Page() {
     critical_po: false,
   });
   const [saving, setSaving] = React.useState(false);
+
+  // Photo panel state (only available when jobId is provided)
+  const [showPhotoPanel, setShowPhotoPanel] = React.useState(false);
+  const [jobPhotos, setJobPhotos] = React.useState<PhotoItem[]>([]);
+  const [loadingPhotos, setLoadingPhotos] = React.useState(false);
+  const [lightboxOpen, setLightboxOpen] = React.useState(false);
+  const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
   // ==========================================================================
   // Data Loading
@@ -435,6 +444,76 @@ export default function GanttV2Page() {
     }
   };
 
+  // ==========================================================================
+  // Photo Panel
+  // ==========================================================================
+
+  // Load job photos for the photo panel
+  const loadJobPhotos = React.useCallback(async () => {
+    if (!showPhotoPanel || !jobId) return;
+
+    try {
+      setLoadingPhotos(true);
+
+      // Use job_all_files endpoint to get all files from job's SharePoint folder
+      const response = await api.get<{
+        success: boolean;
+        items: Array<{
+          id: string;
+          name: string;
+          download_url?: string;
+          thumbnail_url?: string;
+          web_url?: string;
+          modified?: string;
+        }>;
+      }>(`/api/v1/jobs/${jobId}/job_all_files`);
+
+      if (response?.items) {
+        // Filter for image files
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic'];
+        const imageFiles = response.items.filter((item) => {
+          const ext = item.name.toLowerCase().slice(item.name.lastIndexOf('.'));
+          return imageExtensions.includes(ext);
+        });
+
+        // Convert to PhotoItem format
+        const photos: PhotoItem[] = imageFiles.map((file) => ({
+          id: file.id,
+          name: file.name,
+          url: file.thumbnail_url || file.download_url || '',
+          thumbnailUrl: file.thumbnail_url || file.download_url || '',
+          webUrl: file.web_url,
+          modifiedAt: file.modified,
+        }));
+
+        // Sort by date (newest first)
+        photos.sort((a, b) => {
+          const dateA = a.modifiedAt ? new Date(a.modifiedAt).getTime() : 0;
+          const dateB = b.modifiedAt ? new Date(b.modifiedAt).getTime() : 0;
+          return dateB - dateA;
+        });
+
+        setJobPhotos(photos);
+      }
+    } catch (err) {
+      console.error('[GanttV2] Failed to load photos:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to load job photos',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingPhotos(false);
+    }
+  }, [showPhotoPanel, jobId, toast]);
+
+  // Load photos when panel opens
+  React.useEffect(() => {
+    if (showPhotoPanel && jobPhotos.length === 0) {
+      loadJobPhotos();
+    }
+  }, [showPhotoPanel, jobPhotos.length, loadJobPhotos]);
+
   const handleOpenOldGantt = () => {
     window.open(`/jobs/${jobId}/schedule`, '_blank');
   };
@@ -475,100 +554,199 @@ export default function GanttV2Page() {
     <div className="flex flex-col h-full">
       <Header job={job} onOpenOldGantt={handleOpenOldGantt} />
 
-      {/* Gantt Chart */}
-      <div className="flex-1 min-h-0">
-        <GanttUnified
-          tasks={tasks}
-          dependencies={dependencies}
-          jobId={jobId}
-          showToolbar={true}
-          onTaskClick={handleTaskClick}
-          onTaskDoubleClick={handleTaskDoubleClick}
-          onCheckboxToggle={handleCheckboxToggle}
-          onRollover={handleRollover}
-          onEditDependencies={handleEditDependencies}
-        />
+      {/* Gantt Chart + Photo Panel */}
+      <div className="flex-1 min-h-0 flex">
+        {/* Gantt Chart */}
+        <div className="flex-1 min-h-0">
+          <GanttUnified
+            tasks={tasks}
+            dependencies={dependencies}
+            jobId={jobId}
+            showToolbar={true}
+            onTaskClick={handleTaskClick}
+            onTaskDoubleClick={handleTaskDoubleClick}
+            onCheckboxToggle={handleCheckboxToggle}
+            onRollover={handleRollover}
+            onEditDependencies={handleEditDependencies}
+            showPhotoPanel={showPhotoPanel}
+            onTogglePhotoPanel={() => setShowPhotoPanel(!showPhotoPanel)}
+          />
+        </div>
 
-        {/* Dependency Editor - SSoT: same component as ScheduleMasterTab */}
-        <GanttDependencyEditor
-          isOpen={dependencyEditorState.isOpen}
-          onClose={() => setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] })}
-          task={dependencyEditorState.task}
-          tasks={dependencyEditorState.visibleTasks.length > 0 ? dependencyEditorState.visibleTasks : tasks}
-          onSave={handleDependencyEditorSave}
-        />
-
-        {/* Edit Sheet - SSoT: same pattern as ScheduleMasterTab */}
-        <Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
-          <SheetContent side="right" className="w-[400px] sm:w-[500px]">
-            <SheetHeader>
-              <SheetTitle>Edit Task</SheetTitle>
-              <SheetDescription>
-                {editingTask?.name} (Task #{(editingTask?.rowData as SmScheduleMaster)?.task_number})
-              </SheetDescription>
-            </SheetHeader>
-
-            <div className="py-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                />
+        {/* Photo Panel - Right Side */}
+        {showPhotoPanel && (
+          <div className="w-64 border-l bg-background flex flex-col overflow-hidden">
+            {/* Panel Header */}
+            <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Camera className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Job Photos</span>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duration (days)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min={1}
-                  value={editForm.duration_days}
-                  onChange={(e) => setEditForm({ ...editForm, duration_days: Number(e.target.value) })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  value={editForm.description}
-                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="po_required"
-                  checked={editForm.po_required}
-                  onCheckedChange={(checked) => setEditForm({ ...editForm, po_required: !!checked })}
-                />
-                <Label htmlFor="po_required">PO Required</Label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="critical_po"
-                  checked={editForm.critical_po}
-                  onCheckedChange={(checked) => setEditForm({ ...editForm, critical_po: !!checked })}
-                />
-                <Label htmlFor="critical_po">Critical PO</Label>
-              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setShowPhotoPanel(false)}
+                title="Close Panel"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
-            <SheetFooter>
-              <Button variant="outline" onClick={() => setEditSheetOpen(false)}>
-                Cancel
+            {/* Photo Count */}
+            <div className="px-3 py-2 border-b text-xs text-muted-foreground">
+              {loadingPhotos ? (
+                <span className="flex items-center gap-2">
+                  <Spinner className="h-3 w-3" />
+                  Loading photos...
+                </span>
+              ) : (
+                <span>{jobPhotos.length} photos</span>
+              )}
+            </div>
+
+            {/* Photos Grid */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {loadingPhotos ? (
+                <div className="flex items-center justify-center h-32">
+                  <Spinner className="h-6 w-6 text-muted-foreground" />
+                </div>
+              ) : jobPhotos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-center">
+                  <Camera className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                  <p className="text-sm text-muted-foreground">No photos found</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {jobPhotos.map((photo, index) => (
+                    <button
+                      key={photo.id}
+                      onClick={() => {
+                        setLightboxIndex(index);
+                        setLightboxOpen(true);
+                      }}
+                      className="aspect-square rounded-md overflow-hidden bg-muted/50 hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <img
+                        src={photo.thumbnailUrl}
+                        alt={photo.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Refresh Button */}
+            <div className="p-2 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={loadJobPhotos}
+                disabled={loadingPhotos}
+              >
+                {loadingPhotos ? (
+                  <Spinner className="h-4 w-4 mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Refresh
               </Button>
-              <Button onClick={handleSaveTask} disabled={saving}>
-                {saving ? <Spinner className="mr-2 h-4 w-4" /> : null}
-                Save
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Photo Lightbox */}
+      <ImageLightbox
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        photos={jobPhotos}
+        initialIndex={lightboxIndex}
+      />
+
+      {/* Dependency Editor - SSoT: same component as ScheduleMasterTab */}
+      <GanttDependencyEditor
+        isOpen={dependencyEditorState.isOpen}
+        onClose={() => setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] })}
+        task={dependencyEditorState.task}
+        tasks={dependencyEditorState.visibleTasks.length > 0 ? dependencyEditorState.visibleTasks : tasks}
+        onSave={handleDependencyEditorSave}
+      />
+
+      {/* Edit Sheet - SSoT: same pattern as ScheduleMasterTab */}
+      <Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
+        <SheetContent side="right" className="w-[400px] sm:w-[500px]">
+          <SheetHeader>
+            <SheetTitle>Edit Task</SheetTitle>
+            <SheetDescription>
+              {editingTask?.name} (Task #{(editingTask?.rowData as SmScheduleMaster)?.task_number})
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="duration">Duration (days)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min={1}
+                value={editForm.duration_days}
+                onChange={(e) => setEditForm({ ...editForm, duration_days: Number(e.target.value) })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="po_required"
+                checked={editForm.po_required}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, po_required: !!checked })}
+              />
+              <Label htmlFor="po_required">PO Required</Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="critical_po"
+                checked={editForm.critical_po}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, critical_po: !!checked })}
+              />
+              <Label htmlFor="critical_po">Critical PO</Label>
+            </div>
+          </div>
+
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setEditSheetOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTask} disabled={saving}>
+              {saving ? <Spinner className="mr-2 h-4 w-4" /> : null}
+              Save
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Debug Info */}
       <div className="px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
