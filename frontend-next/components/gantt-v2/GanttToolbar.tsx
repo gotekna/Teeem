@@ -30,6 +30,7 @@ import {
   Download,
   Layers,
   Camera,
+  Bookmark,
   Info,
   Check,
   RefreshCw,
@@ -340,7 +341,7 @@ export function GanttToolbar({
             title="Capture Baseline"
             className="h-8 w-8"
           >
-            <Camera className="h-4 w-4" />
+            <Bookmark className="h-4 w-4" />
           </Button>
         )}
 
