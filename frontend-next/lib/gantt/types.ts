@@ -116,6 +116,8 @@ export interface SmScheduleMaster {
   po_required: boolean;
   critical_po: boolean;
   create_po_on_job_start: boolean;
+  po_supplier_id: number | null;
+  po_supplier_name: string | null;
   has_subtasks: boolean;
   subtask_count: number | null;
   subtask_names: string[] | null;

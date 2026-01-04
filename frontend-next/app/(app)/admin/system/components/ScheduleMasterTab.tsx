@@ -2050,7 +2050,19 @@ export function ScheduleMasterTab() {
       const data = await api.get<{ success: boolean; rows: GanttSmScheduleMaster[] }>(
         `/api/v1/sm_schedule_master_templates/${templateId}/rows`
       );
-      const rows = data.rows || [];
+      const allRows = data.rows || [];
+
+      // Filter: PO-required tasks only show if they have a supplier configured
+      // This ensures incomplete PO tasks don't clutter the Gantt
+      const rows = allRows.filter(row => {
+        // Always show non-PO tasks and headers
+        if (!row.po_required || row.allow_header) return true;
+        // For PO-required tasks, only show if supplier is configured
+        return row.po_supplier_id != null;
+      });
+
+      console.log(`[Gantt V2] Filtered ${allRows.length - rows.length} PO tasks without supplier`);
+
       // Convert to GanttTask[] format using SSoT converter
       const projectStartDate = new Date(); // Use today as project start for template preview
       let tasks = convertRowsToTasks(rows, projectStartDate);
