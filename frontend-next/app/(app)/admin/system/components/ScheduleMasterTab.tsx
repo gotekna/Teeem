@@ -358,6 +358,8 @@ export function ScheduleMasterTab() {
   const executeGanttV2DragMove = gantt.executeDragMove;
   const executeStartTask = gantt.executeStartTask;
   const loadGanttV2Data = gantt.loadData;
+  const storeGanttV2UndoState = gantt.storeUndoState;
+  const handleGanttV2Undo = gantt.handleUndo;
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
@@ -720,7 +722,7 @@ export function ScheduleMasterTab() {
         ) || loadedTemplates[0];
 
         if (autoSelectTemplate) {
-          loadGanttV2Data(autoSelectTemplate.id);
+          setGanttV2TemplateId(autoSelectTemplate.id);
         }
       }
     } catch (error) {
@@ -1115,103 +1117,9 @@ export function ScheduleMasterTab() {
     await executeGanttV2CheckboxToggle(taskId, field, checked);
   };
 
-  // Gantt V2: Execute the checkbox toggle (called directly or after confirm dialog)
-  const executeGanttV2CheckboxToggle = async (taskId: string, field: string, checked: boolean) => {
-    if (!ganttV2TemplateId) return;
+  // SSoT: executeGanttV2CheckboxToggle now provided by useGanttDataManager hook (see aliases above)
 
-    try {
-      // Map field names to API field names
-      const fieldMap: Record<string, string> = {
-        'started': 'started',
-        'hold': 'hold',
-        'confirm': 'confirm',
-        'supplier_confirm': 'supplier_confirm',
-        'is_completed': 'is_completed',
-      };
-
-      const apiField = fieldMap[field] || field;
-
-      // When confirming (locking), also save the current hold_date to lock position
-      const task = ganttV2Tasks.find(t => t.id === taskId);
-      const updateData: Record<string, unknown> = { [apiField]: checked };
-
-      if (checked && task?.startDate) {
-        // Lock the position when confirming
-        const holdDateStr = task.startDate.toISOString().split('T')[0];
-        updateData.hold_date = holdDateStr;
-      }
-
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskId}`, {
-        row: updateData,
-      });
-
-      toast({ title: "Updated", description: `${field} ${checked ? 'enabled' : 'disabled'}` });
-
-      // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
-    } catch (error) {
-      console.error('[Gantt V2] Failed to toggle checkbox:', error);
-      toast({ title: "Error", description: "Failed to update", variant: "destructive" });
-    }
-  };
-
-  // Gantt V2: Execute start task with break option (called from start task dialog)
-  const executeStartTask = async (
-    task: GanttTask,
-    option: 'break-header' | 'break-dependency' | 'start-only',
-    startDate?: Date
-  ) => {
-    if (!ganttV2TemplateId) return;
-
-    const row = task.rowData as GanttSmScheduleMaster | undefined;
-    if (!row) return;
-
-    const dateToUse = startDate || new Date();
-    const dateStr = dateToUse.toISOString().split('T')[0];
-
-    console.log('[Start Task] Saving task:', task.name, 'with hold_date:', dateStr, 'option:', option);
-
-    try {
-      const updateData: Record<string, unknown> = {
-        started: true,
-        hold: true,           // Lock position
-        hold_date: dateStr,   // Set start date
-      };
-
-      if (option === 'break-header') {
-        // Break out of header - task becomes standalone
-        updateData.header_gantt = null;
-        updateData.dependency_broken = true;  // Mark as broken for visual indicator
-      } else if (option === 'break-dependency') {
-        // Break dependencies - clear predecessors but stay under header
-        updateData.predecessor_ids = [];
-        updateData.dependency_broken = true;  // Mark as broken for visual indicator
-      }
-      // 'start-only' doesn't change header or dependencies
-
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${task.id}`, {
-        row: updateData,
-      });
-
-      const dateLabel = dateToUse.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-      let actionText = `start date set to ${dateLabel}`;
-      if (option === 'break-header') {
-        actionText = `broken out of header, ${actionText}`;
-      } else if (option === 'break-dependency') {
-        actionText = `dependencies cleared, ${actionText}`;
-      }
-      toast({
-        title: "Task Started",
-        description: actionText
-      });
-
-      // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
-    } catch (error) {
-      console.error('[Gantt V2] Failed to start task:', error);
-      toast({ title: "Error", description: "Failed to start task", variant: "destructive" });
-    }
-  };
+  // SSoT: executeStartTask now provided by useGanttDataManager hook (see aliases above)
 
   // Gantt V2: Handle task drag (reschedule) - shows cascade dialog if successors exist
   const handleGanttV2TaskDrag = async (task: GanttTask, newStartDate: Date) => {
@@ -1313,29 +1221,7 @@ export function ScheduleMasterTab() {
     });
   };
 
-  // Gantt V2: Execute the actual drag move (called directly or after cascade dialog)
-  const executeGanttV2DragMove = async (task: GanttTask, newStartDate: Date) => {
-    if (!ganttV2TemplateId) return;
-
-    try {
-      const holdDateStr = newStartDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${task.id}`, {
-        row: {
-          hold: true,
-          hold_date: holdDateStr,
-        },
-      });
-
-      toast({ title: "Task moved", description: `Locked at ${holdDateStr}` });
-
-      // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
-    } catch (error) {
-      console.error('[Gantt V2] Failed to save task position:', error);
-      toast({ title: "Error", description: "Failed to move task", variant: "destructive" });
-    }
-  };
+  // SSoT: executeGanttV2DragMove now provided by useGanttDataManager hook (see aliases above)
 
   // Gantt V2: Handle task resize (change duration)
   const handleGanttV2TaskResize = async (task: GanttTask, _newStartDate: Date, newEndDate: Date) => {
@@ -1359,7 +1245,7 @@ export function ScheduleMasterTab() {
       toast({ title: "Duration updated", description: `${newDuration} days` });
 
       // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
+      loadGanttV2Data();
     } catch (error) {
       console.error('[Gantt V2] Failed to save duration:', error);
       toast({ title: "Error", description: "Failed to update duration", variant: "destructive" });
@@ -1380,7 +1266,7 @@ export function ScheduleMasterTab() {
       toast({ title: "Duration updated", description: `${newDuration} days` });
 
       // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
+      loadGanttV2Data();
     } catch (error) {
       console.error('[Gantt V2] Failed to save duration:', error);
       toast({ title: "Error", description: "Failed to update duration", variant: "destructive" });
@@ -1408,7 +1294,7 @@ export function ScheduleMasterTab() {
         });
 
         // Refresh data to show new dates
-        loadGanttV2Data(ganttV2TemplateId);
+        loadGanttV2Data();
 
         return { rolled_over: result.updated, extended: 0, cascaded: 0 };
       }
@@ -1458,7 +1344,7 @@ export function ScheduleMasterTab() {
       });
 
       // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
+      loadGanttV2Data();
       toast({ title: "Success", description: "Dependency created" });
     } catch (error) {
       console.error('[Gantt V2] Failed to create dependency:', error);
@@ -1509,7 +1395,7 @@ export function ScheduleMasterTab() {
       });
 
       // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
+      loadGanttV2Data();
       toast({ title: "Success", description: "Dependency deleted" });
     } catch (error) {
       console.error('[Gantt V2] Failed to delete dependency:', error);
@@ -1539,7 +1425,7 @@ export function ScheduleMasterTab() {
       });
 
       // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
+      loadGanttV2Data();
       toast({ title: "Success", description: "Manual position reset" });
     } catch (error) {
       console.error('[Gantt V2] Failed to reset manual position:', error);
@@ -1547,79 +1433,7 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Gantt V2: Store task state before making changes (for undo)
-  const storeGanttV2UndoState = (task: GanttTask) => {
-    const row = task.rowData as GanttSmScheduleMaster | undefined;
-    if (!row) return;
-
-    // Only store if we don't already have an undo state for this task
-    if (ganttV2UndoHistory.has(task.id)) return;
-
-    setGanttV2UndoHistory(prev => {
-      const next = new Map(prev);
-      next.set(task.id, {
-        startDate: task.startDate,
-        endDate: task.endDate,
-        duration: row.duration_days || 1,
-        hold: row.hold || false,
-        holdDate: row.hold_date || null
-      });
-      return next;
-    });
-
-    console.log('[Gantt V2] Stored undo state for task:', task.id);
-  };
-
-  // Gantt V2: Handle undo (Ctrl+Z)
-  const handleGanttV2Undo = async (selectedTaskId: string) => {
-    if (!ganttV2TemplateId) return;
-
-    const previousState = ganttV2UndoHistory.get(selectedTaskId);
-    if (!previousState) {
-      console.log('[Gantt V2] No undo history for task:', selectedTaskId);
-      return;
-    }
-
-    // Find the task to get the row id
-    const task = ganttV2Tasks.find(t => t.id === selectedTaskId);
-    if (!task) {
-      console.error('[Gantt V2] Task not found for undo:', selectedTaskId);
-      return;
-    }
-
-    const row = task.rowData as GanttSmScheduleMaster | undefined;
-    if (!row) {
-      console.error('[Gantt V2] No row data for task:', selectedTaskId);
-      return;
-    }
-
-    try {
-      console.log('[Gantt V2] Undoing task:', selectedTaskId, 'to state:', previousState);
-
-      // Restore to previous state via API
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${row.id}`, {
-        row: {
-          hold: previousState.hold,
-          hold_date: previousState.holdDate,
-          duration_days: previousState.duration
-        }
-      });
-
-      // Clear from undo history
-      setGanttV2UndoHistory(prev => {
-        const next = new Map(prev);
-        next.delete(selectedTaskId);
-        return next;
-      });
-
-      // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
-      toast({ title: "Undo", description: "Change undone" });
-    } catch (error) {
-      console.error('[Gantt V2] Failed to undo:', error);
-      toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
-    }
-  };
+  // SSoT: storeGanttV2UndoState and handleGanttV2Undo are aliases to gantt.storeUndoState and gantt.handleUndo (see above)
 
   // Gantt V2: Open dependency editor
   const handleGanttV2EditDependencies = (task: GanttTask, visibleTasks: GanttTask[]) => {
@@ -1708,7 +1522,7 @@ export function ScheduleMasterTab() {
       }
 
       // Refresh data
-      loadGanttV2Data(ganttV2TemplateId);
+      loadGanttV2Data();
       toast({ title: "Success", description: "Dependencies updated" });
     } catch (error) {
       console.error('[Gantt V2] Failed to save dependencies:', error);
@@ -1744,7 +1558,7 @@ export function ScheduleMasterTab() {
         loadDataViewRows(dataViewTemplateId);
         // Refresh Gantt V2 if edit was from there
         if (activeEditTemplateId === ganttV2TemplateId && ganttV2TemplateId) {
-          loadGanttV2Data(ganttV2TemplateId);
+          loadGanttV2Data();
         }
       } else {
         toast({ title: "Success", description: "Row updated" });
@@ -1755,7 +1569,7 @@ export function ScheduleMasterTab() {
         loadDataViewRows(dataViewTemplateId);
         // Refresh Gantt V2 if edit was from there
         if (activeEditTemplateId === ganttV2TemplateId && ganttV2TemplateId) {
-          loadGanttV2Data(ganttV2TemplateId);
+          loadGanttV2Data();
         }
       }
     } catch (error) {
@@ -1978,351 +1792,15 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Gantt V2 functions (for debugging)
-  const loadGanttV2Data = async (templateId: number) => {
-    setGanttV2TemplateId(templateId);
-    setGanttV2Loading(true);
-    try {
-      // SSoT: Get validated dates from backend (skips weekends/holidays using WorkingDaysCalculator)
-      let dateMap: Record<number, { start_date: string; end_date: string }> | null = null;
-      try {
-        console.log('[Gantt V2] 🔄 Running auto-rollover on template load...');
-        const validateResult = await api.post<{
-          success: boolean;
-          updated: number;
-          date_map: Record<number, { start_date: string; end_date: string }>;
-        }>(
-          `/api/v1/sm_schedule_master_templates/${templateId}/validate_dates`
-        );
-        if (validateResult?.updated && validateResult.updated > 0) {
-          console.log(`[Gantt V2] ✅ Auto-rollover calculated ${validateResult.updated} task(s) to working days`);
-        }
-        dateMap = validateResult?.date_map || null;
-      } catch (rolloverErr) {
-        console.warn('[Gantt V2] Auto-rollover failed (continuing anyway):', rolloverErr);
-      }
+  // SSoT: loadGanttV2Data now provided by useGanttDataManager hook (see aliases above)
+  // The hook's loadData is automatically triggered when ganttV2TemplateId changes
 
-      // SSoT: Use ?for=gantt to get filtered tasks (po_required without supplier = invisible)
-      const data = await api.get<{ success: boolean; rows: GanttSmScheduleMaster[] }>(
-        `/api/v1/sm_schedule_master_templates/${templateId}/rows?for=gantt`
-      );
-      const rows = data.rows || [];
-
-      // Convert to GanttTask[] format using SSoT converter
-      const projectStartDate = new Date(); // Use today as project start for template preview
-      let tasks = convertRowsToTasks(rows, projectStartDate);
-
-      // SSoT: Apply backend-calculated dates (WorkingDaysCalculator ensures no weekends/holidays)
-      // IMPORTANT: Skip headers - their dates are calculated from spanning children in convertRowsToTasks
-      if (dateMap) {
-        console.log('[Gantt V2] 📅 Applying backend date_map to tasks (skipping headers)');
-        tasks = tasks.map(task => {
-          // Find row by task.id (which is row.id as string)
-          const row = rows.find(r => String(r.id) === task.id);
-
-          // Skip headers - they get dates from spanning their children, not from date_map
-          if (isHeaderRow(row)) {
-            return task;
-          }
-
-          if (row && dateMap[row.task_number]) {
-            const dates = dateMap[row.task_number];
-            return {
-              ...task,
-              startDate: new Date(dates.start_date + 'T00:00:00'), // Parse as local date
-              endDate: new Date(dates.end_date + 'T00:00:00'),
-            };
-          }
-          return task;
-        });
-
-        // CRITICAL: Recalculate header spans AFTER applying date_map
-        // Headers need to span their children's ROLLED OVER dates, not original dates
-        const headerTaskNumbers = new Set<number>();
-        const childrenByHeader = new Map<number, typeof tasks>();
-
-        // Find headers and build children map
-        for (const row of rows) {
-          if (isHeaderRow(row)) {
-            headerTaskNumbers.add(row.task_number);
-            childrenByHeader.set(row.task_number, []);
-          }
-        }
-
-        // Group children under their headers
-        // IMPORTANT: tasks array is sorted differently than rows, so match by id
-        for (const task of tasks) {
-          const row = rows.find(r => String(r.id) === task.id);
-          // Only skip top-level headers (header_gantt === 'Header')
-          // Level 2 headers have allow_header=true but ARE children of other headers
-          if (!row || row.header_gantt === 'Header') continue;
-
-          // Get parent header task_number from header_gantt
-          // Can be: number, {id, display} object, or string number like "1407"
-          let parentTaskNumber: number | null = null;
-          if (typeof row.header_gantt === 'number') {
-            parentTaskNumber = row.header_gantt;
-          } else if (typeof row.header_gantt === 'object' && row.header_gantt?.id) {
-            parentTaskNumber = row.header_gantt.id;
-          } else if (typeof row.header_gantt === 'string' && row.header_gantt !== 'Header') {
-            // Parse string number (e.g., "1407" -> 1407)
-            const parsed = parseInt(row.header_gantt, 10);
-            if (!isNaN(parsed)) {
-              parentTaskNumber = parsed;
-            }
-          }
-
-          if (parentTaskNumber && headerTaskNumbers.has(parentTaskNumber)) {
-            childrenByHeader.get(parentTaskNumber)!.push(task);
-          }
-        }
-
-        // Build task_number -> task map for predecessor lookups
-        const taskByTaskNumber = new Map<number, typeof tasks[0]>();
-        for (const task of tasks) {
-          const row = rows.find(r => String(r.id) === task.id);
-          if (row?.task_number) {
-            taskByTaskNumber.set(row.task_number, task);
-          }
-        }
-
-        // Update header dates to span their children AND respect predecessors
-        // Run multiple passes because headers can depend on other headers
-        // (e.g., SLAB depends on PRE CONSTRUCTION)
-        const updateHeaderDates = () => {
-          let changed = false;
-
-          for (const task of tasks) {
-            const row = rows.find(r => String(r.id) === task.id);
-            if (!row || !isHeaderRow(row)) continue;
-
-            const children = childrenByHeader.get(row.task_number);
-            if (!children || children.length === 0) continue;
-
-            // Calculate span from children
-            let minStart = children[0].startDate;
-            let maxEnd = children[0].endDate;
-            for (const child of children) {
-              if (child.startDate < minStart) minStart = child.startDate;
-              if (child.endDate > maxEnd) maxEnd = child.endDate;
-            }
-
-            // If header has predecessors, ensure it doesn't start before they finish
-            if (row.predecessor_ids && Array.isArray(row.predecessor_ids)) {
-              for (const pred of row.predecessor_ids) {
-                const predTask = taskByTaskNumber.get(pred.id);
-                if (predTask) {
-                  const predType = pred.type || 'FS';
-                  const lag = pred.lag || 0;
-                  let requiredStart: Date;
-
-                  if (predType === 'FS') {
-                    requiredStart = new Date(predTask.endDate);
-                    requiredStart.setDate(requiredStart.getDate() + 1 + lag);
-                  } else if (predType === 'SS') {
-                    requiredStart = new Date(predTask.startDate);
-                    requiredStart.setDate(requiredStart.getDate() + lag);
-                  } else {
-                    requiredStart = new Date(predTask.endDate);
-                    requiredStart.setDate(requiredStart.getDate() + 1 + lag);
-                  }
-
-                  if (requiredStart > minStart) {
-                    minStart = requiredStart;
-                  }
-                }
-              }
-            }
-
-            // Calculate actual earliest child start
-            let actualChildMinStart = children[0].startDate;
-            for (const child of children) {
-              if (child.startDate < actualChildMinStart) actualChildMinStart = child.startDate;
-            }
-
-            // If header needs to start later than children currently do, shift children
-            if (minStart > actualChildMinStart) {
-              const shiftDays = Math.ceil((minStart.getTime() - actualChildMinStart.getTime()) / (1000 * 60 * 60 * 24));
-
-              // Shift all children forward
-              for (const child of children) {
-                child.startDate = new Date(child.startDate.getTime() + shiftDays * 24 * 60 * 60 * 1000);
-                child.endDate = new Date(child.endDate.getTime() + shiftDays * 24 * 60 * 60 * 1000);
-              }
-
-              // Recalculate maxEnd after shifting
-              maxEnd = children[0].endDate;
-              for (const child of children) {
-                if (child.endDate > maxEnd) maxEnd = child.endDate;
-              }
-
-              changed = true;
-            }
-
-            // Update task dates if changed
-            const oldStart = task.startDate.getTime();
-            const oldEnd = task.endDate.getTime();
-            if (minStart.getTime() !== oldStart || maxEnd.getTime() !== oldEnd) {
-              task.startDate = new Date(minStart);
-              task.endDate = new Date(maxEnd);
-              changed = true;
-            }
-          }
-
-          return changed;
-        };
-
-        // Run up to 10 passes to handle header dependency chains
-        for (let pass = 0; pass < 10; pass++) {
-          if (!updateHeaderDates()) break;
-        }
-
-        // Filter out headers with no active children
-        tasks = tasks.filter(task => {
-          const row = rows.find(r => String(r.id) === task.id);
-          if (!row || !isHeaderRow(row)) return true; // Keep non-headers
-
-          const children = childrenByHeader.get(row.task_number);
-          return children && children.length > 0; // Only keep headers WITH children
-        });
-      }
-
-      // Sort tasks by start date while keeping header groups together
-      // Headers sorted by their start date, children sorted within each header
-      const sortTasksChronologically = (taskList: typeof tasks): typeof tasks => {
-        // Build header -> children map using task objects
-        const headerChildren = new Map<string, typeof tasks>();
-        const ungroupedTasks: typeof tasks = [];
-        const headerTasks: typeof tasks = [];
-
-        // First pass: identify TOP-LEVEL headers only
-        // Top-level headers have: header_gantt === null OR header_gantt === 'Header'
-        // Level 2+ headers have: header_gantt === {id, display} pointing to parent
-        for (const task of taskList) {
-          const row = rows.find(r => String(r.id) === task.id);
-          // Top-level header: isHeaderRow AND (header_gantt is null or 'Header')
-          const isTopLevelHeader = row && isHeaderRow(row) &&
-            (row.header_gantt === null || row.header_gantt === 'Header');
-          if (isTopLevelHeader) {
-            headerTasks.push(task);
-            headerChildren.set(task.id, []);
-          }
-        }
-
-        // Helper to get parent task_number from a row
-        const getParentTaskNumber = (r: typeof rows[0] | undefined): number | null => {
-          if (!r) return null;
-          if (typeof r.header_gantt === 'number') return r.header_gantt;
-          if (typeof r.header_gantt === 'object' && r.header_gantt?.id) return r.header_gantt.id;
-          if (typeof r.header_gantt === 'string' && r.header_gantt !== 'Header') {
-            const parsed = parseInt(r.header_gantt, 10);
-            return isNaN(parsed) ? null : parsed;
-          }
-          return null;
-        };
-
-        // Helper to find top-level header ancestor (walks up the hierarchy)
-        const findTopLevelHeader = (taskNumber: number | null): typeof headerTasks[0] | null => {
-          if (!taskNumber) return null;
-
-          // Check if this task_number is a top-level header
-          const directHeader = headerTasks.find(h => {
-            const hRow = rows.find(r => String(r.id) === h.id);
-            return hRow?.task_number === taskNumber;
-          });
-          if (directHeader) return directHeader;
-
-          // Not a top-level header - find the row and look at its parent
-          const row = rows.find(r => r.task_number === taskNumber);
-          if (!row) return null;
-
-          const parentNum = getParentTaskNumber(row);
-          if (!parentNum || parentNum === taskNumber) return null; // Avoid infinite loop
-
-          return findTopLevelHeader(parentNum);
-        };
-
-        // Second pass: assign children to their TOP-LEVEL header ancestors
-        for (const task of taskList) {
-          const row = rows.find(r => String(r.id) === task.id);
-          // Skip top-level headers (header_gantt === null or 'Header')
-          // Level 2 headers ARE children of other headers
-          const isTopLevel = row && isHeaderRow(row) &&
-            (row.header_gantt === null || row.header_gantt === 'Header');
-          if (isTopLevel) continue;
-
-          // Find top-level header ancestor (may be parent, grandparent, etc.)
-          const parentTaskNumber = getParentTaskNumber(row);
-          const topLevelHeader = findTopLevelHeader(parentTaskNumber);
-
-          if (topLevelHeader) {
-            headerChildren.get(topLevelHeader.id)!.push(task);
-          } else {
-            ungroupedTasks.push(task);
-          }
-        }
-
-        // Sort headers by start date, then by end date if same start
-        headerTasks.sort((a, b) => {
-          const startDiff = a.startDate.getTime() - b.startDate.getTime();
-          if (startDiff !== 0) return startDiff;
-          return a.endDate.getTime() - b.endDate.getTime();
-        });
-
-        // Sort children within each header by start date, then by end date if same start
-        for (const children of headerChildren.values()) {
-          children.sort((a, b) => {
-            const startDiff = a.startDate.getTime() - b.startDate.getTime();
-            if (startDiff !== 0) return startDiff;
-            return a.endDate.getTime() - b.endDate.getTime();
-          });
-        }
-
-        // Sort ungrouped tasks by start date, then by end date if same start
-        ungroupedTasks.sort((a, b) => {
-          const startDiff = a.startDate.getTime() - b.startDate.getTime();
-          if (startDiff !== 0) return startDiff;
-          return a.endDate.getTime() - b.endDate.getTime();
-        });
-
-        // Rebuild task list: headers with their children, then ungrouped tasks
-        const result: typeof tasks = [];
-        for (const header of headerTasks) {
-          result.push(header);
-          result.push(...headerChildren.get(header.id)!);
-        }
-        result.push(...ungroupedTasks);
-
-        return result;
-      };
-
-      tasks = sortTasksChronologically(tasks);
-
-      // Extract dependencies from tasks (predecessor_ids are embedded in tasks)
-      const dependencies: GanttDependency[] = [];
-      for (const row of rows) {
-        if (row.predecessor_ids && Array.isArray(row.predecessor_ids)) {
-          for (const pred of row.predecessor_ids) {
-            dependencies.push({
-              id: `dep-${pred.id}-${row.id}`,
-              fromId: String(pred.id),
-              toId: String(row.task_number),
-              type: pred.type || 'FS',
-              lag: pred.lag || 0,
-            });
-          }
-        }
-      }
-      setGanttV2Tasks(tasks);
-      setGanttV2Dependencies(dependencies);
-    } catch (error) {
-      console.error("Failed to load gantt v2 data:", error);
-      setGanttV2Tasks([]);
-      setGanttV2Dependencies([]);
-    } finally {
-      setGanttV2Loading(false);
+  // Load Gantt V2 data when template is selected
+  React.useEffect(() => {
+    if (ganttV2TemplateId) {
+      gantt.loadData();
     }
-  };
+  }, [ganttV2TemplateId, gantt.loadData]);
 
   if (loading) {
     return (
@@ -2578,7 +2056,7 @@ export function ScheduleMasterTab() {
                 value={ganttV2TemplateId ? String(ganttV2TemplateId) : ""}
                 onValueChange={(value) => {
                   if (value) {
-                    loadGanttV2Data(parseInt(value));
+                    setGanttV2TemplateId(parseInt(value));
                   }
                 }}
               >
