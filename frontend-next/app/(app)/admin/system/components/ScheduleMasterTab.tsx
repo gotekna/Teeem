@@ -2105,7 +2105,7 @@ export function ScheduleMasterTab() {
                   showBaselineControls={false}
                   className="h-full"
                   onTaskClick={gantt.handleTaskClick}
-                  onTaskDoubleClick={gantt.handleTaskDoubleClick}
+                  onTaskDoubleClick={handleGanttV2TaskDoubleClick}
                   onTaskDrag={gantt.handleTaskDrag}
                   onTaskResize={gantt.handleTaskResize}
                   onCheckboxToggle={gantt.handleCheckboxToggle}
