@@ -476,8 +476,16 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         if (child.endDate > maxEnd) maxEnd = child.endDate;
       }
 
-      task.startDate = new Date(minStart);
-      task.endDate = new Date(maxEnd);
+      // If header has explicit dependencies, keep START date from cascade but update END date to span children
+      const hasExplicitDependencies = row.predecessor_ids && row.predecessor_ids.length > 0;
+      if (hasExplicitDependencies) {
+        // Only update end date to span children, keep cascaded start date
+        task.endDate = new Date(maxEnd);
+      } else {
+        // No explicit dependencies - span from earliest child to latest child
+        task.startDate = new Date(minStart);
+        task.endDate = new Date(maxEnd);
+      }
     }
 
     // Filter headers with no children
@@ -492,6 +500,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   /**
    * Cascade dependency dates after backend date_map is applied.
    * For each task with predecessors, ensure it starts after all predecessors end.
+   * Runs multiple passes until all dependencies settle.
    */
   function cascadeDependencyDates(
     taskList: GanttTask[],
@@ -510,20 +519,90 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       if (row) taskByNumber.set(row.task_number, task);
     }
 
-    // Count tasks with predecessors for logging
-    const tasksWithPreds = rowList.filter(r => r.predecessor_ids && r.predecessor_ids.length > 0);
+    // Track total updates across all passes
+    let totalUpdated = 0;
+    const MAX_PASSES = 10; // Safety limit
 
-    // Track which tasks have been updated
+    for (let pass = 1; pass <= MAX_PASSES; pass++) {
+      console.log(`[CASCADE] === Pass ${pass} ===`);
+      const passUpdated = runCascadePass(taskList, rowList, taskByNumber, rowByNumber, holidayDates);
+
+      if (passUpdated === 0) {
+        console.log(`[CASCADE] No changes in pass ${pass}, cascade complete`);
+        break;
+      }
+
+      totalUpdated += passUpdated;
+      console.log(`[CASCADE] Pass ${pass} updated ${passUpdated} tasks`);
+
+      if (pass === MAX_PASSES) {
+        console.warn(`[CASCADE] Hit max passes (${MAX_PASSES}), possible circular dependency`);
+      }
+    }
+
+    // Recalculate header spans after all cascading is done
+    if (totalUpdated > 0) {
+      console.log(`[CASCADE] Total ${totalUpdated} task updates, recalculating header spans...`);
+      return recalculateHeaderSpans(taskList, rowList);
+    }
+
+    return taskList;
+  }
+
+  /**
+   * Single pass of cascade - returns number of tasks updated
+   */
+  function runCascadePass(
+    taskList: GanttTask[],
+    rowList: SmScheduleMaster[],
+    taskByNumber: Map<number, GanttTask>,
+    rowByNumber: Map<number, SmScheduleMaster>,
+    holidayDates?: Set<string>
+  ): number {
+    // Track which tasks have been updated this pass
     const updated = new Set<number>();
 
-    // Process tasks in order (sorted by current start date)
-    const sortedTasks = [...taskList].sort((a, b) =>
-      a.startDate.getTime() - b.startDate.getTime()
-    );
+    // Helper: Get effective end date for a task (for headers, use max child end date)
+    function getEffectiveEndDate(taskNum: number): Date | null {
+      const task = taskByNumber.get(taskNum);
+      const row = rowByNumber.get(taskNum);
+      if (!task || !row) return null;
 
-    for (const task of sortedTasks) {
-      const row = rowList.find(r => String(r.id) === task.id);
-      if (!row || isHeaderRow(row)) continue;
+      // If it's a header, find the max end date of all children
+      if (isHeaderRow(row)) {
+        let maxChildEnd: Date | null = null;
+        for (const childRow of rowList) {
+          if (isHeaderRow(childRow)) continue;
+
+          // Check if this task is under the header
+          let parentTaskNumber: number | null = null;
+          if (typeof childRow.header_gantt === 'number') {
+            parentTaskNumber = childRow.header_gantt;
+          } else if (typeof childRow.header_gantt === 'object' && childRow.header_gantt?.id) {
+            parentTaskNumber = childRow.header_gantt.id;
+          }
+
+          if (parentTaskNumber === taskNum) {
+            const childTask = taskByNumber.get(childRow.task_number);
+            if (childTask && (!maxChildEnd || childTask.endDate > maxChildEnd)) {
+              maxChildEnd = childTask.endDate;
+            }
+          }
+        }
+        if (maxChildEnd) {
+          console.log(`[CASCADE] Header ${taskNum} (${row.name}) effective end date from children: ${maxChildEnd.toISOString().split('T')[0]}`);
+          return maxChildEnd;
+        }
+      }
+
+      return task.endDate;
+    }
+
+    // Process all tasks (multi-pass handles order dependencies)
+    for (const row of rowList) {
+      const taskNum = row.task_number;
+      const task = taskByNumber.get(taskNum);
+      if (!task) continue;
 
       const predecessors = row.predecessor_ids || [];
       if (predecessors.length === 0) continue;
@@ -533,7 +612,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       for (const pred of predecessors) {
         const predTask = taskByNumber.get(pred.id);
-        if (!predTask) continue;
+        const predRow = rowByNumber.get(pred.id);
+        if (!predTask) {
+          console.warn(`[CASCADE] ⚠️ Predecessor ${pred.id} NOT FOUND for task ${taskNum} (${row.name}) - task ${pred.id} may be filtered out of current view`);
+          continue;
+        }
 
         const predType = pred.type || 'FS';
         const lagDays = pred.lag || 0;
@@ -541,13 +624,33 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
         if (predType === 'FS') {
           // Finish-to-Start: start after predecessor ends + lag
-          requiredStart = addWorkingDays(predTask.endDate, 1 + lagDays, holidayDates);
+          // For headers, use effective end date (max of children)
+          const predEndDate = getEffectiveEndDate(pred.id) || predTask.endDate;
+          requiredStart = addWorkingDays(predEndDate, 1 + lagDays, holidayDates);
+          console.log(`[CASCADE] Task ${taskNum} depends on ${pred.id} (${predRow?.name}) FS - pred ends ${predEndDate.toISOString().split('T')[0]}, required start: ${requiredStart.toISOString().split('T')[0]}`);
         } else if (predType === 'SS') {
           // Start-to-Start: start when predecessor starts + lag
           requiredStart = addWorkingDays(predTask.startDate, lagDays, holidayDates);
+          console.log(`[CASCADE] Task ${taskNum} depends on ${pred.id} (${predRow?.name}) SS - pred starts ${predTask.startDate.toISOString().split('T')[0]}, required start: ${requiredStart.toISOString().split('T')[0]}`);
+        } else if (predType === 'FF') {
+          // Finish-to-Finish: this task ends when predecessor ends + lag
+          // So start = pred end + lag - (duration - 1)
+          const predEndDate = getEffectiveEndDate(pred.id) || predTask.endDate;
+          const taskDuration = row.duration_days || 1;
+          // Task must end on predEndDate + lag, so it starts (duration-1) days before that
+          const requiredEndDate = addWorkingDays(predEndDate, lagDays, holidayDates);
+          requiredStart = addWorkingDays(requiredEndDate, -(taskDuration - 1), holidayDates);
+          console.log(`[CASCADE] Task ${taskNum} depends on ${pred.id} (${predRow?.name}) FF - pred ends ${predEndDate.toISOString().split('T')[0]}, required end: ${requiredEndDate.toISOString().split('T')[0]}, required start: ${requiredStart.toISOString().split('T')[0]}`);
+        } else if (predType === 'SF') {
+          // Start-to-Finish: this task ends when predecessor starts + lag
+          const taskDuration = row.duration_days || 1;
+          const requiredEndDate = addWorkingDays(predTask.startDate, lagDays, holidayDates);
+          requiredStart = addWorkingDays(requiredEndDate, -(taskDuration - 1), holidayDates);
+          console.log(`[CASCADE] Task ${taskNum} depends on ${pred.id} (${predRow?.name}) SF - pred starts ${predTask.startDate.toISOString().split('T')[0]}, required start: ${requiredStart.toISOString().split('T')[0]}`);
         } else {
           // Default to FS
-          requiredStart = addWorkingDays(predTask.endDate, 1 + lagDays, holidayDates);
+          const predEndDate = getEffectiveEndDate(pred.id) || predTask.endDate;
+          requiredStart = addWorkingDays(predEndDate, 1 + lagDays, holidayDates);
         }
 
         if (!latestRequiredStart || requiredStart > latestRequiredStart) {
@@ -557,19 +660,58 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       // If task needs to move forward
       if (latestRequiredStart && latestRequiredStart > task.startDate) {
+        const oldStartDate = task.startDate;
         const duration = row.duration_days || 1;
         task.startDate = new Date(latestRequiredStart);
         task.endDate = addWorkingDays(task.startDate, duration - 1, holidayDates);
         updated.add(row.task_number);
+        console.log(`[CASCADE] Task ${taskNum} (${row.name}) moved from ${oldStartDate.toISOString().split('T')[0]} to ${task.startDate.toISOString().split('T')[0]}`);
+
+        // If this is a header, cascade all its children forward
+        if (isHeaderRow(row)) {
+          const deltaDays = Math.round((task.startDate.getTime() - oldStartDate.getTime()) / (1000 * 60 * 60 * 24));
+          console.log(`[CASCADE] Header ${row.name} moved by ${deltaDays} days, cascading children...`);
+
+          // Find all children under this header and move them
+          for (const childTask of taskList) {
+            const childRow = rowList.find(r => String(r.id) === childTask.id);
+            if (!childRow || isHeaderRow(childRow)) continue;
+
+            // Check if this task is under the header
+            let parentTaskNumber: number | null = null;
+            if (typeof childRow.header_gantt === 'number') {
+              parentTaskNumber = childRow.header_gantt;
+            } else if (typeof childRow.header_gantt === 'object' && childRow.header_gantt?.id) {
+              parentTaskNumber = childRow.header_gantt.id;
+            }
+
+            if (parentTaskNumber === row.task_number) {
+              // Child can't start before its header - use the LATER of:
+              // 1. Header's new start date (minimum constraint)
+              // 2. Child's current date (from backend, based on its own dependencies)
+              const headerStart = task.startDate;
+              const childCurrentStart = childTask.startDate;
+              const childOldStart = childTask.startDate;
+              const childDuration = childRow.duration_days || 1;
+
+              if (childCurrentStart < headerStart) {
+                // Child is before header - must move to at least header start
+                childTask.startDate = new Date(headerStart);
+                childTask.endDate = addWorkingDays(childTask.startDate, childDuration - 1, holidayDates);
+                updated.add(childRow.task_number);
+                console.log(`[CASCADE]   Child ${childRow.task_number} (${childRow.name}) moved from ${childOldStart.toISOString().split('T')[0]} to ${childTask.startDate.toISOString().split('T')[0]} (can't be before header)`);
+              } else {
+                // Child is already at or after header - keep its position (respects its own deps)
+                console.log(`[CASCADE]   Child ${childRow.task_number} (${childRow.name}) at ${childCurrentStart.toISOString().split('T')[0]} - already after header ${headerStart.toISOString().split('T')[0]}`);
+              }
+            }
+          }
+        }
       }
     }
 
-    // Recalculate header spans after cascading
-    if (updated.size > 0) {
-      return recalculateHeaderSpans(taskList, rowList);
-    }
-
-    return taskList;
+    // Return number of tasks updated this pass
+    return updated.size;
   }
 
   // ---------------------------------------------------------------------------
