@@ -1409,22 +1409,34 @@ export default function TeeemTableView({
   // Initialize groupByColumns from initialView (SSR) or initialGroupByColumn prop on mount
   // Priority: SSR initialView > initialGroupByColumn prop
   // Only runs once and only if atom is empty (doesn't override saved views)
+  // CLS FIX: Skip setting if atom already matches to avoid unnecessary re-render
   const initialGroupByRef = useRef(false);
   useEffect(() => {
     if (initialGroupByRef.current) return;
 
+    // Helper to compare arrays for equality
+    const arraysEqual = (a: string[], b: string[]) =>
+      a.length === b.length && a.every((v, i) => v === b[i]);
+
     // Priority 1: SSR initialView - eliminates flash on grouped views
     if (initialView?.group_by_columns?.length) {
       initialGroupByRef.current = true;
-      console.log('[SSR] Applying initialView groupByColumns:', initialView.group_by_columns);
-      setGroupByColumns(initialView.group_by_columns);
+      // CLS FIX: Skip if atom already has the same value (avoids re-render)
+      if (!arraysEqual(groupByColumns, initialView.group_by_columns)) {
+        console.log('[SSR] Applying initialView groupByColumns:', initialView.group_by_columns);
+        setGroupByColumns(initialView.group_by_columns);
+      }
       return;
     }
     // Also check legacy group_by_column field
     if (initialView?.group_by_column) {
       initialGroupByRef.current = true;
-      console.log('[SSR] Applying initialView group_by_column:', initialView.group_by_column);
-      setGroupByColumns([initialView.group_by_column]);
+      const targetColumns = [initialView.group_by_column];
+      // CLS FIX: Skip if atom already has the same value (avoids re-render)
+      if (!arraysEqual(groupByColumns, targetColumns)) {
+        console.log('[SSR] Applying initialView group_by_column:', initialView.group_by_column);
+        setGroupByColumns(targetColumns);
+      }
       return;
     }
 
@@ -1433,7 +1445,7 @@ export default function TeeemTableView({
       initialGroupByRef.current = true;
       setGroupByColumns([initialGroupByColumn]);
     }
-  }, [initialView, initialGroupByColumn, groupByColumns.length, setGroupByColumns]);
+  }, [initialView, initialGroupByColumn, groupByColumns, setGroupByColumns]);
 
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
