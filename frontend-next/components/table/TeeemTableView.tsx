@@ -118,7 +118,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { clearCachedRecords } from "@/lib/records-cache";
+import { getCachedRecords, setCachedRecords, clearCachedRecords } from "@/lib/records-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
@@ -715,6 +715,26 @@ export default function TeeemTableView({
     prevRefreshTriggerRef.current = refreshTrigger;
   }, [refreshTrigger, triggerAutoRefresh]);
 
+  // CACHE RESTORATION: Check if we have cached records with more data than SSR
+  // This enables instant restoration of scroll position when navigating back
+  // Only runs once on mount to avoid overwriting fresh data
+  const hasCacheRestoredRef = useRef(false);
+  useEffect(() => {
+    if (hasCacheRestoredRef.current) return;
+    if (!useAutoFetch || !effectiveFoundationId) return;
+
+    const cached = getCachedRecords(effectiveFoundationId);
+    if (cached && cached.records.length > (initialRecords?.length || 0)) {
+      // Cache has more records (user had scrolled/loaded more before)
+      // Restore from cache for better UX
+      console.log(`[RecordsCache] Restoring ${cached.records.length} records from cache (SSR had ${initialRecords?.length || 0})`);
+      setAutoFetchedRecords(cached.records as TableRowType[]);
+      setHasMore(cached.hasMore);
+      hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
+    }
+    hasCacheRestoredRef.current = true;
+  }, [useAutoFetch, effectiveFoundationId, initialRecords?.length]);
+
   // Auto-fetch columns when effectiveFoundationId is set
   // ULTRA: Uses module-level cache for instant loading on repeat visits
   useEffect(() => {
@@ -875,6 +895,14 @@ export default function TeeemTableView({
       if (!hasPersistedSearch) {
         // SSR data is already in state (initialized in useState), just mark as applied
         hasAppliedInitialRecordsRef.current = true;
+        // CACHE: Save SSR data to cache (if cache is empty or has fewer records)
+        // This ensures SSR data is available on back navigation
+        if (effectiveFoundationId) {
+          const cached = getCachedRecords(effectiveFoundationId);
+          if (!cached || cached.records.length < initialRecords.length) {
+            setCachedRecords(effectiveFoundationId, initialRecords as Record<string, unknown>[], null, initialHasMore ?? true);
+          }
+        }
         return;
       }
       // Mark as applied even if we skipped (search will fetch its own data)
@@ -933,8 +961,13 @@ export default function TeeemTableView({
           `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params }
         );
-        setAutoFetchedRecords(response.records || []);
+        const newRecords = response.records || [];
+        setAutoFetchedRecords(newRecords);
         setHasMore(response.has_more ?? true);
+        // CACHE: Save records for instant restoration on back navigation
+        if (newRecords.length > 0) {
+          setCachedRecords(effectiveFoundationId, newRecords as Record<string, unknown>[], null, response.has_more ?? true);
+        }
       } catch (error) {
         console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
       } finally {
@@ -989,12 +1022,18 @@ export default function TeeemTableView({
         );
 
         // Deduplicate records by ID to prevent duplicate rows
+        const newHasMore = response.has_more ?? false;
         setAutoFetchedRecords(prev => {
           const existingIds = new Set(prev.map(r => r.id));
           const newRecords = (response.records || []).filter(r => !existingIds.has(r.id));
-          return [...prev, ...newRecords];
+          const mergedRecords = [...prev, ...newRecords];
+          // CACHE: Update cache with merged records for back navigation
+          if (effectiveFoundationId) {
+            setCachedRecords(effectiveFoundationId, mergedRecords as Record<string, unknown>[], null, newHasMore);
+          }
+          return mergedRecords;
         });
-        setHasMore(response.has_more ?? false);
+        setHasMore(newHasMore);
       } catch (error) {
         console.error(`[TeeemTableView] Failed to load more records:`, error);
       } finally {
@@ -3107,6 +3146,9 @@ export default function TeeemTableView({
           const skipUrlUpdate = !!urlViewExistsForFoundation;
           loadViewState(defaultView, skipUrlUpdate);
           initialViewLoadedRef.current = true;
+          // CRITICAL: Trigger fetch effect now that views are loaded
+          // Without this, the fetch effect (which waits for initialViewLoadedRef) never re-runs
+          setAutoFetchRefreshKey(prev => prev + 1);
 
           // For embedded context: notify parent on initial load so URL can sync
           // Only if no view was already in the URL (don't override explicit URL)
