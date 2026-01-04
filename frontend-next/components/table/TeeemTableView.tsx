@@ -3386,9 +3386,17 @@ export default function TeeemTableView({
         });
 
         if (defaultView) {
-          // Skip URL update if loading from URL view that exists for this foundation
-          const skipUrlUpdate = !!urlViewExistsForFoundation;
-          loadViewState(defaultView, skipUrlUpdate);
+          // SSoT: If initialView was provided via SSR, DON'T call loadViewState again
+          // The SSR initialView already set up grouping, filters, columns - don't overwrite!
+          // loadViewState should ONLY be called when user clicks a view button
+          const ssrAlreadyAppliedView = !!initialView;
+
+          if (!ssrAlreadyAppliedView) {
+            // No SSR view - apply default view now
+            const skipUrlUpdate = !!urlViewExistsForFoundation;
+            loadViewState(defaultView, skipUrlUpdate);
+          }
+
           initialViewLoadedRef.current = true;
           // CRITICAL: Trigger fetch effect now that views are loaded
           // Without this, the fetch effect (which waits for initialViewLoadedRef) never re-runs
@@ -5269,7 +5277,7 @@ export default function TeeemTableView({
 
     return (
       <>
-        {groupViewMode === "inline" ? (
+        {effectiveGroupViewMode === "inline" ? (
           /* Inline mode (default) - single table with sticky header */
           <Table className="w-full" style={{ tableLayout: 'fixed' }}>
             {renderTableHeader()}
@@ -5675,7 +5683,7 @@ export default function TeeemTableView({
               <span className="text-[11px] font-medium text-muted-foreground">View:</span>
               <div className="flex rounded-md border overflow-hidden">
                 <Button
-                  variant={groupViewMode === "inline" ? "default" : "ghost"}
+                  variant={effectiveGroupViewMode === "inline" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setGroupViewMode("inline")}
                   className="h-7 px-3 text-xs rounded-none border-r"
@@ -5683,7 +5691,7 @@ export default function TeeemTableView({
                   Inline
                 </Button>
                 <Button
-                  variant={groupViewMode === "panel" ? "default" : "ghost"}
+                  variant={effectiveGroupViewMode === "panel" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setGroupViewMode("panel")}
                   className="h-7 px-3 text-xs rounded-none"
