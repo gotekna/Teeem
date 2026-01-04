@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { Plus } from "lucide-react";
-import type { TableRow, TableColumn } from "@/components/table/types";
+import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
+import type { ViewData } from "@/lib/server/foundation-api";
 
 // Lazy load heavy modals - they're only needed when user triggers merge/transfer
 const MergeModal = lazy(() => import("@/components/table/MergeModal").then(m => ({ default: m.MergeModal })));
@@ -35,6 +36,16 @@ interface ContactsPageClientProps {
   initialColumns: TableColumn[];
   initialRecords: TableRow[];
   initialHasMore: boolean;
+  // SSR view config - eliminates flash when loading grouped views
+  initialView?: ViewData | null;
+  // SSR all views - for immediate toolbar button rendering
+  initialViews?: ViewData[];
+  // SSR group counts - eliminates CLS when group counts load
+  initialGroupCounts?: {
+    groups: Array<{ key: string | null; count: number; displayValue: string }>;
+    totalRecords: number;
+    displayValuesMap: Record<string, Record<number, string>>;
+  } | null;
 }
 
 /**
@@ -42,11 +53,19 @@ interface ContactsPageClientProps {
  *
  * Receives SSR data from server component for fast LCP.
  * TeeemTableView renders immediately without waiting for client fetch.
+ *
+ * SSR View Loading:
+ * When initialView is provided, TeeemTableView initializes with the view's
+ * grouping/filters applied immediately, eliminating the flash that occurs
+ * when switching from flat table to grouped view on hydration.
  */
 export default function ContactsPageClient({
   initialColumns,
   initialRecords,
   initialHasMore,
+  initialView,
+  initialViews,
+  initialGroupCounts,
 }: ContactsPageClientProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -152,6 +171,13 @@ export default function ContactsPageClient({
         initialColumns={initialColumns}
         initialRecords={initialRecords}
         initialHasMore={initialHasMore}
+        // SSR View - pre-fetched to eliminate flash on grouped views
+        initialView={initialView}
+        // SSR All Views - for immediate toolbar button rendering (no flash)
+        // Cast needed because ViewData has slightly different filter structure (handled by component)
+        preloadedViews={initialViews as unknown as SavedView[]}
+        // SSR Group Counts - pre-fetched to eliminate CLS on grouped views
+        initialGroupCounts={initialGroupCounts}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
         // Use refreshTrigger instead of key={} to avoid full remount and SSR data loss

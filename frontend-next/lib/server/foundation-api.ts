@@ -226,6 +226,7 @@ export interface SSRGroupCounts {
  */
 interface FoundationDataWithView extends FoundationData {
   view: ViewData | null;
+  views: ViewData[];  // All views for the foundation (for toolbar buttons)
   groupCounts: SSRGroupCounts | null;
 }
 
@@ -258,6 +259,7 @@ export async function fetchFoundationForSSR(
       hasMore: false,
       error: 'Not authenticated',
       view: null,
+      views: [],
       groupCounts: null,
     };
   }
@@ -401,6 +403,7 @@ export async function fetchFoundationForSSR(
       hasMore,
       error: null,
       view,
+      views,  // All views for SSR toolbar buttons
       groupCounts,
     };
   } catch (err) {
@@ -413,6 +416,7 @@ export async function fetchFoundationForSSR(
       hasMore: false,
       error: err instanceof Error ? err.message : 'Failed to load data',
       view: null,
+      views: [],
       groupCounts: null,
     };
   }
@@ -420,13 +424,14 @@ export async function fetchFoundationForSSR(
 
 /**
  * View data returned from API for SSR
+ * Type-compatible with SavedView from components/table/types.ts
  */
 interface ViewData {
   id: number;
   name: string;
   slug: string;
-  view_type?: string;
-  view_display_type?: string;
+  view_type?: "custom" | "default" | null;
+  view_display_type?: "table" | "grouped" | "relational" | "hierarchy";
   is_global?: boolean;
   is_default?: boolean;
   foundation_id: number;

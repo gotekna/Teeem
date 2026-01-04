@@ -151,7 +151,9 @@ export interface TeeemTableViewProps {
 
   // View configuration
   viewOnly?: boolean;
-  preloadedViews?: SavedView[] | null;
+  // SSR views - can be ViewData[] from SSR or SavedView[] from client
+  // The component will map ViewData to SavedView internally
+  preloadedViews?: Partial<SavedView>[] | null;
   disableSavedViews?: boolean; // Completely disable saved views feature (don't fetch or show views)
   defaultViewId?: number; // Auto-select this view ID on load (if it exists)
   defaultViewSlug?: string | null; // Auto-select view by slug on load (for path-based URLs, takes precedence over defaultViewId)

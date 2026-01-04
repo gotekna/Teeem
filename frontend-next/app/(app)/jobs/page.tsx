@@ -25,7 +25,8 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
   // Fetch first 20 records on server for fast LCP
   // Also fetch view config if ?view= param is present to eliminate flash
   // Also fetch group counts if view has grouping to eliminate CLS
-  const { columns, records, hasMore, view, groupCounts } = await fetchFoundationForSSR("jobs", {
+  // Also fetch all views for immediate toolbar button rendering
+  const { columns, records, hasMore, view, views, groupCounts } = await fetchFoundationForSSR("jobs", {
     limit: 20,
     viewSlug,
   });
@@ -36,6 +37,7 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
       initialRecords={records}
       initialHasMore={hasMore}
       initialView={view}
+      initialViews={views}
       initialGroupCounts={groupCounts}
     />
   );

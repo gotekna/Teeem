@@ -1410,6 +1410,41 @@ export default function TeeemTableView({
     }
   }, [initialView, activeViewId, setActiveViewId]);
 
+  // SSR FIX: Initialize savedViews from preloadedViews immediately
+  // This eliminates the flash where view buttons don't show until API call completes
+  const preloadedViewsInitializedRef = useRef(false);
+  useEffect(() => {
+    if (preloadedViewsInitializedRef.current) return;
+    if (preloadedViews && preloadedViews.length > 0 && savedViews.length === 0) {
+      preloadedViewsInitializedRef.current = true;
+      console.log('[SSR] Initializing savedViews from preloadedViews:', preloadedViews.length, 'views');
+      // Map preloaded views to SavedView format
+      // Handle both ViewData (from SSR) and SavedView (from client) formats
+      const mappedViews: SavedView[] = preloadedViews.map((v) => ({
+        id: v.id ?? 0,
+        name: v.name ?? 'Untitled',
+        slug: v.slug || '',
+        is_global: v.is_global || false,
+        isDefault: v.isDefault || false,
+        foundation_id: v.foundation_id || 0,
+        // Handle both array filters (SavedView) and object filters (ViewData from SSR)
+        filters: Array.isArray(v.filters) ? v.filters : [],
+        visibleColumns: v.visibleColumns || {},
+        columnOrder: v.columnOrder || [],
+        columnWidths: v.columnWidths || {},
+        sortColumns: v.sortColumns || [],
+        groupByColumns: v.groupByColumns || (v.groupByColumn ? [v.groupByColumn] : []),
+        groupByColumn: v.groupByColumn,
+        display_order: v.display_order || 0,
+        view_type: v.view_type as SavedView['view_type'],
+        view_display_type: v.view_display_type as SavedView['view_display_type'],
+      }));
+      setSavedViews(mappedViews);
+      // Also mark as loaded to prevent duplicate API call
+      initialViewLoadedRef.current = true;
+    }
+  }, [preloadedViews, savedViews.length, setSavedViews]);
+
   // Row rendering limit for performance (render rows initially, load more on demand)
   // SSoT: Uses TABLE_ROW_LIMIT from pagination-constants.ts
   const INITIAL_ROW_LIMIT = TABLE_ROW_LIMIT;

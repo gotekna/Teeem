@@ -18,6 +18,8 @@ interface JobsPageClientProps {
   initialHasMore: boolean;
   // SSR view config - eliminates flash when loading grouped views
   initialView?: ViewData | null;
+  // SSR all views - for immediate toolbar button rendering
+  initialViews?: ViewData[];
   // SSR group counts - eliminates CLS when group counts load
   initialGroupCounts?: {
     groups: Array<{ key: string | null; count: number; displayValue: string }>;
@@ -42,6 +44,7 @@ export default function JobsPageClient({
   initialRecords,
   initialHasMore,
   initialView,
+  initialViews,
   initialGroupCounts,
 }: JobsPageClientProps) {
   const router = useRouter();
@@ -88,6 +91,9 @@ export default function JobsPageClient({
         initialHasMore={initialHasMore}
         // SSR View - pre-fetched to eliminate flash on grouped views
         initialView={initialView}
+        // SSR All Views - for immediate toolbar button rendering (no flash)
+        // Cast needed because ViewData has slightly different filter structure (handled by component)
+        preloadedViews={initialViews as unknown as SavedView[]}
         // SSR Group Counts - pre-fetched to eliminate CLS on grouped views
         initialGroupCounts={initialGroupCounts}
         // After refresh, autoFetchRecords takes over

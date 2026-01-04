@@ -19,7 +19,11 @@ import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/ui/back-button';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/use-toast';
-import { GanttUnified } from '@/components/gantt-v2/GanttUnified';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { GanttUnified, GanttDependencyEditor } from '@/components/gantt-v2';
 import { api } from '@/lib/api';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import type { GanttTask, GanttDependency, SmScheduleMaster } from '@/lib/gantt/types';
@@ -63,6 +67,35 @@ export default function GanttV2Page() {
   const [dependencies, setDependencies] = React.useState<GanttDependency[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Dependency editor state
+  const [dependencyEditorState, setDependencyEditorState] = React.useState<{
+    isOpen: boolean;
+    task: GanttTask | null;
+    visibleTasks: GanttTask[];
+  }>({
+    isOpen: false,
+    task: null,
+    visibleTasks: [],
+  });
+
+  // Edit sheet state (same pattern as ScheduleMasterTab)
+  const [editSheetOpen, setEditSheetOpen] = React.useState(false);
+  const [editingTask, setEditingTask] = React.useState<GanttTask | null>(null);
+  const [editForm, setEditForm] = React.useState<{
+    name: string;
+    duration_days: number;
+    description: string;
+    po_required: boolean;
+    critical_po: boolean;
+  }>({
+    name: '',
+    duration_days: 1,
+    description: '',
+    po_required: false,
+    critical_po: false,
+  });
+  const [saving, setSaving] = React.useState(false);
 
   // ==========================================================================
   // Data Loading
@@ -165,10 +198,163 @@ export default function GanttV2Page() {
 
   const handleTaskDoubleClick = (task: GanttTask) => {
     console.log('[GanttV2] Task double-clicked:', task);
-    toast({
-      title: 'Task Edit',
-      description: `Would open editor for: ${task.name}`,
+    const rowData = task.rowData as SmScheduleMaster | undefined;
+
+    setEditingTask(task);
+    setEditForm({
+      name: task.name || '',
+      duration_days: rowData?.duration_days || 1,
+      description: rowData?.description || '',
+      po_required: rowData?.po_required || false,
+      critical_po: rowData?.critical_po || false,
     });
+    setEditSheetOpen(true);
+  };
+
+  // Save task edits (same pattern as ScheduleMasterTab)
+  const handleSaveTask = async () => {
+    if (!editingTask) return;
+
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/sm_tasks/${editingTask.id}`, {
+        sm_task: {
+          name: editForm.name,
+          duration_days: editForm.duration_days,
+          description: editForm.description,
+          po_required: editForm.po_required,
+          critical_po: editForm.critical_po,
+        },
+      });
+
+      toast({
+        title: 'Task Saved',
+        description: 'Task has been updated successfully',
+      });
+
+      // Reload data
+      const ganttResponse = await api.get<GanttDataResponse>(
+        `/api/v1/jobs/${jobId}/sm_tasks/gantt_data`
+      );
+      if (ganttResponse) {
+        const data = (ganttResponse as any).gantt_data || ganttResponse;
+        const rows = data.tasks || data.rows || [];
+        const deps = data.dependencies || [];
+        const today = getTodayInCompanyTimezone();
+        setTasks(convertRowsToTasks(rows as SmScheduleMaster[], today));
+        setDependencies(
+          deps.map((dep: any) => ({
+            id: dep.id,
+            fromId: dep.from_id,
+            toId: dep.to_id,
+            type: dep.type,
+            lag: dep.lag,
+          }))
+        );
+      }
+
+      setEditSheetOpen(false);
+    } catch (err) {
+      console.error('[GanttV2] Failed to save task:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to save task',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Open dependency editor (same as ScheduleMasterTab)
+  const handleEditDependencies = (task: GanttTask, visibleTasks: GanttTask[]) => {
+    setDependencyEditorState({ isOpen: true, task, visibleTasks });
+  };
+
+  // Save dependencies (same API pattern as ScheduleMasterTab, but for sm_tasks)
+  const handleDependencyEditorSave = async (
+    taskId: string,
+    predecessors: Array<{ taskNumber: number; type: string; lag: number }>,
+    successors: Array<{ taskNumber: number; type: string; lag: number }>
+  ) => {
+    try {
+      // Convert to API format: [{id: taskNumber, type: "FS", lag: 0}]
+      const predecessorIds = predecessors.map((p) => ({
+        id: p.taskNumber,
+        type: p.type,
+        lag: p.lag,
+      }));
+
+      // Update this task's predecessors
+      await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+        sm_task: { predecessor_ids: predecessorIds },
+      });
+
+      // Update each successor's predecessor_ids to include this task
+      const currentTask = tasks.find((t) => t.id === taskId);
+      const currentTaskNumber = currentTask?.rowData?.task_number;
+
+      if (currentTaskNumber) {
+        for (const succ of successors) {
+          const successorTask = tasks.find(
+            (t) => t.rowData?.task_number === succ.taskNumber
+          );
+          if (successorTask) {
+            const existingPreds = (successorTask.rowData?.predecessor_ids || []) as Array<{
+              id: number;
+              type: string;
+              lag: number;
+            }>;
+            // Add this task as a predecessor if not already there
+            const hasThisPred = existingPreds.some((p) => p.id === currentTaskNumber);
+            if (!hasThisPred) {
+              const newPreds = [
+                ...existingPreds,
+                { id: currentTaskNumber, type: succ.type, lag: succ.lag },
+              ];
+              await api.patch(`/api/v1/sm_tasks/${successorTask.id}`, {
+                sm_task: { predecessor_ids: newPreds },
+              });
+            }
+          }
+        }
+      }
+
+      toast({
+        title: 'Dependencies Saved',
+        description: 'Task dependencies have been updated',
+      });
+
+      // Reload data
+      const ganttResponse = await api.get<GanttDataResponse>(
+        `/api/v1/jobs/${jobId}/sm_tasks/gantt_data`
+      );
+      if (ganttResponse) {
+        const data = (ganttResponse as any).gantt_data || ganttResponse;
+        const rows = data.tasks || data.rows || [];
+        const deps = data.dependencies || [];
+        const today = getTodayInCompanyTimezone();
+        setTasks(convertRowsToTasks(rows as SmScheduleMaster[], today));
+        setDependencies(
+          deps.map((dep: any) => ({
+            id: dep.id,
+            fromId: dep.from_id,
+            toId: dep.to_id,
+            type: dep.type,
+            lag: dep.lag,
+          }))
+        );
+      }
+
+      setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] });
+    } catch (err) {
+      console.error('[GanttV2] Failed to save dependencies:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to save dependencies',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleCheckboxToggle = (taskId: string, field: string, checked: boolean) => {
@@ -300,7 +486,88 @@ export default function GanttV2Page() {
           onTaskDoubleClick={handleTaskDoubleClick}
           onCheckboxToggle={handleCheckboxToggle}
           onRollover={handleRollover}
+          onEditDependencies={handleEditDependencies}
         />
+
+        {/* Dependency Editor - SSoT: same component as ScheduleMasterTab */}
+        <GanttDependencyEditor
+          isOpen={dependencyEditorState.isOpen}
+          onClose={() => setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] })}
+          task={dependencyEditorState.task}
+          tasks={dependencyEditorState.visibleTasks.length > 0 ? dependencyEditorState.visibleTasks : tasks}
+          onSave={handleDependencyEditorSave}
+        />
+
+        {/* Edit Sheet - SSoT: same pattern as ScheduleMasterTab */}
+        <Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
+          <SheetContent side="right" className="w-[400px] sm:w-[500px]">
+            <SheetHeader>
+              <SheetTitle>Edit Task</SheetTitle>
+              <SheetDescription>
+                {editingTask?.name} (Task #{(editingTask?.rowData as SmScheduleMaster)?.task_number})
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration (days)</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  min={1}
+                  value={editForm.duration_days}
+                  onChange={(e) => setEditForm({ ...editForm, duration_days: Number(e.target.value) })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="po_required"
+                  checked={editForm.po_required}
+                  onCheckedChange={(checked) => setEditForm({ ...editForm, po_required: !!checked })}
+                />
+                <Label htmlFor="po_required">PO Required</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="critical_po"
+                  checked={editForm.critical_po}
+                  onCheckedChange={(checked) => setEditForm({ ...editForm, critical_po: !!checked })}
+                />
+                <Label htmlFor="critical_po">Critical PO</Label>
+              </div>
+            </div>
+
+            <SheetFooter>
+              <Button variant="outline" onClick={() => setEditSheetOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTask} disabled={saving}>
+                {saving ? <Spinner className="mr-2 h-4 w-4" /> : null}
+                Save
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
       </div>
 
       {/* Debug Info */}
