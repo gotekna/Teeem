@@ -668,7 +668,9 @@ export default function TeeemTableView({
   // When effectiveFoundationId is set, columns MUST come from Foundation API
   // This makes it IMPOSSIBLE to be out of sync with Foundation schema
   // ============================================================================
-  const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(null);
+  // CLS FIX: Initialize from SSR data immediately (not via useEffect)
+  // Without this, first render uses null → useEffect sets columns → re-render = CLS
+  const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(initialColumns || null);
   const [columnsLoading, setColumnsLoading] = useState(false);
   // Store resolved Foundation info (numeric ID and slug) for consistent display
   const [resolvedFoundation, setResolvedFoundation] = useState<{ id: number; slug: string } | null>(null);
