@@ -1447,11 +1447,20 @@ export function ScheduleMasterTab() {
     predecessors: Array<{ taskNumber: number; type: string; lag: number }>,
     successors: Array<{ taskNumber: number; type: string; lag: number }>
   ) => {
-    if (!ganttV2TemplateId) return;
+    console.log('[handleDependencyEditorSave] Called with taskId:', taskId, 'predecessors:', predecessors);
+    if (!ganttV2TemplateId) {
+      console.log('[handleDependencyEditorSave] No templateId, returning early');
+      return;
+    }
 
     const task = ganttV2Tasks.find(t => t.id === taskId);
     const taskRow = task?.rowData as GanttSmScheduleMaster | undefined;
-    if (!taskRow) return;
+    if (!taskRow) {
+      console.log('[handleDependencyEditorSave] Task not found:', taskId);
+      return;
+    }
+
+    console.log('[handleDependencyEditorSave] Found task:', taskRow.id, taskRow.name);
 
     const currentTaskNumber = taskRow.task_number;
 
@@ -1463,9 +1472,11 @@ export function ScheduleMasterTab() {
         lag: p.lag
       }));
 
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskRow.id}`, {
+      console.log('[handleDependencyEditorSave] Patching row', taskRow.id, 'with predecessor_ids:', newPredecessorIds);
+      const result = await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskRow.id}`, {
         row: { predecessor_ids: newPredecessorIds }
       });
+      console.log('[handleDependencyEditorSave] Patch result:', result);
 
       // 2. Update successors - each successor needs this task as a predecessor
       // Get current successors (tasks that have this task in their predecessor_ids)
@@ -1523,7 +1534,8 @@ export function ScheduleMasterTab() {
       }
 
       // Refresh data
-      loadGanttV2Data();
+      console.log('[handleDependencyEditorSave] ✅ Save complete for task', taskId, 'predecessor_ids:', newPredecessorIds);
+      await loadGanttV2Data();
       toast({ title: "Success", description: "Dependencies updated" });
     } catch (error) {
       console.error('[Gantt V2] Failed to save dependencies:', error);
@@ -4110,6 +4122,8 @@ export function ScheduleMasterTab() {
         task={dependencyEditorState.task}
         tasks={dependencyEditorState.visibleTasks.length > 0 ? dependencyEditorState.visibleTasks : ganttV2Tasks}
         onSave={handleDependencyEditorSave}
+        pendingPredecessor={dependencyEditorState.pendingPredecessor}
+        pendingSuccessor={dependencyEditorState.pendingSuccessor}
       />
 
       {/* NOTE: Trades/Stages are managed in Tables tab (SSoT: Foundation SM Trades ID 542, SM Stages ID 543) */}

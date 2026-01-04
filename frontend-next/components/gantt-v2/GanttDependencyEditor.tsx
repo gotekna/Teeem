@@ -53,6 +53,10 @@ export interface GanttDependencyEditorProps {
     predecessors: Array<{ taskNumber: number; type: string; lag: number }>,
     successors: Array<{ taskNumber: number; type: string; lag: number }>
   ) => Promise<void>;
+  /** Pending predecessor from drag-create (not yet saved) */
+  pendingPredecessor?: { taskNumber: number; type: string; lag: number };
+  /** Pending successor from drag-create (not yet saved) */
+  pendingSuccessor?: { taskNumber: number; type: string; lag: number };
 }
 
 // =============================================================================
@@ -65,6 +69,8 @@ export function GanttDependencyEditor({
   task,
   tasks,
   onSave,
+  pendingPredecessor,
+  pendingSuccessor,
 }: GanttDependencyEditorProps) {
   // ---------------------------------------------------------------------------
   // State
@@ -74,6 +80,10 @@ export function GanttDependencyEditor({
   const [depEditorSuccessorLinks, setDepEditorSuccessorLinks] = React.useState<DependencyLink[]>([]);
   const [isSaving, setIsSaving] = React.useState(false);
 
+  // Controlled state for pending input values (fixes race condition when clicking OK)
+  const [pendingPredRowNum, setPendingPredRowNum] = React.useState('');
+  const [pendingSuccRowNum, setPendingSuccRowNum] = React.useState('');
+
   // ---------------------------------------------------------------------------
   // Effects
   // ---------------------------------------------------------------------------
@@ -81,6 +91,10 @@ export function GanttDependencyEditor({
   // Load predecessors and successors when task changes
   React.useEffect(() => {
     if (!task || !isOpen) return;
+
+    // Reset pending input values when dialog opens
+    setPendingPredRowNum('');
+    setPendingSuccRowNum('');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rowData = task.rowData as any;
@@ -100,6 +114,37 @@ export function GanttDependencyEditor({
         lag: pred.lag || 0,
       };
     }).filter((link: DependencyLink) => link.predecessorId);
+
+    // Add pending predecessor from drag-create if not already in the list
+    if (pendingPredecessor) {
+      console.log('[GanttDependencyEditor] pendingPredecessor:', pendingPredecessor);
+      const alreadyExists = predecessorLinks.some(link => {
+        const predTask = tasks.find(t => t.id === link.predecessorId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r = predTask?.rowData as any;
+        return r?.task_number === pendingPredecessor.taskNumber;
+      });
+
+      if (!alreadyExists) {
+        // Find the task by task_number to get its id
+        const pendingTask = tasks.find(t => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const r = t.rowData as any;
+          return r?.task_number === pendingPredecessor.taskNumber;
+        });
+        console.log('[GanttDependencyEditor] Found pendingTask:', pendingTask?.id, pendingTask?.name);
+        if (pendingTask) {
+          predecessorLinks.push({
+            predecessorId: pendingTask.id,
+            type: (pendingPredecessor.type as DependencyType) || 'FS',
+            lag: pendingPredecessor.lag || 0,
+          });
+          console.log('[GanttDependencyEditor] Added pending predecessor, total:', predecessorLinks.length);
+        }
+      } else {
+        console.log('[GanttDependencyEditor] Pending predecessor already exists');
+      }
+    }
 
     setDepEditorLinks(predecessorLinks);
 
@@ -124,7 +169,7 @@ export function GanttDependencyEditor({
     }
 
     setDepEditorSuccessorLinks(successorLinks);
-  }, [task, tasks, isOpen]);
+  }, [task, tasks, isOpen, pendingPredecessor]);
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -153,10 +198,42 @@ export function GanttDependencyEditor({
   const handleSave = async () => {
     if (!task) return;
 
+    // Start with current links
+    let currentPredLinks = [...depEditorLinks];
+    let currentSuccLinks = [...depEditorSuccessorLinks];
+
+    // Check if there's a pending predecessor in the input field (controlled state)
+    console.log('[GanttDependencyEditor] pendingPredRowNum:', pendingPredRowNum);
+    console.log('[GanttDependencyEditor] tasks.length:', tasks.length);
+
+    if (pendingPredRowNum) {
+      const rowNum = parseInt(pendingPredRowNum, 10);
+      console.log('[GanttDependencyEditor] rowNum:', rowNum);
+      const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+      console.log('[GanttDependencyEditor] found task t:', t?.id, t?.name);
+      console.log('[GanttDependencyEditor] current task.id:', task?.id);
+      if (t && t.id !== task?.id && !currentPredLinks.some(l => l.predecessorId === t.id)) {
+        currentPredLinks.push({ predecessorId: t.id, type: 'FS', lag: 0 });
+        console.log('[GanttDependencyEditor] Added pending predecessor from input:', rowNum);
+      }
+    }
+
+    // Check if there's a pending successor in the input field (controlled state)
+    if (pendingSuccRowNum) {
+      const rowNum = parseInt(pendingSuccRowNum, 10);
+      const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+      if (t && t.id !== task?.id && !currentSuccLinks.some(l => l.predecessorId === t.id)) {
+        currentSuccLinks.push({ predecessorId: t.id, type: 'FS', lag: 0 });
+        console.log('[GanttDependencyEditor] Added pending successor from input:', rowNum);
+      }
+    }
+
+    console.log('[GanttDependencyEditor] handleSave called, depEditorLinks:', currentPredLinks.length);
+
     setIsSaving(true);
     try {
       // Convert links back to task numbers
-      const predecessors = depEditorLinks
+      const predecessors = currentPredLinks
         .filter(link => link.predecessorId)
         .map(link => {
           const predTask = tasks.find(t => t.id === link.predecessorId);
@@ -170,7 +247,7 @@ export function GanttDependencyEditor({
         })
         .filter(p => p.taskNumber > 0);
 
-      const successors = depEditorSuccessorLinks
+      const successors = currentSuccLinks
         .filter(link => link.predecessorId)
         .map(link => {
           const succTask = tasks.find(t => t.id === link.predecessorId);
@@ -184,10 +261,12 @@ export function GanttDependencyEditor({
         })
         .filter(s => s.taskNumber > 0);
 
+      console.log('[GanttDependencyEditor] Saving predecessors:', predecessors, 'successors:', successors);
       await onSave(task.id, predecessors, successors);
+      console.log('[GanttDependencyEditor] Save completed');
       onClose();
     } catch (error) {
-      console.error('Failed to save dependencies:', error);
+      console.error('[GanttDependencyEditor] Failed to save dependencies:', error);
     } finally {
       setIsSaving(false);
     }
@@ -408,47 +487,57 @@ export function GanttDependencyEditor({
                 })}
 
                 {/* Empty row to add new predecessor */}
-                <div className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={tasks.length}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
-                        const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
-                        if (t && t.id !== task?.id && !depEditorLinks.some(l => l.predecessorId === t.id)) {
-                          setDepEditorLinks(prev => [...prev, { predecessorId: t.id, type: 'FS', lag: 0 }]);
-                          (e.target as HTMLInputElement).value = '';
-                        }
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const rowNum = parseInt(e.target.value, 10);
-                      const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
-                      if (t && t.id !== task?.id && !depEditorLinks.some(l => l.predecessorId === t.id)) {
-                        setDepEditorLinks(prev => [...prev, { predecessorId: t.id, type: 'FS', lag: 0 }]);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="h-8 text-center"
-                    placeholder="#"
-                  />
-                  <ComboboxDropdown
-                    items={taskComboItems.filter(item => !depEditorLinks.some(l => l.predecessorId === item.id))}
-                    onSelect={(item) => {
-                      setDepEditorLinks(prev => [...prev, { predecessorId: item.id, type: 'FS', lag: 0 }]);
-                    }}
-                    placeholder="Add predecessor..."
-                    searchPlaceholder="Search tasks..."
-                    className="h-8"
-                  />
-                  <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
-                    <option>Finish-to-Start (FS)</option>
-                  </select>
-                  <Input disabled className="h-8 text-center" placeholder="0" />
-                  <div className="h-8 w-8" />
-                </div>
+                {(() => {
+                  // Compute the pending task from row number for display
+                  const pendingPredNum = parseInt(pendingPredRowNum, 10);
+                  const pendingPredTask = pendingPredNum > 0 && pendingPredNum <= tasks.length ? tasks[pendingPredNum - 1] : null;
+                  const pendingPredItem = pendingPredTask && pendingPredTask.id !== task?.id
+                    ? taskComboItems.find(item => item.id === pendingPredTask.id)
+                    : undefined;
+
+                  return (
+                    <div className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={tasks.length}
+                        value={pendingPredRowNum}
+                        onChange={(e) => setPendingPredRowNum(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const rowNum = parseInt(pendingPredRowNum, 10);
+                            const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                            if (t && t.id !== task?.id && !depEditorLinks.some(l => l.predecessorId === t.id)) {
+                              setDepEditorLinks(prev => [...prev, { predecessorId: t.id, type: 'FS', lag: 0 }]);
+                              setPendingPredRowNum('');
+                            }
+                          }
+                        }}
+                        className="h-8 text-center"
+                        placeholder="#"
+                      />
+                      <ComboboxDropdown
+                        items={taskComboItems.filter(item => !depEditorLinks.some(l => l.predecessorId === item.id))}
+                        selectedItem={pendingPredItem}
+                        onSelect={(item) => {
+                          // Update both the row number and add to list
+                          const rowIndex = tasks.findIndex(t => t.id === item.id);
+                          setPendingPredRowNum(rowIndex >= 0 ? String(rowIndex + 1) : '');
+                          setDepEditorLinks(prev => [...prev, { predecessorId: item.id, type: 'FS', lag: 0 }]);
+                          setPendingPredRowNum('');
+                        }}
+                        placeholder="Add predecessor..."
+                        searchPlaceholder="Search tasks..."
+                        className="h-8"
+                      />
+                      <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                        <option>Finish-to-Start (FS)</option>
+                      </select>
+                      <Input disabled className="h-8 text-center" placeholder="0" />
+                      <div className="h-8 w-8" />
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -543,50 +632,59 @@ export function GanttDependencyEditor({
                 })}
 
                 {/* Empty row to add new successor */}
-                <div className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={tasks.length}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
-                        const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
-                        if (t && t.id !== task?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === t.id)) {
-                          setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: t.id, type: 'FS', lag: 0 }]);
-                          (e.target as HTMLInputElement).value = '';
-                        }
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const rowNum = parseInt(e.target.value, 10);
-                      const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
-                      if (t && t.id !== task?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === t.id)) {
-                        setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: t.id, type: 'FS', lag: 0 }]);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="h-8 text-center"
-                    placeholder="#"
-                  />
-                  <ComboboxDropdown
-                    items={taskComboItems.filter(item =>
-                      !depEditorSuccessorLinks.some(l => l.predecessorId === item.id) &&
-                      !depEditorLinks.some(l => l.predecessorId === item.id)
-                    )}
-                    onSelect={(item) => {
-                      setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: item.id, type: 'FS', lag: 0 }]);
-                    }}
-                    placeholder="Add successor..."
-                    searchPlaceholder="Search tasks..."
-                    className="h-8"
-                  />
-                  <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
-                    <option>Finish-to-Start (FS)</option>
-                  </select>
-                  <Input disabled className="h-8 text-center" placeholder="0" />
-                  <div className="h-8 w-8" />
-                </div>
+                {(() => {
+                  // Compute the pending task from row number for display
+                  const pendingSuccNum = parseInt(pendingSuccRowNum, 10);
+                  const pendingSuccTask = pendingSuccNum > 0 && pendingSuccNum <= tasks.length ? tasks[pendingSuccNum - 1] : null;
+                  const pendingSuccItem = pendingSuccTask && pendingSuccTask.id !== task?.id
+                    ? taskComboItems.find(item => item.id === pendingSuccTask.id)
+                    : undefined;
+
+                  return (
+                    <div className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={tasks.length}
+                        value={pendingSuccRowNum}
+                        onChange={(e) => setPendingSuccRowNum(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const rowNum = parseInt(pendingSuccRowNum, 10);
+                            const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                            if (t && t.id !== task?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === t.id)) {
+                              setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: t.id, type: 'FS', lag: 0 }]);
+                              setPendingSuccRowNum('');
+                            }
+                          }
+                        }}
+                        className="h-8 text-center"
+                        placeholder="#"
+                      />
+                      <ComboboxDropdown
+                        items={taskComboItems.filter(item =>
+                          !depEditorSuccessorLinks.some(l => l.predecessorId === item.id) &&
+                          !depEditorLinks.some(l => l.predecessorId === item.id)
+                        )}
+                        selectedItem={pendingSuccItem}
+                        onSelect={(item) => {
+                          const rowIndex = tasks.findIndex(t => t.id === item.id);
+                          setPendingSuccRowNum(rowIndex >= 0 ? String(rowIndex + 1) : '');
+                          setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: item.id, type: 'FS', lag: 0 }]);
+                          setPendingSuccRowNum('');
+                        }}
+                        placeholder="Add successor..."
+                        searchPlaceholder="Search tasks..."
+                        className="h-8"
+                      />
+                      <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                        <option>Finish-to-Start (FS)</option>
+                      </select>
+                      <Input disabled className="h-8 text-center" placeholder="0" />
+                      <div className="h-8 w-8" />
+                    </div>
+                  );
+                })()}
 
                 {depEditorSuccessorLinks.length === 0 && (
                   <p className="text-xs text-muted-foreground italic py-1">

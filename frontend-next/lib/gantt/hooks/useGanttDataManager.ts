@@ -18,6 +18,7 @@ import {
   isHeaderRow,
   isWorkingDay,
   skipToPreviousWorkingDay,
+  addWorkingDays,
   type GanttTask,
   type GanttDependency,
   type SmScheduleMaster,
@@ -84,6 +85,8 @@ export interface DependencyEditorState {
   visibleTasks: GanttTask[];
   /** Pending predecessor from drag-create (not yet saved) */
   pendingPredecessor?: { taskNumber: number; type: string; lag: number };
+  /** Pending successor from drag-create (not yet saved) */
+  pendingSuccessor?: { taskNumber: number; type: string; lag: number };
 }
 
 export interface StartTaskDialogState {
@@ -340,20 +343,46 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       // For templates: apply backend-calculated dates (skips headers)
       if (mode === 'template' && dateMap) {
-        console.log('[GanttDataManager] 📅 Applying backend date_map');
+        console.log(`[GanttDataManager] 📅 Applying backend date_map`);
         convertedTasks = applyDateMap(convertedTasks, fetchedRows, dateMap);
+        // Re-cascade dependency dates after applying backend rollover
+        convertedTasks = cascadeDependencyDates(convertedTasks, fetchedRows, holidayDates);
       }
 
       setTasks(convertedTasks);
 
-      // Convert dependencies
-      const convertedDeps: GanttDependency[] = fetchedDeps.map((dep) => ({
-        id: dep.id,
-        fromId: dep.from_id,
-        toId: dep.to_id,
-        type: dep.type,
-        lag: dep.lag,
-      }));
+      // Convert dependencies - either from API or generate from predecessor_ids
+      let convertedDeps: GanttDependency[];
+      if (fetchedDeps.length > 0) {
+        // Use dependencies from API (job mode)
+        convertedDeps = fetchedDeps.map((dep) => ({
+          id: dep.id,
+          fromId: dep.from_id,
+          toId: dep.to_id,
+          type: dep.type,
+          lag: dep.lag,
+        }));
+      } else {
+        // Generate dependencies from predecessor_ids (template mode)
+        convertedDeps = [];
+        for (const row of fetchedRows) {
+          if (row.predecessor_ids && row.predecessor_ids.length > 0) {
+            for (const pred of row.predecessor_ids) {
+              // Find the predecessor row to get its id
+              const predRow = fetchedRows.find(r => r.task_number === pred.id);
+              if (predRow) {
+                convertedDeps.push({
+                  id: `dep-${pred.id}-${row.id}`,
+                  fromId: String(predRow.id),  // Predecessor's row id
+                  toId: String(row.id),         // This row's id
+                  type: (pred.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
+                  lag: pred.lag || 0,
+                });
+              }
+            }
+          }
+        }
+      }
       setDependencies(convertedDeps);
 
     } catch (err) {
@@ -458,6 +487,89 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const children = childrenByHeader.get(row.task_number);
       return children && children.length > 0;
     });
+  }
+
+  /**
+   * Cascade dependency dates after backend date_map is applied.
+   * For each task with predecessors, ensure it starts after all predecessors end.
+   */
+  function cascadeDependencyDates(
+    taskList: GanttTask[],
+    rowList: SmScheduleMaster[],
+    holidayDates?: Set<string>
+  ): GanttTask[] {
+    // Build maps for quick lookup
+    const taskByNumber = new Map<number, GanttTask>();
+    const rowByNumber = new Map<number, SmScheduleMaster>();
+
+    for (const row of rowList) {
+      rowByNumber.set(row.task_number, row);
+    }
+    for (const task of taskList) {
+      const row = rowList.find(r => String(r.id) === task.id);
+      if (row) taskByNumber.set(row.task_number, task);
+    }
+
+    // Count tasks with predecessors for logging
+    const tasksWithPreds = rowList.filter(r => r.predecessor_ids && r.predecessor_ids.length > 0);
+
+    // Track which tasks have been updated
+    const updated = new Set<number>();
+
+    // Process tasks in order (sorted by current start date)
+    const sortedTasks = [...taskList].sort((a, b) =>
+      a.startDate.getTime() - b.startDate.getTime()
+    );
+
+    for (const task of sortedTasks) {
+      const row = rowList.find(r => String(r.id) === task.id);
+      if (!row || isHeaderRow(row)) continue;
+
+      const predecessors = row.predecessor_ids || [];
+      if (predecessors.length === 0) continue;
+
+      // Find the latest required start date based on all predecessors
+      let latestRequiredStart: Date | null = null;
+
+      for (const pred of predecessors) {
+        const predTask = taskByNumber.get(pred.id);
+        if (!predTask) continue;
+
+        const predType = pred.type || 'FS';
+        const lagDays = pred.lag || 0;
+        let requiredStart: Date;
+
+        if (predType === 'FS') {
+          // Finish-to-Start: start after predecessor ends + lag
+          requiredStart = addWorkingDays(predTask.endDate, 1 + lagDays, holidayDates);
+        } else if (predType === 'SS') {
+          // Start-to-Start: start when predecessor starts + lag
+          requiredStart = addWorkingDays(predTask.startDate, lagDays, holidayDates);
+        } else {
+          // Default to FS
+          requiredStart = addWorkingDays(predTask.endDate, 1 + lagDays, holidayDates);
+        }
+
+        if (!latestRequiredStart || requiredStart > latestRequiredStart) {
+          latestRequiredStart = requiredStart;
+        }
+      }
+
+      // If task needs to move forward
+      if (latestRequiredStart && latestRequiredStart > task.startDate) {
+        const duration = row.duration_days || 1;
+        task.startDate = new Date(latestRequiredStart);
+        task.endDate = addWorkingDays(task.startDate, duration - 1, holidayDates);
+        updated.add(row.task_number);
+      }
+    }
+
+    // Recalculate header spans after cascading
+    if (updated.size > 0) {
+      return recalculateHeaderSpans(taskList, rowList);
+    }
+
+    return taskList;
   }
 
   // ---------------------------------------------------------------------------
@@ -993,8 +1105,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     console.log('[GanttDataManager] Dependency create:', fromId, '->', toId, 'type:', type);
 
     // Canvas passes row.id (not task_number), so find tasks by id
-    const targetTask = tasks.find(t => t.id === toId);
-    const fromTask = tasks.find(t => t.id === fromId);
+    // Drag from A to B = B depends on A = A is predecessor of B
+    const targetTask = tasks.find(t => t.id === toId);   // B - task getting new predecessor
+    const fromTask = tasks.find(t => t.id === fromId);   // A - the predecessor
 
     if (!targetTask || !targetTask.rowData) {
       console.error('[GanttDataManager] Target task not found:', toId);
@@ -1016,8 +1129,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       lag: 0
     };
 
-    // Open the dependency editor with the target task and pending predecessor
-    // User will review and click Save to confirm
+    // Open the dependency editor with the TARGET task (task we dragged TO)
+    // and show FROM task as a new predecessor
     setDependencyEditorState({
       isOpen: true,
       task: targetTask,

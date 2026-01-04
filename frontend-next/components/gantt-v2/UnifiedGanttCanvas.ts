@@ -2490,9 +2490,8 @@ export class UnifiedGanttCanvas {
     this.drawTableSection();
     this.drawHeaderRowTimelineBackgrounds();
     this.drawTimelineSection();
-    if (this.showDependencies) {
-      this.drawDependencies();
-    }
+    // Always draw dependencies - either all (when showDependencies) or just selected task's (on click)
+    this.drawDependencies();
     this.drawTodayMarker();
     this.drawHeaders();
 
@@ -3717,9 +3716,14 @@ export class UnifiedGanttCanvas {
 
       // Check if this dependency is connected to the selected task
       // Predecessor: selected task is the "to" task (depends on from task) - yellow/black
-      // Successor: selected task is the "from" task (to task depends on selected) - black/white
+      // Successor: selected task is the "from" task (to task depends on selected) - blue/black
       const isPredecessorDep = selectedTaskId && dep.toId === selectedTaskId;
       const isSuccessorDep = selectedTaskId && dep.fromId === selectedTaskId;
+
+      // If showDependencies is off, only draw dependencies connected to selected task
+      if (!this.showDependencies && !isPredecessorDep && !isSuccessorDep) {
+        continue;
+      }
 
       // Check if this is a broken dependency
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
