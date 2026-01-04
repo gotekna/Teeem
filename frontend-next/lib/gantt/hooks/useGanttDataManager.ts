@@ -237,6 +237,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const loadData = React.useCallback(async () => {
+    console.log('[GanttDataManager] loadData called', { mode, useExternalData, hasApiConfig: !!apiConfig, jobId, templateId });
+
     // SSoT: If using external data, just call onRefresh to tell parent to reload
     if (useExternalData) {
       console.log('[GanttDataManager] SSoT: Calling onRefresh to reload external data');
@@ -245,6 +247,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     }
 
     if (!apiConfig) {
+      console.log('[GanttDataManager] No apiConfig, returning early');
       // No valid ID, can't load data
       setInternalTasks([]);
       setInternalDependencies([]);

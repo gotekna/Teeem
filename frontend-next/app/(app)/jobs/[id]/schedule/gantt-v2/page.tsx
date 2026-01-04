@@ -108,7 +108,7 @@ export default function GanttV2Page() {
       loadJob();
       gantt.loadData();
     }
-  }, [jobId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [jobId, gantt.loadData]);
 
   // ==========================================================================
   // Photo Panel (Job-specific)
