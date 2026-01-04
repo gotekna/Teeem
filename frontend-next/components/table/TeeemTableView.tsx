@@ -1611,6 +1611,19 @@ export default function TeeemTableView({
   // groupViewMode managed by FOUNDATION-SCOPED atom (prevents panel mode pollution between pages)
   const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeFamily(foundationKey));
 
+  // SSR FLASH FIX: Use initialView's display type on first render BEFORE effects run
+  // This prevents the flash from inline to panel mode during hydration
+  // Priority: atom value (if not default) > SSR initialView > fallback 'inline'
+  const effectiveGroupViewMode = useMemo(() => {
+    // If atom has non-default value (from a previous view load), use it
+    if (groupViewMode !== 'inline') return groupViewMode;
+    // SSR: Use initialView's view_display_type for first render
+    // "grouped" = panel mode (full-width groups), otherwise inline (groups with table columns)
+    if (initialView?.view_display_type === 'grouped') return 'panel';
+    // Default to inline
+    return 'inline';
+  }, [groupViewMode, initialView]);
+
   // CRITICAL: Reset grouping state when navigating to base URL (no view)
   // atomFamily atoms persist values - they don't auto-reset on navigation!
   // This ensures /contacts shows flat table, not cached Company/Role grouping
@@ -1634,8 +1647,8 @@ export default function TeeemTableView({
   // Collapsed hierarchy headers (for "Header Hierarchy" display mode)
   const [collapsedHierarchyHeaders, setCollapsedHierarchyHeaders] = useState<Set<number>>(new Set());
 
-  // Initialize groupByColumns from initialView (SSR) or initialGroupByColumn prop on mount
-  // Priority: SSR initialView > initialGroupByColumn prop
+  // Initialize groupByColumns and groupViewMode from initialView (SSR) or props on mount
+  // Priority: SSR initialView > props
   // Only runs once and only if atom is empty (doesn't override saved views)
   // CLS FIX: Skip setting if atom already matches to avoid unnecessary re-render
   const initialGroupByRef = useRef(false);
@@ -1654,6 +1667,13 @@ export default function TeeemTableView({
         console.log('[SSR] Applying initialView groupByColumns:', initialView.group_by_columns);
         setGroupByColumns(initialView.group_by_columns);
       }
+      // Also apply view_display_type → groupViewMode (panel vs inline)
+      // "grouped" = panel mode (full-width groups), otherwise inline (groups with table columns)
+      const targetMode = initialView.view_display_type === 'grouped' ? 'panel' : 'inline';
+      if (groupViewMode !== targetMode) {
+        console.log('[SSR] Applying initialView groupViewMode:', targetMode);
+        setGroupViewMode(targetMode);
+      }
       return;
     }
     // Also check legacy group_by_column field
@@ -1665,6 +1685,12 @@ export default function TeeemTableView({
         console.log('[SSR] Applying initialView group_by_column:', initialView.group_by_column);
         setGroupByColumns(targetColumns);
       }
+      // Also apply view_display_type → groupViewMode
+      const targetMode = initialView.view_display_type === 'grouped' ? 'panel' : 'inline';
+      if (groupViewMode !== targetMode) {
+        console.log('[SSR] Applying initialView groupViewMode:', targetMode);
+        setGroupViewMode(targetMode);
+      }
       return;
     }
 
@@ -1673,7 +1699,7 @@ export default function TeeemTableView({
       initialGroupByRef.current = true;
       setGroupByColumns([initialGroupByColumn]);
     }
-  }, [initialView, initialGroupByColumn, groupByColumns, setGroupByColumns]);
+  }, [initialView, initialGroupByColumn, groupByColumns, setGroupByColumns, groupViewMode, setGroupViewMode]);
 
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors

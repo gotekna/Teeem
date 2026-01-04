@@ -158,6 +158,7 @@ export default function DocumentTypeDetailPage() {
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
+  const [dwellingTypes, setDwellingTypes] = React.useState<Array<{ value: string; description: string }>>([]);
 
   // SSoT: Naming format change confirmation dialog state
   const [renameConfirmDialog, setRenameConfirmDialog] = React.useState<{
@@ -287,6 +288,21 @@ export default function DocumentTypeDetailPage() {
       }
     };
     fetchAllDocumentTypes();
+  }, []);
+
+  // Fetch dwelling types from API (SSoT: Jobs foundation column)
+  React.useEffect(() => {
+    const fetchDwellingTypes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: Array<{ value: string; description: string }> }>("/api/v1/document_types/dwelling_types");
+        if (response.success && Array.isArray(response.data)) {
+          setDwellingTypes(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dwelling types:", error);
+      }
+    };
+    fetchDwellingTypes();
   }, []);
 
   // Get default file name template based on scope
@@ -1778,8 +1794,10 @@ export default function DocumentTypeDetailPage() {
                 className="h-6 text-xs"
                 onClick={() => {
                   const mapping = { ...(documentType.form_number_mapping || {}) };
-                  const newKey = `Dwelling Type ${Object.keys(mapping).length + 1}`;
-                  mapping[newKey] = "Form XX";
+                  // Find first unused dwelling type from SSoT
+                  const allTypes = dwellingTypes.map(dt => dt.value);
+                  const unusedType = allTypes.find(t => !mapping[t]) || "default";
+                  mapping[unusedType] = "Form XX";
                   updateField("form_number_mapping", mapping);
                 }}
               >
@@ -1797,18 +1815,28 @@ export default function DocumentTypeDetailPage() {
               <div className="space-y-1.5">
                 {Object.entries(documentType.form_number_mapping || {}).map(([dwellingType, formNumber], idx) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <Input
+                    <Select
                       value={dwellingType}
-                      onChange={(e) => {
+                      onValueChange={(newDwellingType) => {
                         const mapping = { ...(documentType.form_number_mapping || {}) };
                         const newValue = mapping[dwellingType];
                         delete mapping[dwellingType];
-                        mapping[e.target.value] = newValue;
+                        mapping[newDwellingType] = newValue;
                         updateField("form_number_mapping", mapping);
                       }}
-                      className="h-7 text-xs flex-1"
-                      placeholder="Dwelling Type (e.g., Class 1A)"
-                    />
+                    >
+                      <SelectTrigger className="h-7 text-xs flex-1">
+                        <SelectValue placeholder="Select dwelling type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dwellingTypes.map((dt) => (
+                          <SelectItem key={dt.value} value={dt.value}>
+                            {dt.value} {dt.description ? `(${dt.description})` : ""}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="default">Default (fallback for unmatched)</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <span className="text-xs text-muted-foreground">→</span>
                     <Input
                       value={formNumber}

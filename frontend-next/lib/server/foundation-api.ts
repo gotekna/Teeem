@@ -320,7 +320,7 @@ export async function fetchFoundationForSSR(
 
     const columns = transformColumns(foundation);
 
-    // Find view: URL slug takes priority, otherwise select default view
+    // Find view: URL slug takes priority, otherwise use SSoT selectDefaultView
     let view: ViewData | null = null;
     const views = (viewsData?.views || []) as ViewData[];
 
@@ -338,18 +338,21 @@ export async function fetchFoundationForSSR(
       }
     }
 
-    // If no URL view, select default view (matches client-side selectDefaultView logic)
-    // SSoT: Default view is first in list by display_order, or is_default/is_global flags
+    // If no URL view, use SSoT selectDefaultView from lib/view-loading-utils
     if (!view && views.length > 0) {
-      // Priority: is_default + is_global > is_default > is_global with display_order=0 > display_order=0 > first
-      view = views.find(v => v.is_default && v.is_global) || null;
-      if (!view) view = views.find(v => v.is_default) || null;
-      if (!view) view = views.find(v => v.is_global && v.display_order === 0) || null;
-      if (!view) view = views.find(v => v.display_order === 0) || null;
-      if (!view) view = views[0] || null;
+      // Map ViewData to SavedView format for SSoT function (is_default → isDefault)
+      const mappedViews = views.map(v => ({
+        ...v,
+        isDefault: v.is_default,
+      })) as unknown as SavedView[];
 
-      if (view) {
-        console.log('[SSR] Auto-selected default view:', view.name, 'with grouping:', view.group_by_columns);
+      const defaultView = selectDefaultView(mappedViews);
+      if (defaultView) {
+        // Find original ViewData by ID
+        view = views.find(v => v.id === defaultView.id) || null;
+        if (view) {
+          console.log('[SSR] Auto-selected default view:', view.name, 'with grouping:', view.group_by_columns);
+        }
       }
     }
 

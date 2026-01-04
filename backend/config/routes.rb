@@ -2600,6 +2600,7 @@ Rails.application.routes.draw do
       resources :document_types do
         collection do
           get :tabs
+          get :dwelling_types
         end
         member do
           post :duplicate
