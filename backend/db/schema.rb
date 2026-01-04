@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_04_064751) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_04_064752) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8148,6 +8148,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064751) do
     t.integer "spawn_scan_lag_days", default: 0
     t.boolean "allow_header", default: false, null: false
     t.integer "assigned_role"
+    t.boolean "started", default: false
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_masters_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_masters_on_cost_centre"
@@ -8161,6 +8162,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_064751) do
     t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
     t.index ["stage"], name: "index_sm_schedule_masters_on_stage"
+    t.index ["started"], name: "index_sm_schedule_masters_on_started", where: "(started = true)"
     t.index ["supplier_confirm"], name: "index_sm_schedule_masters_on_supplier_confirm", where: "(supplier_confirm = true)"
     t.index ["task_number"], name: "index_sm_schedule_masters_on_task_number"
     t.index ["trade"], name: "index_sm_schedule_masters_on_trade"
