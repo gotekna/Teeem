@@ -152,6 +152,20 @@ interface LegacyItem {
   rename_status?: string;
   thumbnail_url?: string; // Graph API thumbnail URL (publicly accessible)
   download_url?: string; // Pre-authenticated download URL (publicly accessible, expires ~1hr)
+  // Version chain fields (Draft/Signed versioning)
+  version_status?: "draft" | "signed" | "superseded";
+  version_number?: number;
+  parent_document_id?: number | null;
+  is_versionable?: boolean;
+  has_signed_version?: boolean;
+  signed_at?: string;
+  signed_by_name?: string;
+  child_versions?: Array<{
+    id: number;
+    version_status: string;
+    version_number: number;
+    file_name: string;
+  }>;
 }
 
 interface AIStats {
@@ -233,6 +247,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Category photo lightbox state
   const [categoryLightboxOpen, setCategoryLightboxOpen] = useState(false);
   const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
+
+  // Version grouping state (Draft/Signed document versioning)
+  const [expandedVersionGroups, setExpandedVersionGroups] = useState<Set<string>>(new Set());
 
   // Delete confirmation dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -445,6 +462,57 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       );
     });
   }, [allFiles, selectedCategory, selectedSubCategory]);
+
+  // Group documents by version chain for expandable display (Draft/Signed versioning)
+  // Returns items grouped: root documents with their child versions nested
+  const groupedAllFiles = useMemo(() => {
+    // Separate root documents (no parent) from child versions
+    const rootDocs = allFiles.filter(f => !f.parent_document_id);
+    const childVersionMap = new Map<number, LegacyItem[]>();
+
+    // Build a map of parent_document_id -> child versions
+    allFiles.forEach(f => {
+      if (f.parent_document_id && f.document_id) {
+        const children = childVersionMap.get(f.parent_document_id) || [];
+        children.push(f);
+        childVersionMap.set(f.parent_document_id, children);
+      }
+    });
+
+    // Return root docs with their child versions attached
+    return rootDocs.map(doc => ({
+      ...doc,
+      // Attach child versions from the map (if any)
+      child_versions_data: doc.document_id ? childVersionMap.get(doc.document_id) || [] : []
+    }));
+  }, [allFiles]);
+
+  // Toggle expansion of a version group
+  const toggleVersionGroup = useCallback((documentId: string) => {
+    setExpandedVersionGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(documentId)) {
+        next.delete(documentId);
+      } else {
+        next.add(documentId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Get version status badge color and label
+  const getVersionBadge = (status?: string) => {
+    switch (status) {
+      case "draft":
+        return { label: "Draft", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" };
+      case "signed":
+        return { label: "Signed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" };
+      case "superseded":
+        return { label: "Superseded", className: "bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400" };
+      default:
+        return null;
+    }
+  };
 
   // Generate photo filename based on category and current date/time
   const generatePhotoFilename = (extension: string): string => {
@@ -2189,78 +2257,155 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       <TableHead>File Name</TableHead>
                       <TableHead>Folder</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead>Version</TableHead>
                       <TableHead>AI Status</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allFiles.length === 0 ? (
+                    {groupedAllFiles.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           No files found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      allFiles.map((item) => (
-                        <TableRow key={item.id} className={item.rename_status === "completed" ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
-                                {item.original_name && item.name !== item.original_name && (
-                                  <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
+                      groupedAllFiles.map((item) => {
+                        const hasChildVersions = (item as any).child_versions_data?.length > 0 || (item.child_versions?.length ?? 0) > 0;
+                        const isExpanded = expandedVersionGroups.has(item.id);
+                        const versionBadge = getVersionBadge(item.version_status);
+                        const childVersions = (item as any).child_versions_data || [];
+
+                        return (
+                          <React.Fragment key={item.id}>
+                            <TableRow className={item.rename_status === "completed" ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {/* Expand/collapse chevron for versioned documents */}
+                                  {hasChildVersions ? (
+                                    <button
+                                      onClick={() => toggleVersionGroup(item.id)}
+                                      className="p-0.5 hover:bg-muted rounded"
+                                    >
+                                      <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                                    </button>
+                                  ) : (
+                                    <div className="w-5" /> // Spacer for alignment
+                                  )}
+                                  <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                  <div className="min-w-0">
+                                    <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
+                                    {item.original_name && item.name !== item.original_name && (
+                                      <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-muted-foreground">
+                                  {item.folder_path || "-"}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                {item.ai_suggested_type_name ? (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {item.ai_suggested_type_name}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
                                 )}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-muted-foreground">
-                              {item.folder_path || "-"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {item.ai_suggested_type_name ? (
-                              <Badge variant="secondary" className="text-xs">
-                                {item.ai_suggested_type_name}
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {item.rename_status === "completed" ? (
-                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Renamed
-                              </Badge>
-                            ) : item.rename_status === "rejected" ? (
-                              <Badge variant="secondary" className="text-muted-foreground">
-                                Skipped
-                              </Badge>
-                            ) : item.ai_analyzed ? (
-                              <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                <Sparkles className="h-3 w-3 mr-1" />
-                                Pending
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {item.web_url && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => window.open(item.web_url, "_blank")}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                              </TableCell>
+                              <TableCell>
+                                {versionBadge ? (
+                                  <Badge className={versionBadge.className + " text-xs"}>
+                                    {versionBadge.label}
+                                  </Badge>
+                                ) : item.is_versionable ? (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                ) : null}
+                              </TableCell>
+                              <TableCell>
+                                {item.rename_status === "completed" ? (
+                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Renamed
+                                  </Badge>
+                                ) : item.rename_status === "rejected" ? (
+                                  <Badge variant="secondary" className="text-muted-foreground">
+                                    Skipped
+                                  </Badge>
+                                ) : item.ai_analyzed ? (
+                                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                    <Sparkles className="h-3 w-3 mr-1" />
+                                    Pending
+                                  </Badge>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {item.web_url && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => window.open(item.web_url, "_blank")}
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                            {/* Child version rows (shown when expanded) */}
+                            {isExpanded && childVersions.map((child: LegacyItem) => {
+                              const childBadge = getVersionBadge(child.version_status);
+                              return (
+                                <TableRow key={child.id} className="bg-muted/30">
+                                  <TableCell>
+                                    <div className="flex items-center gap-2 pl-7">
+                                      <div className="w-5" /> {/* Indent to align with parent */}
+                                      <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                      <div className="min-w-0">
+                                        <span className="text-sm truncate block max-w-[280px] text-muted-foreground">{child.name}</span>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-muted-foreground">
+                                      {child.folder_path || "-"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    {childBadge && (
+                                      <Badge className={childBadge.className + " text-xs"}>
+                                        {childBadge.label}
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    {child.web_url && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => window.open(child.web_url, "_blank")}
+                                      >
+                                        <ExternalLink className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>

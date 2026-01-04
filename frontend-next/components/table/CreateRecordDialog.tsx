@@ -40,6 +40,7 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -157,6 +158,7 @@ export function CreateRecordDialog({
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+  const [fieldSearch, setFieldSearch] = useState("");
 
   // Lookup column state
   const [lookupOptions, setLookupOptions] = useState<Record<string, LookupOption[]>>({});
@@ -217,6 +219,7 @@ export function CreateRecordDialog({
       setShowMoreFields(false);
       setShowFieldConfig(false);
       setValidationErrors(new Set());
+      setFieldSearch("");
 
       // Fetch lookup options for all lookup columns
       const lookupColumns = filteredColumns.filter(
@@ -741,8 +744,17 @@ export function CreateRecordDialog({
         {/* Field Configuration Panel */}
         {showFieldConfig && (
           <div className="border rounded-md p-4 mb-4 bg-muted/30">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium">Drag to reorder, or type order number</span>
+            {/* Search and Actions Row */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search fields..."
+                  value={fieldSearch}
+                  onChange={(e) => setFieldSearch(e.target.value)}
+                  className="pl-8 h-8 text-sm"
+                />
+              </div>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
                   Show All
@@ -752,30 +764,91 @@ export function CreateRecordDialog({
                 </Button>
               </div>
             </div>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={getSortedColumns().map(c => c.key)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-1">
-                  {getSortedColumns().map((col) => (
-                    <SortableFieldItem
-                      key={col.key}
-                      id={col.key}
-                      col={col}
-                      isVisible={visibleFields.has(col.key)}
-                      order={fieldOrder[col.key] || 0}
-                      onToggleVisibility={toggleFieldVisibility}
-                      onUpdateOrder={updateFieldOrder}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+
+            {/* Visible Fields Section */}
+            {(() => {
+              const searchLower = fieldSearch.toLowerCase();
+              const visibleCols = getSortedColumns()
+                .filter((col) => visibleFields.has(col.key))
+                .filter((col) => !fieldSearch || (col.label || col.key).toLowerCase().includes(searchLower));
+              const hiddenCols = filteredColumns
+                .filter((col) => !visibleFields.has(col.key))
+                .filter((col) => !fieldSearch || (col.label || col.key).toLowerCase().includes(searchLower))
+                .sort((a, b) => (a.label || a.key).localeCompare(b.label || b.key));
+
+              return (
+                <>
+                  {/* Visible Fields - Draggable */}
+                  {visibleCols.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                        <Eye className="h-3 w-3" />
+                        Visible ({visibleCols.length})
+                      </div>
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <SortableContext
+                          items={visibleCols.map(c => c.key)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="space-y-1">
+                            {visibleCols.map((col) => (
+                              <SortableFieldItem
+                                key={col.key}
+                                id={col.key}
+                                col={col}
+                                isVisible={true}
+                                order={fieldOrder[col.key] || 0}
+                                onToggleVisibility={toggleFieldVisibility}
+                                onUpdateOrder={updateFieldOrder}
+                              />
+                            ))}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
+                    </div>
+                  )}
+
+                  {/* Hidden Fields - Alphabetical */}
+                  {hiddenCols.length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                        <EyeOff className="h-3 w-3" />
+                        Hidden ({hiddenCols.length}) - Alphabetical
+                      </div>
+                      <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                        {hiddenCols.map((col) => (
+                          <div
+                            key={col.key}
+                            className="flex items-center gap-2 px-2 py-1.5 text-xs rounded border bg-background border-border text-muted-foreground"
+                          >
+                            <span className="w-6" /> {/* Spacer for alignment */}
+                            <span className="w-10" /> {/* Spacer for order number */}
+                            <span className="flex-1 truncate">{col.label || col.key}</span>
+                            <button
+                              type="button"
+                              onClick={() => toggleFieldVisibility(col.key)}
+                              className="p-0.5 hover:bg-muted rounded"
+                            >
+                              <EyeOff className="h-3 w-3 text-muted-foreground" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {visibleCols.length === 0 && hiddenCols.length === 0 && fieldSearch && (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      No fields match &quot;{fieldSearch}&quot;
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 

@@ -2169,6 +2169,7 @@ Rails.application.routes.draw do
       post "organization_onedrive/run_migration", to: "organization_sharepoint#run_migration"
       get "organization_onedrive/job_all_files", to: "organization_sharepoint#job_all_files"
       post "organization_onedrive/sync_job_documents", to: "organization_sharepoint#sync_job_documents"
+      post "organization_onedrive/upload_signed_version", to: "organization_sharepoint#upload_signed_version"
 
       # AI document analysis endpoints
       post "organization_onedrive/analyze_job_documents", to: "organization_sharepoint#analyze_job_documents"

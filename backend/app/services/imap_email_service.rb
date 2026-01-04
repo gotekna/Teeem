@@ -31,10 +31,11 @@ class ImapEmailService
       return emails if message_ids.empty?
 
       # Fetch email data in batches
+      # Use BODY.PEEK[] instead of RFC822 to avoid marking emails as read
       message_ids.each_slice(50) do |batch|
         fetch_data = imap.fetch(batch, [
           "UID",
-          "RFC822",
+          "BODY.PEEK[]",
           "ENVELOPE",
           "FLAGS",
           "INTERNALDATE"
@@ -75,10 +76,11 @@ class ImapEmailService
       max_uid = message_ids.max
 
       # Fetch email data
+      # Use BODY.PEEK[] instead of RFC822 to avoid marking emails as read
       message_ids.each_slice(50) do |batch|
         fetch_data = imap.uid_fetch(batch, [
           "UID",
-          "RFC822",
+          "BODY.PEEK[]",
           "ENVELOPE",
           "FLAGS",
           "INTERNALDATE"
@@ -136,6 +138,8 @@ class ImapEmailService
           existing = EmailWarehouse.find_by(internet_message_id: email_data[:internet_message_id])
 
           if existing
+            # Update read status from server (in case it changed)
+            existing.update!(is_read: email_data[:is_read]) if existing.is_read != email_data[:is_read]
             results[:skipped] += 1
             next
           end
@@ -411,8 +415,9 @@ class ImapEmailService
   def parse_email_message(msg, folder_name)
     return nil unless msg
 
-    # Parse the raw RFC822 message using Mail gem
-    raw = msg.attr["RFC822"]
+    # Parse the raw message using Mail gem
+    # BODY.PEEK[] returns data under "BODY[]" key (without PEEK)
+    raw = msg.attr["BODY[]"] || msg.attr["RFC822"]
     return nil unless raw
 
     mail = Mail.read_from_string(raw)

@@ -117,6 +117,7 @@ interface DocumentType {
   documents_count?: number;
   created_at?: string;
   updated_at?: string;
+  supports_versioning?: boolean;
 }
 
 export default function DocumentTypeDetailPage() {
@@ -1339,6 +1340,24 @@ export default function DocumentTypeDetailPage() {
                   <span className="text-xs text-muted-foreground">yrs</span>
                 </div>
               </div>
+            </div>
+
+            {/* Versioning - Draft/Signed Support */}
+            <div className="space-y-2">
+              <Label>Versioning</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="supports_versioning"
+                  checked={documentType.supports_versioning || false}
+                  onCheckedChange={(checked) => updateField("supports_versioning", checked)}
+                />
+                <Label htmlFor="supports_versioning" className="text-xs cursor-pointer">
+                  Supports Draft/Signed versions
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Enable to track Draft and Signed versions of the same document
+              </p>
             </div>
 
             {/* System Info - Compact */}

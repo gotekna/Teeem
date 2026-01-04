@@ -1617,7 +1617,7 @@ module Api
         job = Job.find(params[:job_id])
 
         # Check if we have cached documents in the data warehouse
-        cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type).synced
+        cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
 
         if cached_docs.any?
           # Data Warehouse approach: instant results from database
@@ -1646,7 +1646,16 @@ module Api
               ai_reasoning: doc.ai_reasoning,
               rename_status: doc.rename_status,
               thumbnail_url: doc.thumbnail_url,
-              from_cache: true
+              from_cache: true,
+              # Version chain fields (Draft/Signed versioning)
+              version_status: doc.version_status,
+              version_number: doc.version_number,
+              parent_document_id: doc.parent_document_id,
+              is_versionable: doc.versionable?,
+              has_signed_version: doc.has_signed_version?,
+              signed_at: doc.signed_at&.iso8601,
+              signed_by_name: doc.signed_by&.name,
+              child_versions: doc.child_versions.map { |cv| { id: cv.id, version_status: cv.version_status, version_number: cv.version_number, file_name: cv.file_name } }
             }
           end
 
@@ -1787,6 +1796,121 @@ module Api
         end
       rescue ActiveRecord::RecordNotFound => e
         render json: { error: "Job not found" }, status: :not_found
+      end
+
+      # POST /api/v1/organization_onedrive/upload_signed_version
+      # Upload a signed version of an existing draft document
+      # Creates a new JobDocument record linked to the original as parent_document
+      # Params:
+      #   - parent_document_id: ID of the draft document to create signed version for
+      #   - file: The signed file to upload
+      #   - folder_path: Optional subfolder path within the job folder
+      def upload_signed_version
+        parent_doc = JobDocument.find(params[:parent_document_id])
+        job = parent_doc.job
+
+        # Validate the document type supports versioning
+        unless parent_doc.versionable?
+          return render json: {
+            success: false,
+            error: "This document type does not support Draft/Signed versioning"
+          }, status: :unprocessable_entity
+        end
+
+        # Validate the parent is a draft
+        unless parent_doc.draft?
+          return render json: {
+            success: false,
+            error: "Only draft documents can have signed versions uploaded"
+          }, status: :unprocessable_entity
+        end
+
+        credential = get_onedrive_credential
+        unless credential
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+        end
+
+        begin
+          file = params[:file]
+          unless file
+            return render json: { error: "No file provided" }, status: :bad_request
+          end
+
+          client = MicrosoftGraphClient.new(credential)
+
+          # Find the job folder
+          job_folder = client.find_job_folder(job)
+          unless job_folder
+            return render json: {
+              success: false,
+              error: "Job folder not found in SharePoint"
+            }, status: :not_found
+          end
+
+          # Determine upload folder (same as parent document)
+          folder_path = parent_doc.folder_path || ""
+
+          # Generate filename with "Signed" suffix
+          original_name = File.basename(file.original_filename, ".*")
+          extension = File.extname(file.original_filename)
+          signed_filename = "#{original_name} - Signed#{extension}"
+
+          # Upload to SharePoint
+          target_folder_id = job_folder["id"]
+          if folder_path.present?
+            # Navigate to the subfolder if needed
+            subfolder = client.find_or_create_subfolder(target_folder_id, folder_path)
+            target_folder_id = subfolder["id"] if subfolder
+          end
+
+          uploaded_file = client.upload_file(
+            folder_id: target_folder_id,
+            file_name: signed_filename,
+            content: file.read,
+            content_type: file.content_type
+          )
+
+          # Create the signed version using the model method
+          signed_version = parent_doc.create_signed_version!(
+            {
+              file_name: signed_filename,
+              file_extension: File.extname(signed_filename).delete_prefix(".").downcase,
+              file_size: uploaded_file["size"],
+              sharepoint_item_id: uploaded_file["id"],
+              web_url: uploaded_file["webUrl"]
+            },
+            signed_by_user: current_user
+          )
+
+          render json: {
+            success: true,
+            message: "Signed version uploaded successfully",
+            signed_document: {
+              id: signed_version.id,
+              file_name: signed_version.file_name,
+              version_status: signed_version.version_status,
+              version_number: signed_version.version_number,
+              signed_at: signed_version.signed_at&.iso8601,
+              signed_by_name: signed_version.signed_by&.name,
+              web_url: uploaded_file["webUrl"]
+            },
+            parent_document: {
+              id: parent_doc.id,
+              version_status: parent_doc.reload.version_status
+            }
+          }
+
+        rescue ArgumentError => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "[Upload Signed Version] Exception: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to upload signed version: #{e.message}" }, status: :internal_server_error
+        end
       end
 
       # GET /api/v1/organization_onedrive/legacy_files

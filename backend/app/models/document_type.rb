@@ -80,6 +80,12 @@ class DocumentType < ApplicationRecord
   # SSoT: "contacts" is the canonical scope, "people" is legacy - include both for backwards compatibility
   scope :for_contacts, -> { where(scope: %w[contacts people]) }
   scope :requiring_filing, -> { where(requires_filing: true) }
+  scope :supporting_versioning, -> { where(supports_versioning: true) }
+
+  # Check if this document type supports Draft/Signed versioning
+  def versionable?
+    supports_versioning == true
+  end
 
   # Default aliases for common document types - maps alternative names to canonical names
   # These are used as fallback when database aliases aren't set
