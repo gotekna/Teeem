@@ -1461,8 +1461,8 @@ export default function TeeemTableView({
     effectiveFoundationId,
     groupByColumn,
     validGroupByColumnForApi,
-    groupByColumnsLength: groupByColumns.length,
-    enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
+    effectiveGroupByColumnsLength: effectiveGroupByColumns.length, // SSR FIX: Log effective columns not atom
+    enabled: effectiveGroupByColumns.length > 0 && !!validGroupByColumnForApi
   });
 
   // SSR: Convert initialGroupCounts to hook's expected format
@@ -1485,8 +1485,8 @@ export default function TeeemTableView({
     effectiveFoundationId,
     validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
-    groupByColumns.length > 0 && !!validGroupByColumnForApi, // enabled when grouping is active AND column is valid
-    groupByColumns, // Pass ALL grouping columns so server returns display values for each
+    effectiveGroupByColumns.length > 0 && !!validGroupByColumnForApi, // SSR FIX: Use effectiveGroupByColumns (includes initialView) not atom
+    effectiveGroupByColumns, // SSR FIX: Use effectiveGroupByColumns so SSR data is used on first render
     ssrGroupCountsData // SSR: Pre-fetched group counts to eliminate CLS
   );
 
