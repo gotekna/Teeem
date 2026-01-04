@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -272,6 +273,14 @@ export function ScheduleMasterTab() {
   const activeTab: SubTab = VALID_SUBTABS.includes(pathSegments.subtab as SubTab)
     ? (pathSegments.subtab as SubTab)
     : "schedule-templates";
+
+  // SSoT: Set fullscreen layout mode for gantt tabs (hides sidebar & breadcrumbs)
+  const { setMode } = useLayoutMode();
+  React.useEffect(() => {
+    const isGanttTab = activeTab === "gantt-preview" || activeTab === "gantt-v2";
+    setMode(isGanttTab ? "fullscreen" : "full-height");
+    return () => setMode("padded"); // Reset on unmount
+  }, [activeTab, setMode]);
 
   // URL view param (Foundation view filter) - only for data-view tab
   const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;

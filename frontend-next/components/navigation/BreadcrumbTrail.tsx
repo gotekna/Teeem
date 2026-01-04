@@ -85,8 +85,8 @@ export function BreadcrumbTrail() {
   const { sidebarWidth } = useSidebar();
   const { shouldHideSidebar } = useLayoutMode();
 
-  // Don't render if trail is empty or table is in fullscreen mode
-  if (trail.length === 0 || isTableFullscreen) return null;
+  // Don't render if trail is empty or in fullscreen mode (table or layout)
+  if (trail.length === 0 || isTableFullscreen || shouldHideSidebar) return null;
 
   // Calculate left offset based on sidebar
   const leftOffset = shouldHideSidebar ? 0 : sidebarWidth;
