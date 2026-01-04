@@ -461,17 +461,20 @@ export function countWorkingDays(startDate: Date, endDate: Date): number {
 
 /**
  * Add working days to a date (skipping weekends and holidays)
+ * @param startDate - The date to start from
+ * @param days - Number of working days to add
+ * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
  */
-export function addWorkingDays(startDate: Date, days: number): Date {
+export function addWorkingDays(startDate: Date, days: number, holidayDates?: Set<string>): Date {
   const result = new Date(startDate);
-  const holidays = getAustralianHolidays(result.getFullYear());
+  const holidays = holidayDates || getAustralianHolidays(result.getFullYear());
 
   let addedDays = 0;
   while (addedDays < days) {
     result.setDate(result.getDate() + 1);
 
-    // Check if we crossed into a new year
-    if (result.getMonth() === 0 && result.getDate() === 1) {
+    // Check if we crossed into a new year (only relevant if using fallback holidays)
+    if (!holidayDates && result.getMonth() === 0 && result.getDate() === 1) {
       // Merge in holidays for the new year
       const newYearHolidays = getAustralianHolidays(result.getFullYear());
       newYearHolidays.forEach(h => holidays.add(h));
@@ -487,16 +490,18 @@ export function addWorkingDays(startDate: Date, days: number): Date {
 
 /**
  * Skip to next working day if current date is weekend/holiday
+ * @param date - The date to start from
+ * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
  */
-export function skipToNextWorkingDay(date: Date): Date {
+export function skipToNextWorkingDay(date: Date, holidayDates?: Set<string>): Date {
   const result = new Date(date);
-  const holidays = getAustralianHolidays(result.getFullYear());
+  const holidays = holidayDates || getAustralianHolidays(result.getFullYear());
 
   while (isWeekend(result) || isHoliday(result, holidays)) {
     result.setDate(result.getDate() + 1);
 
-    // Check if we crossed into a new year
-    if (result.getMonth() === 0 && result.getDate() === 1) {
+    // Check if we crossed into a new year (only relevant if using fallback holidays)
+    if (!holidayDates && result.getMonth() === 0 && result.getDate() === 1) {
       const newYearHolidays = getAustralianHolidays(result.getFullYear());
       newYearHolidays.forEach(h => holidays.add(h));
     }
@@ -541,11 +546,16 @@ export function skipToPreviousWorkingDay(date: Date, holidayDates?: Set<string>)
  * Convert SmScheduleMaster to GanttTask
  * Calculates dates based on sequence order and duration
  * Skips weekends and Australian public holidays
+ * @param row - The task row from database
+ * @param projectStartDate - The project start date
+ * @param taskDateMap - Map of task IDs to their calculated dates (for predecessor dependencies)
+ * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
  */
 export function convertRowToTask(
   row: SmScheduleMaster,
   projectStartDate: Date,
-  taskDateMap?: Map<number, { start: Date; end: Date }>
+  taskDateMap?: Map<number, { start: Date; end: Date }>,
+  holidayDates?: Set<string>
 ): GanttTask {
   // Calculate start date based on predecessors or fallback to sequence
   let startDate: Date;
@@ -559,7 +569,7 @@ export function convertRowToTask(
   // If manually positioned OR locked with hold_date, use the manual start date
   // Locked tasks should NEVER move based on predecessor changes
   if ((row.hold || isLocked) && row.hold_date) {
-    startDate = skipToNextWorkingDay(new Date(row.hold_date));
+    startDate = skipToNextWorkingDay(new Date(row.hold_date), holidayDates);
   } else if (taskDateMap && row.predecessor_ids?.length > 0 && !isLocked) {
     // Find the latest required start date from all predecessors
     let latestRequiredStart = projectStartDate;
@@ -573,21 +583,21 @@ export function convertRowToTask(
         switch (predType) {
           case 'FS': // Finish-to-Start: successor starts after predecessor ends
             // Start on next working day after predecessor ends
-            requiredStart = addWorkingDays(predDates.end, 1 + lag);
+            requiredStart = addWorkingDays(predDates.end, 1 + lag, holidayDates);
             break;
           case 'SS': // Start-to-Start: successor starts when predecessor starts
             requiredStart = new Date(predDates.start);
             if (lag > 0) {
-              requiredStart = addWorkingDays(predDates.start, lag);
+              requiredStart = addWorkingDays(predDates.start, lag, holidayDates);
             } else {
-              requiredStart = skipToNextWorkingDay(requiredStart);
+              requiredStart = skipToNextWorkingDay(requiredStart, holidayDates);
             }
             break;
           case 'FF': // Finish-to-Finish: handled by end date, start calculated backwards
           case 'SF': // Start-to-Finish: rare, start calculated backwards
           default:
             // For FF/SF, just use predecessor end as reference
-            requiredStart = addWorkingDays(predDates.end, 1 + lag);
+            requiredStart = addWorkingDays(predDates.end, 1 + lag, holidayDates);
             break;
         }
 
@@ -596,10 +606,10 @@ export function convertRowToTask(
         }
       }
     }
-    startDate = skipToNextWorkingDay(new Date(latestRequiredStart));
+    startDate = skipToNextWorkingDay(new Date(latestRequiredStart), holidayDates);
   } else {
     // No predecessors - start at project start date (today)
-    startDate = skipToNextWorkingDay(new Date(projectStartDate));
+    startDate = skipToNextWorkingDay(new Date(projectStartDate), holidayDates);
   }
 
   // Calculate end date based on duration (in working days)
@@ -609,7 +619,7 @@ export function convertRowToTask(
     endDate = new Date(startDate);
   } else {
     // Add working days for duration
-    endDate = addWorkingDays(startDate, duration - 1);
+    endDate = addWorkingDays(startDate, duration - 1, holidayDates);
   }
 
   // Determine task shape based on name prefix (spawned tasks) or duration
@@ -746,10 +756,14 @@ export function sortRowsHierarchically<T extends {
 
 /**
  * Convert SmScheduleMaster records to GanttTasks with calculated dates
+ * @param rows - The task rows from database
+ * @param projectStartDate - The project start date
+ * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
  */
 export function convertRowsToTasks(
   rows: SmScheduleMaster[],
-  projectStartDate: Date
+  projectStartDate: Date,
+  holidayDates?: Set<string>
 ): GanttTask[] {
   // First pass: create date map based on sequence order
   // Key by task_number (not row.id) because predecessor_ids reference task_number
@@ -760,12 +774,12 @@ export function convertRowsToTasks(
 
   // Calculate dates for each row
   for (const row of sortedRows) {
-    const task = convertRowToTask(row, projectStartDate, taskDateMap);
+    const task = convertRowToTask(row, projectStartDate, taskDateMap, holidayDates);
     taskDateMap.set(row.task_number, { start: task.startDate, end: task.endDate });
   }
 
   // Second pass: convert all rows with the complete date map
-  const tasks = sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
+  const tasks = sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap, holidayDates));
 
   // Third pass: update header tasks to span their children
   // SSoT: Use isHeaderRow() for header detection

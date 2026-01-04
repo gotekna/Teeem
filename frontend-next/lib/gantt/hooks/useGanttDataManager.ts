@@ -305,6 +305,21 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         }
       }
 
+      // Fetch holidays for working day calculations
+      let holidayDates: Set<string> | undefined;
+      try {
+        const currentYear = new Date().getFullYear();
+        const holidayResponse = await api.get<{ dates: string[] }>(
+          `/api/v1/public_holidays/dates?year_start=${currentYear - 1}&year_end=${currentYear + 2}&region=QLD`
+        );
+        if (holidayResponse?.dates) {
+          holidayDates = new Set(holidayResponse.dates);
+          console.log(`[GanttDataManager] 📅 Loaded ${holidayDates.size} holidays`);
+        }
+      } catch (err) {
+        console.warn('[GanttDataManager] Failed to load holidays, using fallback:', err);
+      }
+
       // Fetch data
       const response = await api.get<{
         success?: boolean;
@@ -344,9 +359,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       setInternalRows(fetchedRows);
 
-      // Convert to GanttTask format
+      // Convert to GanttTask format (with API holidays for weekend/holiday skipping)
       const projectStartDate = getTodayInCompanyTimezone();
-      let convertedTasks = convertRowsToTasks(fetchedRows, projectStartDate);
+      let convertedTasks = convertRowsToTasks(fetchedRows, projectStartDate, holidayDates);
 
       // For templates: apply backend-calculated dates (skips headers)
       if (mode === 'template' && dateMap) {

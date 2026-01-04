@@ -960,6 +960,9 @@ module Api
           :postcode,
           :state,
           :council,
+          # Construction details
+          :level,
+          :dwelling_type,
           :contract_value,
           # live_profit and profit_percentage are calculated fields, not user-editable
           :stage,

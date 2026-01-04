@@ -2485,6 +2485,7 @@ export class UnifiedGanttCanvas {
 
     // Draw layers in order
     this.drawBackground();
+    this.drawTimelineRowBackgrounds(); // Zebra stripes for timeline (before weekend shading)
     this.drawWeekendShading();
     this.drawTableSection();
     this.drawHeaderRowTimelineBackgrounds();
@@ -2808,6 +2809,28 @@ export class UnifiedGanttCanvas {
   private drawBackground(): void {
     this.ctx.fillStyle = this.config.colors.background;
     this.ctx.fillRect(0, 0, this.width, this.height);
+  }
+
+  /**
+   * Draw alternating row backgrounds (zebra stripes) for the timeline area.
+   * Called before weekend shading so weekends overlay on top.
+   */
+  private drawTimelineRowBackgrounds(): void {
+    const { headerHeight, rowHeight } = this.config;
+    const oddRowColor = this.config.darkMode ? '#263040' : '#fafafa';
+
+    for (let i = 0; i < this.visibleTasks.length; i++) {
+      const y = headerHeight + i * rowHeight - this.scrollY;
+
+      // Skip if not visible
+      if (y + rowHeight < headerHeight || y > this.height) continue;
+
+      // Only draw odd rows (even rows use default background)
+      if (i % 2 !== 0) {
+        this.ctx.fillStyle = oddRowColor;
+        this.ctx.fillRect(this.tableWidth, y, this.width - this.tableWidth, rowHeight);
+      }
+    }
   }
 
   private drawWeekendShading(): void {
@@ -3525,6 +3548,24 @@ export class UnifiedGanttCanvas {
         }
 
         this.ctx.fillText(displayName, textX, textY);
+      }
+
+      // Draw supplier name and PO # to the right of the task bar (only for PO-required tasks)
+      // SSoT: Matches old Gantt Renderer.ts:802-810
+      const isPORequired = task.poRequired || rowData?.po_required;
+      if (isPORequired && taskShape === 'task') {
+        const rightLabelX = startX + barWidth + 8;
+        const supplierText = task.supplierName || rowData?.po_supplier_name || 'No Supplier Selected';
+        const poText = task.purchaseOrderNumber || rowData?.purchase_order_number || '';
+        const rightLabel = poText ? `${supplierText} | ${poText}` : supplierText;
+
+        this.ctx.fillStyle = this.config.darkMode
+          ? 'rgba(156, 163, 175, 0.9)'  // gray-400 with opacity
+          : 'rgba(75, 85, 99, 0.9)';    // gray-600 with opacity
+        this.ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(rightLabel, rightLabelX, barY + taskBarHeight / 2);
       }
     }
   }
