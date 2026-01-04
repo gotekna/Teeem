@@ -81,7 +81,7 @@ import { useGanttDataManager } from "@/lib/gantt/hooks";
 import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
-import { convertRowsToTasks, isHeaderRow, isWorkingDay, skipToPreviousWorkingDay, type GanttTask, type GanttDependency, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
+import { isWorkingDay, skipToPreviousWorkingDay, type GanttTask, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch } from "lucide-react";
@@ -334,19 +334,10 @@ export function ScheduleMasterTab() {
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
 
   // SSoT: Use shared hook for all Gantt V2 behavior
-  // When Gantt template matches Data View template, use the same data (true SSoT)
-  const ganttUsesExternalData = ganttV2TemplateId === dataViewTemplateId && dataViewTemplateId !== null;
+  // Gantt always loads its own data (same as Job Gantt) - no external data mode
   const gantt = useGanttDataManager({
     mode: 'template',
     templateId: ganttV2TemplateId ?? undefined,
-    // SSoT: Pass rows from Data View when viewing the same template
-    // Cast to GanttSmScheduleMaster[] - same data, different type definitions (TODO: unify types)
-    rows: ganttUsesExternalData ? (dataViewRows as unknown as GanttSmScheduleMaster[]) : undefined,
-    // SSoT: Refresh callback - updates both TeeemTableView and dataViewRows
-    onRefresh: ganttUsesExternalData ? () => {
-      setDataViewRefreshKey(prev => prev + 1);
-      loadDataViewRows(dataViewTemplateId);
-    } : undefined,
   });
 
   // Aliases for backward compatibility during transition
