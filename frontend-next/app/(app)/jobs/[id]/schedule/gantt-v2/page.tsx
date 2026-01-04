@@ -283,14 +283,29 @@ export default function GanttV2Page() {
                         setLightboxIndex(index);
                         setLightboxOpen(true);
                       }}
-                      className="aspect-square rounded-md overflow-hidden bg-muted/50 hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="aspect-square rounded-md overflow-hidden bg-muted/50 hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary relative group"
                     >
-                      <img
-                        src={photo.thumbnailUrl}
-                        alt={photo.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
+                      {photo.thumbnailUrl ? (
+                        <img
+                          src={photo.thumbnailUrl}
+                          alt={photo.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            // Replace broken image with placeholder
+                            const target = e.currentTarget;
+                            target.style.display = 'none';
+                            const placeholder = target.nextElementSibling;
+                            if (placeholder) placeholder.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={`absolute inset-0 flex flex-col items-center justify-center bg-muted/80 ${photo.thumbnailUrl ? 'hidden' : ''}`}>
+                        <Camera className="h-6 w-6 text-muted-foreground/50 mb-1" />
+                        <span className="text-[9px] text-muted-foreground text-center px-1 truncate w-full">
+                          {photo.name.length > 20 ? photo.name.slice(0, 17) + '...' : photo.name}
+                        </span>
+                      </div>
                     </button>
                   ))}
                 </div>

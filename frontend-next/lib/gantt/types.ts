@@ -902,10 +902,100 @@ export function convertRowsToTasks(
 
     // Keep all tasks including headers with no children
     // Headers remain visible regardless of whether they have children
-    return tasks;
   }
 
-  return tasks;
+  // Fourth pass: Sort by calculated dates
+  // Headers sorted by start date, children within headers sorted by start date,
+  // and if start dates equal, sort by end date (earlier finish first)
+  return sortTasksByDate(tasks, sortedRows);
+}
+
+/**
+ * Sort tasks by calculated dates (called after date calculations are complete)
+ * 1. Headers sorted by their start date
+ * 2. Children within headers sorted by start date
+ * 3. If start dates equal, sort by end date (earlier finish first)
+ */
+function sortTasksByDate(tasks: GanttTask[], rows: SmScheduleMaster[]): GanttTask[] {
+  // Build row lookup
+  const rowMap = new Map(rows.map(r => [String(r.id), r]));
+
+  // Helper: get parent task_number from header_gantt
+  const getParentTaskNumber = (row: SmScheduleMaster): number | null => {
+    if (row.header_gantt === 'Header') return null;
+    if (typeof row.header_gantt === 'number') return row.header_gantt;
+    if (typeof row.header_gantt === 'object' && row.header_gantt?.id) return row.header_gantt.id;
+    if (typeof row.header_gantt === 'string') {
+      const parsed = parseInt(row.header_gantt, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return null;
+  };
+
+  // Separate headers and children
+  const headers: GanttTask[] = [];
+  const childrenByHeader = new Map<string, GanttTask[]>();
+  const orphans: GanttTask[] = []; // Tasks without a header (top-level non-headers)
+
+  // Build task_number -> row.id mapping for headers
+  const taskNumberToRowId = new Map<number, string>();
+  for (const row of rows) {
+    if (isHeaderRow(row)) {
+      taskNumberToRowId.set(Number(row.task_number), String(row.id));
+    }
+  }
+
+  for (const task of tasks) {
+    const row = rowMap.get(task.id);
+    if (!row) continue;
+
+    if (isHeaderRow(row)) {
+      headers.push(task);
+      childrenByHeader.set(task.id, []);
+    } else {
+      const parentTaskNum = getParentTaskNumber(row);
+      if (parentTaskNum) {
+        const headerId = taskNumberToRowId.get(parentTaskNum);
+        if (headerId) {
+          if (!childrenByHeader.has(headerId)) {
+            childrenByHeader.set(headerId, []);
+          }
+          childrenByHeader.get(headerId)!.push(task);
+        } else {
+          orphans.push(task);
+        }
+      } else {
+        orphans.push(task);
+      }
+    }
+  }
+
+  // Sort comparator: start date, then end date (earlier finish first)
+  const dateCompare = (a: GanttTask, b: GanttTask) => {
+    const startDiff = a.startDate.getTime() - b.startDate.getTime();
+    if (startDiff !== 0) return startDiff;
+    return a.endDate.getTime() - b.endDate.getTime();
+  };
+
+  // Sort headers by start date
+  headers.sort(dateCompare);
+
+  // Sort children within each header
+  for (const children of childrenByHeader.values()) {
+    children.sort(dateCompare);
+  }
+
+  // Reassemble: headers with children, then orphans
+  const result: GanttTask[] = [];
+  for (const header of headers) {
+    result.push(header);
+    const children = childrenByHeader.get(header.id) || [];
+    result.push(...children);
+  }
+  orphans.sort(dateCompare);
+  result.push(...orphans);
+
+  return result;
 }
 
 // SSoT: convertToDependencies was removed - backend GanttDataService is now the only place

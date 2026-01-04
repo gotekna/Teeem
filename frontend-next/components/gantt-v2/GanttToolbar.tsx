@@ -30,6 +30,7 @@ import {
   Download,
   Layers,
   Camera,
+  Images,
   Info,
   Check,
   RefreshCw,
@@ -671,7 +672,7 @@ export function GanttToolbar({
             title={showPhotoPanel ? 'Hide Photos' : 'Show Photos'}
             className="h-8 w-8"
           >
-            <Camera className="h-4 w-4" />
+            <Images className="h-4 w-4" />
           </Button>
         )}
 
