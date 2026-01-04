@@ -404,8 +404,14 @@ import { useFilterState } from './core/state/useFilterState';
 import { selectDefaultView } from '@/lib/view-loading-utils';
 
 // New foundation-scoped view state (URL-driven architecture)
-// TODO: Gradually replace global atoms with this hook
+// These atoms are isolated per foundation, preventing state pollution between pages
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
+import {
+  collapsedGroupsFamily,
+  groupByColumnsFamily,
+  groupViewModeFamily,
+  activeViewIdFamily,
+} from '@/lib/view-state/atoms';
 
 // Helper functions and constants now imported from ./utils/table-utils:
 // - SYSTEM_GENERATED_TYPES, SYSTEM_COLUMN_BG
@@ -584,6 +590,10 @@ export default function TeeemTableView({
   const { setViewSlug: navigateToView } = useViewFromPath({
     foundationSlug: foundationSlug || 'default',
   });
+
+  // Foundation key for foundation-scoped atoms (prevents state pollution between pages)
+  // SSoT: This key isolates Jobs state from Contacts state, etc.
+  const foundationKey = String(effectiveFoundationId || 'default');
 
   const effectiveEnableImport = enableImport || shouldAutoEnable;
   const effectiveEnableExport = enableExport || shouldAutoEnable;
@@ -1377,43 +1387,33 @@ export default function TeeemTableView({
   // ALSO clear on initial mount (prevFoundationRef.current === null) to prevent stale state
   // from previous navigation sessions from affecting this table.
   //
-  // FRC ROOT CAUSE: Atoms like currentGroupByColumnsAtom persist between navigations.
-  // When navigating from Contacts (groupBy: primary_company_id) to Jobs, the stale groupBy
-  // would cause effectiveGroupByColumns to return wrong value, breaking view selection.
+  // FRC FIX: With foundation-scoped atoms, state is automatically isolated per foundation.
+  // Jobs atoms are completely separate from Contacts atoms, so no pollution is possible.
+  // This reset logic now just handles SSR initialView application.
   const prevFoundationRef = useRef<string | number | null>(null);
-  // Get setters for view state atoms that need reset on foundation change
-  const resetGroupByColumns = useSetAtom(currentGroupByColumnsAtom);
-  const resetActiveViewId = useSetAtom(activeViewIdAtom);
-  const resetCollapsedGroups = useSetAtom(collapsedGroupsAtom);
-  const resetGroupViewMode = useSetAtom(groupViewModeAtom);
+  // Note: resetters now use foundation-scoped atoms via the setters defined later
+  // (setGroupByColumns, setActiveViewId, setCollapsedGroups, setGroupViewMode)
 
-  // CRITICAL: Use useLayoutEffect to run BEFORE browser paint
-  // This prevents the flash of stale data when navigating between pages
-  // useEffect runs AFTER paint, causing visible flash of wrong filters/grouping
+  // FRC FIX: With foundation-scoped atoms, cross-page pollution is IMPOSSIBLE.
+  // Each foundation has its own isolated state - Jobs atoms are separate from Contacts atoms.
+  // We only need to track foundation changes for filter clearing and initialView application.
   useLayoutEffect(() => {
     if (effectiveFoundationId) {
       const isInitialMount = prevFoundationRef.current === null;
       const isFoundationChange = prevFoundationRef.current !== null && prevFoundationRef.current !== effectiveFoundationId;
 
       if (isInitialMount || isFoundationChange) {
-        // Clear user filters to prevent cross-foundation pollution
-        // View filters will be re-applied from initialView if present
-        console.log('[Foundation Change] Resetting for:', effectiveFoundationId,
+        // Clear user filters - this is still needed for filter atoms (not yet foundation-scoped)
+        console.log('[Foundation Change] Clearing filters for:', effectiveFoundationId,
           isInitialMount ? '(initial mount)' : `(from ${prevFoundationRef.current})`);
         clearAllUserFilters();
 
-        // For view state: If we have an initialView from SSR, APPLY it instead of resetting
-        // This preserves the correct filters, panel/table mode, grouping, etc from SSR
+        // Apply filters from initialView (CRITICAL: This is what makes LIVE filter work)
         if (initialView) {
-          console.log('[Foundation Change] Applying SSR initialView:', {
-            viewId: initialView.id,
-            viewName: initialView.name,
-            viewDisplayType: initialView.view_display_type,
-            groupByColumns: initialView.group_by_columns,
+          console.log('[Foundation Change] Applying SSR initialView filters:', {
             filterCount: initialView.filters?.cascadeFilters?.length || 0,
           });
 
-          // Apply filters from initialView (CRITICAL: This is what makes LIVE filter work)
           if (initialView.filters?.cascadeFilters?.length) {
             setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
           } else {
@@ -1424,28 +1424,16 @@ export default function TeeemTableView({
           } else {
             setFilterGroups([{ id: "default", logic: "AND" }]);
           }
-
-          // Set view state from initialView
-          resetActiveViewId(initialView.id);
-          resetGroupByColumns(initialView.group_by_columns || (initialView.group_by_column ? [initialView.group_by_column] : []));
-          resetCollapsedGroups(new Set());
-          // Set panel mode for grouped views
-          resetGroupViewMode(initialView.view_display_type === 'grouped' ? 'panel' : 'inline');
         } else {
-          // No initialView - reset to defaults
-          console.log('[Foundation Change] No initialView, resetting to defaults');
+          // No initialView - ensure filters are clear
           setViewFilters([]);
           setFilterGroups([{ id: "default", logic: "AND" }]);
-          resetGroupByColumns([]);
-          resetActiveViewId(null);
-          resetCollapsedGroups(new Set());
-          resetGroupViewMode('inline');
         }
+
       }
     }
     prevFoundationRef.current = effectiveFoundationId;
-  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters, setFilterGroups,
-      resetGroupByColumns, resetActiveViewId, resetCollapsedGroups, resetGroupViewMode, initialView]);
+  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters, setFilterGroups, initialView]);
 
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
   // Also clear view filters to prevent pollution from other tables with initialFilters
@@ -1467,7 +1455,8 @@ export default function TeeemTableView({
 
   // View collection state managed by atoms
   const [savedViews, setSavedViews] = useAtom(foundationViewsAtom);
-  const [activeViewId, setActiveViewId] = useAtom(activeViewIdAtom);
+  // activeViewId managed by FOUNDATION-SCOPED atom (prevents view selection pollution between pages)
+  const [activeViewId, setActiveViewId] = useAtom(activeViewIdFamily(foundationKey));
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
   // SSR: Mark as loaded if we have initialView to prevent client-side reload
   const initialViewLoadedRef = useRef(!!initialView); // Prevent re-loading views after initial load
@@ -1594,8 +1583,9 @@ export default function TeeemTableView({
   const [rowLimit, setRowLimit] = useAtom(rowLimitAtom);
   const [showAllRows, setShowAllRows] = useAtom(showAllRowsAtom);
 
-  // Group by state managed by atoms (SSoT)
-  const [groupByColumns, setGroupByColumns] = useAtom(currentGroupByColumnsAtom);
+  // Group by state managed by FOUNDATION-SCOPED atoms (prevents pollution between pages)
+  // SSoT: groupByColumnsFamily creates isolated state per foundation
+  const [groupByColumns, setGroupByColumns] = useAtom(groupByColumnsFamily(foundationKey));
 
   // SSR FLASH FIX: Use initialView's grouping on first render BEFORE effects run
   // This prevents the flash from flat table to grouped view during hydration
@@ -1613,12 +1603,34 @@ export default function TeeemTableView({
 
   // Derive groupByColumn from effective columns - NOT a separate state (SSoT compliance)
   const groupByColumn = effectiveGroupByColumns.length > 0 ? effectiveGroupByColumns[0] : null;
-  // Collapsed groups managed by atom (persists with saved views)
-  const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedGroupsAtom);
+  // Collapsed groups managed by FOUNDATION-SCOPED atom (prevents pollution between pages)
+  // SSoT: collapsedGroupsFamily creates isolated state per foundation
+  const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedGroupsFamily(foundationKey));
   // Keep ref in sync for use in toggleSelectAll callback
   collapsedGroupsRef.current = collapsedGroups;
-  // groupViewMode managed by atom (SSoT)
-  const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
+  // groupViewMode managed by FOUNDATION-SCOPED atom (prevents panel mode pollution between pages)
+  const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeFamily(foundationKey));
+
+  // CRITICAL: Reset grouping state when navigating to base URL (no view)
+  // atomFamily atoms persist values - they don't auto-reset on navigation!
+  // This ensures /contacts shows flat table, not cached Company/Role grouping
+  const groupingResetRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    // Only reset when foundation changes and no view is specified
+    const resetKey = `${effectiveFoundationId}:${viewSlug || 'none'}:${initialView?.id || 'none'}`;
+    if (groupingResetRef.current === resetKey) return;
+    groupingResetRef.current = resetKey;
+
+    // If no initialView AND no viewSlug, reset to flat table
+    if (!initialView && !viewSlug) {
+      console.log('[Grouping Reset] No view active - resetting to flat table for:', effectiveFoundationId);
+      setGroupByColumns([]);
+      setGroupViewMode('inline');
+      setCollapsedGroups(new Set());
+      setActiveViewId(null);
+    }
+  }, [effectiveFoundationId, initialView, viewSlug, setGroupByColumns, setGroupViewMode, setCollapsedGroups, setActiveViewId]);
+
   // Collapsed hierarchy headers (for "Header Hierarchy" display mode)
   const [collapsedHierarchyHeaders, setCollapsedHierarchyHeaders] = useState<Set<number>>(new Set());
 
@@ -3202,9 +3214,43 @@ export default function TeeemTableView({
   const loadViewState = useCallback(
     (view: SavedView, skipUrlUpdate = false, isUserAction = false) => {
       // Apply view state atomically via Jotai atom
-      // This replaces 100+ lines of individual setters with a single atomic update
-      // groupByColumns and collapsedGroups are now managed by atoms (SSoT)
+      // This handles filters, columns, and other non-grouped state
       applyView(view);
+
+      // FOUNDATION-SCOPED STATE: Set grouping state to foundation-scoped atoms
+      // This ensures Jobs grouping doesn't pollute Contacts and vice versa
+      // SSoT: Foundation-scoped atoms from lib/view-state/atoms.ts
+      setActiveViewId(view.id);
+
+      // Set groupBy columns
+      if (view.groupByColumns && view.groupByColumns.length > 0) {
+        setGroupByColumns(view.groupByColumns);
+      } else if (view.groupByColumn) {
+        setGroupByColumns([view.groupByColumn]);
+      } else {
+        setGroupByColumns([]);
+      }
+
+      // Set group view mode based on view_display_type
+      // "grouped" = panel mode (Company/Role search), otherwise inline
+      if (view.view_display_type === 'grouped') {
+        setGroupViewMode('panel');
+        // If no groupByColumn is set, default to "primary_company_id" for contacts
+        if (!view.groupByColumns?.length && !view.groupByColumn) {
+          setGroupByColumns(['primary_company_id']);
+        }
+      } else {
+        setGroupViewMode('inline');
+      }
+
+      // Restore collapsed groups from view or reset to empty (all expanded)
+      const viewWithCollapsed = view as SavedView & { collapsedGroups?: string[] | Set<string> };
+      if (viewWithCollapsed.collapsedGroups) {
+        const groups = viewWithCollapsed.collapsedGroups;
+        setCollapsedGroups(groups instanceof Set ? groups : new Set(groups));
+      } else {
+        setCollapsedGroups(new Set());
+      }
 
       // Hide filter editor when loading a saved view
       setShowFilters(false);
@@ -3234,7 +3280,7 @@ export default function TeeemTableView({
         onViewChange?.(view);
       }
     },
-    [applyView, onViewApiParamsChange, onViewChange, isEmbeddedContext, foundationSlug, navigateToView]
+    [applyView, onViewApiParamsChange, onViewChange, isEmbeddedContext, foundationSlug, navigateToView, setActiveViewId, setGroupByColumns, setGroupViewMode, setCollapsedGroups]
   );
 
   // Load saved views (simplified using atoms)

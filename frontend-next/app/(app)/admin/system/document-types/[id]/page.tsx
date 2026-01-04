@@ -118,6 +118,7 @@ interface DocumentType {
   created_at?: string;
   updated_at?: string;
   supports_versioning?: boolean;
+  form_number_mapping?: Record<string, string>; // Dwelling type -> Form number mapping
 }
 
 export default function DocumentTypeDetailPage() {
@@ -1765,6 +1766,76 @@ export default function DocumentTypeDetailPage() {
                 ? "Display Name matches File Name automatically"
                 : "Drag placeholders to customize"}
             </p>
+          </div>
+
+          {/* Form Number Mapping - for {FormNumber} placeholder */}
+          <div className="space-y-2 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Form Number Mapping</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => {
+                  const mapping = { ...(documentType.form_number_mapping || {}) };
+                  const newKey = `Dwelling Type ${Object.keys(mapping).length + 1}`;
+                  mapping[newKey] = "Form XX";
+                  updateField("form_number_mapping", mapping);
+                }}
+              >
+                + Add
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Map dwelling types to form numbers. Use {"{FormNumber}"} in templates.
+            </p>
+            {Object.keys(documentType.form_number_mapping || {}).length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-2">
+                No mappings configured. Click "+ Add" to add a dwelling type → form number mapping.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {Object.entries(documentType.form_number_mapping || {}).map(([dwellingType, formNumber], idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Input
+                      value={dwellingType}
+                      onChange={(e) => {
+                        const mapping = { ...(documentType.form_number_mapping || {}) };
+                        const newValue = mapping[dwellingType];
+                        delete mapping[dwellingType];
+                        mapping[e.target.value] = newValue;
+                        updateField("form_number_mapping", mapping);
+                      }}
+                      className="h-7 text-xs flex-1"
+                      placeholder="Dwelling Type (e.g., Class 1A)"
+                    />
+                    <span className="text-xs text-muted-foreground">→</span>
+                    <Input
+                      value={formNumber}
+                      onChange={(e) => {
+                        const mapping = { ...(documentType.form_number_mapping || {}) };
+                        mapping[dwellingType] = e.target.value;
+                        updateField("form_number_mapping", mapping);
+                      }}
+                      className="h-7 text-xs w-24"
+                      placeholder="Form 15"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        const mapping = { ...(documentType.form_number_mapping || {}) };
+                        delete mapping[dwellingType];
+                        updateField("form_number_mapping", mapping);
+                      }}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           </div>
           {/* End Column 2 */}

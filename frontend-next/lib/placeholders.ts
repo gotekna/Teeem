@@ -274,6 +274,12 @@ export const JOB_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Certificate type",
   },
   {
+    code: "{FormNumber}",
+    example: "Form 15",
+    color: "orange",
+    description: "Form number based on dwelling type (configurable mapping)",
+  },
+  {
     code: "{Consultant}",
     example: "ABC Eng",
     color: "orange",

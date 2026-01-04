@@ -178,16 +178,16 @@ export function DocumentTypeLinker({
                 <div className="w-40 space-y-1">
                   <Label className="text-xs text-muted-foreground">Assigned Role</Label>
                   <Select
-                    value={item.assigned_role || ""}
+                    value={item.assigned_role || "none"}
                     onValueChange={(value) =>
-                      handleChange(index, "assigned_role", value || null)
+                      handleChange(index, "assigned_role", value === "none" ? null : value)
                     }
                   >
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select role..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {ASSIGNABLE_ROLES.map((role) => (
                         <SelectItem key={role.value} value={role.value}>
                           {role.label}

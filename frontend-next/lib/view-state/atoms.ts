@@ -69,6 +69,30 @@ export const collapsedGroupsFamily = atomFamily((_foundationId: string) =>
 );
 
 /**
+ * Foundation-scoped groupByColumns atom
+ * Prevents Jobs grouping columns from polluting Contacts, etc.
+ */
+export const groupByColumnsFamily = atomFamily((_foundationId: string) =>
+  atom<string[]>([])
+);
+
+/**
+ * Foundation-scoped groupViewMode atom
+ * Prevents Jobs panel mode from polluting Contacts table mode, etc.
+ */
+export const groupViewModeFamily = atomFamily((_foundationId: string) =>
+  atom<'inline' | 'panel'>('inline')
+);
+
+/**
+ * Foundation-scoped activeViewId atom
+ * Prevents Jobs view selection from polluting Contacts, etc.
+ */
+export const activeViewIdFamily = atomFamily((_foundationId: string) =>
+  atom<number | string | null>(null)
+);
+
+/**
  * Write-only atom for toggling a group's collapsed state
  */
 export const toggleCollapsedGroupFamily = atomFamily((foundationId: string) =>

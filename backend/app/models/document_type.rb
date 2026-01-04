@@ -87,6 +87,21 @@ class DocumentType < ApplicationRecord
     supports_versioning == true
   end
 
+  # Resolve form number based on dwelling type using the configured mapping
+  # Returns the mapped value or empty string if no mapping exists
+  # Example mapping: { "Class 1A" => "Form 15", "Class 10" => "Form 21" }
+  def resolve_form_number(dwelling_type)
+    return "" if form_number_mapping.blank? || dwelling_type.blank?
+
+    # Try exact match first
+    form_number_mapping[dwelling_type] ||
+      # Try case-insensitive match
+      form_number_mapping.find { |k, _| k.downcase == dwelling_type.downcase }&.last ||
+      # Return default if configured, otherwise empty string
+      form_number_mapping["default"] ||
+      ""
+  end
+
   # Default aliases for common document types - maps alternative names to canonical names
   # These are used as fallback when database aliases aren't set
   # Key = canonical name (must match a DocumentType.name in database)
