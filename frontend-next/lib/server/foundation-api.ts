@@ -9,6 +9,8 @@
 import { cookies } from 'next/headers';
 import { getApiBaseUrl } from '@/lib/api';
 import { isHiddenSystemColumn, isVisibleSystemColumn } from '@/lib/constants/system-columns';
+import { selectDefaultView } from '@/lib/view-loading-utils';
+import type { SavedView } from '@/components/table/types';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -318,13 +320,12 @@ export async function fetchFoundationForSSR(
 
     const columns = transformColumns(foundation);
 
-    // Find view: either by URL slug or auto-select default view
-    // SSR CLS Fix: Always select a view to prevent client-side default view loading flash
+    // Find view: URL slug takes priority, otherwise select default view
     let view: ViewData | null = null;
     const views = (viewsData?.views || []) as ViewData[];
 
     if (viewSlug) {
-      // Priority 1: URL-specified view
+      // URL-specified view takes priority
       view = views.find(v =>
         v.slug?.toLowerCase() === viewSlug.toLowerCase() ||
         String(v.id) === viewSlug
@@ -333,25 +334,22 @@ export async function fetchFoundationForSSR(
       if (view) {
         console.log('[SSR] Pre-loaded URL view:', view.name, 'with grouping:', view.group_by_columns);
       } else {
-        console.log('[SSR] View not found for slug:', viewSlug, '- falling back to default');
+        console.log('[SSR] View not found for slug:', viewSlug);
       }
     }
 
     // If no URL view, select default view (matches client-side selectDefaultView logic)
+    // SSoT: Default view is first in list by display_order, or is_default/is_global flags
     if (!view && views.length > 0) {
-      // Priority 2: Explicit default global view
+      // Priority: is_default + is_global > is_default > is_global with display_order=0 > display_order=0 > first
       view = views.find(v => v.is_default && v.is_global) || null;
-      // Priority 3: Any explicit default view
       if (!view) view = views.find(v => v.is_default) || null;
-      // Priority 4: First global view at display_order 0
       if (!view) view = views.find(v => v.is_global && v.display_order === 0) || null;
-      // Priority 5: First view at display_order 0
       if (!view) view = views.find(v => v.display_order === 0) || null;
-      // Priority 6: First view
       if (!view) view = views[0] || null;
 
       if (view) {
-        console.log('[SSR] Pre-loaded default view:', view.name, 'with grouping:', view.group_by_columns);
+        console.log('[SSR] Auto-selected default view:', view.name, 'with grouping:', view.group_by_columns);
       }
     }
 

@@ -524,16 +524,13 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     const MAX_PASSES = 10; // Safety limit
 
     for (let pass = 1; pass <= MAX_PASSES; pass++) {
-      console.log(`[CASCADE] === Pass ${pass} ===`);
       const passUpdated = runCascadePass(taskList, rowList, taskByNumber, rowByNumber, holidayDates);
 
       if (passUpdated === 0) {
-        console.log(`[CASCADE] No changes in pass ${pass}, cascade complete`);
         break;
       }
 
       totalUpdated += passUpdated;
-      console.log(`[CASCADE] Pass ${pass} updated ${passUpdated} tasks`);
 
       if (pass === MAX_PASSES) {
         console.warn(`[CASCADE] Hit max passes (${MAX_PASSES}), possible circular dependency`);
@@ -542,7 +539,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
     // Recalculate header spans after all cascading is done
     if (totalUpdated > 0) {
-      console.log(`[CASCADE] Total ${totalUpdated} task updates, recalculating header spans...`);
       return recalculateHeaderSpans(taskList, rowList);
     }
 
@@ -590,7 +586,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           }
         }
         if (maxChildEnd) {
-          console.log(`[CASCADE] Header ${taskNum} (${row.name}) effective end date from children: ${maxChildEnd.toISOString().split('T')[0]}`);
           return maxChildEnd;
         }
       }
@@ -612,9 +607,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       for (const pred of predecessors) {
         const predTask = taskByNumber.get(pred.id);
-        const predRow = rowByNumber.get(pred.id);
         if (!predTask) {
-          console.warn(`[CASCADE] ⚠️ Predecessor ${pred.id} NOT FOUND for task ${taskNum} (${row.name}) - task ${pred.id} may be filtered out of current view`);
+          // Predecessor not in current view (filtered out or different template)
           continue;
         }
 
@@ -627,11 +621,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           // For headers, use effective end date (max of children)
           const predEndDate = getEffectiveEndDate(pred.id) || predTask.endDate;
           requiredStart = addWorkingDays(predEndDate, 1 + lagDays, holidayDates);
-          console.log(`[CASCADE] Task ${taskNum} depends on ${pred.id} (${predRow?.name}) FS - pred ends ${predEndDate.toISOString().split('T')[0]}, required start: ${requiredStart.toISOString().split('T')[0]}`);
         } else if (predType === 'SS') {
           // Start-to-Start: start when predecessor starts + lag
           requiredStart = addWorkingDays(predTask.startDate, lagDays, holidayDates);
-          console.log(`[CASCADE] Task ${taskNum} depends on ${pred.id} (${predRow?.name}) SS - pred starts ${predTask.startDate.toISOString().split('T')[0]}, required start: ${requiredStart.toISOString().split('T')[0]}`);
         } else if (predType === 'FF') {
           // Finish-to-Finish: this task ends when predecessor ends + lag
           // So start = pred end + lag - (duration - 1)
@@ -640,13 +632,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           // Task must end on predEndDate + lag, so it starts (duration-1) days before that
           const requiredEndDate = addWorkingDays(predEndDate, lagDays, holidayDates);
           requiredStart = addWorkingDays(requiredEndDate, -(taskDuration - 1), holidayDates);
-          console.log(`[CASCADE] Task ${taskNum} depends on ${pred.id} (${predRow?.name}) FF - pred ends ${predEndDate.toISOString().split('T')[0]}, required end: ${requiredEndDate.toISOString().split('T')[0]}, required start: ${requiredStart.toISOString().split('T')[0]}`);
         } else if (predType === 'SF') {
           // Start-to-Finish: this task ends when predecessor starts + lag
           const taskDuration = row.duration_days || 1;
           const requiredEndDate = addWorkingDays(predTask.startDate, lagDays, holidayDates);
           requiredStart = addWorkingDays(requiredEndDate, -(taskDuration - 1), holidayDates);
-          console.log(`[CASCADE] Task ${taskNum} depends on ${pred.id} (${predRow?.name}) SF - pred starts ${predTask.startDate.toISOString().split('T')[0]}, required start: ${requiredStart.toISOString().split('T')[0]}`);
         } else {
           // Default to FS
           const predEndDate = getEffectiveEndDate(pred.id) || predTask.endDate;
@@ -660,18 +650,13 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       // If task needs to move forward
       if (latestRequiredStart && latestRequiredStart > task.startDate) {
-        const oldStartDate = task.startDate;
         const duration = row.duration_days || 1;
         task.startDate = new Date(latestRequiredStart);
         task.endDate = addWorkingDays(task.startDate, duration - 1, holidayDates);
         updated.add(row.task_number);
-        console.log(`[CASCADE] Task ${taskNum} (${row.name}) moved from ${oldStartDate.toISOString().split('T')[0]} to ${task.startDate.toISOString().split('T')[0]}`);
 
         // If this is a header, cascade all its children forward
         if (isHeaderRow(row)) {
-          const deltaDays = Math.round((task.startDate.getTime() - oldStartDate.getTime()) / (1000 * 60 * 60 * 24));
-          console.log(`[CASCADE] Header ${row.name} moved by ${deltaDays} days, cascading children...`);
-
           // Find all children under this header and move them
           for (const childTask of taskList) {
             const childRow = rowList.find(r => String(r.id) === childTask.id);
@@ -686,12 +671,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
             }
 
             if (parentTaskNumber === row.task_number) {
-              // Child can't start before its header - use the LATER of:
-              // 1. Header's new start date (minimum constraint)
-              // 2. Child's current date (from backend, based on its own dependencies)
+              // Child can't start before its header
               const headerStart = task.startDate;
               const childCurrentStart = childTask.startDate;
-              const childOldStart = childTask.startDate;
               const childDuration = childRow.duration_days || 1;
 
               if (childCurrentStart < headerStart) {
@@ -699,10 +681,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
                 childTask.startDate = new Date(headerStart);
                 childTask.endDate = addWorkingDays(childTask.startDate, childDuration - 1, holidayDates);
                 updated.add(childRow.task_number);
-                console.log(`[CASCADE]   Child ${childRow.task_number} (${childRow.name}) moved from ${childOldStart.toISOString().split('T')[0]} to ${childTask.startDate.toISOString().split('T')[0]} (can't be before header)`);
-              } else {
-                // Child is already at or after header - keep its position (respects its own deps)
-                console.log(`[CASCADE]   Child ${childRow.task_number} (${childRow.name}) at ${childCurrentStart.toISOString().split('T')[0]} - already after header ${headerStart.toISOString().split('T')[0]}`);
               }
             }
           }
