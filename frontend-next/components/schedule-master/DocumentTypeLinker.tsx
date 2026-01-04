@@ -13,19 +13,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface DocumentType {
-  id: number;
-  name: string;
-  display_name: string;
-}
-
-interface LinkedDocumentType {
+export interface LinkedDocumentType {
   id?: number;
   document_type_id: number;
   document_type_name?: string;
   lag_days: number;
   assigned_role: string | null;
   _destroy?: boolean;
+}
+
+export interface DocumentType {
+  id: number;
+  name: string;
+  display_name: string;
 }
 
 interface DocumentTypeLinkerProps {

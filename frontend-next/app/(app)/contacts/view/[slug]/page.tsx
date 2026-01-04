@@ -32,6 +32,7 @@ export default async function ContactsViewPage({ params }: ContactsViewPageProps
       initialView={view}
       initialViews={views}
       initialGroupCounts={groupCounts}
+      viewSlug={slug}
     />
   );
 }

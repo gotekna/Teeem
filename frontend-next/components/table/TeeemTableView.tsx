@@ -403,6 +403,10 @@ import {
 import { useFilterState } from './core/state/useFilterState';
 import { selectDefaultView } from '@/lib/view-loading-utils';
 
+// New foundation-scoped view state (URL-driven architecture)
+// TODO: Gradually replace global atoms with this hook
+import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
+
 // Helper functions and constants now imported from ./utils/table-utils:
 // - SYSTEM_GENERATED_TYPES, SYSTEM_COLUMN_BG
 // - isSystemGeneratedColumn, getCellTooltip
@@ -498,6 +502,7 @@ export default function TeeemTableView({
   disableSavedViews = false,
   defaultViewId,
   defaultViewSlug,
+  viewSlug, // New: View slug from URL path (e.g., "live" from /jobs/view/live)
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
   onLoadViewReady,
@@ -571,6 +576,14 @@ export default function TeeemTableView({
   // 2. initialFilters defines the authoritative filter context for this table instance
   // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read)
   const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0);
+
+  // URL-driven view navigation (new architecture)
+  // Uses path-based URLs: /jobs/view/live instead of query params
+  // Only active when foundationId is a string slug (not numeric)
+  const foundationSlug = typeof effectiveFoundationId === 'string' ? effectiveFoundationId : null;
+  const { setViewSlug: navigateToView } = useViewFromPath({
+    foundationSlug: foundationSlug || 'default',
+  });
 
   const effectiveEnableImport = enableImport || shouldAutoEnable;
   const effectiveEnableExport = enableExport || shouldAutoEnable;
@@ -3198,20 +3211,15 @@ export default function TeeemTableView({
 
       // URL handling based on context:
       // - Embedded context: Parent owns URL, only notify on user actions
-      // - Standalone context: Update query param directly
+      // - Standalone context: Navigate using path-based URLs (/jobs/view/live)
       // SSoT: isEmbeddedContext defined at component top
       // IMPORTANT: Only update URL on explicit user action to prevent conflicts with
       // other URL state management (e.g., useUrlState, tabs). Initial view load should
       // NOT modify the URL - only user-initiated view changes should update it.
-      if (view.id && !skipUrlUpdate && !isEmbeddedContext && isUserAction) {
-        const currentParams = new URLSearchParams(window.location.search);
-        const currentUrlView = currentParams.get('view');
-        const newViewIdentifier = view.slug || String(view.id);
-        if (currentUrlView !== newViewIdentifier) {
-          currentParams.set('view', newViewIdentifier);
-          const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
-          router.replace(newUrl, { scroll: false });
-        }
+      if (view.id && !skipUrlUpdate && !isEmbeddedContext && isUserAction && foundationSlug) {
+        const newViewSlug = view.slug || null;
+        // Use path-based navigation: /jobs/view/live
+        navigateToView(newViewSlug);
       }
 
       // Handle apiParams for server-side filtering
@@ -3226,7 +3234,7 @@ export default function TeeemTableView({
         onViewChange?.(view);
       }
     },
-    [applyView, onViewApiParamsChange, router, onViewChange, isEmbeddedContext]
+    [applyView, onViewApiParamsChange, onViewChange, isEmbeddedContext, foundationSlug, navigateToView]
   );
 
   // Load saved views (simplified using atoms)

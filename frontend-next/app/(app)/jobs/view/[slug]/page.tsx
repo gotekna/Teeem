@@ -32,6 +32,7 @@ export default async function JobsViewPage({ params }: JobsViewPageProps) {
       initialView={view}
       initialViews={views}
       initialGroupCounts={groupCounts}
+      viewSlug={slug}
     />
   );
 }

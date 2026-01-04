@@ -157,6 +157,7 @@ export interface TeeemTableViewProps {
   disableSavedViews?: boolean; // Completely disable saved views feature (don't fetch or show views)
   defaultViewId?: number; // Auto-select this view ID on load (if it exists)
   defaultViewSlug?: string | null; // Auto-select view by slug on load (for path-based URLs, takes precedence over defaultViewId)
+  viewSlug?: string | null; // Current view slug from URL path (e.g., "live" from /jobs/view/live). Used by new view-state architecture.
   hideUpdateViewButton?: boolean;
   initialGroupByColumn?: string | null;
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready

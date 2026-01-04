@@ -46,6 +46,8 @@ interface ContactsPageClientProps {
     totalRecords: number;
     displayValuesMap: Record<string, Record<number, string>>;
   } | null;
+  // View slug from URL path (e.g., "company_role" from /contacts/view/company_role)
+  viewSlug?: string;
 }
 
 /**
@@ -66,6 +68,7 @@ export default function ContactsPageClient({
   initialView,
   initialViews,
   initialGroupCounts,
+  viewSlug,
 }: ContactsPageClientProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -178,6 +181,8 @@ export default function ContactsPageClient({
         preloadedViews={initialViews as unknown as SavedView[]}
         // SSR Group Counts - pre-fetched to eliminate CLS on grouped views
         initialGroupCounts={initialGroupCounts}
+        // View slug from URL path (e.g., "company_role" from /contacts/view/company_role)
+        viewSlug={viewSlug}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
         // Use refreshTrigger instead of key={} to avoid full remount and SSR data loss

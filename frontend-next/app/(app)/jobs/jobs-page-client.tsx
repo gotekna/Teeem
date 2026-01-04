@@ -26,6 +26,8 @@ interface JobsPageClientProps {
     totalRecords: number;
     displayValuesMap: Record<string, Record<number, string>>;
   } | null;
+  // View slug from URL path (e.g., "live" from /jobs/view/live)
+  viewSlug?: string;
 }
 
 /**
@@ -46,6 +48,7 @@ export default function JobsPageClient({
   initialView,
   initialViews,
   initialGroupCounts,
+  viewSlug,
 }: JobsPageClientProps) {
   const router = useRouter();
 
@@ -96,6 +99,8 @@ export default function JobsPageClient({
         preloadedViews={initialViews as unknown as SavedView[]}
         // SSR Group Counts - pre-fetched to eliminate CLS on grouped views
         initialGroupCounts={initialGroupCounts}
+        // View slug from URL path (e.g., "live" from /jobs/view/live)
+        viewSlug={viewSlug}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
       />

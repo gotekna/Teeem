@@ -53,7 +53,7 @@ import {
 import type { TableColumn } from "./types";
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
 import type { LookupOption } from "./utils/lookup-cache";
-import { DocumentTypeLinker, type LinkedDocumentType } from "@/components/schedule-master/DocumentTypeLinker";
+import { DocumentTypeLinker, type LinkedDocumentType, type DocumentType } from "@/components/schedule-master/DocumentTypeLinker";
 
 interface CreateRecordDialogProps {
   open: boolean;
@@ -160,7 +160,8 @@ export function CreateRecordDialog({
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
   const [fieldSearch, setFieldSearch] = useState("");
-  const [documentTypes, setDocumentTypes] = useState<LinkedDocumentType[]>([]);
+  const [linkedDocumentTypes, setLinkedDocumentTypes] = useState<LinkedDocumentType[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentType[]>([]);
 
   // Detect if this is a Schedule Master foundation (supports document type linking)
   const isScheduleMaster = useMemo(() => {
@@ -229,6 +230,19 @@ export function CreateRecordDialog({
       setShowFieldConfig(false);
       setValidationErrors(new Set());
       setFieldSearch("");
+      setLinkedDocumentTypes([]);
+
+      // Fetch available document types for Schedule Master
+      if (isScheduleMaster) {
+        api.get<{ success: boolean; data: DocumentType[] }>("/api/v1/document_types", {
+          params: { scope: "job" },
+        }).then((response) => {
+          setAvailableDocumentTypes(response.data || []);
+        }).catch((error) => {
+          console.error("Failed to fetch document types:", error);
+          setAvailableDocumentTypes([]);
+        });
+      }
 
       // Fetch lookup options for all lookup columns
       const lookupColumns = filteredColumns.filter(
@@ -269,7 +283,7 @@ export function CreateRecordDialog({
         }
       });
     }
-  }, [open, filteredColumns]);
+  }, [open, filteredColumns, isScheduleMaster]);
 
   // Get sorted columns based on field order
   const getSortedColumns = () => {
@@ -696,8 +710,20 @@ export function CreateRecordDialog({
 
     setSaving(true);
     try {
+      // Build payload with optional document types for Schedule Master
+      const recordData: Record<string, unknown> = { ...formData };
+
+      // Add document types as nested attributes for Schedule Master
+      if (isScheduleMaster && linkedDocumentTypes.length > 0) {
+        recordData.sm_schedule_master_document_types_attributes = linkedDocumentTypes.map((dt) => ({
+          document_type_id: dt.document_type_id,
+          lag_days: dt.lag_days,
+          assigned_role: dt.assigned_role,
+        }));
+      }
+
       const payload = {
-        record: formData,
+        record: recordData,
       };
 
       await api.post(`/api/v1/foundations/${foundationId}/records`, payload);
@@ -871,6 +897,17 @@ export function CreateRecordDialog({
             </div>
           ))}
         </div>
+
+        {/* Document Type Linker (Schedule Master only) */}
+        {isScheduleMaster && (
+          <div className="py-4 border-t">
+            <DocumentTypeLinker
+              linkedDocumentTypes={linkedDocumentTypes}
+              documentTypes={availableDocumentTypes}
+              onChange={setLinkedDocumentTypes}
+            />
+          </div>
+        )}
 
         {/* Hidden Fields - Accordion */}
         {getSortedColumns().filter((col) => !visibleFields.has(col.key)).length > 0 && (
