@@ -276,10 +276,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         }
       }
 
-      // For jobs: run validate_dates
-      if (mode === 'job') {
+      // For jobs: run validate_dates (auto-rollover on load)
+      if (mode === 'job' && jobId) {
         try {
-          console.log('[GanttDataManager] 🔄 Running rollover...');
+          console.log('[GanttDataManager] 🔄 Running job rollover...');
           const validateResult = await api.post<{
             success: boolean;
             rolled_over: number;
@@ -290,11 +290,15 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           if (validateResult) {
             const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
             if (fixCount > 0) {
-              console.log(`[GanttDataManager] ✅ Rollover: ${fixCount} task(s)`);
+              console.log(`[GanttDataManager] ✅ Job rollover: ${fixCount} task(s)`);
+              toast({
+                title: 'Schedule Updated',
+                description: `${fixCount} task(s) rolled forward`,
+              });
             }
           }
         } catch (err) {
-          console.warn('[GanttDataManager] Rollover failed:', err);
+          console.warn('[GanttDataManager] Job rollover failed:', err);
         }
       }
 
@@ -370,7 +374,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     } finally {
       setLoading(false);
     }
-  }, [mode, apiConfig, jobId, toast]);
+  }, [mode, apiConfig, jobId, toast, useExternalData, onRefresh]);
 
   // ---------------------------------------------------------------------------
   // Helper: Apply date map from backend (templates only)
