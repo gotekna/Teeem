@@ -60,15 +60,7 @@ class SmScheduleMaster < ApplicationRecord
   validates :task_number, presence: true
   validates :sequence_order, presence: true
   validates :duration_days, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-  validate :duration_positive_for_tasks
   validate :header_cannot_be_po
-
-  def duration_positive_for_tasks
-    return if allow_header # Headers can have 0 duration
-    if duration_days.present? && duration_days <= 0
-      errors.add(:duration_days, 'must be greater than 0 for tasks')
-    end
-  end
 
   def header_cannot_be_po
     if allow_header && (po_required || create_po_on_job_start)
@@ -97,6 +89,7 @@ class SmScheduleMaster < ApplicationRecord
   before_validation :set_sequence_order, on: :create
   before_validation :clean_invalid_predecessors
   before_validation :uppercase_name_if_header
+  before_validation :default_duration_for_tasks
   before_save :clear_spawn_tasks_if_not_po
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
 
@@ -204,6 +197,12 @@ class SmScheduleMaster < ApplicationRecord
   # Force uppercase name for header rows
   def uppercase_name_if_header
     self.name = name.upcase if allow_header && name.present?
+  end
+
+  # Default duration_days to 1 for non-header tasks if 0 or nil
+  def default_duration_for_tasks
+    return if allow_header # Headers can have 0 duration
+    self.duration_days = 1 if duration_days.blank? || duration_days <= 0
   end
 
   # Clear spawn_order_task and spawn_call_task if po_required is false
