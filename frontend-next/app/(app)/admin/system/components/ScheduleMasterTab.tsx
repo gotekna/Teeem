@@ -77,6 +77,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { GanttCanvasView } from "@/components/gantt-canvas";
 import { GanttUnified, GanttDependencyEditor } from "@/components/gantt-v2";
+import { useGanttDataManager } from "@/lib/gantt/hooks";
 import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
@@ -329,81 +330,34 @@ export function ScheduleMasterTab() {
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
-  // Gantt V2 state (for debugging)
+  // Gantt V2 state - template ID for selection
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
-  const [ganttV2Tasks, setGanttV2Tasks] = React.useState<GanttTask[]>([]);
-  const [ganttV2Dependencies, setGanttV2Dependencies] = React.useState<GanttDependency[]>([]);
-  const [ganttV2Loading, setGanttV2Loading] = React.useState(false);
 
-  // Gantt V2 undo history - stores previous task states for Ctrl+Z undo
-  const [ganttV2UndoHistory, setGanttV2UndoHistory] = React.useState<Map<string, {
-    startDate: Date;
-    endDate: Date;
-    duration: number;
-    hold: boolean;
-    holdDate: string | null;
-  }>>(new Map());
-
-  // Cascade dialog state (for Gantt V2 task moves with successors)
-  const [cascadeDialog, setCascadeDialog] = React.useState<{
-    isOpen: boolean;
-    task: GanttTask | null;
-    newStartDate: Date | null;
-    successors: GanttSmScheduleMaster[];
-    lockedSuccessors: SuccessorInfo[];
-    unlockedSuccessors: SuccessorInfo[];
-  }>({
-    isOpen: false,
-    task: null,
-    newStartDate: null,
-    successors: [],
-    lockedSuccessors: [],
-    unlockedSuccessors: []
-  });
-  const [lockedTaskDecisions, setLockedTaskDecisions] = React.useState<Record<number, 'break' | 'cascade'>>({});
-
-  // Confirm dialog state (for supplier_confirm/confirm toggles in Gantt V2)
-  const [confirmDialog, setConfirmDialog] = React.useState<{
-    isOpen: boolean;
-    type: 'confirm' | 'supplierConfirm';
-    task: GanttTask | null;
-    isChecking: boolean;
-    affectedSuccessors: GanttSmScheduleMaster[];
-  }>({
-    isOpen: false,
-    type: 'confirm',
-    task: null,
-    isChecking: false,
-    affectedSuccessors: []
+  // SSoT: Use shared hook for all Gantt V2 behavior
+  const gantt = useGanttDataManager({
+    mode: 'template',
+    templateId: ganttV2TemplateId ?? undefined,
   });
 
-  // Dependency editor state (for Gantt V2)
-  const [dependencyEditorState, setDependencyEditorState] = React.useState<{
-    isOpen: boolean;
-    task: GanttTask | null;
-    visibleTasks: GanttTask[];
-  }>({
-    isOpen: false,
-    task: null,
-    visibleTasks: []
-  });
-
-  // Start task dialog state (for starting tasks under headers)
-  const [startTaskDialog, setStartTaskDialog] = React.useState<{
-    isOpen: boolean;
-    task: GanttTask | null;
-    headerName: string | null;
-    hasPredecessors: boolean;
-    isTodayWorkingDay: boolean;
-    lastWorkingDay: Date | null;
-  }>({
-    isOpen: false,
-    task: null,
-    headerName: null,
-    hasPredecessors: false,
-    isTodayWorkingDay: true,
-    lastWorkingDay: null
-  });
+  // Aliases for backward compatibility during transition
+  const ganttV2Tasks = gantt.tasks;
+  const ganttV2Dependencies = gantt.dependencies;
+  const ganttV2Loading = gantt.loading;
+  const ganttV2UndoHistory = gantt.undoHistory;
+  const cascadeDialog = gantt.cascadeDialog;
+  const setCascadeDialog = gantt.setCascadeDialog;
+  const lockedTaskDecisions = gantt.lockedTaskDecisions;
+  const setLockedTaskDecisions = gantt.setLockedTaskDecisions;
+  const confirmDialog = gantt.confirmDialog;
+  const setConfirmDialog = gantt.setConfirmDialog;
+  const startTaskDialog = gantt.startTaskDialog;
+  const setStartTaskDialog = gantt.setStartTaskDialog;
+  const dependencyEditorState = gantt.dependencyEditorState;
+  const setDependencyEditorState = gantt.setDependencyEditorState;
+  const executeGanttV2CheckboxToggle = gantt.executeCheckboxToggle;
+  const executeGanttV2DragMove = gantt.executeDragMove;
+  const executeStartTask = gantt.executeStartTask;
+  const loadGanttV2Data = gantt.loadData;
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
@@ -2672,29 +2626,19 @@ export function ScheduleMasterTab() {
                   showToolbar={true}
                   showBaselineControls={false}
                   className="h-full"
-                  onTaskClick={(task) => {
-                    console.log('[Gantt V2 Debug] Task clicked:', task);
-                  }}
-                  onTaskDoubleClick={(task) => {
-                    console.log('[Gantt V2 Debug] Task double-clicked:', task);
-                    handleGanttV2TaskDoubleClick(task);
-                  }}
-                  onTaskDrag={handleGanttV2TaskDrag}
-                  onTaskResize={handleGanttV2TaskResize}
-                  onCheckboxToggle={handleGanttV2CheckboxToggle}
-                  onDependencyCreate={handleGanttV2DependencyCreate}
-                  onDependencyDelete={handleGanttV2DependencyDelete}
-                  onResetManualPosition={handleGanttV2ResetManualPosition}
-                  onUndo={handleGanttV2Undo}
-                  onEditDependencies={handleGanttV2EditDependencies}
-                  onDurationChange={handleGanttV2DurationChange}
-                  onRollover={handleGanttV2Rollover}
-                  onDataChange={() => {
-                    // Refresh data when something changes
-                    if (ganttV2TemplateId) {
-                      loadGanttV2Data(ganttV2TemplateId);
-                    }
-                  }}
+                  onTaskClick={gantt.handleTaskClick}
+                  onTaskDoubleClick={gantt.handleTaskDoubleClick}
+                  onTaskDrag={gantt.handleTaskDrag}
+                  onTaskResize={gantt.handleTaskResize}
+                  onCheckboxToggle={gantt.handleCheckboxToggle}
+                  onDependencyCreate={gantt.handleDependencyCreate}
+                  onDependencyDelete={gantt.handleDependencyDelete}
+                  onResetManualPosition={gantt.handleResetManualPosition}
+                  onUndo={gantt.handleUndo}
+                  onEditDependencies={gantt.openDependencyEditor}
+                  onDurationChange={gantt.handleDurationChange}
+                  onRollover={gantt.handleRollover}
+                  onDataChange={gantt.loadData}
                 />
               )}
             </div>

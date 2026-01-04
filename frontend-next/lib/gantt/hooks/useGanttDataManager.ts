@@ -141,18 +141,13 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   const { mode, templateId, jobId } = config;
   const { toast } = useToast();
 
-  // Validate config
-  if (mode === 'template' && !templateId) {
-    throw new Error('templateId required for template mode');
-  }
-  if (mode === 'job' && !jobId) {
-    throw new Error('jobId required for job mode');
-  }
+  // Check if we have a valid ID for the mode
+  const hasValidId = (mode === 'template' && templateId) || (mode === 'job' && jobId);
 
-  // Get API config for this mode
+  // Get API config for this mode (only if we have a valid ID)
   const apiConfig = React.useMemo(
-    () => getGanttApiConfig(mode, { templateId, jobId }),
-    [mode, templateId, jobId]
+    () => hasValidId ? getGanttApiConfig(mode, { templateId, jobId }) : null,
+    [mode, templateId, jobId, hasValidId]
   );
 
   // ---------------------------------------------------------------------------
@@ -223,6 +218,14 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const loadData = React.useCallback(async () => {
+    if (!apiConfig) {
+      // No valid ID, can't load data
+      setTasks([]);
+      setDependencies([]);
+      setRows([]);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -449,7 +452,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   }, []);
 
   const handleUndo = React.useCallback(async (selectedTaskId: string | null) => {
-    if (!selectedTaskId) return;
+    if (!selectedTaskId || !apiConfig) return;
 
     const previousState = undoHistory.get(selectedTaskId);
     if (!previousState) {
@@ -492,6 +495,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     field: string,
     checked: boolean
   ) => {
+    if (!apiConfig) return;
     console.log('[GanttDataManager] Checkbox toggle:', taskId, field, checked);
 
     const task = tasks.find(t => t.id === taskId);
@@ -583,6 +587,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     field: string,
     checked: boolean
   ) => {
+    if (!apiConfig) return;
     try {
       const fieldMap: Record<string, string> = {
         'started': 'started',
@@ -623,6 +628,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     option: 'break-header' | 'break-dependency' | 'start-only',
     startDate?: Date
   ) => {
+    if (!apiConfig) return;
     const row = task.rowData as SmScheduleMaster | undefined;
     if (!row) return;
 
@@ -670,6 +676,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const handleTaskDrag = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
+    if (!apiConfig) return;
     storeUndoState(task);
     console.log('[GanttDataManager] Task dragged:', task.id, 'to', newStartDate);
 
@@ -747,6 +754,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   }, [tasks, storeUndoState]);
 
   const executeDragMove = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
+    if (!apiConfig) return;
     try {
       const holdDateStr = newStartDate.toISOString().split('T')[0];
 
@@ -771,6 +779,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const handleRollover = React.useCallback(async (): Promise<{ rolled_over: number; extended: number; cascaded: number } | null> => {
+    if (!apiConfig) return null;
     try {
       const url = mode === 'template'
         ? apiConfig.validateDatesUrl!
@@ -826,6 +835,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     predecessors: Array<{ taskNumber: number; type: string; lag: number }>,
     successors: Array<{ taskNumber: number; type: string; lag: number }>
   ) => {
+    if (!apiConfig) return;
     const task = tasks.find(t => t.id === taskId);
     const taskRow = task?.rowData as SmScheduleMaster | undefined;
     if (!taskRow) return;
@@ -898,6 +908,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const handleTaskResize = React.useCallback(async (task: GanttTask, _newStartDate: Date, newEndDate: Date) => {
+    if (!apiConfig) return;
     // Store undo state before making changes
     storeUndoState(task);
 
@@ -929,6 +940,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   }, [apiConfig, loadData, toast, storeUndoState]);
 
   const handleDurationChange = React.useCallback(async (taskId: string, newDuration: number) => {
+    if (!apiConfig) return;
     console.log('[GanttDataManager] Duration changed via inline edit:', taskId, 'new duration:', newDuration);
 
     try {
@@ -950,6 +962,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const handleDependencyCreate = React.useCallback(async (fromId: string, toId: string, type: string) => {
+    if (!apiConfig) return;
     console.log('[GanttDataManager] Dependency create:', fromId, '->', toId, 'type:', type);
 
     // Find the target task by task_number (toId is task_number from canvas)
@@ -991,6 +1004,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   }, [tasks, apiConfig, loadData, toast]);
 
   const handleDependencyDelete = React.useCallback(async (dependencyId: string) => {
+    if (!apiConfig) return;
     console.log('[GanttDataManager] Dependency delete:', dependencyId);
 
     // Parse dependency ID: format is "dep-{predecessor_task_number}-{row_id}"
@@ -1042,6 +1056,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const handleResetManualPosition = React.useCallback(async (task: GanttTask) => {
+    if (!apiConfig) return;
     console.log('[GanttDataManager] Reset manual position:', task.id);
 
     const row = task.rowData as SmScheduleMaster | undefined;
@@ -1105,7 +1120,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   }, []);
 
   const saveEditSheet = React.useCallback(async (options?: { silent?: boolean }) => {
-    if (!editingRow) return;
+    if (!editingRow || !apiConfig) return;
 
     const silent = options?.silent ?? false;
 

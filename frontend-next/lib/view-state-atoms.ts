@@ -728,6 +728,7 @@ export const loadFoundationViewsAtom = atom(
 
           return {
             ...view,
+            isDefault: (view as any).is_default, // Map backend is_default to frontend isDefault
             view_type: (view as any).view_display_type || "table", // Map backend field to frontend field
             filters: ensureFilterIds(rawFilters),
             filterGroups: Array.isArray(view.filters) ? [{ id: "default", logic: "AND" as const }] : (view.filters?.filterGroups || [{ id: "default", logic: "AND" as const }]),
