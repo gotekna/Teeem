@@ -1478,8 +1478,12 @@ export default function TeeemTableView({
       // SSR ViewData uses nested format: columns.visible, columns.order, columns.widths
       // Client SavedView uses flat format: visibleColumns, columnOrder, columnWidths
       const mappedViews: SavedView[] = preloadedViews.map((v) => {
-        // Type assertion to handle both formats
-        const viewAny = v as typeof v & { columns?: { visible?: Record<string, boolean>; order?: string[]; widths?: Record<string, number> } };
+        // Type assertion to handle both SSR (snake_case) and client (camelCase) formats
+        const viewAny = v as typeof v & {
+          columns?: { visible?: Record<string, boolean>; order?: string[]; widths?: Record<string, number> };
+          group_by_columns?: string[];  // SSR snake_case
+          group_by_column?: string;     // SSR snake_case
+        };
 
         return {
           id: v.id ?? 0,
@@ -1495,8 +1499,9 @@ export default function TeeemTableView({
           columnOrder: v.columnOrder || viewAny.columns?.order || [],
           columnWidths: v.columnWidths || viewAny.columns?.widths || {},
           sortColumns: v.sortColumns || [],
-          groupByColumns: v.groupByColumns || (v.groupByColumn ? [v.groupByColumn] : []),
-          groupByColumn: v.groupByColumn,
+          // FRC Fix: Handle both SSR (group_by_columns) and client (groupByColumns) formats
+          groupByColumns: v.groupByColumns || viewAny.group_by_columns || (v.groupByColumn || viewAny.group_by_column ? [v.groupByColumn || viewAny.group_by_column!] : []),
+          groupByColumn: v.groupByColumn || viewAny.group_by_column,
           display_order: v.display_order || 0,
           view_type: v.view_type as SavedView['view_type'],
           view_display_type: v.view_display_type as SavedView['view_display_type'],
