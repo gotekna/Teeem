@@ -14,7 +14,7 @@
  * @see TEEEM_DOCS/GANTT_BUSINESS_RULES.md - 31 rules that must not break
  */
 
-import { GanttTask, GanttDependency, GanttConfig, GanttColors, isHeaderRow } from '@/lib/gantt/types';
+import { GanttTask, GanttDependency, GanttConfig, GanttColors, isHeaderRow, countWorkingDays } from '@/lib/gantt/types';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 import { calculateCriticalPath, type CriticalPathResult } from '@/lib/gantt/engine/CriticalPath';
 
@@ -3142,7 +3142,11 @@ export class UnifiedGanttCanvas {
         // Checkboxes are rendered by React overlay (GanttOverlay.tsx)
         // Canvas skips drawing to avoid double-render
       } else if (column.type === 'number') {
-        const value = column.field ? rowData?.[column.field] : '';
+        let value: number | string = column.field ? rowData?.[column.field] : '';
+        // For duration/Days column, calculate working days from task dates
+        if (column.id === 'duration' && task.startDate && task.endDate) {
+          value = countWorkingDays(task.startDate, task.endDate);
+        }
         this.ctx.fillStyle = this.config.colors.textColor;
         this.ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         this.ctx.textBaseline = 'middle';

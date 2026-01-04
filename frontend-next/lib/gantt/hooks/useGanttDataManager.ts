@@ -145,6 +145,14 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   const { mode, templateId, jobId, rows: externalRows, onRefresh } = config;
   const { toast } = useToast();
 
+  // SSoT: Use ref for onRefresh to avoid infinite loop
+  // When useExternalData is true, loadData calls onRefresh, which could
+  // cause parent re-render, recreating onRefresh callback, triggering loadData again
+  const onRefreshRef = React.useRef(onRefresh);
+  React.useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
   // SSoT: Check if we're using external rows (from TeeemTableView)
   const useExternalData = externalRows !== undefined;
 
@@ -242,7 +250,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     // SSoT: If using external data, just call onRefresh to tell parent to reload
     if (useExternalData) {
       console.log('[GanttDataManager] SSoT: Calling onRefresh to reload external data');
-      onRefresh?.();
+      onRefreshRef.current?.();
       return;
     }
 
@@ -392,7 +400,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     } finally {
       setLoading(false);
     }
-  }, [mode, apiConfig, jobId, toast, useExternalData, onRefresh]);
+  }, [mode, apiConfig, jobId, templateId, toast, useExternalData]);
 
   // ---------------------------------------------------------------------------
   // Helper: Apply date map from backend (templates only)
@@ -1018,20 +1026,29 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     if (!apiConfig) return;
     console.log('[GanttDataManager] Dependency create:', fromId, '->', toId, 'type:', type);
 
-    // Find the target task by task_number (toId is task_number from canvas)
-    const targetTask = tasks.find(t => (t.rowData as SmScheduleMaster | undefined)?.task_number === parseInt(toId, 10));
+    // Canvas passes row.id (not task_number), so find tasks by id
+    const targetTask = tasks.find(t => t.id === toId);
+    const fromTask = tasks.find(t => t.id === fromId);
+
     if (!targetTask || !targetTask.rowData) {
       console.error('[GanttDataManager] Target task not found:', toId);
       toast({ title: 'Error', description: 'Target task not found', variant: 'destructive' });
       return;
     }
+    if (!fromTask || !fromTask.rowData) {
+      console.error('[GanttDataManager] Source task not found:', fromId);
+      toast({ title: 'Error', description: 'Source task not found', variant: 'destructive' });
+      return;
+    }
 
     const targetRow = targetTask.rowData as SmScheduleMaster;
+    const fromRow = fromTask.rowData as SmScheduleMaster;
 
     // Get current predecessor_ids and add the new one
+    // predecessor_ids stores task_number, not row.id
     const currentPreds = targetRow.predecessor_ids || [];
     const newPred = {
-      id: parseInt(fromId, 10),
+      id: fromRow.task_number,  // Use task_number, not row.id
       type: type || 'FS',
       lag: 0
     };
