@@ -53,6 +53,7 @@ import {
 import type { TableColumn } from "./types";
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
 import type { LookupOption } from "./utils/lookup-cache";
+import { DocumentTypeLinker, type LinkedDocumentType } from "@/components/schedule-master/DocumentTypeLinker";
 
 interface CreateRecordDialogProps {
   open: boolean;
@@ -159,6 +160,14 @@ export function CreateRecordDialog({
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
   const [fieldSearch, setFieldSearch] = useState("");
+  const [documentTypes, setDocumentTypes] = useState<LinkedDocumentType[]>([]);
+
+  // Detect if this is a Schedule Master foundation (supports document type linking)
+  const isScheduleMaster = useMemo(() => {
+    const nameCheck = tableName.toLowerCase().includes("schedule master");
+    const slugCheck = typeof foundationId === "string" && foundationId.includes("schedule_master");
+    return nameCheck || slugCheck;
+  }, [tableName, foundationId]);
 
   // Lookup column state
   const [lookupOptions, setLookupOptions] = useState<Record<string, LookupOption[]>>({});

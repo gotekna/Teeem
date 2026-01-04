@@ -5,6 +5,9 @@
 
 import type { CascadeFilter, FilterGroup, SortColumn } from "@/components/table/types";
 
+// Re-export for convenience
+export type { CascadeFilter, FilterGroup, SortColumn };
+
 /**
  * Group view mode - how grouped data is displayed
  * - inline: Groups shown as collapsible sections in table
