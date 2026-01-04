@@ -7,12 +7,19 @@ module Api
       before_action :set_row, only: [ :show, :update, :destroy, :move ]
 
       # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
+      # SSoT: Use ?for=gantt to filter invisible tasks (po_required without supplier)
       # Performance: includes po_supplier, spawn_scan_task, linked_po_task to avoid N+1
       def index
         # Sort by sequence_order - dependencies drive scheduling, calculated client-side
         @rows = @template.sm_schedule_master_rows.active
                          .includes(:po_supplier, :spawn_scan_task, :linked_po_task)
                          .order(Arel.sql("COALESCE(sequence_order, 0) ASC"))
+
+        # Gantt mode: Filter out PO-required tasks without a supplier configured
+        # This ensures incomplete PO tasks don't clutter the Gantt view
+        if params[:for] == "gantt"
+          @rows = @rows.reject { |r| r.po_required && r.po_supplier_id.blank? }
+        end
 
         render json: {
           success: true,

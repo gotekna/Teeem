@@ -2011,8 +2011,9 @@ export function ScheduleMasterTab() {
     setGanttTemplateId(templateId);
     setLoadingRows(templateId);
     try {
+      // SSoT: Use ?for=gantt to filter invisible tasks (po_required without supplier)
       const data = await api.get<{ success: boolean; rows: SmScheduleMaster[] }>(
-        `/api/v1/sm_schedule_master_templates/${templateId}/rows`
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows?for=gantt`
       );
       setGanttRows(data.rows || []);
     } catch (error) {
@@ -2047,21 +2048,11 @@ export function ScheduleMasterTab() {
         console.warn('[Gantt V2] Auto-rollover failed (continuing anyway):', rolloverErr);
       }
 
+      // SSoT: Use ?for=gantt to get filtered tasks (po_required without supplier = invisible)
       const data = await api.get<{ success: boolean; rows: GanttSmScheduleMaster[] }>(
-        `/api/v1/sm_schedule_master_templates/${templateId}/rows`
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows?for=gantt`
       );
-      const allRows = data.rows || [];
-
-      // Filter: PO-required tasks only show if they have a supplier configured
-      // This ensures incomplete PO tasks don't clutter the Gantt
-      const rows = allRows.filter(row => {
-        // Always show non-PO tasks and headers
-        if (!row.po_required || row.allow_header) return true;
-        // For PO-required tasks, only show if supplier is configured
-        return row.po_supplier_id != null;
-      });
-
-      console.log(`[Gantt V2] Filtered ${allRows.length - rows.length} PO tasks without supplier`);
+      const rows = data.rows || [];
 
       // Convert to GanttTask[] format using SSoT converter
       const projectStartDate = new Date(); // Use today as project start for template preview
