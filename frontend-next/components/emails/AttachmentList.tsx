@@ -9,6 +9,7 @@ import {
   FileSpreadsheet,
   File,
   ExternalLink,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -169,6 +170,18 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                   </p>
                 )}
               </div>
+              {hasId && canPreview && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => { e.stopPropagation(); handleOpen(attachment); }}
+                  disabled={isLoading}
+                  title="Preview"
+                >
+                  <Eye className={cn("h-4 w-4", isLoading && "animate-pulse")} />
+                </Button>
+              )}
               {hasId && (
                 <Button
                   variant="ghost"
