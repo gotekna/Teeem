@@ -513,7 +513,6 @@ export default function NewJobPage() {
   }));
 
   // Filter users by role for Internal Team dropdowns
-  // Role names from DB: supervisor, site_coordinator, estimator, sales, customer_coowordinator (note: misspelled in DB)
   const supervisorUsers = React.useMemo(() =>
     users.filter(u => u.role_names?.includes("supervisor")), [users]);
   const siteCoordinatorUsers = React.useMemo(() =>
@@ -523,7 +522,7 @@ export default function NewJobPage() {
   const salesUsers = React.useMemo(() =>
     users.filter(u => u.role_names?.includes("sales")), [users]);
   const coordinatorUsers = React.useMemo(() =>
-    users.filter(u => u.role_names?.includes("customer_coowordinator")), [users]);
+    users.filter(u => u.role_names?.includes("client_coordinator")), [users]);
 
   // Convert role-filtered users to combobox items
   const supervisorItems: ComboboxItem[] = supervisorUsers.map((u) => ({

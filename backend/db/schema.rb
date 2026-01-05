@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_05_024035) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_05_143001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2521,6 +2521,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_024035) do
     t.index ["user_id", "status"], name: "idx_email_drafts_user_status"
     t.index ["user_id", "updated_at"], name: "idx_email_drafts_user_recent"
     t.index ["user_id"], name: "index_email_drafts_on_user_id"
+  end
+
+  create_table "email_folder_preferences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "account_id", null: false
+    t.string "folder_id", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "account_id", "folder_id"], name: "idx_email_folder_prefs_unique", unique: true
+    t.index ["user_id", "account_id", "position"], name: "idx_email_folder_prefs_order"
+    t.index ["user_id"], name: "index_email_folder_preferences_on_user_id"
   end
 
   create_table "email_job_proposals", id: :bigint, default: nil, force: :cascade do |t|
@@ -9947,6 +9959,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_024035) do
   add_foreign_key "email_drafts", "imap_credentials"
   add_foreign_key "email_drafts", "organizations"
   add_foreign_key "email_drafts", "users"
+  add_foreign_key "email_folder_preferences", "users"
   add_foreign_key "email_label_assignments", "email_labels"
   add_foreign_key "email_label_assignments", "email_warehouses"
   add_foreign_key "email_labels", "users"
