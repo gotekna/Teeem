@@ -374,14 +374,8 @@ export const PLAN_PLACEHOLDERS: PlaceholderToken[] = [
 // =============================================================================
 
 export const DOCUMENT_PLACEHOLDERS: PlaceholderToken[] = [
-  {
-    code: "{DocTypeCode}",
-    example: "ASIC",
-    longCode: "{DocTypeName}",
-    longExample: "ASIC Documents",
-    color: "blue",
-    description: "Document type code/name",
-  },
+  // NOTE: {DocTypeCode} and {DocTypeName} are added DYNAMICALLY in the document type editor
+  // based on the current document type being edited. Do NOT add them here to avoid duplicates.
   {
     code: "{Description}",
     example: "Example",

@@ -298,7 +298,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         if (!isOpen) {
           setInputValue(""); // Clear search when closing
         }
-      }} modal>
+      }}>
         <PopoverTrigger asChild disabled={disabled || isLoading} className="w-full">
           <div className="relative w-full">
             <input
@@ -352,7 +352,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild disabled={disabled} className="w-full">
         <Button
           variant="outline"

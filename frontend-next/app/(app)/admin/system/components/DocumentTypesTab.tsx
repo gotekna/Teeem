@@ -673,7 +673,7 @@ export function DocumentTypesTab() {
           enableSchemaEditor={true}
           customCellRenderer={customCellRenderer}
           onColumnUpdate={fetchColumns}
-          initialGroupByColumn="folder"
+          initialGroupByColumn="primary_tab"
           leftActions={
             <Button onClick={() => router.push(`/admin/system/document-types/new${scopeFilter !== "all" ? `?scope=${scopeFilter}` : ""}`)}>
               <Plus className="h-4 w-4 mr-2" />

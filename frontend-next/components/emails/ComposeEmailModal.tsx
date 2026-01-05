@@ -559,7 +559,7 @@ export function ComposeEmailModal({
 
           {/* Schedule date/time picker (shown when scheduled) */}
           {isScheduled && (
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-2 ml-auto mr-8">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <Input
                 type="date"
@@ -572,7 +572,7 @@ export function ComposeEmailModal({
                 type="time"
                 value={scheduledTime}
                 onChange={(e) => setScheduledTime(e.target.value)}
-                className="w-[90px] h-8 text-xs"
+                className="w-[110px] h-8 text-xs"
               />
             </div>
           )}
@@ -621,6 +621,7 @@ export function ComposeEmailModal({
                   clearable={true}
                   onClear={() => setFormData({ ...formData, to: "" })}
                   className="border-0 shadow-none h-8 rounded-none"
+                  popoverProps={{ className: "z-[9999]" }}
                 />
               </div>
               <Button
@@ -668,6 +669,7 @@ export function ComposeEmailModal({
                     clearable={true}
                     onClear={() => setFormData({ ...formData, cc: "" })}
                     className="border-0 shadow-none h-8 rounded-none"
+                    popoverProps={{ className: "z-[9999]" }}
                   />
                 </div>
               </div>
@@ -707,6 +709,7 @@ export function ComposeEmailModal({
                     clearable={true}
                     onClear={() => setFormData({ ...formData, bcc: "" })}
                     className="border-0 shadow-none h-8 rounded-none"
+                    popoverProps={{ className: "z-[9999]" }}
                   />
                 </div>
               </div>
