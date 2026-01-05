@@ -101,6 +101,7 @@ interface User {
   id: number;
   name: string;
   email: string;
+  role_names?: string[];
 }
 
 interface PeopleFormData {
@@ -510,6 +511,71 @@ export default function NewJobPage() {
     id: u.id.toString(),
     label: u.name || u.email,
   }));
+
+  // Filter users by role for Internal Team dropdowns
+  const supervisorUsers = React.useMemo(() =>
+    users.filter(u => u.role_names?.includes("supervisor")), [users]);
+  const siteCoordinatorUsers = React.useMemo(() =>
+    users.filter(u => u.role_names?.includes("site")), [users]);
+  const estimatorUsers = React.useMemo(() =>
+    users.filter(u => u.role_names?.includes("estimator")), [users]);
+  const salesUsers = React.useMemo(() =>
+    users.filter(u => u.role_names?.includes("sales")), [users]);
+  // Client coordinator - use all users (no specific role)
+  const coordinatorUsers = users;
+
+  // Convert role-filtered users to combobox items
+  const supervisorItems: ComboboxItem[] = supervisorUsers.map((u) => ({
+    id: u.id.toString(),
+    label: u.name || u.email,
+  }));
+  const siteCoordinatorItems: ComboboxItem[] = siteCoordinatorUsers.map((u) => ({
+    id: u.id.toString(),
+    label: u.name || u.email,
+  }));
+  const estimatorItems: ComboboxItem[] = estimatorUsers.map((u) => ({
+    id: u.id.toString(),
+    label: u.name || u.email,
+  }));
+  const salesItems: ComboboxItem[] = salesUsers.map((u) => ({
+    id: u.id.toString(),
+    label: u.name || u.email,
+  }));
+  const coordinatorItems: ComboboxItem[] = coordinatorUsers.map((u) => ({
+    id: u.id.toString(),
+    label: u.name || u.email,
+  }));
+
+  // Auto-fill Internal Team when only one user has that role
+  React.useEffect(() => {
+    if (users.length === 0) return;
+
+    setPeopleData(prev => {
+      const updates: Partial<PeopleFormData> = {};
+
+      // Auto-fill supervisor if exactly one user has that role and not already set
+      if (supervisorUsers.length === 1 && prev.supervisor_id === null) {
+        updates.supervisor_id = supervisorUsers[0].id;
+      }
+      // Auto-fill site coordinator if exactly one user has that role and not already set
+      if (siteCoordinatorUsers.length === 1 && prev.site_coordinator_id === null) {
+        updates.site_coordinator_id = siteCoordinatorUsers[0].id;
+      }
+      // Auto-fill estimator if exactly one user has that role and not already set
+      if (estimatorUsers.length === 1 && prev.estimator_id === null) {
+        updates.estimator_id = estimatorUsers[0].id;
+      }
+      // Auto-fill internal sales if exactly one user has that role and not already set
+      if (salesUsers.length === 1 && prev.internal_sales_id === null) {
+        updates.internal_sales_id = salesUsers[0].id;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        return { ...prev, ...updates };
+      }
+      return prev;
+    });
+  }, [supervisorUsers, siteCoordinatorUsers, estimatorUsers, salesUsers]);
 
   // Handle contact selection for a role
   const handleContactSelect = (
@@ -1220,11 +1286,15 @@ export default function NewJobPage() {
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                          {userItems.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.label}
-                            </SelectItem>
-                          ))}
+                          {supervisorItems.length > 0 ? (
+                            supervisorItems.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.label}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__none" disabled>No supervisors available</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1241,11 +1311,15 @@ export default function NewJobPage() {
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                          {userItems.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.label}
-                            </SelectItem>
-                          ))}
+                          {siteCoordinatorItems.length > 0 ? (
+                            siteCoordinatorItems.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.label}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__none" disabled>No site coordinators available</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1262,11 +1336,15 @@ export default function NewJobPage() {
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                          {userItems.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.label}
-                            </SelectItem>
-                          ))}
+                          {estimatorItems.length > 0 ? (
+                            estimatorItems.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.label}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__none" disabled>No estimators available</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1283,11 +1361,15 @@ export default function NewJobPage() {
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                          {userItems.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.label}
-                            </SelectItem>
-                          ))}
+                          {salesItems.length > 0 ? (
+                            salesItems.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.label}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__none" disabled>No sales users available</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1304,7 +1386,7 @@ export default function NewJobPage() {
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                          {userItems.map((user) => (
+                          {coordinatorItems.map((user) => (
                             <SelectItem key={user.id} value={user.id}>
                               {user.label}
                             </SelectItem>
