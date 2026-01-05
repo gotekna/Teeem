@@ -121,13 +121,21 @@ class Job < ApplicationRecord
 
   # Check if job is in Enquiry status (relaxed validations for leads/proposals)
   def enquiry_status?
-    return job_status.name == "Enquiry" if job_status.present?
-    return false if job_status_id.blank?
+    # If association is loaded, use it directly
+    if job_status.present?
+      return job_status.name == "Enquiry"
+    end
 
     # During creation, association may not be loaded yet - look up by ID
-    # Use to_i to handle string IDs from form submissions
-    status = JobStatus.find_by(id: job_status_id.to_i)
-    status&.name == "Enquiry"
+    if job_status_id.blank?
+      Rails.logger.info "[Job#enquiry_status?] job_status_id is blank, returning false"
+      return false
+    end
+
+    status = JobStatus.find_by(id: job_status_id)
+    is_enquiry = status&.name == "Enquiry"
+    Rails.logger.info "[Job#enquiry_status?] job_status_id=#{job_status_id}, status_name=#{status&.name}, is_enquiry=#{is_enquiry}"
+    is_enquiry
   end
 
   # Callbacks

@@ -483,97 +483,101 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <span className="text-xs">{task.is_private ? 'Private' : 'Public'}</span>
           </Button>
 
-          {/* Show followers for public tasks (no share button needed) */}
-          {!task.is_private && followers.length > 0 && (
+          {/* Follow Button - quick toggle for current user */}
+          <Button
+            variant={isCurrentUserFollowing ? "secondary" : "ghost"}
+            size="sm"
+            className={cn(
+              "h-6 px-2 gap-1",
+              isCurrentUserFollowing && "bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50"
+            )}
+            onClick={handleToggleFollow}
+            disabled={followersLoading}
+            title={isCurrentUserFollowing ? "Click to unfollow" : "Click to follow this task"}
+          >
+            {followersLoading ? (
+              <Spinner size={12} />
+            ) : (
+              <UserPlus className={cn("h-3 w-3", isCurrentUserFollowing && "fill-current text-blue-600 dark:text-blue-400")} />
+            )}
+            <span className="text-xs">{isCurrentUserFollowing ? 'Following' : 'Follow'}</span>
+          </Button>
+
+          {/* Share Button - add other users as followers */}
+          <Popover open={shareOpen} onOpenChange={handleShareOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 gap-1"
+                title="Add other followers"
+              >
+                <Users className="h-3 w-3" />
+                <span className="text-xs">Share</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="start">
+              <div className="space-y-3">
+                <div className="font-medium text-sm">Share with</div>
+
+                {followersLoading ? (
+                  <div className="flex justify-center py-4">
+                    <Spinner size={20} />
+                  </div>
+                ) : (
+                  <>
+                    {/* Current followers */}
+                    {followers.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Current followers</div>
+                        {followers.map((follower) => (
+                          <div key={follower.id} className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted">
+                            <span className="text-sm">{follower.user_name}</span>
+                            <button
+                              onClick={() => handleRemoveFollower(follower.user_id)}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add new follower */}
+                    <div className="space-y-1">
+                      <div className="text-xs text-muted-foreground">Add follower</div>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {availableUsers
+                          .filter(u => !followers.some(f => f.user_id === u.id))
+                          .map((user) => (
+                            <button
+                              key={user.id}
+                              onClick={() => handleAddFollower(user.id)}
+                              className="w-full flex items-center gap-2 py-1 px-2 rounded hover:bg-muted text-left text-sm"
+                            >
+                              <UserPlus className="h-3 w-3 text-muted-foreground" />
+                              {user.name}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Show other followers (excluding current user) */}
+          {followers.filter(f => f.user_id !== currentUser?.id).length > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <span>→</span>
-              {followers.map((f, idx) => (
+              {followers.filter(f => f.user_id !== currentUser?.id).map((f, idx, arr) => (
                 <span key={f.id}>
-                  {f.user_name.split(' ')[0]}{idx < followers.length - 1 ? ',' : ''}
+                  {f.user_name.split(' ')[0]}{idx < arr.length - 1 ? ',' : ''}
                 </span>
               ))}
             </div>
-          )}
-
-          {/* Share Button (only for private tasks) */}
-          {task.is_private && (
-            <>
-              <Popover open={shareOpen} onOpenChange={handleShareOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 gap-1"
-                    title="Share with others"
-                  >
-                    <Users className="h-3 w-3" />
-                    <span className="text-xs">Share</span>
-                  </Button>
-                </PopoverTrigger>
-              <PopoverContent className="w-64" align="start">
-                <div className="space-y-3">
-                  <div className="font-medium text-sm">Share with</div>
-
-                  {followersLoading ? (
-                    <div className="flex justify-center py-4">
-                      <Spinner size={20} />
-                    </div>
-                  ) : (
-                    <>
-                      {/* Current followers */}
-                      {followers.length > 0 && (
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground">Current followers</div>
-                          {followers.map((follower) => (
-                            <div key={follower.id} className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted">
-                              <span className="text-sm">{follower.user_name}</span>
-                              <button
-                                onClick={() => handleRemoveFollower(follower.user_id)}
-                                className="text-muted-foreground hover:text-destructive"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Add new follower */}
-                      <div className="space-y-1">
-                        <div className="text-xs text-muted-foreground">Add follower</div>
-                        <div className="max-h-32 overflow-y-auto space-y-1">
-                          {availableUsers
-                            .filter(u => !followers.some(f => f.user_id === u.id))
-                            .map((user) => (
-                              <button
-                                key={user.id}
-                                onClick={() => handleAddFollower(user.id)}
-                                className="w-full flex items-center gap-2 py-1 px-2 rounded hover:bg-muted text-left text-sm"
-                              >
-                                <UserPlus className="h-3 w-3 text-muted-foreground" />
-                                {user.name}
-                              </button>
-                            ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            {/* Show followers to the right of Share button */}
-            {followers.length > 0 && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <span>→</span>
-                {followers.map((f, idx) => (
-                  <span key={f.id}>
-                    {f.user_name.split(' ')[0]}{idx < followers.length - 1 ? ',' : ''}
-                  </span>
-                ))}
-              </div>
-            )}
-            </>
           )}
         </div>
         <div className="flex items-center gap-1">
