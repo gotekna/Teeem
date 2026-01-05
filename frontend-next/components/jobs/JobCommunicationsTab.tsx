@@ -443,7 +443,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
           <TeeemTableView
             loadingMore={loading}
             tableName="Job Emails"
-            preloadedViews={[]}
+            disableSavedViews={true}
             leftActions={
               <label className="flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap">
                 <input
