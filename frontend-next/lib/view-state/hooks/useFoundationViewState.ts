@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useAtom, useSetAtom } from "jotai";
 import {
   viewStateFamily,
@@ -24,6 +24,8 @@ import {
   type SSRViewConfig,
   type UseFoundationViewStateOptions,
   type CascadeFilter,
+  type FilterGroup,
+  type GroupViewMode,
   createDefaultViewState,
 } from "../types";
 import { useViewFromPath } from "./useViewFromPath";
@@ -114,6 +116,25 @@ export interface UseFoundationViewStateReturn extends ViewState {
   clearCollapsedGroups: () => void;
   /** Check if a group is collapsed */
   isGroupCollapsed: (groupKey: string) => boolean;
+  // Convenience setters for individual fields (compatible with existing atom patterns)
+  /** Set groupBy columns */
+  setGroupByColumns: (columns: string[]) => void;
+  /** Set group view mode (inline/panel) */
+  setGroupViewMode: (mode: GroupViewMode) => void;
+  /** Set active view ID */
+  setActiveViewId: (id: number | string | null) => void;
+  /** Set cascade filters */
+  setCascadeFilters: (filters: CascadeFilter[]) => void;
+  /** Set filter groups */
+  setFilterGroups: (groups: FilterGroup[]) => void;
+  /** Set visible columns */
+  setVisibleColumns: (visible: Record<string, boolean>) => void;
+  /** Set column order */
+  setColumnOrder: (order: string[]) => void;
+  /** Set column widths */
+  setColumnWidths: (widths: Record<string, number>) => void;
+  /** Set sort columns */
+  setSortColumns: (sort: SortColumn[]) => void;
 }
 
 /**
@@ -147,7 +168,7 @@ export function useFoundationViewState(
     foundationSlug = foundationId,
   } = options || {};
 
-  // Foundation-scoped state
+  // Foundation-scoped state (atom)
   const [viewState, setViewState] = useAtom(viewStateFamily(foundationId));
   const [collapsedGroups, setCollapsedGroupsAtom] = useAtom(collapsedGroupsFamily(foundationId));
   const clearCollapsedGroupsAtom = useSetAtom(clearCollapsedGroupsFamily(foundationId));
@@ -158,9 +179,48 @@ export function useFoundationViewState(
   // Effective view slug (props override path)
   const activeSlug = propsViewSlug || pathSlug;
 
-  // Track if initial view has been applied
+  // Track if initial view has been applied to atom
   const initializedRef = useRef(false);
   const lastFoundationRef = useRef<string | null>(null);
+
+  // ==========================================================================
+  // CRITICAL: SSR FIRST-RENDER FIX
+  // ==========================================================================
+  // The atom starts with default values. Effects run AFTER first render.
+  // To avoid flash (wrong groupViewMode on first paint), we compute SSR values
+  // in useMemo and merge them with atom state for the return value.
+  //
+  // This means:
+  // - First render: Returns SSR values (before effect runs)
+  // - After effect: Returns atom values (synced with SSR)
+  // - No flash, no timing issues
+  // ==========================================================================
+
+  // Compute SSR-derived state ONCE (stable across renders until initialView changes)
+  const ssrDerivedState = useMemo(() => {
+    if (initialView) {
+      return mapSSRViewToState(initialView);
+    }
+    return null;
+    // Only recompute if initialView identity changes
+  }, [initialView]);
+
+  // Determine if we should use SSR values (before atom is synced)
+  const useSSRValues = !initializedRef.current && ssrDerivedState !== null;
+
+  // Merge SSR values into effective state for FIRST RENDER
+  // After initialization, atom values take over
+  const effectiveViewState = useMemo(() => {
+    if (useSSRValues && ssrDerivedState) {
+      // First render with SSR data: merge SSR values over defaults
+      return {
+        ...viewState,
+        ...ssrDerivedState,
+      };
+    }
+    // After initialization or no SSR: use atom directly
+    return viewState;
+  }, [useSSRValues, ssrDerivedState, viewState]);
 
   // Apply a view atomically (all state changes in one update)
   const applyView = useCallback(
@@ -240,6 +300,75 @@ export function useFoundationViewState(
     [collapsedGroups]
   );
 
+  // ==========================================================================
+  // CONVENIENCE SETTERS
+  // ==========================================================================
+  // These wrap updateState for compatibility with existing atom patterns.
+  // They allow gradual migration from individual atoms to unified state.
+
+  const setGroupByColumns = useCallback(
+    (columns: string[]) => {
+      setViewState((current) => ({ ...current, groupByColumns: columns }));
+    },
+    [setViewState]
+  );
+
+  const setGroupViewMode = useCallback(
+    (mode: GroupViewMode) => {
+      setViewState((current) => ({ ...current, groupViewMode: mode }));
+    },
+    [setViewState]
+  );
+
+  const setActiveViewId = useCallback(
+    (id: number | string | null) => {
+      setViewState((current) => ({ ...current, activeViewId: id }));
+    },
+    [setViewState]
+  );
+
+  const setCascadeFilters = useCallback(
+    (filters: CascadeFilter[]) => {
+      setViewState((current) => ({ ...current, cascadeFilters: filters }));
+    },
+    [setViewState]
+  );
+
+  const setFilterGroups = useCallback(
+    (groups: FilterGroup[]) => {
+      setViewState((current) => ({ ...current, filterGroups: groups }));
+    },
+    [setViewState]
+  );
+
+  const setVisibleColumns = useCallback(
+    (visible: Record<string, boolean>) => {
+      setViewState((current) => ({ ...current, visibleColumns: visible }));
+    },
+    [setViewState]
+  );
+
+  const setColumnOrder = useCallback(
+    (order: string[]) => {
+      setViewState((current) => ({ ...current, columnOrder: order }));
+    },
+    [setViewState]
+  );
+
+  const setColumnWidths = useCallback(
+    (widths: Record<string, number>) => {
+      setViewState((current) => ({ ...current, columnWidths: widths }));
+    },
+    [setViewState]
+  );
+
+  const setSortColumns = useCallback(
+    (sort: SortColumn[]) => {
+      setViewState((current) => ({ ...current, sortColumns: sort }));
+    },
+    [setViewState]
+  );
+
   // Initialize from SSR or URL on mount/foundation change
   useEffect(() => {
     const isFoundationChange = lastFoundationRef.current !== null &&
@@ -279,7 +408,8 @@ export function useFoundationViewState(
   }, [foundationId, initialView, activeSlug, views, applyView, resetState]);
 
   return {
-    ...viewState,
+    // Use effectiveViewState which merges SSR values on first render
+    ...effectiveViewState,
     collapsedGroups,
     applyView,
     setViewSlug,
@@ -290,6 +420,16 @@ export function useFoundationViewState(
     toggleGroup,
     clearCollapsedGroups,
     isGroupCollapsed,
+    // Convenience setters for compatibility with existing patterns
+    setGroupByColumns,
+    setGroupViewMode,
+    setActiveViewId,
+    setCascadeFilters,
+    setFilterGroups,
+    setVisibleColumns,
+    setColumnOrder,
+    setColumnWidths,
+    setSortColumns,
   };
 }
 

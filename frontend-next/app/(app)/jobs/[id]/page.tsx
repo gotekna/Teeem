@@ -1012,19 +1012,20 @@ export default function JobDetailPage() {
     try {
       const response = await api.get<{
         success: boolean;
-        data: { columns: { id: number; name: string; column_type: string; available_choices: string[] | null }[] };
+        data: { columns: { id: number; name: string; column_name: string; column_type: string; choices: string[] | null }[] };
       }>('/api/v1/foundations/jobs/schema');
 
       if (response?.success && response.data?.columns) {
-        const levelCol = response.data.columns.find(c => c.name === 'level');
-        const dwellingCol = response.data.columns.find(c => c.name === 'dwelling_type');
+        // Schema returns column_name (not name) and choices (not available_choices)
+        const levelCol = response.data.columns.find(c => c.column_name === 'level');
+        const dwellingCol = response.data.columns.find(c => c.column_name === 'dwelling_type');
 
-        if (levelCol?.available_choices) {
-          setLevelChoices(levelCol.available_choices);
+        if (levelCol?.choices) {
+          setLevelChoices(levelCol.choices);
           setChoiceColumnIds(prev => ({ ...prev, level: levelCol.id }));
         }
-        if (dwellingCol?.available_choices) {
-          setDwellingTypeChoices(dwellingCol.available_choices);
+        if (dwellingCol?.choices) {
+          setDwellingTypeChoices(dwellingCol.choices);
           setChoiceColumnIds(prev => ({ ...prev, dwelling_type: dwellingCol.id }));
         }
       }

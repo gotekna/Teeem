@@ -403,15 +403,10 @@ import {
 import { useFilterState } from './core/state/useFilterState';
 import { selectDefaultView } from '@/lib/view-loading-utils';
 
-// New foundation-scoped view state (URL-driven architecture)
-// These atoms are isolated per foundation, preventing state pollution between pages
+// ULTRA: Foundation-scoped view state (URL-driven architecture)
+// Single hook provides all view state with SSR support and foundation isolation
+import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
-import {
-  collapsedGroupsFamily,
-  groupByColumnsFamily,
-  groupViewModeFamily,
-  activeViewIdFamily,
-} from '@/lib/view-state/atoms';
 
 // Helper functions and constants now imported from ./utils/table-utils:
 // - SYSTEM_GENERATED_TYPES, SYSTEM_COLUMN_BG
@@ -594,6 +589,31 @@ export default function TeeemTableView({
   // Foundation key for foundation-scoped atoms (prevents state pollution between pages)
   // SSoT: This key isolates Jobs state from Contacts state, etc.
   const foundationKey = String(effectiveFoundationId || 'default');
+
+  // ==========================================================================
+  // ULTRA: Foundation-scoped view state (single hook replaces multiple atoms)
+  // ==========================================================================
+  // This hook provides:
+  // - groupByColumns, groupViewMode, activeViewId (SSR-aware, no flash)
+  // - Convenience setters (setGroupByColumns, setGroupViewMode, etc.)
+  // - Foundation isolation (Jobs state doesn't pollute Contacts)
+  // - Automatic SSR hydration (correct values on first render)
+  const {
+    groupByColumns: ultraGroupByColumns,
+    groupViewMode: ultraGroupViewMode,
+    activeViewId: ultraActiveViewId,
+    collapsedGroups: ultraCollapsedGroups,
+    setGroupByColumns: ultraSetGroupByColumns,
+    setGroupViewMode: ultraSetGroupViewMode,
+    setActiveViewId: ultraSetActiveViewId,
+    setCollapsedGroups: ultraSetCollapsedGroups,
+    resetState: ultraResetState,
+  } = useFoundationViewState(foundationKey, {
+    initialView: initialView || undefined,
+    views: preloadedViews,
+    viewSlug: viewSlug || undefined,
+    foundationSlug: foundationSlug || foundationKey,
+  });
 
   const effectiveEnableImport = enableImport || shouldAutoEnable;
   const effectiveEnableExport = enableExport || shouldAutoEnable;
@@ -1455,23 +1475,14 @@ export default function TeeemTableView({
 
   // View collection state managed by atoms
   const [savedViews, setSavedViews] = useAtom(foundationViewsAtom);
-  // activeViewId managed by FOUNDATION-SCOPED atom (prevents view selection pollution between pages)
-  const [activeViewId, setActiveViewId] = useAtom(activeViewIdFamily(foundationKey));
+  // ULTRA: activeViewId from foundation-scoped hook (SSR-aware, no init effect needed)
+  const activeViewId = ultraActiveViewId;
+  const setActiveViewId = ultraSetActiveViewId;
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
   // SSR: Mark as loaded if we have initialView to prevent client-side reload
   const initialViewLoadedRef = useRef(!!initialView); // Prevent re-loading views after initial load
 
-  // SSR FLASH FIX: Initialize activeViewId from initialView immediately
-  // This ensures the view selector shows the correct active view on first render
-  const ssrViewInitializedRef = useRef(false);
-  useEffect(() => {
-    if (ssrViewInitializedRef.current) return;
-    if (initialView?.id && !activeViewId) {
-      ssrViewInitializedRef.current = true;
-      console.log('[SSR] Setting activeViewId from initialView:', initialView.id);
-      setActiveViewId(initialView.id);
-    }
-  }, [initialView, activeViewId, setActiveViewId]);
+  // ULTRA: SSR activeViewId init removed - hook handles this automatically
 
   // SSR FLASH FIX: Initialize view filters from initialView immediately
   // This ensures the view's filters are applied on first render (eliminates wrong data flash)
