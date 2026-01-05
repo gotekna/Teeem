@@ -397,6 +397,7 @@ export default function EmailPage() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [accountFolders, setAccountFolders] = useState<Record<string, EmailFolder[]>>({});
+  const [folderOrder, setFolderOrder] = useState<Record<string, string[]>>({});
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -804,7 +805,42 @@ export default function EmailPage() {
         return next;
       });
     }
+
+    // Also load folder order for this account
+    try {
+      const orderResponse = await api.get<{ success: boolean; data: { folder_ids: string[] } }>(
+        `/api/v1/imap_credentials/folder_order?account_id=${accountId}`
+      );
+      if (orderResponse.success && orderResponse.data?.folder_ids?.length > 0) {
+        setFolderOrder(prev => ({
+          ...prev,
+          [accountId]: orderResponse.data.folder_ids
+        }));
+      }
+    } catch {
+      // Folder order is optional, ignore errors
+    }
   };
+
+  // Save folder order to backend (called when user drags to reorder)
+  const saveFolderOrder = useCallback(async (accountId: string, folderIds: string[]) => {
+    // Update local state immediately for optimistic UI
+    setFolderOrder(prev => ({
+      ...prev,
+      [accountId]: folderIds
+    }));
+
+    // Save to backend
+    try {
+      await api.post("/api/v1/imap_credentials/save_folder_order", {
+        account_id: accountId,
+        folder_ids: folderIds
+      });
+    } catch (error) {
+      console.error("Failed to save folder order:", error);
+      // Revert on error? For now just log - user can try again
+    }
+  }, []);
 
   // Track if initial account load is complete (to handle cache vs URL param)
   const [accountsLoaded, setAccountsLoaded] = useState(false);
@@ -1232,6 +1268,9 @@ To: ${email.to_emails?.join(", ") || ""}
                           selectAccountFolder(selectedAccount, folder);
                         }}
                         persistKey={`email-folders-${selectedAccount}`}
+                        enableReorder={true}
+                        customOrder={folderOrder[selectedAccount]}
+                        onReorder={(ids) => saveFolderOrder(selectedAccount, ids)}
                         renderWrapper={(item, children) => (
                           <DroppableFolder folderId={item.id} folderName={item.name}>
                             {children}

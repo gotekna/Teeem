@@ -606,6 +606,53 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }, status: :unprocessable_entity
   end
 
+  # POST /api/v1/imap_credentials/save_folder_order
+  # Save user's custom folder ordering for an email account
+  # SSoT: Uses EmailFolderPreference model
+  def save_folder_order
+    account_id = params[:account_id]
+    folder_ids = params[:folder_ids]
+
+    if account_id.blank? || folder_ids.blank?
+      return render json: {
+        success: false,
+        error: "account_id and folder_ids are required"
+      }, status: :unprocessable_entity
+    end
+
+    EmailFolderPreference.save_order(current_user.id, account_id, folder_ids)
+
+    render json: {
+      success: true,
+      message: "Folder order saved"
+    }
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to save folder order: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # GET /api/v1/imap_credentials/folder_order
+  # Get user's custom folder ordering for an email account
+  def folder_order
+    account_id = params[:account_id]
+
+    if account_id.blank?
+      return render json: {
+        success: false,
+        error: "account_id is required"
+      }, status: :unprocessable_entity
+    end
+
+    folder_ids = EmailFolderPreference.ordered_folder_ids(current_user.id, account_id)
+
+    render json: {
+      success: true,
+      data: { folder_ids: folder_ids }
+    }
+  end
+
   private
 
   # DEPRECATED: Per-user Outlook credentials have been removed

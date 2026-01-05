@@ -3,6 +3,25 @@
 import * as React from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Inbox,
   Send,
   FileText,
@@ -11,6 +30,7 @@ import {
   AlertOctagon,
   Folder,
   FolderOpen,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -56,9 +76,11 @@ export interface FolderTreeProps {
   selectedId?: string;
   /** Callback when folder is selected */
   onSelect: (item: FolderTreeItem) => void;
+  /** Callback when folders are reordered (receives new order of root folder IDs) */
+  onReorder?: (folderIds: string[]) => void;
   /** Key for persisting expanded state (e.g., account ID) */
   persistKey?: string;
-  /** Wrapper component for each item (e.g., for drag-drop) */
+  /** Wrapper component for each item (e.g., for email drag-drop) */
   renderWrapper?: (
     item: FolderTreeItem,
     children: React.ReactNode
@@ -69,6 +91,10 @@ export interface FolderTreeProps {
   loadingFolderIds?: Set<string>;
   /** Default to collapsed (true) or expanded (false) for new folders */
   defaultCollapsed?: boolean;
+  /** Enable drag-to-reorder folders */
+  enableReorder?: boolean;
+  /** Custom folder order (array of folder IDs) */
+  customOrder?: string[];
 }
 
 interface TreeNodeProps {
@@ -82,12 +108,48 @@ interface TreeNodeProps {
   onToggle: (item: FolderTreeItem) => void;
   renderWrapper?: FolderTreeProps["renderWrapper"];
   loadingFolderIds?: Set<string>;
+  isDragging?: boolean;
+  enableReorder?: boolean;
 }
 
 /**
- * Recursive tree node component
+ * Sortable tree node component (for root level only)
  */
-const TreeNode = memo(function TreeNode({
+function SortableTreeNode(props: TreeNodeProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TreeNodeContent
+        {...props}
+        isDragging={isDragging}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
+}
+
+interface TreeNodeContentProps extends TreeNodeProps {
+  dragHandleProps?: Record<string, unknown>;
+}
+
+/**
+ * Tree node content (used by both sortable and non-sortable nodes)
+ */
+const TreeNodeContent = memo(function TreeNodeContent({
   item,
   children,
   allItems,
@@ -98,7 +160,10 @@ const TreeNode = memo(function TreeNode({
   onToggle,
   renderWrapper,
   loadingFolderIds,
-}: TreeNodeProps) {
+  isDragging,
+  enableReorder,
+  dragHandleProps,
+}: TreeNodeContentProps) {
   const isSelected = selectedId === item.id;
   const isExpanded = expandedIds.has(item.id);
   const hasChildren = children.length > 0;
@@ -128,14 +193,26 @@ const TreeNode = memo(function TreeNode({
       aria-expanded={hasChildren ? isExpanded : undefined}
       aria-selected={isSelected}
       className={cn(
-        "flex items-center gap-1 py-1.5 px-2 rounded-sm cursor-pointer transition-colors",
+        "flex items-center gap-1 py-1.5 px-2 rounded-sm cursor-pointer transition-colors group",
         "hover:bg-muted/50",
         isSelected && "bg-primary/10 text-primary",
-        hasUnread && "font-semibold"
+        hasUnread && "font-semibold",
+        isDragging && "bg-muted"
       )}
-      style={{ paddingLeft: `${level * 16 + 8}px` }}
+      style={{ paddingLeft: `${level * 16 + (enableReorder && level === 0 ? 4 : 8)}px` }}
       onClick={handleSelect}
     >
+      {/* Drag handle for root level folders */}
+      {enableReorder && level === 0 && dragHandleProps && (
+        <div
+          {...dragHandleProps}
+          className="shrink-0 w-4 h-4 flex items-center justify-center cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )}
+
       {/* Expand/Collapse chevron */}
       {hasChildren ? (
         <div
@@ -182,7 +259,7 @@ const TreeNode = memo(function TreeNode({
     </div>
   );
 
-  // Wrap with custom wrapper if provided (e.g., for drag-drop)
+  // Wrap with custom wrapper if provided (e.g., for email drag-drop)
   const wrappedContent = renderWrapper ? renderWrapper(item, content) : content;
 
   return (
@@ -197,7 +274,7 @@ const TreeNode = memo(function TreeNode({
               (f) => f.parentId === child.id
             );
             return (
-              <TreeNode
+              <TreeNodeContent
                 key={child.id}
                 item={child}
                 children={childChildren}
@@ -209,6 +286,7 @@ const TreeNode = memo(function TreeNode({
                 onToggle={onToggle}
                 renderWrapper={renderWrapper}
                 loadingFolderIds={loadingFolderIds}
+                enableReorder={false} // Only root level is sortable
               />
             );
           })}
@@ -219,10 +297,37 @@ const TreeNode = memo(function TreeNode({
 });
 
 /**
+ * Drag overlay component (shown while dragging)
+ */
+function DragOverlayContent({ item }: { item: FolderTreeItem }) {
+  const Icon = FOLDER_TYPE_ICONS[item.type] || Folder;
+  const hasUnread = (item.unreadCount ?? 0) > 0;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 py-1.5 px-3 rounded-sm bg-background border shadow-lg",
+        hasUnread && "font-semibold"
+      )}
+    >
+      <GripVertical className="h-3 w-3 text-muted-foreground" />
+      <Icon className="h-4 w-4 text-amber-500" />
+      <span className="text-sm">{item.name}</span>
+      {hasUnread && (
+        <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+          {item.unreadCount}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+/**
  * FolderTree - SSoT component for hierarchical folder display
  *
  * Features:
  * - Individual folder expand/collapse
+ * - Drag-to-reorder folders (root level)
  * - Persisted expand state via localStorage
  * - Bold text for folders with unread items
  * - Smooth animations
@@ -235,7 +340,9 @@ const TreeNode = memo(function TreeNode({
  *   items={folders}
  *   selectedId={selectedFolderId}
  *   onSelect={(folder) => selectFolder(folder.id)}
+ *   onReorder={(ids) => saveFolderOrder(ids)}
  *   persistKey={accountId}
+ *   enableReorder={true}
  * />
  * ```
  */
@@ -243,11 +350,14 @@ export function FolderTree({
   items,
   selectedId,
   onSelect,
+  onReorder,
   persistKey,
   renderWrapper,
   className,
   loadingFolderIds,
   defaultCollapsed = true,
+  enableReorder = false,
+  customOrder,
 }: FolderTreeProps) {
   // Build hierarchical structure from flat items
   const folderItems = useMemo(() => {
@@ -255,17 +365,53 @@ export function FolderTree({
     return sortFolders(hierarchy);
   }, [items]);
 
-  // Root folders (no parent)
+  // Root folders (no parent), with custom ordering if provided
   const rootFolders = useMemo(() => {
-    return folderItems.filter((f) => !f.parentId);
-  }, [folderItems]);
+    let roots = folderItems.filter((f) => !f.parentId);
+
+    // Apply custom order if provided
+    if (customOrder && customOrder.length > 0) {
+      const orderMap = new Map(customOrder.map((id, idx) => [id, idx]));
+      roots = roots.sort((a, b) => {
+        const orderA = orderMap.get(a.id) ?? Infinity;
+        const orderB = orderMap.get(b.id) ?? Infinity;
+        return orderA - orderB;
+      });
+    }
+
+    return roots;
+  }, [folderItems, customOrder]);
+
+  // Local state for folder order (for immediate UI feedback)
+  const [localOrder, setLocalOrder] = useState<string[]>(() =>
+    rootFolders.map(f => f.id)
+  );
+
+  // Update local order when root folders change
+  useEffect(() => {
+    setLocalOrder(rootFolders.map(f => f.id));
+  }, [rootFolders]);
+
+  // Ordered root folders based on local state
+  const orderedRootFolders = useMemo(() => {
+    const folderMap = new Map(rootFolders.map(f => [f.id, f]));
+    return localOrder
+      .map(id => folderMap.get(id))
+      .filter((f): f is FolderTreeItem => f !== undefined);
+  }, [rootFolders, localOrder]);
+
+  // Drag state
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const activeItem = useMemo(() =>
+    folderItems.find(f => f.id === activeId),
+    [folderItems, activeId]
+  );
 
   // Expanded state with persistence
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     if (persistKey) {
       return loadExpandedFolders(persistKey);
     }
-    // If no persistence and defaultCollapsed is false, expand all folders with children
     if (!defaultCollapsed) {
       const foldersWithChildren = folderItems.filter(
         (f) => (f.childFolderCount ?? 0) > 0
@@ -304,6 +450,40 @@ export function FolderTree({
     });
   }, []);
 
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required before drag starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  }, []);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (over && active.id !== over.id) {
+      setLocalOrder((prev) => {
+        const oldIndex = prev.indexOf(active.id as string);
+        const newIndex = prev.indexOf(over.id as string);
+        const newOrder = arrayMove(prev, oldIndex, newIndex);
+
+        // Notify parent of reorder
+        onReorder?.(newOrder);
+
+        return newOrder;
+      });
+    }
+  }, [onReorder]);
+
   if (folderItems.length === 0) {
     return (
       <div className={cn("text-sm text-muted-foreground py-2 px-3", className)}>
@@ -312,12 +492,33 @@ export function FolderTree({
     );
   }
 
-  return (
-    <div role="tree" aria-label="Folder tree" className={className}>
-      {rootFolders.map((folder) => {
+  // Render tree content
+  const treeContent = (
+    <>
+      {orderedRootFolders.map((folder) => {
         const children = folderItems.filter((f) => f.parentId === folder.id);
+
+        if (enableReorder) {
+          return (
+            <SortableTreeNode
+              key={folder.id}
+              item={folder}
+              children={children}
+              allItems={folderItems}
+              level={0}
+              selectedId={selectedId}
+              expandedIds={expandedIds}
+              onSelect={onSelect}
+              onToggle={handleToggle}
+              renderWrapper={renderWrapper}
+              loadingFolderIds={loadingFolderIds}
+              enableReorder={true}
+            />
+          );
+        }
+
         return (
-          <TreeNode
+          <TreeNodeContent
             key={folder.id}
             item={folder}
             children={children}
@@ -329,9 +530,40 @@ export function FolderTree({
             onToggle={handleToggle}
             renderWrapper={renderWrapper}
             loadingFolderIds={loadingFolderIds}
+            enableReorder={false}
           />
         );
       })}
+    </>
+  );
+
+  // Wrap with DnD context if reordering is enabled
+  if (enableReorder) {
+    return (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={localOrder}
+          strategy={verticalListSortingStrategy}
+        >
+          <div role="tree" aria-label="Folder tree" className={className}>
+            {treeContent}
+          </div>
+        </SortableContext>
+        <DragOverlay>
+          {activeItem && <DragOverlayContent item={activeItem} />}
+        </DragOverlay>
+      </DndContext>
+    );
+  }
+
+  return (
+    <div role="tree" aria-label="Folder tree" className={className}>
+      {treeContent}
     </div>
   );
 }

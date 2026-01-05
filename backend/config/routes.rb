@@ -1177,6 +1177,8 @@ Rails.application.routes.draw do
           post :schedule_email
           get :scheduled_emails
           get :folders  # Fetch folders for a specific account (pass account_id param)
+          get :folder_order  # Get user's custom folder order
+          post :save_folder_order  # Save user's custom folder order
           post :sync_all  # Sync ALL user's IMAP accounts
           get :shareable_users  # List users who can be granted access
         end
