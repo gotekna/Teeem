@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   closestCenter,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -12,7 +13,9 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
+  MeasuringStrategy,
 } from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   arrayMove,
   SortableContext,
@@ -114,6 +117,8 @@ interface TreeNodeProps {
 
 /**
  * Sortable tree node component (for root level only)
+ * IMPORTANT: Only the folder row itself is sortable - children are rendered
+ * outside the transform container to prevent collision detection issues
  */
 function SortableTreeNode(props: TreeNodeProps) {
   const {
@@ -131,13 +136,44 @@ function SortableTreeNode(props: TreeNodeProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const { item, children, allItems, expandedIds } = props;
+  const isExpanded = expandedIds.has(item.id);
+  const hasChildren = children.length > 0;
+
   return (
     <div ref={setNodeRef} style={style}>
-      <TreeNodeContent
+      {/* Only the folder row is inside the sortable transform */}
+      <TreeNodeRow
         {...props}
         isDragging={isDragging}
         dragHandleProps={{ ...attributes, ...listeners }}
       />
+      {/* Children are rendered outside the sortable transform to fix upward drag */}
+      {isExpanded && hasChildren && (
+        <div role="group">
+          {children.map((child) => {
+            const childChildren = allItems.filter(
+              (f) => f.parentId === child.id
+            );
+            return (
+              <TreeNodeContent
+                key={child.id}
+                item={child}
+                children={childChildren}
+                allItems={allItems}
+                level={1}
+                selectedId={props.selectedId}
+                expandedIds={expandedIds}
+                onSelect={props.onSelect}
+                onToggle={props.onToggle}
+                renderWrapper={props.renderWrapper}
+                loadingFolderIds={props.loadingFolderIds}
+                enableReorder={false}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -147,12 +183,12 @@ interface TreeNodeContentProps extends TreeNodeProps {
 }
 
 /**
- * Tree node content (used by both sortable and non-sortable nodes)
+ * Tree node row - renders just the folder row (no children)
+ * Used by SortableTreeNode to keep only the row in the sortable container
  */
-const TreeNodeContent = memo(function TreeNodeContent({
+const TreeNodeRow = memo(function TreeNodeRow({
   item,
   children,
-  allItems,
   level,
   selectedId,
   expandedIds,
@@ -170,7 +206,6 @@ const TreeNodeContent = memo(function TreeNodeContent({
   const isLoading = loadingFolderIds?.has(item.id);
   const hasUnread = (item.unreadCount ?? 0) > 0;
 
-  // Get icon based on folder type
   const Icon = FOLDER_TYPE_ICONS[item.type] || Folder;
   const DisplayIcon =
     item.type === "custom" && (isExpanded || isSelected) ? FolderOpen : Icon;
@@ -202,7 +237,6 @@ const TreeNodeContent = memo(function TreeNodeContent({
       style={{ paddingLeft: `${level * 16 + (enableReorder && level === 0 ? 4 : 8)}px` }}
       onClick={handleSelect}
     >
-      {/* Drag handle for root level folders */}
       {enableReorder && level === 0 && dragHandleProps && (
         <div
           {...dragHandleProps}
@@ -213,7 +247,6 @@ const TreeNodeContent = memo(function TreeNodeContent({
         </div>
       )}
 
-      {/* Expand/Collapse chevron */}
       {hasChildren ? (
         <div
           className="shrink-0 w-5 h-5 flex items-center justify-center"
@@ -229,7 +262,6 @@ const TreeNodeContent = memo(function TreeNodeContent({
         <span className="w-5 shrink-0" />
       )}
 
-      {/* Folder icon */}
       <DisplayIcon
         className={cn(
           "h-4 w-4 shrink-0",
@@ -241,10 +273,8 @@ const TreeNodeContent = memo(function TreeNodeContent({
         )}
       />
 
-      {/* Folder name */}
       <span className="flex-1 truncate text-sm">{item.name}</span>
 
-      {/* Unread count badge */}
       {hasUnread && (
         <Badge
           variant="secondary"
@@ -259,14 +289,49 @@ const TreeNodeContent = memo(function TreeNodeContent({
     </div>
   );
 
-  // Wrap with custom wrapper if provided (e.g., for email drag-drop)
-  const wrappedContent = renderWrapper ? renderWrapper(item, content) : content;
+  return renderWrapper ? renderWrapper(item, content) : content;
+});
+
+/**
+ * Tree node content (used by both sortable and non-sortable nodes)
+ * Renders the folder row AND its children recursively
+ */
+const TreeNodeContent = memo(function TreeNodeContent({
+  item,
+  children,
+  allItems,
+  level,
+  selectedId,
+  expandedIds,
+  onSelect,
+  onToggle,
+  renderWrapper,
+  loadingFolderIds,
+  isDragging,
+  enableReorder,
+  dragHandleProps,
+}: TreeNodeContentProps) {
+  const isExpanded = expandedIds.has(item.id);
+  const hasChildren = children.length > 0;
 
   return (
     <div>
-      {wrappedContent}
+      <TreeNodeRow
+        item={item}
+        children={children}
+        allItems={allItems}
+        level={level}
+        selectedId={selectedId}
+        expandedIds={expandedIds}
+        onSelect={onSelect}
+        onToggle={onToggle}
+        renderWrapper={renderWrapper}
+        loadingFolderIds={loadingFolderIds}
+        isDragging={isDragging}
+        enableReorder={enableReorder}
+        dragHandleProps={dragHandleProps}
+      />
 
-      {/* Render children if expanded */}
       {isExpanded && hasChildren && (
         <div role="group">
           {children.map((child) => {
@@ -286,7 +351,7 @@ const TreeNodeContent = memo(function TreeNodeContent({
                 onToggle={onToggle}
                 renderWrapper={renderWrapper}
                 loadingFolderIds={loadingFolderIds}
-                enableReorder={false} // Only root level is sortable
+                enableReorder={false}
               />
             );
           })}
@@ -542,9 +607,15 @@ export function FolderTree({
     return (
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={pointerWithin}
+        modifiers={[restrictToVerticalAxis]}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        measuring={{
+          droppable: {
+            strategy: MeasuringStrategy.Always,
+          },
+        }}
       >
         <SortableContext
           items={localOrder}
