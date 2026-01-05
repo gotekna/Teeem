@@ -113,18 +113,18 @@ class EmailWarehouse < ApplicationRecord
 
   # Search by email address (from, to, or cc)
   # Can accept a single email string or an array of emails
-  # SSoT: Case-insensitive email matching for from_email, to_emails, and cc_emails
-  # Uses EXISTS with LOWER for case-insensitive array matching
+  # SSoT: All emails are stored lowercase (normalize_email_addresses callback)
+  # Performance: Uses fast array overlap (&&) since data is normalized
   scope :involving_email, ->(emails) {
     emails = Array(emails).compact.map(&:downcase)
     return none if emails.empty?
 
-    # Case-insensitive matching for all email fields
-    # to_emails and cc_emails are arrays, so we use EXISTS with unnest and LOWER
+    # Simple matching - all emails stored lowercase via before_save callback
+    # Uses array overlap (&&) for fast GIN-indexed matching on to_emails/cc_emails
     where(
-      "LOWER(from_email) = ANY(ARRAY[?]::text[]) OR " \
-      "EXISTS (SELECT 1 FROM unnest(to_emails) AS e WHERE LOWER(e) = ANY(ARRAY[?]::text[])) OR " \
-      "EXISTS (SELECT 1 FROM unnest(cc_emails) AS e WHERE LOWER(e) = ANY(ARRAY[?]::text[]))",
+      "from_email = ANY(ARRAY[?]::text[]) OR " \
+      "to_emails && ARRAY[?]::text[] OR " \
+      "cc_emails && ARRAY[?]::text[]",
       emails, emails, emails
     )
   }

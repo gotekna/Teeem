@@ -817,7 +817,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                             )}
                           </div>
 
-                          {/* Related Jobs */}
+                          {/* Related Jobs - shows other jobs this contact is associated with */}
                           <div>
                             <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
                               <Briefcase className="h-4 w-4" />
