@@ -163,7 +163,14 @@ module Api
 
         render json: {
           success: true,
-          data: choices.map { |c| { value: c, description: descriptions[c] || c } }
+          data: choices.map { |c|
+            desc = descriptions[c]
+            {
+              value: c,
+              description: desc,
+              displayLabel: desc.present? ? "#{c} (#{desc})" : c  # SSoT for display format
+            }
+          }
         }
       end
 

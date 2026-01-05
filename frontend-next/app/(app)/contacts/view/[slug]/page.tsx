@@ -1,38 +1,22 @@
-import { fetchFoundationForSSR } from "@/lib/server/foundation-api";
-import ContactsPageClient from "../../contacts-page-client";
+import { redirect } from "next/navigation";
 
 interface ContactsViewPageProps {
   params: Promise<{ slug: string }>;
 }
 
 /**
- * Contacts View Page - SSR Optimized
+ * Contacts View Page - REDIRECT to Query Param URL
  *
- * Handles URLs like /contacts/view/company_role, /contacts/view/suppliers
- * The view slug determines which saved view configuration to apply.
+ * Legacy URLs like /contacts/view/company_role are redirected to /contacts?view=company_role
+ * This enables client-side view switching without full page reloads.
  *
- * SSR fetches the view config and initial records so the page
- * renders immediately with the correct grouping/filters applied.
+ * ULTRA FIX: Changed from SSR page to redirect for instant view switching.
+ * The main /contacts page handles all views via query params now.
  */
 export default async function ContactsViewPage({ params }: ContactsViewPageProps) {
   const { slug } = await params;
 
-  // Fetch records with view configuration applied
-  const { columns, records, hasMore, view, views, groupCounts } =
-    await fetchFoundationForSSR("contacts", {
-      limit: 20,
-      viewSlug: slug,
-    });
-
-  return (
-    <ContactsPageClient
-      initialColumns={columns}
-      initialRecords={records}
-      initialHasMore={hasMore}
-      initialView={view}
-      initialViews={views}
-      initialGroupCounts={groupCounts}
-      viewSlug={slug}
-    />
-  );
+  // Redirect legacy path-based URLs to query param format
+  // /contacts/view/company_role → /contacts?view=company_role
+  redirect(`/contacts?view=${slug}`);
 }

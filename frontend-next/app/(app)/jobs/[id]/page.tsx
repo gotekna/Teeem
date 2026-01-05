@@ -739,7 +739,7 @@ export default function JobDetailPage() {
 
   // Choice columns state (Level, Dwelling Type) - SSoT: loaded from Column.available_choices via API
   const [levelChoices, setLevelChoices] = React.useState<string[]>([]);
-  const [dwellingTypeChoices, setDwellingTypeChoices] = React.useState<{ value: string; description: string }[]>([]);
+  const [dwellingTypeChoices, setDwellingTypeChoices] = React.useState<{ value: string; description: string; displayLabel: string }[]>([]);
   const [editingChoices, setEditingChoices] = React.useState<{ field: 'level' | 'dwelling_type'; choices: string[] } | null>(null);
   const [newChoiceInput, setNewChoiceInput] = React.useState('');
   const [savingChoices, setSavingChoices] = React.useState(false);
@@ -1032,7 +1032,7 @@ export default function JobDetailPage() {
       // Fetch dwelling types with descriptions from dedicated endpoint (SSoT)
       const dwellingResponse = await api.get<{
         success: boolean;
-        data: { value: string; description: string }[];
+        data: { value: string; description: string; displayLabel: string }[];
       }>('/api/v1/document_types/dwelling_types');
 
       if (dwellingResponse?.success && dwellingResponse.data) {
@@ -1066,7 +1066,7 @@ export default function JobDetailPage() {
         // Reload dwelling types to get descriptions from SSoT API
         const dwellingResponse = await api.get<{
           success: boolean;
-          data: { value: string; description: string }[];
+          data: { value: string; description: string; displayLabel: string }[];
         }>('/api/v1/document_types/dwelling_types');
         if (dwellingResponse?.success && dwellingResponse.data) {
           setDwellingTypeChoices(dwellingResponse.data);
@@ -1518,7 +1518,7 @@ export default function JobDetailPage() {
                         <ComboboxDropdown
                           items={dwellingTypeChoices.map((c) => ({
                             id: c.value,
-                            label: c.description ? `${c.value} (${c.description})` : c.value
+                            label: c.displayLabel  // SSoT: format from API
                           }))}
                           selectedItem={editForm.dwelling_type ? { id: editForm.dwelling_type, label: editForm.dwelling_type } : undefined}
                           onSelect={(item) => setEditForm({ ...editForm, dwelling_type: item.id })}

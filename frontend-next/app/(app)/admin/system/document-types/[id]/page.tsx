@@ -158,7 +158,7 @@ export default function DocumentTypeDetailPage() {
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
-  const [dwellingTypes, setDwellingTypes] = React.useState<Array<{ value: string; description: string }>>([]);
+  const [dwellingTypes, setDwellingTypes] = React.useState<Array<{ value: string; description: string; displayLabel: string }>>([]);
 
   // SSoT: Naming format change confirmation dialog state
   const [renameConfirmDialog, setRenameConfirmDialog] = React.useState<{
@@ -294,7 +294,7 @@ export default function DocumentTypeDetailPage() {
   React.useEffect(() => {
     const fetchDwellingTypes = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: Array<{ value: string; description: string }> }>("/api/v1/document_types/dwelling_types");
+        const response = await api.get<{ success: boolean; data: Array<{ value: string; description: string; displayLabel: string }> }>("/api/v1/document_types/dwelling_types");
         if (response.success && Array.isArray(response.data)) {
           setDwellingTypes(response.data);
         }
@@ -1831,7 +1831,7 @@ export default function DocumentTypeDetailPage() {
                       <SelectContent>
                         {dwellingTypes.map((dt) => (
                           <SelectItem key={dt.value} value={dt.value}>
-                            {dt.value} {dt.description ? `(${dt.description})` : ""}
+                            {dt.displayLabel}
                           </SelectItem>
                         ))}
                         <SelectItem value="default">Default (fallback for unmatched)</SelectItem>

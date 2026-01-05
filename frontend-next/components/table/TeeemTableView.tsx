@@ -5746,6 +5746,23 @@ export default function TeeemTableView({
             </Button>
           )}
 
+          {/* Refresh button - clears cache and refetches fresh data */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              if (effectiveFoundationId) {
+                clearCachedRecords(effectiveFoundationId);
+              }
+              triggerAutoRefresh();
+              onRefresh?.();
+            }}
+            title="Refresh data"
+            className="h-9 w-9"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+
           {/* More actions menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
