@@ -316,7 +316,7 @@ export function DataWarehouseTab() {
   }, [companyId]);
 
   const clearCompanyFilter = () => {
-    router.push("/admin/system/data-warehouse");
+    router.push("/data-warehouse");
   };
 
   const loadStats = async () => {
