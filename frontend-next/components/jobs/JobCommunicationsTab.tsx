@@ -429,12 +429,9 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
       )}
 
       {/* Emails table - SSoT TeeemTableView */}
+      {/* FRC: Keep table mounted during loading to preserve fullscreen state */}
       <div className="flex-1 min-h-0">
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Spinner />
-          </div>
-        ) : emails.length === 0 ? (
+        {!loading && emails.length === 0 ? (
           <Card>
             <CardContent className="pt-6">
               <p className="text-muted-foreground text-center py-8">
@@ -444,6 +441,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
           </Card>
         ) : (
           <TeeemTableView
+            loadingMore={loading}
             tableName="Job Emails"
             preloadedViews={[]}
             leftActions={
