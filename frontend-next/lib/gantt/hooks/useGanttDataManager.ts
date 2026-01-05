@@ -13,6 +13,7 @@
 import * as React from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
+import { validateDependencies } from '@/lib/api/schemas/gantt';
 import {
   convertRowsToTasks,
   isHeaderRow,
@@ -357,8 +358,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       let convertedDeps: GanttDependency[];
       if (fetchedDeps.length > 0) {
         // Use dependencies from API (job mode)
-        // SSoT: Backend returns camelCase (fromId, toId) - use directly
-        convertedDeps = fetchedDeps.map((dep) => ({
+        // SSoT: Validate with Zod schema to catch API contract mismatches at runtime
+        // This prevents bugs like fromId/from_id key name mismatches
+        const validatedDeps = validateDependencies(fetchedDeps);
+        convertedDeps = validatedDeps.map((dep) => ({
           id: dep.id,
           fromId: dep.fromId,
           toId: dep.toId,

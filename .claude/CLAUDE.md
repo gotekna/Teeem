@@ -329,6 +329,23 @@ CorporateCompanySetting.sharepoint_full_path(:jobs)  # SSoT
 { "success": false, "error": "Error message" }
 ```
 
+## 🔴 API Key Convention
+
+**Backend returns camelCase, frontend expects camelCase.**
+
+| Layer | Convention | Example |
+|-------|-----------|---------|
+| Ruby hash keys | Symbols (`:fromId`) | `{ fromId: row.id.to_s }` |
+| JSON response | camelCase | `"fromId": "123"` |
+| TypeScript types | camelCase | `fromId: string` |
+
+**Before writing TypeScript types for API responses:**
+1. Check the backend controller/service for actual key names
+2. Use Zod schemas for runtime validation of critical APIs
+3. Never assume snake_case - verify the source
+
+**SSoT for API validation:** `lib/api/schemas/` (Zod schemas)
+
 ## 🔴 Timezone
 
 **Company:** Australia/Brisbane
