@@ -68,10 +68,34 @@ function isPreviewable(contentType?: string, name?: string): boolean {
   return false;
 }
 
+// Check if attachment is a signature/embedded image that should be hidden
+function isSignatureAttachment(attachment: Attachment): boolean {
+  const name = attachment.name?.toLowerCase() || "";
+  const type = attachment.content_type?.toLowerCase() || "";
+  const size = attachment.size || 0;
+
+  // Only check images
+  if (!type.startsWith("image/")) return false;
+
+  // Signature patterns
+  if (/^image\d{3}\.(png|jpg|jpeg|gif)$/i.test(name)) return true;
+  if (/^outlook-signature[_-]/i.test(name)) return true;
+  if (/^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i.test(name)) return true;
+  if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i.test(name)) return true;
+
+  // Very small images (< 10KB) are likely icons
+  if (size > 0 && size < 10000) return true;
+
+  return false;
+}
+
 export function AttachmentList({ attachments, emailId, className }: AttachmentListProps) {
   const [loading, setLoading] = useState<string | null>(null);
 
-  if (!attachments || attachments.length === 0) {
+  // Filter out signature/embedded images
+  const visibleAttachments = attachments?.filter(a => !isSignatureAttachment(a)) || [];
+
+  if (visibleAttachments.length === 0) {
     return null;
   }
 
@@ -139,10 +163,10 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     <div className={cn("space-y-2", className)}>
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <Paperclip className="h-4 w-4" />
-        <span>{attachments.length} Attachment{attachments.length !== 1 ? "s" : ""}</span>
+        <span>{visibleAttachments.length} Attachment{visibleAttachments.length !== 1 ? "s" : ""}</span>
       </div>
       <div className="flex flex-wrap gap-2">
-        {attachments.map((attachment, idx) => {
+        {visibleAttachments.map((attachment, idx) => {
           const Icon = getFileIcon(attachment.content_type, attachment.name);
           const isLoading = loading === attachment.name;
           const canPreview = isPreviewable(attachment.content_type, attachment.name);

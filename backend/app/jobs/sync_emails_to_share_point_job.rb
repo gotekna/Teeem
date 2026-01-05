@@ -379,6 +379,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
       /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i, # 32-char hex filenames (Outlook CIDs)
       /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
       /^cid:/i,                              # Content-ID references
+      /^outlook-signature[_-]/i,             # Outlook signature files
     ]
 
     if is_inline && signature_patterns.any? { |pattern| filename.match?(pattern) }
