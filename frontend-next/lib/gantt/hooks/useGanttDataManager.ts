@@ -310,16 +310,16 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           rows?: SmScheduleMaster[];
           dependencies?: Array<{
             id: string;
-            from_id: string;
-            to_id: string;
+            fromId: string;
+            toId: string;
             type: 'FS' | 'SS' | 'FF' | 'SF';
             lag?: number;
           }>;
         };
         dependencies?: Array<{
           id: string;
-          from_id: string;
-          to_id: string;
+          fromId: string;
+          toId: string;
           type: 'FS' | 'SS' | 'FF' | 'SF';
           lag?: number;
         }>;
@@ -357,10 +357,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       let convertedDeps: GanttDependency[];
       if (fetchedDeps.length > 0) {
         // Use dependencies from API (job mode)
+        // SSoT: Backend returns camelCase (fromId, toId) - use directly
         convertedDeps = fetchedDeps.map((dep) => ({
           id: dep.id,
-          fromId: dep.from_id,
-          toId: dep.to_id,
+          fromId: dep.fromId,
+          toId: dep.toId,
           type: dep.type,
           lag: dep.lag,
         }));
