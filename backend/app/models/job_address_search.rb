@@ -26,9 +26,14 @@ class JobAddressSearch < ApplicationRecord
   scope :matching_text, ->(text) {
     return none if text.blank?
 
-    text_lower = text.downcase.strip
+    text_lower = text.to_s.downcase.strip
+    # Guard: pg_trgm similarity requires non-empty string with 3+ chars
+    return none if text_lower.blank? || text_lower.length < 3
+
+    # Use Arel.sql with properly quoted parameter to avoid binding issues
+    sanitized_text = ActiveRecord::Base.connection.quote(text_lower)
     where("search_term % ?", text_lower)
-      .select("job_address_searches.*, similarity(search_term, ?) as match_score", text_lower)
+      .select(Arel.sql("job_address_searches.*, similarity(search_term, #{sanitized_text}) as match_score"))
       .order("match_score DESC")
   }
 
