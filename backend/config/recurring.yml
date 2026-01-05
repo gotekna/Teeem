@@ -326,8 +326,15 @@ email_reminders:
   schedule: every 1 minute
 
 # ============================================
-# EMAIL TO TASK
+# EMAIL TO JOB / EMAIL TO TASK
 # ============================================
+# Process emails sent to newjob@tekna.com.au and create job proposals
+# Runs every 5 minutes for responsive job creation
+process_new_job_emails:
+  class: ProcessNewJobEmailsJob
+  queue: default
+  schedule: every 5 minutes
+
 # Process emails sent to newtask@tekna.com.au and create tasks
 # Runs every 5 minutes for responsive task creation
 process_new_task_emails:
