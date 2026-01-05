@@ -1197,7 +1197,6 @@ To: ${email.to_emails?.join(", ") || ""}
     <ResizablePanelGroup
       orientation="horizontal"
       className="h-full -mx-4 -mt-4"
-      autoSaveId="email-page-panels"
     >
       {/* Left Sidebar - Mailboxes & Folders */}
       <ResizablePanel
