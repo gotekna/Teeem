@@ -729,6 +729,56 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
+  # GET /api/v1/email_warehouse/:id/attachments/:attachment_id/download
+  # Download an attachment from Microsoft 365
+  # attachment_id can be either local EmailAttachment ID or outlook_attachment_id
+  def download_attachment
+    attachment_id = params[:attachment_id]
+
+    # Try to find local EmailAttachment first
+    email_attachment = @email.email_attachments.find_by(id: attachment_id)
+    outlook_attachment_id = email_attachment&.outlook_attachment_id || attachment_id
+    filename_hint = email_attachment&.filename || email_attachment&.attachment&.filename
+
+    # SSoT: Use MicrosoftCredential - same pattern as sync_attachments!
+    credential = if @email.microsoft_credential_id.present?
+                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+                 else
+                   MicrosoftCredential.app_credentials.connected.first
+                 end
+
+    unless credential&.valid_credential?
+      return render json: { error: "No valid Microsoft credentials configured" }, status: :unprocessable_entity
+    end
+
+    # Get mailbox email
+    mailbox = @email.mailbox_owner_email
+    unless mailbox.present?
+      return render json: { error: "Mailbox information not available" }, status: :unprocessable_entity
+    end
+
+    # Fetch attachment from Microsoft Graph
+    client = MicrosoftAppGraphClient.new(credential)
+    attachment_data = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
+
+    if attachment_data && attachment_data[:content]
+      filename = filename_hint || attachment_data[:filename] || "attachment"
+      content_type = attachment_data[:content_type] || "application/octet-stream"
+
+      send_data(
+        attachment_data[:content],
+        filename: filename,
+        type: content_type,
+        disposition: "attachment"
+      )
+    else
+      render json: { error: "Failed to download attachment" }, status: :not_found
+    end
+  rescue StandardError => e
+    Rails.logger.error "[EmailWarehouse] Attachment download failed: #{e.message}"
+    render json: { error: "Download failed" }, status: :internal_server_error
+  end
+
   # GET /api/v1/email_warehouse/rules
   # Get email classification rules and current user's email stats
   def rules
@@ -924,6 +974,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
     if include_body
       json[:body_text] = email.body_text
       json[:body_html] = email.body_html
+      # Include attachments for full email view
+      json[:attachments] = build_attachments_list(email)
     end
 
     if include_thread_count
@@ -954,6 +1006,55 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     json
+  end
+
+  # Build attachments list - use synced records or fetch from MS365
+  def build_attachments_list(email)
+    # First try local email_attachments (already synced to SharePoint)
+    synced = email.email_attachments.includes(:attachment)
+    if synced.any?
+      return synced.map do |ea|
+        {
+          id: ea.id,
+          name: ea.filename || ea.attachment&.filename || "Unknown",
+          content_type: ea.attachment&.content_type,
+          size: ea.attachment&.file_size,
+          outlook_attachment_id: ea.outlook_attachment_id
+        }
+      end
+    end
+
+    # If no synced attachments but email has attachments, fetch from MS365
+    return [] unless email.has_attachments && email.outlook_id.present?
+
+    begin
+      credential = if email.microsoft_credential_id.present?
+                     MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+                   else
+                     MicrosoftCredential.app_credentials.connected.first
+                   end
+
+      return [] unless credential&.valid_credential?
+
+      mailbox = email.mailbox_owner_email
+      return [] unless mailbox.present?
+
+      client = MicrosoftAppGraphClient.new(credential)
+      ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
+
+      ms_attachments.map do |att|
+        {
+          id: nil,  # No local ID yet
+          name: att["name"] || "attachment",
+          content_type: att["contentType"],
+          size: att["size"],
+          outlook_attachment_id: att["id"]
+        }
+      end
+    rescue StandardError => e
+      Rails.logger.warn "[EmailWarehouse] Failed to fetch attachments from MS365: #{e.message}"
+      []
+    end
   end
 
   def suggestion_json(suggestion)
@@ -988,24 +1089,32 @@ class Api::V1::EmailWarehouseController < ApplicationController
         .where.not("? = ANY(dismissed_from_job_ids)", job.id)
         .latest_in_thread
         .limit(10).each do |email|
-        suggestion = {
-          email: email,
-          confidence: 0.9,
-          reason: "Contact email match: #{email_addr}"
-        }
 
-        # Check if email body mentions a DIFFERENT job (helps route to correct job)
+        # Check if email body mentions a DIFFERENT job's address
+        # If so, skip this suggestion - the email belongs elsewhere
         potential_matches = email.find_potential_job_matches
         if potential_matches.any?
           best_match = potential_matches.first
-          # Only show suggested job if it's different from the current job
+          # If the email clearly mentions a different job, don't suggest it here
           if best_match[:job].id != job.id
-            suggestion[:suggested_job] = best_match[:job]
-            suggestion[:suggested_job_reason] = best_match[:reason]
+            # Skip - this email belongs to a different job
+            next
           end
         end
 
-        suggestions << suggestion
+        # Also check if email mentions THIS job's context (address, job ID)
+        # For contact-based matches, require job context to avoid noise
+        mentions_this_job = email.email_mentions_job_context?(job)
+
+        # Only suggest if email mentions this job's context
+        # OR if there are no other job matches (general correspondence)
+        next unless mentions_this_job || potential_matches.empty?
+
+        suggestions << {
+          email: email,
+          confidence: mentions_this_job ? 0.9 : 0.6,
+          reason: "Contact email match: #{email_addr}"
+        }
       end
     end
 

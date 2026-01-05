@@ -12,13 +12,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 export interface Attachment {
-  id?: number;
+  id?: number | null;
   name: string;
   content_type?: string;
   size?: number;
   url?: string;
+  outlook_attachment_id?: string;
 }
 
 interface AttachmentListProps {
@@ -58,19 +60,16 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
   }
 
   const handleDownload = async (attachment: Attachment) => {
-    if (!emailId || !attachment.id) return;
+    // Use local ID or outlook_attachment_id for download
+    const attachmentId = attachment.id || attachment.outlook_attachment_id;
+    if (!emailId || !attachmentId) return;
 
     setDownloading(attachment.name);
     try {
-      // Download via API
-      const response = await fetch(
-        `/api/v1/email_warehouse/${emailId}/attachments/${attachment.id}/download`,
-        { credentials: "include" }
+      // Download via API using blob handler for proper auth
+      const blob = await api.getBlob(
+        `/api/v1/email_warehouse/${emailId}/attachments/${attachmentId}/download`
       );
-
-      if (!response.ok) throw new Error("Download failed");
-
-      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -113,7 +112,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                   </p>
                 )}
               </div>
-              {emailId && attachment.id && (
+              {emailId && (attachment.id || attachment.outlook_attachment_id) && (
                 <Button
                   variant="ghost"
                   size="sm"

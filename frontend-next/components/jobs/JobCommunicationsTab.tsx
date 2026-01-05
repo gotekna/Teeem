@@ -443,30 +443,17 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
             preloadedViews={[]}
             columns={[
               {
-                key: "from_name",
-                label: "From",
+                key: "from_or_to",
+                label: "From/To",
                 column_type: "text",
-                width: 180,
+                width: 200,
                 filterable: true,
-              },
-              {
-                key: "thread_info",
-                label: "Thread",
-                column_type: "text",
-                width: 80,
               },
               {
                 key: "subject",
                 label: "Subject",
                 column_type: "text",
                 width: 300,
-                filterable: true,
-              },
-              {
-                key: "to_list",
-                label: "To",
-                column_type: "text",
-                width: 200,
                 filterable: true,
               },
               {
@@ -483,24 +470,13 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
                 width: 70,
                 filterable: true,
               },
-              {
-                key: "match_type",
-                label: "Match",
-                column_type: "text",
-                width: 100,
-              },
             ]}
             entries={emails.map((email) => ({
               id: email.id,
-              from_name: email.display_from || email.from_email,
-              thread_info: email.thread_count && email.thread_count > 1
-                ? `${email.thread_count} in thread`
-                : "",
+              from_or_to: email.display_from || email.from_email,
               subject: email.subject || "(no subject)",
-              to_list: email.to_emails?.join(", ") || "-",
               received_at: email.received_at,
               attachments: email.has_attachments ? (email.attachment_count || 1) : 0,
-              match_type: email.match_type === "auto" ? "Auto" : email.match_type === "manual" ? "Manual" : "",
               // Keep original fields for potential future use
               from_email: email.from_email,
               to_emails: email.to_emails,
