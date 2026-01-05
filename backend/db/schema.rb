@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_05_143005) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_05_221755) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6463,6 +6463,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_143005) do
     t.datetime "updated_at", null: false
     t.bigint "organization_id", null: false
     t.integer "lock_version", default: 0, null: false
+    t.boolean "is_primary", default: false, null: false
     t.index ["connected_by_id"], name: "index_microsoft_credentials_on_connected_by_id"
     t.index ["credential_type", "is_active"], name: "idx_ms_creds_type_active"
     t.index ["name", "is_active"], name: "idx_ms_creds_name_unique_active", unique: true, where: "((is_active = true) AND (name IS NOT NULL))"

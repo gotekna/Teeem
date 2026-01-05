@@ -14,13 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor, plainTextToHtml } from "@/components/ui/rich-text-editor";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -30,7 +23,6 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  Calendar as CalendarIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
@@ -47,16 +39,9 @@ import {
   formatFileSize,
 } from "@/lib/email-constants";
 import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
-import { Calendar } from "@/components/ui/calendar";
-import { FileText, LayoutTemplate } from "lucide-react";
+import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
-import { format, addHours, setHours, setMinutes } from "date-fns";
+import { format, setHours, setMinutes } from "date-fns";
 
 // Use EmailContact as Contact for backwards compatibility
 type Contact = EmailContact;
@@ -116,6 +101,7 @@ export function ComposeEmailModal({
 
   // Schedule send state
   const [isScheduled, setIsScheduled] = useState(false);
+  const [sendMenuOpen, setSendMenuOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [scheduledTime, setScheduledTime] = useState("09:00");
@@ -455,26 +441,87 @@ export function ComposeEmailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[1400px] h-[750px] max-h-[750px] p-0 gap-0 overflow-hidden flex flex-col top-[52%]">
         {/* Outlook-style Header with Send Button */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b bg-background">
-          <Button
-            onClick={handleSend}
-            disabled={sending || !formData.to || !formData.credential_id}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {sending ? (
-              <>
-                <Spinner className="h-4 w-4 mr-2" />
-                {isScheduled ? "Scheduling..." : "Sending..."}
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4 mr-2" />
-                {isScheduled ? "Schedule" : "Send"}
-              </>
+        <div className="flex items-center gap-2 px-4 py-3 border-b bg-background">
+          {/* Send button with dropdown */}
+          <div className="relative flex">
+            <Button
+              onClick={handleSend}
+              disabled={sending || !formData.to || !formData.credential_id}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-r-none"
+            >
+              {sending ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  {isScheduled ? "Scheduling..." : "Sending..."}
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  {isScheduled ? "Schedule" : "Send"}
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              disabled={sending}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-l-none border-l border-blue-500 px-2"
+              onClick={() => setSendMenuOpen(!sendMenuOpen)}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+            {sendMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 w-40 bg-background border rounded-md shadow-lg z-50">
+                <button
+                  type="button"
+                  className="flex w-full items-center px-3 py-2 text-sm hover:bg-accent rounded-t-md"
+                  onClick={() => {
+                    setIsScheduled(false);
+                    setSendMenuOpen(false);
+                  }}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center px-3 py-2 text-sm hover:bg-accent rounded-b-md"
+                  onClick={() => {
+                    setIsScheduled(true);
+                    setSendMenuOpen(false);
+                  }}
+                >
+                  <Clock className="h-4 w-4 mr-2" />
+                  Schedule send
+                </button>
+              </div>
             )}
-          </Button>
+          </div>
+
+          {/* From Account - native select for reliability inside dialogs */}
+          {accounts.length > 0 && (
+            <select
+              value={formData.credential_id}
+              onChange={(e) => {
+                const account = accounts.find(a => String(a.id) === e.target.value);
+                if (account) {
+                  setFormData({
+                    ...formData,
+                    credential_id: String(account.id),
+                    from_address: account.email_address || "",
+                  });
+                }
+              }}
+              className="h-9 px-3 text-sm border rounded-md bg-background max-w-[250px]"
+            >
+              {accounts.map((account) => (
+                <option key={account.id} value={String(account.id)}>
+                  {account.email_address}
+                </option>
+              ))}
+            </select>
+          )}
 
           {/* Attachments */}
           <label className="cursor-pointer">
@@ -510,45 +557,24 @@ export function ComposeEmailModal({
             }
           />
 
-          {/* Schedule toggle */}
-          <div className="flex items-center gap-2 ml-auto">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <Switch
-              id="schedule-toggle"
-              checked={isScheduled}
-              onCheckedChange={setIsScheduled}
-            />
-            {isScheduled && scheduledDate && (
-              <span className="text-xs text-muted-foreground">
-                {format(getScheduledDateTime()!, "MMM d, h:mm a")}
-              </span>
-            )}
-          </div>
-
-          {/* From Account (compact) */}
-          {accounts.length > 1 && (
-            <Select
-              value={formData.credential_id}
-              onValueChange={(value) => {
-                const account = accounts.find((a) => String(a.id) === value);
-                setFormData({
-                  ...formData,
-                  credential_id: value,
-                  from_address: account?.email_address || "",
-                });
-              }}
-            >
-              <SelectTrigger className="w-auto h-8 text-xs">
-                <SelectValue placeholder="Account" />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={String(account.id)}>
-                    {account.name || account.email_address}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Schedule date/time picker (shown when scheduled) */}
+          {isScheduled && (
+            <div className="flex items-center gap-2 ml-auto">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <Input
+                type="date"
+                value={scheduledDate ? format(scheduledDate, "yyyy-MM-dd") : ""}
+                onChange={(e) => setScheduledDate(e.target.value ? new Date(e.target.value) : undefined)}
+                min={format(new Date(), "yyyy-MM-dd")}
+                className="w-[130px] h-8 text-xs"
+              />
+              <Input
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                className="w-[90px] h-8 text-xs"
+              />
+            </div>
           )}
         </div>
 
@@ -582,7 +608,7 @@ export function ComposeEmailModal({
                       : undefined
                   }
                   onSelect={(item) => setFormData({ ...formData, to: item.id })}
-                  placeholder="Enter recipient..."
+                  placeholder=""
                   searchInTrigger={true}
                   onInputChange={setContactSearch}
                   disableInternalFilter={true}
@@ -591,11 +617,10 @@ export function ComposeEmailModal({
                     <span>Use: <strong>{value}</strong></span>
                   )}
                   isLoading={contactsLoading}
-                  emptyResults={contactSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters...` : "No contacts found"}
+                  emptyResults={contactSearch.length < CONTACT_SEARCH_MIN_CHARS ? "" : "No contacts found"}
                   clearable={true}
                   onClear={() => setFormData({ ...formData, to: "" })}
-                  headless={true}
-                  className="border-0 shadow-none"
+                  className="border-0 shadow-none h-8 rounded-none"
                 />
               </div>
               <Button
@@ -605,13 +630,12 @@ export function ComposeEmailModal({
                 className="text-xs text-muted-foreground"
                 onClick={() => setShowCcBcc(!showCcBcc)}
               >
-                {showCcBcc ? "Hide" : "Cc Bcc"}
+                Bcc
               </Button>
             </div>
 
-            {/* Cc Field */}
-            {showCcBcc && (
-              <div className="flex items-center border-b px-4 py-2">
+            {/* Cc Field - Always visible */}
+            <div className="flex items-center border-b px-4 py-2">
                 <span className="text-sm text-muted-foreground w-12 flex-shrink-0">Cc</span>
                 <div className="flex-1">
                   <ComboboxDropdown
@@ -628,7 +652,7 @@ export function ComposeEmailModal({
                       setFormData({ ...formData, cc: item.id });
                       setCcSearch("");
                     }}
-                    placeholder="Add Cc..."
+                    placeholder=""
                     searchInTrigger={true}
                     onInputChange={setCcSearch}
                     disableInternalFilter={true}
@@ -640,15 +664,13 @@ export function ComposeEmailModal({
                       <span>Use: <strong>{value}</strong></span>
                     )}
                     isLoading={contactsLoading && ccSearch.length >= CONTACT_SEARCH_MIN_CHARS}
-                    emptyResults={ccSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters...` : "No contacts found"}
+                    emptyResults={ccSearch.length < CONTACT_SEARCH_MIN_CHARS ? "" : "No contacts found"}
                     clearable={true}
                     onClear={() => setFormData({ ...formData, cc: "" })}
-                    headless={true}
-                    className="border-0 shadow-none"
+                    className="border-0 shadow-none h-8 rounded-none"
                   />
                 </div>
               </div>
-            )}
 
             {/* Bcc Field */}
             {showCcBcc && (
@@ -669,7 +691,7 @@ export function ComposeEmailModal({
                       setFormData({ ...formData, bcc: item.id });
                       setBccSearch("");
                     }}
-                    placeholder="Add Bcc..."
+                    placeholder=""
                     searchInTrigger={true}
                     onInputChange={setBccSearch}
                     disableInternalFilter={true}
@@ -681,11 +703,10 @@ export function ComposeEmailModal({
                       <span>Use: <strong>{value}</strong></span>
                     )}
                     isLoading={contactsLoading && bccSearch.length >= CONTACT_SEARCH_MIN_CHARS}
-                    emptyResults={bccSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters...` : "No contacts found"}
+                    emptyResults={bccSearch.length < CONTACT_SEARCH_MIN_CHARS ? "" : "No contacts found"}
                     clearable={true}
                     onClear={() => setFormData({ ...formData, bcc: "" })}
-                    headless={true}
-                    className="border-0 shadow-none"
+                    className="border-0 shadow-none h-8 rounded-none"
                   />
                 </div>
               </div>
@@ -697,7 +718,7 @@ export function ComposeEmailModal({
                 placeholder="Add a subject"
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                className="border-0 shadow-none text-base px-0 focus-visible:ring-0"
+                className="border-0 shadow-none text-base px-0 h-8 focus-visible:ring-0"
               />
             </div>
 
@@ -727,12 +748,12 @@ export function ComposeEmailModal({
             )}
 
             {/* Body - Large area */}
-            <div className="flex-1 min-h-[350px] p-4 overflow-auto">
+            <div className="flex-1 p-4 overflow-auto flex flex-col">
               <RichTextEditor
                 value={formData.body}
                 onChange={(value) => setFormData({ ...formData, body: value })}
                 placeholder="Type / to insert files and more"
-                minHeight={signatureHtml ? 200 : 320}
+                minHeight={signatureHtml ? 250 : 350}
                 onSlashCommand={(command) => {
                   if (command === "template") {
                     setTemplatePickerOpen(true);
@@ -748,42 +769,6 @@ export function ComposeEmailModal({
                 />
               )}
             </div>
-
-            {/* Schedule picker (when enabled) */}
-            {isScheduled && (
-              <div className="flex items-center gap-3 px-4 py-3 border-t bg-muted/30">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Schedule for:</span>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-[140px] justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {scheduledDate ? format(scheduledDate, "MMM d, yyyy") : "Pick date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={scheduledDate}
-                      onSelect={setScheduledDate}
-                      disabled={(date) => date < new Date()}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <span className="text-sm text-muted-foreground">at</span>
-                <Input
-                  type="time"
-                  value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
-                  className="w-[100px] h-8"
-                />
-              </div>
-            )}
 
             {/* Error */}
             {error && (

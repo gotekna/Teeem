@@ -39,6 +39,7 @@ class DocumentType < ApplicationRecord
   end
 
   # Sync entity_tab_ids with the database
+  # SSoT: Also updates primary_tab column to match first EntityTab
   def sync_entity_tab_ids(ids)
     existing_ids = entity_tab_document_types.pluck(:entity_tab_id)
 
@@ -48,6 +49,15 @@ class DocumentType < ApplicationRecord
     # Add new assignments
     (ids - existing_ids).each do |tab_id|
       entity_tab_document_types.create(entity_tab_id: tab_id)
+    end
+
+    # SSoT: Update primary_tab column to match first EntityTab
+    primary_tab_id = ids.first
+    if primary_tab_id.present?
+      primary_entity_tab = EntityTab.find_by(id: primary_tab_id)
+      update_column(:primary_tab, primary_entity_tab&.display_name)
+    else
+      update_column(:primary_tab, nil)
     end
   end
 

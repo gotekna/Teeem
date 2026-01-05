@@ -250,7 +250,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # Add connected Microsoft 365 organization accounts
     # These use Application permissions to access mailboxes
     # SSoT: Use MicrosoftCredential for app credentials
-    MicrosoftCredential.app_credentials.connected.each do |org_cred|
+    # SSoT: Order by is_primary DESC so primary tenancy comes first
+    ms365_credentials = MicrosoftCredential.app_credentials.connected.order(is_primary: :desc, name: :asc)
+
+    ms365_credentials.each do |org_cred|
       # SSoT: User automatically gets access to their own mailbox
       # Plus any additional mailboxes granted via user_mailbox_access config
       user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
@@ -270,6 +273,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # Add each mailbox the user has access to
       user_emails.each_with_index do |email, index|
         account_id = "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}"
+        # SSoT: Primary tenancy (is_primary flag) gets is_default for first mailbox
+        is_primary_account = org_cred.is_primary && index == 0
         accounts << {
           id: account_id,
           type: "ms365",
@@ -277,7 +282,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
           email_address: email,
           provider: "microsoft365",
           is_active: org_cred.status == "connected",
-          is_default: index == 0 && accounts.empty?,
+          is_default: is_primary_account,
           org_credential_id: org_cred.id,
           position: saved_positions[account_id] || (fallback_position += 1)
         }

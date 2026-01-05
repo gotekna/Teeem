@@ -22,7 +22,8 @@ const SheetOverlay = React.forwardRef<
   <SheetPrimitive.Overlay
     className={cn(
       // Start below header (top-12 = 48px) so header/breadcrumb stay accessible
-      "fixed top-12 left-0 right-0 bottom-0 z-50 bg-background/60 dark:bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      // z-[130] to be above EntityConfigurationTab (z-[120]) fullscreen overlay
+      "fixed top-12 left-0 right-0 bottom-0 z-[130] bg-background/60 dark:bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
     )}
     {...props}
@@ -33,7 +34,8 @@ SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
   // Start below header (top-12 = 48px) so header/breadcrumb stay accessible
-  "fixed z-50 gap-4 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-300",
+  // z-[130] to be above EntityConfigurationTab (z-[120]) fullscreen overlay
+  "fixed z-[130] gap-4 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-300",
   {
     variants: {
       side: {

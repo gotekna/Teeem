@@ -571,18 +571,18 @@ export function DocumentTypesTab() {
       {/* Scope Filter Tabs */}
       <Tabs value={scopeFilter} onValueChange={handleScopeChange}>
         <TabsList className="grid w-full grid-cols-4 max-w-3xl">
-          <TabsTrigger value="all" onClick={() => handleScopeChange("all")} className="gap-2">
+          <TabsTrigger value="all" className="gap-2">
             All ({documentTypes.length})
           </TabsTrigger>
-          <TabsTrigger value="company" onClick={() => handleScopeChange("company")} className="gap-2">
+          <TabsTrigger value="company" className="gap-2">
             <Building2 className="h-4 w-4" />
             Company ({documentTypes.filter(dt => dt.scope === "company" || dt.scope === "both").length})
           </TabsTrigger>
-          <TabsTrigger value="job" onClick={() => handleScopeChange("job")} className="gap-2">
+          <TabsTrigger value="job" className="gap-2">
             <Briefcase className="h-4 w-4" />
             Job ({documentTypes.filter(dt => dt.scope === "job" || dt.scope === "both").length})
           </TabsTrigger>
-          <TabsTrigger value="contacts" onClick={() => handleScopeChange("contacts")} className="gap-2">
+          <TabsTrigger value="contacts" className="gap-2">
             <Users className="h-4 w-4" />
             Contacts ({documentTypes.filter(dt => dt.scope === "contacts" || dt.scope === "people").length})
           </TabsTrigger>

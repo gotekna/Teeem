@@ -1329,7 +1329,9 @@ function GoldDocumentTypeEditor() {
     job: [
       { code: "{JobCode}", example: "J069", color: "orange" },
       { code: "{JobTitle}", example: "83 West Ridge", color: "orange" },
-      { code: "{CertType}", example: "Occupancy", color: "orange" },
+      { code: "{BA}", example: "BA", longCode: "{BuildingApproval}", longExample: "Building Approval", color: "orange" },
+      { code: "{FIA}", example: "FIA", longCode: "{FinalInspectionCertificate}", longExample: "Final Inspection Certificate", color: "orange" },
+      { code: "{Occ}", example: "Occ", longCode: "{CertificateOfOccupancy}", longExample: "Certificate of Occupancy", color: "orange" },
       { code: "{Consultant}", example: "ABC Eng", color: "orange" },
       { code: "{Number}", example: "01", color: "orange" },
       { code: "{Date}", example: "17-12-2025", color: "orange" },

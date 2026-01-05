@@ -404,7 +404,7 @@ export default function DocumentTypesPage() {
             <div className="col-span-4 text-xs font-semibold border-b border-orange-200 dark:border-orange-800 pb-1 mb-1">Job Documents</div>
             <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{JobCode}"}</code> Job number</div>
             <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{JobTitle}"}</code> Job address/title</div>
-            <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{CertType}"}</code> Certificate type</div>
+            <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{Occ}"}</code> Certificate of Occupancy</div>
             <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{Consultant}"}</code> Consultant name</div>
             <div><code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{Number}"}</code> Sequential number</div>
           </div>
