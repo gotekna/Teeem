@@ -970,7 +970,6 @@ export function DataWarehouseTab() {
                                 <TableHead>Mailbox</TableHead>
                                 <TableHead className="text-right">Emails</TableHead>
                                 <TableHead className="text-right">Last Email</TableHead>
-                                <TableHead className="text-right">Last Sync</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -980,9 +979,6 @@ export function DataWarehouseTab() {
                                   <TableCell className="text-right">{mb.email_count.toLocaleString()}</TableCell>
                                   <TableCell className="text-right text-muted-foreground">
                                     {mb.last_email_received ? format(new Date(mb.last_email_received), "PPp") : "Never"}
-                                  </TableCell>
-                                  <TableCell className="text-right text-muted-foreground">
-                                    {mb.last_sync ? format(new Date(mb.last_sync), "PPp") : "Never"}
                                   </TableCell>
                                 </TableRow>
                               ))}
