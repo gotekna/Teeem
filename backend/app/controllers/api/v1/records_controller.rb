@@ -1130,6 +1130,12 @@ module Api
             json[:po_task_name] = record.po_task_name  # SSoT: PurchaseOrder.sm_task_id is THE link
           end
 
+          # SSoT: Job client_name comes from job_contacts where role='client'
+          # This enables searching and displaying client name without denormalization
+          if record.class.name == "Job"
+            json[:client_name] = record.client&.display_name
+          end
+
           return json
         end
 
@@ -1343,6 +1349,12 @@ module Api
           next if skip_associations.include?(reflection.name)
 
           associations << reflection.name
+        end
+
+        # Add specific has_many eager loads for computed columns
+        # Job: Need job_contacts with contact for client_name
+        if model == Job
+          associations << { job_contacts: :contact }
         end
 
         # Apply eager loading if we found associations
