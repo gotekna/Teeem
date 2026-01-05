@@ -14,6 +14,7 @@ class Notification < ApplicationRecord
     task_overdue
     task_completed
     task_started
+    task_created_from_email
     mention
     email_reminder
     email_snooze_wakeup

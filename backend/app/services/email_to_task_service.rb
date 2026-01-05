@@ -93,8 +93,9 @@ class EmailToTaskService
     parts << "Date: #{@email.received_at&.strftime('%d/%m/%Y %H:%M')}"
     parts << ""
 
-    # Add email body
-    body = @email.body_text.presence || strip_html(@email.body_html)
+    # Add email body (always strip HTML - body_text may contain HTML from Graph API)
+    raw_body = @email.body_text.presence || @email.body_html
+    body = strip_html(raw_body) if raw_body.present?
     parts << body.truncate(5000) if body.present?
 
     parts.join("\n")
@@ -191,7 +192,7 @@ class EmailToTaskService
   def find_related_emails
     emails = []
 
-    # 1. Same conversation (thread)
+    # 1. Same conversation thread (email chain history)
     if @email.conversation_id.present?
       emails += EmailWarehouse
         .where(conversation_id: @email.conversation_id)
@@ -201,21 +202,75 @@ class EmailToTaskService
         .to_a
     end
 
-    # 2. Recent emails involving same sender (last 7 days)
-    if @email.from_email.present? && emails.size < 10
-      sender_emails = EmailWarehouse
-        .involving_email(@email.from_email)
-        .where("received_at > ?", 7.days.ago)
+    # 2. Similar subject line (catches broken threads)
+    base_subject = normalize_subject(@email.subject)
+    if base_subject.present? && emails.size < 10
+      subject_emails = EmailWarehouse
+        .where("subject ILIKE ?", "%#{base_subject}%")
+        .where("received_at > ?", 30.days.ago)
         .where.not(id: [@email.id] + emails.map(&:id))
         .order(received_at: :desc)
         .limit(10 - emails.size)
         .to_a
 
-      emails += sender_emails
+      emails += subject_emails
+    end
+
+    # 3. Emails with same external party (not internal @tekna.com.au or @teeem.au)
+    external_email = find_external_party
+    if external_email.present? && emails.size < 10
+      party_emails = EmailWarehouse
+        .involving_email(external_email)
+        .where("received_at > ?", 30.days.ago)
+        .where.not(id: [@email.id] + emails.map(&:id))
+        .order(received_at: :desc)
+        .limit(10 - emails.size)
+        .to_a
+
+      emails += party_emails
     end
 
     # Return unique, limited list
     emails.uniq(&:id).first(10)
+  end
+
+  def normalize_subject(subject)
+    return nil if subject.blank?
+
+    # Strip RE:/FW:/FWD: prefixes and common tags like [SEC=OFFICIAL]
+    subject
+      .gsub(/^(RE:|FW:|FWD:)\s*/i, "")
+      .gsub(/\[SEC=[^\]]+\]/i, "")
+      .gsub(/\s+/, " ")
+      .strip
+      .first(50)  # Use first 50 chars for matching
+  end
+
+  def find_external_party
+    # Find the first non-internal email address involved
+    internal_domains = %w[@tekna.com.au @teeem.au @teeem.com]
+
+    # Check from
+    if @email.from_email.present?
+      return @email.from_email unless internal_domains.any? { |d| @email.from_email.downcase.include?(d) }
+    end
+
+    # Check to recipients
+    @email.to_emails&.each do |email_addr|
+      next if email_addr.blank?
+      next if email_addr.downcase == NEW_TASK_EMAIL_ADDRESS.downcase
+      next if internal_domains.any? { |d| email_addr.downcase.include?(d) }
+      return email_addr
+    end
+
+    # Check cc recipients
+    @email.cc_emails&.each do |email_addr|
+      next if email_addr.blank?
+      next if internal_domains.any? { |d| email_addr.downcase.include?(d) }
+      return email_addr
+    end
+
+    nil
   end
 
   def add_email_participants_as_contacts(task)

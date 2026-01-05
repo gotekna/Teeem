@@ -34,15 +34,20 @@ namespace :deploy do
       puts "   (Deployment will continue, but run 'rails foundation:sync' manually)"
     end
 
-    # 3. Restart recurring jobs (SolidQueue)
+    # 3. Sync recurring jobs from config/recurring.yml (SolidQueue)
     if defined?(SolidQueue)
-      puts "\n♻️  Reloading recurring jobs..."
+      puts "\n♻️  Syncing recurring jobs from config/recurring.yml..."
       begin
-        # Reload recurring schedule
-        SolidQueue::RecurringTask.load_recurring_schedule
-        puts "✅ Recurring jobs reloaded"
+        config_path = Rails.root.join("config/recurring.yml")
+        if File.exist?(config_path)
+          config = YAML.load_file(config_path)
+          SolidQueue::RecurringTask.create_or_update_all(config)
+          puts "✅ Synced #{config.keys.count} recurring jobs"
+        else
+          puts "⚠️  config/recurring.yml not found"
+        end
       rescue => e
-        puts "⚠️  Could not reload recurring jobs: #{e.message}"
+        puts "⚠️  Could not sync recurring jobs: #{e.message}"
       end
     end
 

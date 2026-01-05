@@ -68,8 +68,17 @@ class ProcessNewTaskEmailsJob < ApplicationJob
   end
 
   def notify_task_created(task, email)
-    # Notify assigned user
+    # Notify assigned user (but skip self-notification when sender = assigned user)
     return unless task.assigned_user_id.present?
+
+    # Find sender user (if internal)
+    sender_user = User.find_by("LOWER(email) = ?", email.from_email&.downcase)
+
+    # Skip notification if assigned user is the sender (avoid self-notification)
+    if sender_user && sender_user.id == task.assigned_user_id
+      Rails.logger.info "[ProcessNewTaskEmails] Skipping self-notification for task ##{task.id} (sender is assignee)"
+      return
+    end
 
     Notification.create!(
       user_id: task.assigned_user_id,
