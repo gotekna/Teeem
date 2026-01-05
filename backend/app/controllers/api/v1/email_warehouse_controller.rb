@@ -939,11 +939,22 @@ class Api::V1::EmailWarehouseController < ApplicationController
   end
 
   def suggestion_json(suggestion)
-    {
+    json = {
       email: email_json(suggestion[:email]),
       confidence: suggestion[:confidence],
       reason: suggestion[:reason]
     }
+
+    # Include suggested job if email body mentions a different job
+    if suggestion[:suggested_job].present?
+      json[:suggested_job] = {
+        id: suggestion[:suggested_job].id,
+        name: suggestion[:suggested_job].name,
+        match_reason: suggestion[:suggested_job_reason]
+      }
+    end
+
+    json
   end
 
   def find_suggested_emails_for_job(job)
@@ -955,11 +966,24 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Find unassigned emails involving these contacts
     contact_emails.each do |email_addr|
       EmailWarehouse.unassigned.involving_email(email_addr).latest_in_thread.limit(10).each do |email|
-        suggestions << {
+        suggestion = {
           email: email,
           confidence: 0.9,
           reason: "Contact email match: #{email_addr}"
         }
+
+        # Check if email body mentions a DIFFERENT job (helps route to correct job)
+        potential_matches = email.find_potential_job_matches
+        if potential_matches.any?
+          best_match = potential_matches.first
+          # Only show suggested job if it's different from the current job
+          if best_match[:job].id != job.id
+            suggestion[:suggested_job] = best_match[:job]
+            suggestion[:suggested_job_reason] = best_match[:reason]
+          end
+        end
+
+        suggestions << suggestion
       end
     end
 

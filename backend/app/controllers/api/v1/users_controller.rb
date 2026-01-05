@@ -29,10 +29,11 @@ class Api::V1::UsersController < ApplicationController
 
     # Merge regular user params with admin-only params if user is admin
     update_params = user_params
-    if current_user&.admin? && (params[:user][:role] || params[:user][:assigned_roles] || params[:user][:role_ids])
+    admin_fields_present = params[:user][:role] || params[:user][:assigned_roles] || params[:user][:role_ids] || params[:user].key?(:contact_id)
+    if current_user&.admin? && admin_fields_present
       update_params = update_params.merge(admin_user_params)
-    elsif params[:user][:role] || params[:user][:assigned_roles] || params[:user][:role_ids]
-      # Non-admin trying to change role - reject request
+    elsif admin_fields_present
+      # Non-admin trying to change admin fields - reject request
       return render json: {
         success: false,
         error: "Thanks for helping, can you contact an administrator for assistance"
@@ -114,12 +115,12 @@ class Api::V1::UsersController < ApplicationController
     params.require(:user).permit(:name, :email, :mobile_phone, :preferred_theme)
   end
 
-  # Admin-only params (role, role_ids, and assigned_roles)
+  # Admin-only params (role, role_ids, assigned_roles, contact_id)
   # Only administrators should be able to modify these fields
   # Brakeman warning can be ignored: authorization check in update() prevents
   # non-admin users from accessing these params (returns 403 Forbidden)
   def admin_user_params
-    params.require(:user).permit(:role, assigned_roles: [], role_ids: [])
+    params.require(:user).permit(:role, :contact_id, assigned_roles: [], role_ids: [])
   end
 
   # Returns user data with presence status and integration info

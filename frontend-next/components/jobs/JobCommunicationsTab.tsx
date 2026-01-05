@@ -54,6 +54,11 @@ interface Email {
 interface SuggestedEmail {
   email: Email;
   reason: string;
+  suggested_job?: {
+    id: number;
+    name: string;
+    match_reason: string;
+  };
 }
 
 interface SyncStatus {
@@ -305,16 +310,17 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
     await loadSyncStatus();
   };
 
-  const handleAssignSuggested = async (suggestion: SuggestedEmail) => {
+  const handleAssignSuggested = async (suggestion: SuggestedEmail, targetJobId?: number) => {
     try {
+      const assignToJobId = targetJobId || jobId;
       await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/assign_to_job`, {
-        job_id: jobId,
+        job_id: assignToJobId,
         assign_thread: true,
       });
       await loadEmails();
     } catch (error) {
       console.error("Failed to assign email:", error);
-      alert("Failed to assign email to this job");
+      alert("Failed to assign email to job");
     }
   };
 
@@ -406,28 +412,63 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
           <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
             These emails might belong to this job based on contact matches or address mentions.
           </p>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
-            {suggestedEmails.slice(0, 5).map((suggestion) => (
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {suggestedEmails.slice(0, 10).map((suggestion) => (
               <div
                 key={suggestion.email.id}
-                className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-yellow-200 dark:border-yellow-800"
+                className={`p-2 bg-white dark:bg-gray-800 rounded border ${
+                  suggestion.suggested_job
+                    ? "border-orange-300 dark:border-orange-700"
+                    : "border-yellow-200 dark:border-yellow-800"
+                }`}
               >
-                <div className="flex-1 min-w-0 mr-3">
-                  <p className="text-sm font-medium truncate">
-                    {suggestion.email.subject || "(No Subject)"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    From: {suggestion.email.from_email} • {suggestion.reason}
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0 mr-3">
+                    <p className="text-sm font-medium truncate">
+                      {suggestion.email.subject || "(No Subject)"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      From: {suggestion.email.from_email} • {suggestion.reason}
+                    </p>
+                    {suggestion.suggested_job && (
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        Likely belongs to: <span className="font-medium">{suggestion.suggested_job.name}</span>
+                        <span className="text-muted-foreground ml-1">({suggestion.suggested_job.match_reason})</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {suggestion.suggested_job ? (
+                      <>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleAssignSuggested(suggestion, suggestion.suggested_job!.id)}
+                          className="text-xs whitespace-nowrap"
+                        >
+                          Add to {suggestion.suggested_job.name.split(" ")[0]}...
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAssignSuggested(suggestion)}
+                          className="text-xs text-muted-foreground"
+                        >
+                          Add here instead
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAssignSuggested(suggestion)}
+                        className="text-primary"
+                      >
+                        Add to Job
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleAssignSuggested(suggestion)}
-                  className="text-primary"
-                >
-                  Add to Job
-                </Button>
               </div>
             ))}
           </div>

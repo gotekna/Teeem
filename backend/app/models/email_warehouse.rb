@@ -446,26 +446,69 @@ class EmailWarehouse < ApplicationRecord
   public
 
   # Check if email mentions job-specific context (used for filtering false positives)
+  # Checks both subject AND body for job address/name mentions
   def email_mentions_job_context?(job)
     return false if job.nil?
 
-    # Check subject for job ID
-    return true if subject&.include?(job.id.to_s)
+    # Combine subject and body for searching
+    searchable_text = "#{subject} #{body_plain}".downcase
 
-    # Check subject for job name/address
-    return true if job.name.present? && subject&.downcase&.include?(job.name.downcase)
+    # Check for job ID
+    return true if searchable_text.include?(job.id.to_s)
 
-    # Check for street name match
+    # Check for job name/address
+    return true if job.name.present? && searchable_text.include?(job.name.downcase)
+
+    # Check for street name match (handles partial addresses)
     if job.name.present?
       street_match = job.name.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
       if street_match
         street_name = street_match[1].downcase
-        return true if subject&.downcase&.include?(street_name)
+        return true if searchable_text.include?(street_name)
       end
+    end
+
+    # Check against job's indexed search terms (includes suburbs, variations)
+    job.job_address_searches.each do |search|
+      return true if searchable_text.include?(search.search_term)
     end
 
     # No job-specific context found
     false
+  end
+
+  # Find ALL jobs this email might belong to (scans body for addresses)
+  # Returns array of { job:, match_type:, confidence:, reason: }
+  def find_potential_job_matches
+    matches = []
+
+    # Get all job address search terms and find matches in email content
+    searchable_text = "#{subject} #{body_plain}".downcase
+    return matches if searchable_text.blank?
+
+    # Find jobs via address search terms in body
+    JobAddressSearch.where(term_type: %w[full_address street_name]).find_each do |search|
+      next unless searchable_text.include?(search.search_term)
+
+      confidence = case search.term_type
+      when 'full_address' then 0.85
+      when 'street_name' then 0.7
+      else 0.5
+      end
+
+      matches << {
+        job: search.job,
+        match_type: "body_#{search.term_type}_match",
+        confidence: confidence,
+        reason: "Email body contains '#{search.search_term}'"
+      }
+    end
+
+    # Deduplicate by job ID, keeping highest confidence
+    matches
+      .group_by { |m| m[:job].id }
+      .map { |_job_id, job_matches| job_matches.max_by { |m| m[:confidence] } }
+      .sort_by { |m| -m[:confidence] }
   end
 
   # Auto-assign to best matching job if confidence is high enough
