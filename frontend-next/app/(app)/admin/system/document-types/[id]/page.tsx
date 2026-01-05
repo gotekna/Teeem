@@ -78,9 +78,12 @@ const FILE_EXTENSION_OPTIONS = [
 // Note: DocType placeholder is added dynamically based on current document type
 const getBasePlaceholders = (scope: string): PlaceholderToken[] => {
   if (scope === "job") {
-    return [...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS];
+    return [...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
+  } else if (scope === "contacts" || scope === "people") {
+    // SSoT: "contacts" is canonical, "people" is legacy
+    return [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
   } else if (scope === "both") {
-    return [...COMPANY_PLACEHOLDERS, ...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS];
+    return [...COMPANY_PLACEHOLDERS, ...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
   }
   // Default: company scope
   return [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
@@ -166,6 +169,9 @@ export default function DocumentTypeDetailPage() {
     oldFormat: string;
     newFormat: string;
     affectedCount: number;
+    preview?: Array<{ id: number; current_name: string; proposed_name: string; job_code?: string; company_code?: string }>;
+    showPreview?: boolean;
+    loadingPreview?: boolean;
   } | null>(null);
   const [renaming, setRenaming] = React.useState(false);
 
@@ -1089,6 +1095,45 @@ export default function DocumentTypeDetailPage() {
     }
   };
 
+  // Fetch preview of documents that will be renamed
+  const handleShowPreview = async () => {
+    if (!documentType?.id || !renameConfirmDialog) return;
+
+    setRenameConfirmDialog(prev => prev ? { ...prev, loadingPreview: true } : null);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          total_affected: number;
+          preview: Array<{ id: number; current_name: string; proposed_name: string; job_code?: string; company_code?: string }>;
+        };
+      }>("/api/v1/document_standardization/preview", {
+        params: {
+          document_type_id: documentType.id,
+          scope: documentType.scope === "job" ? "job" : "corporate",
+          limit: 50,
+        },
+      });
+
+      if (response?.success) {
+        setRenameConfirmDialog(prev => prev ? {
+          ...prev,
+          preview: response.data.preview,
+          showPreview: true,
+          loadingPreview: false,
+        } : null);
+      }
+    } catch (error) {
+      console.error("Failed to load preview:", error);
+      setRenameConfirmDialog(prev => prev ? { ...prev, loadingPreview: false } : null);
+      toast({
+        title: "Preview failed",
+        description: "Failed to load preview. Check console for details.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Add blank text token
   const addBlankText = (field: "file_name" | "display_name") => {
     if (!documentType) return;
@@ -2007,7 +2052,7 @@ export default function DocumentTypeDetailPage() {
         open={renameConfirmDialog?.open || false}
         onOpenChange={(open) => !open && setRenameConfirmDialog(null)}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={cn("sm:max-w-md", renameConfirmDialog?.showPreview && "sm:max-w-2xl")}>
           <DialogHeader>
             <DialogTitle>Rename Existing Documents?</DialogTitle>
             <DialogDescription className="space-y-3 pt-2">
@@ -2039,6 +2084,40 @@ export default function DocumentTypeDetailPage() {
               </p>
             </DialogDescription>
           </DialogHeader>
+
+          {/* Preview list */}
+          {renameConfirmDialog?.showPreview && renameConfirmDialog.preview && (
+            <div className="max-h-64 overflow-y-auto border rounded-md">
+              <table className="w-full text-xs">
+                <thead className="bg-muted sticky top-0">
+                  <tr>
+                    <th className="text-left p-2 font-medium">Current Name</th>
+                    <th className="text-left p-2 font-medium">→</th>
+                    <th className="text-left p-2 font-medium">New Name</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {renameConfirmDialog.preview.map((doc) => (
+                    <tr key={doc.id} className="border-t">
+                      <td className="p-2 font-mono text-muted-foreground truncate max-w-[200px]" title={doc.current_name}>
+                        {doc.current_name}
+                      </td>
+                      <td className="p-2 text-muted-foreground">→</td>
+                      <td className="p-2 font-mono text-green-600 dark:text-green-400 truncate max-w-[200px]" title={doc.proposed_name}>
+                        {doc.proposed_name}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {(renameConfirmDialog.affectedCount || 0) > 50 && (
+                <div className="p-2 text-xs text-muted-foreground text-center border-t bg-muted/50">
+                  Showing 50 of {renameConfirmDialog.affectedCount} documents
+                </div>
+              )}
+            </div>
+          )}
+
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
@@ -2047,6 +2126,22 @@ export default function DocumentTypeDetailPage() {
             >
               Skip for Now
             </Button>
+            {!renameConfirmDialog?.showPreview && (
+              <Button
+                variant="outline"
+                onClick={handleShowPreview}
+                disabled={renaming || renameConfirmDialog?.loadingPreview}
+              >
+                {renameConfirmDialog?.loadingPreview ? (
+                  <>
+                    <Spinner size={16} className="mr-2" />
+                    Loading...
+                  </>
+                ) : (
+                  "Show"
+                )}
+              </Button>
+            )}
             <Button
               variant="default"
               onClick={handleBatchRename}

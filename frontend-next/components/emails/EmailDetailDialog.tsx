@@ -18,6 +18,7 @@ import {
   Calendar,
   User,
   Users,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -229,7 +230,7 @@ export function EmailDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[900px] max-h-[90vh] h-[85vh] flex flex-col p-0 gap-0 overflow-hidden" aria-describedby={undefined}>
+        <DialogContent className="sm:max-w-[1200px] max-h-[90vh] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden" hideClose aria-describedby={undefined}>
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
               <Spinner />
@@ -296,6 +297,15 @@ export function EmailDetailDialog({
                       </a>
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </Button>
                 </div>
               </div>
 

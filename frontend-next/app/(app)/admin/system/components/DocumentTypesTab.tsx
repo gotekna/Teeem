@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -233,9 +233,14 @@ function TabsDisplayCell({
 
 export function DocumentTypesTab() {
   const router = useRouter();
+  const pathname = usePathname();
 
-  // Local state for scope filter - URL state doesn't work with catch-all routes
-  const [scopeFilter, setScopeFilter] = React.useState<"company" | "job" | "contacts" | "all">("all");
+  // Read scope from URL path for proper back button support
+  // e.g. /admin/system/entity-config/document_types/job -> "job"
+  const pathParts = pathname.split("/");
+  const lastPart = pathParts[pathParts.length - 1];
+  const validScopes = ["company", "job", "contacts"];
+  const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" : "all";
 
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -263,10 +268,15 @@ export function DocumentTypesTab() {
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
 
-  // Handle scope tab change
+  // Handle scope tab change - update URL for back button support
   const handleScopeChange = React.useCallback((value: string) => {
-    setScopeFilter(value as "company" | "job" | "contacts" | "all");
-  }, []);
+    const basePath = "/admin/system/entity-config/document_types";
+    if (value === "all") {
+      router.push(basePath, { scroll: false });
+    } else {
+      router.push(`${basePath}/${value}`, { scroll: false });
+    }
+  }, [router]);
 
   React.useEffect(() => {
     fetchColumns();
