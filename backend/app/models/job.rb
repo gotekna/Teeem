@@ -148,6 +148,7 @@ class Job < ApplicationRecord
   after_create :create_claim_stages_from_template
   after_create :apply_schedule_template_from_job_type
   after_commit :sync_xero_tracking_option, on: :create
+  after_commit :scan_warehouse_for_matching_emails, on: :create
   before_update :track_status_and_stage_changes
   after_update :log_status_and_stage_changes
   # Performance: Maintain JobAddressSearch for fast email matching
@@ -730,5 +731,13 @@ class Job < ApplicationRecord
     job_address_searches.destroy_all if JobAddressSearch.table_exists?
   rescue StandardError => e
     Rails.logger.error "Failed to clear address search terms for job ##{id}: #{e.message}"
+  end
+
+  # Email Matching: Scan warehouse for unassigned emails that match this job
+  # Called after job is created to link existing emails
+  def scan_warehouse_for_matching_emails
+    EmailJobMatcherJob.perform_later(id, trigger: :job_created)
+  rescue StandardError => e
+    Rails.logger.error "Failed to queue email scan for job ##{id}: #{e.message}"
   end
 end
