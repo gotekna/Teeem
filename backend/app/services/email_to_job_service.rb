@@ -417,11 +417,62 @@ class EmailToJobService
     json_match = response_text.match(/\{.*\}/m)
 
     if json_match
-      JSON.parse(json_match[0])
+      json_text = json_match[0]
+
+      # FRC: Claude sometimes includes unescaped newlines/control chars inside string values
+      # This causes JSON.parse to fail with "invalid ASCII control character in string"
+      # Fix by replacing control characters (except \n which we'll handle) with spaces
+      # within string values only
+      sanitized = sanitize_json_control_chars(json_text)
+
+      JSON.parse(sanitized)
     else
       # No JSON found
       raise JSON::ParserError, "No JSON object found in response"
     end
+  end
+
+  # Sanitize control characters in JSON strings that break JSON.parse
+  # Replaces unescaped control characters (tabs, newlines inside strings) with proper escapes
+  def sanitize_json_control_chars(json_text)
+    # Replace literal tabs with escaped tabs
+    result = json_text.gsub(/\t/, '\\t')
+
+    # The main issue: newlines inside string values need to be escaped
+    # We need to find strings and escape their internal newlines
+    # Strategy: Replace actual newlines with escaped \n when inside a JSON string
+
+    # Track if we're inside a string
+    in_string = false
+    escaped = false
+    output = ""
+
+    result.each_char do |char|
+      if escaped
+        # Previous char was backslash, this char is escaped
+        output += char
+        escaped = false
+      elsif char == '\\'
+        output += char
+        escaped = true
+      elsif char == '"'
+        in_string = !in_string
+        output += char
+      elsif in_string && char == "\n"
+        # Unescaped newline inside string - escape it
+        output += "\\n"
+      elsif in_string && char == "\r"
+        # Unescaped carriage return - escape it
+        output += "\\r"
+      elsif in_string && char.ord < 32 && char != "\n" && char != "\r"
+        # Other control characters - replace with space
+        output += " "
+      else
+        output += char
+      end
+    end
+
+    output
   end
 
   def find_or_create_customer(customer_data)
