@@ -114,6 +114,13 @@ export function ContactEmailsTab({
                   filterable: true,
                 },
                 {
+                  key: "from_or_to",
+                  label: "From/To",
+                  column_type: "text",
+                  width: 200,
+                  filterable: true,
+                },
+                {
                   key: "contact_email_used",
                   label: "Contact Email",
                   column_type: "text",
@@ -125,13 +132,6 @@ export function ContactEmailsTab({
                   label: "Subject",
                   column_type: "text",
                   width: 300,
-                  filterable: true,
-                },
-                {
-                  key: "from_or_to",
-                  label: "From/To",
-                  column_type: "text",
-                  width: 200,
                   filterable: true,
                 },
                 {

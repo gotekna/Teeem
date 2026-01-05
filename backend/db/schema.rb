@@ -2535,7 +2535,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_143004) do
     t.index ["user_id"], name: "index_email_folder_preferences_on_user_id"
   end
 
-  create_table "email_job_proposals", id: :bigint, default: nil, force: :cascade do |t|
+  create_table "email_job_proposals", force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.bigint "created_by_user_id", null: false
     t.bigint "job_id"

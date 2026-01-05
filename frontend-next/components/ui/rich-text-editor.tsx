@@ -344,6 +344,7 @@ export function RichTextEditor({
       slashCommandExtension,
     ],
     content: value,
+    immediatelyRender: false, // Prevent SSR hydration mismatch
     editorProps: {
       attributes: {
         class: cn(

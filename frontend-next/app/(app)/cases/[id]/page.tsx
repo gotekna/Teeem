@@ -78,6 +78,7 @@ import { CaseQATab } from "@/components/cases/CaseQATab";
 import { CaseOverviewTab } from "@/components/cases/CaseOverviewTab";
 import { CaseDocumentsTab } from "@/components/cases/CaseDocumentsTab";
 import { Spinner } from "@/components/ui/spinner";
+import { EmailDetailDialog } from "@/components/emails";
 
 // Tabs for case detail
 const CASE_TABS = [
@@ -259,6 +260,10 @@ export default function CaseDetailPage() {
 
   const [emails, setEmails] = React.useState<CaseEmail[]>([]);
   const [loadingEmails, setLoadingEmails] = React.useState(false);
+
+  // Email detail dialog state
+  const [detailEmailId, setDetailEmailId] = React.useState<number | null>(null);
+  const [detailOpen, setDetailOpen] = React.useState(false);
 
   // Contacts for relationships tab (shared with entities tab)
   const [contacts, setContacts] = React.useState<{
@@ -1236,6 +1241,7 @@ export default function CaseDetailPage() {
         )}
 
         {activeTab === "emails" && (
+          <>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Emails ({emails.length})</CardTitle>
@@ -1258,7 +1264,14 @@ export default function CaseDetailPage() {
               ) : (
                 <div className="divide-y">
                   {emails.map((email) => (
-                    <div key={email.id} className="py-3 flex items-start justify-between gap-4">
+                    <div
+                      key={email.id}
+                      className="py-3 flex items-start justify-between gap-4 cursor-pointer hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors"
+                      onDoubleClick={() => {
+                        setDetailEmailId(email.email_warehouse_id);
+                        setDetailOpen(true);
+                      }}
+                    >
                       <div className="flex items-start gap-3">
                         <div className="p-2 bg-purple-100 rounded text-purple-600">
                           <Mail className="h-4 w-4" />
@@ -1299,6 +1312,15 @@ export default function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Email Detail Dialog */}
+          <EmailDetailDialog
+            emailId={detailEmailId}
+            open={detailOpen}
+            onOpenChange={setDetailOpen}
+            onJobAssigned={() => loadEmails()}
+          />
+          </>
         )}
 
         {activeTab === "qa" && (

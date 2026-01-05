@@ -4671,7 +4671,7 @@ export default function TeeemTableView({
             onRowClick(row);
           }
         }}
-        onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
+        onDoubleClick={() => onRowDoubleClick?.(row)}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
@@ -4915,7 +4915,7 @@ export default function TeeemTableView({
                     onRowClick(companyRow);
                   }
                 }}
-                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(companyRow)}
+                onDoubleClick={() => onRowDoubleClick?.(companyRow)}
                 onMouseEnter={() => handleRowMouseEnter(companyRow.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5001,7 +5001,7 @@ export default function TeeemTableView({
                     onRowClick(row);
                   }
                 }}
-                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
+                onDoubleClick={() => onRowDoubleClick?.(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5192,7 +5192,7 @@ export default function TeeemTableView({
                     onRowClick(row);
                   }
                 }}
-                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
+                onDoubleClick={() => onRowDoubleClick?.(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5407,7 +5407,7 @@ export default function TeeemTableView({
                   setFocusedRowIndex(globalIndex);
                 }}
                 onDoubleClick={() =>
-                  !isEditMode && !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
+                  !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                 }
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >

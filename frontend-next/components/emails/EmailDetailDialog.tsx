@@ -84,7 +84,6 @@ export function EmailDetailDialog({
 
   // Job assignment state
   const [assigningJob, setAssigningJob] = useState(false);
-  const [showJobPicker, setShowJobPicker] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
 
@@ -152,7 +151,6 @@ export function EmailDetailDialog({
           job_number: job?.job_number || null,
         });
       }
-      setShowJobPicker(false);
       onJobAssigned?.(jobId);
     } catch (err) {
       console.error("Failed to assign job:", err);
@@ -234,7 +232,16 @@ export function EmailDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] flex flex-col p-0">
+        <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] flex flex-col p-0" aria-describedby={undefined}>
+          {loading ? (
+            <DialogHeader className="px-6 py-4 border-b shrink-0">
+              <DialogTitle>Loading Email...</DialogTitle>
+            </DialogHeader>
+          ) : error ? (
+            <DialogHeader className="px-6 py-4 border-b shrink-0">
+              <DialogTitle>Error</DialogTitle>
+            </DialogHeader>
+          ) : null}
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
               <Spinner />
@@ -292,31 +299,19 @@ export function EmailDetailDialog({
                       Forward
                     </Button>
                     {!email.job_id ? (
-                      <div className="relative">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => setShowJobPicker(!showJobPicker)}
-                          disabled={assigningJob}
-                        >
-                          <Briefcase className="h-4 w-4 mr-1" />
-                          Assign to Job
-                        </Button>
-                        {showJobPicker && (
-                          <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-popover border rounded-lg shadow-lg p-3">
-                            <ComboboxDropdown
-                              placeholder="Search jobs..."
-                              items={jobs.map((j) => ({
-                                id: j.id.toString(),
-                                label: `#${j.job_number} - ${j.title}`,
-                              }))}
-                              onInputChange={fetchJobs}
-                              onSelect={(item) => assignToJob(parseInt(item.id))}
-                              isLoading={loadingJobs}
-                              disableInternalFilter={true}
-                            />
-                          </div>
-                        )}
+                      <div className="w-64">
+                        <ComboboxDropdown
+                          placeholder="Search jobs to assign..."
+                          items={jobs.map((j) => ({
+                            id: j.id.toString(),
+                            label: `#${j.job_number} - ${j.title}`,
+                          }))}
+                          onInputChange={fetchJobs}
+                          onSelect={(item) => assignToJob(parseInt(item.id))}
+                          isLoading={loadingJobs || assigningJob}
+                          disableInternalFilter={true}
+                          emptyResults="Type 2+ chars to search jobs"
+                        />
                       </div>
                     ) : (
                       <Button
