@@ -636,6 +636,9 @@ module Api
             # Hard delete - no related records, safe to remove completely
             record.destroy!
           end
+        elsif model.table_name == "jobs"
+          # Jobs: Always soft delete via archived_at (has many FK constraints)
+          record.update!(archived_at: Time.current, archive_reason: "Deleted from table view")
         elsif model.column_names.include?("deleted")
           # Other tables with deleted column: soft delete
           record.update!(deleted: true)
