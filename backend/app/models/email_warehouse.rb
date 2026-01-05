@@ -374,14 +374,21 @@ class EmailWarehouse < ApplicationRecord
   # Replaces the slow Job.find_each loop
   def find_jobs_via_address_search
     matches = []
-    subject_lower = subject.downcase
+    return matches if subject.blank?
+
+    subject_lower = subject.to_s.downcase.strip
+    # Guard: pg_trgm similarity requires non-empty string
+    return matches if subject_lower.blank? || subject_lower.length < 3
+
+    # Sanitize for SQL - escape quotes and use connection quoting
+    sanitized_subject = ActiveRecord::Base.connection.quote(subject_lower)
 
     # Query job_address_searches with trigram similarity
     # Uses GIN index for fast fuzzy matching
     address_matches = JobAddressSearch
       .where("search_term % ?", subject_lower)
       .where(term_type: %w[full_address street_name title])
-      .select("job_address_searches.*, similarity(search_term, ?) as match_score", subject_lower)
+      .select(Arel.sql("job_address_searches.*, similarity(search_term, #{sanitized_subject}) as match_score"))
       .order("match_score DESC")
       .includes(:job)
       .limit(10)

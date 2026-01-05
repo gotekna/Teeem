@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub } from '@/contexts/TaskHubContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,6 +66,7 @@ interface TaskHistoryEntry {
 }
 
 export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
+  const { user: currentUser } = useAuth();
   const {
     updateTask,
     startTask,
@@ -125,6 +127,31 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   // Check if this is a PO task
   const isPOTask = !!task.purchase_order_id;
+
+  // Check if current user is following this task
+  const isCurrentUserFollowing = useMemo(() => {
+    if (!currentUser) return false;
+    return followers.some(f => f.user_id === currentUser.id);
+  }, [followers, currentUser]);
+
+  // Toggle follow for current user
+  const handleToggleFollow = async () => {
+    if (!currentUser) return;
+    setFollowersLoading(true);
+    try {
+      if (isCurrentUserFollowing) {
+        await removeFollower(task.id, currentUser.id);
+        setFollowers(prev => prev.filter(f => f.user_id !== currentUser.id));
+      } else {
+        const newFollower = await addFollower(task.id, currentUser.id);
+        setFollowers(prev => [...prev, newFollower]);
+      }
+    } catch (error) {
+      console.error('Failed to toggle follow:', error);
+    } finally {
+      setFollowersLoading(false);
+    }
+  };
 
   // Load followers when share popover opens
   const handleShareOpen = async (open: boolean) => {

@@ -125,7 +125,9 @@ class Job < ApplicationRecord
     return false if job_status_id.blank?
 
     # During creation, association may not be loaded yet - look up by ID
-    JobStatus.find_by(id: job_status_id)&.name == "Enquiry"
+    # Use to_i to handle string IDs from form submissions
+    status = JobStatus.find_by(id: job_status_id.to_i)
+    status&.name == "Enquiry"
   end
 
   # Callbacks
