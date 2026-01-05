@@ -26,6 +26,7 @@ class EmailJobMatcherJob < ApplicationJob
   private
 
   # Match unassigned emails that mention this job's address/name
+  # Scans BOTH subject AND body text for address matches
   def match_emails_by_address(job)
     return unless job.name.present?
 
@@ -39,13 +40,15 @@ class EmailJobMatcherJob < ApplicationJob
       .where("received_at > ?", 90.days.ago)
 
     matched_count = 0
+    matched_conversation_ids = Set.new
+
     unassigned_emails.find_each do |email|
-      next unless email.subject.present?
+      # Search in BOTH subject AND body text (SSoT: email_mentions_job_context? does this)
+      searchable_text = "#{email.subject} #{email.body_text}".downcase
+      next if searchable_text.blank?
 
-      subject_lower = email.subject.downcase
-
-      # Check if subject contains any of our search terms
-      matching_term = search_terms.find { |term| subject_lower.include?(term) }
+      # Check if text contains any of our search terms
+      matching_term = search_terms.find { |term| searchable_text.include?(term) }
 
       if matching_term
         email.update!(
@@ -56,10 +59,40 @@ class EmailJobMatcherJob < ApplicationJob
         )
         matched_count += 1
         Rails.logger.info "[EmailJobMatcherJob] Linked email #{email.id} to job #{job.id} via '#{matching_term}'"
+
+        # Track conversation for thread linking
+        matched_conversation_ids.add(email.conversation_id) if email.conversation_id.present?
       end
     end
 
+    # Link entire threads for matched emails
+    if matched_conversation_ids.any?
+      thread_count = link_conversation_threads(job, matched_conversation_ids)
+      matched_count += thread_count
+    end
+
     Rails.logger.info "[EmailJobMatcherJob] Matched #{matched_count} emails to job #{job.id} by address"
+  end
+
+  # Link all emails in a conversation thread to the job
+  def link_conversation_threads(job, conversation_ids)
+    linked_count = 0
+
+    conversation_ids.each do |conv_id|
+      EmailWarehouse
+        .where(conversation_id: conv_id, job_id: nil)
+        .update_all(
+          job_id: job.id,
+          match_type: "thread_inheritance",
+          match_confidence: 0.7,
+          matched_at: Time.current
+        )
+
+      linked_count += EmailWarehouse.where(conversation_id: conv_id, job_id: job.id).count
+    end
+
+    Rails.logger.info "[EmailJobMatcherJob] Linked #{linked_count} thread emails to job #{job.id}"
+    linked_count
   end
 
   # Match unassigned emails from/to a specific contact email
@@ -76,6 +109,8 @@ class EmailJobMatcherJob < ApplicationJob
       )
 
     matched_count = 0
+    matched_conversation_ids = Set.new
+
     unassigned_emails.find_each do |email|
       # Check if email mentions job context (address, job number, etc.)
       next unless email.email_mentions_job_context?(job)
@@ -88,6 +123,15 @@ class EmailJobMatcherJob < ApplicationJob
       )
       matched_count += 1
       Rails.logger.info "[EmailJobMatcherJob] Linked email #{email.id} to job #{job.id} via contact #{contact_email}"
+
+      # Track conversation for thread linking
+      matched_conversation_ids.add(email.conversation_id) if email.conversation_id.present?
+    end
+
+    # Link entire threads for matched emails
+    if matched_conversation_ids.any?
+      thread_count = link_conversation_threads(job, matched_conversation_ids)
+      matched_count += thread_count
     end
 
     Rails.logger.info "[EmailJobMatcherJob] Matched #{matched_count} emails to job #{job.id} by contact #{contact_email}"
