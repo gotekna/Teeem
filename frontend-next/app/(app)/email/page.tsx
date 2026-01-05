@@ -303,7 +303,7 @@ const EmailListItem = memo(function EmailListItem({
               </p>
               <p className={cn(
                 "text-xs truncate mt-0.5",
-                !email.is_read ? "font-medium text-muted-foreground" : "font-normal text-muted-foreground/70"
+                !email.is_read ? "font-semibold text-muted-foreground" : "font-normal text-muted-foreground/70"
               )}>
                 {email.snippet || email.body_preview}
               </p>
@@ -318,7 +318,10 @@ const EmailListItem = memo(function EmailListItem({
               onForward={() => onForward?.(email)}
               className="shrink-0"
             />
-            <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 group-hover:hidden">
+            <div className={cn(
+              "text-[10px] whitespace-nowrap shrink-0 group-hover:hidden",
+              !email.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
+            )}>
               {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
             </div>
           </div>
@@ -355,12 +358,15 @@ const EmailListItem = memo(function EmailListItem({
                     </div>
                     <p className={cn(
                       "text-xs truncate",
-                      !threadEmail.is_read ? "font-medium text-muted-foreground" : "text-muted-foreground/70"
+                      !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground/70"
                     )}>
                       {threadEmail.snippet || threadEmail.body_preview}
                     </p>
                   </div>
-                  <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                  <div className={cn(
+                    "text-[10px] whitespace-nowrap shrink-0",
+                    !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
+                  )}>
                     {format(new Date(threadEmail.received_at), "MMM d, h:mm a")}
                   </div>
                 </div>
