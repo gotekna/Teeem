@@ -228,43 +228,42 @@ const TreeNodeRow = memo(function TreeNodeRow({
       aria-expanded={hasChildren ? isExpanded : undefined}
       aria-selected={isSelected}
       className={cn(
-        "flex items-center gap-1 py-1.5 px-2 rounded-sm cursor-pointer transition-colors group",
+        "flex items-center gap-0.5 py-1 px-0 rounded-sm cursor-pointer transition-colors group",
         "hover:bg-muted/50",
         isSelected && "bg-primary/10 text-primary",
-        hasUnread && "font-semibold",
         isDragging && "bg-muted"
       )}
-      style={{ paddingLeft: `${level * 16 + (enableReorder && level === 0 ? 4 : 8)}px` }}
+      style={{ paddingLeft: `${level * 10}px` }}
       onClick={handleSelect}
     >
       {enableReorder && level === 0 && dragHandleProps && (
         <div
           {...dragHandleProps}
-          className="shrink-0 w-4 h-4 flex items-center justify-center cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity"
+          className="shrink-0 w-3 h-3 flex items-center justify-center cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity"
           onClick={(e) => e.stopPropagation()}
         >
-          <GripVertical className="h-3 w-3 text-muted-foreground" />
+          <GripVertical className="h-2.5 w-2.5 text-muted-foreground" />
         </div>
       )}
 
       {hasChildren ? (
         <div
-          className="shrink-0 w-5 h-5 flex items-center justify-center"
+          className="shrink-0 w-3.5 h-3.5 flex items-center justify-center"
           onClick={handleToggle}
         >
           {isLoading ? (
-            <Spinner size={14} className="text-muted-foreground" />
+            <Spinner size={12} className="text-muted-foreground" />
           ) : (
-            <ExpandChevron expanded={isExpanded} size={14} />
+            <ExpandChevron expanded={isExpanded} size={12} />
           )}
         </div>
       ) : (
-        <span className="w-5 shrink-0" />
+        <span className="w-3.5 shrink-0" />
       )}
 
       <DisplayIcon
         className={cn(
-          "h-4 w-4 shrink-0",
+          "h-3.5 w-3.5 shrink-0",
           isSelected
             ? "text-primary"
             : item.type === "custom"
@@ -273,7 +272,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
         )}
       />
 
-      <span className="flex-1 truncate text-sm">{item.name}</span>
+      <span className="flex-1 truncate text-xs">{item.name}</span>
 
       {hasUnread && (
         <Badge
@@ -370,14 +369,11 @@ function DragOverlayContent({ item }: { item: FolderTreeItem }) {
 
   return (
     <div
-      className={cn(
-        "flex items-center gap-2 py-1.5 px-3 rounded-sm bg-background border shadow-lg",
-        hasUnread && "font-semibold"
-      )}
+      className="flex items-center gap-2 py-1.5 px-3 rounded-sm bg-background border shadow-lg"
     >
       <GripVertical className="h-3 w-3 text-muted-foreground" />
       <Icon className="h-4 w-4 text-amber-500" />
-      <span className="text-sm">{item.name}</span>
+      <span className="text-xs">{item.name}</span>
       {hasUnread && (
         <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
           {item.unreadCount}
@@ -452,10 +448,31 @@ export function FolderTree({
     rootFolders.map(f => f.id)
   );
 
-  // Update local order when root folders change
+  // Track root folder IDs to detect when folders are added/removed (not just reordered)
+  const rootFolderIds = useMemo(() =>
+    new Set(rootFolders.map(f => f.id)),
+    [rootFolders]
+  );
+
+  // Update local order only when folders are added/removed, not when reordered
   useEffect(() => {
-    setLocalOrder(rootFolders.map(f => f.id));
-  }, [rootFolders]);
+    setLocalOrder(prev => {
+      // Check if the set of folders has changed (added/removed)
+      const prevSet = new Set(prev);
+      const currentIds = Array.from(rootFolderIds);
+
+      const added = currentIds.filter(id => !prevSet.has(id));
+      const removed = prev.filter(id => !rootFolderIds.has(id));
+
+      // If no changes to the set of folders, keep current order
+      if (added.length === 0 && removed.length === 0) {
+        return prev;
+      }
+
+      // Otherwise, sync with rootFolders order (respects customOrder)
+      return rootFolders.map(f => f.id);
+    });
+  }, [rootFolderIds, rootFolders]);
 
   // Ordered root folders based on local state
   const orderedRootFolders = useMemo(() => {
@@ -536,18 +553,18 @@ export function FolderTree({
     setActiveId(null);
 
     if (over && active.id !== over.id) {
-      setLocalOrder((prev) => {
-        const oldIndex = prev.indexOf(active.id as string);
-        const newIndex = prev.indexOf(over.id as string);
-        const newOrder = arrayMove(prev, oldIndex, newIndex);
+      // Calculate new order
+      const oldIndex = localOrder.indexOf(active.id as string);
+      const newIndex = localOrder.indexOf(over.id as string);
+      const newOrder = arrayMove(localOrder, oldIndex, newIndex);
 
-        // Notify parent of reorder
-        onReorder?.(newOrder);
+      // Update local state
+      setLocalOrder(newOrder);
 
-        return newOrder;
-      });
+      // Notify parent of reorder (outside of setState to avoid React warning)
+      onReorder?.(newOrder);
     }
-  }, [onReorder]);
+  }, [onReorder, localOrder]);
 
   if (folderItems.length === 0) {
     return (

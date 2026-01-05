@@ -38,12 +38,18 @@ import {
   Forward,
   ArrowUpDown,
   FolderPlus,
+  MoreVertical,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
@@ -85,6 +91,52 @@ import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
 import { cn } from "@/lib/utils";
 import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
 import { useToast } from "@/components/ui/use-toast";
+
+// Helper to decode HTML entities and clean up email snippets
+function decodeHtmlEntities(text: string | null | undefined): string {
+  if (!text) return "";
+
+  let decoded = text;
+
+  // Use a textarea to decode HTML entities safely
+  if (typeof document !== "undefined") {
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = text;
+    decoded = textarea.value;
+  } else {
+    // Fallback for SSR - decode common entities
+    decoded = text
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, "/");
+  }
+
+  // Strip CSS that leaked into snippets
+  // Pattern: CSS selectors (tag, .class, #id) followed by { properties }
+  // e.g., "div, .kl-table-subblock > div {font-size:16px!important;...}"
+  decoded = decoded.replace(/^[\w\s,.#>:[\]()@*=-]+\{[^}]*\}\s*/g, "");
+
+  // Keep stripping while there's more CSS at the start
+  while (/^[\w\s,.#>:[\]()@*=-]+\{/.test(decoded)) {
+    decoded = decoded.replace(/^[\w\s,.#>:[\]()@*=-]+\{[^}]*\}\s*/g, "");
+  }
+
+  // Also strip @media queries and similar at-rules
+  decoded = decoded.replace(/^@[\w-]+[^{]*\{[^}]*\}\s*/g, "");
+
+  // Strip "table {width:640px}" style inline patterns
+  decoded = decoded.replace(/^[\w]+\s*\{[^}]+\}\s*/g, "");
+
+  // Clean up multiple spaces
+  decoded = decoded.replace(/\s+/g, " ").trim();
+
+  return decoded;
+}
 
 interface Email {
   id: number;
@@ -239,7 +291,7 @@ const EmailListItem = memo(function EmailListItem({
       {/* Main email row */}
       <div
         className={cn(
-          "group px-1 py-2 cursor-pointer border-l-2",
+          "group px-0.5 py-1.5 cursor-pointer border-l-2",
           isSelected
             ? "bg-primary/10 border-l-primary"
             : isChecked
@@ -249,9 +301,9 @@ const EmailListItem = memo(function EmailListItem({
         )}
         onClick={(e) => onClick(email, e)}
       >
-        <div className="flex items-start gap-1">
+        <div className="flex items-start gap-0.5">
           {/* Thread expand/collapse chevron OR checkbox */}
-          <div className="shrink-0 pt-0.5 w-4 flex items-center justify-center">
+          <div className="shrink-0 pt-0.5 w-3.5 flex items-center justify-center">
             {hasThread && !hasSelections ? (
               <button
                 onClick={(e) => {
@@ -288,7 +340,7 @@ const EmailListItem = memo(function EmailListItem({
             )}
           </div>
 
-          <div className="flex-1 min-w-0 flex items-start gap-1">
+          <div className="flex-1 min-w-0 flex items-start gap-0.5">
             {/* Unread indicator dot */}
             {!email.is_read && (
               <div className="shrink-0 pt-1.5">
@@ -332,7 +384,7 @@ const EmailListItem = memo(function EmailListItem({
                 "text-xs truncate mt-0.5",
                 !email.is_read ? "font-semibold text-muted-foreground" : "font-normal text-muted-foreground/70"
               )}>
-                {email.snippet || email.body_preview}
+                {decodeHtmlEntities(email.snippet || email.body_preview)}
               </p>
             </div>
             {/* Quick actions on hover */}
@@ -381,7 +433,7 @@ const EmailListItem = memo(function EmailListItem({
                       "text-xs truncate",
                       !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground/70"
                     )}>
-                      {threadEmail.snippet || threadEmail.body_preview}
+                      {decodeHtmlEntities(threadEmail.snippet || threadEmail.body_preview)}
                     </p>
                   </div>
                   <div className={cn(
@@ -1207,11 +1259,86 @@ To: ${email.to_emails?.join(", ") || ""}
         maxSize="400px"
         className="bg-muted/30 flex flex-col"
       >
-        <div className="p-3 border-b">
-          <Button className="w-full" onClick={handleCompose}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Email
+        <div className="p-2 border-b flex items-center gap-1">
+          <Button className="flex-1" size="sm" onClick={handleCompose}>
+            <Plus className="h-4 w-4 mr-1" />
+            New
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={viewMode === "split" ? handleSplitSync : handleSync}
+            disabled={syncing || wsIsSyncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
+            title="Sync"
+          >
+            <RefreshCw className={cn("h-4 w-4", (syncing || wsIsSyncing || splitInbox.loading) && "animate-spin")} />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setShowShortcutsHelp(true)}>
+                <Keyboard className="h-4 w-4 mr-2" />
+                Keyboard shortcuts
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  Sort by
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {THREAD_SORT_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onClick={() => threads.setSortOption(option.value)}
+                      className={threads.sortOption === option.value ? "bg-muted" : ""}
+                    >
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Reading pane
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("right")}
+                    className={readingPanePosition === "right" ? "bg-muted" : ""}
+                  >
+                    Right
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("bottom")}
+                    className={readingPanePosition === "bottom" ? "bg-muted" : ""}
+                  >
+                    Bottom
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("off")}
+                    className={readingPanePosition === "off" ? "bg-muted" : ""}
+                  >
+                    Off
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/email/rules")}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Email Rules
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/email/settings")}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
@@ -1223,7 +1350,7 @@ To: ${email.to_emails?.join(", ") || ""}
               setSelectedFolderId("ALL_INBOX");
             }}
             className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 rounded-sm font-medium",
+              "w-full flex items-center gap-2 px-1 py-1.5 text-sm hover:bg-muted/50 rounded-sm font-medium",
               selectedAccount === "all" && "bg-primary/10 text-primary"
             )}
           >
@@ -1234,8 +1361,8 @@ To: ${email.to_emails?.join(", ") || ""}
           <div className="border-b my-2" />
 
           {/* Mailbox list - always show */}
-          <div className="px-2 mb-2">
-            <div className="text-xs text-muted-foreground px-1 py-1 font-medium">Mailboxes</div>
+          <div className="px-1 mb-2">
+            <div className="text-xs text-muted-foreground px-0.5 py-1 font-medium">Mailboxes</div>
             {accounts.map((account) => (
               <button
                 key={account.id}
@@ -1246,7 +1373,7 @@ To: ${email.to_emails?.join(", ") || ""}
                   fetchFolders(accountId, account);
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted/50 rounded-sm",
+                  "w-full flex items-center gap-2 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",
                   selectedAccount === String(account.id) && "bg-primary/10 text-primary font-medium"
                 )}
               >
@@ -1265,7 +1392,7 @@ To: ${email.to_emails?.join(", ") || ""}
               return (
                 <div className="mb-1">
                   {/* Account Header */}
-                  <div className="px-3 py-2 text-sm font-medium flex items-center gap-2">
+                  <div className="px-1 py-1.5 text-sm font-medium flex items-center gap-2">
                     <Mail className="h-4 w-4 shrink-0" />
                     <span className="truncate">
                       {account.email_address || account.name}
@@ -1319,7 +1446,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     {account.type === "imap" && (
                       <button
                         onClick={() => setCreateFolderOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-sm mt-1"
+                        className="w-full flex items-center gap-2 px-1 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-sm mt-1"
                       >
                         <FolderPlus className="h-3.5 w-3.5" />
                         <span>Create Folder</span>
@@ -1330,26 +1457,6 @@ To: ${email.to_emails?.join(", ") || ""}
               );
             })()
           ) : null}
-        </div>
-
-        {/* Rules & Settings Links */}
-        <div className="p-3 border-t space-y-1">
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => router.push("/email/rules")}
-          >
-            <Settings2 className="h-4 w-4 mr-2" />
-            Email Rules
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => router.push("/email/settings")}
-          >
-            <Settings2 className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
         </div>
       </ResizablePanel>
 
@@ -1369,103 +1476,32 @@ To: ${email.to_emails?.join(", ") || ""}
           maxSize={readingPanePosition === "off" ? undefined : "600px"}
           className="flex flex-col border-r min-w-0 overflow-hidden"
         >
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-background">
-          <div className="flex items-center gap-2 min-w-0">
-            <ViewModeToggle mode={viewMode} onModeChange={setViewMode} />
-            {viewMode === "folders" && (
-              <>
-                <span className="font-medium truncate text-sm">
-                  {getSelectedAccountName()}
-                </span>
-                {selectedFolder && (
-                  <Badge variant="secondary" className="text-xs shrink-0">
-                    {selectedFolder}
-                  </Badge>
-                )}
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs text-muted-foreground mr-1">
-              {viewMode === "split"
-                ? splitInbox.counts[splitInbox.selectedCategory] || 0
-                : pagination.total}
-            </span>
-            {/* WebSocket connection status */}
-            <div
-              className={cn(
-                "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs",
-                isConnected
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-muted-foreground"
-              )}
-              title={isConnected ? "Real-time updates active" : "Connecting..."}
-            >
-              {isConnected ? (
-                <Wifi className="h-3 w-3" />
-              ) : (
-                <WifiOff className="h-3 w-3" />
-              )}
-              {wsIsSyncing && (
-                <span className="text-[10px]">syncing</span>
-              )}
+        {/* Header - View toggle and search */}
+        <div className="flex items-center gap-2 px-2 py-1.5 border-b shrink-0 bg-background">
+          <ViewModeToggle mode={viewMode} onModeChange={setViewMode} />
+
+          {/* Search - Only in folder mode */}
+          {viewMode === "folders" && (
+            <div className="flex-1 min-w-0">
+              <EmailSearchFilters
+                filters={emailFilters.filters}
+                setFilter={emailFilters.setFilter}
+                setSearch={emailFilters.setSearch}
+                clearFilters={emailFilters.clearFilters}
+                hasActiveFilters={emailFilters.hasActiveFilters}
+                activeFilterCount={emailFilters.activeFilterCount}
+                activeFilterLabels={emailFilters.getActiveFilterLabels()}
+                onSearch={() => fetchEmails(1)}
+              />
             </div>
-            {/* New email count badge */}
-            {newEmailCount > 0 && (
-              <Badge variant="default" className="text-xs px-1.5 py-0 h-5 bg-blue-500">
-                +{newEmailCount}
-              </Badge>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setShowShortcutsHelp(true)}
-              title="Keyboard shortcuts (?)"
-            >
-              <Keyboard className="h-3.5 w-3.5" />
-            </Button>
-            {/* Thread sort dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title={`Thread sort: ${THREAD_SORT_OPTIONS.find(o => o.value === threads.sortOption)?.label}`}
-                >
-                  <ArrowUpDown className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {THREAD_SORT_OPTIONS.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onClick={() => threads.setSortOption(option.value)}
-                    className={threads.sortOption === option.value ? "bg-muted" : ""}
-                  >
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={viewMode === "split" ? handleSplitSync : handleSync}
-              disabled={syncing || wsIsSyncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
-              title={viewMode === "split" ? "Sync all accounts" : "Sync account"}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", (syncing || wsIsSyncing || splitInbox.loading) && "animate-spin")} />
-            </Button>
-            {/* Reading pane position toggle */}
-            <ReadingPaneToggle
-              position={readingPanePosition}
-              onPositionChange={setReadingPanePosition}
-            />
-          </div>
+          )}
+
+          {/* New email indicator */}
+          {newEmailCount > 0 && (
+            <Badge variant="default" className="text-xs px-1.5 py-0 h-5 bg-blue-500 shrink-0">
+              +{newEmailCount}
+            </Badge>
+          )}
         </div>
 
         {/* Split Inbox Tabs */}
@@ -1478,7 +1514,6 @@ To: ${email.to_emails?.join(", ") || ""}
               unreadCounts={splitInbox.unreadCounts}
               loading={splitInbox.loading}
             />
-            {/* Stale/Offline Indicator */}
             <StaleIndicator
               isStale={splitInbox.isStale ?? false}
               lastFetched={splitInbox.lastFetched ?? null}
@@ -1486,22 +1521,6 @@ To: ${email.to_emails?.join(", ") || ""}
               isRefreshing={splitInbox.isFetching ?? syncing}
               onRefresh={handleSplitSync}
               className="mt-2"
-            />
-          </div>
-        )}
-
-        {/* Search with filters - Only in folder mode */}
-        {viewMode === "folders" && (
-          <div className="px-3 py-2 border-b shrink-0">
-            <EmailSearchFilters
-              filters={emailFilters.filters}
-              setFilter={emailFilters.setFilter}
-              setSearch={emailFilters.setSearch}
-              clearFilters={emailFilters.clearFilters}
-              hasActiveFilters={emailFilters.hasActiveFilters}
-              activeFilterCount={emailFilters.activeFilterCount}
-              activeFilterLabels={emailFilters.getActiveFilterLabels()}
-              onSearch={() => fetchEmails(1)}
             />
           </div>
         )}
@@ -1748,7 +1767,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 />
               ) : (
                 <pre className="whitespace-pre-wrap text-sm font-sans">
-                  {selectedEmail.body_text || selectedEmail.snippet}
+                  {decodeHtmlEntities(selectedEmail.body_text || selectedEmail.snippet)}
                 </pre>
               )}
             </div>
@@ -1764,7 +1783,7 @@ To: ${email.to_emails?.join(", ") || ""}
       </>
       )}
 
-        </ResizablePanelGroup>
+      </ResizablePanelGroup>
       </ResizablePanel>
     </ResizablePanelGroup>
 
