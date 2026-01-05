@@ -107,7 +107,7 @@ class MicrosoftAppGraphClient
     params = {
       "$top" => top,
       "$orderby" => "receivedDateTime DESC",
-      "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,bodyPreview,body,internetMessageId,conversationId,isRead,importance"
+      "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,createdDateTime,lastModifiedDateTime,hasAttachments,bodyPreview,body,internetMessageId,conversationId,isRead,importance,isDraft"
     }
 
     params["$skip"] = skip if skip

@@ -52,6 +52,20 @@ module Api
             emails = EmailWarehouse.for_microsoft_credential(credential.id)
             total_size = emails.sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
+            # Per-mailbox (per-person) stats
+            per_mailbox_stats = emails
+              .where.not(mailbox_owner_email: [ nil, "" ])
+              .group(:mailbox_owner_email)
+              .select("mailbox_owner_email, COUNT(*) as email_count, MAX(last_synced_at) as last_sync")
+              .order("email_count DESC")
+              .map do |row|
+                {
+                  mailbox: row.mailbox_owner_email,
+                  email_count: row.email_count,
+                  last_sync: row.last_sync
+                }
+              end
+
             {
               name: org_name,
               connected: true,
@@ -65,7 +79,8 @@ module Api
                 emails: emails.count,
                 email_storage_bytes: total_size,
                 linked_to_job: emails.where.not(job_id: nil).count,
-                last_email_received: emails.maximum(:received_at)
+                last_email_received: emails.maximum(:received_at),
+                per_mailbox: per_mailbox_stats
               }
             }
           else
@@ -78,7 +93,8 @@ module Api
                 emails: 0,
                 email_storage_bytes: 0,
                 linked_to_job: 0,
-                last_email_received: nil
+                last_email_received: nil,
+                per_mailbox: []
               }
             }
           end

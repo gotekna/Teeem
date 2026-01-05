@@ -43,6 +43,7 @@ import {
   ChevronRight,
   Building2,
   X,
+  Users,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -220,6 +221,11 @@ interface MicrosoftOrgStats {
     email_storage_bytes: number;
     linked_to_job: number;
     last_email_received?: string;
+    per_mailbox: Array<{
+      mailbox: string;
+      email_count: number;
+      last_sync: string | null;
+    }>;
   };
 }
 
@@ -922,6 +928,38 @@ export function DataWarehouseTab() {
                         <p>Admin consent by: {org.admin_consent_granted_by}</p>
                       )}
                     </div>
+
+                    {/* Per-Person Email Stats */}
+                    {org.stats.per_mailbox?.length > 0 && (
+                      <div className="pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Emails by Person ({org.stats.per_mailbox.length})
+                        </h4>
+                        <div className="border rounded-lg overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Mailbox</TableHead>
+                                <TableHead className="text-right">Emails</TableHead>
+                                <TableHead className="text-right">Last Sync</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {org.stats.per_mailbox.map((mb) => (
+                                <TableRow key={mb.mailbox}>
+                                  <TableCell className="font-medium">{mb.mailbox}</TableCell>
+                                  <TableCell className="text-right">{mb.email_count.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {mb.last_sync ? format(new Date(mb.last_sync), "PPp") : "Never"}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-8">

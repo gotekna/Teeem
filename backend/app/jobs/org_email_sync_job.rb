@@ -191,11 +191,8 @@ class OrgEmailSyncJob < ApplicationJob
     subject = email_data["subject"] || ""
     has_attachments = email_data["hasAttachments"] || false
 
-    # ALWAYS FILTER: Draft emails (incomplete, no sender info)
-    if folder_name == "Drafts"
-      Rails.logger.debug "[OrgEmailSync] Skipping draft email: #{subject}"
-      return nil
-    end
+    # NOTE: Drafts are now synced (to match Office 365 exactly)
+    # They will appear with folder_name="Drafts" and can be filtered in frontend
 
     # ALWAYS FILTER: Junk/Spam emails (already classified as spam by email provider)
     if folder_name == "Junk Email"
@@ -257,6 +254,10 @@ class OrgEmailSyncJob < ApplicationJob
       body_html = nil
     end
 
+    # For drafts, use createdDateTime as fallback since they don't have receivedDateTime
+    received_at = email_data["receivedDateTime"] || email_data["createdDateTime"]
+    is_draft = email_data["isDraft"] || (folder_name == "Drafts")
+
     email.assign_attributes(
       outlook_id: email_data["id"],
       subject: email_data["subject"],
@@ -264,7 +265,7 @@ class OrgEmailSyncJob < ApplicationJob
       from_name: from_data["name"],
       to_emails: to_emails,
       cc_emails: cc_emails,
-      received_at: email_data["receivedDateTime"],
+      received_at: received_at,
       sent_at: email_data["sentDateTime"],
       has_attachments: email_data["hasAttachments"] || false,
       body_preview: email_data["bodyPreview"],
