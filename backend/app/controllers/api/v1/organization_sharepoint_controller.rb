@@ -257,7 +257,8 @@ module Api
       def change_root_folder
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -364,7 +365,8 @@ module Api
       def sharepoint_sites
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -392,7 +394,8 @@ module Api
       def use_personal_drive
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -439,7 +442,8 @@ module Api
       def use_sharepoint_site
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -489,7 +493,8 @@ module Api
       def browse_folders
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -641,7 +646,8 @@ module Api
       def create_root_folder
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -692,7 +698,8 @@ module Api
       def validate_folder
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -730,7 +737,8 @@ module Api
       def create_all_job_folders
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
@@ -798,7 +806,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
@@ -914,7 +923,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -974,7 +984,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1081,7 +1092,8 @@ module Api
       def search
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1144,7 +1156,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1226,7 +1239,8 @@ module Api
       def delete_file
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { success: false, error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1275,7 +1289,8 @@ module Api
       def download_url
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1365,7 +1380,8 @@ module Api
       def preview_private_folders
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1393,7 +1409,8 @@ module Api
       def copy_files
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1538,7 +1555,8 @@ module Api
       def create_private_folders
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1565,7 +1583,8 @@ module Api
 
         Rails.logger.info "[OneDrive Corporate Sync] Starting corporate document sync"
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           Rails.logger.warn "[OneDrive Corporate Sync] No valid credential found"
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
@@ -1922,7 +1941,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1965,7 +1985,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -2143,7 +2164,8 @@ module Api
         # Action is 'approve' - perform the rename in OneDrive
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -2210,7 +2232,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -2265,7 +2288,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -2349,9 +2373,10 @@ module Api
         credential = begin
           cred = MicrosoftCredential.sharepoint_credential
           # Try to access an encrypted field to verify decryption works
+          # Use valid_access_token which auto-refreshes expired tokens
           if cred
             cred.access_token
-            cred if cred.valid_credential?
+            cred if cred.valid_access_token
           end
         rescue ActiveRecord::Encryption::Errors::Decryption => e
           Rails.logger.warn "[OneDrive] Decryption error loading org credential: #{e.message}"

@@ -74,6 +74,7 @@ import { useEmailWebSocket } from "@/hooks/useEmailWebSocket";
 import { ClassificationBadge, type EmailClassificationType } from "@/components/emails/ClassificationBadge";
 import { ReadingPaneToggle, useReadingPanePosition, type ReadingPanePosition } from "@/components/emails/ReadingPaneToggle";
 import { CreateFolderDialog } from "@/components/emails/FolderManagementDialog";
+import { FolderTree, type FolderTreeItem } from "@/components/ui/folder-tree";
 import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
 import { cn } from "@/lib/utils";
 import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
@@ -164,18 +165,6 @@ interface EmailFolder {
   depth?: number;
   parent_id?: string;
 }
-
-// Map folder type to icon
-const FOLDER_ICONS: Record<string, typeof Inbox> = {
-  inbox: Inbox,
-  sent: Send,
-  drafts: FileText,
-  archive: Archive,
-  trash: Trash2,
-  junk: Trash2,
-  important: Star,
-  folder: FileText,
-};
 
 // Memoized email list item for performance
 const EmailListItem = memo(function EmailListItem({
@@ -397,53 +386,6 @@ const EmailListItem = memo(function EmailListItem({
   }
 
   return content;
-});
-
-// Memoized folder button component for performance
-const FolderButton = memo(function FolderButton({
-  folder,
-  accountId,
-  isSelected,
-  onSelect,
-  enableDrop = false,
-}: {
-  folder: EmailFolder;
-  accountId: string;
-  isSelected: boolean;
-  onSelect: (accountId: string, folder: EmailFolder) => void;
-  enableDrop?: boolean;
-}) {
-  const Icon = FOLDER_ICONS[folder.type] || FOLDER_ICONS.folder;
-  const depth = folder.depth || 0;
-
-  const buttonContent = (
-    <button
-      onClick={() => onSelect(accountId, folder)}
-      className={cn(
-        "w-full flex items-center gap-2 py-1.5 text-sm hover:bg-muted/50 rounded-sm",
-        isSelected && "bg-primary/10 text-primary font-medium"
-      )}
-      style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: '12px' }}
-    >
-      <Icon className="h-4 w-4 shrink-0" />
-      <span className="flex-1 text-left truncate">{folder.name}</span>
-      {folder.unread_count !== undefined && folder.unread_count > 0 && (
-        <Badge variant="secondary" className="text-xs px-1.5 py-0.5 min-w-[20px] text-center shrink-0">
-          {folder.unread_count}
-        </Badge>
-      )}
-    </button>
-  );
-
-  if (enableDrop) {
-    return (
-      <DroppableFolder folderId={folder.id} folderName={folder.name}>
-        {buttonContent}
-      </DroppableFolder>
-    );
-  }
-
-  return buttonContent;
 });
 
 export default function EmailPage() {
@@ -1273,16 +1215,29 @@ To: ${email.to_emails?.join(", ") || ""}
                         No folders found
                       </div>
                     ) : (
-                      (accountFolders[selectedAccount] || []).map((folder) => (
-                        <FolderButton
-                          key={folder.id}
-                          folder={folder}
-                          accountId={selectedAccount}
-                          isSelected={selectedFolderId === folder.id}
-                          onSelect={selectAccountFolder}
-                          enableDrop={true}
-                        />
-                      ))
+                      <FolderTree
+                        items={accountFolders[selectedAccount] || []}
+                        selectedId={selectedFolderId || undefined}
+                        onSelect={(item: FolderTreeItem) => {
+                          // Convert FolderTreeItem back to EmailFolder format
+                          const folder: EmailFolder = {
+                            id: item.id,
+                            name: item.name,
+                            type: item.type,
+                            unread_count: item.unreadCount,
+                            total_items: item.totalItems,
+                            depth: item.depth,
+                            parent_id: item.parentId,
+                          };
+                          selectAccountFolder(selectedAccount, folder);
+                        }}
+                        persistKey={`email-folders-${selectedAccount}`}
+                        renderWrapper={(item, children) => (
+                          <DroppableFolder folderId={item.id} folderName={item.name}>
+                            {children}
+                          </DroppableFolder>
+                        )}
+                      />
                     )}
                     {/* Create Folder button - only for IMAP accounts */}
                     {account.type === "imap" && (

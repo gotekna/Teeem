@@ -552,6 +552,18 @@ const TIER_3_COMPONENTS: StandardComponent[] = [
     usageCount: 10,
   },
   {
+    id: "folder-tree",
+    name: "FolderTree",
+    displayName: "Folder Tree",
+    category: "navigation",
+    tier: 3,
+    status: "standard",
+    importPath: "@/components/ui/folder-tree",
+    description: "Hierarchical folder tree with expand/collapse, like Office 365",
+    whenToUse: "Email folders, file browsers, any hierarchical folder navigation",
+    usageCount: 1,
+  },
+  {
     id: "tooltip",
     name: "Tooltip",
     displayName: "Tooltip",
