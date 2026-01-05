@@ -138,18 +138,19 @@ class EmailToJobService
     end
 
     # Create job
+    # SSoT: Supervisor is stored via job_contacts (role: "supervisor"), not legacy columns
     job = Job.create!(
       title: user_edits["job_title"] || job_data["job_title"] || "Job from #{@email.from_email}",
       job_type_id: job_type_id,
       job_status_id: job_status_id,
       job_stage_id: job_stage_id,
-      site_supervisor_name: @user.name,
-      site_supervisor_email: @user.email,
-      site_supervisor_phone: @user.mobile_phone,
       # SSoT: Use contract_price as THE ONE
       contract_price: user_edits["contract_value"] || job_data["contract_value"]&.to_f,
       **location_data
     )
+
+    # SSoT: Create supervisor as job_contact instead of legacy columns
+    job.job_contacts.create!(user: @user, role: "supervisor")
 
     # Link customer to job
     # If they're a sales agent, link as external_sales instead of client
