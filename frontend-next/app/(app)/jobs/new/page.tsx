@@ -746,6 +746,10 @@ export default function NewJobPage() {
     e.preventDefault();
     setLoading(true);
 
+    // Debug: Log what's being submitted
+    console.log("[handleSubmit] formData.job_status_id:", formData.job_status_id);
+    console.log("[handleSubmit] Full formData:", formData);
+
     try {
       const response = await api.post<{ id: number }>("/api/v1/jobs", {
         job: {
