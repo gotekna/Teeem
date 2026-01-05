@@ -146,10 +146,8 @@ module Api
         new_doc_type.display_name = new_name if @document_type.display_name.present?
 
         if new_doc_type.save
-          # Copy entity_tab associations
-          @document_type.entity_tab_ids.each do |tab_id|
-            new_doc_type.entity_tab_ids << tab_id
-          end
+          # Copy entity_tab associations using the setter (which calls sync_entity_tab_ids)
+          new_doc_type.sync_entity_tab_ids(@document_type.entity_tab_ids)
 
           render json: {
             success: true,
