@@ -334,6 +334,24 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
+  # POST /api/v1/email_warehouse/:id/dismiss_suggestion
+  # Dismiss this email from showing as a suggestion for a specific job
+  def dismiss_suggestion
+    job_id = params[:job_id].to_i
+    return render json: { error: "job_id required" }, status: :bad_request if job_id.zero?
+
+    # Add job_id to dismissed list if not already there
+    dismissed_ids = @email.dismissed_from_job_ids || []
+    unless dismissed_ids.include?(job_id)
+      @email.update!(dismissed_from_job_ids: dismissed_ids + [job_id])
+    end
+
+    render json: {
+      success: true,
+      message: "Email dismissed from suggestions"
+    }
+  end
+
   # GET /api/v1/email_warehouse/sync_status
   # Get sync status - org-wide sync runs automatically every 15 minutes
   def sync_status
@@ -963,9 +981,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Get job contacts' emails
     contact_emails = job.contacts.pluck(:email).compact
 
-    # Find unassigned emails involving these contacts
+    # Find unassigned emails involving these contacts (excluding dismissed)
     contact_emails.each do |email_addr|
-      EmailWarehouse.unassigned.involving_email(email_addr).latest_in_thread.limit(10).each do |email|
+      EmailWarehouse.unassigned
+        .involving_email(email_addr)
+        .where.not("? = ANY(dismissed_from_job_ids)", job.id)
+        .latest_in_thread
+        .limit(10).each do |email|
         suggestion = {
           email: email,
           confidence: 0.9,
@@ -987,9 +1009,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
       end
     end
 
-    # Find emails mentioning job address
+    # Find emails mentioning job address (excluding dismissed)
     if job.title.present?
-      EmailWarehouse.unassigned.search_text(job.title).latest_in_thread.limit(10).each do |email|
+      EmailWarehouse.unassigned
+        .search_text(job.title)
+        .where.not("? = ANY(dismissed_from_job_ids)", job.id)
+        .latest_in_thread
+        .limit(10).each do |email|
         suggestions << {
           email: email,
           confidence: 0.8,

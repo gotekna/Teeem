@@ -1068,6 +1068,7 @@ Rails.application.routes.draw do
         member do
           post :assign_to_job
           post :unassign
+          post :dismiss_suggestion
           post :mark_as_spam
           delete :delete_from_outlook
           post :move_to_folder

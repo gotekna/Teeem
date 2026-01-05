@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_05_143003) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_05_143004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2740,6 +2740,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_143003) do
     t.string "labels", default: [], array: true
     t.bigint "uid"
     t.string "direction"
+    t.integer "dismissed_from_job_ids", default: [], array: true
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin

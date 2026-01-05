@@ -324,6 +324,17 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
     }
   };
 
+  const handleDismissSuggestion = async (suggestion: SuggestedEmail) => {
+    try {
+      await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/dismiss_suggestion`, {
+        job_id: jobId,
+      });
+      await loadEmails();
+    } catch (error) {
+      console.error("Failed to dismiss suggestion:", error);
+    }
+  };
+
   const filteredEmails = emails.filter((email) => {
     if (!searchTerm) return true;
     const searchLower = searchTerm.toLowerCase();
@@ -437,9 +448,9 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
                     {suggestion.suggested_job ? (
-                      <>
+                      <div className="flex flex-col gap-1">
                         <Button
                           variant="default"
                           size="sm"
@@ -456,7 +467,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
                         >
                           Add here instead
                         </Button>
-                      </>
+                      </div>
                     ) : (
                       <Button
                         variant="ghost"
@@ -467,6 +478,15 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
                         Add to Job
                       </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDismissSuggestion(suggestion)}
+                      className="text-xs text-muted-foreground hover:text-red-500"
+                      title="Not relevant to this job"
+                    >
+                      ✕
+                    </Button>
                   </div>
                 </div>
               </div>
