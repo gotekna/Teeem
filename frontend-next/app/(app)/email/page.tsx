@@ -1701,64 +1701,82 @@ To: ${email.to_emails?.join(", ") || ""}
         >
         {selectedEmail ? (
           <>
-            {/* Email Header */}
-            <div className="px-6 py-4 border-b shrink-0">
-              <h1 className="text-xl font-semibold mb-3">
+            {/* Outlook-style Toolbar Header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReply(selectedEmail)}
+              >
+                <Reply className="h-4 w-4 mr-2" />
+                Reply
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReplyAll(selectedEmail)}
+              >
+                <ReplyAll className="h-4 w-4 mr-2" />
+                Reply All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleForward(selectedEmail)}
+              >
+                <Forward className="h-4 w-4 mr-2" />
+                Forward
+              </Button>
+
+              {/* Contact Matching - right aligned */}
+              <div className="ml-auto">
+                <EmailContactMatch
+                  emailId={selectedEmail.id}
+                  primaryContact={selectedEmail.primary_contact}
+                  contacts={selectedEmail.contacts || []}
+                  onContactsChanged={() => handleEmailClick(selectedEmail)}
+                />
+              </div>
+            </div>
+
+            {/* Subject Line */}
+            <div className="px-4 py-3 border-b shrink-0">
+              <h1 className="text-lg font-semibold">
                 {selectedEmail.subject || "(No subject)"}
               </h1>
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-medium text-primary">
-                      {(selectedEmail.from_name || selectedEmail.from_email || "?")[0].toUpperCase()}
+              <p className="text-sm text-muted-foreground mt-1">
+                {format(new Date(selectedEmail.received_at), "PPpp")}
+              </p>
+            </div>
+
+            {/* From / To - Outlook inline style */}
+            <div className="px-4 py-2 border-b space-y-1 shrink-0">
+              <div className="flex items-center text-sm">
+                <span className="text-muted-foreground w-12 flex-shrink-0">From</span>
+                <span className="font-medium">
+                  {selectedEmail.from_name || selectedEmail.from_email || selectedEmail.from_address}
+                  {selectedEmail.from_name && selectedEmail.from_email && (
+                    <span className="font-normal text-muted-foreground ml-1">
+                      &lt;{selectedEmail.from_email}&gt;
                     </span>
-                  </div>
-                  <div>
-                    <p className="font-medium">
-                      {selectedEmail.from_name || selectedEmail.from_email || selectedEmail.from_address}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedEmail.from_email || selectedEmail.from_address}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      To: {(selectedEmail.to_addresses || selectedEmail.to_emails)?.join(", ")}
-                    </p>
-                    {/* Contact Matching */}
-                    <div className="mt-2">
-                      <EmailContactMatch
-                        emailId={selectedEmail.id}
-                        primaryContact={selectedEmail.primary_contact}
-                        contacts={selectedEmail.contacts || []}
-                        onContactsChanged={() => handleEmailClick(selectedEmail)}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm text-muted-foreground">
-                    {format(new Date(selectedEmail.received_at), "PPpp")}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 justify-end">
-                    <Button size="sm" variant="outline" onClick={() => handleForward(selectedEmail)}>
-                      <Forward className="h-4 w-4 mr-1" />
-                      Forward
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleReplyAll(selectedEmail)}>
-                      <ReplyAll className="h-4 w-4 mr-1" />
-                      Reply All
-                    </Button>
-                    <Button size="sm" onClick={() => handleReply(selectedEmail)}>
-                      <Reply className="h-4 w-4 mr-1" />
-                      Reply
-                    </Button>
-                  </div>
-                </div>
+                  )}
+                </span>
               </div>
+              <div className="flex items-center text-sm">
+                <span className="text-muted-foreground w-12 flex-shrink-0">To</span>
+                <span>{(selectedEmail.to_addresses || selectedEmail.to_emails)?.join(", ")}</span>
+              </div>
+              {selectedEmail.cc_emails && selectedEmail.cc_emails.length > 0 && (
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">Cc</span>
+                  <span>{selectedEmail.cc_emails.join(", ")}</span>
+                </div>
+              )}
             </div>
 
             {/* Attachments */}
             {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
-              <div className="px-6 py-3 border-b shrink-0">
+              <div className="px-4 py-2 border-b bg-muted/30 shrink-0">
                 <div className="flex flex-wrap gap-2">
                   {selectedEmail.attachments.map((att) => (
                     <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
@@ -1777,7 +1795,7 @@ To: ${email.to_emails?.join(", ") || ""}
             />
 
             {/* Email Body */}
-            <div className="flex-1 overflow-auto px-6 py-4">
+            <div className="flex-1 overflow-auto px-4 py-4">
               {selectedEmail.body_html ? (
                 <div
                   className="prose prose-sm dark:prose-invert max-w-none"

@@ -16,6 +16,8 @@ import {
   Phone,
   Send,
   Search,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { EntityChat } from "@/components/chat/EntityChat";
@@ -259,6 +261,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
   const [suggestedEmails, setSuggestedEmails] = useState<SuggestedEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllInThread, setShowAllInThread] = useState(false);
+  const [suggestionsExpanded, setSuggestionsExpanded] = useState(false); // Collapsed by default
 
   // Email detail dialog state
   const [detailEmailId, setDetailEmailId] = useState<number | null>(null);
@@ -325,16 +328,33 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
   return (
     <div className="h-full flex flex-col">
 
-      {/* Suggested emails section */}
+      {/* Suggested emails section - collapsible */}
       {suggestedEmails.length > 0 && (
-        <div className="border rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/20 mb-4 shrink-0">
-          <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
-            Suggested Emails ({suggestedEmails.length})
-          </h4>
-          <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
-            These emails might belong to this job based on contact matches or address mentions.
-          </p>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="border rounded-lg bg-yellow-50 dark:bg-yellow-900/20 mb-4 shrink-0">
+          <button
+            onClick={() => setSuggestionsExpanded(!suggestionsExpanded)}
+            className="w-full p-3 flex items-center justify-between text-left hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded-lg transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              {suggestionsExpanded ? (
+                <ChevronDown className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+              )}
+              <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Suggested Emails ({suggestedEmails.length})
+              </span>
+            </div>
+            <span className="text-xs text-yellow-600 dark:text-yellow-400">
+              {suggestionsExpanded ? "Click to collapse" : "Click to expand"}
+            </span>
+          </button>
+          {suggestionsExpanded && (
+            <div className="px-4 pb-4">
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
+                These emails might belong to this job based on contact matches or address mentions.
+              </p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
             {suggestedEmails.slice(0, 10).map((suggestion) => (
               <div
                 key={suggestion.email.id}
@@ -402,7 +422,9 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
                 </div>
               </div>
             ))}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
