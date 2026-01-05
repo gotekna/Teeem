@@ -192,6 +192,16 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
   // Track which orphans to delete (default: all selected for deletion)
   const [orphansToDelete, setOrphansToDelete] = useState<Set<number>>(new Set());
 
+  // Reset state
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetPreview, setResetPreview] = useState<{
+    current_task_count: number;
+    template_task_count: number;
+    po_links_to_preserve: number;
+    po_links_to_orphan: number;
+  } | null>(null);
+
   // SSoT: Data fetching moved to TeeemTableView with autoFetchRecords
   // Trigger refresh by incrementing refreshKey after sync operations
   const triggerRefresh = useCallback(() => {
@@ -505,6 +515,112 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
     }
   };
 
+  // Open reset dialog with preview
+  const handleOpenResetDialog = async () => {
+    setResetPreview(null);
+    setShowResetDialog(true);
+
+    // Load template if needed
+    if (!jobTemplate) {
+      await loadJobTemplate();
+    }
+
+    // Get preview
+    try {
+      const templateId = jobTemplate?.id;
+      if (!templateId) {
+        // Wait for template to load
+        const defaultTemplate = await api.get<{ sm_schedule_master_template: { id: number; name: string } }>(
+          `/api/v1/sm_schedule_master_templates/default`
+        );
+        if (defaultTemplate?.sm_schedule_master_template) {
+          const response = await api.post<{
+            success: boolean;
+            preview: boolean;
+            current_task_count: number;
+            template_task_count: number;
+            po_links_to_preserve: number;
+            po_links_to_orphan: number;
+          }>(
+            `/api/v1/sm_schedule_master_templates/${defaultTemplate.sm_schedule_master_template.id}/reset_job_tasks`,
+            { job_id: parseInt(String(jobId)), preview: true }
+          );
+          if (response) {
+            setResetPreview(response);
+          }
+        }
+      } else {
+        const response = await api.post<{
+          success: boolean;
+          preview: boolean;
+          current_task_count: number;
+          template_task_count: number;
+          po_links_to_preserve: number;
+          po_links_to_orphan: number;
+        }>(
+          `/api/v1/sm_schedule_master_templates/${templateId}/reset_job_tasks`,
+          { job_id: parseInt(String(jobId)), preview: true }
+        );
+        if (response) {
+          setResetPreview(response);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to get reset preview:", err);
+    }
+  };
+
+  // Execute the reset
+  const handleReset = async () => {
+    if (!jobTemplate?.id) {
+      toast({
+        title: "Error",
+        description: "No template selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResetting(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        tasks_deleted: number;
+        tasks_created: number;
+        po_links_preserved: number;
+        po_links_orphaned: number;
+      }>(
+        `/api/v1/sm_schedule_master_templates/${jobTemplate.id}/reset_job_tasks`,
+        { job_id: parseInt(String(jobId)) }
+      );
+
+      if (response?.success) {
+        toast({
+          title: "Reset Complete",
+          description: `${response.tasks_deleted} tasks deleted, ${response.tasks_created} created. ${response.po_links_preserved} PO links preserved, ${response.po_links_orphaned} POs unlinked.`,
+        });
+        setShowResetDialog(false);
+        triggerRefresh();
+      } else {
+        toast({
+          title: "Reset Failed",
+          description: "Failed to reset tasks",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to reset:", err);
+      toast({
+        title: "Reset Failed",
+        description: "An error occurred while resetting tasks",
+        variant: "destructive",
+      });
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
@@ -534,6 +650,15 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Sync from Master
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenResetDialog}
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Reset All
             </Button>
           </div>
         }
@@ -1075,6 +1200,81 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset All Tasks Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Reset All Tasks
+            </DialogTitle>
+            <DialogDescription>
+              This will DELETE all tasks and re-sync fresh from the template.
+              PO links will be preserved by task number.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!resetPreview ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner />
+              <span className="ml-2 text-sm text-muted-foreground">Loading preview...</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg border p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Current tasks:</span>
+                  <span className="font-medium">{resetPreview.current_task_count}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Template tasks:</span>
+                  <span className="font-medium">{resetPreview.template_task_count}</span>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">PO links to preserve:</span>
+                    <span className="font-medium text-green-600">{resetPreview.po_links_to_preserve}</span>
+                  </div>
+                  {resetPreview.po_links_to_orphan > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">POs to unlink:</span>
+                      <span className="font-medium text-amber-600">{resetPreview.po_links_to_orphan}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-destructive/10 rounded-lg p-3 text-sm text-destructive">
+                <strong>Warning:</strong> This action cannot be undone. All task progress, dates, and customizations will be lost.
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowResetDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReset}
+              disabled={resetting || !resetPreview}
+            >
+              {resetting ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Resetting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Reset All Tasks
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -1476,6 +1476,7 @@ Rails.application.routes.draw do
         member do
           post :set_default
           post :copy_to_job
+          post :reset_job_tasks  # Nuclear reset: delete all tasks and re-sync from template
           post :duplicate
           post :sync_to_job
           get :compare_to_job

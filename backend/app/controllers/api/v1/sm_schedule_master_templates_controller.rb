@@ -240,6 +240,56 @@ module Api
         }, status: :not_found
       end
 
+      # POST /api/v1/sm_schedule_master_templates/:id/reset_job_tasks
+      # Nuclear reset: deletes ALL job tasks and re-syncs fresh from template
+      # Preserves PO links by task_number - POs for removed task_numbers are unlinked
+      #
+      # Params:
+      #   job_id: ID of the job to reset (required)
+      #
+      def reset_job_tasks
+        job = Job.find(params[:job_id])
+
+        service = SmTaskResetService.new(job, @template, user: current_user)
+
+        # Optional: preview mode
+        if params[:preview] == "true" || params[:preview] == true
+          preview = service.preview
+          return render json: {
+            success: true,
+            preview: true,
+            current_task_count: preview[:current_task_count],
+            template_task_count: preview[:template_task_count],
+            po_links_to_preserve: preview[:po_links_to_preserve],
+            po_links_to_orphan: preview[:po_links_to_orphan],
+            orphaned_pos: preview[:orphaned_pos]
+          }
+        end
+
+        result = service.reset!
+
+        if result[:success]
+          render json: {
+            success: true,
+            message: "Reset complete",
+            tasks_deleted: result[:tasks_deleted],
+            tasks_created: result[:tasks_created],
+            po_links_preserved: result[:po_links_preserved],
+            po_links_orphaned: result[:po_links_orphaned]
+          }
+        else
+          render json: {
+            success: false,
+            errors: result[:errors]
+          }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          errors: [ "Job not found" ]
+        }, status: :not_found
+      end
+
       # POST /api/v1/sm_schedule_master_templates/:id/sync_to_job
       # Syncs template changes to an existing job's tasks
       # - Skips tasks with "job reality" (started, completed, confirmed, etc.)
