@@ -286,7 +286,10 @@ export default function NewJobPage() {
             matchedStatus = statusesData.job_statuses.find(s => s.name === "Enquiry");
           }
           const defaultStatus = matchedStatus || statusesData.job_statuses[0];
+          console.log("[loadLookupData] Setting job_status_id to:", defaultStatus.id.toString(), "status name:", defaultStatus.name);
           setFormData(prev => ({ ...prev, job_status_id: defaultStatus.id.toString() }));
+        } else {
+          console.warn("[loadLookupData] No job_statuses received from API");
         }
       } catch (error) {
         console.error("Failed to load lookup data:", error);
