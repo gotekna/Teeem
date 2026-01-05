@@ -517,21 +517,25 @@ function SmsSection() {
 export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabProps) {
   return (
     <div className="flex flex-col h-full">
-      <Tabs defaultValue="messages" className="flex flex-col flex-1 min-h-0">
+      <Tabs defaultValue="emails" className="flex flex-col flex-1 min-h-0">
         <TabsList>
-          <TabsTrigger value="messages" className="gap-2">
-            <MessageCircle className="h-4 w-4" />
-            Internal Messages
-          </TabsTrigger>
           <TabsTrigger value="emails" className="gap-2">
             <Mail className="h-4 w-4" />
             Emails
+          </TabsTrigger>
+          <TabsTrigger value="messages" className="gap-2">
+            <MessageCircle className="h-4 w-4" />
+            Internal Messages
           </TabsTrigger>
           <TabsTrigger value="sms" className="gap-2">
             <Phone className="h-4 w-4" />
             SMS
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="emails" className="flex-1 min-h-0 mt-4">
+          <EmailsSection jobId={jobId} />
+        </TabsContent>
 
         <TabsContent value="messages" className="flex-1 min-h-0 mt-4">
           <EntityChat
@@ -541,10 +545,6 @@ export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabPr
             showOnlineUsers={true}
             className="h-full"
           />
-        </TabsContent>
-
-        <TabsContent value="emails" className="flex-1 min-h-0 mt-4">
-          <EmailsSection jobId={jobId} />
         </TabsContent>
 
         <TabsContent value="sms" className="flex-1 min-h-0 mt-4">
