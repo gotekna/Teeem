@@ -1201,9 +1201,9 @@ To: ${email.to_emails?.join(", ") || ""}
       {/* Left Sidebar - Mailboxes & Folders */}
       <ResizablePanel
         id="email-sidebar"
-        defaultSize={18}
-        minSize={10}
-        maxSize={40}
+        defaultSize="220px"
+        minSize="150px"
+        maxSize="400px"
         className="bg-muted/30 flex flex-col"
       >
         <div className="p-3 border-b">
@@ -1355,17 +1355,19 @@ To: ${email.to_emails?.join(", ") || ""}
       <ResizableHandle withHandle />
 
       {/* Main Content Area - List + Reading Pane */}
-      <ResizablePanel id="email-content" defaultSize={82} minSize={50} className="flex min-w-0">
-        <div className={cn(
-          "flex-1 flex min-w-0",
-          readingPanePosition === "bottom" ? "flex-col" : "flex-row"
-        )}>
+      <ResizablePanel id="email-content" minSize="400px" className="flex min-w-0">
+        <ResizablePanelGroup
+          orientation={readingPanePosition === "bottom" ? "vertical" : "horizontal"}
+          className="flex-1"
+        >
         {/* Email List */}
-        <div className={cn(
-          "flex flex-col border-r",
-          readingPanePosition === "off" ? "flex-1" :
-          readingPanePosition === "bottom" ? "h-1/2 shrink-0" : "w-[400px] shrink-0"
-        )}>
+        <ResizablePanel
+          id="email-list"
+          defaultSize="350px"
+          minSize="250px"
+          maxSize={readingPanePosition === "off" ? undefined : "600px"}
+          className="flex flex-col border-r"
+        >
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-background">
           <div className="flex items-center gap-2 min-w-0">
@@ -1648,14 +1650,17 @@ To: ${email.to_emails?.join(", ") || ""}
             </div>
           </div>
         )}
-      </div>
+      </ResizablePanel>
 
       {/* Reading Pane - Hidden when position is "off" */}
       {readingPanePosition !== "off" && (
-      <div className={cn(
-        "flex flex-col min-w-0 bg-background",
-        readingPanePosition === "bottom" ? "h-1/2 border-t" : "flex-1"
-      )}>
+        <>
+        <ResizableHandle withHandle />
+        <ResizablePanel
+          id="reading-pane"
+          minSize="300px"
+          className="flex flex-col min-w-0 bg-background"
+        >
         {selectedEmail ? (
           <>
             {/* Email Header */}
@@ -1754,10 +1759,11 @@ To: ${email.to_emails?.join(", ") || ""}
             <p className="text-sm mt-1">Choose an email from the list to view its contents</p>
           </div>
         )}
-      </div>
+      </ResizablePanel>
+      </>
       )}
 
-        </div>{/* End Main Content Area wrapper */}
+        </ResizablePanelGroup>
       </ResizablePanel>
     </ResizablePanelGroup>
 

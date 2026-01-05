@@ -133,8 +133,6 @@ class Job < ApplicationRecord
   before_validation :auto_generate_name, if: :should_generate_name?
   before_validation :ensure_name_present
   before_validation :auto_generate_council, if: :should_generate_council?
-  after_create :create_documentation_tabs_from_categories
-  after_create :queue_onedrive_folder_creation
   after_create :log_job_created
   after_create :create_claim_stages_from_template
   after_create :apply_schedule_template_from_job_type
