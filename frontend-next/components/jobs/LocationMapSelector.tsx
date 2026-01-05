@@ -73,6 +73,7 @@ export function LocationMapSelector({
   const [searching, setSearching] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
   const shouldAutoSelectRef = useRef(!!initialSearchAddress);
+  const skipNextSearchRef = useRef(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize leaflet icon fix on client side only
@@ -121,6 +122,12 @@ export function LocationMapSelector({
   }, [searchAddress]);
 
   const searchForAddress = async (query: string) => {
+    // Skip search if we just selected an address (prevents re-triggering dropdown)
+    if (skipNextSearchRef.current) {
+      skipNextSearchRef.current = false;
+      return;
+    }
+
     setSearching(true);
     try {
       const data = await api.get<{ suggestions: AddressSuggestion[] }>(
@@ -131,6 +138,7 @@ export function LocationMapSelector({
       // If shouldAutoSelect is true (initial load from proposal), auto-select first result
       if (shouldAutoSelectRef.current && suggestions.length > 0) {
         shouldAutoSelectRef.current = false;
+        skipNextSearchRef.current = true; // Skip the search that will be triggered by setSearchAddress
         handleAddressSelect(suggestions[0]);
       } else {
         setAddressSuggestions(suggestions);
@@ -151,8 +159,10 @@ export function LocationMapSelector({
     const addr = suggestion.address || {};
 
     setMapPosition(newPosition);
+    skipNextSearchRef.current = true; // Skip re-search when address changes
     setSearchAddress(suggestion.placeName);
     setShowSuggestions(false);
+    setAddressSuggestions([]); // Clear suggestions
 
     // Notify parent component with all address components
     if (onLocationChange) {
