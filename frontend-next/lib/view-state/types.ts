@@ -131,8 +131,8 @@ export interface SSRViewConfig {
 export interface UseFoundationViewStateOptions {
   /** SSR-provided initial view configuration */
   initialView?: SSRViewConfig | null;
-  /** All available views for this foundation */
-  views?: Array<{ id: number | string; slug?: string; name: string }>;
+  /** All available views for this foundation (Partial to support preloadedViews) */
+  views?: Array<{ id?: number | string; slug?: string; name?: string; [key: string]: unknown }>;
   /** View slug from URL path (e.g., "live" from /jobs/live) */
   viewSlug?: string | null;
   /** Foundation slug for path construction */

@@ -28,15 +28,17 @@ export interface GanttApiConfig {
  */
 export function getGanttApiConfig(
   mode: GanttMode,
-  options: { templateId?: number; jobId?: number }
+  options: { templateId?: number; jobId?: number; showAllPOTasks?: boolean }
 ): GanttApiConfig {
   if (mode === 'template') {
     if (!options.templateId) {
       throw new Error('templateId required for template mode');
     }
     const baseUrl = `/api/v1/sm_schedule_master_templates/${options.templateId}`;
+    // SSoT: show_all_po=true shows PO required tasks without suppliers (useful for template editing)
+    const showAllPO = options.showAllPOTasks ? '&show_all_po=true' : '';
     return {
-      fetchUrl: `${baseUrl}/rows?for=gantt`,
+      fetchUrl: `${baseUrl}/rows?for=gantt${showAllPO}`,
       updateUrl: (taskId) => `${baseUrl}/rows/${taskId}`,
       validateDatesUrl: `${baseUrl}/validate_dates`,
       payloadWrapper: 'row',

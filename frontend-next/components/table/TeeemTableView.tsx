@@ -610,7 +610,7 @@ export default function TeeemTableView({
     resetState: ultraResetState,
   } = useFoundationViewState(foundationKey, {
     initialView: initialView || undefined,
-    views: preloadedViews,
+    views: preloadedViews || undefined,
     viewSlug: viewSlug || undefined,
     foundationSlug: foundationSlug || foundationKey,
   });
@@ -1594,123 +1594,32 @@ export default function TeeemTableView({
   const [rowLimit, setRowLimit] = useAtom(rowLimitAtom);
   const [showAllRows, setShowAllRows] = useAtom(showAllRowsAtom);
 
-  // Group by state managed by FOUNDATION-SCOPED atoms (prevents pollution between pages)
-  // SSoT: groupByColumnsFamily creates isolated state per foundation
-  const [groupByColumns, setGroupByColumns] = useAtom(groupByColumnsFamily(foundationKey));
+  // ==========================================================================
+  // ULTRA: All grouping state from foundation-scoped hook
+  // ==========================================================================
+  // The hook provides SSR-aware values (no flash) and foundation isolation.
+  // No effectiveGroupByColumns/groupViewMode memos needed.
+  // No SSR init effects needed. No reset useLayoutEffect needed.
+  const groupByColumns = ultraGroupByColumns;
+  const setGroupByColumns = ultraSetGroupByColumns;
+  const groupViewMode = ultraGroupViewMode;
+  const setGroupViewMode = ultraSetGroupViewMode;
+  const collapsedGroups = ultraCollapsedGroups;
+  const setCollapsedGroups = ultraSetCollapsedGroups;
 
-  // SSR FLASH FIX: Use initialView's grouping on first render BEFORE effects run
-  // This prevents the flash from flat table to grouped view during hydration
-  // Priority: atom value (if set) > SSR initialView > initialGroupByColumn prop
-  const effectiveGroupByColumns = useMemo(() => {
-    // If atom already has values (from a previous view load), use them
-    if (groupByColumns.length > 0) return groupByColumns;
-    // SSR: Use initialView's grouping for first render
-    if (initialView?.group_by_columns?.length) return initialView.group_by_columns;
-    if (initialView?.group_by_column) return [initialView.group_by_column];
-    // Fallback to prop
-    if (initialGroupByColumn) return [initialGroupByColumn];
-    return [];
-  }, [groupByColumns, initialView, initialGroupByColumn]);
-
-  // Derive groupByColumn from effective columns - NOT a separate state (SSoT compliance)
-  const groupByColumn = effectiveGroupByColumns.length > 0 ? effectiveGroupByColumns[0] : null;
-  // Collapsed groups managed by FOUNDATION-SCOPED atom (prevents pollution between pages)
-  // SSoT: collapsedGroupsFamily creates isolated state per foundation
-  const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedGroupsFamily(foundationKey));
   // Keep ref in sync for use in toggleSelectAll callback
   collapsedGroupsRef.current = collapsedGroups;
-  // groupViewMode managed by FOUNDATION-SCOPED atom (prevents panel mode pollution between pages)
-  const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeFamily(foundationKey));
 
-  // SSR FLASH FIX: Use initialView's display type on first render BEFORE effects run
-  // This prevents the flash from inline to panel mode during hydration
-  // Priority: atom value (if not default) > SSR initialView > fallback 'inline'
-  const effectiveGroupViewMode = useMemo(() => {
-    // If atom has non-default value (from a previous view load), use it
-    if (groupViewMode !== 'inline') return groupViewMode;
-    // SSR: Use initialView's view_display_type for first render
-    // "grouped" = panel mode (full-width groups), otherwise inline (groups with table columns)
-    if (initialView?.view_display_type === 'grouped') return 'panel';
-    // Default to inline
-    return 'inline';
-  }, [groupViewMode, initialView]);
+  // Derive groupByColumn from groupByColumns - NOT a separate state (SSoT compliance)
+  const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : null;
 
-  // CRITICAL: Reset grouping state when navigating to base URL (no view)
-  // atomFamily atoms persist values - they don't auto-reset on navigation!
-  // This ensures /contacts shows flat table, not cached Company/Role grouping
-  const groupingResetRef = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    // Only reset when foundation changes and no view is specified
-    const resetKey = `${effectiveFoundationId}:${viewSlug || 'none'}:${initialView?.id || 'none'}`;
-    if (groupingResetRef.current === resetKey) return;
-    groupingResetRef.current = resetKey;
-
-    // If no initialView AND no viewSlug, reset to flat table
-    if (!initialView && !viewSlug) {
-      console.log('[Grouping Reset] No view active - resetting to flat table for:', effectiveFoundationId);
-      setGroupByColumns([]);
-      setGroupViewMode('inline');
-      setCollapsedGroups(new Set());
-      setActiveViewId(null);
-    }
-  }, [effectiveFoundationId, initialView, viewSlug, setGroupByColumns, setGroupViewMode, setCollapsedGroups, setActiveViewId]);
+  // ULTRA: No effectiveGroupByColumns memo needed - hook returns SSR-aware values
+  // ULTRA: No groupViewMode memo needed - hook returns SSR-aware values
+  // ULTRA: No grouping reset useLayoutEffect needed - hook handles foundation changes
+  // ULTRA: No SSR init effect for groupByColumns/groupViewMode needed - hook handles this
 
   // Collapsed hierarchy headers (for "Header Hierarchy" display mode)
   const [collapsedHierarchyHeaders, setCollapsedHierarchyHeaders] = useState<Set<number>>(new Set());
-
-  // Initialize groupByColumns and groupViewMode from initialView (SSR) or props on mount
-  // Priority: SSR initialView > props
-  // Only runs once and only if atom is empty (doesn't override saved views)
-  // CLS FIX: Skip setting if atom already matches to avoid unnecessary re-render
-  const initialGroupByRef = useRef(false);
-  useEffect(() => {
-    if (initialGroupByRef.current) return;
-
-    // Helper to compare arrays for equality
-    const arraysEqual = (a: string[], b: string[]) =>
-      a.length === b.length && a.every((v, i) => v === b[i]);
-
-    // Priority 1: SSR initialView - eliminates flash on grouped views
-    if (initialView?.group_by_columns?.length) {
-      initialGroupByRef.current = true;
-      // CLS FIX: Skip if atom already has the same value (avoids re-render)
-      if (!arraysEqual(groupByColumns, initialView.group_by_columns)) {
-        console.log('[SSR] Applying initialView groupByColumns:', initialView.group_by_columns);
-        setGroupByColumns(initialView.group_by_columns);
-      }
-      // Also apply view_display_type → groupViewMode (panel vs inline)
-      // "grouped" = panel mode (full-width groups), otherwise inline (groups with table columns)
-      const targetMode = initialView.view_display_type === 'grouped' ? 'panel' : 'inline';
-      if (groupViewMode !== targetMode) {
-        console.log('[SSR] Applying initialView groupViewMode:', targetMode);
-        setGroupViewMode(targetMode);
-      }
-      return;
-    }
-    // Also check legacy group_by_column field
-    if (initialView?.group_by_column) {
-      initialGroupByRef.current = true;
-      const targetColumns = [initialView.group_by_column];
-      // CLS FIX: Skip if atom already has the same value (avoids re-render)
-      if (!arraysEqual(groupByColumns, targetColumns)) {
-        console.log('[SSR] Applying initialView group_by_column:', initialView.group_by_column);
-        setGroupByColumns(targetColumns);
-      }
-      // Also apply view_display_type → groupViewMode
-      const targetMode = initialView.view_display_type === 'grouped' ? 'panel' : 'inline';
-      if (groupViewMode !== targetMode) {
-        console.log('[SSR] Applying initialView groupViewMode:', targetMode);
-        setGroupViewMode(targetMode);
-      }
-      return;
-    }
-
-    // Priority 2: initialGroupByColumn prop (fallback)
-    if (initialGroupByColumn && groupByColumns.length === 0) {
-      initialGroupByRef.current = true;
-      setGroupByColumns([initialGroupByColumn]);
-    }
-  }, [initialView, initialGroupByColumn, groupByColumns, setGroupByColumns, groupViewMode, setGroupViewMode]);
 
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
@@ -1743,8 +1652,8 @@ export default function TeeemTableView({
     effectiveFoundationId,
     groupByColumn,
     validGroupByColumnForApi,
-    effectiveGroupByColumnsLength: effectiveGroupByColumns.length, // SSR FIX: Log effective columns not atom
-    enabled: effectiveGroupByColumns.length > 0 && !!validGroupByColumnForApi
+    groupByColumnsLength: groupByColumns.length, // ULTRA: Hook provides SSR-aware values
+    enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
   });
 
   // SSR: Convert initialGroupCounts to hook's expected format
@@ -1767,8 +1676,8 @@ export default function TeeemTableView({
     effectiveFoundationId,
     validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
-    effectiveGroupByColumns.length > 0 && !!validGroupByColumnForApi, // SSR FIX: Use effectiveGroupByColumns (includes initialView) not atom
-    effectiveGroupByColumns, // SSR FIX: Use effectiveGroupByColumns so SSR data is used on first render
+    groupByColumns.length > 0 && !!validGroupByColumnForApi, // ULTRA: Hook provides SSR-aware values
+    groupByColumns, // ULTRA: Hook provides SSR-aware values on first render
     ssrGroupCountsData // SSR: Pre-fetched group counts to eliminate CLS
   );
 
@@ -3687,16 +3596,16 @@ export default function TeeemTableView({
   // Group entries hierarchically if grouping is enabled (supports nested group columns)
   // Groups are sorted by customOrder if available for the group column
   // Uses buildGroupedEntries utility function from table-data-utils.ts
-  // NOTE: Uses effectiveGroupByColumns (includes SSR initialView) to prevent flash
+  // ULTRA: groupByColumns from hook is SSR-aware - no effectiveGroupByColumns memo needed
   const groupedEntries = useMemo(() => {
     return buildGroupedEntries(
       filteredAndSortedEntries,
-      effectiveGroupByColumns, // SSR FIX: Use effective columns that include initialView
+      groupByColumns, // ULTRA: Hook provides SSR-aware values
       sortColumns,
       serverGroupCounts,
       search
     );
-  }, [filteredAndSortedEntries, effectiveGroupByColumns, sortColumns, serverGroupCounts, search]);
+  }, [filteredAndSortedEntries, groupByColumns, sortColumns, serverGroupCounts, search]);
 
   // Keep ref in sync for use in toggleSelectAll callback
   groupedEntriesRef.current = groupedEntries;
@@ -5288,7 +5197,7 @@ export default function TeeemTableView({
 
     return (
       <>
-        {effectiveGroupViewMode === "inline" ? (
+        {groupViewMode === "inline" ? (
           /* Inline mode (default) - single table with sticky header */
           <Table className="w-full" style={{ tableLayout: 'fixed' }}>
             {renderTableHeader()}
@@ -5694,7 +5603,7 @@ export default function TeeemTableView({
               <span className="text-[11px] font-medium text-muted-foreground">View:</span>
               <div className="flex rounded-md border overflow-hidden">
                 <Button
-                  variant={effectiveGroupViewMode === "inline" ? "default" : "ghost"}
+                  variant={groupViewMode === "inline" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setGroupViewMode("inline")}
                   className="h-7 px-3 text-xs rounded-none border-r"
@@ -5702,7 +5611,7 @@ export default function TeeemTableView({
                   Inline
                 </Button>
                 <Button
-                  variant={effectiveGroupViewMode === "panel" ? "default" : "ghost"}
+                  variant={groupViewMode === "panel" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setGroupViewMode("panel")}
                   className="h-7 px-3 text-xs rounded-none"

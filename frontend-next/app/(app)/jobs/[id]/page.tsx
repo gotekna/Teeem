@@ -737,9 +737,9 @@ export default function JobDetailPage() {
   const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
   const [linkingXero, setLinkingXero] = React.useState(false);
 
-  // Choice columns state (Level, Dwelling Type)
-  const [levelChoices, setLevelChoices] = React.useState<string[]>(['Lowest', 'Highest', 'Stumps']);
-  const [dwellingTypeChoices, setDwellingTypeChoices] = React.useState<string[]>(['Class 1A', 'Class 1B', 'Class 3']);
+  // Choice columns state (Level, Dwelling Type) - SSoT: loaded from Column.available_choices via API
+  const [levelChoices, setLevelChoices] = React.useState<string[]>([]);
+  const [dwellingTypeChoices, setDwellingTypeChoices] = React.useState<string[]>([]);
   const [editingChoices, setEditingChoices] = React.useState<{ field: 'level' | 'dwelling_type'; choices: string[] } | null>(null);
   const [newChoiceInput, setNewChoiceInput] = React.useState('');
   const [savingChoices, setSavingChoices] = React.useState(false);

@@ -332,12 +332,15 @@ export function ScheduleMasterTab() {
 
   // Gantt V2 state - template ID for selection
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
+  // Show PO required tasks without suppliers (useful for template editing)
+  const [showAllPOTasks, setShowAllPOTasks] = React.useState(true);
 
   // SSoT: Use shared hook for all Gantt V2 behavior
   // Gantt always loads its own data (same as Job Gantt) - no external data mode
   const gantt = useGanttDataManager({
     mode: 'template',
     templateId: ganttV2TemplateId ?? undefined,
+    showAllPOTasks,
   });
 
   // Aliases for backward compatibility during transition
@@ -2089,6 +2092,17 @@ export function ScheduleMasterTab() {
                   {ganttV2Tasks.length} tasks
                 </Badge>
               )}
+              {/* Show All PO Tasks toggle - useful for template editing */}
+              <div className="flex items-center gap-2 ml-auto">
+                <Switch
+                  id="show-all-po"
+                  checked={showAllPOTasks}
+                  onCheckedChange={setShowAllPOTasks}
+                />
+                <Label htmlFor="show-all-po" className="text-sm cursor-pointer">
+                  Show All PO Tasks
+                </Label>
+              </div>
             </div>
 
             {/* Gantt V2 content */}

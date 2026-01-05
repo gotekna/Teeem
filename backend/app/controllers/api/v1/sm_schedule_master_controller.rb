@@ -17,7 +17,8 @@ module Api
 
         # Gantt mode: Filter out PO-required tasks without a supplier configured
         # This ensures incomplete PO tasks don't clutter the Gantt view
-        if params[:for] == "gantt"
+        # Use ?show_all_po=true to show all PO required tasks (useful for template editing)
+        if params[:for] == "gantt" && params[:show_all_po] != "true"
           @rows = @rows.reject { |r| r.po_required && r.po_supplier_id.blank? }
         end
 

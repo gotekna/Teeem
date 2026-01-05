@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, type SetStateAction, type Dispatch } from "react";
 import { useAtom, useSetAtom } from "jotai";
 import {
   viewStateFamily,
@@ -108,8 +108,8 @@ export interface UseFoundationViewStateReturn extends ViewState {
   updateState: (update: Partial<ViewState>) => void;
   /** Reset to default state */
   resetState: () => void;
-  /** Set collapsed groups */
-  setCollapsedGroups: (groups: Set<string>) => void;
+  /** Set collapsed groups (supports direct value or callback) */
+  setCollapsedGroups: Dispatch<SetStateAction<Set<string>>>;
   /** Toggle a specific group's collapsed state */
   toggleGroup: (groupKey: string) => void;
   /** Clear all collapsed groups */
@@ -268,10 +268,17 @@ export function useFoundationViewState(
     clearCollapsedGroupsAtom();
   }, [setViewState, clearCollapsedGroupsAtom]);
 
-  // Collapsed groups management
-  const setCollapsedGroups = useCallback(
-    (groups: Set<string>) => {
-      setCollapsedGroupsAtom(groups);
+  // Collapsed groups management (supports direct value or callback pattern)
+  // Type matches Dispatch<SetStateAction<Set<string>>> for compatibility with existing code
+  const setCollapsedGroups: Dispatch<SetStateAction<Set<string>>> = useCallback(
+    (value: SetStateAction<Set<string>>) => {
+      if (typeof value === 'function') {
+        // Callback pattern: (prev) => next
+        setCollapsedGroupsAtom((current: Set<string>) => value(current));
+      } else {
+        // Direct value
+        setCollapsedGroupsAtom(value);
+      }
     },
     [setCollapsedGroupsAtom]
   );
