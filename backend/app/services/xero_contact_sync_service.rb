@@ -631,16 +631,27 @@ class XeroContactSyncService
     xero_contact_types << "Supplier" if xero_contact["IsSupplier"] == true
     updates[:xero_contact_types] = xero_contact_types
 
-    # Determine if this is a company contact
+    # Determine if this is a company contact based on Xero data
     is_company = xero_contact_is_company?(xero_contact)
 
     # Apply field mappings
     # Note: Field mapping key is "display_name", not "name"
     if importable_fields.include?("display_name")
       updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
-      updates[:entity_type] = is_company ? "company" : "person"
 
-      if is_company
+      # FRC: Only set entity_type if contact doesn't already have one set
+      # User's manual entity_type choice should be preserved (SSoT: user decision)
+      # This prevents Xero sync from overwriting "person" back to "company" when user corrects it
+      if teeem_contact.entity_type.blank?
+        updates[:entity_type] = is_company ? "company" : "person"
+      end
+
+      # Only update name fields if entity_type matches what we would set
+      # This prevents clearing first_name/last_name when user set entity_type to "person"
+      # but Xero thinks it's a company (because FirstName is blank in Xero)
+      effective_entity_type = teeem_contact.entity_type.presence || (is_company ? "company" : "person")
+
+      if %w[company trust].include?(effective_entity_type)
         updates[:first_name] = nil
         updates[:last_name] = nil
         updates[:company_name_or_trust] = xero_contact["Name"]

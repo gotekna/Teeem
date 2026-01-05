@@ -129,6 +129,9 @@ export function ComposeEmailModal({
   // Company settings for signature logo
   const [companySettings, setCompanySettings] = useState<{ logo_dark?: string } | null>(null);
 
+  // Store signature separately (not in editor) to preserve HTML formatting
+  const [signatureHtml, setSignatureHtml] = useState<string>("");
+
   // Auto-save draft hook
   const autoSave = useAutoSaveDraft({
     enabled: open && !sending,
@@ -259,6 +262,7 @@ export function ComposeEmailModal({
 
       setAttachments([]);
       setError(null);
+      setSignatureHtml(""); // Reset signature (will be regenerated when account selected)
       // Reset schedule state
       setIsScheduled(false);
       setScheduledDate(undefined);
@@ -266,19 +270,19 @@ export function ComposeEmailModal({
     }
   }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft]);
 
-  // Add signature when account is selected and user/company data is available
+
+  // Generate signature when account is selected and user/company data is available
   useEffect(() => {
     if (!formData.credential_id || accounts.length === 0 || !currentUser) return;
 
-    const signature = getUserSignature();
-
-    if (signature) {
-      // Only add signature if body doesn't already contain one
-      setFormData((prev) => {
-        if (hasSignature(prev.body)) return prev;
-        return { ...prev, body: prev.body + signature };
-      });
+    // Don't add signature to body if it already has one (e.g., from draft)
+    if (hasSignature(formData.body)) {
+      setSignatureHtml(""); // Clear separate signature since it's in body
+      return;
     }
+
+    const signature = getUserSignature();
+    setSignatureHtml(signature);
   }, [formData.credential_id, accounts, currentUser, companySettings]);
 
   const fetchAccounts = async () => {
@@ -399,6 +403,9 @@ export function ComposeEmailModal({
 
     setSending(true);
     try {
+      // Combine body with signature (signature is stored separately to preserve HTML)
+      const fullBody = signatureHtml ? formData.body + signatureHtml : formData.body;
+
       if (isScheduled) {
         // Schedule the email
         const scheduledDateTime = getScheduledDateTime()!;
@@ -410,7 +417,7 @@ export function ComposeEmailModal({
           cc: formData.cc ? [formData.cc] : [],
           bcc: formData.bcc ? [formData.bcc] : [],
           subject: formData.subject,
-          body: formData.body,
+          body: fullBody,
           reply_to_message_id: replyToMessageId,
           scheduled_for: scheduledDateTime.toISOString(),
         };
@@ -425,7 +432,7 @@ export function ComposeEmailModal({
           cc: formData.cc || undefined,
           bcc: formData.bcc || undefined,
           subject: formData.subject,
-          body: formData.body,
+          body: fullBody,
           reply_to_message_id: replyToMessageId,
           attachments: attachments,
         });
@@ -720,18 +727,26 @@ export function ComposeEmailModal({
             )}
 
             {/* Body - Large area */}
-            <div className="flex-1 min-h-[350px] p-4">
+            <div className="flex-1 min-h-[350px] p-4 overflow-auto">
               <RichTextEditor
                 value={formData.body}
                 onChange={(value) => setFormData({ ...formData, body: value })}
                 placeholder="Type / to insert files and more"
-                minHeight={320}
+                minHeight={signatureHtml ? 200 : 320}
                 onSlashCommand={(command) => {
                   if (command === "template") {
                     setTemplatePickerOpen(true);
                   }
                 }}
               />
+
+              {/* Signature Preview - rendered separately to preserve HTML formatting */}
+              {signatureHtml && (
+                <div
+                  className="mt-4 pointer-events-none"
+                  dangerouslySetInnerHTML={{ __html: signatureHtml }}
+                />
+              )}
             </div>
 
             {/* Schedule picker (when enabled) */}

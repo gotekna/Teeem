@@ -75,6 +75,7 @@ import {
   ContactDirectorshipsTab,
   ContactCasesTab,
   ContactEmailsTab,
+  ContactActivityTab,
 } from "./components";
 import type {
   Contact,
@@ -1917,6 +1918,10 @@ export default function ContactDetailPage() {
             <TabsTrigger value="pricebook">{tabConfigMap.pricebook?.display_name || "Price Book"}</TabsTrigger>
           )}
           <TabsTrigger value="portal">{tabConfigMap.portal?.display_name || "Portal Access"}</TabsTrigger>
+          <TabsTrigger value="activity">
+            {(() => { const Icon = getIcon(tabConfigMap.activity?.icon_name || "History"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+            {tabConfigMap.activity?.display_name || "Activity"}
+          </TabsTrigger>
           {directorships.length > 0 && (
             <TabsTrigger value="directorships">
               {(() => { const Icon = getIcon(tabConfigMap.directorships?.icon_name || "users"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
@@ -2078,6 +2083,11 @@ export default function ContactDetailPage() {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Activity Tab - Shows change history and audit log */}
+        <TabsContent value="activity" className="mt-6">
+          <ContactActivityTab contactId={contact.id} />
         </TabsContent>
 
         {/* Directorships Tab */}
