@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +15,6 @@ import {
   Forward,
   Briefcase,
   ExternalLink,
-  Mail,
   Calendar,
   User,
   Users,
@@ -232,16 +229,7 @@ export function EmailDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] flex flex-col p-0" aria-describedby={undefined}>
-          {loading ? (
-            <DialogHeader className="px-6 py-4 border-b shrink-0">
-              <DialogTitle>Loading Email...</DialogTitle>
-            </DialogHeader>
-          ) : error ? (
-            <DialogHeader className="px-6 py-4 border-b shrink-0">
-              <DialogTitle>Error</DialogTitle>
-            </DialogHeader>
-          ) : null}
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] h-[85vh] flex flex-col p-0 gap-0 overflow-hidden" aria-describedby={undefined}>
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
               <Spinner />
@@ -252,99 +240,98 @@ export function EmailDetailDialog({
             </div>
           ) : email ? (
             <>
-              {/* Header */}
-              <DialogHeader className="px-6 py-4 border-b shrink-0">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <DialogTitle className="text-xl font-semibold truncate">
-                      {email.subject || "(no subject)"}
-                    </DialogTitle>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {format(new Date(email.received_at), "PPpp")}
-                      </div>
-                      {email.job_id && email.job_number && (
-                        <Badge variant="secondary" className="gap-1">
-                          <Briefcase className="h-3 w-3" />
-                          Job #{email.job_number}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleReply("reply")}
-                    >
-                      <Reply className="h-4 w-4 mr-1" />
-                      Reply
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleReply("replyAll")}
-                    >
-                      <ReplyAll className="h-4 w-4 mr-1" />
-                      Reply All
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleReply("forward")}
-                    >
-                      <Forward className="h-4 w-4 mr-1" />
-                      Forward
-                    </Button>
-                    {!email.job_id ? (
-                      <div className="w-64">
-                        <ComboboxDropdown
-                          placeholder="Search jobs to assign..."
-                          items={jobs.map((j) => ({
-                            id: j.id.toString(),
-                            label: `#${j.job_number} - ${j.title}`,
-                          }))}
-                          onInputChange={fetchJobs}
-                          onSelect={(item) => assignToJob(parseInt(item.id))}
-                          isLoading={loadingJobs || assigningJob}
-                          disableInternalFilter={true}
-                          emptyResults="Type 2+ chars to search jobs"
-                        />
-                      </div>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        asChild
-                      >
-                        <a href={`/jobs/${email.job_id}`} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-4 w-4 mr-1" />
-                          View Job #{email.job_number}
-                        </a>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </DialogHeader>
+              {/* Outlook-style Toolbar Header */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleReply("reply")}
+                >
+                  <Reply className="h-4 w-4 mr-2" />
+                  Reply
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleReply("replyAll")}
+                >
+                  <ReplyAll className="h-4 w-4 mr-2" />
+                  Reply All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleReply("forward")}
+                >
+                  <Forward className="h-4 w-4 mr-2" />
+                  Forward
+                </Button>
 
-              {/* Email Meta */}
-              <div className="px-6 py-3 border-b bg-muted/30 space-y-2 shrink-0">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm font-medium">From:</span>
-                  <span className="text-sm">
+                {/* Job Assignment / View - right aligned */}
+                <div className="ml-auto flex items-center gap-2">
+                  {!email.job_id ? (
+                    <div className="w-56">
+                      <ComboboxDropdown
+                        placeholder="Link to job..."
+                        items={jobs.map((j) => ({
+                          id: j.id.toString(),
+                          label: `#${j.job_number} - ${j.title}`,
+                        }))}
+                        onInputChange={fetchJobs}
+                        onSelect={(item) => assignToJob(parseInt(item.id))}
+                        isLoading={loadingJobs || assigningJob}
+                        disableInternalFilter={true}
+                        emptyResults="Type 2+ chars to search"
+                      />
+                    </div>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      asChild
+                    >
+                      <a href={`/jobs/${email.job_id}`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View Job #{email.job_number}
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Subject Line */}
+              <div className="px-4 py-3 border-b shrink-0">
+                <h1 className="text-lg font-semibold">
+                  {email.subject || "(no subject)"}
+                </h1>
+                <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4" />
+                    {format(new Date(email.received_at), "PPpp")}
+                  </div>
+                  {email.job_id && email.job_number && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Briefcase className="h-3 w-3" />
+                      Job #{email.job_number}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* From / To - Outlook inline style */}
+              <div className="px-4 py-2 border-b space-y-1 shrink-0">
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">From</span>
+                  <span className="font-medium">
                     {email.display_from || email.from_email}
                   </span>
                   {usedEmail?.direction === "from" && (
-                    <Badge variant="outline" className="text-xs">Contact Email</Badge>
+                    <Badge variant="outline" className="text-xs ml-2">Contact Email</Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm font-medium">To:</span>
-                  <span className="text-sm">
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">To</span>
+                  <span>
                     {email.to_emails?.map((e, i) => (
                       <span key={e}>
                         {i > 0 && ", "}
@@ -355,18 +342,14 @@ export function EmailDetailDialog({
                         )}>
                           {e}
                         </span>
-                        {usedEmail?.direction === "to" && e.toLowerCase() === highlightEmail?.toLowerCase() && (
-                          <Badge variant="outline" className="text-xs ml-1">Contact</Badge>
-                        )}
                       </span>
                     ))}
                   </span>
                 </div>
                 {email.cc_emails && email.cc_emails.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm font-medium">CC:</span>
-                    <span className="text-sm">
+                  <div className="flex items-center text-sm">
+                    <span className="text-muted-foreground w-12 flex-shrink-0">Cc</span>
+                    <span>
                       {email.cc_emails.map((e, i) => (
                         <span key={e}>
                           {i > 0 && ", "}
@@ -386,7 +369,7 @@ export function EmailDetailDialog({
 
               {/* Attachments */}
               {email.has_attachments && email.attachments && email.attachments.length > 0 && (
-                <div className="px-6 py-3 border-b shrink-0">
+                <div className="px-4 py-2 border-b bg-muted/30 shrink-0">
                   <AttachmentList
                     attachments={email.attachments}
                     emailId={email.id}
@@ -395,7 +378,7 @@ export function EmailDetailDialog({
               )}
 
               {/* Body */}
-              <div className="flex-1 overflow-auto px-6 py-4">
+              <div className="flex-1 overflow-auto px-4 py-4">
                 {email.body_html ? (
                   <div
                     className="prose prose-sm dark:prose-invert max-w-none"
