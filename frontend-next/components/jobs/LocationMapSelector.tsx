@@ -72,7 +72,7 @@ export function LocationMapSelector({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
-  const [shouldAutoSelect, setShouldAutoSelect] = useState(!!initialSearchAddress);
+  const shouldAutoSelectRef = useRef(!!initialSearchAddress);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize leaflet icon fix on client side only
@@ -129,8 +129,8 @@ export function LocationMapSelector({
       const suggestions = data?.suggestions || [];
 
       // If shouldAutoSelect is true (initial load from proposal), auto-select first result
-      if (shouldAutoSelect && suggestions.length > 0) {
-        setShouldAutoSelect(false);
+      if (shouldAutoSelectRef.current && suggestions.length > 0) {
+        shouldAutoSelectRef.current = false;
         handleAddressSelect(suggestions[0]);
       } else {
         setAddressSuggestions(suggestions);
