@@ -451,7 +451,7 @@ class EmailWarehouse < ApplicationRecord
     return false if job.nil?
 
     # Combine subject and body for searching
-    searchable_text = "#{subject} #{body_plain}".downcase
+    searchable_text = "#{subject} #{body_text}".downcase
 
     # Check for job ID
     return true if searchable_text.include?(job.id.to_s)
@@ -483,7 +483,7 @@ class EmailWarehouse < ApplicationRecord
     matches = []
 
     # Get all job address search terms and find matches in email content
-    searchable_text = "#{subject} #{body_plain}".downcase
+    searchable_text = "#{subject} #{body_text}".downcase
     return matches if searchable_text.blank?
 
     # Find jobs via address search terms in body
