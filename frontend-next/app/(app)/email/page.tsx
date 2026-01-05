@@ -1366,7 +1366,7 @@ To: ${email.to_emails?.join(", ") || ""}
           defaultSize="350px"
           minSize="250px"
           maxSize={readingPanePosition === "off" ? undefined : "600px"}
-          className="flex flex-col border-r"
+          className="flex flex-col border-r min-w-0 overflow-hidden"
         >
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-background">
@@ -1659,7 +1659,7 @@ To: ${email.to_emails?.join(", ") || ""}
         <ResizablePanel
           id="reading-pane"
           minSize="300px"
-          className="flex flex-col min-w-0 bg-background"
+          className="flex flex-col min-w-0 overflow-hidden bg-background"
         >
         {selectedEmail ? (
           <>
