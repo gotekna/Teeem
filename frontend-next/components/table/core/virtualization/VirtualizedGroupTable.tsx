@@ -146,12 +146,13 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
         ))}
       </div>
 
-      {/* Virtualized rows container */}
+      {/* Virtualized rows container - vertical scroll only, horizontal handled by parent */}
       <div
         ref={parentRef}
         style={{
           height: containerHeight,
-          overflow: "auto",
+          overflowY: "auto",
+          overflowX: "hidden",
           minWidth: totalWidth,
         }}
       >
