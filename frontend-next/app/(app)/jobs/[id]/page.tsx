@@ -1518,7 +1518,7 @@ export default function JobDetailPage() {
                         <ComboboxDropdown
                           items={dwellingTypeChoices.map((c) => ({
                             id: c.value,
-                            label: c.description ? `${c.value} - ${c.description}` : c.value
+                            label: c.description ? `${c.value} (${c.description})` : c.value
                           }))}
                           selectedItem={editForm.dwelling_type ? { id: editForm.dwelling_type, label: editForm.dwelling_type } : undefined}
                           onSelect={(item) => setEditForm({ ...editForm, dwelling_type: item.id })}
