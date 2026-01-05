@@ -991,6 +991,11 @@ export default function TeeemTableView({
       }
       // Mark as applied even if we skipped (search will fetch its own data)
       hasAppliedInitialRecordsRef.current = true;
+      // CRITICAL: Return early - let the search initialization effect handle fetching
+      // Without this, we proceed to fetchInitialRecords() which checks searchRef.current
+      // But searchRef.current is still empty (sync effect hasn't run yet), so it fetches
+      // unfiltered data and overwrites search results
+      return;
     }
 
     if (!useAutoFetch) return;

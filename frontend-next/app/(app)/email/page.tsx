@@ -239,7 +239,7 @@ const EmailListItem = memo(function EmailListItem({
       {/* Main email row */}
       <div
         className={cn(
-          "group px-3 py-2.5 cursor-pointer border-l-2",
+          "group px-1 py-2 cursor-pointer border-l-2",
           isSelected
             ? "bg-primary/10 border-l-primary"
             : isChecked
@@ -249,7 +249,7 @@ const EmailListItem = memo(function EmailListItem({
         )}
         onClick={(e) => onClick(email, e)}
       >
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-1">
           {/* Thread expand/collapse chevron OR checkbox */}
           <div className="shrink-0 pt-0.5 w-4 flex items-center justify-center">
             {hasThread && !hasSelections ? (
@@ -288,7 +288,7 @@ const EmailListItem = memo(function EmailListItem({
             )}
           </div>
 
-          <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0 flex items-start gap-1">
             {/* Unread indicator dot */}
             {!email.is_read && (
               <div className="shrink-0 pt-1.5">
@@ -298,7 +298,7 @@ const EmailListItem = memo(function EmailListItem({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className={cn(
-                  "text-sm truncate",
+                  "text-sm truncate flex-1 min-w-0",
                   !email.is_read ? "font-bold text-foreground" : "font-normal text-muted-foreground"
                 )}>
                   {email.from_name || email.from_email || email.from_address}
@@ -314,6 +314,13 @@ const EmailListItem = memo(function EmailListItem({
                 />
                 {/* Thread count badge */}
                 <ThreadCountBadge count={threadCount} isExpanded={isExpanded} />
+                {/* Timestamp - inline with sender */}
+                <span className={cn(
+                  "text-[10px] whitespace-nowrap shrink-0 group-hover:hidden",
+                  !email.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
+                )}>
+                  {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+                </span>
               </div>
               <p className={cn(
                 "text-sm truncate",
@@ -338,12 +345,6 @@ const EmailListItem = memo(function EmailListItem({
               onForward={() => onForward?.(email)}
               className="shrink-0"
             />
-            <div className={cn(
-              "text-[10px] whitespace-nowrap shrink-0 group-hover:hidden",
-              !email.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
-            )}>
-              {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
-            </div>
           </div>
         </div>
       </div>
