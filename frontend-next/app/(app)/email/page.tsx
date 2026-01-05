@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Mail,
@@ -1173,9 +1178,17 @@ To: ${email.to_emails?.join(", ") || ""}
 
   return (
     <EmailDragDropProvider onMoveComplete={handleDragDropMove}>
-    <div className="flex h-full -mx-4 -mt-4">
+    <ResizablePanelGroup
+      orientation="horizontal"
+      className="h-full -mx-4 -mt-4"
+    >
       {/* Left Sidebar - Mailboxes & Folders */}
-      <div className="w-64 border-r bg-muted/30 flex flex-col shrink-0">
+      <ResizablePanel
+        defaultSize={18}
+        minSize={12}
+        maxSize={30}
+        className="bg-muted/30 flex flex-col"
+      >
         <div className="p-3 border-b">
           <Button className="w-full" onClick={handleCompose}>
             <Plus className="h-4 w-4 mr-2" />
@@ -1320,13 +1333,16 @@ To: ${email.to_emails?.join(", ") || ""}
             Settings
           </Button>
         </div>
-      </div>
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
 
       {/* Main Content Area - List + Reading Pane */}
-      <div className={cn(
-        "flex-1 flex min-w-0",
-        readingPanePosition === "bottom" ? "flex-col" : "flex-row"
-      )}>
+      <ResizablePanel defaultSize={82} minSize={50} className="flex min-w-0">
+        <div className={cn(
+          "flex-1 flex min-w-0",
+          readingPanePosition === "bottom" ? "flex-col" : "flex-row"
+        )}>
         {/* Email List */}
         <div className={cn(
           "flex flex-col border-r",
@@ -1722,7 +1738,9 @@ To: ${email.to_emails?.join(", ") || ""}
       </div>
       )}
 
-      </div>{/* End Main Content Area wrapper */}
+        </div>{/* End Main Content Area wrapper */}
+      </ResizablePanel>
+    </ResizablePanelGroup>
 
       {/* Compose Modal */}
       <ComposeEmailModal
@@ -1759,7 +1777,6 @@ To: ${email.to_emails?.join(", ") || ""}
         open={showShortcutsHelp}
         onOpenChange={setShowShortcutsHelp}
       />
-    </div>
     </EmailDragDropProvider>
   );
 }
