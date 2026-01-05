@@ -258,7 +258,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
               Linked Contact
             </Label>
             <ComboboxDropdown
-              items={contacts.map((c) => ({ id: String(c.id), label: c.name }))}
+              items={contacts.filter((c) => c.name).map((c) => ({ id: String(c.id), label: c.name }))}
               selectedItem={editData.contact_id ? { id: String(editData.contact_id), label: contacts.find((c) => c.id === editData.contact_id)?.name || "" } : undefined}
               onSelect={(item) => setEditData({ ...editData, contact_id: item ? Number(item.id) : null })}
               placeholder="Select contact..."
