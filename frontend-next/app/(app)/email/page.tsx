@@ -119,26 +119,28 @@ function decodeHtmlEntities(text: string | null | undefined): string {
   // Strip CSS that leaked into snippets
   // Some emails have CSS in their text/plain or snippet from poor HTML parsing
 
-  // Loop to strip all CSS patterns
-  let prevDecoded = "";
-  while (prevDecoded !== decoded) {
-    prevDecoded = decoded;
+  // Detect if this looks like CSS (has property:value patterns inside braces)
+  // e.g., "} h1 {color:#1b1b1b; font-family:..."
+  if (/\{[^}]*[a-z-]+\s*:[^}]*[;}]?/i.test(decoded) || /^[}\s]/.test(decoded)) {
+    // Has CSS patterns - strip aggressively
 
-    // Strip leading closing braces from truncated CSS rules (e.g., "} h1 {...")
-    decoded = decoded.replace(/^[}\s]+/, "");
+    // Remove everything that looks like CSS
+    // Pattern: optional }, then selector, then { properties }
+    let prevDecoded = "";
+    while (prevDecoded !== decoded && decoded.length > 0) {
+      prevDecoded = decoded;
 
-    // Strip complete CSS rules: selector { properties }
-    decoded = decoded.replace(/^[\w\s,.#>:[\]()@*=-]+\{[^}]*\}\s*/g, "");
+      // Strip leading } or whitespace
+      decoded = decoded.replace(/^[}\s]+/, "");
 
-    // Strip @media queries and similar at-rules
-    decoded = decoded.replace(/^@[\w-]+[^{]*\{[^}]*\}\s*/g, "");
-  }
+      // Strip complete CSS rules: selector { properties }
+      decoded = decoded.replace(/^[^{]*\{[^}]*\}\s*/g, "");
+    }
 
-  // Handle truncated CSS (snippet cut off mid-rule, no closing brace)
-  // Pattern: starts with CSS selector + { but no } in the string
-  if (/^[\w\s,.#>:[\]()@*=-]*\{/.test(decoded) && !decoded.includes("}")) {
-    // Everything is truncated CSS - clear it
-    decoded = "";
+    // If what remains still has { without }, it's truncated CSS - clear it
+    if (decoded.includes("{")) {
+      decoded = "";
+    }
   }
 
   // Clean up multiple spaces
