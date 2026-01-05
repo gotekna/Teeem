@@ -893,7 +893,13 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{EX\}/g, "EX 15/12/25");
     preview = preview.replace(/\{Expiry\}/g, "Expiry 15 December 2025");
-    preview = preview.replace(/\{CertType\}/g, useFullDescription ? "Certificate of Occupancy" : "Occupancy");
+    // Certificate type placeholders (static text)
+    preview = preview.replace(/\{BA\}/g, "BA");
+    preview = preview.replace(/\{BuildingApproval\}/g, "Building Approval");
+    preview = preview.replace(/\{FIA\}/g, "FIA");
+    preview = preview.replace(/\{FinalInspectionCertificate\}/g, "Final Inspection Certificate");
+    preview = preview.replace(/\{Occ\}/g, "Occ");
+    preview = preview.replace(/\{CertificateOfOccupancy\}/g, "Certificate of Occupancy");
     preview = preview.replace(/\{Consultant\}/g, useFullDescription ? "ABC Engineering" : "ABC Eng");
     preview = preview.replace(/\{Number\}/g, "01");
     preview = preview.replace(/\{Description\}/g, "Example");
