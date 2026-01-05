@@ -72,7 +72,7 @@ export function LocationMapSelector({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
-  const [hasAutoSearched, setHasAutoSearched] = useState(false);
+  const [shouldAutoSelect, setShouldAutoSelect] = useState(!!initialSearchAddress);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize leaflet icon fix on client side only
@@ -96,34 +96,6 @@ export function LocationMapSelector({
       setMapPosition([latitude, longitude]);
     }
   }, [latitude, longitude]);
-
-  // Auto-search when initialSearchAddress is provided (e.g., from email proposal)
-  useEffect(() => {
-    if (initialSearchAddress && leafletReady && !hasAutoSearched && !latitude && !longitude) {
-      setHasAutoSearched(true);
-      // Trigger search and auto-select first result
-      searchForAddressAndSelect(initialSearchAddress);
-    }
-  }, [initialSearchAddress, leafletReady, hasAutoSearched, latitude, longitude]);
-
-  const searchForAddressAndSelect = async (query: string) => {
-    setSearching(true);
-    try {
-      const data = await api.get<{ suggestions: AddressSuggestion[] }>(
-        `/api/v1/geocode/search?q=${encodeURIComponent(query)}`
-      );
-      const suggestions = data?.suggestions || [];
-
-      if (suggestions.length > 0) {
-        // Auto-select the first suggestion
-        handleAddressSelect(suggestions[0]);
-      }
-    } catch (err) {
-      console.error("Address auto-search failed:", err);
-    } finally {
-      setSearching(false);
-    }
-  };
 
   // Debounced address search
   useEffect(() => {
@@ -156,8 +128,14 @@ export function LocationMapSelector({
       );
       const suggestions = data?.suggestions || [];
 
-      setAddressSuggestions(suggestions);
-      setShowSuggestions(suggestions.length > 0);
+      // If shouldAutoSelect is true (initial load from proposal), auto-select first result
+      if (shouldAutoSelect && suggestions.length > 0) {
+        setShouldAutoSelect(false);
+        handleAddressSelect(suggestions[0]);
+      } else {
+        setAddressSuggestions(suggestions);
+        setShowSuggestions(suggestions.length > 0);
+      }
     } catch (err) {
       console.error("Address search failed:", err);
       setAddressSuggestions([]);
