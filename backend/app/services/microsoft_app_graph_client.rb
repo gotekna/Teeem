@@ -183,13 +183,13 @@ class MicrosoftAppGraphClient
   # List mail folders for a user (including nested subfolders)
   def get_user_mail_folders(user_identifier, max_depth: 3)
     folders = []
-    fetch_folders_recursive(user_identifier, nil, folders, 0, max_depth)
+    fetch_folders_recursive(user_identifier, nil, nil, folders, 0, max_depth)
     folders
   end
 
   private
 
-  def fetch_folders_recursive(user_identifier, parent_folder_id, folders, depth, max_depth)
+  def fetch_folders_recursive(user_identifier, parent_folder_id, parent_path, folders, depth, max_depth)
     return if depth > max_depth
 
     # Build endpoint - top level or child folders
@@ -201,9 +201,14 @@ class MicrosoftAppGraphClient
 
     response = get(endpoint, { "$top" => 100 })
     (response["value"] || []).each do |folder|
+      display_name = folder["displayName"]
+      # Build full path for subfolders (e.g., "Inbox/Investments")
+      full_path = parent_path ? "#{parent_path}/#{display_name}" : display_name
+
       folders << {
         id: folder["id"],
-        name: folder["displayName"],
+        name: full_path,  # Store full path for warehouse filtering
+        display_name: display_name,  # Keep original for UI
         total_items: folder["totalItemCount"],
         unread_count: folder["unreadItemCount"],
         depth: depth,
@@ -213,7 +218,7 @@ class MicrosoftAppGraphClient
 
       # Recursively fetch child folders if they exist
       if (folder["childFolderCount"] || 0) > 0
-        fetch_folders_recursive(user_identifier, folder["id"], folders, depth + 1, max_depth)
+        fetch_folders_recursive(user_identifier, folder["id"], full_path, folders, depth + 1, max_depth)
       end
     end
   rescue => e

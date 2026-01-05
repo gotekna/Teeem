@@ -227,7 +227,9 @@ interface Pagination {
 
 interface EmailFolder {
   id: string;
-  name: string;
+  name: string;  // Full path for filtering (e.g., "Inbox/Investments")
+  display_name?: string;  // Display name from API (snake_case)
+  displayName?: string;  // Display name for FolderTree (camelCase)
   type: string;
   unread_count?: number;
   total_items?: number;
@@ -862,9 +864,14 @@ export default function EmailPage() {
 
       const response = await api.get<{ success: boolean; data: EmailFolder[] }>(url);
       if (response.success && response.data) {
+        // Transform snake_case display_name to camelCase displayName for FolderTree
+        const folders = response.data.map(f => ({
+          ...f,
+          displayName: f.display_name || f.name,
+        }));
         setAccountFolders(prev => ({
           ...prev,
-          [accountId]: response.data
+          [accountId]: folders
         }));
 
         // Auto-select inbox folder if this is the selected account and:

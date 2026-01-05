@@ -16,7 +16,8 @@ export type FolderType =
 
 export interface FolderTreeItem {
   id: string;
-  name: string;
+  name: string;  // Full path for filtering (e.g., "Inbox/Investments")
+  displayName?: string;  // Display name for UI (e.g., "Investments") - uses name if not set
   type: FolderType;
   parentId?: string;
   childFolderCount?: number;

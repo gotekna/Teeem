@@ -272,7 +272,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
         )}
       />
 
-      <span className="flex-1 truncate text-xs">{item.name}</span>
+      <span className="flex-1 truncate text-xs">{item.displayName || item.name}</span>
 
       {hasUnread && (
         <Badge
@@ -373,7 +373,7 @@ function DragOverlayContent({ item }: { item: FolderTreeItem }) {
     >
       <GripVertical className="h-3 w-3 text-muted-foreground" />
       <Icon className="h-4 w-4 text-amber-500" />
-      <span className="text-xs">{item.name}</span>
+      <span className="text-xs">{item.displayName || item.name}</span>
       {hasUnread && (
         <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
           {item.unreadCount}

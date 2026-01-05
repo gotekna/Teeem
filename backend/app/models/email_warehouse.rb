@@ -104,7 +104,13 @@ class EmailWarehouse < ApplicationRecord
   # SSoT: Folder name filtering (case-insensitive)
   # ALWAYS use this scope instead of .where(folder_name: x) to handle provider variations
   # Gmail uses INBOX, Outlook uses Inbox, others may use inbox - this handles all cases
-  scope :in_folder, ->(name) { where("LOWER(folder_name) = LOWER(?)", name) }
+  # Match folder by name - supports both full path (e.g., "Inbox/Investments") and folder name only
+  # This allows matching emails synced before full path support was added
+  scope :in_folder, ->(name) {
+    # Extract just the folder name (last part of path) for matching legacy emails
+    folder_name_only = name.to_s.split("/").last
+    where("LOWER(folder_name) = LOWER(?) OR LOWER(folder_name) = LOWER(?)", name, folder_name_only)
+  }
 
   # Full-text search scope
   scope :search_text, ->(query) {

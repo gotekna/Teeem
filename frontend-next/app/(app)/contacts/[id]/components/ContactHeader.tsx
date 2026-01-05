@@ -171,18 +171,21 @@ export function ContactHeader({
                 <PopoverTrigger asChild>
                   <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-accent">
                     <ShieldCheck className="h-3 w-3" />
-                    {xeroLinks.length}/{allTenants.length} Xero
+                    {/* SSoT: Count unique tenants, not total links (contact can have multiple Xero IDs per tenant after merge) */}
+                    {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} Xero
                     <ChevronDown className="h-3 w-3" />
                   </Badge>
                 </PopoverTrigger>
                 <PopoverContent className="w-72 p-2" align="start">
                   <div className="text-xs font-medium text-muted-foreground mb-2">
-                    Xero Organizations ({xeroLinks.length}/{allTenants.length} linked)
+                    Xero Organizations ({new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} linked)
                   </div>
                   <div className="space-y-1">
                     {[...allTenants].sort((a, b) => a.tenant_name.localeCompare(b.tenant_name)).map((tenant) => {
-                      const link = xeroLinks.find(l => l.xero_tenant_id === tenant.tenant_id);
-                      const linked = !!link;
+                      // SSoT: Get ALL links for this tenant (contact can have multiple Xero IDs per tenant after merge)
+                      const tenantLinks = xeroLinks.filter(l => l.xero_tenant_id === tenant.tenant_id);
+                      const linked = tenantLinks.length > 0;
+                      const totalInvoices = tenantLinks.reduce((sum, l) => sum + (l.invoice_count || 0), 0);
                       const pushing = pushingToTenant === tenant.tenant_id;
                       return (
                         <div
@@ -202,15 +205,16 @@ export function ContactHeader({
                                 <span className={`text-sm ${linked ? "text-green-700 dark:text-green-300" : ""}`}>
                                   {tenant.tenant_name}
                                 </span>
-                                {linked && link?.invoice_count !== undefined && link.invoice_count > 0 && (
+                                {linked && totalInvoices > 0 && (
                                   <span className="text-xs text-muted-foreground">
-                                    ({link.invoice_count})
+                                    ({totalInvoices})
                                   </span>
                                 )}
                               </div>
-                              {linked && link?.xero_contact_id && (
+                              {linked && tenantLinks[0]?.xero_contact_id && (
                                 <span className="text-xs text-muted-foreground font-mono truncate">
-                                  {link.xero_contact_id}
+                                  {tenantLinks[0].xero_contact_id.substring(0, 8)}...
+                                  {tenantLinks.length > 1 && ` +${tenantLinks.length - 1} more`}
                                 </span>
                               )}
                             </div>

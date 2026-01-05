@@ -191,10 +191,11 @@ class Api::V1::ImapCredentialsController < ApplicationController
           data: folders.map { |f|
             {
               id: f[:id],
-              name: f[:name],
+              name: f[:name],  # Full path for filtering (e.g., "Inbox/Investments")
+              display_name: f[:display_name] || f[:name],  # Display name for UI
               unread_count: f[:unread_count],
               total_items: f[:total_items],
-              type: folder_type_from_name(f[:name]),
+              type: folder_type_from_name(f[:display_name] || f[:name]),  # Use display_name for type detection
               depth: f[:depth] || 0,
               parent_id: f[:parent_id]
             }
