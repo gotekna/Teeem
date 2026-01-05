@@ -305,8 +305,26 @@ class EmailWarehouse < ApplicationRecord
     # Skip matching if email is classified as irrelevant (marketing, spam, transactional)
     return matches if classified_as_irrelevant?
 
-    # 0. THREAD INHERITANCE: If another email in this conversation is assigned to a job, inherit it
-    # This is the highest priority - user already confirmed which job this thread belongs to
+    # 1. EXPLICIT JOB ID IN SUBJECT - Always wins (user deliberately put it there)
+    # e.g., forwarding old email with "id:32" should go to Job #32, not inherited job
+    if subject.present?
+      job_ids = extract_explicit_job_ids
+      if job_ids.any?
+        Job.where(id: job_ids).each do |job|
+          matches << {
+            job: job,
+            match_type: "explicit_job_id",
+            confidence: 1.0,
+            reason: "Explicit job ID #{job.id} found in subject"
+          }
+        end
+        # Return early - explicit ID is definitive
+        return matches if matches.any?
+      end
+    end
+
+    # 2. THREAD INHERITANCE: If another email in this conversation is assigned to a job, inherit it
+    # Only applies when no explicit job ID in subject (e.g., repeat client like Pam with multiple jobs)
     if conversation_id.present?
       thread_job = EmailWarehouse
         .where(conversation_id: conversation_id)
@@ -329,22 +347,7 @@ class EmailWarehouse < ApplicationRecord
       end
     end
 
-    # 1. HIGHEST PRIORITY: Match by explicit job ID in subject (fast, single query)
-    if subject.present?
-      job_ids = extract_explicit_job_ids
-      if job_ids.any?
-        Job.where(id: job_ids).each do |job|
-          matches << {
-            job: job,
-            match_type: "explicit_job_id",
-            confidence: 1.0,
-            reason: "Explicit job ID #{job.id} found in subject"
-          }
-        end
-      end
-    end
-
-    # 2. SQL-based address matching using trigram similarity (if table exists)
+    # 3. SQL-based address matching using trigram similarity (if table exists)
     # This replaces the slow Job.find_each loop with indexed SQL queries
     if subject.present? && subject.length >= 10 && JobAddressSearch.table_exists?
       matches.concat(find_jobs_via_address_search)
@@ -732,9 +735,28 @@ class EmailWarehouse < ApplicationRecord
   # Auto-assign to job if another email in this conversation thread is already assigned
   # This ensures email threads stay together on the same job (e.g., Pam builds multiple jobs,
   # once user assigns one email from a thread to Job #46, all future replies auto-assign)
+  # EXCEPTION: If email has explicit job ID in subject (e.g., "id:32"), that wins
   def inherit_job_from_thread
     return if job_id.present?  # Already assigned
     return if conversation_id.blank?  # No thread to inherit from
+
+    # Check for explicit job ID in subject first - that always wins
+    if subject.present?
+      explicit_ids = subject.scan(JOB_ID_PATTERN).flatten.compact.map(&:to_i).select(&:positive?)
+      if explicit_ids.any?
+        job = Job.find_by(id: explicit_ids.first)
+        if job
+          update_columns(
+            job_id: job.id,
+            match_type: "explicit_job_id",
+            match_confidence: 1.0,
+            matched_at: Time.current
+          )
+          Rails.logger.info "[EmailWarehouse] Auto-assigned email #{id} to job #{job.id} via explicit ID in subject"
+          return
+        end
+      end
+    end
 
     # Find job from another email in the same thread
     thread_job_id = EmailWarehouse
