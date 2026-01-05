@@ -730,7 +730,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
   end
 
   # GET /api/v1/email_warehouse/:id/attachments/:attachment_id/download
-  # Download an attachment from Microsoft 365
+  # Download an attachment - tries SharePoint first (SSoT), falls back to Outlook
   # attachment_id can be either local EmailAttachment ID or outlook_attachment_id
   def download_attachment
     attachment_id = params[:attachment_id]
@@ -739,7 +739,39 @@ class Api::V1::EmailWarehouseController < ApplicationController
     email_attachment = @email.email_attachments.find_by(id: attachment_id)
     outlook_attachment_id = email_attachment&.outlook_attachment_id || attachment_id
     filename_hint = email_attachment&.filename || email_attachment&.attachment&.filename
+    content_type_hint = email_attachment&.attachment&.content_type
 
+    # SSoT: Try SharePoint first if attachment is synced there
+    if email_attachment&.attachment&.sharepoint_file_id.present?
+      sp_config = MicrosoftCredential.teeem_sharepoint_config
+      if sp_config
+        begin
+          Rails.logger.info "[EmailWarehouse] Downloading attachment from SharePoint: #{email_attachment.attachment.sharepoint_file_id}"
+          teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
+          content = teeem_client.get_drive_item_content(
+            drive_id: sp_config[:drive_id],
+            item_id: email_attachment.attachment.sharepoint_file_id
+          )
+
+          if content.present?
+            filename = filename_hint || "attachment"
+            content_type = content_type_hint || "application/octet-stream"
+
+            return send_data(
+              content,
+              filename: filename,
+              type: content_type,
+              disposition: "attachment"
+            )
+          end
+        rescue StandardError => e
+          # SharePoint download failed - fall back to Outlook
+          Rails.logger.warn "[EmailWarehouse] SharePoint download failed, falling back to Outlook: #{e.message}"
+        end
+      end
+    end
+
+    # Fallback: Download from Outlook API
     # SSoT: Use MicrosoftCredential - same pattern as sync_attachments!
     credential = if @email.microsoft_credential_id.present?
                    MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
@@ -757,7 +789,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       return render json: { error: "Mailbox information not available" }, status: :unprocessable_entity
     end
 
-    # Fetch attachment from Microsoft Graph
+    # Fetch attachment from Microsoft Graph (Outlook)
+    Rails.logger.info "[EmailWarehouse] Downloading attachment from Outlook: #{outlook_attachment_id}"
     client = MicrosoftAppGraphClient.new(credential)
     attachment_data = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
 
