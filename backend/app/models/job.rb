@@ -224,15 +224,18 @@ class Job < ApplicationRecord
   def site_supervisor_info
     supervisor_contact = job_contacts.find_by(role: "supervisor")
     if supervisor_contact&.user.present?
+      user = supervisor_contact.user
       {
-        name: supervisor_contact.user.name,
-        phone: supervisor_contact.user.mobile_phone,
-        display_name: supervisor_contact.user.name
+        name: user.name,
+        email: user.email,
+        phone: user.mobile_phone,
+        display_name: user.name
       }
     else
       # Legacy fallback for old jobs that have data in columns
       {
         name: site_supervisor_name,
+        email: nil,
         phone: site_supervisor_phone,
         display_name: site_supervisor_name
       }
