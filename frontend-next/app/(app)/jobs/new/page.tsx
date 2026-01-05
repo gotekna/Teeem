@@ -921,6 +921,7 @@ export default function NewJobPage() {
                 <LocationMapSelector
                   latitude={formData.latitude}
                   longitude={formData.longitude}
+                  initialSearchAddress={formData.address}
                   onLocationChange={handleLocationChange}
                 />
               </div>

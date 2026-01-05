@@ -29,6 +29,7 @@ const Marker = dynamic(
 interface LocationMapSelectorProps {
   latitude?: number | null;
   longitude?: number | null;
+  initialSearchAddress?: string;
   onLocationChange?: (data: {
     location?: string;
     latitude?: number;
@@ -62,14 +63,16 @@ interface AddressSuggestion {
 export function LocationMapSelector({
   latitude,
   longitude,
+  initialSearchAddress,
   onLocationChange,
 }: LocationMapSelectorProps) {
   const [mapPosition, setMapPosition] = useState<[number, number]>([-27.4698, 153.0251]); // Brisbane default
-  const [searchAddress, setSearchAddress] = useState("");
+  const [searchAddress, setSearchAddress] = useState(initialSearchAddress || "");
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
+  const [hasAutoSearched, setHasAutoSearched] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize leaflet icon fix on client side only
@@ -93,6 +96,34 @@ export function LocationMapSelector({
       setMapPosition([latitude, longitude]);
     }
   }, [latitude, longitude]);
+
+  // Auto-search when initialSearchAddress is provided (e.g., from email proposal)
+  useEffect(() => {
+    if (initialSearchAddress && leafletReady && !hasAutoSearched && !latitude && !longitude) {
+      setHasAutoSearched(true);
+      // Trigger search and auto-select first result
+      searchForAddressAndSelect(initialSearchAddress);
+    }
+  }, [initialSearchAddress, leafletReady, hasAutoSearched, latitude, longitude]);
+
+  const searchForAddressAndSelect = async (query: string) => {
+    setSearching(true);
+    try {
+      const data = await api.get<{ suggestions: AddressSuggestion[] }>(
+        `/api/v1/geocode/search?q=${encodeURIComponent(query)}`
+      );
+      const suggestions = data?.suggestions || [];
+
+      if (suggestions.length > 0) {
+        // Auto-select the first suggestion
+        handleAddressSelect(suggestions[0]);
+      }
+    } catch (err) {
+      console.error("Address auto-search failed:", err);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   // Debounced address search
   useEffect(() => {
