@@ -113,23 +113,24 @@ class EmailWarehouse < ApplicationRecord
 
   # Search by email address (from, to, or cc)
   # Can accept a single email string or an array of emails
-  # Performance: Uses PostgreSQL array operators instead of UNNEST subqueries
-  # Impact: 10x faster for multi-email searches
+  # SSoT: Case-insensitive email matching for from_email, to_emails, and cc_emails
+  # Uses EXISTS with LOWER for case-insensitive array matching
   scope :involving_email, ->(emails) {
     emails = Array(emails).compact.map(&:downcase)
     return none if emails.empty?
 
-    # Use array overlap operator (&&) for to_emails and cc_emails
-    # This is much faster than UNNEST subqueries as it uses GIN indexes
+    # Case-insensitive matching for all email fields
+    # to_emails and cc_emails are arrays, so we use EXISTS with unnest and LOWER
     where(
       "LOWER(from_email) = ANY(ARRAY[?]::text[]) OR " \
-      "to_emails && ARRAY[?]::text[] OR " \
-      "cc_emails && ARRAY[?]::text[]",
+      "EXISTS (SELECT 1 FROM unnest(to_emails) AS e WHERE LOWER(e) = ANY(ARRAY[?]::text[])) OR " \
+      "EXISTS (SELECT 1 FROM unnest(cc_emails) AS e WHERE LOWER(e) = ANY(ARRAY[?]::text[]))",
       emails, emails, emails
     )
   }
 
   # Callbacks
+  before_save :normalize_email_addresses  # SSoT: All emails stored lowercase
   before_save :update_searchable_vector
   after_save :update_thread_latest_flags, if: :saved_change_to_conversation_id?
 
@@ -703,6 +704,15 @@ class EmailWarehouse < ApplicationRecord
   end
 
   private
+
+  # SSoT: Normalize all email addresses to lowercase before saving
+  # This ensures case-insensitive matching works with simple equality checks
+  # FRC: Fix at source (storage) not at query time (LOWER() in every query)
+  def normalize_email_addresses
+    self.from_email = from_email&.downcase
+    self.to_emails = to_emails&.map(&:downcase) if to_emails.present?
+    self.cc_emails = cc_emails&.map(&:downcase) if cc_emails.present?
+  end
 
   def update_searchable_vector
     # Build searchable text from various fields
