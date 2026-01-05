@@ -324,23 +324,6 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header with count and thread toggle */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div className="flex items-center gap-2">
-          <Mail className="h-5 w-5" />
-          <span className="font-medium">Emails</span>
-          <Badge variant="secondary">{emails.length}</Badge>
-        </div>
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showAllInThread}
-            onChange={(e) => setShowAllInThread(e.target.checked)}
-            className="rounded border-gray-300"
-          />
-          Show all in thread
-        </label>
-      </div>
 
       {/* Suggested emails section */}
       {suggestedEmails.length > 0 && (
@@ -441,6 +424,17 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
           <TeeemTableView
             tableName="Job Emails"
             preloadedViews={[]}
+            leftActions={
+              <label className="flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={showAllInThread}
+                  onChange={(e) => setShowAllInThread(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Show all in thread
+              </label>
+            }
             columns={[
               {
                 key: "direction",
