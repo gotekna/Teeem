@@ -126,6 +126,9 @@ export function ComposeEmailModal({
   // Get current user for signature generation
   const { user: currentUser } = useAuth();
 
+  // Company settings for signature logo
+  const [companySettings, setCompanySettings] = useState<{ logo_dark?: string } | null>(null);
+
   // Auto-save draft hook
   const autoSave = useAutoSaveDraft({
     enabled: open && !sending,
@@ -179,13 +182,35 @@ export function ComposeEmailModal({
   // Generate signature from current user data (SSoT: branded Tekna signature)
   const getUserSignature = (): string => {
     if (!currentUser) return "";
-    return generateEmailSignature({
-      name: currentUser.name,
-      email: currentUser.email,
-      mobile_phone: currentUser.mobile_phone as string | undefined,
-      job_title: currentUser.job_title as string | undefined,
-    });
+    return generateEmailSignature(
+      {
+        name: currentUser.name,
+        email: currentUser.email,
+        mobile_phone: currentUser.mobile_phone as string | undefined,
+        job_title: currentUser.job_title as string | undefined,
+      },
+      companySettings ? { logo_dark: companySettings.logo_dark } : undefined
+    );
   };
+
+  // Fetch company settings for logo
+  useEffect(() => {
+    const fetchCompanySettings = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: { logo_dark?: string } }>(
+          "/api/v1/company_settings"
+        );
+        if (response?.data) {
+          setCompanySettings(response.data);
+        }
+      } catch (err) {
+        console.debug("Company settings unavailable for signature");
+      }
+    };
+    if (open && !companySettings) {
+      fetchCompanySettings();
+    }
+  }, [open, companySettings]);
 
   // Fetch accounts when modal opens
   useEffect(() => {
@@ -241,7 +266,7 @@ export function ComposeEmailModal({
     }
   }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft]);
 
-  // Add signature when account is selected and user data is available
+  // Add signature when account is selected and user/company data is available
   useEffect(() => {
     if (!formData.credential_id || accounts.length === 0 || !currentUser) return;
 
@@ -254,7 +279,7 @@ export function ComposeEmailModal({
         return { ...prev, body: prev.body + signature };
       });
     }
-  }, [formData.credential_id, accounts, currentUser]);
+  }, [formData.credential_id, accounts, currentUser, companySettings]);
 
   const fetchAccounts = async () => {
     setLoading(true);
