@@ -96,18 +96,42 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
     0
   );
 
-  // Build CSS grid template from column widths
-  // Last column uses minmax to fill available space (no truncation if there's room)
+  // Build CSS grid template with smart column widths
+  // Fixed widths for known-size columns, flexible for variable content
+  const FIXED_WIDTH_COLUMNS: Record<string, number> = {
+    select: 40,
+    actions: 80,
+    // Phone number columns - "0431 317 838" = ~12 chars
+    mobile: 120,
+    direct_line: 120,
+    office_phone: 120,
+    phone: 120,
+    // Roles - typically short like "Employee"
+    roles: 100,
+    role: 100,
+    // Company/ABN numbers
+    company_number: 140,
+    abn: 120,
+    acn: 100,
+  };
+
   const gridTemplate = visibleColumnsInOrder
-    .map((col, index) => {
-      const configuredWidth = columnWidths[col.key] || 100;
-      const minLabelWidth = getMinWidthForLabel(col.label);
-      const width = Math.max(configuredWidth, minLabelWidth);
-      // Last column expands to fill remaining space with minimum 200px
-      if (index === visibleColumnsInOrder.length - 1) {
-        return `minmax(${Math.max(width, 200)}px, 1fr)`;
+    .map((col) => {
+      const colKey = col.key.toLowerCase();
+
+      // Check for fixed width columns (exact match or partial match)
+      const fixedWidth = FIXED_WIDTH_COLUMNS[colKey] ||
+        Object.entries(FIXED_WIDTH_COLUMNS).find(([key]) => colKey.includes(key))?.[1];
+
+      if (fixedWidth) {
+        return `${fixedWidth}px`;
       }
-      return `${width}px`;
+
+      // Variable content columns: flexible with minimum based on header label
+      // These columns (name, email, address, etc.) share remaining space
+      const minLabelWidth = getMinWidthForLabel(col.label);
+      const minWidth = Math.max(minLabelWidth, 100);
+      return `minmax(${minWidth}px, 1fr)`;
     })
     .join(" ");
 
@@ -147,6 +171,7 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
       </div>
 
       {/* Virtualized rows container - vertical scroll only, horizontal handled by parent */}
+      {/* scrollbar-gutter: stable reserves space for scrollbar to prevent header/data misalignment */}
       <div
         ref={parentRef}
         style={{
@@ -154,6 +179,7 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
           overflowY: "auto",
           overflowX: "hidden",
           minWidth: totalWidth,
+          scrollbarGutter: "stable",
         }}
       >
         <div

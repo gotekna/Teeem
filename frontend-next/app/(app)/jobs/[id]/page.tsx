@@ -1012,13 +1012,13 @@ export default function JobDetailPage() {
     try {
       const response = await api.get<{
         success: boolean;
-        data: { columns: { id: number; name: string; column_name: string; column_type: string; choices: string[] | null }[] };
+        columns: { id: number; name: string; column_name: string; column_type: string; choices: string[] | null }[];
       }>('/api/v1/foundations/jobs/schema');
 
-      if (response?.success && response.data?.columns) {
+      if (response?.success && response.columns) {
         // Schema returns column_name (not name) and choices (not available_choices)
-        const levelCol = response.data.columns.find(c => c.column_name === 'level');
-        const dwellingCol = response.data.columns.find(c => c.column_name === 'dwelling_type');
+        const levelCol = response.columns.find(c => c.column_name === 'level');
+        const dwellingCol = response.columns.find(c => c.column_name === 'dwelling_type');
 
         if (levelCol?.choices) {
           setLevelChoices(levelCol.choices);
