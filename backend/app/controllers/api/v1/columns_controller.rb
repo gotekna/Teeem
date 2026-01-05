@@ -618,7 +618,8 @@ module Api
           :is_multiple,
           :header_align,
           :data_align,
-          available_choices: []
+          available_choices: [],
+          choice_descriptions: {}  # SSoT: descriptions for each choice value
         )
 
         # SSoT: If slug is provided, use it as the input for resolution

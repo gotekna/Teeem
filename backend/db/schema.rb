@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_04_234303) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_05_004738) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1210,6 +1210,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_04_234303) do
     t.integer "type_version_applied", default: 0
     t.datetime "last_compliance_check"
     t.string "lookup_foundation_slug"
+    t.jsonb "choice_descriptions", default: {}
     t.index ["column_type_definition_id"], name: "index_columns_on_column_type_definition_id"
     t.index ["foundation_id", "column_name"], name: "index_columns_on_foundation_id_and_column_name", unique: true
     t.index ["foundation_id"], name: "index_columns_on_foundation_id"
