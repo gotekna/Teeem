@@ -60,6 +60,7 @@ import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp
 import { BulkActionBar } from "@/components/emails/BulkActionBar";
 import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
 import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
+import { EmailContextMenu } from "@/components/emails/EmailContextMenu";
 import { EmailSummary } from "@/components/emails/EmailSummary";
 import { EmailContactMatch } from "@/components/emails/EmailContactMatch";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
@@ -182,6 +183,7 @@ const EmailListItem = memo(function EmailListItem({
   onQuickAction,
   onSnooze,
   onReply,
+  onReplyAll,
   onForward,
   // Thread props
   threadCount = 0,
@@ -204,6 +206,7 @@ const EmailListItem = memo(function EmailListItem({
   onQuickAction?: () => void;
   onSnooze?: (email: Email) => void;
   onReply?: (email: Email) => void;
+  onReplyAll?: (email: Email) => void;
   onForward?: (email: Email) => void;
   // Thread props
   threadCount?: number;
@@ -220,6 +223,18 @@ const EmailListItem = memo(function EmailListItem({
   const hasThread = threadCount > 1;
 
   const content = (
+    <EmailContextMenu
+      emailId={email.id}
+      isRead={email.is_read}
+      fromEmail={email.from_email || email.from_address}
+      fromName={email.from_name || undefined}
+      subject={email.subject}
+      onReply={() => onReply?.(email)}
+      onReplyAll={() => onReplyAll?.(email)}
+      onForward={() => onForward?.(email)}
+      onSnooze={() => onSnooze?.(email)}
+      onAction={onQuickAction}
+    >
     <div data-email-id={email.id}>
       {/* Main email row */}
       <div
@@ -380,6 +395,7 @@ const EmailListItem = memo(function EmailListItem({
         </div>
       )}
     </div>
+    </EmailContextMenu>
   );
 
   // Wrap with DraggableEmail if drag is enabled and we have account info
@@ -1181,12 +1197,14 @@ To: ${email.to_emails?.join(", ") || ""}
     <ResizablePanelGroup
       orientation="horizontal"
       className="h-full -mx-4 -mt-4"
+      autoSaveId="email-page-panels"
     >
       {/* Left Sidebar - Mailboxes & Folders */}
       <ResizablePanel
+        id="email-sidebar"
         defaultSize={18}
-        minSize={12}
-        maxSize={30}
+        minSize={10}
+        maxSize={40}
         className="bg-muted/30 flex flex-col"
       >
         <div className="p-3 border-b">
@@ -1338,7 +1356,7 @@ To: ${email.to_emails?.join(", ") || ""}
       <ResizableHandle withHandle />
 
       {/* Main Content Area - List + Reading Pane */}
-      <ResizablePanel defaultSize={82} minSize={50} className="flex min-w-0">
+      <ResizablePanel id="email-content" defaultSize={82} minSize={50} className="flex min-w-0">
         <div className={cn(
           "flex-1 flex min-w-0",
           readingPanePosition === "bottom" ? "flex-col" : "flex-row"
@@ -1548,6 +1566,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     onQuickAction={() => fetchEmails()}
                     onSnooze={handleSnoozeEmail}
                     onReply={handleReply}
+                    onReplyAll={handleReplyAll}
                     onForward={handleForward}
                     threadCount={(email as Email).thread_count || 0}
                     isExpanded={threads.isExpanded((email as Email).conversation_id || '')}
@@ -1583,6 +1602,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     onQuickAction={() => fetchEmails()}
                     onSnooze={handleSnoozeEmail}
                     onReply={handleReply}
+                    onReplyAll={handleReplyAll}
                     onForward={handleForward}
                     threadCount={email.thread_count || 0}
                     isExpanded={threads.isExpanded(email.conversation_id || '')}
