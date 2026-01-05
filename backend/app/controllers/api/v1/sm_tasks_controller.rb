@@ -852,6 +852,54 @@ module Api
       end
 
       # ============================================
+      # Task Contacts (email participants, assigned contacts/users)
+      # ============================================
+
+      # GET /api/v1/sm_tasks/:id/contacts
+      def contacts
+        task_contacts = @task.task_contacts.includes(:contact, :user, :added_by)
+
+        render json: {
+          success: true,
+          contacts: task_contacts.map { |tc| task_contact_to_json(tc) }
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/contacts
+      # Add a contact or user to the task
+      def add_contact
+        contact_type = params[:contact_type]  # 'user' or 'contact'
+        role = params[:role] || "participant"
+
+        tc = if contact_type == "user"
+          user = User.find(params[:user_id])
+          @task.add_contact(user, role: role, added_by: current_user)
+        else
+          contact = Contact.find(params[:contact_id])
+          @task.add_contact(contact, role: role, added_by: current_user)
+        end
+
+        render json: {
+          success: true,
+          contact: task_contact_to_json(tc)
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "User or contact not found" }, status: :not_found
+      rescue ArgumentError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/contacts/:contact_id
+      def remove_contact
+        tc = @task.task_contacts.find(params[:contact_id])
+        tc.destroy
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Task contact not found" }, status: :not_found
+      end
+
+      # ============================================
       # Task History/Activity Log
       # ============================================
 
@@ -1025,6 +1073,25 @@ module Api
       end
 
       private
+
+      # Helper to serialize TaskContact for API response
+      def task_contact_to_json(tc)
+        {
+          id: tc.id,
+          role: tc.role,
+          is_sender: tc.is_sender,
+          notes: tc.notes,
+          created_at: tc.created_at,
+          added_by: tc.added_by&.name,
+          person_name: tc.person_name,
+          person_email: tc.person_email,
+          type: tc.user_id.present? ? "user" : "contact",
+          user_id: tc.user_id,
+          contact_id: tc.contact_id,
+          user: tc.user ? { id: tc.user.id, name: tc.user.name, email: tc.user.email } : nil,
+          contact: tc.contact ? { id: tc.contact.id, name: tc.contact.display_name, email: tc.contact.email } : nil
+        }
+      end
 
       # Helper methods for compare_to_template
       def task_comparison_json(task)

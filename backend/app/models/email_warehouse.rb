@@ -62,6 +62,7 @@ class EmailWarehouse < ApplicationRecord
 
   # Callbacks - Real-time sync via ActionCable
   after_create_commit :broadcast_new_email
+  after_create_commit :inherit_job_from_thread
   after_destroy_commit :broadcast_email_deleted
 
   # Scopes
@@ -303,6 +304,30 @@ class EmailWarehouse < ApplicationRecord
 
     # Skip matching if email is classified as irrelevant (marketing, spam, transactional)
     return matches if classified_as_irrelevant?
+
+    # 0. THREAD INHERITANCE: If another email in this conversation is assigned to a job, inherit it
+    # This is the highest priority - user already confirmed which job this thread belongs to
+    if conversation_id.present?
+      thread_job = EmailWarehouse
+        .where(conversation_id: conversation_id)
+        .where.not(job_id: nil)
+        .where.not(id: id)
+        .order(matched_at: :desc)
+        .limit(1)
+        .pick(:job_id)
+
+      if thread_job.present?
+        job = Job.find_by(id: thread_job)
+        if job
+          return [{
+            job: job,
+            match_type: "thread_inheritance",
+            confidence: 1.0,
+            reason: "Another email in this conversation is assigned to this job"
+          }]
+        end
+      end
+    end
 
     # 1. HIGHEST PRIORITY: Match by explicit job ID in subject (fast, single query)
     if subject.present?
@@ -702,6 +727,35 @@ class EmailWarehouse < ApplicationRecord
     EmailChannel.broadcast_new_email(ssot_owner, self)
   rescue StandardError => e
     Rails.logger.error "Failed to broadcast new email: #{e.message}"
+  end
+
+  # Auto-assign to job if another email in this conversation thread is already assigned
+  # This ensures email threads stay together on the same job (e.g., Pam builds multiple jobs,
+  # once user assigns one email from a thread to Job #46, all future replies auto-assign)
+  def inherit_job_from_thread
+    return if job_id.present?  # Already assigned
+    return if conversation_id.blank?  # No thread to inherit from
+
+    # Find job from another email in the same thread
+    thread_job_id = EmailWarehouse
+      .where(conversation_id: conversation_id)
+      .where.not(job_id: nil)
+      .where.not(id: id)
+      .limit(1)
+      .pick(:job_id)
+
+    return unless thread_job_id
+
+    update_columns(
+      job_id: thread_job_id,
+      match_type: "thread_inheritance",
+      match_confidence: 1.0,
+      matched_at: Time.current
+    )
+
+    Rails.logger.info "[EmailWarehouse] Auto-assigned email #{id} to job #{thread_job_id} via thread inheritance"
+  rescue StandardError => e
+    Rails.logger.error "[EmailWarehouse] Failed to inherit job from thread: #{e.message}"
   end
 
   # Broadcast email deletion to the owner via ActionCable

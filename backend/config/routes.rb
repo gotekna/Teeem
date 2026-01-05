@@ -1427,6 +1427,10 @@ Rails.application.routes.draw do
           get :followers
           post :followers, action: :add_follower
           delete "followers/:user_id", action: :remove_follower
+          # Task contacts (email participants, assigned contacts/users)
+          get :contacts
+          post :contacts, action: :add_contact
+          delete "contacts/:contact_id", action: :remove_contact
           # Task history/activity log
           get :history
           # Action items (checkable items)

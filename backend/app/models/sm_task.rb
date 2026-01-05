@@ -162,6 +162,12 @@ class SmTask < ApplicationRecord
   has_many :task_followers, dependent: :destroy
   has_many :followers, through: :task_followers, source: :user
 
+  # Task Contacts (email participants, assigned contacts/users)
+  # Links both internal Users and external Contacts to tasks
+  has_many :task_contacts, dependent: :destroy
+  has_many :contacts, through: :task_contacts
+  has_many :contact_users, through: :task_contacts, source: :user
+
   # Action Items (checkable items within a task)
   has_many :action_items, class_name: "TaskActionItem", dependent: :destroy
 
@@ -182,6 +188,39 @@ class SmTask < ApplicationRecord
 
   def followed_by?(user)
     task_followers.exists?(user: user)
+  end
+
+  # Task Contact helper methods
+  # Add a contact or user to the task
+  def add_contact(contact_or_user, role:, added_by: nil, is_sender: false, notes: nil)
+    attrs = { role: role, added_by: added_by, is_sender: is_sender, notes: notes }
+
+    if contact_or_user.is_a?(User)
+      task_contacts.find_or_create_by!(user: contact_or_user, role: role) do |tc|
+        tc.assign_attributes(attrs)
+      end
+    elsif contact_or_user.is_a?(Contact)
+      task_contacts.find_or_create_by!(contact: contact_or_user, role: role) do |tc|
+        tc.assign_attributes(attrs)
+      end
+    else
+      raise ArgumentError, "Expected User or Contact, got #{contact_or_user.class}"
+    end
+  end
+
+  # Get the sender (person who created task via email)
+  def sender_contact
+    task_contacts.senders.first
+  end
+
+  # Get all internal users linked to this task
+  def internal_contacts
+    task_contacts.internal.includes(:user)
+  end
+
+  # Get all external contacts linked to this task
+  def external_contacts
+    task_contacts.external.includes(:contact)
   end
 
   # Check if a user can view this task (for permission checks)

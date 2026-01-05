@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_05_004738) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_05_024035) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8875,6 +8875,26 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_004738) do
     t.index ["user_id"], name: "index_task_activity_logs_on_user_id"
   end
 
+  create_table "task_contacts", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "contact_id"
+    t.bigint "user_id"
+    t.string "role", limit: 50, null: false
+    t.boolean "is_sender", default: false
+    t.text "notes"
+    t.bigint "added_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["added_by_id"], name: "index_task_contacts_on_added_by_id"
+    t.index ["contact_id"], name: "index_task_contacts_on_contact_id"
+    t.index ["role"], name: "index_task_contacts_on_role"
+    t.index ["sm_task_id", "contact_id", "role"], name: "idx_task_contacts_task_contact_role", unique: true, where: "(contact_id IS NOT NULL)"
+    t.index ["sm_task_id", "is_sender"], name: "idx_task_contacts_sender", where: "(is_sender = true)"
+    t.index ["sm_task_id", "user_id", "role"], name: "idx_task_contacts_task_user_role", unique: true, where: "(user_id IS NOT NULL)"
+    t.index ["sm_task_id"], name: "index_task_contacts_on_sm_task_id"
+    t.index ["user_id"], name: "index_task_contacts_on_user_id"
+  end
+
   create_table "task_followers", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "sm_task_id", null: false
@@ -10526,6 +10546,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_004738) do
   add_foreign_key "task_action_items", "users", column: "checked_by_id"
   add_foreign_key "task_activity_logs", "sm_tasks"
   add_foreign_key "task_activity_logs", "users"
+  add_foreign_key "task_contacts", "contacts", on_delete: :cascade
+  add_foreign_key "task_contacts", "sm_tasks", on_delete: :cascade
+  add_foreign_key "task_contacts", "users", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "task_contacts", "users", on_delete: :cascade
   add_foreign_key "task_followers", "sm_tasks", on_delete: :cascade
   add_foreign_key "task_followers", "users", on_delete: :cascade
   add_foreign_key "unreal_measurements", "job_colour_selections"

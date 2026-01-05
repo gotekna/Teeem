@@ -185,7 +185,7 @@ export default function GanttV2Page() {
   if (gantt.loading) {
     return (
       <div className="flex flex-col h-full">
-        <Header job={job} onOpenOldGantt={handleOpenOldGantt} />
+        <Header job={job} jobId={jobId} onOpenOldGantt={handleOpenOldGantt} />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <Spinner />
@@ -199,7 +199,7 @@ export default function GanttV2Page() {
   if (gantt.error) {
     return (
       <div className="flex flex-col h-full">
-        <Header job={job} onOpenOldGantt={handleOpenOldGantt} />
+        <Header job={job} jobId={jobId} onOpenOldGantt={handleOpenOldGantt} />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <p className="text-sm text-destructive">{gantt.error}</p>
@@ -212,7 +212,7 @@ export default function GanttV2Page() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header job={job} onOpenOldGantt={handleOpenOldGantt} />
+      <Header job={job} jobId={jobId} onOpenOldGantt={handleOpenOldGantt} />
 
       {/* Gantt Chart + Photo Panel */}
       <div className="flex-1 min-h-0 flex">
@@ -873,10 +873,11 @@ export default function GanttV2Page() {
 
 interface HeaderProps {
   job: Job | null;
+  jobId: number;
   onOpenOldGantt: () => void;
 }
 
-function Header({ job, onOpenOldGantt }: HeaderProps) {
+function Header({ job, jobId, onOpenOldGantt }: HeaderProps) {
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b bg-background">
       <div className="flex items-center gap-4">
@@ -886,6 +887,18 @@ function Header({ job, onOpenOldGantt }: HeaderProps) {
             Gantt V2 {job ? `- ${job.name || job.title}` : ''}
           </h1>
           <p className="text-xs text-muted-foreground">SSoT Hook Architecture</p>
+        </div>
+        {/* Quick Links - Plans, PO, Site (SSoT: same as old Gantt page) */}
+        <div className="flex items-center gap-1 ml-2">
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/plans`, '_blank')}>
+            Plans
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
+            PO
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
+            Site
+          </Button>
         </div>
       </div>
 
