@@ -203,8 +203,35 @@ class Api::V1::EmailWarehouseController < ApplicationController
   end
 
   # GET /api/v1/email_warehouse/:id
+  # Performance: Batch load all related data for email + thread to avoid N+1
   def show
-    render json: email_json(@email, include_body: true, include_thread: true)
+    # Get conversation thread with eager loading (1 query)
+    thread_emails = if @email.conversation_id.present?
+      EmailWarehouse.where(conversation_id: @email.conversation_id)
+                    .includes(:job)
+                    .order(received_at: :asc)
+                    .to_a
+    else
+      [ @email ]
+    end
+
+    # Batch load all user states for thread (1 query)
+    email_ids = thread_emails.map(&:id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: email_ids, user_id: current_user.id)
+                                      .index_by(&:email_warehouse_id)
+
+    # Batch load all contacts for thread (1 query)
+    all_contact_ids = thread_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+    contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+
+    render json: email_json(
+      @email,
+      include_body: true,
+      include_thread: true,
+      thread_emails: thread_emails,
+      contacts_cache: contacts_cache,
+      user_states_cache: user_states_cache
+    )
   end
 
   # GET /api/v1/email_warehouse/for_job/:job_id
@@ -815,10 +842,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
   private
 
   def set_email
-    @email = EmailWarehouse.find(params[:id])
+    @email = EmailWarehouse.includes(:job).find(params[:id])
   end
 
-  def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil, user_states_cache: nil)
+  def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil, user_states_cache: nil, thread_emails: nil)
     # Get user's read state - check cache first, then database
     user_state = if user_states_cache
       user_states_cache[email.id]
@@ -891,7 +918,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     if include_thread && email.conversation_id.present?
-      json[:thread] = email.conversation_thread.map { |e| email_json(e) }
+      # Performance: Use pre-fetched thread_emails if provided to avoid N+1
+      thread = thread_emails || email.conversation_thread
+      json[:thread] = thread.map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) }
     end
 
     if include_suggestions && email.job_id.nil?

@@ -117,39 +117,28 @@ function decodeHtmlEntities(text: string | null | undefined): string {
   }
 
   // Strip CSS that leaked into snippets
-  // Pattern: CSS selectors (tag, .class, #id) followed by { properties }
-  // e.g., "div, .kl-table-subblock > div {font-size:16px!important;...}"
+  // Some emails have CSS in their text/plain or snippet from poor HTML parsing
 
-  // First, strip complete CSS rules (with closing brace)
+  // Loop to strip all CSS patterns
   let prevDecoded = "";
   while (prevDecoded !== decoded) {
     prevDecoded = decoded;
+
+    // Strip leading closing braces from truncated CSS rules (e.g., "} h1 {...")
+    decoded = decoded.replace(/^[}\s]+/, "");
+
+    // Strip complete CSS rules: selector { properties }
     decoded = decoded.replace(/^[\w\s,.#>:[\]()@*=-]+\{[^}]*\}\s*/g, "");
+
+    // Strip @media queries and similar at-rules
+    decoded = decoded.replace(/^@[\w-]+[^{]*\{[^}]*\}\s*/g, "");
   }
 
-  // Also strip @media queries and similar at-rules
-  decoded = decoded.replace(/^@[\w-]+[^{]*\{[^}]*\}\s*/g, "");
-
-  // Strip "table {width:640px}" style inline patterns
-  decoded = decoded.replace(/^[\w]+\s*\{[^}]+\}\s*/g, "");
-
-  // Handle truncated CSS (no closing brace because snippet was cut off)
-  // If the snippet starts with what looks like CSS selectors followed by {,
-  // and there's no closing }, strip everything up to meaningful content
-  if (/^[\w\s,.#>:[\]()@*=-]+\{/.test(decoded) && !decoded.includes("}")) {
-    // The entire snippet is truncated CSS - return empty or try to find content after
-    const afterBrace = decoded.indexOf("{");
-    if (afterBrace !== -1) {
-      // Try to find where actual content might start (capital letter, common words)
-      const rest = decoded.slice(afterBrace + 1);
-      const contentMatch = rest.match(/[A-Z][a-z]+|(?:^|\s)(?:the|a|an|is|are|we|you|your|our|this|that|it|for|to|of|and|in|on|at|by)\s/i);
-      if (contentMatch && contentMatch.index !== undefined) {
-        decoded = rest.slice(contentMatch.index).trim();
-      } else {
-        // No meaningful content found, likely all CSS
-        decoded = "";
-      }
-    }
+  // Handle truncated CSS (snippet cut off mid-rule, no closing brace)
+  // Pattern: starts with CSS selector + { but no } in the string
+  if (/^[\w\s,.#>:[\]()@*=-]*\{/.test(decoded) && !decoded.includes("}")) {
+    // Everything is truncated CSS - clear it
+    decoded = "";
   }
 
   // Clean up multiple spaces

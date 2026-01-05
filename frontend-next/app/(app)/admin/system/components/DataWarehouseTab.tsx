@@ -264,10 +264,17 @@ export function DataWarehouseTab() {
   const activeTab = subtabFromUrl || "overview";
 
   const handleTabChange = useCallback((tabId: string) => {
-    const companyPath = companyId ? `/company/${companyId}` : "";
-    const url = tabId === "overview"
-      ? `/admin/system/data-warehouse${companyPath}`
-      : `/admin/system/data-warehouse/${tabId}${companyPath}`;
+    // Use query params for subtabs (not path segments) since DataWarehouseTab
+    // is rendered at /data-warehouse, not within /admin/system/[...slug] route
+    const params = new URLSearchParams();
+    if (tabId !== "overview") {
+      params.set("subtab", tabId);
+    }
+    if (companyId) {
+      params.set("company_id", companyId);
+    }
+    const queryString = params.toString();
+    const url = `/data-warehouse${queryString ? `?${queryString}` : ""}`;
     router.push(url, { scroll: false });
   }, [router, companyId]);
 
