@@ -33,12 +33,15 @@ class EmailFolderPreference < ApplicationRecord
   def self.save_order(user_id, account_id, folder_ids)
     return if folder_ids.blank?
 
+    # Normalize: convert to strings and remove duplicates (keep first occurrence)
+    unique_folder_ids = folder_ids.map(&:to_s).uniq
+
     transaction do
       # Delete existing preferences for this account
       where(user_id: user_id, account_id: account_id).delete_all
 
       # Insert new order
-      folder_ids.each_with_index do |folder_id, position|
+      unique_folder_ids.each_with_index do |folder_id, position|
         create!(
           user_id: user_id,
           account_id: account_id,
