@@ -651,15 +651,6 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
               <RefreshCw className="h-4 w-4 mr-2" />
               Sync from Master
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleOpenResetDialog}
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Reset All
-            </Button>
           </div>
         }
         enableExport={true}
@@ -923,6 +914,17 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
                   )}
 
                   <DialogFooter className="shrink-0 pt-2">
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        setShowSyncDialog(false);
+                        handleOpenResetDialog();
+                      }}
+                      className="mr-auto"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Reset All
+                    </Button>
                     <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
                       Cancel
                     </Button>
