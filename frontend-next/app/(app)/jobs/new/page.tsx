@@ -513,16 +513,17 @@ export default function NewJobPage() {
   }));
 
   // Filter users by role for Internal Team dropdowns
+  // Role names from DB: supervisor, site_coordinator, estimator, sales, customer_coowordinator (note: misspelled in DB)
   const supervisorUsers = React.useMemo(() =>
     users.filter(u => u.role_names?.includes("supervisor")), [users]);
   const siteCoordinatorUsers = React.useMemo(() =>
-    users.filter(u => u.role_names?.includes("site")), [users]);
+    users.filter(u => u.role_names?.includes("site_coordinator")), [users]);
   const estimatorUsers = React.useMemo(() =>
     users.filter(u => u.role_names?.includes("estimator")), [users]);
   const salesUsers = React.useMemo(() =>
     users.filter(u => u.role_names?.includes("sales")), [users]);
-  // Client coordinator - use all users (no specific role)
-  const coordinatorUsers = users;
+  const coordinatorUsers = React.useMemo(() =>
+    users.filter(u => u.role_names?.includes("customer_coowordinator")), [users]);
 
   // Convert role-filtered users to combobox items
   const supervisorItems: ComboboxItem[] = supervisorUsers.map((u) => ({
@@ -569,13 +570,17 @@ export default function NewJobPage() {
       if (salesUsers.length === 1 && prev.internal_sales_id === null) {
         updates.internal_sales_id = salesUsers[0].id;
       }
+      // Auto-fill client coordinator if exactly one user has that role and not already set
+      if (coordinatorUsers.length === 1 && prev.coordinator_id === null) {
+        updates.coordinator_id = coordinatorUsers[0].id;
+      }
 
       if (Object.keys(updates).length > 0) {
         return { ...prev, ...updates };
       }
       return prev;
     });
-  }, [supervisorUsers, siteCoordinatorUsers, estimatorUsers, salesUsers]);
+  }, [supervisorUsers, siteCoordinatorUsers, estimatorUsers, salesUsers, coordinatorUsers]);
 
   // Handle contact selection for a role
   const handleContactSelect = (
