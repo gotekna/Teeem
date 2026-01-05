@@ -308,11 +308,14 @@ const EmailListItem = memo(function EmailListItem({
               </div>
               <p className={cn(
                 "text-sm truncate",
-                !email.is_read ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
+                !email.is_read ? "font-bold text-foreground" : "font-normal text-muted-foreground"
               )}>
                 {email.subject || "(No subject)"}
               </p>
-              <p className="text-xs text-muted-foreground truncate mt-0.5">
+              <p className={cn(
+                "text-xs truncate mt-0.5",
+                !email.is_read ? "font-medium text-muted-foreground" : "font-normal text-muted-foreground/70"
+              )}>
                 {email.snippet || email.body_preview}
               </p>
             </div>
@@ -353,7 +356,7 @@ const EmailListItem = memo(function EmailListItem({
                     <div className="flex items-center gap-1.5">
                       <span className={cn(
                         "text-xs truncate",
-                        !threadEmail.is_read ? "font-semibold" : "font-medium"
+                        !threadEmail.is_read ? "font-bold text-foreground" : "font-medium text-muted-foreground"
                       )}>
                         {threadEmail.from_name || threadEmail.from_email || threadEmail.from_address}
                       </span>
@@ -361,7 +364,10 @@ const EmailListItem = memo(function EmailListItem({
                         <Paperclip className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <p className={cn(
+                      "text-xs truncate",
+                      !threadEmail.is_read ? "font-medium text-muted-foreground" : "text-muted-foreground/70"
+                    )}>
                       {threadEmail.snippet || threadEmail.body_preview}
                     </p>
                   </div>
