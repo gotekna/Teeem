@@ -11,6 +11,7 @@ class Contact < ApplicationRecord
   # default_scope { where(deleted: [ false, nil ]) }
 
   # Associations
+  has_one :user, dependent: :nullify  # Linked user for data sync
   has_many :contact_activities, dependent: :destroy
   has_many :sms_messages, dependent: :destroy
 
@@ -309,6 +310,9 @@ class Contact < ApplicationRecord
   # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
   # If invoice.contact_name matches contact.display_name exactly, link them
   after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
+
+  # SSoT: Sync mobile_phone to linked user when contact is updated
+  after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
 
   # Scopes
   scope :with_email, -> { where.not(email: [ nil, "" ]) }
@@ -1122,6 +1126,17 @@ class Contact < ApplicationRecord
   end
 
   private
+
+  # SSoT: Sync mobile_phone to linked user
+  def sync_mobile_to_user
+    return unless user.present?
+    return if user.mobile_phone == mobile_phone  # No change needed
+
+    user.update_column(:mobile_phone, mobile_phone)
+    Rails.logger.info "[Contact#sync_mobile_to_user] Synced mobile_phone '#{mobile_phone}' to User##{user.id}"
+  rescue StandardError => e
+    Rails.logger.error "[Contact#sync_mobile_to_user] Failed to sync: #{e.message}"
+  end
 
   # SSoT: Guard method for syncing primary_company_id to employee_of relationship
   def should_sync_primary_company_to_relationship?

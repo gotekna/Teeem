@@ -47,6 +47,13 @@ interface Contact {
   acn?: string;
 }
 
+interface RelatedJob {
+  id: number;
+  address: string;
+  job_status?: string;
+  contract_value?: number;
+}
+
 interface JobContact {
   id: number;
   contact_id?: number;
@@ -65,6 +72,8 @@ interface JobContact {
     related_contact: Contact;
   }>;
   relationships_count?: number;
+  related_jobs?: RelatedJob[];
+  related_jobs_count?: number;
 }
 
 interface User {
@@ -813,10 +822,48 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                             <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
                               <Briefcase className="h-4 w-4" />
                               Related Jobs
+                              <Badge variant="secondary">{contact.related_jobs_count || 0}</Badge>
                             </h4>
-                            <p className="text-xs text-muted-foreground italic">
-                              View contact profile for full job history
-                            </p>
+                            {contact.related_jobs && contact.related_jobs.length > 0 ? (
+                              <div className="space-y-2">
+                                {contact.related_jobs.map((relJob) => (
+                                  <Card key={relJob.id}>
+                                    <CardContent className="p-3">
+                                      <button
+                                        onClick={() => router.push(`/jobs/${relJob.id}`)}
+                                        className="font-medium text-xs text-primary hover:underline text-left"
+                                      >
+                                        {relJob.address}
+                                      </button>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        {relJob.job_status && (
+                                          <Badge variant="outline" className="text-xs">
+                                            {relJob.job_status}
+                                          </Badge>
+                                        )}
+                                        {relJob.contract_value && relJob.contract_value > 0 && (
+                                          <span className="text-xs text-muted-foreground">
+                                            ${relJob.contract_value.toLocaleString()}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                                {(contact.related_jobs_count || 0) > 5 && (
+                                  <button
+                                    onClick={() => router.push(`/contacts/${contact.contact_id}`)}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    View all {contact.related_jobs_count} jobs →
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">
+                                No other jobs for this contact
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>

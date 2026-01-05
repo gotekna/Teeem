@@ -2,6 +2,7 @@ class User < ApplicationRecord
   has_secure_password validations: false  # Disable default validations to make password optional for OAuth
 
   belongs_to :user_group, optional: true
+  belongs_to :contact, optional: true  # Link user to their contact record for data sync
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :foundation_views, dependent: :destroy
@@ -47,6 +48,9 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
   validate :validate_assigned_roles
+
+  # SSoT: Sync mobile_phone to linked contact when user is updated
+  after_save :sync_mobile_to_contact, if: -> { saved_change_to_mobile_phone? && contact.present? }
 
   # Role helper methods
   # SSoT: ONLY use user_roles join table - legacy role column is deprecated
@@ -290,6 +294,17 @@ class User < ApplicationRecord
   end
 
   private
+
+  # SSoT: Sync mobile_phone to linked contact
+  def sync_mobile_to_contact
+    return unless contact.present?
+    return if contact.mobile_phone == mobile_phone  # No change needed
+
+    contact.update_column(:mobile_phone, mobile_phone)
+    Rails.logger.info "[User#sync_mobile_to_contact] Synced mobile_phone '#{mobile_phone}' to Contact##{contact.id}"
+  rescue StandardError => e
+    Rails.logger.error "[User#sync_mobile_to_contact] Failed to sync: #{e.message}"
+  end
 
   def validate_assigned_roles
     return if assigned_roles.blank?

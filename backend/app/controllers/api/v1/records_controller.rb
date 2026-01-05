@@ -89,6 +89,17 @@ module Api
             end
           end
 
+          # SSoT: Jobs foundation - also search client name via job_contacts join
+          # Client is linked through job_contacts table with role='client'
+          if @foundation.slug == "jobs"
+            # Join jobs to job_contacts to contacts for client search
+            query = query.joins("LEFT JOIN job_contacts ON job_contacts.job_id = jobs.id AND job_contacts.role = 'client'")
+                         .joins("LEFT JOIN contacts ON contacts.id = job_contacts.contact_id")
+            # Qualify all column references with table name to avoid ambiguity
+            # (jobs and contacts both have columns like 'postcode', 'state', etc.)
+            searchable_columns = searchable_columns.map { |col| "jobs.#{col}" } + ["contacts.display_name"]
+          end
+
           if searchable_columns.any?
             conn = ActiveRecord::Base.connection
             sanitized_search = conn.quote(search)
@@ -98,12 +109,30 @@ module Api
 
             # Helper to get SQL-safe column reference with optional TEXT casting
             # Must cast non-text types to TEXT for ILIKE to work
+            # Supports table-qualified columns (e.g., "jobs.name", "contacts.display_name")
             get_column_sql = ->(col) {
-              col_type = column_types[col]
-              if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime, :jsonb, :json].include?(col_type)
-                "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+              if col.include?(".")
+                # Table-qualified column - extract the column name to check type
+                table_name, col_name = col.split(".", 2)
+                # For joined tables (not the main model), assume text type
+                if table_name != model.table_name
+                  col
+                else
+                  # For main model columns, check the type and cast if needed
+                  col_type = column_types[col_name]
+                  if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime, :jsonb, :json].include?(col_type)
+                    "CAST(#{col} AS TEXT)"
+                  else
+                    col
+                  end
+                end
               else
-                conn.quote_column_name(col)
+                col_type = column_types[col]
+                if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime, :jsonb, :json].include?(col_type)
+                  "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+                else
+                  conn.quote_column_name(col)
+                end
               end
             }
 
