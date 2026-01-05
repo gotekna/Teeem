@@ -185,12 +185,14 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Performance: Eager load job association and paginate
     emails = emails.includes(:job).recent_first.offset((page - 1) * per_page).limit(per_page)
 
-    # Performance: Batch load all contacts for this page to avoid N+1
+    # Performance: Batch load all contacts and user states for this page to avoid N+1
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+    all_email_ids = emails.map(&:id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
     render json: {
-      emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache) },
+      emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) },
       pagination: {
         page: page,
         per_page: per_page,
