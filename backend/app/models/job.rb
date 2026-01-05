@@ -110,7 +110,8 @@ class Job < ApplicationRecord
 
   # Validations
   validates :name, presence: true
-  validates :site_supervisor_name, presence: true, unless: -> { imported_from_xero? || enquiry_status? }
+  # SSoT: Supervisor is now stored via job_contacts (role: "supervisor"), not site_supervisor_name column
+  # The column is kept for legacy compatibility but validation removed
   validates :suburb, presence: true, if: :has_address_components?
   validates :state, presence: true, if: :has_address_components?
   validates :postcode, length: { is: 4 }, allow_blank: true, if: -> { postcode.present? }
@@ -219,11 +220,23 @@ class Job < ApplicationRecord
   end
 
   # Site supervisor info for prepopulating POs
+  # SSoT: Derives from job_contacts with role "supervisor", falls back to legacy columns
   def site_supervisor_info
-    {
-      name: site_supervisor_name,
-      phone: site_supervisor_phone
-    }
+    supervisor_contact = job_contacts.find_by(role: "supervisor")
+    if supervisor_contact&.user.present?
+      {
+        name: supervisor_contact.user.name,
+        phone: supervisor_contact.user.mobile_phone,
+        display_name: supervisor_contact.user.name
+      }
+    else
+      # Legacy fallback for old jobs that have data in columns
+      {
+        name: site_supervisor_name,
+        phone: site_supervisor_phone,
+        display_name: site_supervisor_name
+      }
+    end
   end
 
   # Check if SharePoint folders have not been requested yet

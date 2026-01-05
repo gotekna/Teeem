@@ -559,11 +559,6 @@ export default function NewJobPage() {
       // Auto-fill supervisor if exactly one user has that role and not already set
       if (supervisorUsers.length === 1 && prev.supervisor_id === null) {
         updates.supervisor_id = supervisorUsers[0].id;
-        // Also populate site_supervisor_name for backend validation
-        setFormData(formPrev => ({
-          ...formPrev,
-          site_supervisor_name: supervisorUsers[0].name || "",
-        }));
       }
       // Auto-fill site coordinator if exactly one user has that role and not already set
       if (siteCoordinatorUsers.length === 1 && prev.site_coordinator_id === null) {
@@ -613,15 +608,6 @@ export default function NewJobPage() {
       ...prev,
       [`${role}_id`]: userId,
     }));
-
-    // When supervisor is selected, also populate site_supervisor_name for backend validation
-    if (role === "supervisor") {
-      const selectedUser = users.find(u => u.id === userId);
-      setFormData(prev => ({
-        ...prev,
-        site_supervisor_name: selectedUser?.name || "",
-      }));
-    }
   };
 
   // Load stages when type and status are selected
@@ -772,7 +758,7 @@ export default function NewJobPage() {
         job: {
           // name: Auto-generated on backend from address components
           // job_number: Auto-created on backend
-          site_supervisor_name: formData.site_supervisor_name,
+          // SSoT: Supervisor is stored via job_contacts (role: "supervisor"), not site_supervisor_name column
           location: formData.address,
           latitude: formData.latitude,
           longitude: formData.longitude,
