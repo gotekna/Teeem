@@ -340,6 +340,7 @@ class DocumentType < ApplicationRecord
     # Form number based on dwelling type mapping
     form_number = resolve_form_number(job.dwelling_type)
     format.gsub!("{FormNumber}", form_number)
+    format.gsub!("{DwellingType}", job.dwelling_type.presence || "")
     format.gsub!("{Number}", number.to_s.rjust(2, "0"))
     format.gsub!("{Category}", category.presence || "General")
 

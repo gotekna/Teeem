@@ -298,6 +298,12 @@ export const JOB_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Form number based on dwelling type (configurable mapping)",
   },
   {
+    code: "{DwellingType}",
+    example: "Class 1A",
+    color: "orange",
+    description: "Dwelling type classification (e.g., Class 1A, Class 2)",
+  },
+  {
     code: "{Consultant}",
     example: "ABC Eng",
     color: "orange",
