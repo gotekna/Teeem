@@ -112,7 +112,7 @@ class Api::V1::UsersController < ApplicationController
 
   # Regular user params that anyone can edit
   def user_params
-    params.require(:user).permit(:name, :email, :mobile_phone, :preferred_theme)
+    params.require(:user).permit(:name, :email, :mobile_phone, :job_title, :preferred_theme)
   end
 
   # Admin-only params (role, role_ids, assigned_roles, contact_id)

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Phone, Shield, Calendar, Clock, Sun, Moon, Link2 } from "lucide-react";
+import { User, Mail, Phone, Shield, Calendar, Clock, Sun, Moon, Link2, Briefcase } from "lucide-react";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
   Select,
@@ -38,6 +38,7 @@ interface UserData {
   role: string;
   role_ids?: Array<{ id: number; display_value: string; name: string }>;
   mobile_phone?: string;
+  job_title?: string;
   contact_id?: number | null;
   contact?: { id: number; name: string } | null;
   last_login_at?: string;
@@ -111,6 +112,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         name: user.name,
         email: user.email,
         mobile_phone: user.mobile_phone || "",
+        job_title: user.job_title || "",
         contact_id: user.contact_id || null,
         // SSoT: Always ensure role_ids is an array to prevent .map errors
         role_ids: Array.isArray(user.role_ids) ? user.role_ids : [],
@@ -136,6 +138,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             name: editData.name,
             email: editData.email,
             mobile_phone: editData.mobile_phone,
+            job_title: editData.job_title,
             contact_id: editData.contact_id,
             role_ids: roleIds,
             preferred_theme: editData.preferred_theme,
@@ -251,6 +254,23 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
               onChange={(e) => setEditData({ ...editData, mobile_phone: e.target.value })}
               placeholder="04XX XXX XXX"
             />
+          </div>
+
+          {/* Job Title */}
+          <div className="space-y-2">
+            <Label htmlFor="job_title" className="flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-muted-foreground" />
+              Job Title
+            </Label>
+            <Input
+              id="job_title"
+              value={editData.job_title || ""}
+              onChange={(e) => setEditData({ ...editData, job_title: e.target.value })}
+              placeholder="e.g. Sales, Project Manager"
+            />
+            <p className="text-xs text-muted-foreground">
+              Used in email signature. Leave blank to hide from signature.
+            </p>
           </div>
 
           {/* Linked Contact */}

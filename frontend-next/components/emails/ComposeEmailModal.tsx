@@ -36,6 +36,8 @@ import { api } from "@/lib/api";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useUndoSend } from "@/hooks/useUndoSend";
 import { useAutoSaveDraft, useEmailDrafts } from "@/hooks/useEmailDrafts";
+import { useAuth } from "@/contexts/AuthContext";
+import { generateEmailSignature, hasSignature } from "@/lib/email-signature";
 import {
   CONTACT_SEARCH_DEBOUNCE_MS,
   CONTACT_SEARCH_MIN_CHARS,
@@ -121,6 +123,9 @@ export function ComposeEmailModal({
   // Undo send hook
   const { queueSend } = useUndoSend();
 
+  // Get current user for signature generation
+  const { user: currentUser } = useAuth();
+
   // Auto-save draft hook
   const autoSave = useAutoSaveDraft({
     enabled: open && !sending,
@@ -171,12 +176,15 @@ export function ComposeEmailModal({
     return () => clearTimeout(timer);
   }, [contactSearch, ccSearch, bccSearch]);
 
-  // Get signature for account from database (as HTML)
-  const getSignatureForAccount = (account: EmailAccount | undefined): string => {
-    if (!account?.email_signature) return "";
-    // Return signature with proper separator as HTML
-    const signatureLines = account.email_signature.split("\n").join("<br>");
-    return `<br><br><p>--<br>${signatureLines}</p>`;
+  // Generate signature from current user data (SSoT: branded Tekna signature)
+  const getUserSignature = (): string => {
+    if (!currentUser) return "";
+    return generateEmailSignature({
+      name: currentUser.name,
+      email: currentUser.email,
+      mobile_phone: currentUser.mobile_phone as string | undefined,
+      job_title: currentUser.job_title as string | undefined,
+    });
   };
 
   // Fetch accounts when modal opens
@@ -233,21 +241,20 @@ export function ComposeEmailModal({
     }
   }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft]);
 
-  // Update signature when account changes
+  // Add signature when account is selected and user data is available
   useEffect(() => {
-    if (!formData.credential_id || accounts.length === 0) return;
+    if (!formData.credential_id || accounts.length === 0 || !currentUser) return;
 
-    const account = accounts.find((a) => String(a.id) === formData.credential_id);
-    const signature = getSignatureForAccount(account);
+    const signature = getUserSignature();
 
     if (signature) {
-      // Only add signature if body doesn't already contain it (check for HTML separator)
+      // Only add signature if body doesn't already contain one
       setFormData((prev) => {
-        if (prev.body.includes("--<br>")) return prev;
+        if (hasSignature(prev.body)) return prev;
         return { ...prev, body: prev.body + signature };
       });
     }
-  }, [formData.credential_id, accounts]);
+  }, [formData.credential_id, accounts, currentUser]);
 
   const fetchAccounts = async () => {
     setLoading(true);
