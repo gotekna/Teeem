@@ -479,16 +479,34 @@ class EmailToJobService
     return nil unless customer_data.is_a?(Hash)
 
     email = customer_data["email"]
+    name = customer_data["name"]
+
+    # Priority 1: Find by email (exact match)
+    if email.present?
+      contact = Contact.find_by("LOWER(email) = ?", email.downcase)
+      return contact if contact
+    end
+
+    # Priority 2: Find by name (fuzzy match) - IMPORTANT for matching existing clients
+    if name.present?
+      # Try exact name match first
+      contact = Contact.find_by("LOWER(display_name) = ?", name.downcase)
+      return contact if contact
+
+      # Try partial name match (e.g., "Bronwyn Jarvis" matches "Bronwyn Jarvis - BMD")
+      contact = Contact.where("LOWER(display_name) LIKE ?", "%#{name.downcase}%").first
+      if contact
+        Rails.logger.info "[EmailToJobService] Found existing contact by name match: #{contact.display_name}"
+        return contact
+      end
+    end
+
+    # No existing contact found - create new one if we have email
     return nil unless email.present?
 
-    # Try to find existing contact by email
-    contact = Contact.find_by(email: email)
-    return contact if contact
-
-    # Create new contact
     Contact.create!(
       email: email,
-      display_name: customer_data["name"],
+      display_name: name,
       mobile_phone: normalize_phone(customer_data["phone"]),
       company_name_or_trust: customer_data["company"],
       entity_type: customer_data["entity_type"] || "person",
@@ -497,7 +515,7 @@ class EmailToJobService
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create customer: #{e.message}"
     # Try to find by email again in case of race condition
-    Contact.find_by(email: email)
+    Contact.find_by(email: email) if email.present?
   end
 
   def normalize_phone(phone)
@@ -668,6 +686,39 @@ class EmailToJobService
 
   # Add sales people detection to extracted data
   def add_sales_people_info(extracted_data)
+    # Customer: Check if AI-extracted customer already exists in contacts
+    customer_data = extracted_data["customer"]
+    if customer_data.is_a?(Hash)
+      customer_email = customer_data["email"]
+      customer_name = customer_data["name"]
+      customer_contact = nil
+
+      # Try to find existing contact by email first
+      if customer_email.present?
+        customer_contact = Contact.find_by("LOWER(email) = ?", customer_email.downcase)
+      end
+
+      # If no email match, try searching by name
+      if customer_contact.nil? && customer_name.present?
+        # Exact match first
+        customer_contact = Contact.find_by("LOWER(display_name) = ?", customer_name.downcase)
+
+        # Fuzzy match if no exact match
+        if customer_contact.nil?
+          customer_contact = Contact.where("LOWER(display_name) LIKE ?", "%#{customer_name.downcase}%").first
+        end
+      end
+
+      # Add matching info to customer data
+      extracted_data["customer"]["contact_exists"] = customer_contact.present?
+      extracted_data["customer"]["contact_id"] = customer_contact&.id
+      extracted_data["customer"]["needs_contact_creation"] = customer_contact.nil?
+
+      if customer_contact
+        Rails.logger.info "[EmailToJobService] Found existing customer: #{customer_contact.display_name} (ID: #{customer_contact.id})"
+      end
+    end
+
     # Internal sales: The user who synced/forwarded the email (Jake, Robert, etc.)
     internal_sales_user = @user
     internal_sales_contact = Contact.find_by(email: internal_sales_user.email)
