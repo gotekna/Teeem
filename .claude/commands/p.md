@@ -216,3 +216,109 @@ ISSUES FOUND & FIXED:
 - Always login first before checking pages
 - If login fails, report error and stop
 - Compare local vs production performance to catch deployment regressions
+
+---
+
+## 🔴 ANTI-PATTERNS: What NOT To Do When Fixing Performance
+
+**Lessons learned from past sessions. DO NOT repeat these mistakes.**
+
+### 1. DON'T Add Multiple Fetch Triggers (SSoT Violation)
+
+```typescript
+// ❌ BAD: Two places trigger data fetch
+if (condition1) setAutoFetchRefreshKey(prev => prev + 1);
+// ... later in code ...
+if (condition2) setAutoFetchRefreshKey(prev => prev + 1);
+
+// ✅ GOOD: Single SSoT for fetch trigger
+} finally {
+  if (!hasAppliedInitialRecordsRef.current) {
+    setAutoFetchRefreshKey(prev => prev + 1);
+  }
+}
+```
+
+**Why:** Multiple triggers = data reloads unexpectedly, defeating caching.
+
+### 2. DON'T Add Volatile Dependencies to useEffect
+
+```typescript
+// ❌ BAD: baseFiltersKey changes during initialization
+useEffect(() => {
+  fetchData();
+}, [foundationId, baseFiltersKey]); // baseFiltersKey changes = double fetch!
+
+// ✅ GOOD: Check if already loaded before fetching
+useEffect(() => {
+  if (hasAppliedInitialRecordsRef.current && records.length > 0) {
+    return; // Skip duplicate fetch
+  }
+  fetchData();
+}, [foundationId, baseFiltersKey]);
+```
+
+**Why:** Dependencies that change during initialization cause duplicate fetches.
+
+### 3. DON'T Use Path-Based Navigation for View Switching
+
+```typescript
+// ❌ BAD: Full page reload, wipes cached data
+router.push('/contacts/view/company_role');
+
+// ✅ GOOD: Query param navigation, keeps component mounted
+router.push('/contacts?view=company_role', { scroll: false });
+```
+
+**Why:** Path-based navigation unmounts component → SSR reload → cache wiped.
+
+### 4. DON'T Forget to Check if SSR Data Already Applied
+
+```typescript
+// ❌ BAD: Always fetches, ignores SSR data
+useEffect(() => {
+  fetchRecords();
+}, []);
+
+// ✅ GOOD: Skip fetch if SSR/cache data already applied
+useEffect(() => {
+  if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0) {
+    console.log('[TeeemTableView] SSR data already applied, skipping fetch');
+    return;
+  }
+  fetchRecords();
+}, []);
+```
+
+**Why:** SSR pre-loads data. Fetching again = slow + flash of loading state.
+
+### 5. DON'T Add Refs Without Understanding WHY
+
+Adding refs like `hasAppliedInitialRecordsRef` is often a bandaid. Ask:
+- Why is the effect running multiple times?
+- Is there a dependency that shouldn't be there?
+- Can we restructure to avoid needing the ref?
+
+### 6. DON'T Decrease Cache TTL "For Safety"
+
+```typescript
+// ❌ BAD: Short cache = frequent reloads
+export const CACHE_TTL_RECORDS = 5 * 60 * 1000; // 5 minutes
+
+// ✅ GOOD: Longer cache, rely on invalidation after mutations
+export const CACHE_TTL_RECORDS = 30 * 60 * 1000; // 30 minutes
+```
+
+**Why:** Mutations already call `clearCachedRecords()`. Short TTL = bad UX.
+
+### Summary: Performance Fix Checklist
+
+Before implementing ANY performance fix, verify:
+
+| Check | Question |
+|-------|----------|
+| SSoT | Is there already a mechanism for this? Search first! |
+| Dependencies | Will this change cause effects to re-run? |
+| Navigation | Will this cause a full page reload? |
+| Cache | Am I working WITH the cache or fighting it? |
+| Refs | Am I adding a ref as a bandaid for a design issue? |

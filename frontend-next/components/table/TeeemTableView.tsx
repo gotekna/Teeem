@@ -619,14 +619,33 @@ export default function TeeemTableView({
   const effectiveEnableExport = enableExport || shouldAutoEnable;
   const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
 
+  // Refs for state setters that are defined later - enables optimistic UI in callbacks
+  const pendingDeleteIdsRef = React.useRef<{
+    set: React.Dispatch<React.SetStateAction<Set<string | number>>>;
+  } | null>(null);
+  const selectedRowsRef = React.useRef<{
+    set: React.Dispatch<React.SetStateAction<Set<string | number>>>;
+  } | null>(null);
+  const autoFetchedRecordsRef = React.useRef<{
+    set: React.Dispatch<React.SetStateAction<TableRowType[]>>;
+  } | null>(null);
+
   // Auto-enabled bulk delete when effectiveFoundationId is available
   // Pages don't need to wire this up manually - it just works
   const defaultBulkDelete = useCallback(async (ids: (number | string)[]) => {
-    if (!effectiveFoundationId) return;
+    if (!effectiveFoundationId || ids.length === 0) return;
 
     // Confirmation dialog
     const confirmed = window.confirm(`Delete ${ids.length} record${ids.length === 1 ? '' : 's'}? This action cannot be undone.`);
     if (!confirmed) return;
+
+    // Optimistic UI: Immediately hide the rows and clear selection
+    pendingDeleteIdsRef.current?.set(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+    selectedRowsRef.current?.set(new Set<string | number>());
 
     try {
       const response = await api.post<{ success: boolean; deleted_count: number; errors: { id: number; errors: string[] }[] }>(`/api/v1/foundations/${effectiveFoundationId}/records/bulk_delete`, {
@@ -640,17 +659,31 @@ export default function TeeemTableView({
         description: `Successfully deleted ${deletedCount} record${deletedCount === 1 ? '' : 's'}.`,
       });
 
-      // Refresh data
+      // For autoFetch mode, remove from local state (server already deleted)
+      if (autoFetchRecords && effectiveFoundationId) {
+        autoFetchedRecordsRef.current?.set(prev => {
+          const deletedIdStrings = new Set(ids.map(id => String(id)));
+          return prev.filter(r => !deletedIdStrings.has(String(r.id)));
+        });
+      }
+
+      // Refresh data to ensure sync with server
       onRefresh?.();
     } catch (err) {
       console.error("Failed to bulk delete:", err);
+      // Rollback optimistic UI on error
+      pendingDeleteIdsRef.current?.set(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
       toast({
         title: "Delete failed",
         description: err instanceof Error ? err.message : "Failed to delete records. Please try again.",
         variant: "destructive",
       });
     }
-  }, [effectiveFoundationId, onRefresh, toast]);
+  }, [effectiveFoundationId, onRefresh, toast, autoFetchRecords]);
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 
@@ -1832,6 +1865,14 @@ export default function TeeemTableView({
 
   // Optimistic delete IDs - for instant UI feedback after merge
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string | number>>(new Set());
+
+  // Wire up refs for optimistic UI in early-defined callbacks (defaultBulkDelete)
+  // These refs enable callbacks defined before state to access setters
+  React.useEffect(() => {
+    pendingDeleteIdsRef.current = { set: setPendingDeleteIds };
+    selectedRowsRef.current = { set: setSelectedRows };
+    autoFetchedRecordsRef.current = { set: setAutoFetchedRecords };
+  }, [setPendingDeleteIds, setSelectedRows, setAutoFetchedRecords]);
 
   // Filter panel state managed by atom (SSoT)
   const [filterPanelOpen, setFilterPanelOpen] = useAtom(filterPanelOpenAtom);
@@ -5707,8 +5748,13 @@ export default function TeeemTableView({
                   size="sm"
                   onClick={() => {
                     // Filter to only visible selected rows (intersection of selected + filtered)
-                    const visibleIds = new Set(filteredAndSortedEntries.map(e => e.id));
-                    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
+                    // Use String() for type-safe comparison (IDs may be string or number)
+                    const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
+                    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
+                    if (visibleSelectedIds.length === 0) {
+                      console.warn('[Delete] No visible selected rows to delete');
+                      return;
+                    }
                     effectiveBulkDelete(visibleSelectedIds);
                   }}
                 >
@@ -6185,8 +6231,13 @@ export default function TeeemTableView({
               variant="destructive"
               size="sm"
               onClick={() => {
-                const visibleIds = new Set(filteredAndSortedEntries.map(e => e.id));
-                const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
+                // Use String() for type-safe comparison (IDs may be string or number)
+                const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
+                const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
+                if (visibleSelectedIds.length === 0) {
+                  console.warn('[Delete] No visible selected rows to delete');
+                  return;
+                }
                 effectiveBulkDelete?.(visibleSelectedIds);
               }}
             >
