@@ -25,7 +25,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { EmailContactAutocomplete } from "./EmailContactAutocomplete";
 import { useUndoSend } from "@/hooks/useUndoSend";
 import { useAutoSaveDraft, useEmailDrafts } from "@/hooks/useEmailDrafts";
 import { useAuth } from "@/contexts/AuthContext";
@@ -135,7 +135,7 @@ export function ComposeEmailModal({
     existingDraftId: draft?.id,
   });
 
-  // Search contacts by name/email
+  // Search contacts by name/email (include company info for grouping)
   const searchContacts = async (search: string) => {
     if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
       setContacts([]);
@@ -144,7 +144,7 @@ export function ComposeEmailModal({
     setContactsLoading(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
       );
       const typedResponse = response as { contacts: Contact[] };
       setContacts((typedResponse.contacts || []).filter(c => c.email));
@@ -596,32 +596,14 @@ export function ComposeEmailModal({
             {/* To Field - Outlook style */}
             <div className="flex items-center border-b px-4 py-2">
               <span className="text-sm text-muted-foreground w-12 flex-shrink-0">To</span>
-              <div className="flex-1">
-                <ComboboxDropdown
-                  items={contacts.map((c) => ({
-                    id: c.email || "",
-                    label: `${c.display_name} (${c.email})`,
-                  }))}
-                  selectedItem={
-                    formData.to
-                      ? { id: formData.to, label: formData.to }
-                      : undefined
-                  }
-                  onSelect={(item) => setFormData({ ...formData, to: item.id })}
-                  placeholder=""
-                  searchInTrigger={true}
-                  onInputChange={setContactSearch}
-                  disableInternalFilter={true}
-                  onCreate={(value) => setFormData({ ...formData, to: value })}
-                  renderOnCreate={(value) => (
-                    <span>Use: <strong>{value}</strong></span>
-                  )}
+              <div className="flex-1 relative">
+                <EmailContactAutocomplete
+                  value={formData.to}
+                  onChange={(value) => setFormData({ ...formData, to: value })}
+                  contacts={contacts}
                   isLoading={contactsLoading}
-                  emptyResults={contactSearch.length < CONTACT_SEARCH_MIN_CHARS ? "" : "No contacts found"}
-                  clearable={true}
-                  onClear={() => setFormData({ ...formData, to: "" })}
-                  className="border-0 shadow-none h-8 rounded-none"
-                  popoverProps={{ className: "z-[9999]" }}
+                  onSearch={setContactSearch}
+                  minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                 />
               </div>
               <Button
@@ -637,79 +619,31 @@ export function ComposeEmailModal({
 
             {/* Cc Field - Always visible */}
             <div className="flex items-center border-b px-4 py-2">
-                <span className="text-sm text-muted-foreground w-12 flex-shrink-0">Cc</span>
-                <div className="flex-1">
-                  <ComboboxDropdown
-                    items={contacts.map((c) => ({
-                      id: c.email || "",
-                      label: `${c.display_name} (${c.email})`,
-                    }))}
-                    selectedItem={
-                      formData.cc
-                        ? { id: formData.cc, label: formData.cc }
-                        : undefined
-                    }
-                    onSelect={(item) => {
-                      setFormData({ ...formData, cc: item.id });
-                      setCcSearch("");
-                    }}
-                    placeholder=""
-                    searchInTrigger={true}
-                    onInputChange={setCcSearch}
-                    disableInternalFilter={true}
-                    onCreate={(value) => {
-                      setFormData({ ...formData, cc: value });
-                      setCcSearch("");
-                    }}
-                    renderOnCreate={(value) => (
-                      <span>Use: <strong>{value}</strong></span>
-                    )}
-                    isLoading={contactsLoading && ccSearch.length >= CONTACT_SEARCH_MIN_CHARS}
-                    emptyResults={ccSearch.length < CONTACT_SEARCH_MIN_CHARS ? "" : "No contacts found"}
-                    clearable={true}
-                    onClear={() => setFormData({ ...formData, cc: "" })}
-                    className="border-0 shadow-none h-8 rounded-none"
-                    popoverProps={{ className: "z-[9999]" }}
-                  />
-                </div>
+              <span className="text-sm text-muted-foreground w-12 flex-shrink-0">Cc</span>
+              <div className="flex-1 relative">
+                <EmailContactAutocomplete
+                  value={formData.cc}
+                  onChange={(value) => setFormData({ ...formData, cc: value })}
+                  contacts={contacts}
+                  isLoading={contactsLoading}
+                  onSearch={setCcSearch}
+                  minSearchChars={CONTACT_SEARCH_MIN_CHARS}
+                />
               </div>
+            </div>
 
             {/* Bcc Field */}
             {showCcBcc && (
               <div className="flex items-center border-b px-4 py-2">
                 <span className="text-sm text-muted-foreground w-12 flex-shrink-0">Bcc</span>
-                <div className="flex-1">
-                  <ComboboxDropdown
-                    items={contacts.map((c) => ({
-                      id: c.email || "",
-                      label: `${c.display_name} (${c.email})`,
-                    }))}
-                    selectedItem={
-                      formData.bcc
-                        ? { id: formData.bcc, label: formData.bcc }
-                        : undefined
-                    }
-                    onSelect={(item) => {
-                      setFormData({ ...formData, bcc: item.id });
-                      setBccSearch("");
-                    }}
-                    placeholder=""
-                    searchInTrigger={true}
-                    onInputChange={setBccSearch}
-                    disableInternalFilter={true}
-                    onCreate={(value) => {
-                      setFormData({ ...formData, bcc: value });
-                      setBccSearch("");
-                    }}
-                    renderOnCreate={(value) => (
-                      <span>Use: <strong>{value}</strong></span>
-                    )}
-                    isLoading={contactsLoading && bccSearch.length >= CONTACT_SEARCH_MIN_CHARS}
-                    emptyResults={bccSearch.length < CONTACT_SEARCH_MIN_CHARS ? "" : "No contacts found"}
-                    clearable={true}
-                    onClear={() => setFormData({ ...formData, bcc: "" })}
-                    className="border-0 shadow-none h-8 rounded-none"
-                    popoverProps={{ className: "z-[9999]" }}
+                <div className="flex-1 relative">
+                  <EmailContactAutocomplete
+                    value={formData.bcc}
+                    onChange={(value) => setFormData({ ...formData, bcc: value })}
+                    contacts={contacts}
+                    isLoading={contactsLoading}
+                    onSearch={setBccSearch}
+                    minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                   />
                 </div>
               </div>

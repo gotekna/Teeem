@@ -61,7 +61,13 @@ module Api
 
       # POST /api/v1/document_types
       def create
-        @document_type = DocumentType.new(document_type_params)
+        # Handle form_number_mapping separately (arbitrary keys not supported by strong params)
+        create_params = document_type_params.to_h
+        if params[:document_type][:form_number_mapping].present?
+          create_params[:form_number_mapping] = params[:document_type][:form_number_mapping].to_unsafe_h
+        end
+
+        @document_type = DocumentType.new(create_params)
 
         if @document_type.save
           render json: {
@@ -78,7 +84,16 @@ module Api
 
       # PATCH/PUT /api/v1/document_types/:id
       def update
-        if @document_type.update(document_type_params)
+        # Handle form_number_mapping separately (arbitrary keys not supported by strong params)
+        update_params = document_type_params.to_h
+        if params[:document_type][:form_number_mapping].present?
+          update_params[:form_number_mapping] = params[:document_type][:form_number_mapping].to_unsafe_h
+        elsif params[:document_type].key?(:form_number_mapping)
+          # Allow clearing the mapping by passing empty object
+          update_params[:form_number_mapping] = {}
+        end
+
+        if @document_type.update(update_params)
           response_data = {
             success: true,
             data: serialize_document_type(@document_type)
@@ -195,10 +210,12 @@ module Api
           :abbreviation,
           :scope,
           :target_folder,
+          :supports_versioning,
           tabs: [],
           file_extensions: [],
           folder_ids: [],
-          entity_tab_ids: []  # SSoT: New EntityTab IDs
+          entity_tab_ids: [],  # SSoT: New EntityTab IDs
+          form_number_mapping: {}  # Hash: dwelling type -> form number
         )
       end
 
@@ -253,6 +270,8 @@ module Api
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           target_folder: document_type.target_folder,
+          form_number_mapping: document_type.form_number_mapping || {},
+          supports_versioning: document_type.supports_versioning,
           documents_count: document_type.corporate_company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at

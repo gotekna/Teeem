@@ -98,17 +98,22 @@ class DocumentType < ApplicationRecord
   end
 
   # Resolve form number based on dwelling type using the configured mapping
-  # Returns the mapped value or empty string if no mapping exists
+  # Returns the mapped value, or first mapping as fallback if dwelling type not found
   # Example mapping: { "Class 1A" => "Form 15", "Class 10" => "Form 21" }
   def resolve_form_number(dwelling_type)
-    return "" if form_number_mapping.blank? || dwelling_type.blank?
+    return "" if form_number_mapping.blank?
+
+    # If no dwelling type provided, return first mapping as default
+    return form_number_mapping.values.first || "" if dwelling_type.blank?
 
     # Try exact match first
     form_number_mapping[dwelling_type] ||
       # Try case-insensitive match
       form_number_mapping.find { |k, _| k.downcase == dwelling_type.downcase }&.last ||
-      # Return default if configured, otherwise empty string
+      # Return default if configured
       form_number_mapping["default"] ||
+      # Fallback to first mapping in the list
+      form_number_mapping.values.first ||
       ""
   end
 

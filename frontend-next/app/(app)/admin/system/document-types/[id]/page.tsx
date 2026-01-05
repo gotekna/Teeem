@@ -564,6 +564,23 @@ export default function DocumentTypeDetailPage() {
       return;
     }
 
+    // Validate: If {FormNumber} is used in templates, require at least one form number mapping
+    const usesFormNumber =
+      documentType.file_name?.includes("{FormNumber}") ||
+      documentType.display_name?.includes("{FormNumber}");
+    const hasFormNumberMappings =
+      documentType.form_number_mapping &&
+      Object.keys(documentType.form_number_mapping).length > 0;
+
+    if (usesFormNumber && !hasFormNumberMappings) {
+      toast({
+        title: "Error",
+        description: "You must add at least one Form Number Mapping when using {FormNumber} in templates",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -2061,33 +2078,35 @@ export default function DocumentTypeDetailPage() {
         <DialogContent className={cn("sm:max-w-md", renameConfirmDialog?.showPreview && "sm:max-w-2xl")}>
           <DialogHeader>
             <DialogTitle>Rename Existing Documents?</DialogTitle>
-            <DialogDescription className="space-y-3 pt-2">
-              <p>
-                The file naming format has been changed. There are{" "}
-                <span className="font-semibold text-foreground">
-                  {renameConfirmDialog?.affectedCount || 0}
-                </span>{" "}
-                existing documents that don&apos;t match the new format.
-              </p>
-              {renameConfirmDialog?.oldFormat && (
-                <div className="text-xs space-y-1">
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">Old:</span>
-                    <code className="font-mono bg-muted px-1 rounded">
-                      {renameConfirmDialog.oldFormat}
-                    </code>
+            <DialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3 pt-2">
+                <p>
+                  The file naming format has been changed. There are{" "}
+                  <span className="font-semibold text-foreground">
+                    {renameConfirmDialog?.affectedCount || 0}
+                  </span>{" "}
+                  existing documents that don&apos;t match the new format.
+                </p>
+                {renameConfirmDialog?.oldFormat && (
+                  <div className="text-xs space-y-1">
+                    <div className="flex gap-2">
+                      <span className="text-muted-foreground">Old:</span>
+                      <code className="font-mono bg-muted px-1 rounded">
+                        {renameConfirmDialog.oldFormat}
+                      </code>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-muted-foreground">New:</span>
+                      <code className="font-mono bg-muted px-1 rounded">
+                        {renameConfirmDialog?.newFormat}
+                      </code>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">New:</span>
-                    <code className="font-mono bg-muted px-1 rounded">
-                      {renameConfirmDialog?.newFormat}
-                    </code>
-                  </div>
-                </div>
-              )}
-              <p className="text-sm">
-                Would you like to rename them in SharePoint to match the new naming convention?
-              </p>
+                )}
+                <p className="text-sm">
+                  Would you like to rename them in SharePoint to match the new naming convention?
+                </p>
+              </div>
             </DialogDescription>
           </DialogHeader>
 
