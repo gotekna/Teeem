@@ -225,6 +225,7 @@ export function LocationMapSelector({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <Marker position={mapPosition} />
+          <MapRecenter position={mapPosition} />
           <MapClickHandler
             onMapClick={(pos) => {
               setMapPosition(pos);
@@ -255,6 +256,26 @@ export function LocationMapSelector({
       )}
     </div>
   );
+}
+
+// Component to recenter map when position changes
+function MapRecenter({ position }: { position: [number, number] }) {
+  const MapRecenterInner = dynamic(
+    () =>
+      import("react-leaflet").then((mod) => {
+        const { useMap } = mod;
+        return function Recenter({ pos }: { pos: [number, number] }) {
+          const map = useMap();
+          React.useEffect(() => {
+            map.setView(pos, map.getZoom());
+          }, [map, pos]);
+          return null;
+        };
+      }),
+    { ssr: false }
+  );
+
+  return <MapRecenterInner pos={position} />;
 }
 
 // Component to handle map clicks

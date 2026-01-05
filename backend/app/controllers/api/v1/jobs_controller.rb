@@ -246,6 +246,9 @@ module Api
 
       # POST /api/v1/jobs
       def create
+        Rails.logger.info "[JobsController#create] job_params: #{job_params.inspect}"
+        Rails.logger.info "[JobsController#create] job_status_id from params: #{job_params[:job_status_id].inspect}"
+
         @job = Job.new(job_params)
 
         if @job.save
@@ -273,6 +276,8 @@ module Api
 
           render json: response_data, status: :created
         else
+          Rails.logger.error "[JobsController#create] Validation failed: #{@job.errors.full_messages.inspect}"
+          Rails.logger.error "[JobsController#create] job_status_id was: #{@job.job_status_id.inspect}"
           render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
         end
       end
