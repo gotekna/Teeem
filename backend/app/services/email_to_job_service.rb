@@ -249,12 +249,13 @@ class EmailToJobService
     rescue JSON::ParserError => e
       # AI returned invalid JSON - create low confidence response
       Rails.logger.error "Claude returned invalid JSON: #{e.message}"
+
+      # Try to extract customer from subject (e.g., "Quote for Bronwyn Jarvis")
+      customer_data = extract_customer_from_subject_fallback
+
       data = {
         "job_title" => @email.subject,
-        "customer" => {
-          "name" => @email.from_name || extract_name_from_email(@email.from_email),
-          "email" => @email.from_email
-        },
+        "customer" => customer_data,
         "confidence_score" => 0.1,
         "error" => "AI returned invalid response",
         "missing_info" => [ "all fields - AI extraction failed" ],
@@ -263,6 +264,37 @@ class EmailToJobService
       add_sales_people_info(data)
       data
     end
+  end
+
+  # When AI fails, try to extract customer name from email subject
+  # Don't use internal senders as customers
+  def extract_customer_from_subject_fallback
+    internal_domains = %w[@tekna.com.au @teeem.au @teeem.com]
+    sender_is_internal = internal_domains.any? { |d| @email.from_email&.downcase&.include?(d) }
+
+    # Try to extract name from subject patterns like "Quote for [Name]" or "... for [Name]"
+    subject = @email.subject || ""
+
+    # Pattern: "for [Name]" at end of subject
+    if subject =~ /\bfor\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*(?:\[.*\])?\s*$/i
+      return { "name" => $1.strip, "email" => nil }
+    end
+
+    # Pattern: "[Name] - Quote" or "[Name] Quote Request"
+    if subject =~ /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*[-:]/
+      return { "name" => $1.strip, "email" => nil }
+    end
+
+    # If sender is internal, don't use them as customer - leave blank
+    if sender_is_internal
+      return { "name" => nil, "email" => nil }
+    end
+
+    # Last resort: use sender (only if external)
+    {
+      "name" => @email.from_name || extract_name_from_email(@email.from_email),
+      "email" => @email.from_email
+    }
   end
 
   def build_extraction_prompt

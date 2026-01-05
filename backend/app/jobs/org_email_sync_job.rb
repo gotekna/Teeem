@@ -424,6 +424,74 @@ class OrgEmailSyncJob < ApplicationJob
     # Don't fail the sync if rules fail
   end
 
+  # Auto-attach email to task if it belongs to a task's conversation thread
+  # Also notifies the task owner when new emails arrive
+  def auto_attach_to_task(email)
+    return unless email.conversation_id.present?
+
+    # Find tasks that have emails with the same conversation_id attached
+    # SSoT: SmTaskAttachment with EmailWarehouse as attachable
+    task_ids = SmTaskAttachment
+      .where(attachable_type: "EmailWarehouse")
+      .joins("INNER JOIN email_warehouses ON email_warehouses.id = sm_task_attachments.attachable_id")
+      .where("email_warehouses.conversation_id = ?", email.conversation_id)
+      .distinct
+      .pluck(:sm_task_id)
+
+    return if task_ids.empty?
+
+    task_ids.each do |task_id|
+      task = SmTask.find_by(id: task_id)
+      next unless task
+
+      # Check if email is already attached
+      already_attached = SmTaskAttachment
+        .where(sm_task_id: task_id, attachable_type: "EmailWarehouse", attachable_id: email.id)
+        .exists?
+      next if already_attached
+
+      # Attach the new email to the task
+      user = email.synced_by_user || find_org_admin_user
+      SmTaskAttachment.create!(
+        sm_task: task,
+        attachable: email,
+        attachment_type: "email",
+        notes: "Reply in conversation thread",
+        added_by: user
+      )
+
+      Rails.logger.info "[OrgEmailSync] Auto-attached email #{email.id} to task ##{task.id} (same conversation)"
+
+      # Notify task owner about the new email
+      notify_task_owner_of_reply(task, email, user)
+    end
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to auto-attach email to task: #{e.message}"
+    # Don't fail the sync if auto-attach fails
+  end
+
+  # Notify task owner when a new email arrives in the conversation
+  def notify_task_owner_of_reply(task, email, user)
+    return unless task.assigned_user_id.present?
+
+    # Don't notify if the email is from the task owner (they know they sent it)
+    task_owner = User.find_by(id: task.assigned_user_id)
+    return unless task_owner
+    return if email.from_email&.downcase == task_owner.email&.downcase
+
+    Notification.create!(
+      user_id: task.assigned_user_id,
+      notification_type: "task_email_reply",
+      notifiable: task,
+      title: "New reply on task",
+      message: "#{email.from_name || email.from_email} replied: #{email.subject}"
+    )
+
+    Rails.logger.info "[OrgEmailSync] Notified #{task_owner.name} of new email on task ##{task.id}"
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to notify task owner: #{e.message}"
+  end
+
   # Find an admin user for applying rules when no specific user is matched
   def find_org_admin_user
     @org_admin_user ||= User.where(role: "admin").first
