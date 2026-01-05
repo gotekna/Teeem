@@ -22,7 +22,7 @@ import {
   EmailPropertyGroup,
   AddressPropertyGroup,
 } from "@/components/contact";
-import { SortableList, SortableItem, DragHandle } from "@/components/ui/dnd";
+import { SortableList, SortableItem } from "@/components/ui/dnd";
 import type {
   Contact,
   ContactEmail,
@@ -445,11 +445,47 @@ export function ContactOverviewTab({
     // Update local state immediately for responsive UI
     setCompanyRelationships(newOrder);
 
-    // The first employee_of relationship becomes primary
-    // We need to delete and recreate relationships in new order
-    // For now, just update local state - backend will sync primary_company_id
-    // TODO: Implement proper reordering API if needed
-  }, []);
+    // Call backend API to persist the order
+    try {
+      const companyIds = newOrder.map((rel) => {
+        const company = rel.related_contact || rel.other_contact;
+        return company?.id;
+      }).filter(Boolean);
+
+      await api.post(`/api/v1/contacts/relationships/${contact.id}/reorder_companies`, {
+        company_ids: companyIds,
+      });
+
+      // Refresh contact to get updated primary_company_id
+      onContactUpdate({ ...contact });
+    } catch (err) {
+      toast({
+        title: "Error reordering",
+        description: err instanceof Error ? err.message : "Failed to save order",
+        variant: "destructive",
+      });
+    }
+  }, [contact, onContactUpdate, toast]);
+
+  // Handle position change from typing a number in the badge
+  const handleCompanyPositionChange = useCallback(
+    async (currentIndex: number, newPosition: number) => {
+      // newPosition is 1-indexed from UI, convert to 0-indexed
+      const newIndex = newPosition - 1;
+      if (newIndex === currentIndex || newIndex < 0 || newIndex >= companyRelationships.length) {
+        return;
+      }
+
+      // Create new order by moving item from currentIndex to newIndex
+      const newOrder = [...companyRelationships];
+      const [movedItem] = newOrder.splice(currentIndex, 1);
+      newOrder.splice(newIndex, 0, movedItem);
+
+      // Trigger the reorder
+      await reorderCompanyLinks(newOrder);
+    },
+    [companyRelationships, reorderCompanyLinks]
+  );
 
   // Generic save function for single field updates
   const saveField = useCallback(
@@ -892,10 +928,13 @@ export function ContactOverviewTab({
                             <SortableItem
                               key={rel.id}
                               id={rel.id}
+                              position={index + 1}
+                              editableBadge
+                              onPositionChange={(newPos) => handleCompanyPositionChange(index, newPos)}
+                              maxPosition={companyRelationships.length}
                               className="flex flex-col gap-2 py-2 px-2 -mx-2 rounded-md bg-muted/30 group"
                             >
                               <div className="flex items-center gap-2">
-                                <DragHandle className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab" />
                                 <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-green-100 dark:bg-green-900/30">
                                   <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                                 </div>

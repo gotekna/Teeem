@@ -1296,21 +1296,21 @@ class Contact < ApplicationRecord
   # Legacy update_xero_synced_status callback removed
   # SSoT: Use synced_to_xero? method which queries contact_external_links
 
-  # Auto-generate display_name from first_name + last_name for person contacts
-  # SSoT: For person/sole_trader, display_name = first_name + last_name
+  # Auto-generate display_name from first_name + middle_name + last_name for person contacts
+  # SSoT: For person/sole_trader, display_name = first_name + middle_name + last_name
   # For company/trust, display_name is synced from company_name_or_trust
   def generate_display_name
-    # For person/sole_trader: display_name is derived from first_name + last_name
+    # For person/sole_trader: display_name is derived from first_name + middle_name + last_name
     if entity_type.in?(%w[person sole_trader]) && (first_name.present? || last_name.present?)
-      generated = [ first_name, last_name ].map(&:presence).compact.join(" ")
-      # Always update display_name to match first+last for person contacts
-      # This ensures SSoT: first_name + last_name = display_name
+      generated = [ first_name, middle_name, last_name ].map(&:presence).compact.join(" ")
+      # Always update display_name to match name parts for person contacts
+      # This ensures SSoT: first_name + middle_name + last_name = display_name
       self.display_name = generated if generated.present?
     end
 
     # Fallback: if display_name is blank but we have name components (any entity type)
     if display_name.blank? && (first_name.present? || last_name.present?)
-      self.display_name = [ first_name, last_name ].map(&:presence).compact.join(" ")
+      self.display_name = [ first_name, middle_name, last_name ].map(&:presence).compact.join(" ")
     end
   end
 
