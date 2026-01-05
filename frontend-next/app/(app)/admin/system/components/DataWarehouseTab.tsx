@@ -229,6 +229,7 @@ interface MicrosoftOrgStats {
       mailbox: string;
       email_count: number;
       last_sync: string | null;
+      last_email_received: string | null;
     }>;
     ai_classification: {
       spam: number;
@@ -968,6 +969,7 @@ export function DataWarehouseTab() {
                               <TableRow>
                                 <TableHead>Mailbox</TableHead>
                                 <TableHead className="text-right">Emails</TableHead>
+                                <TableHead className="text-right">Last Email</TableHead>
                                 <TableHead className="text-right">Last Sync</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -976,6 +978,9 @@ export function DataWarehouseTab() {
                                 <TableRow key={mb.mailbox}>
                                   <TableCell className="font-medium">{mb.mailbox}</TableCell>
                                   <TableCell className="text-right">{mb.email_count.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {mb.last_email_received ? format(new Date(mb.last_email_received), "PPp") : "Never"}
+                                  </TableCell>
                                   <TableCell className="text-right text-muted-foreground">
                                     {mb.last_sync ? format(new Date(mb.last_sync), "PPp") : "Never"}
                                   </TableCell>

@@ -59,13 +59,14 @@ module Api
             per_mailbox_stats = emails
               .where.not(mailbox_owner_email: [ nil, "" ])
               .group(:mailbox_owner_email)
-              .select("mailbox_owner_email, COUNT(*) as email_count, MAX(last_synced_at) as last_sync")
+              .select("mailbox_owner_email, COUNT(*) as email_count, MAX(last_synced_at) as last_sync, MAX(received_at) as last_email_received")
               .order("email_count DESC")
               .map do |row|
                 {
                   mailbox: row.mailbox_owner_email,
                   email_count: row.email_count,
-                  last_sync: row.last_sync
+                  last_sync: row.last_sync,
+                  last_email_received: row.last_email_received
                 }
               end
 
