@@ -2,9 +2,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
   before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
 
   # GET /api/v1/imap_credentials
-  # List user's IMAP accounts
+  # List user's IMAP accounts (owned + shared)
+  # SSoT: accessible_by returns owned OR shared_with_user_ids contains user
   def index
-    credentials = current_user.imap_credentials.order(created_at: :desc)
+    credentials = ImapCredential.accessible_by(current_user).order(created_at: :desc)
 
     render json: {
       success: true,
@@ -282,8 +283,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
       end
     end
 
-    # Add IMAP accounts
-    current_user.imap_credentials.where(is_active: true).each do |cred|
+    # Add IMAP accounts (owned + shared)
+    # SSoT: accessible_by returns owned OR shared_with_user_ids contains user
+    ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
       account_id = cred.id.to_s
       accounts << {
         id: cred.id,

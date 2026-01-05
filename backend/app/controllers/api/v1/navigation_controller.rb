@@ -56,8 +56,9 @@ module Api
         saved_positions = current_user.email_nav_positions || {}
         fallback_position = 1000  # High number for unsorted items
 
-        # IMAP accounts for current user
-        current_user.imap_credentials.where(is_active: true).each do |cred|
+        # IMAP accounts for current user (owned + shared)
+        # SSoT: accessible_by returns owned OR shared_with_user_ids contains user
+        ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
           account_id = cred.id.to_s
           accounts << {
             id: cred.id,
@@ -187,8 +188,9 @@ module Api
         saved_positions = current_user.email_nav_positions || {}
         fallback_position = 1000  # High number for unsorted items
 
-        # IMAP accounts for current user
-        current_user.imap_credentials.where(is_active: true).each do |cred|
+        # IMAP accounts for current user (owned + shared)
+        # SSoT: accessible_by returns owned OR shared_with_user_ids contains user
+        ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
           account_id = cred.id.to_s
           accounts << {
             id: "imap_#{cred.id}",
