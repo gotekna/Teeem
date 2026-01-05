@@ -306,6 +306,9 @@ class OrgEmailSyncJob < ApplicationJob
 
       # Apply email rules (SSoT: same pattern as IMAP sync)
       apply_rules_to_email(email)
+
+      # Auto-attach to task if this email belongs to a task's conversation
+      auto_attach_to_task(email)
     end
 
     email

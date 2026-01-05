@@ -287,6 +287,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # SSoT: accessible_by returns owned OR shared_with_user_ids contains user
     ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
       account_id = cred.id.to_s
+      is_shared = cred.user_id != current_user.id
       accounts << {
         id: cred.id,
         type: "imap",
@@ -295,6 +296,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
         provider: cred.provider,
         is_active: cred.is_active,
         is_default: false,
+        is_shared: is_shared,
+        owner_name: is_shared ? cred.user&.name : nil,
         email_signature: cred.email_signature,
         email_aliases: cred.email_aliases || [],
         position: saved_positions[account_id] || (fallback_position += 1)
@@ -681,6 +684,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       email_signature: credential.email_signature,
       # Sharing fields
       user_id: credential.user_id,
+      owner_name: credential.user&.name,
+      is_shared: credential.user_id != current_user.id,
       shared_with_user_ids: credential.shared_with_user_ids || [],
       shared_with_users: User.where(id: credential.shared_with_user_ids || []).map { |u| { id: u.id, name: u.name } }
     }

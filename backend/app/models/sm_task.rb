@@ -13,6 +13,9 @@ class SmTask < ApplicationRecord
 
   self.table_name = "sm_tasks"
 
+  # ActiveStorage attachments (for email attachments, uploads, etc.)
+  has_many_attached :files
+
   # Status enum
   enum :status, {
     not_started: "not_started",

@@ -40,7 +40,10 @@ class EmailToTaskService
       # 5. Attach the source email
       attach_source_email(task)
 
-      # 6. Find and attach related emails
+      # 6. Download and attach email file attachments (PDFs, images, etc.)
+      download_and_attach_email_files(task)
+
+      # 7. Find and attach related emails
       find_and_attach_related_emails(task)
 
       # 7. Add email participants as task contacts
@@ -168,6 +171,42 @@ class EmailToTaskService
       added_by: @user
     )
     Rails.logger.info "[EmailToTaskService] Attached source email ##{@email.id}"
+  end
+
+  def download_and_attach_email_files(task)
+    return unless @email.has_attachments
+    return unless @email.microsoft_credential_id.present?
+    return unless @email.mailbox_owner_email.present?
+    return unless @email.outlook_id.present?
+
+    credential = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+    return unless credential&.status == "connected"
+
+    begin
+      client = MicrosoftAppGraphClient.new(credential)
+      attachments = client.get_email_attachments(@email.mailbox_owner_email, @email.outlook_id)
+
+      attachments.each do |attachment|
+        next unless attachment["@odata.type"] == "#microsoft.graph.fileAttachment"
+        next unless attachment["contentBytes"].present?
+
+        filename = attachment["name"] || "attachment"
+        content_type = attachment["contentType"] || "application/octet-stream"
+        content = Base64.decode64(attachment["contentBytes"])
+
+        # Attach file directly to task via ActiveStorage
+        task.files.attach(
+          io: StringIO.new(content),
+          filename: filename,
+          content_type: content_type
+        )
+
+        Rails.logger.info "[EmailToTaskService] Attached file: #{filename}"
+      end
+    rescue StandardError => e
+      Rails.logger.error "[EmailToTaskService] Failed to download email attachments: #{e.message}"
+      # Don't fail task creation if attachment download fails
+    end
   end
 
   def find_and_attach_related_emails(task)
