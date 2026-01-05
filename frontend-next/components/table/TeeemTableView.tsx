@@ -770,11 +770,10 @@ export default function TeeemTableView({
     if (cached && cached.records.length > (initialRecords?.length || 0)) {
       // Cache has more records (user had scrolled/loaded more before)
       // Restore from cache for better UX
-      console.log(`[RecordsCache] Restoring ${cached.records.length} records from cache (SSR had ${initialRecords?.length || 0}), hasMore=${cached.hasMore}`);
+      console.log(`[RecordsCache] Restoring ${cached.records.length} records from cache (SSR had ${initialRecords?.length || 0})`);
       setAutoFetchedRecords(cached.records as TableRowType[]);
       setHasMore(cached.hasMore);
       hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
-      console.log(`[RecordsCache] Set hasAppliedInitialRecordsRef = true`);
     }
     hasCacheRestoredRef.current = true;
   }, [useAutoFetch, effectiveFoundationId, initialRecords?.length]);
@@ -1001,6 +1000,13 @@ export default function TeeemTableView({
       if (!hasMore && autoFetchedRecords.length > 0) {
         console.log('[TeeemTableView] All records loaded, applying filters client-side');
         return; // Client-side filtering in filteredAndSortedEntries handles this
+      }
+
+      // ULTRA FIX: Skip refetch if SSR data was already applied on initial load
+      // This prevents double-fetch when filter initialization triggers effect re-run
+      if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0 && autoFetchRefreshKey === 0) {
+        console.log('[TeeemTableView] SSR data already applied, skipping duplicate initial fetch');
+        return;
       }
 
       console.log('[TeeemTableView] Proceeding with API fetch');
@@ -3355,16 +3361,11 @@ export default function TeeemTableView({
         const wasAlreadyLoaded = initialViewLoadedRef.current;
         initialViewLoadedRef.current = true;
 
-        console.log(`[Views] Finally block: wasAlreadyLoaded=${wasAlreadyLoaded}, hasAppliedInitialRecords=${hasAppliedInitialRecordsRef.current}`);
-
         // Trigger fetch effect IF:
         // 1. Views weren't already loaded (first time)
         // 2. SSR data wasn't already applied (prevents double-fetch)
         if (!wasAlreadyLoaded && !hasAppliedInitialRecordsRef.current) {
-          console.log(`[Views] Triggering fetch via setAutoFetchRefreshKey`);
           setAutoFetchRefreshKey(prev => prev + 1);
-        } else {
-          console.log(`[Views] Skipping fetch trigger (data already loaded)`);
         }
       }
     };
