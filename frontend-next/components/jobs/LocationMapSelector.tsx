@@ -262,7 +262,7 @@ export function LocationMapSelector({
 function MapRecenter({ position }: { position: [number, number] }) {
   const MapRecenterInner = dynamic(
     () =>
-      import("react-leaflet").then((mod) => {
+      Promise.all([import("react-leaflet"), import("react")]).then(([mod, React]) => {
         const { useMap } = mod;
         return function Recenter({ pos }: { pos: [number, number] }) {
           const map = useMap();
