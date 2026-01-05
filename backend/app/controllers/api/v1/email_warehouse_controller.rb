@@ -996,7 +996,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       cc_emails: email.cc_emails,
       received_at: email.received_at,
       has_attachments: email.has_attachments,
-      attachment_count: email.attachment_count,
+      # SSoT: Use stored attachment_count (updated when email is viewed or synced)
+      attachment_count: email.attachment_count.to_i,
       snippet: email.preview_body(length: 200),
       body_preview: email.preview_body(length: 200),
       job_id: email.job_id,
@@ -1104,7 +1105,15 @@ class Api::V1::EmailWarehouseController < ApplicationController
       ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
 
       # Filter out signature/embedded images
-      ms_attachments.reject { |att| signature_attachment?(att) }.map do |att|
+      filtered = ms_attachments.reject { |att| signature_attachment?(att) }
+
+      # SSoT: Update attachment_count when we discover actual count from Outlook
+      # This ensures the count is accurate for future list views
+      if filtered.any? && email.attachment_count.to_i != filtered.size
+        email.update_column(:attachment_count, filtered.size)
+      end
+
+      filtered.map do |att|
         {
           id: nil,  # No local ID yet
           name: att["name"] || "attachment",
