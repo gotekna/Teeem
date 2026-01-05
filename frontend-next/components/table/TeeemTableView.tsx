@@ -977,11 +977,19 @@ export default function TeeemTableView({
     }
 
     const fetchInitialRecords = async () => {
+      console.log('[TeeemTableView] fetchInitialRecords called:', {
+        hasMore,
+        recordCount: autoFetchedRecords.length,
+        search: searchRef.current,
+        autoFetchRefreshKey,
+      });
+
       // IMPORTANT: Skip initial fetch if there's an active search term
       // The search handler (handleAutoFetchSearch) is responsible for fetching when searching
       // This prevents overwriting search results with non-search results
       const currentSearch = searchRef.current;
       if (currentSearch) {
+        console.log('[TeeemTableView] Skipping fetch - search active');
         return;
       }
 
@@ -993,6 +1001,8 @@ export default function TeeemTableView({
         console.log('[TeeemTableView] All records loaded, applying filters client-side');
         return; // Client-side filtering in filteredAndSortedEntries handles this
       }
+
+      console.log('[TeeemTableView] Proceeding with API fetch');
 
       setIsLoadingMore(true);
       try {
@@ -1043,13 +1053,12 @@ export default function TeeemTableView({
     // 2. No more records to load
     // 3. Already loading
     // 4. No records yet (initial state)
-    // 5. There's an active search term (search results are complete, don't overwrite)
-    //    Use searchRef.current since search atom is declared later in the component
-    if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0 || searchRef.current) return;
+    // NOTE: Background loading continues even during search - client-side filtering shows matches as they load
+    if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0) return;
 
     const timer = setTimeout(async () => {
       // Re-check conditions inside timeout (state may have changed)
-      if (!hasMore || isLoadingMore || searchRef.current) return;
+      if (!hasMore || isLoadingMore) return;
 
       const lastRecord = autoFetchedRecords[autoFetchedRecords.length - 1];
       const cursor = lastRecord?.id;
@@ -2123,11 +2132,19 @@ export default function TeeemTableView({
       if (mode) {
         setCurrentSearchMode(mode);
       }
+
+      // ULTRA FIX: If all records loaded, search client-side only
+      // Just update search atom - filteredAndSortedEntries handles filtering
+      if (!hasMore && autoFetchedRecords.length > 0) {
+        console.log('[TeeemTableView] All records loaded, searching client-side');
+        return; // Skip API call
+      }
+
       if (effectiveOnServerSearch) {
         effectiveOnServerSearch(value, mode);
       }
     },
-    [effectiveOnServerSearch]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length]
   );
 
   const handleSearchAllChange = useCallback(
@@ -3458,12 +3475,14 @@ export default function TeeemTableView({
     }
 
     // Apply search filter (client-side)
-    // ONLY filter client-side when there's NO server search - SSoT: backend handles filtering
-    // When effectiveOnServerSearch exists, server already filtered with SQL ILIKE
+    // Filter client-side when:
+    // 1. No server search handler exists, OR
+    // 2. All records are loaded (so we skip server call and filter locally)
     const hasServerSearch = !!effectiveOnServerSearch;
+    const allRecordsLoaded = !hasMore && effectiveEntries.length > 0;
+    const shouldApplyClientSearch = !hasServerSearch || allRecordsLoaded;
 
-
-    if (search && !hasServerSearch) {
+    if (search && shouldApplyClientSearch) {
       // Use extracted utility function for client-side search
       result = applySearch(result, {
         search,
@@ -3510,6 +3529,7 @@ export default function TeeemTableView({
     interGroupLogic,
     sortColumns,
     pendingDeleteIds,
+    hasMore,  // ULTRA FIX: Needed to detect when all records loaded for client-side search
   ]);
 
   // Keep ref in sync with filteredAndSortedEntries for use in callbacks

@@ -739,7 +739,7 @@ export default function JobDetailPage() {
 
   // Choice columns state (Level, Dwelling Type) - SSoT: loaded from Column.available_choices via API
   const [levelChoices, setLevelChoices] = React.useState<string[]>([]);
-  const [dwellingTypeChoices, setDwellingTypeChoices] = React.useState<string[]>([]);
+  const [dwellingTypeChoices, setDwellingTypeChoices] = React.useState<{ value: string; description: string }[]>([]);
   const [editingChoices, setEditingChoices] = React.useState<{ field: 'level' | 'dwelling_type'; choices: string[] } | null>(null);
   const [newChoiceInput, setNewChoiceInput] = React.useState('');
   const [savingChoices, setSavingChoices] = React.useState(false);
@@ -1010,24 +1010,33 @@ export default function JobDetailPage() {
   // Load choice column data from Jobs foundation schema
   const loadChoiceColumns = React.useCallback(async () => {
     try {
-      const response = await api.get<{
+      // Fetch schema for column IDs and level choices
+      const schemaResponse = await api.get<{
         success: boolean;
         columns: { id: number; name: string; column_name: string; column_type: string; choices: string[] | null }[];
       }>('/api/v1/foundations/jobs/schema');
 
-      if (response?.success && response.columns) {
-        // Schema returns column_name (not name) and choices (not available_choices)
-        const levelCol = response.columns.find(c => c.column_name === 'level');
-        const dwellingCol = response.columns.find(c => c.column_name === 'dwelling_type');
+      if (schemaResponse?.success && schemaResponse.columns) {
+        const levelCol = schemaResponse.columns.find(c => c.column_name === 'level');
+        const dwellingCol = schemaResponse.columns.find(c => c.column_name === 'dwelling_type');
 
         if (levelCol?.choices) {
           setLevelChoices(levelCol.choices);
           setChoiceColumnIds(prev => ({ ...prev, level: levelCol.id }));
         }
-        if (dwellingCol?.choices) {
-          setDwellingTypeChoices(dwellingCol.choices);
+        if (dwellingCol) {
           setChoiceColumnIds(prev => ({ ...prev, dwelling_type: dwellingCol.id }));
         }
+      }
+
+      // Fetch dwelling types with descriptions from dedicated endpoint (SSoT)
+      const dwellingResponse = await api.get<{
+        success: boolean;
+        data: { value: string; description: string }[];
+      }>('/api/v1/document_types/dwelling_types');
+
+      if (dwellingResponse?.success && dwellingResponse.data) {
+        setDwellingTypeChoices(dwellingResponse.data);
       }
     } catch (error) {
       console.error("Failed to load choice columns:", error);
@@ -1054,7 +1063,14 @@ export default function JobDetailPage() {
       if (editingChoices.field === 'level') {
         setLevelChoices(editingChoices.choices);
       } else {
-        setDwellingTypeChoices(editingChoices.choices);
+        // Reload dwelling types to get descriptions from SSoT API
+        const dwellingResponse = await api.get<{
+          success: boolean;
+          data: { value: string; description: string }[];
+        }>('/api/v1/document_types/dwelling_types');
+        if (dwellingResponse?.success && dwellingResponse.data) {
+          setDwellingTypeChoices(dwellingResponse.data);
+        }
       }
 
       setEditingChoices(null);
@@ -1490,7 +1506,7 @@ export default function JobDetailPage() {
                           <DropdownMenuContent align="end">
                             <button
                               className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
-                              onClick={() => setEditingChoices({ field: 'dwelling_type', choices: [...dwellingTypeChoices] })}
+                              onClick={() => setEditingChoices({ field: 'dwelling_type', choices: dwellingTypeChoices.map(c => c.value) })}
                             >
                               <Settings className="h-3 w-3 inline mr-2" />
                               Edit Choices
@@ -1500,9 +1516,12 @@ export default function JobDetailPage() {
                       </div>
                       {isEditing ? (
                         <ComboboxDropdown
-                          items={dwellingTypeChoices.map((c) => ({ id: c, label: c }))}
+                          items={dwellingTypeChoices.map((c) => ({
+                            id: c.value,
+                            label: c.description ? `${c.value} - ${c.description}` : c.value
+                          }))}
                           selectedItem={editForm.dwelling_type ? { id: editForm.dwelling_type, label: editForm.dwelling_type } : undefined}
-                          onSelect={(item) => setEditForm({ ...editForm, dwelling_type: item.label })}
+                          onSelect={(item) => setEditForm({ ...editForm, dwelling_type: item.id })}
                           placeholder="Select dwelling type..."
                         />
                       ) : (
