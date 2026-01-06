@@ -3245,7 +3245,12 @@ export class UnifiedGanttCanvas {
       this.ctx.stroke();
     }
 
-    // Draw task bars
+    // Draw task bars - clip to timeline area to prevent overflow
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(timelineX, headerHeight, this.width - timelineX, this.height - headerHeight);
+    this.ctx.clip();
+
     for (let i = 0; i < this.visibleTasks.length; i++) {
       const task = this.visibleTasks[i];
       const y = headerHeight + i * rowHeight - this.scrollY;
@@ -3571,6 +3576,9 @@ export class UnifiedGanttCanvas {
         this.ctx.fillText(rightLabel, rightLabelX, barY + taskBarHeight / 2);
       }
     }
+
+    // Restore context after clipping
+    this.ctx.restore();
   }
 
   /** Draw task icon for Order, Call, Photo tasks */
