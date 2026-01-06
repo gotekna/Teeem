@@ -22,7 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
-import { X } from 'lucide-react';
+import { X, ChevronDown, ChevronRight } from 'lucide-react';
 import type { GanttTask } from '@/lib/gantt/types';
 
 // =============================================================================
@@ -83,6 +83,9 @@ export function GanttDependencyEditor({
   // Controlled state for pending input values (fixes race condition when clicking OK)
   const [pendingPredRowNum, setPendingPredRowNum] = React.useState('');
   const [pendingSuccRowNum, setPendingSuccRowNum] = React.useState('');
+
+  // Track which inherited headers are expanded to show their children
+  const [expandedHeaders, setExpandedHeaders] = React.useState<Set<number>>(new Set());
 
   // ---------------------------------------------------------------------------
   // Effects
@@ -347,6 +350,63 @@ export function GanttDependencyEditor({
     return inherited;
   }, [task, tasks]);
 
+  // Helper: Get all tasks under a header (recursive, mirrors backend get_tasks_under_header)
+  const getTasksUnderHeader = React.useCallback((headerTaskNumber: number): Array<{
+    taskNumber: number;
+    name: string;
+    taskId: string;
+    rowIndex: number;
+  }> => {
+    const result: Array<{ taskNumber: number; name: string; taskId: string; rowIndex: number }> = [];
+
+    // Find all tasks that have this header as their parent
+    tasks.forEach((t, index) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = t.rowData as any;
+      const parentId = extractHeaderParent(r?.header_gantt);
+
+      if (parentId === headerTaskNumber) {
+        // Check if this is a header (nested) or a regular task
+        const isHeader = r?.allow_header || r?.header_gantt === 'Header';
+
+        if (isHeader) {
+          // Recurse into nested header
+          result.push(...getTasksUnderHeader(r?.task_number));
+        } else {
+          // Regular task - add to result
+          result.push({
+            taskNumber: r?.task_number,
+            name: r?.name || t.name,
+            taskId: t.id,
+            rowIndex: index + 1,
+          });
+        }
+      }
+    });
+
+    return result;
+  }, [tasks]);
+
+  // Compute expanded tasks for each inherited header predecessor
+  const expandedInheritedDeps = React.useMemo(() => {
+    const result: Map<number, Array<{ taskNumber: number; name: string; taskId: string; rowIndex: number }>> = new Map();
+
+    inheritedPredecessors.forEach(inherited => {
+      // Check if this inherited predecessor is a header
+      const inheritedTask = tasks.find(t => t.id === inherited.taskId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inheritedRowData = inheritedTask?.rowData as any;
+      const isHeader = inheritedRowData?.allow_header || inheritedRowData?.header_gantt === 'Header';
+
+      if (isHeader) {
+        const children = getTasksUnderHeader(inherited.taskNumber);
+        result.set(inherited.taskNumber, children);
+      }
+    });
+
+    return result;
+  }, [inheritedPredecessors, tasks, getTasksUnderHeader]);
+
   // Build combobox items from tasks (exclude headers and current task)
   const taskComboItems = React.useMemo(() => {
     return tasks
@@ -553,7 +613,7 @@ export function GanttDependencyEditor({
                   );
                 })}
 
-                {/* Inherited predecessors (greyed out, read-only) */}
+                {/* Inherited predecessors (greyed out, read-only, collapsible for headers) */}
                 {inheritedPredecessors.map((inherited, index) => {
                   const inheritedTask = tasks.find(t => t.id === inherited.taskId);
                   const inheritedRowNum = inheritedTask
@@ -562,47 +622,97 @@ export function GanttDependencyEditor({
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const inheritedRowData = inheritedTask?.rowData as any;
                   const inheritedTaskName = inheritedRowData?.name || inheritedTask?.name || '';
+                  const isHeader = inheritedRowData?.allow_header || inheritedRowData?.header_gantt === 'Header';
+                  const expandedChildren = expandedInheritedDeps.get(inherited.taskNumber) || [];
+                  const isExpanded = expandedHeaders.has(inherited.taskNumber);
 
                   return (
-                    <div
-                      key={`inherited-${index}`}
-                      className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-50"
-                      title={`Inherited from: ${inherited.headerName}`}
-                    >
-                      {/* Row # - disabled */}
-                      <Input
-                        type="number"
-                        value={inheritedRowNum}
-                        disabled
-                        className="h-8 text-center bg-muted cursor-not-allowed"
-                      />
+                    <React.Fragment key={`inherited-${index}`}>
+                      <div
+                        className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-60"
+                        title={`Inherited from: ${inherited.headerName}`}
+                      >
+                        {/* Row # - disabled */}
+                        <Input
+                          type="number"
+                          value={inheritedRowNum}
+                          disabled
+                          className="h-8 text-center bg-muted cursor-not-allowed"
+                        />
 
-                      {/* Task name - disabled with inherited label */}
-                      <div className="h-8 flex items-center px-3 rounded-md border border-input bg-muted text-sm truncate">
-                        <span className="truncate">{inherited.taskNumber} - {inheritedTaskName}</span>
-                        <span className="ml-auto text-xs text-muted-foreground shrink-0 pl-2">
-                          (from {inherited.headerName})
-                        </span>
+                        {/* Task name - with expand button for headers */}
+                        <div className="h-8 flex items-center px-2 rounded-md border border-input bg-muted text-sm">
+                          {isHeader && expandedChildren.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedHeaders(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(inherited.taskNumber)) {
+                                    next.delete(inherited.taskNumber);
+                                  } else {
+                                    next.add(inherited.taskNumber);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="mr-1 p-0.5 hover:bg-muted-foreground/20 rounded"
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                          <span className="truncate">{inherited.taskNumber} - {inheritedTaskName}</span>
+                          {isHeader && expandedChildren.length > 0 && (
+                            <span className="ml-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              ({expandedChildren.length} tasks)
+                            </span>
+                          )}
+                          <span className="ml-auto text-xs text-muted-foreground shrink-0 pl-2">
+                            (from {inherited.headerName})
+                          </span>
+                        </div>
+
+                        {/* Type - disabled */}
+                        <select
+                          disabled
+                          className="h-8 w-full rounded-md border border-input bg-muted px-2 text-sm cursor-not-allowed"
+                        >
+                          <option>Finish-to-Start (FS)</option>
+                        </select>
+
+                        {/* Lag - disabled */}
+                        <Input
+                          disabled
+                          value={0}
+                          className="h-8 text-center bg-muted cursor-not-allowed"
+                        />
+
+                        {/* No remove button - can't delete inherited */}
+                        <div className="h-8 w-8" />
                       </div>
 
-                      {/* Type - disabled */}
-                      <select
-                        disabled
-                        className="h-8 w-full rounded-md border border-input bg-muted px-2 text-sm cursor-not-allowed"
-                      >
-                        <option>Finish-to-Start (FS)</option>
-                      </select>
-
-                      {/* Lag - disabled */}
-                      <Input
-                        disabled
-                        value={0}
-                        className="h-8 text-center bg-muted cursor-not-allowed"
-                      />
-
-                      {/* No remove button - can't delete inherited */}
-                      <div className="h-8 w-8" />
-                    </div>
+                      {/* Expanded children of header */}
+                      {isExpanded && expandedChildren.length > 0 && (
+                        <div className="ml-8 pl-4 border-l-2 border-amber-300 dark:border-amber-700 space-y-1 py-1">
+                          <p className="text-[10px] text-amber-700 dark:text-amber-400 font-medium mb-1">
+                            Effective dependencies (expands to {expandedChildren.length} tasks):
+                          </p>
+                          {expandedChildren.map((child, childIndex) => (
+                            <div
+                              key={`child-${childIndex}`}
+                              className="grid grid-cols-[56px_1fr] gap-2 items-center text-xs opacity-70"
+                            >
+                              <span className="text-right text-muted-foreground">#{child.rowIndex}</span>
+                              <span className="truncate">{child.taskNumber} - {child.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </React.Fragment>
                   );
                 })}
 

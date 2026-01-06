@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
+import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api } from '@/lib/api';
 import {
   AlertTriangle,
@@ -127,6 +128,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   // Email keywords state
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
+
+  // Email detail dialog state
+  const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
   const [keywordsSaving, setKeywordsSaving] = useState(false);
 
   // Load followers on mount for all tasks
@@ -1092,8 +1096,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     })}
                     viewOnly={true}
                     onRowDoubleClick={(row) => {
-                      // Open in standard email page view
-                      window.open(`/email?id=${row.id}`, '_blank');
+                      // Open email detail dialog
+                      setSelectedEmailId(Number(row.id));
                     }}
                   />
                 </div>
@@ -1203,6 +1207,15 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           </div>
         )}
       </div>
+
+      {/* Email Detail Dialog */}
+      <EmailDetailDialog
+        emailId={selectedEmailId}
+        open={selectedEmailId !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedEmailId(null);
+        }}
+      />
     </div>
   );
 }

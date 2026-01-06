@@ -349,7 +349,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         console.log(`[GanttDataManager] 📅 Applying backend date_map (SSoT)`, {
           hasDateMap: !!dateMap,
           dateMapKeys: Object.keys(dateMap).length,
-          task378: dateMap[378],
+          sampleKeys: Object.keys(dateMap).slice(0, 5),  // Show key types
+          task378: dateMap['378' as unknown as number],  // JSON keys are strings
         });
         convertedTasks = applyDateMap(convertedTasks, fetchedRows, dateMap);
         // DO NOT cascade here - backend is SSoT for template dates
@@ -429,8 +430,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const row = rowList.find(r => String(r.id) === task.id);
       if (isHeaderRow(row)) return task;
 
-      if (row && dateMap[row.task_number]) {
-        const dates = dateMap[row.task_number];
+      // SSoT: Use string key lookup - JSON serializes Ruby integer keys as strings
+      const taskNumKey = row ? String(row.task_number) : '';
+      if (row && dateMap[taskNumKey as unknown as number]) {
+        const dates = dateMap[taskNumKey as unknown as number];
         return {
           ...task,
           startDate: new Date(dates.start_date + 'T00:00:00'),

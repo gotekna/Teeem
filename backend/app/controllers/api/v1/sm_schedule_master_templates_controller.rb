@@ -647,7 +647,7 @@ module Api
 
         while queue.any?
           # Take task with lowest sequence number for deterministic ordering
-          task = queue.min_by(&:sequence)
+          task = queue.min_by(&:sequence_order)
           queue.delete(task)
           sorted_tasks << task
 
@@ -664,7 +664,7 @@ module Api
         # If sorted_tasks doesn't include all tasks, there's a cycle - add remaining in sequence order
         if sorted_tasks.size < tasks.size
           remaining = tasks - sorted_tasks
-          sorted_tasks.concat(remaining.sort_by(&:sequence))
+          sorted_tasks.concat(remaining.sort_by(&:sequence_order))
         end
 
         # SINGLE PASS: Calculate dates in topological order
@@ -739,6 +739,14 @@ module Api
         }
       rescue ArgumentError => e
         render json: { success: false, error: "Invalid date: #{e.message}" }, status: :unprocessable_entity
+      rescue StandardError => e
+        Rails.logger.error "[validate_dates] Error: #{e.class} - #{e.message}"
+        Rails.logger.error e.backtrace.first(10).join("\n")
+        render json: {
+          success: false,
+          error: "Date calculation failed: #{e.class} - #{e.message}",
+          backtrace: Rails.env.development? ? e.backtrace.first(5) : nil
+        }, status: :internal_server_error
       end
 
       # GET /api/v1/sm_schedule_master_templates/default

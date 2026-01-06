@@ -313,14 +313,9 @@ export function RichTextEditor({
   minHeight = 200,
   onSlashCommand,
 }: RichTextEditorProps) {
-  // Memoize the slash command extension to prevent unnecessary re-renders
-  const slashCommandExtension = React.useMemo(
-    () => createSlashCommandExtension(onSlashCommand),
-    [onSlashCommand]
-  );
-
-  const editor = useEditor({
-    extensions: [
+  // Memoize all extensions to prevent tiptap duplicate extension warnings
+  const extensions = React.useMemo(
+    () => [
       StarterKit.configure({
         // Disable heading since we don't need it for emails
         heading: false,
@@ -355,8 +350,15 @@ export function RichTextEditor({
       TableRow,
       TableCell,
       TableHeader,
-      slashCommandExtension,
+      createSlashCommandExtension(onSlashCommand),
     ],
+    // Only recreate extensions when these dependencies change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [placeholder, onSlashCommand]
+  );
+
+  const editor = useEditor({
+    extensions,
     content: value,
     immediatelyRender: false, // Prevent SSR hydration mismatch
     editorProps: {

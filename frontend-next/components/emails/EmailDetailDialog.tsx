@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -231,6 +232,9 @@ export function EmailDetailDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[1200px] max-h-[90vh] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden" hideClose aria-describedby={undefined}>
+          <DialogTitle className="sr-only">
+            {email?.subject || "Email Details"}
+          </DialogTitle>
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
               <Spinner />
