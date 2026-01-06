@@ -57,12 +57,13 @@ module Api
                           .where(status: [ "not_started", "started" ])
 
         # Get counts grouped by assigned_user_id
-        counts_by_user = base_scope.where.not(assigned_user_id: nil)
+        # Use explicit SQL to avoid ActiveRecord type casting issues
+        counts_by_user = base_scope.where("assigned_user_id IS NOT NULL")
                                    .group(:assigned_user_id)
                                    .count
 
         # Get unassigned count (no user AND no role)
-        unassigned_count = base_scope.where(assigned_user_id: nil)
+        unassigned_count = base_scope.where("assigned_user_id IS NULL")
                                      .where("assigned_role IS NULL OR assigned_role = ''")
                                      .count
 
