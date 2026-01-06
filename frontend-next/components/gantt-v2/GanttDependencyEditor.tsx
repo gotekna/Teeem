@@ -309,6 +309,15 @@ export function GanttDependencyEditor({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const taskRowData = task.rowData as any;
 
+    // DEBUG: Log what's in rowData
+    console.log('[GanttDependencyEditor] Task rowData:', {
+      taskId: task.id,
+      taskName: task.name,
+      rowDataKeys: taskRowData ? Object.keys(taskRowData) : 'null',
+      inherited_predecessor_ids: taskRowData?.inherited_predecessor_ids,
+      predecessor_ids: taskRowData?.predecessor_ids,
+    });
+
     // SSoT: Read from backend-calculated inherited_predecessor_ids
     const inheritedTaskNumbers: number[] = taskRowData?.inherited_predecessor_ids || [];
 

@@ -164,6 +164,9 @@ export interface SmScheduleMaster {
   complete_workflow_enabled?: boolean;
   complete_workflow_id?: number | null;
   complete_workflow_name?: string | null;
+  // SSoT: Inherited predecessors from header dependencies (calculated by backend)
+  // When a header depends on another header, children inherit the predecessor header's tasks
+  inherited_predecessor_ids?: number[];
   // Document types for GET task spawning
   document_types?: Array<{
     id: number;

@@ -425,32 +425,31 @@ export function GanttUnified({
       if (!initialCollapsedAppliedRef.current && tasks.length > 0) {
         initialCollapsedAppliedRef.current = true;
 
-        // Try to restore from localStorage first
-        const storageKey = jobId ? `gantt-collapsed-${jobId}` : templateId ? `gantt-collapsed-template-${templateId}` : null;
-        let restored = false;
+        // For templates: ALWAYS collapse all headers (dates are synthetic)
+        // For jobs: try to restore from localStorage, else use smart defaults
+        if (templateId && !jobId) {
+          ganttEngineRef.current.collapseAll();
+        } else {
+          // Try to restore from localStorage for jobs
+          const storageKey = jobId ? `gantt-collapsed-${jobId}` : null;
+          let restored = false;
 
-        if (storageKey) {
-          try {
-            const saved = localStorage.getItem(storageKey);
-            if (saved) {
-              const collapsedIds = JSON.parse(saved) as string[];
-              if (Array.isArray(collapsedIds) && collapsedIds.length > 0) {
-                ganttEngineRef.current.setCollapsedIds(collapsedIds);
-                restored = true;
+          if (storageKey) {
+            try {
+              const saved = localStorage.getItem(storageKey);
+              if (saved) {
+                const collapsedIds = JSON.parse(saved) as string[];
+                if (Array.isArray(collapsedIds) && collapsedIds.length > 0) {
+                  ganttEngineRef.current.setCollapsedIds(collapsedIds);
+                  restored = true;
+                }
               }
+            } catch {
+              // Ignore localStorage errors
             }
-          } catch {
-            // Ignore localStorage errors
           }
-        }
 
-        // If no saved state, apply defaults
-        if (!restored) {
-          // For templates: collapse ALL headers (dates are synthetic, not meaningful)
-          // For jobs: use smart defaults based on today's tasks
-          if (templateId && !jobId) {
-            ganttEngineRef.current.collapseAll();
-          } else {
+          if (!restored) {
             ganttEngineRef.current.collapseAllWithSmartDefaults();
           }
         }
