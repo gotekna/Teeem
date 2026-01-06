@@ -53,46 +53,87 @@ module Api
       # GET /api/v1/sm_tasks/user_counts
       # Returns task counts grouped by assigned user for the "All" dropdown filter
       def user_counts
-        # Use raw SQL to avoid Rails 8 OR clause issues with integer type casting
-        # For admins, show all tasks; for others, apply visibility rules
+        # Use direct SQL execution to completely bypass ActiveRecord query building
+        # which has issues with OR clauses in Rails 8
+        conn = ActiveRecord::Base.connection
+
         if current_user&.admin?
-          # Admins see all active tasks
-          counts_by_user = SmTask.where(status: [ "not_started", "started" ])
-                                 .where("assigned_user_id IS NOT NULL")
-                                 .group(:assigned_user_id)
-                                 .count
-
-          unassigned_count = SmTask.where(status: [ "not_started", "started" ])
-                                   .where("assigned_user_id IS NULL")
-                                   .where("assigned_role IS NULL OR assigned_role = ''")
-                                   .count
-
-          total_count = SmTask.where(status: [ "not_started", "started" ]).count
-        else
-          # Non-admins: use raw SQL to build visibility-filtered counts
-          # Visibility: public OR created by user OR followed by user OR assigned to user
-          user_id = current_user.id
-
-          visibility_sql = <<~SQL
-            (is_private = false OR is_private IS NULL)
-            OR (is_private = true AND created_by_id = #{user_id})
-            OR (is_private = true AND id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{user_id}))
-            OR assigned_user_id = #{user_id}
+          # Admins see all active tasks - use direct SQL
+          counts_sql = <<~SQL
+            SELECT assigned_user_id, COUNT(*) as count
+            FROM sm_tasks
+            WHERE status IN ('not_started', 'started')
+            AND assigned_user_id IS NOT NULL
+            GROUP BY assigned_user_id
           SQL
 
-          base_conditions = "status IN ('not_started', 'started') AND (#{visibility_sql})"
+          unassigned_sql = <<~SQL
+            SELECT COUNT(*) as count
+            FROM sm_tasks
+            WHERE status IN ('not_started', 'started')
+            AND assigned_user_id IS NULL
+            AND (assigned_role IS NULL OR assigned_role = '')
+          SQL
 
-          counts_by_user = SmTask.where(base_conditions)
-                                 .where("assigned_user_id IS NOT NULL")
-                                 .group(:assigned_user_id)
-                                 .count
+          total_sql = <<~SQL
+            SELECT COUNT(*) as count
+            FROM sm_tasks
+            WHERE status IN ('not_started', 'started')
+          SQL
 
-          unassigned_count = SmTask.where(base_conditions)
-                                   .where("assigned_user_id IS NULL")
-                                   .where("assigned_role IS NULL OR assigned_role = ''")
-                                   .count
+          counts_result = conn.execute(counts_sql)
+          counts_by_user = counts_result.to_a.each_with_object({}) { |row, h| h[row["assigned_user_id"]] = row["count"] }
 
-          total_count = SmTask.where(base_conditions).count
+          unassigned_count = conn.select_value(unassigned_sql).to_i
+          total_count = conn.select_value(total_sql).to_i
+        else
+          # Non-admins: use direct SQL with visibility filtering
+          user_id = current_user.id
+
+          counts_sql = <<~SQL
+            SELECT assigned_user_id, COUNT(*) as count
+            FROM sm_tasks
+            WHERE status IN ('not_started', 'started')
+            AND assigned_user_id IS NOT NULL
+            AND (
+              (is_private = false OR is_private IS NULL)
+              OR (is_private = true AND created_by_id = #{conn.quote(user_id)})
+              OR (is_private = true AND id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{conn.quote(user_id)}))
+              OR assigned_user_id = #{conn.quote(user_id)}
+            )
+            GROUP BY assigned_user_id
+          SQL
+
+          unassigned_sql = <<~SQL
+            SELECT COUNT(*) as count
+            FROM sm_tasks
+            WHERE status IN ('not_started', 'started')
+            AND assigned_user_id IS NULL
+            AND (assigned_role IS NULL OR assigned_role = '')
+            AND (
+              (is_private = false OR is_private IS NULL)
+              OR (is_private = true AND created_by_id = #{conn.quote(user_id)})
+              OR (is_private = true AND id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{conn.quote(user_id)}))
+            )
+          SQL
+
+          total_sql = <<~SQL
+            SELECT COUNT(*) as count
+            FROM sm_tasks
+            WHERE status IN ('not_started', 'started')
+            AND (
+              (is_private = false OR is_private IS NULL)
+              OR (is_private = true AND created_by_id = #{conn.quote(user_id)})
+              OR (is_private = true AND id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{conn.quote(user_id)}))
+              OR assigned_user_id = #{conn.quote(user_id)}
+            )
+          SQL
+
+          counts_result = conn.execute(counts_sql)
+          counts_by_user = counts_result.to_a.each_with_object({}) { |row, h| h[row["assigned_user_id"]] = row["count"] }
+
+          unassigned_count = conn.select_value(unassigned_sql).to_i
+          total_count = conn.select_value(total_sql).to_i
         end
 
         # Build response with user names
