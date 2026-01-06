@@ -112,7 +112,10 @@ class Api::V1::UsersController < ApplicationController
 
   # Regular user params that anyone can edit
   def user_params
-    params.require(:user).permit(:name, :email, :mobile_phone, :job_title, :preferred_theme)
+    params.require(:user).permit(
+      :name, :email, :mobile_phone, :job_title, :preferred_theme,
+      :qbcc_licence_number, :qbcc_licence_class, :signature
+    )
   end
 
   # Admin-only params (role, role_ids, assigned_roles, contact_id)
@@ -151,7 +154,13 @@ class Api::V1::UsersController < ApplicationController
       last_email_sync_at: user.email_sync_status&.last_sync_at,
       # Multi-role support - format for multiple_lookups column type
       role_ids: safe_roles.map { |r| { id: r.id, display_value: r.display_name, name: r.name } },
-      role_names: user.role_names
+      role_names: user.role_names,
+      # Digital signature for certificates
+      signature_attached: user.signature.attached?,
+      signature_url: user.signature.attached? ? url_for(user.signature) : nil,
+      qbcc_licence_number: user.qbcc_licence_number,
+      qbcc_licence_class: user.qbcc_licence_class,
+      can_sign_certificates: user.can_sign_certificates?
     )
   end
 end

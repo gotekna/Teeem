@@ -209,6 +209,8 @@ module Api
           :scope,
           :target_folder,
           :supports_versioning,
+          :generates_certificate,     # Auto-generate certificate on task completion
+          :certificate_template,      # Template to use (e.g., "form_43")
           tabs: [],
           file_extensions: [],
           folder_ids: [],
@@ -270,6 +272,8 @@ module Api
           target_folder: document_type.target_folder,
           form_number_mapping: document_type.form_number_mapping || {},
           supports_versioning: document_type.supports_versioning,
+          generates_certificate: document_type.generates_certificate || false,
+          certificate_template: document_type.certificate_template,
           documents_count: document_type.corporate_company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at

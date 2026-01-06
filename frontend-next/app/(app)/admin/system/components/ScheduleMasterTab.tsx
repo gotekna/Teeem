@@ -184,6 +184,14 @@ interface SmScheduleMaster {
   checklist_id?: number | { id: number; display: string } | null;
   linked_po_task_id?: number | { id: number; display: string } | null;
   spawn_scan_task_id?: number | { id: number; display: string } | null;
+  // Document types for GET task spawning (SSoT: via sm_schedule_master_document_types join table)
+  document_types?: Array<{
+    id: number;
+    document_type_id: number;
+    document_type_name: string;
+    lag_days?: number;
+    assigned_role?: string;
+  }>;
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -447,8 +455,10 @@ export function ScheduleMasterTab() {
   const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Checklists from Supervisor Checklist Template foundation
   const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
-  // SSoT: All tasks for linked_po_task and spawn_scan_task lookups
+  // SSoT: All tasks for linked_po_task lookups
   const [availableTasks, setAvailableTasks] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: Job-scoped document types for spawn scan task dropdown
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string }[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -492,6 +502,7 @@ export function ScheduleMasterTab() {
     loadHeaderRows();
     loadChecklists();
     loadAllTasks();
+    loadDocumentTypes();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
 
@@ -664,7 +675,7 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // SSoT: Load all tasks for linked_po_task and spawn_scan_task lookups
+  // SSoT: Load all tasks for linked_po_task lookups
   const loadAllTasks = async () => {
     try {
       const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
@@ -675,6 +686,23 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load tasks:", error);
+    }
+  };
+
+  // SSoT: Load job-scoped document types for spawn scan task dropdown
+  // Fetch both "job" and "both" scoped document types
+  const loadDocumentTypes = async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; scope?: string }> }>(
+        "/api/v1/document_types"
+      );
+      if (data?.data) {
+        // Filter to job-applicable document types (scope = "job" or "both")
+        const jobDocTypes = data.data.filter(dt => dt.scope === "job" || dt.scope === "both");
+        setAvailableDocumentTypes(jobDocTypes);
+      }
+    } catch (error) {
+      console.error("Failed to load document types:", error);
     }
   };
 
@@ -929,6 +957,7 @@ export function ScheduleMasterTab() {
       linked_task_ids: fullRow.linked_task_ids,
       allow_header: fullRow.allow_header,
       is_active: fullRow.is_active,
+      document_types: fullRow.document_types || [],
     });
     setShowEditSheet(true);
   };
@@ -1006,6 +1035,7 @@ export function ScheduleMasterTab() {
       linked_task_ids: fullRow.linked_task_ids,
       allow_header: fullRow.allow_header,
       is_active: fullRow.is_active,
+      document_types: fullRow.document_types || [],
     });
     setShowEditSheet(true);
   };
@@ -1560,8 +1590,52 @@ export function ScheduleMasterTab() {
     }
 
     try {
+      // Transform document_types to nested attributes format for backend
+      // SSoT: sm_schedule_master_document_types join table via accepts_nested_attributes_for
+      const rowPayload: Record<string, unknown> = { ...editRowForm };
+      if (editRowForm.document_types !== undefined) {
+        // Get existing document type IDs to track what to destroy
+        const existingDocTypes = editingRow.document_types || [];
+        const newDocTypes = editRowForm.document_types || [];
+        const newDocTypeIds = new Set(newDocTypes.map(dt => dt.document_type_id));
+
+        // Build attributes array: new/updated items + items to destroy
+        const attributes: Array<{
+          id?: number;
+          document_type_id: number;
+          lag_days?: number;
+          assigned_role?: string;
+          _destroy?: boolean;
+        }> = [];
+
+        // Add new/updated document types
+        for (const dt of newDocTypes) {
+          const existing = existingDocTypes.find(e => e.document_type_id === dt.document_type_id);
+          attributes.push({
+            id: existing?.id, // Use existing join record ID if updating
+            document_type_id: dt.document_type_id,
+            lag_days: dt.lag_days || 0,
+            assigned_role: dt.assigned_role,
+          });
+        }
+
+        // Mark removed document types for destruction
+        for (const existing of existingDocTypes) {
+          if (!newDocTypeIds.has(existing.document_type_id)) {
+            attributes.push({
+              id: existing.id,
+              document_type_id: existing.document_type_id,
+              _destroy: true,
+            });
+          }
+        }
+
+        rowPayload.sm_schedule_master_document_types_attributes = attributes;
+        delete rowPayload.document_types; // Don't send document_types directly
+      }
+
       await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${editingRow.id}`, {
-        row: editRowForm,
+        row: rowPayload,
       });
 
       if (silent) {
@@ -3259,22 +3333,60 @@ export function ScheduleMasterTab() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Spawn Scan Task</Label>
-                  <ComboboxDropdown
-                    items={availableTasks.filter(t => t.id !== editingRow?.id).map(t => ({ id: String(t.id), label: t.name }))}
-                    selectedItem={(() => {
-                      const taskId = extractLookupId(editRowForm.spawn_scan_task_id);
-                      if (!taskId) return undefined;
-                      const taskName = availableTasks.find(t => String(t.id) === taskId)?.name
-                        || extractLookupDisplay(editingRow?.spawn_scan_task_id)
-                        || taskId;
-                      return { id: taskId, label: taskName };
-                    })()}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, spawn_scan_task_id: Number(item.id) })}
-                    placeholder="Select task..."
-                    emptyResults="No tasks found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, spawn_scan_task_id: null })}
-                  />
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <ComboboxDropdown
+                        items={availableDocumentTypes.map(dt => ({ id: String(dt.id), label: dt.display_name || dt.name }))}
+                        selectedItem={(() => {
+                          // SSoT: Use document_types array from join table
+                          const firstDocType = editRowForm.document_types?.[0];
+                          if (!firstDocType) return undefined;
+                          const docType = availableDocumentTypes.find(dt => dt.id === firstDocType.document_type_id);
+                          return {
+                            id: String(firstDocType.document_type_id),
+                            label: docType?.display_name || docType?.name || firstDocType.document_type_name
+                          };
+                        })()}
+                        onSelect={(item) => setEditRowForm({
+                          ...editRowForm,
+                          document_types: [{
+                            id: editRowForm.document_types?.[0]?.id || 0,
+                            document_type_id: Number(item.id),
+                            document_type_name: item.label,
+                            lag_days: editRowForm.document_types?.[0]?.lag_days || 0
+                          }]
+                        })}
+                        placeholder="Select document type..."
+                        emptyResults="No document types found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, document_types: [] })}
+                      />
+                    </div>
+                    <div className="w-20">
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Lag"
+                        title="Days after task completion before spawning document task"
+                        value={editRowForm.document_types?.[0]?.lag_days || 0}
+                        onChange={(e) => {
+                          const lagDays = parseInt(e.target.value) || 0;
+                          const currentDocType = editRowForm.document_types?.[0];
+                          if (currentDocType) {
+                            setEditRowForm({
+                              ...editRowForm,
+                              document_types: [{
+                                ...currentDocType,
+                                lag_days: lagDays
+                              }]
+                            });
+                          }
+                        }}
+                        disabled={!editRowForm.document_types?.[0]}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Days after completion to spawn task</p>
                 </div>
                 {/* Allow Header */}
                 <div className="flex items-center gap-2 pt-2 border-t">

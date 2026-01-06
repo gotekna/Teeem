@@ -21,6 +21,9 @@ class User < ApplicationRecord
   has_many :task_followers, dependent: :destroy
   has_many :followed_tasks, through: :task_followers, source: :sm_task
 
+  # Digital signature for certificates (Form 43, contracts, etc.)
+  has_one_attached :signature
+
   # Multi-role support (SSoT: user_roles join table)
   has_many :user_roles, dependent: :destroy
   has_many :roles, through: :user_roles
@@ -82,6 +85,20 @@ class User < ApplicationRecord
   def initials
     return "" if name.blank?
     name.split.map { |n| n[0] }.join.upcase[0..2]
+  end
+
+  # Get signature URL for PDF generation (base64 data URL for embedding)
+  def signature_data_url
+    return nil unless signature.attached?
+    content_type = signature.content_type
+    blob_data = signature.download
+    base64_data = Base64.strict_encode64(blob_data)
+    "data:#{content_type};base64,#{base64_data}"
+  end
+
+  # Check if user has complete QBCC credentials for certificate signing
+  def can_sign_certificates?
+    signature.attached? && qbcc_licence_number.present? && qbcc_licence_class.present?
   end
 
   # SSoT: God View access (internal staff sees everything)

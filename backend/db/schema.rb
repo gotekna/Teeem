@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_05_221755) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_06_005445) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2278,6 +2278,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_221755) do
     t.boolean "skip_rename", default: false, null: false
     t.boolean "supports_versioning", default: false, null: false
     t.jsonb "form_number_mapping", default: {}
+    t.boolean "generates_certificate", default: false
+    t.string "certificate_template"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
@@ -9134,6 +9136,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_05_221755) do
     t.string "preferred_theme", default: "light"
     t.bigint "contact_id"
     t.string "job_title"
+    t.string "qbcc_licence_number"
+    t.string "qbcc_licence_class"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
     t.index ["email"], name: "index_users_on_email", unique: true
