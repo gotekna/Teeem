@@ -97,6 +97,11 @@ class DocumentType < ApplicationRecord
     supports_versioning == true
   end
 
+  # Check if this document type auto-generates certificates on task completion
+  def generates_certificate?
+    generates_certificate == true
+  end
+
   # Resolve form number based on dwelling type using the configured mapping
   # Returns the mapped value, or first mapping as fallback if dwelling type not found
   # Example mapping: { "Class 1A" => "Form 15", "Class 10" => "Form 21" }

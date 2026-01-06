@@ -122,6 +122,8 @@ interface DocumentType {
   updated_at?: string;
   supports_versioning?: boolean;
   form_number_mapping?: Record<string, string>; // Dwelling type -> Form number mapping
+  generates_certificate?: boolean; // Auto-generate certificate on task completion
+  certificate_template?: string; // Template to use (e.g., "form_43")
 }
 
 export default function DocumentTypeDetailPage() {
@@ -1520,6 +1522,46 @@ export default function DocumentTypeDetailPage() {
               </div>
               <p className="text-[10px] text-muted-foreground">
                 Enable to track Draft and Signed versions of the same document
+              </p>
+            </div>
+
+            {/* Certificate Generation */}
+            <div className="space-y-2">
+              <Label>Certificate Generation</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="generates_certificate"
+                  checked={documentType.generates_certificate || false}
+                  onCheckedChange={(checked) => {
+                    updateField("generates_certificate", checked);
+                    // Auto-set default template when enabling
+                    if (checked && !documentType.certificate_template) {
+                      updateField("certificate_template", "form_43");
+                    }
+                  }}
+                />
+                <Label htmlFor="generates_certificate" className="text-xs cursor-pointer">
+                  Auto-generate certificate on task completion
+                </Label>
+              </div>
+              {documentType.generates_certificate && (
+                <div className="mt-2">
+                  <Label className="text-xs text-muted-foreground">Certificate Template</Label>
+                  <Select
+                    value={documentType.certificate_template || "form_43"}
+                    onValueChange={(value) => updateField("certificate_template", value)}
+                  >
+                    <SelectTrigger className="h-7 text-xs mt-1">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="form_43">Form 43 - Aspect Certificate (QBCC Licensee)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground">
+                Auto-generate signed PDF certificate when task completes (uses job supervisor's signature)
               </p>
             </div>
 

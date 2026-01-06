@@ -110,6 +110,9 @@ class SmTaskCompletionService
     # Spawn scan task (existing functionality)
     spawn_scan_task if task.spawn_scan_task_id.present?
 
+    # Generate certificates for document types that require auto-generation
+    generate_certificates if task.sm_task_document_types.any?
+
     # Spawn GET tasks for linked document types
     spawn_document_get_tasks if task.sm_task_document_types.any?
   end
@@ -159,6 +162,77 @@ class SmTaskCompletionService
 
       log_spawn(spawned, "document_get", "parent_complete") if spawned
     end
+  end
+
+  # Generate certificates for document types that have generates_certificate: true
+  # Creates signed PDF certificates using the job supervisor's signature
+  def generate_certificates
+    job = task.job
+    return unless job
+
+    supervisor = job.supervisor_user
+    unless supervisor&.can_sign_certificates?
+      Rails.logger.info("[SmTaskCompletionService] Skipping certificate generation - supervisor cannot sign (task #{task.id})")
+      return
+    end
+
+    task.sm_task_document_types.includes(:document_type).each do |doc_type_link|
+      doc_type = doc_type_link.document_type
+      next unless doc_type&.generates_certificate?
+      next unless doc_type.certificate_template.present?
+
+      begin
+        generate_certificate_for_document_type(job, doc_type, supervisor)
+      rescue StandardError => e
+        Rails.logger.error("[SmTaskCompletionService] Certificate generation failed for #{doc_type.name}: #{e.message}")
+        @errors << "Certificate generation failed for #{doc_type.name}: #{e.message}"
+      end
+    end
+  end
+
+  # Generate a single certificate for a document type
+  def generate_certificate_for_document_type(job, document_type, supervisor)
+    # Select the appropriate generator based on template
+    generator = case document_type.certificate_template
+                when "form_43"
+                  Form43CertificateGenerator.new(
+                    job: job,
+                    document_type: document_type,
+                    supervisor: supervisor
+                  )
+                else
+                  Rails.logger.warn("[SmTaskCompletionService] Unknown certificate template: #{document_type.certificate_template}")
+                  return
+                end
+
+    result = generator.generate
+
+    # Create JobDocument with the generated PDF
+    job_document = JobDocument.new(
+      job: job,
+      document_type: document_type,
+      file_name: result[:filename],
+      file_extension: "pdf",
+      file_size: result[:pdf_content].bytesize,
+      sharepoint_item_id: "generated_#{SecureRandom.uuid}",
+      source: "generated",
+      sync_status: "synced",
+      version_status: "signed",
+      signed_by: supervisor,
+      signed_at: result[:generated_at],
+      folder_path: document_type.target_folder || "Certificates"
+    )
+
+    # Attach the PDF content
+    job_document.file.attach(
+      io: StringIO.new(result[:pdf_content]),
+      filename: result[:filename],
+      content_type: "application/pdf"
+    )
+
+    job_document.save!
+
+    Rails.logger.info("[SmTaskCompletionService] Generated certificate: #{result[:filename]} for job #{job.id} (document #{job_document.id})")
   end
 
   def spawn_scan_task

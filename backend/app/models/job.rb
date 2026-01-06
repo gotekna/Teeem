@@ -220,6 +220,12 @@ class Job < ApplicationRecord
     calculate_profit_percentage
   end
 
+  # Get the supervisor User record (for certificate signing)
+  # Returns the User associated with the job contact with role "supervisor"
+  def supervisor_user
+    job_contacts.find_by(role: "supervisor")&.user
+  end
+
   # Site supervisor info for prepopulating POs
   # SSoT: Derives from job_contacts with role "supervisor", falls back to legacy columns
   def site_supervisor_info

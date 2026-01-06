@@ -693,13 +693,18 @@ export function ScheduleMasterTab() {
   // Fetch both "job" and "both" scoped document types
   const loadDocumentTypes = async () => {
     try {
+      console.log("[loadDocumentTypes] Fetching document types...");
       const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; scope?: string }> }>(
         "/api/v1/document_types"
       );
+      console.log("[loadDocumentTypes] Response:", data);
       if (data?.data) {
         // Filter to job-applicable document types (scope = "job" or "both")
         const jobDocTypes = data.data.filter(dt => dt.scope === "job" || dt.scope === "both");
+        console.log("[loadDocumentTypes] Filtered job doc types:", jobDocTypes.length, jobDocTypes.slice(0, 3));
         setAvailableDocumentTypes(jobDocTypes);
+      } else {
+        console.warn("[loadDocumentTypes] No data in response");
       }
     } catch (error) {
       console.error("Failed to load document types:", error);
