@@ -10,6 +10,9 @@ Rails.application.routes.draw do
   get "/version", to: "health#version"
   post "/version/increment", to: "health#increment_version"
 
+  # ActionCable WebSocket endpoint
+  mount ActionCable.server => "/cable"
+
   # API routes
   namespace :api do
     namespace :v1 do

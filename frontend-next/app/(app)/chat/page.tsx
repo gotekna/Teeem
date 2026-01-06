@@ -367,6 +367,68 @@ export default function ChatPage() {
     setImagePreview(null);
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPastedImage(file);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setImagePreview(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = ""; // Reset for re-selection
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPastedImage(file);
+      // For non-image files, just set a placeholder preview indicator
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setImagePreview(ev.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setImagePreview(null); // No preview for non-image files
+      }
+    }
+    e.target.value = "";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setPastedImage(file);
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setImagePreview(ev.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setImagePreview(null);
+      }
+    }
+  };
+
   const handleScreenCapture = async () => {
     try {
       // Request screen capture from browser
@@ -399,7 +461,7 @@ export default function ChatPage() {
       // Convert canvas to blob
       canvas.toBlob((blob) => {
         if (blob) {
-          const file = new (File as any)([blob], `screenshot-${Date.now()}.png`, {
+          const file = new File([blob], `screenshot-${Date.now()}.png`, {
             type: "image/png",
           });
           setPastedImage(file);
@@ -910,6 +972,21 @@ export default function ChatPage() {
               {/* Message Input */}
               <div className="p-2 border-t shrink-0">
                 {/* Image Preview */}
+                {/* Hidden file inputs */}
+                <input
+                  type="file"
+                  ref={imageInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageSelect}
+                />
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                {/* Image preview */}
                 {imagePreview && (
                   <div className="mb-2 relative inline-block">
                     <img
@@ -927,7 +1004,30 @@ export default function ChatPage() {
                     </Button>
                   </div>
                 )}
-                <div className="flex items-center gap-1 w-full">
+                {/* Non-image file preview */}
+                {pastedImage && !imagePreview && (
+                  <div className="mb-2 relative inline-flex items-center gap-2 bg-secondary rounded-lg px-3 py-2">
+                    <FileIcon className="h-4 w-4 shrink-0" />
+                    <span className="text-sm truncate max-w-[200px]">{pastedImage.name}</span>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-5 w-5 rounded-full ml-1"
+                      onClick={clearImagePreview}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                <div
+                  className={cn(
+                    "flex items-center gap-1 w-full rounded-md transition-all",
+                    isDragging && "ring-2 ring-primary bg-primary/5"
+                  )}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Attach file">
@@ -939,7 +1039,7 @@ export default function ChatPage() {
                         <Monitor className="h-4 w-4 mr-2" />
                         Capture Screen/Window
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
                         <ImageIcon className="h-4 w-4 mr-2" />
                         Upload Image
                       </DropdownMenuItem>
@@ -949,15 +1049,6 @@ export default function ChatPage() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={handleScreenCapture}
-                    title="Capture screen or window"
-                  >
-                    <Monitor className="h-4 w-4" />
-                  </Button>
                   <Input
                     placeholder="Type a message or paste a screenshot..."
                     value={newMessage}
