@@ -493,6 +493,7 @@ export function ScheduleMasterTab() {
     const totalColumns = ALL_COLUMNS.length;
 
   React.useEffect(() => {
+    console.log("[ScheduleMasterTab] useEffect running, loading all data...");
     loadTemplates();
     loadJobEntityTabs();
     loadTags();
@@ -504,6 +505,7 @@ export function ScheduleMasterTab() {
     loadChecklists();
     loadAllTasks();
     loadDocumentTypes();
+    console.log("[ScheduleMasterTab] All loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
 

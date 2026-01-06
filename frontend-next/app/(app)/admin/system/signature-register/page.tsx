@@ -7,11 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BackButton } from "@/components/ui/back-button";
 import {
   FileSignature,
   FileText,
-  Calendar,
   User,
   Building2,
   Search,
@@ -157,21 +155,6 @@ export default function SignatureRegisterPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <BackButton />
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <FileSignature className="h-6 w-6" />
-              Digital Signature Register
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Audit trail of all digital signature usages
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Summary Cards */}
       {summary && (
