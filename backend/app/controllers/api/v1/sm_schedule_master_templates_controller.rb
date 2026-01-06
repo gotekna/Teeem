@@ -608,47 +608,57 @@ module Api
           end
         end
 
-        # STEP 3: Re-cascade ALL non-header tasks
-        # Headers and their children may have shifted in STEP 2, so we need to recalculate
-        # all tasks that depend on them. Process in sequence order for correct propagation.
-        rows.each do |row|
-          next if row.allow_header
+        # STEP 3+4: Iteratively cascade until stable
+        # After headers shift, tasks depending on them need re-cascading.
+        # After tasks shift, header effective dates need updating.
+        # Loop until no changes (deterministic convergence, no hardcoded max).
+        loop do
+          changes = 0
 
-          # Recalculate based on current date_map (which now has correct header/child dates)
-          row_start, row_end = calculate_row_dates(row, date_map, start_date, calendar)
+          # 3a: Re-cascade all non-header tasks
+          rows.each do |row|
+            next if row.allow_header
 
-          # Enforce parent header constraint - child can't start before its header
-          parent_id = extract_header_parent(row.header_gantt)
-          if parent_id && date_map[parent_id]
-            header_start = date_map[parent_id][:start_date]
-            if row_start < header_start
-              row_start = header_start
-              duration = row.duration_days || 1
-              row_end = calendar.add_working_days(row_start, duration - 1)
+            row_start, row_end = calculate_row_dates(row, date_map, start_date, calendar)
+
+            # Enforce parent header constraint
+            parent_id = extract_header_parent(row.header_gantt)
+            if parent_id && date_map[parent_id]
+              h_start = date_map[parent_id][:start_date]
+              if row_start < h_start
+                row_start = h_start
+                duration = row.duration_days || 1
+                row_end = calendar.add_working_days(row_start, duration - 1)
+              end
+            end
+
+            current = date_map[row.task_number]
+            if current.nil? || row_start != current[:start_date]
+              date_map[row.task_number] = { start_date: row_start, end_date: row_end }
+              changes += 1
             end
           end
 
-          current = date_map[row.task_number]
-          # Update if date changed (forward push)
-          if current.nil? || row_start != current[:start_date]
-            date_map[row.task_number] = { start_date: row_start, end_date: row_end }
+          # 3b: Recalculate header effective dates
+          rows.select(&:allow_header).each do |header|
+            children = header_children[header.task_number] || []
+            next unless children.any?
+
+            child_starts = children.map { |c| date_map[c.task_number]&.dig(:start_date) }.compact
+            child_ends = children.map { |c| date_map[c.task_number]&.dig(:end_date) }.compact
+            next if child_starts.empty?
+
+            effective_start = child_starts.min
+            effective_end = child_ends.max || effective_start
+
+            current = date_map[header.task_number]
+            if current.nil? || effective_start != current[:start_date] || effective_end != current[:end_date]
+              date_map[header.task_number] = { start_date: effective_start, end_date: effective_end }
+              changes += 1
+            end
           end
-        end
 
-        # STEP 4: Recalculate header effective dates after full cascade
-        # Children may have shifted due to their own predecessors in STEP 3
-        rows.select(&:allow_header).each do |header|
-          children = header_children[header.task_number] || []
-          next unless children.any?
-
-          child_starts = children.map { |c| date_map[c.task_number]&.dig(:start_date) }.compact
-          child_ends = children.map { |c| date_map[c.task_number]&.dig(:end_date) }.compact
-
-          next if child_starts.empty?
-
-          effective_start = child_starts.min
-          effective_end = child_ends.max || effective_start
-          date_map[header.task_number] = { start_date: effective_start, end_date: effective_end }
+          break if changes == 0
         end
 
         render json: {
