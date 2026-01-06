@@ -592,7 +592,7 @@ export function ComposeEmailModal({
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col">
+          <div className="flex flex-col flex-1 min-h-0">
             {/* To Field - Outlook style */}
             <div className="flex items-center border-b px-4 py-2">
               <span className="text-sm text-muted-foreground w-12 flex-shrink-0">To</span>
