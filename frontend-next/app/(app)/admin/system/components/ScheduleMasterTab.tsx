@@ -1900,12 +1900,13 @@ export function ScheduleMasterTab() {
   // SSoT: loadGanttV2Data now provided by useGanttDataManager hook (see aliases above)
   // The hook's loadData is automatically triggered when ganttV2TemplateId changes
 
-  // Load Gantt V2 data when template is selected
+  // Load Gantt V2 data when template is selected or showAllPOTasks changes
   React.useEffect(() => {
     if (ganttV2TemplateId) {
+      console.log('[ScheduleMasterTab] Loading Gantt V2 data, showAllPOTasks:', showAllPOTasks);
       gantt.loadData();
     }
-  }, [ganttV2TemplateId, gantt.loadData]);
+  }, [ganttV2TemplateId, showAllPOTasks, gantt.loadData]);
 
   if (loading) {
     return (

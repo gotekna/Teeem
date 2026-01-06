@@ -37,6 +37,7 @@ module Api
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
         @tasks = @tasks.for_user_roles(current_user) if params[:mine] == "true"
         @tasks = @tasks.where(assigned_user_id: nil, assigned_role: nil) if params[:unassigned] == "true"
+        @tasks = @tasks.where(assigned_role: params[:assigned_role].to_i, assigned_user_id: nil) if params[:assigned_role].present?
 
         render json: {
           success: true,
@@ -67,6 +68,16 @@ module Api
             GROUP BY assigned_user_id
           SQL
 
+          role_counts_sql = <<~SQL
+            SELECT st.assigned_role, r.name as role_name, COUNT(*) as count
+            FROM sm_tasks st
+            JOIN roles r ON r.id = st.assigned_role
+            WHERE st.status IN ('not_started', 'started')
+            AND st.assigned_user_id IS NULL
+            AND st.assigned_role IS NOT NULL
+            GROUP BY st.assigned_role, r.name
+          SQL
+
           unassigned_sql = <<~SQL
             SELECT COUNT(*) as count
             FROM sm_tasks
@@ -84,6 +95,9 @@ module Api
           # Use select_all for proper type casting (returns ActiveRecord::Result)
           counts_result = conn.select_all(counts_sql)
           counts_by_user = parse_user_counts(counts_result)
+
+          role_counts_result = conn.select_all(role_counts_sql)
+          counts_by_role = parse_role_counts(role_counts_result)
 
           unassigned_count = conn.select_value(unassigned_sql).to_i
           total_count = conn.select_value(total_sql).to_i
@@ -105,6 +119,21 @@ module Api
             GROUP BY assigned_user_id
           SQL
 
+          role_counts_sql = <<~SQL
+            SELECT st.assigned_role, r.name as role_name, COUNT(*) as count
+            FROM sm_tasks st
+            JOIN roles r ON r.id = st.assigned_role
+            WHERE st.status IN ('not_started', 'started')
+            AND st.assigned_user_id IS NULL
+            AND st.assigned_role IS NOT NULL
+            AND (
+              (st.is_private = false OR st.is_private IS NULL)
+              OR (st.is_private = true AND st.created_by_id = #{conn.quote(user_id)})
+              OR (st.is_private = true AND st.id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{conn.quote(user_id)}))
+            )
+            GROUP BY st.assigned_role, r.name
+          SQL
+
           unassigned_sql = <<~SQL
             SELECT COUNT(*) as count
             FROM sm_tasks
@@ -134,6 +163,9 @@ module Api
           counts_result = conn.select_all(counts_sql)
           counts_by_user = parse_user_counts(counts_result)
 
+          role_counts_result = conn.select_all(role_counts_sql)
+          counts_by_role = parse_role_counts(role_counts_result)
+
           unassigned_count = conn.select_value(unassigned_sql).to_i
           total_count = conn.select_value(total_sql).to_i
         end
@@ -147,6 +179,9 @@ module Api
             user = users[user_id]
             { id: user_id, name: user&.name || "Unknown", count: count }
           }.sort_by { |u| -u[:count] },
+          roles: counts_by_role.map { |role_id, data|
+            { id: role_id, name: data[:name].titleize.gsub("_", " "), count: data[:count] }
+          }.sort_by { |r| -r[:count] },
           unassigned: unassigned_count,
           total: total_count
         }
@@ -1211,6 +1246,21 @@ module Api
           rescue ArgumentError, TypeError
             # Log unexpected value types for debugging
             Rails.logger.warn "[user_counts] Skipped invalid user_id: #{raw_id.inspect} (#{raw_id.class})"
+          end
+        end
+      end
+
+      def parse_role_counts(result)
+        result.to_a.each_with_object({}) do |row, hash|
+          raw_id = row["assigned_role"]
+          next if raw_id.nil? || raw_id.to_s.strip.empty?
+
+          begin
+            role_id = Integer(raw_id)
+            next if role_id <= 0
+            hash[role_id] = { name: row["role_name"], count: row["count"].to_i }
+          rescue ArgumentError, TypeError
+            Rails.logger.warn "[user_counts] Skipped invalid role_id: #{raw_id.inspect} (#{raw_id.class})"
           end
         end
       end

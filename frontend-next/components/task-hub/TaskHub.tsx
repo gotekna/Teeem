@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useTaskHub, ViewType, UserTaskCount } from '@/contexts/TaskHubContext';
+import { useTaskHub, ViewType } from '@/contexts/TaskHubContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ import {
   X,
   Workflow,
   ChevronDown,
+  Shield,
 } from 'lucide-react';
 import { BoardView } from './views/BoardView';
 import { ListView } from './views/ListView';
@@ -51,6 +52,7 @@ export function TaskHub() {
     deselectAll,
     bulkUpdateStatus,
     userCounts,
+    roleCounts,
     unassignedCount,
     totalActiveCount,
   } = useTaskHub();
@@ -60,9 +62,13 @@ export function TaskHub() {
     setColorSettingsKey((k) => k + 1);
   };
 
-  // Get selected user for "All" dropdown display
+  // Get selected user/role for "All" dropdown display
   const getSelectedUserName = () => {
     if (filters.selectedUserId === 'unassigned') return 'Unassigned';
+    if (filters.selectedRoleId) {
+      const role = roleCounts.find(r => r.id === filters.selectedRoleId);
+      return role?.name || 'Role';
+    }
     if (filters.selectedUserId) {
       const user = userCounts.find(u => u.id === filters.selectedUserId);
       return user?.name || 'Unknown';
@@ -72,7 +78,15 @@ export function TaskHub() {
 
   // Handle user selection from dropdown
   const handleUserSelect = (userId: number | 'unassigned' | null) => {
-    setFilters({ selectedUserId: userId });
+    setFilters({ selectedUserId: userId, selectedRoleId: null });
+    if (activeView !== 'all') {
+      setActiveView('all');
+    }
+  };
+
+  // Handle role selection from dropdown
+  const handleRoleSelect = (roleId: number) => {
+    setFilters({ selectedRoleId: roleId, selectedUserId: null });
     if (activeView !== 'all') {
       setActiveView('all');
     }
@@ -195,6 +209,14 @@ export function TaskHub() {
                   <User className="h-4 w-4 mr-2" />
                   {user.name}
                   <span className="ml-auto text-xs text-muted-foreground">{user.count}</span>
+                </DropdownMenuItem>
+              ))}
+              {roleCounts.length > 0 && <DropdownMenuSeparator />}
+              {roleCounts.map((role) => (
+                <DropdownMenuItem key={`role-${role.id}`} onClick={() => handleRoleSelect(role.id)}>
+                  <Shield className="h-4 w-4 mr-2" />
+                  {role.name}
+                  <span className="ml-auto text-xs text-muted-foreground">{role.count}</span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

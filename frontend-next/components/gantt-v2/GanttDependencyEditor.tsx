@@ -421,7 +421,7 @@ export function GanttDependencyEditor({
         const r = t.rowData as any;
         return {
           id: t.id,
-          label: `${r?.task_number || ''} - ${r?.name || t.name}`,
+          label: r?.name || t.name,
         };
       });
   }, [tasks, task?.id]);
@@ -532,8 +532,9 @@ export function GanttDependencyEditor({
               </div>
 
               {/* Header row */}
-              <div className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
+              <div className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
                 <span>Row #</span>
+                <span>ID</span>
                 <span>Task</span>
                 <span>Type</span>
                 <span>Lag</span>
@@ -547,9 +548,16 @@ export function GanttDependencyEditor({
                   const predecessorRowNum = predecessorTask
                     ? tasks.findIndex(t => t.id === link.predecessorId) + 1
                     : '';
+                  const predecessorRowId = predecessorTask?.id || '';
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const predecessorRowData = predecessorTask?.rowData as any;
+                  const predecessorSelectedItem = predecessorTask ? {
+                    id: predecessorTask.id,
+                    label: predecessorRowData?.name || predecessorTask.name,
+                  } : undefined;
 
                   return (
-                    <div key={index} className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center">
+                    <div key={index} className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 items-center">
                       {/* Row # input */}
                       <Input
                         type="number"
@@ -569,10 +577,15 @@ export function GanttDependencyEditor({
                         placeholder="#"
                       />
 
+                      {/* ID display */}
+                      <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background">
+                        {predecessorRowId}
+                      </div>
+
                       {/* Task dropdown */}
                       <ComboboxDropdown
                         items={taskComboItems}
-                        selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
+                        selectedItem={predecessorSelectedItem}
                         onSelect={(item) => updatePredecessorLink(index, { predecessorId: item.id })}
                         placeholder="Select task..."
                         searchPlaceholder="Search tasks..."
@@ -629,7 +642,7 @@ export function GanttDependencyEditor({
                   return (
                     <React.Fragment key={`inherited-${index}`}>
                       <div
-                        className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-60"
+                        className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 items-center opacity-60"
                         title={`Inherited from: ${inherited.headerName}`}
                       >
                         {/* Row # - disabled */}
@@ -639,6 +652,11 @@ export function GanttDependencyEditor({
                           disabled
                           className="h-8 text-center bg-muted cursor-not-allowed"
                         />
+
+                        {/* ID display */}
+                        <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-muted">
+                          {inherited.taskId}
+                        </div>
 
                         {/* Task name - with expand button for headers */}
                         <div className="h-8 flex items-center px-2 rounded-md border border-input bg-muted text-sm">
@@ -665,7 +683,7 @@ export function GanttDependencyEditor({
                               )}
                             </button>
                           )}
-                          <span className="truncate">{inherited.taskNumber} - {inheritedTaskName}</span>
+                          <span className="truncate">{inheritedTaskName}</span>
                           {isHeader && expandedChildren.length > 0 && (
                             <span className="ml-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
                               ({expandedChildren.length} tasks)
@@ -726,7 +744,7 @@ export function GanttDependencyEditor({
                     : undefined;
 
                   return (
-                    <div className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
+                    <div className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
                       <Input
                         type="number"
                         min={1}
@@ -746,6 +764,10 @@ export function GanttDependencyEditor({
                         className="h-8 text-center"
                         placeholder="#"
                       />
+                      {/* ID display - empty for new row */}
+                      <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background">
+                        {pendingPredTask?.id || ''}
+                      </div>
                       <ComboboxDropdown
                         items={taskComboItems.filter(item => !depEditorLinks.some(l => l.predecessorId === item.id))}
                         selectedItem={pendingPredItem}
@@ -780,8 +802,9 @@ export function GanttDependencyEditor({
               </div>
 
               {/* Header row */}
-              <div className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
+              <div className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
                 <span>Row #</span>
+                <span>ID</span>
                 <span>Task</span>
                 <span>Type</span>
                 <span>Lag</span>
@@ -795,9 +818,16 @@ export function GanttDependencyEditor({
                   const successorRowNum = successorTask
                     ? tasks.findIndex(t => t.id === link.predecessorId) + 1
                     : '';
+                  const successorRowId = successorTask?.id || '';
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const successorRowData = successorTask?.rowData as any;
+                  const successorSelectedItem = successorTask ? {
+                    id: successorTask.id,
+                    label: successorRowData?.name || successorTask.name,
+                  } : undefined;
 
                   return (
-                    <div key={index} className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center">
+                    <div key={index} className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 items-center">
                       {/* Row # input */}
                       <Input
                         type="number"
@@ -817,10 +847,15 @@ export function GanttDependencyEditor({
                         placeholder="#"
                       />
 
+                      {/* ID display */}
+                      <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background">
+                        {successorRowId}
+                      </div>
+
                       {/* Task dropdown */}
                       <ComboboxDropdown
                         items={taskComboItems}
-                        selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
+                        selectedItem={successorSelectedItem}
                         onSelect={(item) => updateSuccessorLink(index, { predecessorId: item.id })}
                         placeholder="Select task..."
                         searchPlaceholder="Search tasks..."
@@ -871,7 +906,7 @@ export function GanttDependencyEditor({
                     : undefined;
 
                   return (
-                    <div className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
+                    <div className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
                       <Input
                         type="number"
                         min={1}
@@ -891,6 +926,10 @@ export function GanttDependencyEditor({
                         className="h-8 text-center"
                         placeholder="#"
                       />
+                      {/* ID display - empty for new row */}
+                      <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-input bg-background">
+                        {pendingSuccTask?.id || ''}
+                      </div>
                       <ComboboxDropdown
                         items={taskComboItems.filter(item =>
                           !depEditorSuccessorLinks.some(l => l.predecessorId === item.id) &&

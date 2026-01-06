@@ -419,6 +419,84 @@ export class UnifiedGanttCanvas {
     return this.collapsedHeaderIds.has(taskId);
   }
 
+  /** Set collapsed state from an array of IDs (for restoring from localStorage) */
+  setCollapsedIds(ids: string[]): void {
+    this.collapsedHeaderIds = new Set(ids);
+    this.recalculateVisibleTasks();
+    this.callbacks.onCollapsedChange?.(new Set(this.collapsedHeaderIds));
+    this.markDirty();
+  }
+
+  /**
+   * Collapse all headers by default, except those containing tasks
+   * that are due today or start today.
+   */
+  collapseAllWithSmartDefaults(): void {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
+
+    // Find all header task numbers that should stay expanded
+    // (they contain a task due today or starting today)
+    const headersToExpand = new Set<number>();
+
+    // Helper to walk up the header chain and mark all ancestors
+    const markHeaderChain = (taskNumber: number | null) => {
+      let current = taskNumber;
+      while (current !== null) {
+        const headerTask = this.tasks.find(t => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const r = t.rowData as any;
+          return r?.task_number === current;
+        });
+        if (!headerTask) break;
+
+        if (this.isHeaderTask(headerTask)) {
+          headersToExpand.add(current);
+        }
+        current = this.getParentHeaderTaskNumber(headerTask);
+      }
+    };
+
+    // Check each non-header task
+    for (const task of this.tasks) {
+      if (this.isHeaderTask(task)) continue;
+
+      // Check if task starts today or ends today
+      const taskStart = new Date(task.startDate);
+      taskStart.setHours(0, 0, 0, 0);
+      const taskEnd = new Date(task.endDate);
+      taskEnd.setHours(0, 0, 0, 0);
+
+      const startsToday = taskStart.getTime() === todayTime;
+      const endsToday = taskEnd.getTime() === todayTime;
+      const isActiveToday = taskStart.getTime() <= todayTime && taskEnd.getTime() >= todayTime;
+
+      if (startsToday || endsToday || isActiveToday) {
+        // Walk up the header chain and mark all ancestors to expand
+        const parentNum = this.getParentHeaderTaskNumber(task);
+        markHeaderChain(parentNum);
+      }
+    }
+
+    // Collapse all headers except those that should be expanded
+    this.collapsedHeaderIds.clear();
+    for (const task of this.tasks) {
+      if (this.isHeaderTask(task)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rowData = task.rowData as any;
+        const taskNumber = rowData?.task_number;
+        if (taskNumber && !headersToExpand.has(taskNumber)) {
+          this.collapsedHeaderIds.add(task.id);
+        }
+      }
+    }
+
+    this.recalculateVisibleTasks();
+    this.callbacks.onCollapsedChange?.(new Set(this.collapsedHeaderIds));
+    this.markDirty();
+  }
+
   // ---------------------------------------------------------------------------
   // Search & Filter
   // ---------------------------------------------------------------------------

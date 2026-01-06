@@ -144,6 +144,7 @@ export function GanttUnified({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const ganttEngineRef = React.useRef<UnifiedGanttCanvas | null>(null);
+  const initialCollapsedAppliedRef = React.useRef(false);
 
   // Callback refs - use refs to avoid engine recreation when callbacks change
   const onTaskClickRef = React.useRef(onTaskClick);
@@ -419,8 +420,37 @@ export function GanttUnified({
   React.useEffect(() => {
     if (ganttEngineRef.current) {
       ganttEngineRef.current.setTasks(tasks);
+
+      // Apply initial collapsed state only once when tasks are first loaded
+      if (!initialCollapsedAppliedRef.current && tasks.length > 0) {
+        initialCollapsedAppliedRef.current = true;
+
+        // Try to restore from localStorage first
+        const storageKey = jobId ? `gantt-collapsed-${jobId}` : templateId ? `gantt-collapsed-template-${templateId}` : null;
+        let restored = false;
+
+        if (storageKey) {
+          try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+              const collapsedIds = JSON.parse(saved) as string[];
+              if (Array.isArray(collapsedIds) && collapsedIds.length > 0) {
+                ganttEngineRef.current.setCollapsedIds(collapsedIds);
+                restored = true;
+              }
+            }
+          } catch {
+            // Ignore localStorage errors
+          }
+        }
+
+        // If no saved state, apply smart defaults (collapse all except today's tasks)
+        if (!restored) {
+          ganttEngineRef.current.collapseAllWithSmartDefaults();
+        }
+      }
     }
-  }, [tasks]);
+  }, [tasks, jobId, templateId]);
 
   React.useEffect(() => {
     if (ganttEngineRef.current) {
