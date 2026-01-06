@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Bell, Check, CheckCheck, ExternalLink } from "lucide-react";
+import { Bell, Check, CheckCheck, ExternalLink, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -85,6 +85,19 @@ export function NotificationBell() {
     }
   };
 
+  const clearAll = async () => {
+    try {
+      setIsLoading(true);
+      await api.delete("/api/v1/notifications/clear_all");
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Failed to clear notifications:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.read) {
       markAsRead(notification.id);
@@ -149,10 +162,10 @@ export function NotificationBell() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9"
+          className="relative h-8 w-8"
           aria-label="Notifications"
         >
-          <Bell className="h-6 w-6" />
+          <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
               {unreadCount > 99 ? "99+" : unreadCount}
@@ -163,18 +176,32 @@ export function NotificationBell() {
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h4 className="font-semibold">Notifications</h4>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={markAllAsRead}
-              disabled={isLoading}
-              className="h-8 text-xs"
-            >
-              <CheckCheck className="mr-1 h-3 w-3" />
-              Mark all read
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={markAllAsRead}
+                disabled={isLoading}
+                className="h-7 text-xs px-2"
+              >
+                <CheckCheck className="mr-1 h-3 w-3" />
+                Read all
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAll}
+                disabled={isLoading}
+                className="h-7 text-xs px-2 text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="mr-1 h-3 w-3" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="h-[400px]">
           {notifications.length === 0 ? (

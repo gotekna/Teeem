@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { api } from '@/lib/api';
@@ -77,6 +78,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     collapseTask,
     addActionItem,
     toggleActionItem,
+    updateActionItem,
     removeActionItem,
     setTaskPrivacy,
     getFollowers,
@@ -105,6 +107,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   // Action items state
   const [newActionItemText, setNewActionItemText] = useState('');
   const [actionItemLoading, setActionItemLoading] = useState<number | 'new' | null>(null);
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editingItemText, setEditingItemText] = useState('');
 
   // Share/Followers state
   const [shareOpen, setShareOpen] = useState(false);
@@ -787,18 +791,62 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                       setActionItemLoading(null);
                     }
                   }}
-                  disabled={actionItemLoading === item.id}
+                  disabled={actionItemLoading === item.id || editingItemId === item.id}
                   className="h-4 w-4"
                 />
-                <span className={cn(
-                  "flex-1 text-sm",
-                  item.checked && "line-through text-muted-foreground"
-                )}>
-                  {item.text}
-                </span>
+                {editingItemId === item.id ? (
+                  <Input
+                    value={editingItemText}
+                    onChange={(e) => setEditingItemText(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && editingItemText.trim()) {
+                        setActionItemLoading(item.id);
+                        try {
+                          await updateActionItem(task.id, item.id, editingItemText.trim());
+                          setEditingItemId(null);
+                          setEditingItemText('');
+                        } finally {
+                          setActionItemLoading(null);
+                        }
+                      } else if (e.key === 'Escape') {
+                        setEditingItemId(null);
+                        setEditingItemText('');
+                      }
+                    }}
+                    onBlur={async () => {
+                      if (editingItemText.trim() && editingItemText.trim() !== item.text) {
+                        setActionItemLoading(item.id);
+                        try {
+                          await updateActionItem(task.id, item.id, editingItemText.trim());
+                        } finally {
+                          setActionItemLoading(null);
+                        }
+                      }
+                      setEditingItemId(null);
+                      setEditingItemText('');
+                    }}
+                    className="flex-1 h-7 text-sm"
+                    autoFocus
+                    disabled={actionItemLoading === item.id}
+                  />
+                ) : (
+                  <span
+                    className={cn(
+                      "flex-1 text-sm cursor-pointer hover:bg-muted/50 px-1 -mx-1 rounded",
+                      item.checked && "line-through text-muted-foreground"
+                    )}
+                    onClick={() => {
+                      setEditingItemId(item.id);
+                      setEditingItemText(item.text);
+                    }}
+                    title="Click to edit"
+                  >
+                    {item.text}
+                  </span>
+                )}
                 {actionItemLoading === item.id ? (
                   <Spinner size={12} />
-                ) : (
+                ) : editingItemId !== item.id && (
                   <button
                     onClick={async () => {
                       setActionItemLoading(item.id);
@@ -926,203 +974,174 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
       </div>
 
-      {/* Attachments Section - Drop Zone */}
-      <div
-        className={cn(
-          "border-t pt-3 transition-colors rounded-lg",
-          isDraggingFile && "bg-primary/10 border-2 border-dashed border-primary"
-        )}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleFileDrop}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Paperclip className="h-4 w-4 text-muted-foreground" />
-            <span className={cn(
-              "text-xs font-medium",
-              isDraggingFile ? "text-primary" : "text-muted-foreground"
-            )}>
-              {isDraggingFile ? "Drop files here to attach" : `Attachments ${localAttachments.length > 0 ? `(${localAttachments.length})` : ""}`}
-            </span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 text-xs gap-1"
-            onClick={() => setShowAttachmentPicker(!showAttachmentPicker)}
-            disabled={attachmentLoading}
-          >
-            {attachmentLoading ? (
-              <Spinner size={12} />
-            ) : (
-              <Plus className="h-3 w-3" />
-            )}
-            Add
-          </Button>
-        </div>
+      {/* Attachments Section with Tabs */}
+      <div className="border-t pt-3">
+        {(() => {
+          const emailAttachments = localAttachments.filter(a => a.email);
+          const documentAttachments = localAttachments.filter(a => a.document && !a.email);
 
-        {/* Attachment Picker */}
-        {showAttachmentPicker && (
-          <div className="mb-3 p-2 border rounded bg-background">
-            <AttachmentPicker
-              attachments={pendingAttachments}
-              onAdd={handleAddAttachment}
-              onRemove={handleRemovePendingAttachment}
-              jobId={task.construction_id > 0 ? String(task.construction_id) : undefined}
-            />
-          </div>
-        )}
+          return (
+            <Tabs defaultValue="emails" className="w-full">
+              <div className="flex items-center justify-between mb-2">
+                <TabsList className="h-7">
+                  <TabsTrigger value="emails" className="text-xs h-6 px-2 gap-1">
+                    <Mail className="h-3 w-3" />
+                    Emails {emailAttachments.length > 0 && `(${emailAttachments.length})`}
+                  </TabsTrigger>
+                  <TabsTrigger value="documents" className="text-xs h-6 px-2 gap-1">
+                    <FileText className="h-3 w-3" />
+                    Documents {documentAttachments.length > 0 && `(${documentAttachments.length})`}
+                  </TabsTrigger>
+                </TabsList>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs gap-1"
+                  onClick={() => setShowAttachmentPicker(!showAttachmentPicker)}
+                  disabled={attachmentLoading}
+                >
+                  {attachmentLoading ? <Spinner size={12} /> : <Plus className="h-3 w-3" />}
+                  Add
+                </Button>
+              </div>
 
-        {/* Existing Attachments - Grouped by Email Conversation */}
-        {localAttachments.length > 0 && (
-          <div className="space-y-2">
-            {(() => {
-              // Group email attachments by conversation_id
-              const emailAttachments = localAttachments.filter(a => a.email);
-              const documentAttachments = localAttachments.filter(a => a.document && !a.email);
+              {/* Attachment Picker */}
+              {showAttachmentPicker && (
+                <div className="mb-3 p-2 border rounded bg-background">
+                  <AttachmentPicker
+                    attachments={pendingAttachments}
+                    onAdd={handleAddAttachment}
+                    onRemove={handleRemovePendingAttachment}
+                    jobId={task.construction_id > 0 ? String(task.construction_id) : undefined}
+                  />
+                </div>
+              )}
 
-              // Group emails by conversation_id, sort by received_at within each group
-              const emailThreads = new Map<string, typeof emailAttachments>();
-              emailAttachments.forEach(attachment => {
-                const convId = attachment.email?.conversation_id || `single-${attachment.id}`;
-                if (!emailThreads.has(convId)) {
-                  emailThreads.set(convId, []);
-                }
-                emailThreads.get(convId)!.push(attachment);
-              });
+              {/* Emails Tab */}
+              <TabsContent value="emails" className="mt-2">
+                {/* Email Keywords */}
+                <div className="mb-3 p-2 bg-muted/30 rounded border">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                      Auto-match keywords:
+                    </Label>
+                    <Input
+                      value={emailKeywords}
+                      onChange={(e) => setEmailKeywords(e.target.value)}
+                      onBlur={saveEmailKeywords}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEmailKeywords()}
+                      placeholder="e.g., DUNS, D-U-N-S, Apple Developer"
+                      className="h-6 text-xs flex-1"
+                    />
+                    {keywordsSaving && <Spinner size={12} />}
+                  </div>
+                </div>
 
-              // Sort emails within each thread by date
-              emailThreads.forEach(thread => {
-                thread.sort((a, b) =>
-                  new Date(a.email!.received_at).getTime() - new Date(b.email!.received_at).getTime()
-                );
-              });
-
-              return (
-                <>
-                  {/* Email Threads */}
-                  {Array.from(emailThreads.entries()).map(([convId, threadEmails]) => (
-                    <div key={convId} className="border rounded bg-background/50">
-                      {/* Thread Header */}
-                      <div className="flex items-center gap-2 px-3 py-2 border-b bg-blue-50/50 dark:bg-blue-900/10">
-                        <Mail className="h-4 w-4 text-blue-500" />
-                        <span className="text-sm font-medium flex-1 truncate">
-                          {threadEmails[0].email?.subject}
-                        </span>
-                        {threadEmails.length > 1 && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            {threadEmails.length} emails
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Thread Emails */}
-                      <div className="divide-y">
-                        {threadEmails.map((attachment, idx) => (
+                {/* Emails Table */}
+                {emailAttachments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    No emails attached. Add keywords above to auto-match incoming emails.
+                  </p>
+                ) : (
+                  <div className="border rounded overflow-hidden">
+                    {/* Table Header */}
+                    <div className="grid grid-cols-[1fr_140px_60px] gap-2 px-3 py-1.5 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
+                      <div>From / Subject</div>
+                      <div>Date</div>
+                      <div></div>
+                    </div>
+                    {/* Table Rows */}
+                    <div className="divide-y max-h-[200px] overflow-y-auto">
+                      {emailAttachments
+                        .sort((a, b) => new Date(b.email!.received_at).getTime() - new Date(a.email!.received_at).getTime())
+                        .map((attachment) => (
                           <div
                             key={attachment.id}
-                            className={cn(
-                              "flex items-start gap-3 p-2 hover:bg-muted/50 transition-colors",
-                              idx > 0 && "pl-6" // Indent replies
-                            )}
+                            className="grid grid-cols-[1fr_140px_60px] gap-2 px-3 py-2 hover:bg-muted/30 transition-colors items-center"
                           >
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-muted-foreground">
-                                <span className="font-medium text-foreground">
-                                  {attachment.email!.from_name || attachment.email!.from_email}
-                                </span>
-                                {' • '}
-                                {format(new Date(attachment.email!.received_at), 'dd MMM yyyy HH:mm')}
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium truncate">
+                                {attachment.email!.from_name || attachment.email!.from_email}
                               </p>
-                              {attachment.email!.body_preview && (
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                  {attachment.email!.body_preview}
-                                </p>
-                              )}
+                              <p className="text-xs text-muted-foreground truncate">
+                                {attachment.email!.subject}
+                              </p>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-xs shrink-0"
-                              onClick={() => window.open(`/email?id=${attachment.email!.id}`, '_blank')}
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(attachment.email!.received_at), 'dd MMM yy HH:mm')}
+                            </div>
+                            <div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => window.open(`/email?id=${attachment.email!.id}`, '_blank')}
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
-                      </div>
                     </div>
-                  ))}
+                  </div>
+                )}
+              </TabsContent>
 
-                  {/* Documents (unchanged) */}
-                  {documentAttachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="flex items-center gap-3 p-2 bg-background/50 rounded border hover:bg-muted/50 transition-colors"
-                    >
-                      <FileText className="h-4 w-4 text-orange-500 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {attachment.document!.display_name || attachment.document!.file_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {attachment.document!.document_type || 'Document'} • {format(new Date(attachment.document!.created_at), 'dd MMM yyyy')}
-                        </p>
+              {/* Documents Tab */}
+              <TabsContent
+                value="documents"
+                className={cn(
+                  "mt-2 transition-colors rounded-lg",
+                  isDraggingFile && "bg-primary/10 border-2 border-dashed border-primary p-2"
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleFileDrop}
+              >
+                {isDraggingFile && (
+                  <p className="text-xs font-medium text-primary text-center py-2">
+                    Drop files here to attach
+                  </p>
+                )}
+                {!isDraggingFile && documentAttachments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    No documents attached. Drag files here or click Add.
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {documentAttachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex items-center gap-3 p-2 bg-background/50 rounded border hover:bg-muted/50 transition-colors"
+                      >
+                        <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {attachment.document!.display_name || attachment.document!.file_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {attachment.document!.document_type || 'Document'} • {format(new Date(attachment.document!.created_at), 'dd MMM yyyy')}
+                          </p>
+                        </div>
+                        {attachment.document!.sharepoint_url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs shrink-0"
+                            onClick={() => window.open(attachment.document!.sharepoint_url, '_blank')}
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Open
+                          </Button>
+                        )}
                       </div>
-                      {attachment.document!.sharepoint_url && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs shrink-0"
-                          onClick={() => window.open(attachment.document!.sharepoint_url, '_blank')}
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Open
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </>
-              );
-            })()}
-          </div>
-        )}
-
-        {localAttachments.length === 0 && !showAttachmentPicker && !isDraggingFile && (
-          <p className="text-xs text-muted-foreground text-center py-2">
-            No attachments yet • Drag files here or click Add
-          </p>
-        )}
-
-        {/* Email Keywords - shown when there are email attachments */}
-        {(localAttachments.some(a => a.email) || emailKeywords) && (
-          <div className="mt-3 pt-3 border-t border-dashed">
-            <div className="flex items-start gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground mt-2 shrink-0" />
-              <div className="flex-1 space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Email Keywords
-                  <span className="ml-1 text-[10px] opacity-70">(auto-match incoming emails)</span>
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={emailKeywords}
-                    onChange={(e) => setEmailKeywords(e.target.value)}
-                    onBlur={saveEmailKeywords}
-                    onKeyDown={(e) => e.key === 'Enter' && saveEmailKeywords()}
-                    placeholder="e.g., DUNS, D-U-N-S, Apple Developer"
-                    className="h-7 text-xs"
-                  />
-                  {keywordsSaving && <Spinner size={14} className="mt-1.5" />}
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Emails matching these keywords will be auto-attached to this task
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          );
+        })()}
       </div>
 
       {/* History Section */}

@@ -93,6 +93,7 @@ Rails.application.routes.draw do
         collection do
           get :unread_count
           post :mark_all_read
+          delete :clear_all
         end
         member do
           patch :mark_read
@@ -1454,6 +1455,7 @@ Rails.application.routes.draw do
           # Action items (checkable items)
           post :action_items, action: :create_action_item
           post "action_items/:item_id/toggle", action: :toggle_action_item
+          patch "action_items/:item_id", action: :update_action_item
           delete "action_items/:item_id", action: :destroy_action_item
           # Privacy
           patch :privacy, action: :update_privacy

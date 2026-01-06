@@ -977,6 +977,25 @@ module Api
         render json: { success: true }
       end
 
+      # PATCH /api/v1/sm_tasks/:id/action_items/:item_id
+      def update_action_item
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        item = @task.action_items.find(params[:item_id])
+        item.update!(text: params[:text])
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item)
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
       # PATCH /api/v1/sm_tasks/:id/privacy
       def update_privacy
         @task = SmTask.find(params[:id])

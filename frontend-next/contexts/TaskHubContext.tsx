@@ -200,6 +200,7 @@ export interface TaskHubContextType extends TaskHubState {
   // Action items
   addActionItem: (taskId: number, text: string) => Promise<TaskActionItem>;
   toggleActionItem: (taskId: number, itemId: number) => Promise<void>;
+  updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
   removeActionItem: (taskId: number, itemId: number) => Promise<void>;
 
   // Privacy
@@ -905,6 +906,27 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     }
   }, []);
 
+  const updateActionItem = useCallback(async (taskId: number, itemId: number, text: string): Promise<TaskActionItem> => {
+    const response = await api.patch<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}`,
+      { text }
+    );
+    if (response?.action_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to update action item');
+  }, []);
+
   const removeActionItem = useCallback(async (taskId: number, itemId: number) => {
     await api.delete(`/api/v1/sm_tasks/${taskId}/action_items/${itemId}`);
     // Update local task state
@@ -1090,6 +1112,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     // Action items
     addActionItem,
     toggleActionItem,
+    updateActionItem,
     removeActionItem,
     // Privacy
     setTaskPrivacy,

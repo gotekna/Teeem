@@ -525,11 +525,13 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       if (row) taskByNumber.set(row.task_number, task);
     }
 
-    // Track total updates across all passes
+    // Cascade should complete in 0-1 passes if backend date_map is correct.
+    // If more passes needed, backend has a bug - stop and warn rather than loop forever.
     let totalUpdated = 0;
-    const MAX_PASSES = 10; // Safety limit
+    let pass = 0;
 
-    for (let pass = 1; pass <= MAX_PASSES; pass++) {
+    while (true) {
+      pass++;
       const passUpdated = runCascadePass(taskList, rowList, taskByNumber, rowByNumber, holidayDates);
 
       if (passUpdated === 0) {
@@ -538,9 +540,16 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       totalUpdated += passUpdated;
 
-      if (pass === MAX_PASSES) {
-        console.warn(`[CASCADE] Hit max passes (${MAX_PASSES}), possible circular dependency`);
+      // Assertion: backend should return correct dates, so we shouldn't need > 2 passes
+      if (pass > 2) {
+        console.error(`[CASCADE] Unexpected: ${pass} passes needed (updated ${passUpdated} tasks). Backend date_map may have a bug.`);
+        break; // Stop rather than loop indefinitely
       }
+    }
+
+    // Log cascade summary (only if any work was done)
+    if (totalUpdated > 0) {
+      console.log(`[CASCADE] Completed in ${pass} pass(es), updated ${totalUpdated} task(s)`);
     }
 
     // Recalculate header spans after all cascading is done

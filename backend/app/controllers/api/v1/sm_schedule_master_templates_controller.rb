@@ -535,62 +535,80 @@ module Api
         # Ensure start_date is a working day
         start_date = calendar.next_working_day(start_date) unless calendar.working_day?(start_date)
 
-        updated = 0
         rows = @template.sm_schedule_master_rows.in_sequence
 
-        # Build a map of task_number -> dates for predecessor lookups
-        date_map = {}
+        # Build header -> children map (stores row objects, not just task_numbers)
+        # Also collect orphan rows (rows not under any header)
+        header_children = {}
+        orphan_rows = []
 
         rows.each do |row|
-          # Calculate start date based on hold_date or predecessors
-          row_start = start_date
-
-          # SSoT: If task is held/locked with a hold_date, use that as the fixed start date
-          # This respects manual positioning from "Start Task" feature
-          if row.hold && row.hold_date.present?
-            # Use hold_date as fixed start, ensure it's a working day
-            row_start = row.hold_date.to_date
-            row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
-          elsif row.predecessor_ids.present?
-            # Get the latest end date from all predecessors
-            latest_pred_end = nil
-            row.predecessor_ids.each do |pred|
-              pred_id = pred.is_a?(Hash) ? pred["id"] : pred
-              pred_dates = date_map[pred_id.to_i]
-              next unless pred_dates
-
-              pred_end = pred_dates[:end_date]
-              latest_pred_end = pred_end if latest_pred_end.nil? || pred_end > latest_pred_end
-            end
-
-            if latest_pred_end
-              # Start day after predecessor ends (FS dependency)
-              row_start = calendar.add_working_days(latest_pred_end, 1)
-            end
-
-            # Ensure start is a working day
-            row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+          if row.allow_header
+            # Initialize header's children array
+            header_children[row.task_number] ||= []
           else
-            # No hold_date, no predecessors - use default start
-            row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+            parent_id = extract_header_parent(row.header_gantt)
+            if parent_id
+              header_children[parent_id] ||= []
+              header_children[parent_id] << row
+            else
+              orphan_rows << row
+            end
+          end
+        end
+
+        date_map = {}
+
+        # Process orphan rows first (rows not under any header)
+        orphan_rows.each do |row|
+          row_start, row_end = calculate_row_dates(row, date_map, start_date, calendar)
+          date_map[row.task_number] = { start_date: row_start, end_date: row_end }
+        end
+
+        # Process each header WITH its children as a unit (deterministic single pass)
+        # This ensures when H2 depends on H1, H1's effective end is already known
+        rows.select(&:allow_header).each do |header|
+          # 1. Calculate header's start from predecessors (or default)
+          header_start = start_date
+          if header.predecessor_ids.present?
+            header_start, _ = calculate_row_dates(header, date_map, start_date, calendar)
           end
 
-          # Calculate end date based on duration
-          duration = row.duration_days || 1
-          row_end = calendar.add_working_days(row_start, duration - 1)
+          # 2. Calculate each child's dates (child can't start before header)
+          children = header_children[header.task_number] || []
+          child_dates = []
 
-          # Store dates for successor lookups
-          date_map[row.task_number] = { start_date: row_start, end_date: row_end }
+          children.each do |child|
+            child_start, child_end = calculate_row_dates(child, date_map, start_date, calendar)
+            # Child can't start before its header
+            if child_start < header_start
+              child_start = header_start
+              duration = child.duration_days || 1
+              child_end = calendar.add_working_days(child_start, duration - 1)
+            end
+            date_map[child.task_number] = { start_date: child_start, end_date: child_end }
+            child_dates << { start: child_start, end: child_end }
+          end
 
-          # Update the row's calculated dates (stored in transient fields for display)
-          # Note: Templates don't persist start/end dates, they're calculated on the fly
-          updated += 1
+          # 3. Header's effective dates from children
+          if child_dates.any?
+            effective_start = [ header_start, child_dates.map { |d| d[:start] }.min ].max
+            effective_end = child_dates.map { |d| d[:end] }.max
+          else
+            # Header with no children - use own duration
+            effective_start = header_start
+            duration = header.duration_days || 1
+            effective_end = calendar.add_working_days(header_start, duration - 1)
+          end
+
+          # 4. Store header (successors can now use its effective end)
+          date_map[header.task_number] = { start_date: effective_start, end_date: effective_end }
         end
 
         render json: {
           success: true,
-          message: "Validated #{updated} rows",
-          updated: updated,
+          message: "Validated #{date_map.size} rows",
+          updated: date_map.size,
           start_date: start_date,
           date_map: date_map.transform_values { |v| { start_date: v[:start_date].to_s, end_date: v[:end_date].to_s } }
         }
@@ -619,6 +637,53 @@ module Api
 
       def set_template
         @template = SmScheduleMasterTemplate.find(params[:id])
+      end
+
+      # Extract parent header task_number from header_gantt field
+      # Returns nil if not a child of any header
+      def extract_header_parent(header_gantt)
+        return nil if header_gantt.blank? || header_gantt == 'Header'
+        return header_gantt if header_gantt.is_a?(Integer)
+        return header_gantt['id'] || header_gantt[:id] if header_gantt.is_a?(Hash)
+        header_gantt.to_i if header_gantt.to_s.match?(/^\d+$/)
+      end
+
+      # Calculate start and end dates for a row based on hold_date or predecessors
+      # SSoT: Uses WorkingDaysCalculator for working day logic
+      def calculate_row_dates(row, date_map, default_start, calendar)
+        row_start = default_start
+
+        # SSoT: If task is held/locked with a hold_date, use that as the fixed start date
+        # This respects manual positioning from "Start Task" feature
+        if row.hold && row.hold_date.present?
+          row_start = row.hold_date.to_date
+          row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+        elsif row.predecessor_ids.present?
+          # Get the latest end date from all predecessors
+          latest_pred_end = nil
+          row.predecessor_ids.each do |pred|
+            pred_id = pred.is_a?(Hash) ? (pred['id'] || pred[:id]) : pred
+            pred_dates = date_map[pred_id.to_i]
+            next unless pred_dates
+
+            pred_end = pred_dates[:end_date]
+            latest_pred_end = pred_end if latest_pred_end.nil? || pred_end > latest_pred_end
+          end
+
+          if latest_pred_end
+            # Start day after predecessor ends (FS dependency)
+            row_start = calendar.add_working_days(latest_pred_end, 1)
+          end
+
+          row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+        else
+          row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+        end
+
+        duration = row.duration_days || 1
+        row_end = calendar.add_working_days(row_start, duration - 1)
+
+        [ row_start, row_end ]
       end
 
       def template_params
