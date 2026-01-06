@@ -895,7 +895,7 @@ export default function ChatPage() {
                 ) : (
                   <ScrollArea className="h-full pr-2">
                     <div className="space-y-3">
-                      {[...messages].reverse().map((message) => (
+                      {messages.map((message) => (
                         <MessageBubble
                           key={message.id}
                           message={message}
