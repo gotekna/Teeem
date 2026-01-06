@@ -31,6 +31,8 @@ import {
   Building2,
   UserCircle,
   FolderOpen,
+  Copy,
+  Maximize2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1193,11 +1195,71 @@ function MessageBubble({
                       <span className="text-sm break-words">{message.file_name}</span>
                     </a>
                   ) : (
-                    <img
-                      src={message.file_url}
-                      alt={message.file_name || "Shared image"}
-                      className="max-w-full max-h-96 object-contain"
-                    />
+                    <div className="relative group">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <img
+                            src={message.file_url}
+                            alt={message.file_name || "Shared image"}
+                            className="max-w-full max-h-96 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                          />
+                        </DialogTrigger>
+                        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden">
+                          <DialogHeader className="sr-only">
+                            <DialogTitle>Image Preview</DialogTitle>
+                            <DialogDescription>Full size image preview</DialogDescription>
+                          </DialogHeader>
+                          <img
+                            src={message.file_url}
+                            alt={message.file_name || "Shared image"}
+                            className="w-full h-full object-contain"
+                          />
+                        </DialogContent>
+                      </Dialog>
+                      {/* Action buttons overlay */}
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const response = await fetch(message.file_url!);
+                              const blob = await response.blob();
+                              await navigator.clipboard.write([
+                                new ClipboardItem({ [blob.type]: blob })
+                              ]);
+                            } catch {
+                              // Fallback: copy URL to clipboard
+                              await navigator.clipboard.writeText(message.file_url!);
+                            }
+                          }}
+                          className="p-1.5 bg-black/60 hover:bg-black/80 rounded text-white"
+                          title="Copy image"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <button
+                              className="p-1.5 bg-black/60 hover:bg-black/80 rounded text-white"
+                              title="Expand image"
+                            >
+                              <Maximize2 className="h-4 w-4" />
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden">
+                            <DialogHeader className="sr-only">
+                              <DialogTitle>Image Preview</DialogTitle>
+                              <DialogDescription>Full size image preview</DialogDescription>
+                            </DialogHeader>
+                            <img
+                              src={message.file_url}
+                              alt={message.file_name || "Shared image"}
+                              className="w-full h-full object-contain"
+                            />
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </div>
                   )
                 ) : message.file_name ? (
                   // Fallback when file_url is not available yet (uploading to SharePoint)
