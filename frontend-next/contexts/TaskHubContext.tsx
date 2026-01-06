@@ -10,8 +10,12 @@ export interface TaskAttachmentEmail {
   id: number;
   subject: string;
   from_email: string;
+  from_name?: string;
   received_at: string;
   has_attachments: boolean;
+  conversation_id?: string;
+  thread_count?: number;
+  body_preview?: string;
 }
 
 export interface TaskAttachmentDocument {

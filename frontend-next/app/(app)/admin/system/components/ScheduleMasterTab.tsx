@@ -699,11 +699,18 @@ export function ScheduleMasterTab() {
         "/api/v1/document_types"
       );
       console.log("[loadDocumentTypes] Response:", data);
+      console.log("[loadDocumentTypes] First 3 items:", data?.data?.slice(0, 3));
       if (data?.data) {
         // Filter to job-applicable document types (scope = "job" or "both")
         const jobDocTypes = data.data.filter(dt => dt.scope === "job" || dt.scope === "both");
-        console.log("[loadDocumentTypes] Filtered job doc types:", jobDocTypes.length, jobDocTypes.slice(0, 3));
-        setAvailableDocumentTypes(jobDocTypes);
+        console.log("[loadDocumentTypes] Filtered job doc types:", jobDocTypes.length);
+        if (jobDocTypes.length > 0) {
+          setAvailableDocumentTypes(jobDocTypes);
+        } else {
+          // Fallback: show all if no job-scoped types found (shouldn't happen)
+          console.warn("[loadDocumentTypes] No job-scoped types, showing all");
+          setAvailableDocumentTypes(data.data);
+        }
       } else {
         console.warn("[loadDocumentTypes] No data in response");
       }

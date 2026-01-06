@@ -470,26 +470,52 @@ class OrgEmailSyncJob < ApplicationJob
     # Don't fail the sync if auto-attach fails
   end
 
-  # Notify task owner when a new email arrives in the conversation
+  # Notify task owner, creator, and followers when a new email arrives in the conversation
   def notify_task_owner_of_reply(task, email, user)
-    return unless task.assigned_user_id.present?
+    sender_email = email.from_email&.downcase
+    notified_user_ids = Set.new
+    notification_message = "#{email.from_name || email.from_email} replied: #{email.subject}"
 
-    # Don't notify if the email is from the task owner (they know they sent it)
-    task_owner = User.find_by(id: task.assigned_user_id)
-    return unless task_owner
-    return if email.from_email&.downcase == task_owner.email&.downcase
+    # 1. Notify assigned user (if exists and not the sender)
+    if task.assigned_user_id.present?
+      assigned_user = User.find_by(id: task.assigned_user_id)
+      if assigned_user && assigned_user.email&.downcase != sender_email
+        create_email_reply_notification(assigned_user, task, notification_message)
+        notified_user_ids << assigned_user.id
+      end
+    end
 
+    # 2. Notify task creator (if exists, not sender, and not already notified)
+    if task.created_by_id.present? && !notified_user_ids.include?(task.created_by_id)
+      creator = User.find_by(id: task.created_by_id)
+      if creator && creator.email&.downcase != sender_email
+        create_email_reply_notification(creator, task, notification_message)
+        notified_user_ids << creator.id
+      end
+    end
+
+    # 3. Notify all followers (excluding sender and already notified users)
+    task.followers.each do |follower|
+      next if notified_user_ids.include?(follower.id)
+      next if follower.email&.downcase == sender_email
+
+      create_email_reply_notification(follower, task, notification_message)
+      notified_user_ids << follower.id
+    end
+
+    Rails.logger.info "[OrgEmailSync] Notified #{notified_user_ids.size} users of new email on task ##{task.id}"
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to notify task users: #{e.message}"
+  end
+
+  def create_email_reply_notification(user, task, message)
     Notification.create!(
-      user_id: task.assigned_user_id,
+      user: user,
       notification_type: "task_email_reply",
       notifiable: task,
-      title: "New reply on task",
-      message: "#{email.from_name || email.from_email} replied: #{email.subject}"
+      title: "New reply on task '#{task.name.truncate(50)}'",
+      message: message
     )
-
-    Rails.logger.info "[OrgEmailSync] Notified #{task_owner.name} of new email on task ##{task.id}"
-  rescue StandardError => e
-    Rails.logger.error "[OrgEmailSync] Failed to notify task owner: #{e.message}"
   end
 
   # Find an admin user for applying rules when no specific user is matched

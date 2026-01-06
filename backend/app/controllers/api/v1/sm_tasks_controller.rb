@@ -1323,8 +1323,12 @@ module Api
               id: email.id,
               subject: email.subject,
               from_email: email.from_email,
+              from_name: email.from_name,
               received_at: email.received_at,
-              has_attachments: email.email_attachments.any?
+              has_attachments: email.email_attachments.any?,
+              conversation_id: email.conversation_id,
+              thread_count: email.thread_count,
+              body_preview: email.body_preview || email.body_text&.truncate(200)
             }
           )
         when "CorporateCompanyDocument"

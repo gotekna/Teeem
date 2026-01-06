@@ -955,61 +955,118 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           </div>
         )}
 
-        {/* Existing Attachments */}
+        {/* Existing Attachments - Grouped by Email Conversation */}
         {localAttachments.length > 0 && (
           <div className="space-y-2">
-            {localAttachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className="flex items-center gap-3 p-2 bg-background/50 rounded border hover:bg-muted/50 transition-colors"
-              >
-                {attachment.email ? (
-                  <>
-                    <Mail className="h-4 w-4 text-blue-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{attachment.email.subject}</p>
-                      <p className="text-xs text-muted-foreground">
-                        From: {attachment.email.from_email} • {format(new Date(attachment.email.received_at), 'dd MMM yyyy')}
-                      </p>
+            {(() => {
+              // Group email attachments by conversation_id
+              const emailAttachments = localAttachments.filter(a => a.email);
+              const documentAttachments = localAttachments.filter(a => a.document && !a.email);
+
+              // Group emails by conversation_id, sort by received_at within each group
+              const emailThreads = new Map<string, typeof emailAttachments>();
+              emailAttachments.forEach(attachment => {
+                const convId = attachment.email?.conversation_id || `single-${attachment.id}`;
+                if (!emailThreads.has(convId)) {
+                  emailThreads.set(convId, []);
+                }
+                emailThreads.get(convId)!.push(attachment);
+              });
+
+              // Sort emails within each thread by date
+              emailThreads.forEach(thread => {
+                thread.sort((a, b) =>
+                  new Date(a.email!.received_at).getTime() - new Date(b.email!.received_at).getTime()
+                );
+              });
+
+              return (
+                <>
+                  {/* Email Threads */}
+                  {Array.from(emailThreads.entries()).map(([convId, threadEmails]) => (
+                    <div key={convId} className="border rounded bg-background/50">
+                      {/* Thread Header */}
+                      <div className="flex items-center gap-2 px-3 py-2 border-b bg-blue-50/50 dark:bg-blue-900/10">
+                        <Mail className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm font-medium flex-1 truncate">
+                          {threadEmails[0].email?.subject}
+                        </span>
+                        {threadEmails.length > 1 && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {threadEmails.length} emails
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Thread Emails */}
+                      <div className="divide-y">
+                        {threadEmails.map((attachment, idx) => (
+                          <div
+                            key={attachment.id}
+                            className={cn(
+                              "flex items-start gap-3 p-2 hover:bg-muted/50 transition-colors",
+                              idx > 0 && "pl-6" // Indent replies
+                            )}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-muted-foreground">
+                                <span className="font-medium text-foreground">
+                                  {attachment.email!.from_name || attachment.email!.from_email}
+                                </span>
+                                {' • '}
+                                {format(new Date(attachment.email!.received_at), 'dd MMM yyyy HH:mm')}
+                              </p>
+                              {attachment.email!.body_preview && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                  {attachment.email!.body_preview}
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs shrink-0"
+                              onClick={() => window.open(`/email?id=${attachment.email!.id}`, '_blank')}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs shrink-0"
-                      onClick={() => window.open(`/email?id=${attachment.email!.id}`, '_blank')}
+                  ))}
+
+                  {/* Documents (unchanged) */}
+                  {documentAttachments.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      className="flex items-center gap-3 p-2 bg-background/50 rounded border hover:bg-muted/50 transition-colors"
                     >
-                      <ExternalLink className="h-3 w-3 mr-1" />
-                      View
-                    </Button>
-                  </>
-                ) : attachment.document ? (
-                  <>
-                    <FileText className="h-4 w-4 text-orange-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {attachment.document.display_name || attachment.document.file_name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {attachment.document.document_type || 'Document'} • {format(new Date(attachment.document.created_at), 'dd MMM yyyy')}
-                      </p>
+                      <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {attachment.document!.display_name || attachment.document!.file_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {attachment.document!.document_type || 'Document'} • {format(new Date(attachment.document!.created_at), 'dd MMM yyyy')}
+                        </p>
+                      </div>
+                      {attachment.document!.sharepoint_url && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => window.open(attachment.document!.sharepoint_url, '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Open
+                        </Button>
+                      )}
                     </div>
-                    {attachment.document.sharepoint_url && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs shrink-0"
-                        onClick={() => window.open(attachment.document!.sharepoint_url, '_blank')}
-                      >
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        Open
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-xs text-muted-foreground">Unknown attachment type</span>
-                )}
-              </div>
-            ))}
+                  ))}
+                </>
+              );
+            })()}
           </div>
         )}
 
