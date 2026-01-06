@@ -137,12 +137,24 @@ module Api
         end
 
         # Build response with user names
-        users = User.where(id: counts_by_user.keys).index_by(&:id)
+        # Filter to only valid integer IDs to prevent PG::InvalidTextRepresentation errors
+        # This handles edge cases where the raw SQL result might contain unexpected values
+        all_keys = counts_by_user.keys
+        valid_user_ids = all_keys.select { |id| id.is_a?(Integer) && id > 0 }
+
+        # Log if we filter out any unexpected values (helps diagnose root cause)
+        invalid_keys = all_keys - valid_user_ids
+        if invalid_keys.any?
+          Rails.logger.warn "[user_counts] Filtered out invalid user IDs: #{invalid_keys.inspect} (types: #{invalid_keys.map(&:class).inspect})"
+        end
+
+        users = valid_user_ids.any? ? User.where(id: valid_user_ids).index_by(&:id) : {}
 
         render json: {
           success: true,
-          users: counts_by_user.map { |user_id, count|
+          users: valid_user_ids.map { |user_id|
             user = users[user_id]
+            count = counts_by_user[user_id]
             { id: user_id, name: user&.name || "Unknown", count: count }
           }.sort_by { |u| -u[:count] },
           unassigned: unassigned_count,
