@@ -15,6 +15,7 @@ namespace :tasks do
 
     total_added = 0
     tasks_updated = 0
+    total_notifications = 0
 
     task_ids_with_emails.each do |task_id|
       task = SmTask.find_by(id: task_id)
@@ -40,18 +41,21 @@ namespace :tasks do
       if thread_emails.any?
         added_count = 0
         thread_emails.each do |email|
-          SmTaskAttachment.create!(
-            sm_task: task,
-            attachable: email,
-            attachment_type: "email",
-            notes: "Backfill: Thread email"
-          )
-          added_count += 1
+          begin
+            SmTaskAttachment.create!(
+              sm_task: task,
+              attachable: email,
+              attachment_type: "email",
+              notes: "Backfill: Thread email"
+            )
+            added_count += 1
 
-          # Send notifications for this email (same as live sync)
-          notify_task_users(task, email)
-        rescue ActiveRecord::RecordInvalid => e
-          puts "  Warning: Could not attach email #{email.id} to task #{task_id}: #{e.message}"
+            # Send notifications for this email
+            notified = notify_task_users(task, email)
+            total_notifications += notified
+          rescue ActiveRecord::RecordInvalid => e
+            puts "  Warning: Could not attach email #{email.id} to task #{task_id}: #{e.message}"
+          end
         end
 
         if added_count > 0
@@ -65,5 +69,63 @@ namespace :tasks do
     puts "\nBackfill complete!"
     puts "  Tasks updated: #{tasks_updated}"
     puts "  Emails attached: #{total_added}"
+    puts "  Notifications sent: #{total_notifications}"
+  end
+
+  # Helper method to notify task users
+  def notify_task_users(task, email)
+    sender_email = email.from_email&.downcase
+    notified_user_ids = Set.new
+    notification_message = "#{email.from_name || email.from_email}: #{email.subject}"
+
+    # 1. Notify assigned user
+    if task.assigned_user_id.present?
+      assigned_user = User.find_by(id: task.assigned_user_id)
+      if assigned_user && assigned_user.email&.downcase != sender_email
+        Notification.create!(
+          user: assigned_user,
+          notification_type: "task_email_reply",
+          notifiable: task,
+          title: "Email thread on '#{task.name.truncate(50)}'",
+          message: notification_message
+        )
+        notified_user_ids << assigned_user.id
+      end
+    end
+
+    # 2. Notify task creator
+    if task.created_by_id.present? && !notified_user_ids.include?(task.created_by_id)
+      creator = User.find_by(id: task.created_by_id)
+      if creator && creator.email&.downcase != sender_email
+        Notification.create!(
+          user: creator,
+          notification_type: "task_email_reply",
+          notifiable: task,
+          title: "Email thread on '#{task.name.truncate(50)}'",
+          message: notification_message
+        )
+        notified_user_ids << creator.id
+      end
+    end
+
+    # 3. Notify all followers
+    task.followers.each do |follower|
+      next if notified_user_ids.include?(follower.id)
+      next if follower.email&.downcase == sender_email
+
+      Notification.create!(
+        user: follower,
+        notification_type: "task_email_reply",
+        notifiable: task,
+        title: "Email thread on '#{task.name.truncate(50)}'",
+        message: notification_message
+      )
+      notified_user_ids << follower.id
+    end
+
+    notified_user_ids.size
+  rescue StandardError => e
+    puts "    Warning: Failed to notify users: #{e.message}"
+    0
   end
 end
