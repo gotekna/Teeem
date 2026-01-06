@@ -222,14 +222,14 @@ export default function SignatureRegisterPage() {
             <div className="w-48">
               <Label className="text-xs text-muted-foreground">Certificate Type</Label>
               <Select
-                value={filterCertificateType}
-                onValueChange={setFilterCertificateType}
+                value={filterCertificateType || "all"}
+                onValueChange={(value) => setFilterCertificateType(value === "all" ? "" : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All types</SelectItem>
+                  <SelectItem value="all">All types</SelectItem>
                   {certificateTypes.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label} ({type.count})
