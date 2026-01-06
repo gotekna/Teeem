@@ -15,7 +15,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
-import { EmailDetailDialog } from '@/components/emails';
 import { api } from '@/lib/api';
 import {
   AlertTriangle,
@@ -129,10 +128,6 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   // Email keywords state
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
   const [keywordsSaving, setKeywordsSaving] = useState(false);
-
-  // Email detail dialog state
-  const [detailEmailId, setDetailEmailId] = useState<number | null>(null);
-  const [emailDetailOpen, setEmailDetailOpen] = useState(false);
 
   // Load followers on mount for all tasks
   useEffect(() => {
@@ -1097,18 +1092,11 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     })}
                     viewOnly={true}
                     onRowDoubleClick={(row) => {
-                      setDetailEmailId(typeof row.id === "string" ? parseInt(row.id) : row.id);
-                      setEmailDetailOpen(true);
+                      // Open in standard email page view
+                      window.open(`/email?id=${row.id}`, '_blank');
                     }}
                   />
                 </div>
-
-                {/* Email Detail Dialog */}
-                <EmailDetailDialog
-                  emailId={detailEmailId}
-                  open={emailDetailOpen}
-                  onOpenChange={setEmailDetailOpen}
-                />
               </TabsContent>
 
               {/* Documents Tab */}

@@ -22,7 +22,6 @@ import {
 import { api } from "@/lib/api";
 import { EntityChat } from "@/components/chat/EntityChat";
 import { Spinner } from "@/components/ui/spinner";
-import { EmailDetailDialog } from "@/components/emails";
 import TeeemTableView from "@/components/table/TeeemTableView";
 
 interface Message {
@@ -263,9 +262,6 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
   const [showAllInThread, setShowAllInThread] = useState(false);
   const [suggestionsExpanded, setSuggestionsExpanded] = useState(false); // Collapsed by default
 
-  // Email detail dialog state
-  const [detailEmailId, setDetailEmailId] = useState<number | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     loadEmails();
@@ -319,10 +315,9 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
     }
   };
 
-  // Handle row double-click to open email detail
+  // Handle row double-click to open email in standard email page
   const handleRowDoubleClick = (row: { id: string | number }) => {
-    setDetailEmailId(typeof row.id === "string" ? parseInt(row.id) : row.id);
-    setDetailOpen(true);
+    window.open(`/email?id=${row.id}`, '_blank');
   };
 
   return (
@@ -520,14 +515,6 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
           />
         )}
       </div>
-
-      {/* Email Detail Dialog */}
-      <EmailDetailDialog
-        emailId={detailEmailId}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        onJobAssigned={() => loadEmails()}
-      />
     </div>
   );
 }

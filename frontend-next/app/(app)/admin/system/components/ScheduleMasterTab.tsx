@@ -3015,7 +3015,7 @@ export function ScheduleMasterTab() {
 
       {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
       <Dialog open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0">
           {/* Sticky Header */}
           <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
             <div>

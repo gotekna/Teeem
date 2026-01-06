@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { Mail } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { EmailDetailDialog } from "@/components/emails";
 import type { EmailMessage, EmailsPagination } from "../types";
 
 interface ContactEmailsTabProps {
@@ -31,14 +29,9 @@ export function ContactEmailsTab({
   loadEmails,
   contactEmail,
 }: ContactEmailsTabProps) {
-  // State for email detail dialog
-  const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-
-  // Handle row double-click to open email detail
+  // Handle row double-click to open email in standard email page
   const handleRowDoubleClick = (row: { id: string | number }) => {
-    setSelectedEmailId(typeof row.id === "string" ? parseInt(row.id) : row.id);
-    setDetailOpen(true);
+    window.open(`/email?id=${row.id}`, '_blank');
   };
 
   // Determine which contact email address was used in each email
@@ -205,14 +198,6 @@ export function ContactEmailsTab({
           </>
         )}
       </div>
-
-      {/* Email Detail Dialog */}
-      <EmailDetailDialog
-        emailId={selectedEmailId}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        highlightEmail={contactEmail || undefined}
-      />
     </div>
   );
 }

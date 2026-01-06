@@ -78,7 +78,6 @@ import { CaseQATab } from "@/components/cases/CaseQATab";
 import { CaseOverviewTab } from "@/components/cases/CaseOverviewTab";
 import { CaseDocumentsTab } from "@/components/cases/CaseDocumentsTab";
 import { Spinner } from "@/components/ui/spinner";
-import { EmailDetailDialog } from "@/components/emails";
 
 // Tabs for case detail
 const CASE_TABS = [
@@ -262,8 +261,6 @@ export default function CaseDetailPage() {
   const [loadingEmails, setLoadingEmails] = React.useState(false);
 
   // Email detail dialog state
-  const [detailEmailId, setDetailEmailId] = React.useState<number | null>(null);
-  const [detailOpen, setDetailOpen] = React.useState(false);
 
   // Contacts for relationships tab (shared with entities tab)
   const [contacts, setContacts] = React.useState<{
@@ -1268,8 +1265,7 @@ export default function CaseDetailPage() {
                       key={email.id}
                       className="py-3 flex items-start justify-between gap-4 cursor-pointer hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors"
                       onDoubleClick={() => {
-                        setDetailEmailId(email.email_warehouse_id);
-                        setDetailOpen(true);
+                        window.open(`/email?id=${email.email_warehouse_id}`, '_blank');
                       }}
                     >
                       <div className="flex items-start gap-3">
@@ -1313,13 +1309,6 @@ export default function CaseDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Email Detail Dialog */}
-          <EmailDetailDialog
-            emailId={detailEmailId}
-            open={detailOpen}
-            onOpenChange={setDetailOpen}
-            onJobAssigned={() => loadEmails()}
-          />
           </>
         )}
 

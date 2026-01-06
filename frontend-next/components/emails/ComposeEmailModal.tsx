@@ -441,7 +441,7 @@ export function ComposeEmailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[1400px] h-[750px] max-h-[750px] p-0 gap-0 overflow-hidden flex flex-col top-[52%]">
+      <DialogContent className="sm:max-w-[1400px] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col">
         {/* Outlook-style Header with Send Button */}
         <div className="flex items-center gap-2 px-4 py-3 border-b bg-background">
           {/* Send button with dropdown */}
@@ -684,27 +684,29 @@ export function ComposeEmailModal({
               </div>
             )}
 
-            {/* Body - Large area */}
-            <div className="flex-1 p-4 overflow-auto flex flex-col">
-              <RichTextEditor
-                value={formData.body}
-                onChange={(value) => setFormData({ ...formData, body: value })}
-                placeholder="Type / to insert files and more"
-                minHeight={signatureHtml ? 250 : 350}
-                onSlashCommand={(command) => {
-                  if (command === "template") {
-                    setTemplatePickerOpen(true);
-                  }
-                }}
-              />
-
-              {/* Signature Preview - rendered separately to preserve HTML formatting */}
-              {signatureHtml && (
-                <div
-                  className="mt-4 pointer-events-none"
-                  dangerouslySetInnerHTML={{ __html: signatureHtml }}
+            {/* Body - Large scrollable area */}
+            <div className="flex-1 overflow-y-auto min-h-0 p-4">
+              <div className="min-h-[400px]">
+                <RichTextEditor
+                  value={formData.body}
+                  onChange={(value) => setFormData({ ...formData, body: value })}
+                  placeholder="Type / to insert files and more"
+                  minHeight={400}
+                  onSlashCommand={(command) => {
+                    if (command === "template") {
+                      setTemplatePickerOpen(true);
+                    }
+                  }}
                 />
-              )}
+
+                {/* Signature Preview - rendered separately to preserve HTML formatting */}
+                {signatureHtml && (
+                  <div
+                    className="mt-4 pointer-events-none"
+                    dangerouslySetInnerHTML={{ __html: signatureHtml }}
+                  />
+                )}
+              </div>
             </div>
 
             {/* Error */}
