@@ -1,23 +1,32 @@
 'use client';
 
 import { useState } from 'react';
-import { useTaskHub, ViewType } from '@/contexts/TaskHubContext';
+import { useTaskHub, ViewType, UserTaskCount } from '@/contexts/TaskHubContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Search,
   LayoutGrid,
   List,
   User,
   Users,
+  UserX,
   Plus,
   RefreshCw,
   AlertTriangle,
   X,
   Workflow,
+  ChevronDown,
 } from 'lucide-react';
 import { BoardView } from './views/BoardView';
 import { ListView } from './views/ListView';
@@ -41,11 +50,32 @@ export function TaskHub() {
     selectedTaskIds,
     deselectAll,
     bulkUpdateStatus,
+    userCounts,
+    unassignedCount,
+    totalActiveCount,
   } = useTaskHub();
 
   // Called when color settings change to trigger re-render
   const handleColorSettingsChange = () => {
     setColorSettingsKey((k) => k + 1);
+  };
+
+  // Get selected user for "All" dropdown display
+  const getSelectedUserName = () => {
+    if (filters.selectedUserId === 'unassigned') return 'Unassigned';
+    if (filters.selectedUserId) {
+      const user = userCounts.find(u => u.id === filters.selectedUserId);
+      return user?.name || 'Unknown';
+    }
+    return 'All';
+  };
+
+  // Handle user selection from dropdown
+  const handleUserSelect = (userId: number | 'unassigned' | null) => {
+    setFilters({ selectedUserId: userId });
+    if (activeView !== 'all') {
+      setActiveView('all');
+    }
   };
 
   if (loading) {
@@ -128,10 +158,47 @@ export function TaskHub() {
             <User className="h-3 w-3 mr-1" />
             Mine
           </TabsTrigger>
-          <TabsTrigger value="all" className="text-xs h-7 px-3">
-            <Users className="h-3 w-3 mr-1" />
-            All
-          </TabsTrigger>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={`inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm px-3 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-7 ${
+                  activeView === 'all'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => {
+                  if (activeView !== 'all') {
+                    setActiveView('all');
+                  }
+                }}
+              >
+                <Users className="h-3 w-3" />
+                {getSelectedUserName()}
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem onClick={() => handleUserSelect(null)}>
+                <Users className="h-4 w-4 mr-2" />
+                All Tasks
+                <span className="ml-auto text-xs text-muted-foreground">{totalActiveCount}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleUserSelect('unassigned')}>
+                <UserX className="h-4 w-4 mr-2" />
+                Unassigned
+                <span className="ml-auto text-xs text-muted-foreground">{unassignedCount}</span>
+              </DropdownMenuItem>
+              {userCounts.length > 0 && <DropdownMenuSeparator />}
+              {userCounts.map((user) => (
+                <DropdownMenuItem key={user.id} onClick={() => handleUserSelect(user.id)}>
+                  <User className="h-4 w-4 mr-2" />
+                  {user.name}
+                  <span className="ml-auto text-xs text-muted-foreground">{user.count}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <TabsTrigger value="workflow" className="text-xs h-7 px-3">
             <Workflow className="h-3 w-3 mr-1" />
             Workflow

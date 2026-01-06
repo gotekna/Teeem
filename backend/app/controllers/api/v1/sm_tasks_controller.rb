@@ -36,6 +36,7 @@ module Api
         @tasks = @tasks.active if params[:active_only] == "true"
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
         @tasks = @tasks.for_user_roles(current_user) if params[:mine] == "true"
+        @tasks = @tasks.where(assigned_user_id: nil).where("assigned_role IS NULL OR assigned_role = ''") if params[:unassigned] == "true"
 
         render json: {
           success: true,
@@ -46,6 +47,39 @@ module Api
             hold_count: SmTask.hold_tasks.where(status: "not_started").count,
             completed_count: SmTask.status_completed.count
           }
+        }
+      end
+
+      # GET /api/v1/sm_tasks/user_counts
+      # Returns task counts grouped by assigned user for the "All" dropdown filter
+      def user_counts
+        base_scope = SmTask.visible_to(current_user)
+                          .where(status: [ "not_started", "started" ])
+
+        # Get counts grouped by assigned_user_id
+        counts_by_user = base_scope.where.not(assigned_user_id: nil)
+                                   .group(:assigned_user_id)
+                                   .count
+
+        # Get unassigned count (no user AND no role)
+        unassigned_count = base_scope.where(assigned_user_id: nil)
+                                     .where("assigned_role IS NULL OR assigned_role = ''")
+                                     .count
+
+        # Get total count for "All" option
+        total_count = base_scope.count
+
+        # Build response with user names
+        users = User.where(id: counts_by_user.keys).index_by(&:id)
+
+        render json: {
+          success: true,
+          users: counts_by_user.map { |user_id, count|
+            user = users[user_id]
+            { id: user_id, name: user&.name || "Unknown", count: count }
+          }.sort_by { |u| -u[:count] },
+          unassigned: unassigned_count,
+          total: total_count
         }
       end
 

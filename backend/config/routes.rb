@@ -1420,6 +1420,7 @@ Rails.application.routes.draw do
       resources :sm_tasks, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :bulk_update
+          get :user_counts
         end
         member do
           post :start

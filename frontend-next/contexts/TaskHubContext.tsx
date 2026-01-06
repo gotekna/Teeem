@@ -134,6 +134,13 @@ export interface TaskFilters {
   search: string;
   showMyTasksOnly: boolean;
   showOverdueOnly: boolean;
+  selectedUserId: number | 'unassigned' | null;
+}
+
+export interface UserTaskCount {
+  id: number;
+  name: string;
+  count: number;
 }
 
 export type ViewType = 'board' | 'list' | 'my-tasks' | 'all' | 'workflow';
@@ -211,6 +218,11 @@ export interface TaskHubContextType extends TaskHubState {
   addFollower: (taskId: number, userId: number) => Promise<TaskFollower>;
   removeFollower: (taskId: number, userId: number) => Promise<void>;
 
+  // User counts for "All" dropdown
+  userCounts: UserTaskCount[];
+  unassignedCount: number;
+  totalActiveCount: number;
+
   // Refresh
   refresh: () => Promise<void>;
 }
@@ -225,6 +237,7 @@ const defaultFilters: TaskFilters = {
   search: '',
   showMyTasksOnly: false,
   showOverdueOnly: false,
+  selectedUserId: null,
 };
 
 // Mock data for development testing - DISABLED to avoid confusion with real data
@@ -621,6 +634,36 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // User counts for "All" dropdown filter
+  const [userCounts, setUserCounts] = useState<UserTaskCount[]>([]);
+  const [unassignedCount, setUnassignedCount] = useState(0);
+  const [totalActiveCount, setTotalActiveCount] = useState(0);
+
+  // Load user counts for dropdown
+  const loadUserCounts = useCallback(async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        users: UserTaskCount[];
+        unassigned: number;
+        total: number;
+      }>('/api/v1/sm_tasks/user_counts');
+
+      if (response.success) {
+        setUserCounts(response.users || []);
+        setUnassignedCount(response.unassigned || 0);
+        setTotalActiveCount(response.total || 0);
+      }
+    } catch (err) {
+      console.error('Failed to load user counts:', err);
+    }
+  }, []);
+
+  // Load user counts on mount and when tasks change
+  useEffect(() => {
+    loadUserCounts();
+  }, [loadUserCounts]);
+
   // Load tasks from API
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -637,6 +680,13 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       // Filter by assigned_role matching user's roles (backend handles this)
       if (filters.showMyTasksOnly || activeView === 'my-tasks') {
         params.append('mine', 'true');
+      }
+
+      // Filter by selected user in "All" dropdown
+      if (filters.selectedUserId === 'unassigned') {
+        params.append('unassigned', 'true');
+      } else if (filters.selectedUserId) {
+        params.append('assigned_user_id', filters.selectedUserId.toString());
       }
 
       const response = await api.get<{ tasks: SmTask[]; success: boolean }>(`/api/v1/sm_tasks?${params.toString()}`);
@@ -664,7 +714,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     } finally {
       setLoading(false);
     }
-  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, activeView]);
+  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, filters.selectedUserId, activeView]);
 
   // Initial load
   useEffect(() => {
@@ -1067,7 +1117,8 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
   const refresh = useCallback(async () => {
     await loadTasks();
-  }, [loadTasks]);
+    await loadUserCounts();
+  }, [loadTasks, loadUserCounts]);
 
   const value: TaskHubContextType = {
     // State
@@ -1120,6 +1171,10 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     getFollowers,
     addFollower,
     removeFollower,
+    // User counts for "All" dropdown
+    userCounts,
+    unassignedCount,
+    totalActiveCount,
     refresh,
   };
 
