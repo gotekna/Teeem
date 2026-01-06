@@ -2271,6 +2271,13 @@ export class UnifiedGanttCanvas {
     if (column?.id === 'dependencies' && y > this.config.headerHeight) {
       const task = this.getTaskAtRow(y);
       if (task) {
+        // Select the task first to show dependency highlighting
+        this.selectTask(task.id, {
+          ctrl: e.ctrlKey || e.metaKey,
+          shift: e.shiftKey,
+        });
+        this.markDirty();
+        // Then open dependency editor
         this.callbacks.onDependencyClick?.(task, e);
         return;
       }
@@ -2291,25 +2298,49 @@ export class UnifiedGanttCanvas {
   private handleDoubleClick = (e: MouseEvent): void => {
     const x = e.offsetX;
     const y = e.offsetY;
+    console.log('[UnifiedGanttCanvas] handleDoubleClick at x:', x, 'y:', y, 'tableWidth:', this.tableWidth);
 
-    // Check if double-click is in the table area (for inline editing)
-    if (x < this.tableWidth && y > this.config.headerHeight) {
+    // Skip header area
+    if (y < this.config.headerHeight) {
+      console.log('[UnifiedGanttCanvas] Double-click in header area, ignoring');
+      return;
+    }
+
+    const task = this.getTaskAtRow(y);
+    if (!task) {
+      console.log('[UnifiedGanttCanvas] No task found at row');
+      return;
+    }
+    console.log('[UnifiedGanttCanvas] Found task:', task.name);
+
+    // Select the task first to show highlighting
+    this.selectTask(task.id, { ctrl: false, shift: false });
+    this.markDirty();
+
+    // Check if in table area
+    if (x < this.tableWidth) {
       const column = this.getColumnAt(x);
-      const task = this.getTaskAtRow(y);
+      console.log('[UnifiedGanttCanvas] Double-click in table area, column:', column?.id, 'task:', task.name);
 
-      // Handle editable columns (duration/Days)
-      if (column && task && column.type === 'number' && column.field) {
-        // Calculate cell rectangle for positioning the edit input
+      // Double-click on dependencies column → open dependency editor
+      if (column?.id === 'dependencies') {
+        console.log('[UnifiedGanttCanvas] Opening dependency editor');
+        this.callbacks.onDependencyClick?.(task, e);
+        return;
+      }
+
+      // Double-click on Days column → inline edit duration
+      if (column?.id === 'duration' || column?.field === 'duration_days') {
+        console.log('[UnifiedGanttCanvas] Opening inline duration editor');
         const columnX = this.getColumnStartX(column.id);
         const rowIndex = this.visibleTasks.indexOf(task);
         const cellY = this.config.headerHeight + rowIndex * this.config.rowHeight - this.scrollY;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
-        const currentValue = rowData?.[column.field];
+        const currentValue = rowData?.duration_days ?? task.duration;
 
-        console.log('[UnifiedGanttCanvas] Double-click on editable cell:', column.id, task.id, currentValue);
-        this.callbacks.onCellEdit?.(task, column.id, column.field, currentValue, {
+        this.callbacks.onCellEdit?.(task, column.id, 'duration_days', currentValue, {
           x: columnX,
           y: cellY,
           width: column.width,
@@ -2317,16 +2348,15 @@ export class UnifiedGanttCanvas {
         });
         return;
       }
+
+      // Double-click on any other table column → open detail screen
+      console.log('[UnifiedGanttCanvas] Opening detail screen via onTaskDoubleClick');
+      this.callbacks.onTaskDoubleClick?.(task, e);
+      return;
     }
 
-    // Otherwise, handle task bar double-click
-    const task = this.getTaskAtPosition(x, y);
-    if (task) {
-      console.log('[UnifiedGanttCanvas] Double-click on task:', task.id, task.name);
-      this.callbacks.onTaskDoubleClick?.(task, e);
-    } else {
-      console.log('[UnifiedGanttCanvas] Double-click on empty area at', x, y);
-    }
+    // Double-click in timeline area (gantt bar) → open dependency editor
+    this.callbacks.onDependencyClick?.(task, e);
   };
 
   private handleContextMenu = (e: MouseEvent): void => {

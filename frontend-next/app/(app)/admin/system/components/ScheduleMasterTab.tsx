@@ -453,7 +453,8 @@ export function ScheduleMasterTab() {
   // SSoT: Cost Centres come from Foundation Cost Centres (ID 533)
   const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Header rows are rows with header=NULL (they ARE headers, no parent)
-  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: header_gantt uses task_number (not id) - include both for proper lookups
+  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
   // SSoT: Checklists from Supervisor Checklist Template foundation
   const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: All tasks for linked_po_task lookups
@@ -651,7 +652,8 @@ export function ScheduleMasterTab() {
   const loadHeaderRows = async () => {
     try {
       // Query sm_schedule_master rows where allow_header = true (the ones that CAN be headers)
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
+      // SSoT: header_gantt uses task_number (not id) - we need both for proper lookups
+      const data = await api.get<{ success: boolean; records: { id: number; task_number: number; name: string }[] }>(
         "/api/v1/foundations/sm-schedule-master/records?per_page=100&filters=" + encodeURIComponent(JSON.stringify([
           { column: "allow_header", operator: "equals", value: "true" }
         ]))
@@ -979,6 +981,7 @@ export function ScheduleMasterTab() {
 
   // Handle Gantt V2 task double-click - open edit sheet
   const handleGanttV2TaskDoubleClick = (task: GanttTask) => {
+    console.log('[ScheduleMasterTab] handleGanttV2TaskDoubleClick called with task:', task.id, task.name);
     // Reset auto-save state for fresh sheet
     initialFormLoadRef.current = true;
     setAutoSaveStatus('idle');
@@ -3310,14 +3313,15 @@ export function ScheduleMasterTab() {
                 <div className="space-y-1">
                   <Label className="text-xs">Header Gantt</Label>
                   <ComboboxDropdown
-                    items={availableHeaderRows.map(h => ({ id: String(h.id), label: h.name }))}
+                    items={availableHeaderRows.map(h => ({ id: String(h.task_number), label: h.name }))}
                     selectedItem={(() => {
-                      const headerId = extractLookupId(editRowForm.header_gantt);
-                      if (!headerId || headerId === 'Header') return undefined;  // Skip if "Header" marker
-                      const headerName = availableHeaderRows.find(h => String(h.id) === headerId)?.name
+                      // SSoT: header_gantt stores task_number (not id)
+                      const headerTaskNum = extractLookupId(editRowForm.header_gantt);
+                      if (!headerTaskNum || headerTaskNum === 'Header') return undefined;  // Skip if "Header" marker
+                      const headerName = availableHeaderRows.find(h => String(h.task_number) === headerTaskNum)?.name
                         || extractLookupDisplay(editingRow?.header_gantt)
-                        || headerId;
-                      return { id: headerId, label: headerName };
+                        || headerTaskNum;
+                      return { id: headerTaskNum, label: headerName };
                     })()}
                     onSelect={(item) => setEditRowForm({ ...editRowForm, header_gantt: item.id })}
                     placeholder="Select header..."
@@ -3524,11 +3528,12 @@ export function ScheduleMasterTab() {
                         const removedIds = currentChildIds.filter(id => !newChildIds.includes(id));
 
                         // Update children's header_gantt field
+                        // SSoT: header_gantt stores task_number (not id) to match Gantt rendering
                         try {
                           // Add new children
                           for (const childId of addedIds) {
                             await api.patch(`/api/v1/foundations/sm-schedule-master/records/${childId}`, {
-                              header_gantt: editingRow.id
+                              header_gantt: editingRow.task_number
                             });
                           }
                           // Remove old children (clear their header_gantt)

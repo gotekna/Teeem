@@ -152,6 +152,12 @@ export function GanttUnified({
   React.useEffect(() => { onTaskClickRef.current = onTaskClick; }, [onTaskClick]);
   React.useEffect(() => { onTaskDoubleClickRef.current = onTaskDoubleClick; }, [onTaskDoubleClick]);
 
+  // Reset collapsed state tracking when template/job changes
+  // This ensures collapse logic runs fresh for each new template/job
+  React.useEffect(() => {
+    initialCollapsedAppliedRef.current = false;
+  }, [templateId, jobId]);
+
   // ---------------------------------------------------------------------------
   // Theme
   // ---------------------------------------------------------------------------

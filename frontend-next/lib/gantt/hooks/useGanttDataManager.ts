@@ -1334,7 +1334,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
     // Handlers
     handleTaskClick: (task: GanttTask) => {
-      console.log('[GanttDataManager] Task clicked:', task);
+      // Single-click just selects the task (highlighting handled by canvas)
+      // Dependency editor is opened via onDependencyClick (deps column click or double-click on gantt)
+      console.log('[GanttDataManager] Task clicked:', task.id, task.name);
     },
     handleTaskDoubleClick,
     handleCheckboxToggle,

@@ -38,6 +38,7 @@ const DialogContent = React.forwardRef<
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      aria-describedby={undefined}
       onOpenAutoFocus={(e) => {
         // Prevent auto-focus to avoid aria-hidden conflict
         e.preventDefault();
@@ -81,6 +82,7 @@ const DialogContentFrameless = React.forwardRef<
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      aria-describedby={undefined}
       onOpenAutoFocus={(e) => {
         // Prevent auto-focus to avoid aria-hidden conflict
         e.preventDefault();
