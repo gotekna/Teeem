@@ -1364,6 +1364,84 @@ export default function DocumentTypeDetailPage() {
               })()}
             </div>
 
+            {/* Secondary Tabs - Show document in multiple tabs */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Also show in (optional)</Label>
+              {(() => {
+                const primaryId = documentType.entity_tab_ids?.[0];
+                const secondaryIds = (documentType.entity_tab_ids || []).slice(1);
+
+                const findTabName = (items: any[], id: number): string | null => {
+                  for (const item of items) {
+                    if (item.id === id) return item.name;
+                    if (item.children?.length) {
+                      const found = findTabName(item.children, id);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+
+                const addSecondaryTab = (tabId: number) => {
+                  if (!secondaryIds.includes(tabId) && tabId !== primaryId) {
+                    updateField("entity_tab_ids", [primaryId, ...secondaryIds, tabId].filter(Boolean));
+                  }
+                };
+
+                const removeSecondaryTab = (tabId: number) => {
+                  updateField("entity_tab_ids", [primaryId, ...secondaryIds.filter(id => id !== tabId)].filter(Boolean));
+                };
+
+                return (
+                  <div className="space-y-2">
+                    {/* Display selected secondary tabs */}
+                    {secondaryIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {secondaryIds.map((tabId) => (
+                          <Badge key={tabId} variant="secondary" className="text-xs">
+                            {findTabName(folderHierarchy, tabId) || `Tab ${tabId}`}
+                            <button onClick={() => removeSecondaryTab(tabId)} className="ml-1 hover:text-destructive">
+                              <X className="h-2 w-2" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    {/* Add secondary tab dropdown */}
+                    <Select
+                      value=""
+                      onValueChange={(value) => addSecondaryTab(parseInt(value))}
+                    >
+                      <SelectTrigger className="text-sm h-8">
+                        <SelectValue placeholder="+ Add tab..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {folderHierarchy.filter(p => p.id).flatMap(parent => {
+                          const items = [];
+                          // Only show if not already selected
+                          if (parent.id !== primaryId && !secondaryIds.includes(parent.id!)) {
+                            items.push(
+                              <SelectItem key={parent.id} value={parent.id!.toString()}>{parent.name}</SelectItem>
+                            );
+                          }
+                          // Add children
+                          (parent.children || []).filter((c: any) => c.id && c.id !== primaryId && !secondaryIds.includes(c.id)).forEach((child: any) => {
+                            items.push(
+                              <SelectItem key={child.id} value={child.id.toString()} className="pl-6">↳ {child.name}</SelectItem>
+                            );
+                          });
+                          return items;
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Document stored once, visible in multiple tabs
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* File Extensions - Compact */}
             <div className="space-y-2">
               <Label>File Extensions</Label>
