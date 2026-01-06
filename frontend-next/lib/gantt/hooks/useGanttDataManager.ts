@@ -504,9 +504,12 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   }
 
   /**
-   * Cascade dependency dates after backend date_map is applied.
-   * For each task with predecessors, ensure it starts after all predecessors end.
-   * Runs multiple passes until all dependencies settle.
+   * Verify dependency dates after backend date_map is applied.
+   * Backend now handles inherited dependencies, so this should be a no-op.
+   * If any updates are needed, it means the backend has a bug.
+   *
+   * This function now only runs a SINGLE verification pass to catch any edge cases.
+   * No looping - backend is the SSoT for date calculations.
    */
   function cascadeDependencyDates(
     taskList: GanttTask[],
@@ -525,38 +528,19 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       if (row) taskByNumber.set(row.task_number, task);
     }
 
-    // Cascade should complete in 0-1 passes if backend date_map is correct.
-    // If more passes needed, backend has a bug - stop and warn rather than loop forever.
-    let totalUpdated = 0;
-    let pass = 0;
+    // Single verification pass - backend should have already calculated correct dates
+    // with inherited dependencies. This is just a safety check.
+    const passUpdated = runCascadePass(taskList, rowList, taskByNumber, rowByNumber, holidayDates);
 
-    while (true) {
-      pass++;
-      const passUpdated = runCascadePass(taskList, rowList, taskByNumber, rowByNumber, holidayDates);
-
-      if (passUpdated === 0) {
-        break;
-      }
-
-      totalUpdated += passUpdated;
-
-      // Assertion: backend should return correct dates, so we shouldn't need > 2 passes
-      if (pass > 2) {
-        console.error(`[CASCADE] Unexpected: ${pass} passes needed (updated ${passUpdated} tasks). Backend date_map may have a bug.`);
-        break; // Stop rather than loop indefinitely
-      }
-    }
-
-    // Log cascade summary (only if any work was done)
-    if (totalUpdated > 0) {
-      console.log(`[CASCADE] Completed in ${pass} pass(es), updated ${totalUpdated} task(s)`);
-    }
-
-    // Recalculate header spans after all cascading is done
-    if (totalUpdated > 0) {
+    if (passUpdated > 0) {
+      // Backend missed something - log warning but don't loop
+      console.warn(`[CASCADE] Backend date_map needed ${passUpdated} frontend corrections. ` +
+        `This indicates the backend inherited dependencies algorithm may have a bug.`);
+      // Recalculate header spans after corrections
       return recalculateHeaderSpans(taskList, rowList);
     }
 
+    // No updates needed - backend date_map was correct (expected case)
     return taskList;
   }
 

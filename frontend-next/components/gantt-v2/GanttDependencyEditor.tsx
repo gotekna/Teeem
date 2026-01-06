@@ -283,6 +283,76 @@ export function GanttDependencyEditor({
   const taskNumber = taskRowData?.task_number;
   const rowIndex = task ? tasks.findIndex(t => t.id === task.id) + 1 : 0;
 
+  // Helper: Extract parent header task_number from header_gantt field
+  // Mirrors backend extract_header_parent logic
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const extractHeaderParent = (headerGantt: any): number | null => {
+    if (!headerGantt || headerGantt === 'Header') return null;
+    if (typeof headerGantt === 'number') return headerGantt;
+    if (typeof headerGantt === 'object' && (headerGantt.id || headerGantt.id === 0)) {
+      return headerGantt.id;
+    }
+    if (typeof headerGantt === 'string' && /^\d+$/.test(headerGantt)) {
+      return parseInt(headerGantt, 10);
+    }
+    return null;
+  };
+
+  // Get inherited predecessors from parent headers (walk up the chain)
+  const inheritedPredecessors = React.useMemo(() => {
+    if (!task) return [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const taskRowData = task.rowData as any;
+    console.log('[InheritedPreds] Task:', taskRowData?.task_number, taskRowData?.name);
+    console.log('[InheritedPreds] header_gantt raw:', taskRowData?.header_gantt, typeof taskRowData?.header_gantt);
+
+    const inherited: Array<{ taskNumber: number; headerName: string; taskId: string }> = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let currentParentId = extractHeaderParent(taskRowData?.header_gantt);
+    console.log('[InheritedPreds] Extracted parent ID:', currentParentId);
+
+    while (currentParentId !== null) {
+      // Find the parent header by task_number
+      const parentHeader = tasks.find(t => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r = t.rowData as any;
+        return r?.task_number === currentParentId;
+      });
+
+      console.log('[InheritedPreds] Looking for parent', currentParentId, '- found:', parentHeader?.name);
+
+      if (!parentHeader) break;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parentRowData = parentHeader.rowData as any;
+      const parentPreds = parentRowData?.predecessor_ids || [];
+      console.log('[InheritedPreds] Parent', parentRowData?.task_number, 'has preds:', parentPreds);
+
+      // Add each predecessor from this header
+      parentPreds.forEach((pred: { id: number }) => {
+        // Find the predecessor task
+        const predTask = tasks.find(t => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const r = t.rowData as any;
+          return r?.task_number === pred.id;
+        });
+        if (predTask) {
+          inherited.push({
+            taskNumber: pred.id,
+            headerName: parentRowData?.name || `Header ${parentRowData?.task_number}`,
+            taskId: predTask.id,
+          });
+        }
+      });
+
+      // Walk up to grandparent
+      currentParentId = extractHeaderParent(parentRowData?.header_gantt);
+    }
+
+    return inherited;
+  }, [task, tasks]);
+
   // Build combobox items from tasks (exclude headers and current task)
   const taskComboItems = React.useMemo(() => {
     return tasks
@@ -401,7 +471,10 @@ export function GanttDependencyEditor({
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-indigo-500" />
                 <h3 className="text-sm font-semibold">Predecessors</h3>
-                <span className="text-xs text-muted-foreground">({depEditorLinks.filter(l => l.predecessorId).length})</span>
+                <span className="text-xs text-muted-foreground">
+                  ({depEditorLinks.filter(l => l.predecessorId).length}
+                  {inheritedPredecessors.length > 0 && ` + ${inheritedPredecessors.length} inherited`})
+                </span>
               </div>
 
               {/* Header row */}
@@ -482,6 +555,59 @@ export function GanttDependencyEditor({
                       >
                         <X className="h-4 w-4" />
                       </Button>
+                    </div>
+                  );
+                })}
+
+                {/* Inherited predecessors (greyed out, read-only) */}
+                {inheritedPredecessors.map((inherited, index) => {
+                  const inheritedTask = tasks.find(t => t.id === inherited.taskId);
+                  const inheritedRowNum = inheritedTask
+                    ? tasks.findIndex(t => t.id === inherited.taskId) + 1
+                    : '';
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const inheritedRowData = inheritedTask?.rowData as any;
+                  const inheritedTaskName = inheritedRowData?.name || inheritedTask?.name || '';
+
+                  return (
+                    <div
+                      key={`inherited-${index}`}
+                      className="grid grid-cols-[72px_1fr_180px_60px_32px] gap-2 items-center opacity-50"
+                      title={`Inherited from: ${inherited.headerName}`}
+                    >
+                      {/* Row # - disabled */}
+                      <Input
+                        type="number"
+                        value={inheritedRowNum}
+                        disabled
+                        className="h-8 text-center bg-muted cursor-not-allowed"
+                      />
+
+                      {/* Task name - disabled with inherited label */}
+                      <div className="h-8 flex items-center px-3 rounded-md border border-input bg-muted text-sm truncate">
+                        <span className="truncate">{inherited.taskNumber} - {inheritedTaskName}</span>
+                        <span className="ml-auto text-xs text-muted-foreground shrink-0 pl-2">
+                          (from {inherited.headerName})
+                        </span>
+                      </div>
+
+                      {/* Type - disabled */}
+                      <select
+                        disabled
+                        className="h-8 w-full rounded-md border border-input bg-muted px-2 text-sm cursor-not-allowed"
+                      >
+                        <option>Finish-to-Start (FS)</option>
+                      </select>
+
+                      {/* Lag - disabled */}
+                      <Input
+                        disabled
+                        value={0}
+                        className="h-8 text-center bg-muted cursor-not-allowed"
+                      />
+
+                      {/* No remove button - can't delete inherited */}
+                      <div className="h-8 w-8" />
                     </div>
                   );
                 })}

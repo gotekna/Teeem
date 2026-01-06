@@ -539,7 +539,8 @@ export default function EmailPage() {
 
   // Split Inbox State - default to folders (Inbox) for faster loading
   const [viewMode, setViewMode] = useState<"split" | "folders">(cachedState?.viewMode || "folders");
-  const splitInbox = useSplitInbox({ accountId: selectedAccount });
+  // Only fetch split inbox data when in split view mode (performance optimization)
+  const splitInbox = useSplitInbox({ accountId: selectedAccount, enabled: viewMode === "split" });
 
   // Keyboard Shortcuts
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
@@ -808,8 +809,6 @@ export default function EmailPage() {
   const toURLParams = emailFilters.toURLParams;
 
   const fetchEmails = useCallback(async (page = 1) => {
-    console.log('[Email] fetchEmails called', { selectedAccount, selectedFolder, page });
-
     setLoading(true);
     try {
       // Start with filters from hook
@@ -838,7 +837,6 @@ export default function EmailPage() {
       }
 
       const url = `/api/v1/email_warehouse?${params.toString()}`;
-      console.log('[Email] Fetching:', url);
       const response = await api.get<{ emails: Email[]; pagination: Pagination }>(url);
 
       setEmails(response.emails || []);
@@ -850,7 +848,7 @@ export default function EmailPage() {
     }
   }, [toURLParams, selectedAccount, selectedFolder]);
 
-  const fetchFolders = async (accountId: string, account?: EmailAccount) => {
+  const fetchFolders = async (accountId: string, account?: EmailAccount, forceSelectInbox = false) => {
     if (accountFolders[accountId] || loadingFolders.has(accountId)) {
       return; // Already loaded or loading
     }
@@ -864,69 +862,63 @@ export default function EmailPage() {
     }
 
     setLoadingFolders(prev => new Set(prev).add(accountId));
-    try {
-      // Build URL with mailbox_email for ms365 accounts
-      let url = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
-      if (acct?.type === "ms365" && acct?.email_address) {
-        url += `&mailbox_email=${encodeURIComponent(acct.email_address)}`;
+
+    // Build URL with mailbox_email for ms365 accounts
+    let foldersUrl = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
+    if (acct?.type === "ms365" && acct?.email_address) {
+      foldersUrl += `&mailbox_email=${encodeURIComponent(acct.email_address)}`;
+    }
+
+    // Fetch folders and folder_order in PARALLEL for speed
+    const [foldersResult, orderResult] = await Promise.allSettled([
+      api.get<{ success: boolean; data: EmailFolder[] }>(foldersUrl),
+      api.get<{ success: boolean; data: { folder_ids: string[] } }>(
+        `/api/v1/imap_credentials/folder_order?account_id=${accountId}`
+      ),
+    ]);
+
+    // Process folders result
+    if (foldersResult.status === "fulfilled" && foldersResult.value.success && foldersResult.value.data) {
+      const folders = foldersResult.value.data.map(f => ({
+        ...f,
+        displayName: f.display_name || f.name,
+      }));
+      setAccountFolders(prev => ({
+        ...prev,
+        [accountId]: folders
+      }));
+
+      // Auto-select inbox folder when:
+      // - forceSelectInbox is true (user just clicked this mailbox), OR
+      // - The folder ID doesn't match any folder in this account
+      const inboxFolder = foldersResult.value.data.find(f => f.type === "inbox");
+      const currentFolderExists = foldersResult.value.data.some(f => f.id === selectedFolderId);
+
+      if (inboxFolder && (forceSelectInbox || !currentFolderExists)) {
+        setSelectedFolder(inboxFolder.name);
+        setSelectedFolderId(inboxFolder.id);
       }
-
-      const response = await api.get<{ success: boolean; data: EmailFolder[] }>(url);
-      if (response.success && response.data) {
-        // Transform snake_case display_name to camelCase displayName for FolderTree
-        const folders = response.data.map(f => ({
-          ...f,
-          displayName: f.display_name || f.name,
-        }));
-        setAccountFolders(prev => ({
-          ...prev,
-          [accountId]: folders
-        }));
-
-        // Auto-select inbox folder if this is the selected account and:
-        // - No folder is selected, OR
-        // - The folder ID is the default "INBOX" (IMAP) but doesn't match any real folder
-        //   (MS365/Outlook use different folder IDs like "AAMkAGQ0...")
-        if (accountId === selectedAccount) {
-          const inboxFolder = response.data.find(f => f.type === "inbox");
-          const currentFolderExists = response.data.some(f => f.id === selectedFolderId);
-
-          // Update to real inbox folder if current folder doesn't exist in this account
-          if (inboxFolder && (!selectedFolderId || !currentFolderExists)) {
-            setSelectedFolder(inboxFolder.name);
-            setSelectedFolderId(inboxFolder.id);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch folders:", error);
+    } else {
       // Set empty array to prevent retry loops
       setAccountFolders(prev => ({
         ...prev,
         [accountId]: []
       }));
-    } finally {
-      setLoadingFolders(prev => {
-        const next = new Set(prev);
-        next.delete(accountId);
-        return next;
-      });
     }
 
-    // Also load folder order for this account
-    try {
-      const orderResponse = await api.get<{ success: boolean; data: { folder_ids: string[] } }>(
-        `/api/v1/imap_credentials/folder_order?account_id=${accountId}`
-      );
-      if (orderResponse.success && orderResponse.data?.folder_ids?.length > 0) {
-        setFolderOrder(prev => ({
-          ...prev,
-          [accountId]: orderResponse.data.folder_ids
-        }));
-      }
-    } catch {
-      // Folder order is optional, ignore errors
+    // Process folder order result
+    if (orderResult.status === "fulfilled" && orderResult.value.success && orderResult.value.data?.folder_ids?.length > 0) {
+      setFolderOrder(prev => ({
+        ...prev,
+        [accountId]: orderResult.value.data.folder_ids
+      }));
     }
+
+    setLoadingFolders(prev => {
+      const next = new Set(prev);
+      next.delete(accountId);
+      return next;
+    });
   };
 
   // Save folder order to backend (called when user drags to reorder)
@@ -960,8 +952,6 @@ export default function EmailPage() {
       const activeAccounts = (response.data || []).filter(a => a.is_active);
       setAccounts(activeAccounts);
 
-      console.log('[Email] fetchAccounts - accountParam:', accountParam, 'activeAccounts:', activeAccounts.map(a => ({ id: a.id, email: a.email_address })));
-
       // Determine which account to show based on URL param
       let targetAccountId = "all";
 
@@ -969,23 +959,20 @@ export default function EmailPage() {
         if (accountParam) {
           // Find account matching URL param
           const accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
-          console.log('[Email] Looking for account:', accountParam, 'found:', accountToSelect?.email_address || 'NOT FOUND');
           if (accountToSelect) {
             targetAccountId = String(accountToSelect.id);
+            // Reset folder to Inbox when loading specific account from URL
+            setSelectedFolder("Inbox");
+            setSelectedFolderId("");
             setExpandedAccounts(new Set([targetAccountId]));
             // Fetch folders for selected account (pass account for ms365 type)
-            fetchFolders(targetAccountId, accountToSelect);
-          } else {
-            console.log('[Email] Account not found, falling back to all');
+            fetchFolders(targetAccountId, accountToSelect, true);
           }
-        } else {
-          console.log('[Email] No account param, showing All Inbox');
         }
       }
 
       // Always set the account and mark as loaded
       // This triggers fetchEmails via the useEffect below
-      console.log('[Email] Setting selectedAccount to:', targetAccountId);
       setSelectedAccount(targetAccountId);
       setAccountsLoaded(true);
     } catch (error) {
@@ -1000,29 +987,26 @@ export default function EmailPage() {
 
   // Handle URL account param changes (e.g., clicking different mailbox in nav)
   useEffect(() => {
-    console.log('[Email] URL param change effect - accountParam:', accountParam, 'accounts.length:', accounts.length, 'currentSelectedAccount:', selectedAccount);
     if (accountParam && accounts.length > 0) {
       const matchingAccount = accounts.find(a => String(a.id) === accountParam);
-      console.log('[Email] URL effect - looking for:', accountParam, 'found:', matchingAccount?.email_address || 'NOT FOUND', 'currentSelected:', selectedAccount);
       if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
         const accountId = String(matchingAccount.id);
-        console.log('[Email] URL effect - switching to account:', accountId);
         setSelectedAccount(accountId);
+        // Immediately set folder to Inbox when switching accounts via URL
+        setSelectedFolder("Inbox");
+        setSelectedFolderId("");
         setExpandedAccounts(new Set([accountId]));
-        fetchFolders(accountId, matchingAccount);
+        fetchFolders(accountId, matchingAccount, true);
       }
     } else if (!accountParam && accounts.length > 0 && selectedAccount !== "all") {
       // No account param but we have a specific account selected - switch to All Inbox
-      console.log('[Email] URL effect - no param, switching to All Inbox');
       setSelectedAccount("all");
     }
   }, [accountParam, accounts]);
 
   useEffect(() => {
     // Fetch emails when account changes OR when accounts finish loading
-    // The accountsLoaded check ensures we fetch even if cached selectedAccount matches URL param
     if (accountsLoaded) {
-      console.log('[Email] Triggering fetchEmails - accountsLoaded:', accountsLoaded, 'selectedAccount:', selectedAccount);
       fetchEmails();
     }
   }, [selectedAccount, fetchEmails, accountsLoaded]);
@@ -1433,8 +1417,12 @@ To: ${email.to_emails?.join(", ") || ""}
                 onClick={() => {
                   const accountId = String(account.id);
                   setSelectedAccount(accountId);
+                  // Immediately set folder to Inbox when switching accounts
+                  // (don't wait for fetchFolders to complete - fixes race condition)
+                  setSelectedFolder("Inbox");
+                  setSelectedFolderId("");  // Clear old folder ID
                   setExpandedAccounts(new Set([accountId]));
-                  fetchFolders(accountId, account);
+                  fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
                 }}
                 className={cn(
                   "w-full flex items-center gap-2 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",

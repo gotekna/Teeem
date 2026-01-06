@@ -459,7 +459,7 @@ export function ScheduleMasterTab() {
   // SSoT: All tasks for linked_po_task lookups
   const [availableTasks, setAvailableTasks] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Job-scoped document types for spawn scan task dropdown
-  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string }[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -3400,7 +3400,38 @@ export function ScheduleMasterTab() {
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Days after completion to spawn task</p>
+                  {/* Preview of spawn behavior */}
+                  {editRowForm.document_types?.[0]?.document_type_id ? (() => {
+                    const docType = availableDocumentTypes.find(dt => dt.id === editRowForm.document_types![0].document_type_id);
+                    const formNumbers = docType?.form_number_mapping ? Object.values(docType.form_number_mapping) : [];
+                    const uniqueFormNumbers = [...new Set(formNumbers)].filter(Boolean);
+                    const formNumberDisplay = uniqueFormNumbers.length > 0
+                      ? ` ${uniqueFormNumbers.join('/')}`
+                      : '';
+
+                    return (
+                      <div className="text-xs bg-muted/50 rounded px-2 py-1.5 border border-dashed">
+                        <span className="text-muted-foreground">When completed → </span>
+                        <span className="font-medium text-foreground">
+                          GET - {(editRowForm.document_types![0].document_type_name || 'Scan task')
+                            .replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\s*/g, '')
+                            .replace(/\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\s*/g, '')
+                            .replace(/\s*\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{2,4}\s*/gi, '')
+                            .trim()}{formNumberDisplay}
+                        </span>
+                        {(editRowForm.document_types![0].lag_days || 0) > 0 && (
+                          <span className="text-muted-foreground">
+                            {' '}spawns in {editRowForm.document_types![0].lag_days} day{editRowForm.document_types![0].lag_days !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {(editRowForm.document_types![0].lag_days || 0) === 0 && (
+                          <span className="text-muted-foreground"> spawns immediately</span>
+                        )}
+                      </div>
+                    );
+                  })() : (
+                    <p className="text-xs text-muted-foreground">Select a document type to spawn a scan task on completion</p>
+                  )}
                 </div>
                 {/* Allow Header */}
                 <div className="flex items-center gap-2 pt-2 border-t">

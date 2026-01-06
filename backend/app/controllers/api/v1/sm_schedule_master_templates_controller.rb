@@ -536,139 +536,123 @@ module Api
         start_date = calendar.next_working_day(start_date) unless calendar.working_day?(start_date)
 
         rows = @template.sm_schedule_master_rows.in_sequence
+        rows_by_task = rows.index_by(&:task_number)
 
-        # Build header -> children map
-        header_children = {}
+        # Build parent -> children map (including headers as children of headers)
+        all_children = {}
         rows.each do |row|
-          if row.allow_header
-            header_children[row.task_number] ||= []
-          else
-            parent_id = extract_header_parent(row.header_gantt)
-            if parent_id
-              header_children[parent_id] ||= []
-              header_children[parent_id] << row
-            end
+          parent_id = extract_header_parent(row.header_gantt)
+          if parent_id
+            all_children[parent_id] ||= []
+            all_children[parent_id] << row
           end
+        end
+
+        # Determine header levels for bottom-up processing
+        # Level 2 = sub-headers (only have task children)
+        # Level 1 = top headers (have header children)
+        header_level = {}
+        rows.select(&:allow_header).each do |header|
+          children = all_children[header.task_number] || []
+          has_header_child = children.any?(&:allow_header)
+          header_level[header.task_number] = has_header_child ? 1 : 2
         end
 
         date_map = {}
 
-        # STEP 1: Calculate ALL non-header rows in sequence order
-        # Sequence order respects dependencies (predecessors have lower sequence numbers)
-        # This handles cross-header dependencies correctly
-        rows.each do |row|
-          next if row.allow_header
-          row_start, row_end = calculate_row_dates(row, date_map, start_date, calendar)
+        # Helper: Get all inherited predecessors by walking up the header chain
+        # Children inherit their parent header's dependencies
+        get_inherited_predecessors = ->(row) {
+          inherited = []
+          current_parent_id = extract_header_parent(row.header_gantt)
+
+          while current_parent_id
+            parent = rows_by_task[current_parent_id]
+            break unless parent
+
+            # Add parent header's predecessors to inherited list
+            if parent.predecessor_ids.present?
+              inherited.concat(parent.predecessor_ids)
+            end
+
+            # Walk up to grandparent
+            current_parent_id = extract_header_parent(parent.header_gantt)
+          end
+
+          inherited
+        }
+
+        # PASS 1: Calculate all tasks with inherited dependencies
+        # Children automatically wait for their parent header's predecessors
+        rows.reject(&:allow_header).each do |row|
+          # Combine own predecessors + inherited from parent headers
+          all_predecessors = (row.predecessor_ids || []) + get_inherited_predecessors.call(row)
+
+          row_start = start_date
+
+          # SSoT: If task is held/locked with a hold_date, use that as the fixed start date
+          if row.hold && row.hold_date.present?
+            row_start = row.hold_date.to_date
+            row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+          elsif all_predecessors.any?
+            # Get the latest end date from all predecessors (own + inherited)
+            latest_pred_end = nil
+            all_predecessors.each do |pred|
+              pred_id = pred.is_a?(Hash) ? (pred['id'] || pred[:id]) : pred
+              pred_dates = date_map[pred_id.to_i]
+              next unless pred_dates
+              pred_end = pred_dates[:end_date]
+              latest_pred_end = pred_end if latest_pred_end.nil? || pred_end > latest_pred_end
+            end
+
+            if latest_pred_end
+              # Start day after predecessor ends (FS dependency)
+              row_start = calendar.add_working_days(latest_pred_end, 1)
+            end
+          end
+
+          row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+          duration = row.duration_days || 1
+          row_end = calendar.add_working_days(row_start, duration - 1)
+
           date_map[row.task_number] = { start_date: row_start, end_date: row_end }
         end
 
-        # STEP 2: Calculate header effective dates and push children forward if needed
-        # Process headers in sequence order so H2 can use H1's effective end
-        rows.select(&:allow_header).each do |header|
-          children = header_children[header.task_number] || []
-
-          # Calculate header's start from predecessors (or use min child start)
-          header_start = start_date
-          if header.predecessor_ids.present?
-            header_start, _ = calculate_row_dates(header, date_map, start_date, calendar)
-          end
-
+        # PASS 2a: Calculate Level-2 headers (sub-headers with only task children)
+        # Headers span their children - they don't process their own predecessors
+        rows.select { |r| r.allow_header && header_level[r.task_number] == 2 }.each do |header|
+          children = all_children[header.task_number] || []
           if children.any?
-            # Get current child dates
             child_starts = children.map { |c| date_map[c.task_number]&.dig(:start_date) }.compact
             child_ends = children.map { |c| date_map[c.task_number]&.dig(:end_date) }.compact
-
-            min_child_start = child_starts.min || start_date
-            effective_start = [ header_start, min_child_start ].max
-
-            # If header was pushed forward by predecessor, push children forward too
-            if header_start > min_child_start
-              children.each do |child|
-                child_dates = date_map[child.task_number]
-                next unless child_dates
-
-                if child_dates[:start_date] < header_start
-                  duration = child.duration_days || 1
-                  new_child_end = calendar.add_working_days(header_start, duration - 1)
-                  date_map[child.task_number] = { start_date: header_start, end_date: new_child_end }
-                end
-              end
-
-              # Recalculate child ends after push
-              child_ends = children.map { |c| date_map[c.task_number]&.dig(:end_date) }.compact
-            end
-
+            effective_start = child_starts.min || start_date
             effective_end = child_ends.max || effective_start
             date_map[header.task_number] = { start_date: effective_start, end_date: effective_end }
           else
             # Header with no children - use own duration
             duration = header.duration_days || 1
-            effective_end = calendar.add_working_days(header_start, duration - 1)
-            date_map[header.task_number] = { start_date: header_start, end_date: effective_end }
+            date_map[header.task_number] = { start_date: start_date, end_date: calendar.add_working_days(start_date, duration - 1) }
           end
         end
 
-        # STEP 3+4: Iteratively cascade until stable
-        # After headers shift, tasks depending on them need re-cascading.
-        # After tasks shift, header effective dates need updating.
-        # Loop until no changes with safety limit to prevent infinite loops.
-        cascade_pass = 0
-        max_passes = 20 # Safety limit - should converge much faster
-        loop do
-          cascade_pass += 1
-          changes = 0
-
-          # 3a: Re-cascade all non-header tasks
-          rows.each do |row|
-            next if row.allow_header
-
-            row_start, row_end = calculate_row_dates(row, date_map, start_date, calendar)
-
-            # Enforce parent header constraint
-            parent_id = extract_header_parent(row.header_gantt)
-            if parent_id && date_map[parent_id]
-              h_start = date_map[parent_id][:start_date]
-              if row_start < h_start
-                row_start = h_start
-                duration = row.duration_days || 1
-                row_end = calendar.add_working_days(row_start, duration - 1)
-              end
-            end
-
-            current = date_map[row.task_number]
-            if current.nil? || row_start != current[:start_date]
-              date_map[row.task_number] = { start_date: row_start, end_date: row_end }
-              changes += 1
-            end
-          end
-
-          # 3b: Recalculate header effective dates
-          rows.select(&:allow_header).each do |header|
-            children = header_children[header.task_number] || []
-            next unless children.any?
-
+        # PASS 2b: Calculate Level-1 headers (top headers with sub-header children)
+        rows.select { |r| r.allow_header && header_level[r.task_number] == 1 }.each do |header|
+          children = all_children[header.task_number] || []
+          if children.any?
             child_starts = children.map { |c| date_map[c.task_number]&.dig(:start_date) }.compact
             child_ends = children.map { |c| date_map[c.task_number]&.dig(:end_date) }.compact
-            next if child_starts.empty?
-
-            effective_start = child_starts.min
+            effective_start = child_starts.min || start_date
             effective_end = child_ends.max || effective_start
-
-            current = date_map[header.task_number]
-            if current.nil? || effective_start != current[:start_date] || effective_end != current[:end_date]
-              date_map[header.task_number] = { start_date: effective_start, end_date: effective_end }
-              changes += 1
-            end
+            date_map[header.task_number] = { start_date: effective_start, end_date: effective_end }
+          else
+            duration = header.duration_days || 1
+            date_map[header.task_number] = { start_date: start_date, end_date: calendar.add_working_days(start_date, duration - 1) }
           end
-
-          break if changes == 0 || cascade_pass >= max_passes
         end
-
-        Rails.logger.info "[validate_dates] Cascade completed in #{cascade_pass} passes"
 
         render json: {
           success: true,
-          message: "Validated #{date_map.size} rows",
+          message: "Validated #{date_map.size} rows (inherited dependencies)",
           updated: date_map.size,
           start_date: start_date,
           date_map: date_map.transform_values { |v| { start_date: v[:start_date].to_s, end_date: v[:end_date].to_s } }
