@@ -32,23 +32,6 @@ class GanttDataService
     @records = records
     @options = options
     @filter_invisible = options[:filter_invisible] || false
-    # date_overrides: Hash of task_number => { start_date: Date, end_date: Date }
-    # Used for templates where dates are calculated from dependencies, not stored
-    @date_overrides = options[:date_overrides] || {}
-  end
-
-  # Get start_date for a record, checking date_overrides first (for templates)
-  def get_start_date(record)
-    override = @date_overrides[record.task_number]
-    return override[:start_date] if override && override[:start_date]
-    record.try(:start_date)
-  end
-
-  # Get end_date for a record, checking date_overrides first (for templates)
-  def get_end_date(record)
-    override = @date_overrides[record.task_number]
-    return override[:end_date] if override && override[:end_date]
-    record.try(:end_date)
   end
 
   def build_response
@@ -293,7 +276,7 @@ class GanttDataService
 
     # Sort children within each parent by start_date, then end_date, then sequence_order
     children_by_parent.each_value do |children|
-      children.sort_by! { |c| [get_start_date(c) || Date.new(9999), get_end_date(c) || Date.new(9999), c.try(:sequence_order) || 0] }
+      children.sort_by! { |c| [c.try(:start_date) || Date.new(9999), c.try(:end_date) || Date.new(9999), c.try(:sequence_order) || 0] }
     end
 
     # Calculate effective start dates for all headers (recursive)
@@ -303,9 +286,9 @@ class GanttDataService
     level2_headers.each do |header|
       children = children_by_parent[header.task_number].reject { |c| is_header?(c) }
       if children.any?
-        header_start_dates[header.task_number] = children.map { |c| get_start_date(c) || Date.new(9999) }.min
+        header_start_dates[header.task_number] = children.map { |c| c.try(:start_date) || Date.new(9999) }.min
       else
-        header_start_dates[header.task_number] = get_start_date(header) || Date.new(9999)
+        header_start_dates[header.task_number] = header.try(:start_date) || Date.new(9999)
       end
     end
 
@@ -314,16 +297,16 @@ class GanttDataService
       all_children = children_by_parent[header.task_number]
       child_dates = all_children.map do |child|
         if is_header?(child)
-          header_start_dates[child.task_number] || get_start_date(child) || Date.new(9999)
+          header_start_dates[child.task_number] || child.try(:start_date) || Date.new(9999)
         else
-          get_start_date(child) || Date.new(9999)
+          child.try(:start_date) || Date.new(9999)
         end
       end
 
       if child_dates.any?
         header_start_dates[header.task_number] = child_dates.min
       else
-        header_start_dates[header.task_number] = get_start_date(header) || Date.new(9999)
+        header_start_dates[header.task_number] = header.try(:start_date) || Date.new(9999)
       end
     end
 
@@ -334,9 +317,9 @@ class GanttDataService
     level2_headers.each do |header|
       children = children_by_parent[header.task_number].reject { |c| is_header?(c) }
       if children.any?
-        header_end_dates[header.task_number] = children.map { |c| get_end_date(c) || Date.new(0) }.max
+        header_end_dates[header.task_number] = children.map { |c| c.try(:end_date) || Date.new(0) }.max
       else
-        header_end_dates[header.task_number] = get_end_date(header) || Date.new(9999)
+        header_end_dates[header.task_number] = header.try(:end_date) || Date.new(9999)
       end
     end
 
@@ -345,16 +328,16 @@ class GanttDataService
       all_children = children_by_parent[header.task_number]
       child_end_dates = all_children.map do |child|
         if is_header?(child)
-          header_end_dates[child.task_number] || get_end_date(child) || Date.new(0)
+          header_end_dates[child.task_number] || child.try(:end_date) || Date.new(0)
         else
-          get_end_date(child) || Date.new(0)
+          child.try(:end_date) || Date.new(0)
         end
       end
 
       if child_end_dates.any?
         header_end_dates[header.task_number] = child_end_dates.max
       else
-        header_end_dates[header.task_number] = get_end_date(header) || Date.new(9999)
+        header_end_dates[header.task_number] = header.try(:end_date) || Date.new(9999)
       end
     end
 
@@ -375,14 +358,14 @@ class GanttDataService
       l1_children = children_by_parent[l1_header.task_number]
 
       # Sort children: by start_date, then end_date, then sequence_order
-      l1_children.sort_by! { |c| [get_start_date(c) || Date.new(9999), get_end_date(c) || Date.new(9999), c.try(:sequence_order) || 0] }
+      l1_children.sort_by! { |c| [c.try(:start_date) || Date.new(9999), c.try(:end_date) || Date.new(9999), c.try(:sequence_order) || 0] }
 
       l1_children.each do |child|
         if is_header?(child)
           # This is a Level 2 header - add it and its children
           block_items << child
           l2_children = children_by_parent[child.task_number]
-          l2_children.sort_by! { |c| [get_start_date(c) || Date.new(9999), get_end_date(c) || Date.new(9999), c.try(:sequence_order) || 0] }
+          l2_children.sort_by! { |c| [c.try(:start_date) || Date.new(9999), c.try(:end_date) || Date.new(9999), c.try(:sequence_order) || 0] }
           block_items.concat(l2_children)
         else
           # Direct task child of Level 1 header
@@ -401,8 +384,8 @@ class GanttDataService
     # Add standalone task blocks
     standalone_tasks.each do |task|
       blocks << {
-        start_date: get_start_date(task) || Date.new(9999),
-        end_date: get_end_date(task) || Date.new(9999),
+        start_date: task.try(:start_date) || Date.new(9999),
+        end_date: task.try(:end_date) || Date.new(9999),
         sequence_order: task.try(:sequence_order) || 0,
         items: [task]
       }
