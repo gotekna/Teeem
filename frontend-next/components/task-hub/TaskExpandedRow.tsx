@@ -120,6 +120,10 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [history, setHistory] = useState<TaskHistoryEntry[]>([]);
 
+  // Email keywords state
+  const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
+  const [keywordsSaving, setKeywordsSaving] = useState(false);
+
   // Load followers on mount for all tasks
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
@@ -442,6 +446,21 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingFile(false);
+  };
+
+  // Save email keywords
+  const saveEmailKeywords = async () => {
+    if (emailKeywords === task.email_keywords) return;
+
+    setKeywordsSaving(true);
+    try {
+      await updateTask(task.id, { email_keywords: emailKeywords });
+    } catch (error) {
+      console.error('Failed to save keywords:', error);
+      setEmailKeywords(task.email_keywords || ''); // Revert on error
+    } finally {
+      setKeywordsSaving(false);
+    }
   };
 
   return (
@@ -1074,6 +1093,35 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           <p className="text-xs text-muted-foreground text-center py-2">
             No attachments yet • Drag files here or click Add
           </p>
+        )}
+
+        {/* Email Keywords - shown when there are email attachments */}
+        {(localAttachments.some(a => a.email) || emailKeywords) && (
+          <div className="mt-3 pt-3 border-t border-dashed">
+            <div className="flex items-start gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground mt-2 shrink-0" />
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Email Keywords
+                  <span className="ml-1 text-[10px] opacity-70">(auto-match incoming emails)</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={emailKeywords}
+                    onChange={(e) => setEmailKeywords(e.target.value)}
+                    onBlur={saveEmailKeywords}
+                    onKeyDown={(e) => e.key === 'Enter' && saveEmailKeywords()}
+                    placeholder="e.g., DUNS, D-U-N-S, Apple Developer"
+                    className="h-7 text-xs"
+                  />
+                  {keywordsSaving && <Spinner size={14} className="mt-1.5" />}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Emails matching these keywords will be auto-attached to this task
+                </p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

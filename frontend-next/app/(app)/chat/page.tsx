@@ -20,7 +20,7 @@ import {
   MoreHorizontal,
   Paperclip,
   Image as ImageIcon,
-  File,
+  File as FileIcon,
   Check,
   CheckCheck,
   Briefcase,
@@ -78,7 +78,10 @@ export default function ChatPage() {
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [pastedImage, setPastedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Save to entity functionality
   const [constructions, setConstructions] = useState<Construction[]>([]);
@@ -940,8 +943,8 @@ export default function ChatPage() {
                         <ImageIcon className="h-4 w-4 mr-2" />
                         Upload Image
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <File className="h-4 w-4 mr-2" />
+                      <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                        <FileIcon className="h-4 w-4 mr-2" />
                         Upload File
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -1093,7 +1096,7 @@ function MessageBubble({
               </div>
             ) : message.message_type === "file" ? (
               <div className="flex items-center gap-2">
-                <File className="h-4 w-4 shrink-0" />
+                <FileIcon className="h-4 w-4 shrink-0" />
                 <span className="text-sm break-words">{message.file_name}</span>
               </div>
             ) : (

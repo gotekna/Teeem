@@ -13,8 +13,23 @@ class SmTaskAttachment < ApplicationRecord
   }
   validates :attachment_type, inclusion: { in: ATTACHMENT_TYPES }, allow_blank: true
 
+  # Callbacks
+  after_create :auto_populate_keywords
+
   # Scopes
   scope :emails, -> { where(attachable_type: "EmailWarehouse") }
   scope :documents, -> { where(attachable_type: "CorporateCompanyDocument") }
   scope :recent, -> { order(created_at: :desc) }
+
+  private
+
+  # Auto-populate task keywords from email subject when first email is attached
+  def auto_populate_keywords
+    return unless attachable_type == "EmailWarehouse"
+    return unless attachable.present?
+
+    sm_task.add_keywords_from_email(attachable)
+  rescue StandardError => e
+    Rails.logger.error("[SmTaskAttachment] Failed to auto-populate keywords: #{e.message}")
+  end
 end

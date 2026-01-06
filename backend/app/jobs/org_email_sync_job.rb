@@ -424,50 +424,72 @@ class OrgEmailSyncJob < ApplicationJob
     # Don't fail the sync if rules fail
   end
 
-  # Auto-attach email to task if it belongs to a task's conversation thread
+  # Auto-attach email to task if:
+  # 1. It belongs to a task's conversation thread (same conversation_id)
+  # 2. It matches a task's email keywords (subject/body match)
   # Also notifies the task owner when new emails arrive
   def auto_attach_to_task(email)
-    return unless email.conversation_id.present?
+    attached_task_ids = Set.new
+    user = email.synced_by_user || find_org_admin_user
 
-    # Find tasks that have emails with the same conversation_id attached
-    # SSoT: SmTaskAttachment with EmailWarehouse as attachable
-    task_ids = SmTaskAttachment
-      .where(attachable_type: "EmailWarehouse")
-      .joins("INNER JOIN email_warehouses ON email_warehouses.id = sm_task_attachments.attachable_id")
-      .where("email_warehouses.conversation_id = ?", email.conversation_id)
-      .distinct
-      .pluck(:sm_task_id)
+    # Method 1: Match by conversation_id (existing thread)
+    if email.conversation_id.present?
+      task_ids = SmTaskAttachment
+        .where(attachable_type: "EmailWarehouse")
+        .joins("INNER JOIN email_warehouses ON email_warehouses.id = sm_task_attachments.attachable_id")
+        .where("email_warehouses.conversation_id = ?", email.conversation_id)
+        .distinct
+        .pluck(:sm_task_id)
 
-    return if task_ids.empty?
+      task_ids.each do |task_id|
+        next if attached_task_ids.include?(task_id)
+        if attach_email_to_task(email, task_id, user, "Reply in conversation thread")
+          attached_task_ids << task_id
+        end
+      end
+    end
 
-    task_ids.each do |task_id|
-      task = SmTask.find_by(id: task_id)
-      next unless task
-
-      # Check if email is already attached
-      already_attached = SmTaskAttachment
-        .where(sm_task_id: task_id, attachable_type: "EmailWarehouse", attachable_id: email.id)
-        .exists?
-      next if already_attached
-
-      # Attach the new email to the task
-      user = email.synced_by_user || find_org_admin_user
-      SmTaskAttachment.create!(
-        sm_task: task,
-        attachable: email,
-        attachment_type: "email",
-        notes: "Reply in conversation thread",
-        added_by: user
-      )
-
-      Rails.logger.info "[OrgEmailSync] Auto-attached email #{email.id} to task ##{task.id} (same conversation)"
-
-      # Notify task owner about the new email
-      notify_task_owner_of_reply(task, email, user)
+    # Method 2: Match by email_keywords (subject/body contains keywords)
+    matching_tasks = SmTask.tasks_matching_email(email)
+    matching_tasks.each do |task|
+      next if attached_task_ids.include?(task.id)
+      if attach_email_to_task(email, task.id, user, "Matched by keywords: #{task.email_keywords.truncate(50)}")
+        attached_task_ids << task.id
+      end
     end
   rescue StandardError => e
     Rails.logger.error "[OrgEmailSync] Failed to auto-attach email to task: #{e.message}"
     # Don't fail the sync if auto-attach fails
+  end
+
+  # Helper to attach email to a task (returns true if attached, false if already attached)
+  def attach_email_to_task(email, task_id, user, notes)
+    task = SmTask.find_by(id: task_id)
+    return false unless task
+
+    # Check if email is already attached
+    already_attached = SmTaskAttachment
+      .where(sm_task_id: task_id, attachable_type: "EmailWarehouse", attachable_id: email.id)
+      .exists?
+    return false if already_attached
+
+    # Attach the new email to the task
+    SmTaskAttachment.create!(
+      sm_task: task,
+      attachable: email,
+      attachment_type: "email",
+      notes: notes,
+      added_by: user
+    )
+
+    Rails.logger.info "[OrgEmailSync] Auto-attached email #{email.id} to task ##{task.id} (#{notes})"
+
+    # Notify task owner about the new email
+    notify_task_owner_of_reply(task, email, user)
+    true
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to attach email #{email.id} to task #{task_id}: #{e.message}"
+    false
   end
 
   # Notify task owner, creator, and followers when a new email arrives in the conversation

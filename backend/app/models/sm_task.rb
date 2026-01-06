@@ -683,4 +683,84 @@ class SmTask < ApplicationRecord
   rescue => e
     Rails.logger.error("[SmTask] Failed to log task changes: #{e.message}")
   end
+
+  # ============================================
+  # Email Keywords - Auto-matching for email attachments
+  # ============================================
+
+  # Extract keywords from an email subject for auto-matching
+  # Called when first email is attached to populate email_keywords
+  def self.extract_keywords_from_subject(subject)
+    return "" if subject.blank?
+
+    # Common stop words to filter out
+    stop_words = %w[
+      re fw fwd the a an and or but in on at to for of with from by
+      is are was were be been being have has had do does did
+      will would could should may might must shall can
+      this that these those it its
+      hello hi dear thanks thank regards kind best
+      please see attached find below
+    ]
+
+    # Extract meaningful words (3+ chars, not stop words)
+    words = subject
+      .gsub(/[^\w\s-]/, ' ')  # Keep hyphens (D-U-N-S)
+      .split(/\s+/)
+      .map(&:strip)
+      .reject(&:blank?)
+      .select { |w| w.length >= 3 }
+      .reject { |w| stop_words.include?(w.downcase) }
+      .reject { |w| w.match?(/^\d+$/) }  # Skip pure numbers
+      .uniq
+
+    # Also preserve hyphenated terms as-is (e.g., "D-U-N-S")
+    hyphenated = subject.scan(/\b[\w]+-[\w-]+\b/).uniq
+
+    (words + hyphenated).uniq.join(", ")
+  end
+
+  # Add keywords from an email subject (merges with existing)
+  def add_keywords_from_email(email)
+    return unless email.respond_to?(:subject)
+
+    new_keywords = self.class.extract_keywords_from_subject(email.subject)
+    return if new_keywords.blank?
+
+    existing = (email_keywords || "").split(",").map(&:strip).reject(&:blank?)
+    new_list = new_keywords.split(",").map(&:strip).reject(&:blank?)
+
+    merged = (existing + new_list).uniq.join(", ")
+    update_column(:email_keywords, merged) if merged != email_keywords
+  end
+
+  # Check if an email matches this task's keywords
+  def matches_email_keywords?(email)
+    return false if email_keywords.blank?
+    return false unless email.respond_to?(:subject)
+
+    keywords = email_keywords.split(",").map(&:strip).map(&:downcase).reject(&:blank?)
+    return false if keywords.empty?
+
+    subject_lower = email.subject&.downcase || ""
+    body_lower = email.body_text&.downcase || ""
+
+    keywords.any? do |keyword|
+      subject_lower.include?(keyword) || body_lower.include?(keyword)
+    end
+  end
+
+  # Get tasks that match an email's content by keywords
+  def self.tasks_matching_email(email, scope: SmTask.all)
+    return [] if email.blank?
+
+    subject_lower = email.subject&.downcase || ""
+    body_lower = email.body_text&.downcase || ""
+    search_text = "#{subject_lower} #{body_lower}"
+
+    scope.where.not(email_keywords: [nil, ""]).select do |task|
+      keywords = task.email_keywords.split(",").map(&:strip).map(&:downcase).reject(&:blank?)
+      keywords.any? { |kw| search_text.include?(kw) }
+    end
+  end
 end

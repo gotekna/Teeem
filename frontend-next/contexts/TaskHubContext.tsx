@@ -119,6 +119,9 @@ export interface SmTask {
 
   // Action Items (checkable items within task)
   action_items?: TaskActionItem[];
+
+  // Email keywords for auto-matching
+  email_keywords?: string;
 }
 
 export interface TaskFilters {

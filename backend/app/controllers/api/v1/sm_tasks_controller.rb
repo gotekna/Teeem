@@ -1294,6 +1294,7 @@ module Api
           # Other
           :searchable,
           :is_private,
+          :email_keywords,
 
           # Workflow triggers
           :start_workflow_enabled, :start_workflow_id,
@@ -1586,7 +1587,9 @@ module Api
           # Following status (for current user)
           is_following: task.followed_by?(current_user),
           # Action items (checkable checklist items)
-          action_items: task.action_items.map { |item| action_item_to_json(item) }
+          action_items: task.action_items.map { |item| action_item_to_json(item) },
+          # Email keywords for auto-matching
+          email_keywords: task.email_keywords
         }
 
         if include_dependencies
