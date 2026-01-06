@@ -304,13 +304,10 @@ export function GanttDependencyEditor({
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const taskRowData = task.rowData as any;
-    console.log('[InheritedPreds] Task:', taskRowData?.task_number, taskRowData?.name);
-    console.log('[InheritedPreds] header_gantt raw:', taskRowData?.header_gantt, typeof taskRowData?.header_gantt);
 
     const inherited: Array<{ taskNumber: number; headerName: string; taskId: string }> = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let currentParentId = extractHeaderParent(taskRowData?.header_gantt);
-    console.log('[InheritedPreds] Extracted parent ID:', currentParentId);
 
     while (currentParentId !== null) {
       // Find the parent header by task_number
@@ -320,14 +317,11 @@ export function GanttDependencyEditor({
         return r?.task_number === currentParentId;
       });
 
-      console.log('[InheritedPreds] Looking for parent', currentParentId, '- found:', parentHeader?.name);
-
       if (!parentHeader) break;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parentRowData = parentHeader.rowData as any;
       const parentPreds = parentRowData?.predecessor_ids || [];
-      console.log('[InheritedPreds] Parent', parentRowData?.task_number, 'has preds:', parentPreds);
 
       // Add each predecessor from this header
       parentPreds.forEach((pred: { id: number }) => {

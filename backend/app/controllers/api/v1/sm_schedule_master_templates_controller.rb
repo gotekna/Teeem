@@ -527,7 +527,8 @@ module Api
       #
       # Params:
       #   start_date: Base start date for calculations (optional, defaults to today)
-      #
+      # Single-pass algorithm using topological sort
+      # Headers don't exist for scheduling - build schedule without headers, then add header spans
       def validate_dates
         start_date = params[:start_date].present? ? Date.parse(params[:start_date]) : Date.current
         calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
@@ -538,7 +539,7 @@ module Api
         rows = @template.sm_schedule_master_rows.in_sequence
         rows_by_task = rows.index_by(&:task_number)
 
-        # Build parent -> children map (including headers as children of headers)
+        # Build parent -> children map for header spans later
         all_children = {}
         rows.each do |row|
           parent_id = extract_header_parent(row.header_gantt)
@@ -549,8 +550,6 @@ module Api
         end
 
         # Determine header levels for bottom-up processing
-        # Level 2 = sub-headers (only have task children)
-        # Level 1 = top headers (have header children)
         header_level = {}
         rows.select(&:allow_header).each do |header|
           children = all_children[header.task_number] || []
@@ -558,10 +557,7 @@ module Api
           header_level[header.task_number] = has_header_child ? 1 : 2
         end
 
-        date_map = {}
-
         # Helper: Get all inherited predecessors by walking up the header chain
-        # Children inherit their parent header's dependencies
         get_inherited_predecessors = ->(row) {
           inherited = []
           current_parent_id = extract_header_parent(row.header_gantt)
@@ -570,47 +566,134 @@ module Api
             parent = rows_by_task[current_parent_id]
             break unless parent
 
-            # Add parent header's predecessors to inherited list
             if parent.predecessor_ids.present?
               inherited.concat(parent.predecessor_ids)
             end
 
-            # Walk up to grandparent
             current_parent_id = extract_header_parent(parent.header_gantt)
           end
 
           inherited
         }
 
-        # PASS 1: Calculate all tasks with inherited dependencies
-        # Children automatically wait for their parent header's predecessors
-        rows.reject(&:allow_header).each do |row|
-          # Combine own predecessors + inherited from parent headers
-          all_predecessors = (row.predecessor_ids || []) + get_inherited_predecessors.call(row)
+        # Get all non-header tasks
+        tasks = rows.reject(&:allow_header)
+        task_numbers = tasks.map(&:task_number).to_set
+        header_numbers = rows.select(&:allow_header).map(&:task_number).to_set
 
-          row_start = start_date
+        # Helper: Get all tasks under a header (recursively, including nested headers)
+        get_tasks_under_header = ->(header_task_number) {
+          result = []
+          children = all_children[header_task_number] || []
+          children.each do |child|
+            if child.allow_header
+              # Recurse into nested headers
+              result.concat(get_tasks_under_header.call(child.task_number))
+            else
+              result << child.task_number
+            end
+          end
+          result
+        }
 
-          # SSoT: If task is held/locked with a hold_date, use that as the fixed start date
+        # Build dependency graph (own + inherited predecessors)
+        # If a predecessor is a header, expand to all tasks under that header
+        all_deps = {}
+        tasks.each do |row|
+          deps = (row.predecessor_ids || []).map { |p| p.is_a?(Hash) ? (p['id'] || p[:id]) : p }
+          inherited = get_inherited_predecessors.call(row).map { |p| p.is_a?(Hash) ? (p['id'] || p[:id]) : p }
+
+          # Expand header predecessors to their child tasks
+          expanded_deps = []
+          (deps + inherited).map(&:to_i).uniq.each do |dep_id|
+            if header_numbers.include?(dep_id)
+              # Header predecessor: expand to all tasks under this header
+              expanded_deps.concat(get_tasks_under_header.call(dep_id))
+            elsif task_numbers.include?(dep_id)
+              # Task predecessor: use directly
+              expanded_deps << dep_id
+            end
+            # Ignore external predecessors (not in this template)
+          end
+
+          all_deps[row.task_number] = expanded_deps.uniq
+        end
+
+        # Topological sort using Kahn's algorithm
+        # Count incoming edges for each task
+        in_degree = {}
+        tasks.each { |t| in_degree[t.task_number] = 0 }
+
+        all_deps.each do |_task, deps|
+          # We need to count how many tasks depend on each predecessor
+        end
+
+        # Build reverse dependency map: for each task, which tasks depend on it
+        dependents = Hash.new { |h, k| h[k] = [] }
+        all_deps.each do |task, deps|
+          deps.each do |dep|
+            dependents[dep] << task
+          end
+        end
+
+        # Calculate in-degree (number of predecessors) for each task
+        all_deps.each do |task, deps|
+          in_degree[task] = deps.size
+        end
+
+        # Start with tasks that have no predecessors (in_degree = 0)
+        queue = tasks.select { |t| in_degree[t.task_number] == 0 }
+        sorted_tasks = []
+
+        while queue.any?
+          # Take task with lowest sequence number for deterministic ordering
+          task = queue.min_by(&:sequence)
+          queue.delete(task)
+          sorted_tasks << task
+
+          # For each task that depends on this one, decrement its in-degree
+          dependents[task.task_number].each do |dependent_task_num|
+            in_degree[dependent_task_num] -= 1
+            if in_degree[dependent_task_num] == 0
+              dependent_task = tasks.find { |t| t.task_number == dependent_task_num }
+              queue << dependent_task if dependent_task
+            end
+          end
+        end
+
+        # If sorted_tasks doesn't include all tasks, there's a cycle - add remaining in sequence order
+        if sorted_tasks.size < tasks.size
+          remaining = tasks - sorted_tasks
+          sorted_tasks.concat(remaining.sort_by(&:sequence))
+        end
+
+        # SINGLE PASS: Calculate dates in topological order
+        date_map = {}
+
+        sorted_tasks.each do |row|
+          # Handle held tasks first
           if row.hold && row.hold_date.present?
             row_start = row.hold_date.to_date
             row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
-          elsif all_predecessors.any?
-            # Get the latest end date from all predecessors (own + inherited)
-            latest_pred_end = nil
-            all_predecessors.each do |pred|
-              pred_id = pred.is_a?(Hash) ? (pred['id'] || pred[:id]) : pred
-              pred_dates = date_map[pred_id.to_i]
-              next unless pred_dates
-              pred_end = pred_dates[:end_date]
-              latest_pred_end = pred_end if latest_pred_end.nil? || pred_end > latest_pred_end
-            end
-
-            if latest_pred_end
-              # Start day after predecessor ends (FS dependency)
-              row_start = calendar.add_working_days(latest_pred_end, 1)
-            end
+            duration = row.duration_days || 1
+            row_end = calendar.add_working_days(row_start, duration - 1)
+            date_map[row.task_number] = { start_date: row_start, end_date: row_end }
+            next
           end
 
+          # Get all predecessors for this task
+          all_predecessors = all_deps[row.task_number] || []
+
+          # Find latest predecessor end date
+          latest_pred_end = nil
+          all_predecessors.each do |pred_id|
+            pred_dates = date_map[pred_id]
+            next unless pred_dates
+            pred_end = pred_dates[:end_date]
+            latest_pred_end = pred_end if latest_pred_end.nil? || pred_end > latest_pred_end
+          end
+
+          row_start = latest_pred_end ? calendar.add_working_days(latest_pred_end, 1) : start_date
           row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
           duration = row.duration_days || 1
           row_end = calendar.add_working_days(row_start, duration - 1)
@@ -618,8 +701,7 @@ module Api
           date_map[row.task_number] = { start_date: row_start, end_date: row_end }
         end
 
-        # PASS 2a: Calculate Level-2 headers (sub-headers with only task children)
-        # Headers span their children - they don't process their own predecessors
+        # Calculate header spans (bottom-up: Level-2 first, then Level-1)
         rows.select { |r| r.allow_header && header_level[r.task_number] == 2 }.each do |header|
           children = all_children[header.task_number] || []
           if children.any?
@@ -629,13 +711,11 @@ module Api
             effective_end = child_ends.max || effective_start
             date_map[header.task_number] = { start_date: effective_start, end_date: effective_end }
           else
-            # Header with no children - use own duration
             duration = header.duration_days || 1
             date_map[header.task_number] = { start_date: start_date, end_date: calendar.add_working_days(start_date, duration - 1) }
           end
         end
 
-        # PASS 2b: Calculate Level-1 headers (top headers with sub-header children)
         rows.select { |r| r.allow_header && header_level[r.task_number] == 1 }.each do |header|
           children = all_children[header.task_number] || []
           if children.any?
@@ -652,7 +732,7 @@ module Api
 
         render json: {
           success: true,
-          message: "Validated #{date_map.size} rows (inherited dependencies)",
+          message: "Validated #{date_map.size} rows (single pass)",
           updated: date_map.size,
           start_date: start_date,
           date_map: date_map.transform_values { |v| { start_date: v[:start_date].to_s, end_date: v[:end_date].to_s } }

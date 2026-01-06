@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -213,6 +214,7 @@ export default function PublicHolidaysPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Public Holiday</DialogTitle>
+            <DialogDescription>Enter the details for the new public holiday.</DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleAddHoliday} className="space-y-4">

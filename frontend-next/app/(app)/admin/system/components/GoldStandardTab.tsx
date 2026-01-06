@@ -2254,6 +2254,7 @@ function SetupTableDemo() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Job Type</DialogTitle>
+            <DialogDescription>Update the job type name and status.</DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div>
