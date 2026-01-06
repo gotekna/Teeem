@@ -335,22 +335,18 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         </PopoverTrigger>
 
         <PopoverContent
-          className="p-2 w-auto z-[9999] bg-red-500"
+          className="p-0 w-auto"
           sideOffset={5}
           align="start"
-          avoidCollisions={false}
-          forceMount
           {...popoverProps}
           style={{
-            minWidth: "200px",
-            minHeight: "100px",
+            minWidth: "var(--radix-popover-trigger-width)",
             ...popoverProps?.style,
           }}
           onOpenAutoFocus={(e) => {
             e.preventDefault(); // Keep focus on the input
           }}
         >
-          <div className="text-white font-bold">DEBUG: Popover is rendering!</div>
           {Component}
         </PopoverContent>
       </Popover>
@@ -381,10 +377,9 @@ export function ComboboxDropdown<T extends ComboboxItem>({
       </PopoverTrigger>
 
       <PopoverContent
-        className="p-0 w-auto z-[9999]"
+        className="p-0 w-auto"
         sideOffset={5}
         align="start"
-        avoidCollisions={false}
         {...popoverProps}
         style={{
           minWidth: "var(--radix-popover-trigger-width)",
