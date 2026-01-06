@@ -36,8 +36,18 @@ class ChatMessage < ApplicationRecord
         contact: {},
         legal_case: {}
       },
-      methods: [ :formatted_timestamp ]
+      methods: [ :formatted_timestamp, :file_url ]
     ))
+  end
+
+  # Returns the URL for the attached file (for image/file display)
+  def file_url
+    return nil unless file.attached?
+    # Use rails_blob_url with default URL options (configured per environment)
+    Rails.application.routes.url_helpers.rails_blob_url(file, only_path: false)
+  rescue StandardError => e
+    Rails.logger.error("[ChatMessage] Failed to generate file_url for #{id}: #{e.message}")
+    nil
   end
 
   def formatted_timestamp

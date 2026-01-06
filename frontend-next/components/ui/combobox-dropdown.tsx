@@ -298,7 +298,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         if (!isOpen) {
           setInputValue(""); // Clear search when closing
         }
-      }}>
+      }} modal>
         <PopoverTrigger asChild disabled={disabled || isLoading} className="w-full">
           <div className="relative w-full">
             <input
@@ -335,7 +335,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         </PopoverTrigger>
 
         <PopoverContent
-          className="p-0 w-auto"
+          className="p-0 w-auto z-[1200]"
           {...popoverProps}
           style={{
             minWidth: "var(--radix-popover-trigger-width)",
@@ -352,7 +352,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild disabled={disabled} className="w-full">
         <Button
           variant="outline"
@@ -375,7 +375,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
       </PopoverTrigger>
 
       <PopoverContent
-        className="p-0 w-auto"
+        className="p-0 w-auto z-[1200]"
         {...popoverProps}
         style={{
           minWidth: "var(--radix-popover-trigger-width)",

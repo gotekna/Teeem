@@ -14,6 +14,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
+import TeeemTableView from '@/components/table/TeeemTableView';
+import { EmailDetailDialog } from '@/components/emails';
 import { api } from '@/lib/api';
 import {
   AlertTriangle,
@@ -128,6 +130,10 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
   const [keywordsSaving, setKeywordsSaving] = useState(false);
 
+  // Email detail dialog state
+  const [detailEmailId, setDetailEmailId] = useState<number | null>(null);
+  const [emailDetailOpen, setEmailDetailOpen] = useState(false);
+
   // Load followers on mount for all tasks
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
@@ -135,6 +141,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   // Check if this is a PO task
   const isPOTask = !!task.purchase_order_id;
+
+  // Check if task is linked to a job
+  const isJobLinked = task.construction_id > 0;
 
   // Check if current user is following this task
   const isCurrentUserFollowing = useMemo(() => {
@@ -602,6 +611,133 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               ))}
             </div>
           )}
+
+          {/* Separator */}
+          <div className="h-4 w-px bg-border mx-1" />
+
+          {/* Status checkboxes - inline in header */}
+          <div className="flex items-center gap-3">
+            {/* Started - always shown */}
+            <div className="flex items-center gap-1">
+              <Checkbox
+                id={`started-${task.id}`}
+                checked={task.status === 'started' || task.status === 'completed'}
+                onCheckedChange={handleStartedChange}
+                disabled={!!loading || task.status === 'completed'}
+                className={cn("h-4 w-4", statusColors.started)}
+              />
+              <Label htmlFor={`started-${task.id}`} className="text-xs cursor-pointer">Started</Label>
+              {loading === 'started' && <Spinner size={10} />}
+            </div>
+
+            {/* Hold - only if linked to job */}
+            {isJobLinked && (
+              <div className="flex items-center gap-1">
+                <Checkbox
+                  id={`hold-${task.id}`}
+                  checked={task.hold}
+                  onCheckedChange={handleHoldChange}
+                  disabled={!!loading}
+                  className={cn("h-4 w-4", statusColors.hold)}
+                />
+                <Label htmlFor={`hold-${task.id}`} className="text-xs cursor-pointer">Hold</Label>
+                {loading === 'hold' && <Spinner size={10} />}
+              </div>
+            )}
+
+            {/* Confirmed - only if linked to PO */}
+            {isPOTask && (
+              <Popover open={confirmDateOpen} onOpenChange={setConfirmDateOpen}>
+                <PopoverTrigger asChild>
+                  <div className="flex items-center gap-1">
+                    <Checkbox
+                      id={`confirm-${task.id}`}
+                      checked={task.confirm}
+                      onCheckedChange={(checked) => {
+                        if (checked && !task.confirm) {
+                          setConfirmDateOpen(true);
+                        } else if (!checked) {
+                          updateTask(task.id, { confirm: false });
+                        }
+                      }}
+                      disabled={!!loading}
+                      className={cn("h-4 w-4", statusColors.confirm)}
+                    />
+                    <Label htmlFor={`confirm-${task.id}`} className="text-xs cursor-pointer">Confirmed</Label>
+                    {loading === 'confirm' && <Spinner size={10} />}
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-3 border-b">
+                    <p className="text-sm font-medium">Select Confirmation Date</p>
+                    <p className="text-xs text-muted-foreground">Task will be locked to this date</p>
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={selectedConfirmDate}
+                    onSelect={(date) => {
+                      setSelectedConfirmDate(date);
+                      handleConfirmDateSelect(date);
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {/* Supplier - only if linked to PO */}
+            {isPOTask && (
+              <Popover open={supplierConfirmDateOpen} onOpenChange={setSupplierConfirmDateOpen}>
+                <PopoverTrigger asChild>
+                  <div className="flex items-center gap-1">
+                    <Checkbox
+                      id={`supplier-confirm-${task.id}`}
+                      checked={task.supplier_confirm}
+                      onCheckedChange={(checked) => {
+                        if (checked && !task.supplier_confirm) {
+                          setSupplierConfirmDateOpen(true);
+                        } else if (!checked) {
+                          updateTask(task.id, { supplier_confirm: false });
+                        }
+                      }}
+                      disabled={!!loading}
+                      className={cn("h-4 w-4", statusColors.supplier_confirm)}
+                    />
+                    <Label htmlFor={`supplier-confirm-${task.id}`} className="text-xs cursor-pointer">Supplier</Label>
+                    {loading === 'supplier_confirm' && <Spinner size={10} />}
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-3 border-b">
+                    <p className="text-sm font-medium">Supplier Confirmation Date</p>
+                    <p className="text-xs text-muted-foreground">Date supplier confirmed delivery</p>
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={selectedSupplierDate}
+                    onSelect={(date) => {
+                      setSelectedSupplierDate(date);
+                      handleSupplierConfirmDateSelect(date);
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {/* Complete - always shown */}
+            <div className="flex items-center gap-1">
+              <Checkbox
+                id={`completed-${task.id}`}
+                checked={task.status === 'completed'}
+                onCheckedChange={handleCompletedChange}
+                disabled={!!loading}
+                className={cn("h-4 w-4", statusColors.completed)}
+              />
+              <Label htmlFor={`completed-${task.id}`} className="text-xs cursor-pointer">Complete</Label>
+              {loading === 'completed' && <Spinner size={10} />}
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           {/* Delete Button */}
@@ -630,138 +766,6 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           </Button>
         </div>
       </div>
-
-      {/* Status checkboxes - Always visible */}
-      <div className="flex flex-wrap items-center gap-4 p-2 bg-background/50 rounded border">
-          {/* Started */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`started-${task.id}`}
-              checked={task.status === 'started' || task.status === 'completed'}
-              onCheckedChange={handleStartedChange}
-              disabled={!!loading || task.status === 'completed'}
-              className={cn(statusColors.started)}
-            />
-            <Label htmlFor={`started-${task.id}`} className="text-xs cursor-pointer">
-              Started
-            </Label>
-            {loading === 'started' && <Spinner size={12} />}
-          </div>
-
-          {/* Hold */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`hold-${task.id}`}
-              checked={task.hold}
-              onCheckedChange={handleHoldChange}
-              disabled={!!loading}
-              className={cn(statusColors.hold)}
-            />
-            <Label htmlFor={`hold-${task.id}`} className="text-xs cursor-pointer">
-              Hold
-            </Label>
-            {loading === 'hold' && <Spinner size={12} />}
-          </div>
-
-          {/* Confirm with date picker */}
-          <div className="flex items-center gap-2">
-            <Popover open={confirmDateOpen} onOpenChange={setConfirmDateOpen}>
-              <PopoverTrigger asChild>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id={`confirm-${task.id}`}
-                    checked={task.confirm}
-                    onCheckedChange={(checked) => {
-                      if (checked && !task.confirm) {
-                        setConfirmDateOpen(true);
-                      } else if (!checked) {
-                        updateTask(task.id, { confirm: false });
-                      }
-                    }}
-                    disabled={!!loading}
-                    className={cn(statusColors.confirm)}
-                  />
-                  <Label htmlFor={`confirm-${task.id}`} className="text-xs cursor-pointer">
-                    Confirmed
-                  </Label>
-                </div>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-3 border-b">
-                  <p className="text-sm font-medium">Select Confirmation Date</p>
-                  <p className="text-xs text-muted-foreground">Task will be locked to this date</p>
-                </div>
-                <Calendar
-                  mode="single"
-                  selected={selectedConfirmDate}
-                  onSelect={(date) => {
-                    setSelectedConfirmDate(date);
-                    handleConfirmDateSelect(date);
-                  }}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-            {loading === 'confirm' && <Spinner size={12} />}
-          </div>
-
-          {/* Supplier Confirm with date picker */}
-          <div className="flex items-center gap-2">
-            <Popover open={supplierConfirmDateOpen} onOpenChange={setSupplierConfirmDateOpen}>
-              <PopoverTrigger asChild>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id={`supplier-confirm-${task.id}`}
-                    checked={task.supplier_confirm}
-                    onCheckedChange={(checked) => {
-                      if (checked && !task.supplier_confirm) {
-                        setSupplierConfirmDateOpen(true);
-                      } else if (!checked) {
-                        updateTask(task.id, { supplier_confirm: false });
-                      }
-                    }}
-                    disabled={!!loading}
-                    className={cn(statusColors.supplier_confirm)}
-                  />
-                  <Label htmlFor={`supplier-confirm-${task.id}`} className="text-xs cursor-pointer">
-                    Supplier
-                  </Label>
-                </div>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-3 border-b">
-                  <p className="text-sm font-medium">Supplier Confirmation Date</p>
-                  <p className="text-xs text-muted-foreground">Date supplier confirmed delivery</p>
-                </div>
-                <Calendar
-                  mode="single"
-                  selected={selectedSupplierDate}
-                  onSelect={(date) => {
-                    setSelectedSupplierDate(date);
-                    handleSupplierConfirmDateSelect(date);
-                  }}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-            {loading === 'supplier_confirm' && <Spinner size={12} />}
-          </div>
-
-          {/* Completed */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`completed-${task.id}`}
-              checked={task.status === 'completed'}
-              onCheckedChange={handleCompletedChange}
-              disabled={!!loading}
-              className={cn(statusColors.completed)}
-            />
-            <Label htmlFor={`completed-${task.id}`} className="text-xs cursor-pointer">
-              Done
-            </Label>
-            {loading === 'completed' && <Spinner size={12} />}
-          </div>
-        </div>
 
       {/* Description Section */}
       {task.description && (
@@ -1037,54 +1041,74 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                   </div>
                 </div>
 
-                {/* Emails Table */}
-                {emailAttachments.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">
-                    No emails attached. Add keywords above to auto-match incoming emails.
-                  </p>
-                ) : (
-                  <div className="border rounded overflow-hidden">
-                    {/* Table Header */}
-                    <div className="grid grid-cols-[1fr_140px_60px] gap-2 px-3 py-1.5 bg-muted/50 border-b text-xs font-medium text-muted-foreground">
-                      <div>From / Subject</div>
-                      <div>Date</div>
-                      <div></div>
-                    </div>
-                    {/* Table Rows */}
-                    <div className="divide-y max-h-[200px] overflow-y-auto">
-                      {emailAttachments
-                        .sort((a, b) => new Date(b.email!.received_at).getTime() - new Date(a.email!.received_at).getTime())
-                        .map((attachment) => (
-                          <div
-                            key={attachment.id}
-                            className="grid grid-cols-[1fr_140px_60px] gap-2 px-3 py-2 hover:bg-muted/30 transition-colors items-center"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-xs font-medium truncate">
-                                {attachment.email!.from_name || attachment.email!.from_email}
-                              </p>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {attachment.email!.subject}
-                              </p>
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {format(new Date(attachment.email!.received_at), 'dd MMM yy HH:mm')}
-                            </div>
-                            <div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                onClick={() => window.open(`/email?id=${attachment.email!.id}`, '_blank')}
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
+                {/* Emails Table - SSoT TeeemTableView */}
+                <div className="h-[250px] -mx-2">
+                  <TeeemTableView
+                    tableName="Task Emails"
+                    disableSavedViews={true}
+                    columns={[
+                      {
+                        key: "direction",
+                        label: "Direction",
+                        column_type: "choice",
+                        width: 80,
+                        choices: ["From", "To"],
+                        filterable: true,
+                      },
+                      {
+                        key: "from_to",
+                        label: "From/To",
+                        column_type: "text",
+                        width: 180,
+                        filterable: true,
+                      },
+                      {
+                        key: "subject",
+                        label: "Subject",
+                        column_type: "text",
+                        width: 280,
+                        filterable: true,
+                      },
+                      {
+                        key: "received_at",
+                        label: "Date",
+                        column_type: "date_and_time",
+                        width: 140,
+                        sortable: true,
+                      },
+                      {
+                        key: "files",
+                        label: "Files",
+                        column_type: "whole_number",
+                        width: 60,
+                      },
+                    ]}
+                    entries={emailAttachments.map((attachment) => {
+                      const email = attachment.email!;
+                      const isFromOurCompany = email.from_email?.toLowerCase().includes("@tekna.com.au");
+                      return {
+                        id: email.id,
+                        direction: isFromOurCompany ? "To" : "From",
+                        from_to: email.from_name || email.from_email,
+                        subject: email.subject || "(no subject)",
+                        received_at: email.received_at,
+                        files: email.has_attachments ? 1 : 0,
+                      };
+                    })}
+                    viewOnly={true}
+                    onRowDoubleClick={(row) => {
+                      setDetailEmailId(typeof row.id === "string" ? parseInt(row.id) : row.id);
+                      setEmailDetailOpen(true);
+                    }}
+                  />
+                </div>
+
+                {/* Email Detail Dialog */}
+                <EmailDetailDialog
+                  emailId={detailEmailId}
+                  open={emailDetailOpen}
+                  onOpenChange={setEmailDetailOpen}
+                />
               </TabsContent>
 
               {/* Documents Tab */}

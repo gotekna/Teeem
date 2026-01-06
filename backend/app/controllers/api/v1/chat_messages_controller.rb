@@ -95,25 +95,25 @@ class Api::V1::ChatMessagesController < ApplicationController
     response.headers["Expires"] = "0"
 
     if params[:job_id].present?
-      @messages = ChatMessage.for_job(params[:job_id]).includes(:user).recent(100)
+      @messages = ChatMessage.for_job(params[:job_id]).includes(:user).with_attached_file.recent(100)
     elsif params[:contact_id].present?
-      @messages = ChatMessage.for_contact(params[:contact_id]).includes(:user).recent(100)
+      @messages = ChatMessage.for_contact(params[:contact_id]).includes(:user).with_attached_file.recent(100)
     elsif params[:case_id].present?
-      @messages = ChatMessage.for_case(params[:case_id]).includes(:user).recent(100)
+      @messages = ChatMessage.for_case(params[:case_id]).includes(:user).with_attached_file.recent(100)
     elsif params[:project_id].present?
-      @messages = ChatMessage.for_project(params[:project_id]).includes(:user).recent(100)
+      @messages = ChatMessage.for_project(params[:project_id]).includes(:user).with_attached_file.recent(100)
     elsif params[:user_id].present?
       # Direct messages between current user and specified user
-      @messages = ChatMessage.between_users(current_user.id, params[:user_id]).includes(:user).recent(100)
+      @messages = ChatMessage.between_users(current_user.id, params[:user_id]).includes(:user).with_attached_file.recent(100)
     elsif params[:channel].present?
-      @messages = ChatMessage.in_channel(params[:channel]).includes(:user).recent(100)
+      @messages = ChatMessage.in_channel(params[:channel]).includes(:user).with_attached_file.recent(100)
     else
-      @messages = ChatMessage.general.includes(:user).recent(100)
+      @messages = ChatMessage.general.includes(:user).with_attached_file.recent(100)
     end
 
     messages_with_files = @messages.map do |msg|
-      json = msg.as_json(include: { user: {} }, methods: :formatted_timestamp)
-      if msg.sharepoint_file_id.present?
+      json = msg.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
+      if msg.file.attached? || msg.sharepoint_file_id.present?
         json[:has_file] = true
         json[:sharepoint_file_id] = msg.sharepoint_file_id
         json[:file_name] = msg.file_name
@@ -137,7 +137,7 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     if @message.save
       # SharePoint upload happens via after_commit callback
-      response_data = @message.as_json(include: { user: {} }, methods: :formatted_timestamp)
+      response_data = @message.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
       if @message.file.attached?
         # File is being uploaded to SharePoint async
         response_data[:has_file] = true

@@ -184,7 +184,6 @@ interface SmScheduleMaster {
   checklist_id?: number | { id: number; display: string } | null;
   linked_po_task_id?: number | { id: number; display: string } | null;
   spawn_scan_task_id?: number | { id: number; display: string } | null;
-  spawn_scan_lag_days?: number;
   // Document types for GET task spawning (SSoT: via sm_schedule_master_document_types join table)
   document_types?: Array<{
     id: number;
@@ -3352,14 +3351,14 @@ export function ScheduleMasterTab() {
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <ComboboxDropdown
-                        items={availableDocumentTypes.map(dt => ({ id: String(dt.id), label: dt.display_name || dt.name }))}
+                        items={availableDocumentTypes.map(dt => ({ id: String(dt.id), label: dt.name }))}
                         selectedItem={(() => {
                           const firstDocType = editRowForm.document_types?.[0];
                           if (!firstDocType) return undefined;
                           const docType = availableDocumentTypes.find(dt => dt.id === firstDocType.document_type_id);
                           return {
                             id: String(firstDocType.document_type_id),
-                            label: docType?.display_name || docType?.name || firstDocType.document_type_name
+                            label: docType?.name || firstDocType.document_type_name
                           };
                         })()}
                         onSelect={(item) => setEditRowForm({
@@ -3373,7 +3372,6 @@ export function ScheduleMasterTab() {
                         })}
                         placeholder="Select document type..."
                         emptyResults="No document types found"
-                        searchInTrigger={false}
                         clearable
                         onClear={() => setEditRowForm({ ...editRowForm, document_types: [] })}
                       />
