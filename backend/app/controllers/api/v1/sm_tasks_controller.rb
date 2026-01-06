@@ -53,22 +53,47 @@ module Api
       # GET /api/v1/sm_tasks/user_counts
       # Returns task counts grouped by assigned user for the "All" dropdown filter
       def user_counts
-        base_scope = SmTask.visible_to(current_user)
-                          .where(status: [ "not_started", "started" ])
+        # Use raw SQL to avoid Rails 8 OR clause issues with integer type casting
+        # For admins, show all tasks; for others, apply visibility rules
+        if current_user&.admin?
+          # Admins see all active tasks
+          counts_by_user = SmTask.where(status: [ "not_started", "started" ])
+                                 .where("assigned_user_id IS NOT NULL")
+                                 .group(:assigned_user_id)
+                                 .count
 
-        # Get counts grouped by assigned_user_id
-        # Use explicit SQL to avoid ActiveRecord type casting issues
-        counts_by_user = base_scope.where("assigned_user_id IS NOT NULL")
-                                   .group(:assigned_user_id)
+          unassigned_count = SmTask.where(status: [ "not_started", "started" ])
+                                   .where("assigned_user_id IS NULL")
+                                   .where("assigned_role IS NULL OR assigned_role = ''")
                                    .count
 
-        # Get unassigned count (no user AND no role)
-        unassigned_count = base_scope.where("assigned_user_id IS NULL")
-                                     .where("assigned_role IS NULL OR assigned_role = ''")
-                                     .count
+          total_count = SmTask.where(status: [ "not_started", "started" ]).count
+        else
+          # Non-admins: use raw SQL to build visibility-filtered counts
+          # Visibility: public OR created by user OR followed by user OR assigned to user
+          user_id = current_user.id
 
-        # Get total count for "All" option
-        total_count = base_scope.count
+          visibility_sql = <<~SQL
+            (is_private = false OR is_private IS NULL)
+            OR (is_private = true AND created_by_id = #{user_id})
+            OR (is_private = true AND id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{user_id}))
+            OR assigned_user_id = #{user_id}
+          SQL
+
+          base_conditions = "status IN ('not_started', 'started') AND (#{visibility_sql})"
+
+          counts_by_user = SmTask.where(base_conditions)
+                                 .where("assigned_user_id IS NOT NULL")
+                                 .group(:assigned_user_id)
+                                 .count
+
+          unassigned_count = SmTask.where(base_conditions)
+                                   .where("assigned_user_id IS NULL")
+                                   .where("assigned_role IS NULL OR assigned_role = ''")
+                                   .count
+
+          total_count = SmTask.where(base_conditions).count
+        end
 
         # Build response with user names
         users = User.where(id: counts_by_user.keys).index_by(&:id)
