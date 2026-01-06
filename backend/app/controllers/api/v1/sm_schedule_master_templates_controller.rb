@@ -611,8 +611,11 @@ module Api
         # STEP 3+4: Iteratively cascade until stable
         # After headers shift, tasks depending on them need re-cascading.
         # After tasks shift, header effective dates need updating.
-        # Loop until no changes (deterministic convergence, no hardcoded max).
+        # Loop until no changes with safety limit to prevent infinite loops.
+        cascade_pass = 0
+        max_passes = 20 # Safety limit - should converge much faster
         loop do
+          cascade_pass += 1
           changes = 0
 
           # 3a: Re-cascade all non-header tasks
@@ -658,8 +661,10 @@ module Api
             end
           end
 
-          break if changes == 0
+          break if changes == 0 || cascade_pass >= max_passes
         end
+
+        Rails.logger.info "[validate_dates] Cascade completed in #{cascade_pass} passes"
 
         render json: {
           success: true,
