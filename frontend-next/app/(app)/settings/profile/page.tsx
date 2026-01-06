@@ -85,6 +85,11 @@ export default function ProfileSettingsPage() {
   const [signaturePreview, setSignaturePreview] = React.useState<string | null>(null);
   const signatureInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Signature history state
+  const [signatureUsages, setSignatureUsages] = React.useState<SignatureUsage[]>([]);
+  const [loadingHistory, setLoadingHistory] = React.useState(false);
+  const [showHistory, setShowHistory] = React.useState(false);
+
   // Load persona from localStorage on mount
   React.useEffect(() => {
     setPersona(getStoredPersona());
@@ -108,6 +113,33 @@ export default function ProfileSettingsPage() {
     setPersona(newPersona);
     setStoredPersona(newPersona);
   };
+
+  // Fetch signature usage history
+  const fetchSignatureHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: SignatureUsage[];
+        pagination: { total_count: number };
+      }>("/api/v1/signature_usages/my_history");
+
+      if (response?.success) {
+        setSignatureUsages(response.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch signature history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Load signature history when toggled on
+  React.useEffect(() => {
+    if (showHistory && signatureUsages.length === 0) {
+      fetchSignatureHistory();
+    }
+  }, [showHistory]);
 
   // Handle signature file selection
   const handleSignatureSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -363,6 +395,66 @@ export default function ProfileSettingsPage() {
                 Ready to sign certificates
               </div>
             )}
+
+            {/* Signature Usage History */}
+            <div className="mt-4 pt-4 border-t">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowHistory(!showHistory)}
+                className="text-muted-foreground"
+              >
+                <History className="h-4 w-4 mr-2" />
+                {showHistory ? "Hide" : "View"} Signature History
+              </Button>
+
+              {showHistory && (
+                <div className="mt-3 space-y-2">
+                  {loadingHistory ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                      <Spinner size={16} />
+                      Loading history...
+                    </div>
+                  ) : signatureUsages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">
+                      No signature usages recorded yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {signatureUsages.map((usage) => (
+                        <div
+                          key={usage.id}
+                          className="flex items-start gap-3 p-3 bg-muted/30 rounded-md text-sm"
+                        >
+                          <FileText className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{usage.document_name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {usage.certificate_type_display}
+                              {usage.job && (
+                                <span className="ml-1">• {usage.job.job_code}</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {usage.signed_at_formatted}
+                            </div>
+                          </div>
+                          {usage.job && (
+                            <a
+                              href={`/jobs/${usage.job.id}`}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
