@@ -341,15 +341,13 @@ export default function GanttV2Page() {
       />
 
       {/* Dependency Editor - SSoT: shared component */}
+      {/* SSoT: Always pass ALL tasks (gantt.tasks), not just visible tasks
+          The editor needs to look up inherited predecessors which might be in collapsed headers */}
       <GanttDependencyEditor
         isOpen={gantt.dependencyEditorState.isOpen}
         onClose={() => gantt.setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] })}
         task={gantt.dependencyEditorState.task}
-        tasks={
-          gantt.dependencyEditorState.visibleTasks.length > 0
-            ? gantt.dependencyEditorState.visibleTasks
-            : gantt.tasks
-        }
+        tasks={gantt.tasks}
         onSave={gantt.handleDependencyEditorSave}
       />
 

@@ -342,22 +342,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       setRows(fetchedRows);
 
-      // DEBUG: Check if inherited_predecessor_ids is in the API response
-      const tasksWithInherited = fetchedRows.filter((r: SmScheduleMaster) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (r as any).inherited_predecessor_ids?.length > 0;
-      });
-      console.log('[GanttDataManager] API response check:', {
-        totalRows: fetchedRows.length,
-        rowsWithInheritedDeps: tasksWithInherited.length,
-        sampleWithInherited: tasksWithInherited.slice(0, 2).map((r: SmScheduleMaster) => ({
-          id: r.id,
-          name: r.name,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          inherited: (r as any).inherited_predecessor_ids,
-        })),
-      });
-
       // Convert to GanttTask format (with API holidays for weekend/holiday skipping)
       const projectStartDate = getTodayInCompanyTimezone();
       // SSoT: Pass preserveOrder=true for gantt_data to trust backend sort order
@@ -386,23 +370,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       }
 
       setTasks(convertedTasks);
-
-      // DEBUG: Check if rowData has inherited_predecessor_ids after conversion
-      const tasksWithInheritedAfterConvert = convertedTasks.filter(t => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rd = t.rowData as any;
-        return rd?.inherited_predecessor_ids?.length > 0;
-      });
-      console.log('[GanttDataManager] After convertRowsToTasks:', {
-        totalTasks: convertedTasks.length,
-        tasksWithInheritedInRowData: tasksWithInheritedAfterConvert.length,
-        sample: tasksWithInheritedAfterConvert.slice(0, 2).map(t => ({
-          id: t.id,
-          name: t.name,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          inherited: (t.rowData as any)?.inherited_predecessor_ids,
-        })),
-      });
 
       // Convert dependencies - either from API or generate from predecessor_ids
       let convertedDeps: GanttDependency[];

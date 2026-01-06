@@ -4305,11 +4305,13 @@ export function ScheduleMasterTab() {
       </Dialog>
 
       {/* Dependency Editor - shown when editing dependencies in Gantt V2 */}
+      {/* SSoT: Always pass ALL tasks (ganttV2Tasks), not just visible tasks
+          The editor needs to look up inherited predecessors which might be in collapsed headers */}
       <GanttDependencyEditor
         isOpen={dependencyEditorState.isOpen}
         onClose={() => setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] })}
         task={dependencyEditorState.task}
-        tasks={dependencyEditorState.visibleTasks.length > 0 ? dependencyEditorState.visibleTasks : ganttV2Tasks}
+        tasks={ganttV2Tasks}
         onSave={handleDependencyEditorSave}
         pendingPredecessor={dependencyEditorState.pendingPredecessor}
         pendingSuccessor={dependencyEditorState.pendingSuccessor}
