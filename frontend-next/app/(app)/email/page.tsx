@@ -88,9 +88,17 @@ import { ReadingPaneToggle, useReadingPanePosition, type ReadingPanePosition } f
 import { CreateFolderDialog } from "@/components/emails/FolderManagementDialog";
 import { FolderTree, type FolderTreeItem } from "@/components/ui/folder-tree";
 import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
 import { useToast } from "@/components/ui/use-toast";
+import { api as apiClient } from "@/lib/api";
 
 // Helper to decode HTML entities and clean up email snippets
 function decodeHtmlEntities(text: string | null | undefined): string {
@@ -523,6 +531,7 @@ export default function EmailPage() {
     cachedState?.accountId ? new Set([cachedState.accountId]) : new Set()
   );
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [popoutEmail, setPopoutEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string } | null>(null);
@@ -1106,14 +1115,38 @@ export default function EmailPage() {
     }
   };
 
-  const handleEmailClick = useCallback(async (email: Email) => {
+  const handleEmailClick = useCallback(async (email: Email, openPopout = false) => {
     if (!email || !email.id) {
       console.error("Invalid email object:", email);
       return;
     }
 
     // Set selected email immediately so UI updates
-    setSelectedEmail(email);
+    if (openPopout) {
+      setPopoutEmail(email);
+    } else {
+      setSelectedEmail(email);
+    }
+
+    // Mark as read if unread
+    if (!email.is_read) {
+      try {
+        await apiClient.post(`/api/v1/email_user_states/for_email/${email.id}/toggle_read`);
+        // Update email in list to show as read
+        setEmails(prev => prev.map(e =>
+          e.id === email.id ? { ...e, is_read: true } : e
+        ));
+        // Update the email object itself
+        email.is_read = true;
+        if (openPopout) {
+          setPopoutEmail({ ...email, is_read: true });
+        } else {
+          setSelectedEmail({ ...email, is_read: true });
+        }
+      } catch (error) {
+        console.error("Failed to mark email as read:", error);
+      }
+    }
 
     // Fetch full email content if not loaded
     if (!email.body_html && !email.body_text) {
@@ -1122,7 +1155,13 @@ export default function EmailPage() {
         // Handle both wrapped and unwrapped response formats
         const fullEmail = (response as { email?: Email }).email || response as Email;
         if (fullEmail && fullEmail.id) {
-          setSelectedEmail(fullEmail);
+          // Keep is_read as true since we just marked it
+          fullEmail.is_read = true;
+          if (openPopout) {
+            setPopoutEmail(fullEmail);
+          } else {
+            setSelectedEmail(fullEmail);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch email:", error);
@@ -1140,9 +1179,16 @@ export default function EmailPage() {
       return;
     }
 
-    // Normal click - open email (clear selection if clicking to view)
+    // Double-click to open in pop-out
+    if (event.detail === 2) {
+      setLastClickedEmailId(email.id);
+      handleEmailClick(email, true);
+      return;
+    }
+
+    // Normal click - open email in reading pane
     setLastClickedEmailId(email.id);
-    handleEmailClick(email);
+    handleEmailClick(email, false);
   }, [lastClickedEmailId, selection, currentEmails, handleEmailClick]);
 
   // Handle checkbox change for multi-select
@@ -1858,6 +1904,118 @@ To: ${email.to_emails?.join(", ") || ""}
         open={showShortcutsHelp}
         onOpenChange={setShowShortcutsHelp}
       />
+
+      {/* Email Pop-out Dialog */}
+      <Dialog open={!!popoutEmail} onOpenChange={(open) => !open && setPopoutEmail(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby="email-popout-description">
+          {popoutEmail && (
+            <>
+              <DialogHeader className="shrink-0">
+                <DialogTitle className="text-lg font-semibold pr-8">
+                  {popoutEmail.subject || "(No subject)"}
+                </DialogTitle>
+                <DialogDescription id="email-popout-description" className="sr-only">
+                  Email from {popoutEmail.from_name || popoutEmail.from_email || popoutEmail.from_address}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* From / To */}
+              <div className="space-y-1 py-2 border-b shrink-0">
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">From</span>
+                  <span className="font-medium">
+                    {popoutEmail.from_name || popoutEmail.from_email || popoutEmail.from_address}
+                    {popoutEmail.from_name && popoutEmail.from_email && (
+                      <span className="font-normal text-muted-foreground ml-1">
+                        &lt;{popoutEmail.from_email}&gt;
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">To</span>
+                  <span>{(popoutEmail.to_addresses || popoutEmail.to_emails)?.join(", ")}</span>
+                </div>
+                {popoutEmail.cc_emails && popoutEmail.cc_emails.length > 0 && (
+                  <div className="flex items-center text-sm">
+                    <span className="text-muted-foreground w-12 flex-shrink-0">Cc</span>
+                    <span>{popoutEmail.cc_emails.join(", ")}</span>
+                  </div>
+                )}
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">Date</span>
+                  <span>{format(new Date(popoutEmail.received_at), "PPpp")}</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 py-2 border-b shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleReply(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <Reply className="h-4 w-4 mr-2" />
+                  Reply
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleReplyAll(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <ReplyAll className="h-4 w-4 mr-2" />
+                  Reply All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleForward(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <Forward className="h-4 w-4 mr-2" />
+                  Forward
+                </Button>
+              </div>
+
+              {/* Attachments */}
+              {popoutEmail.attachments && popoutEmail.attachments.length > 0 && (
+                <div className="py-2 border-b bg-muted/30 shrink-0">
+                  <div className="flex flex-wrap gap-2">
+                    {popoutEmail.attachments.map((att) => (
+                      <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
+                        <Paperclip className="h-3 w-3" />
+                        {att.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Email Body */}
+              <div className="flex-1 overflow-auto py-4">
+                {popoutEmail.body_html ? (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: popoutEmail.body_html }}
+                  />
+                ) : (
+                  <pre className="whitespace-pre-wrap text-sm font-sans">
+                    {decodeHtmlEntities(popoutEmail.body_text || popoutEmail.snippet)}
+                  </pre>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </EmailDragDropProvider>
   );
 }
