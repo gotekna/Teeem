@@ -36,7 +36,7 @@ module Api
         @tasks = @tasks.active if params[:active_only] == "true"
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
         @tasks = @tasks.for_user_roles(current_user) if params[:mine] == "true"
-        @tasks = @tasks.where(assigned_user_id: nil).where("assigned_role IS NULL OR assigned_role = ''") if params[:unassigned] == "true"
+        @tasks = @tasks.where(assigned_user_id: nil, assigned_role: nil) if params[:unassigned] == "true"
 
         render json: {
           success: true,

@@ -255,19 +255,24 @@ class GanttDataService
     date.respond_to?(:strftime) ? date.strftime("%Y-%m-%d") : date.to_s
   end
 
-  # SSoT: Sort hierarchically with 2-level nesting support
+  # SSoT: Sort hierarchically with 2-level nesting support (ULTRA single-pass architecture)
   # Structure: Level 1 Header → Level 2 Header (optional) → Tasks
   # ALL rows sorted by start_date for intuitive Gantt display
-  # Headers appear at the position of their earliest child
+  #
+  # ULTRA ARCHITECTURE:
+  # - ONE sort key function used everywhere
+  # - Sort ALL top-level items together (headers + standalone tasks)
+  # - Expand headers in place (keeps related items adjacent)
+  # - This prevents headers from being inserted between unrelated tasks
   def sort_hierarchically(records)
     return records if records.empty?
 
-    # Build maps for headers and their relationships
+    # PHASE 1: Build hierarchy maps (no sorting yet)
     header_task_numbers = Set.new
     header_by_task_number = {}
     children_by_parent = Hash.new { |h, k| h[k] = [] }
 
-    # First pass: identify all headers
+    # Identify all headers
     records.each do |r|
       if is_header?(r)
         header_task_numbers.add(r.task_number)
@@ -275,8 +280,7 @@ class GanttDataService
       end
     end
 
-    # Second pass: group all records by their parent
-    # This now includes Level 2 headers under Level 1 headers
+    # Group records by their parent
     records.each do |r|
       parent_num = get_parent_task_number(r)
       if parent_num && header_task_numbers.include?(parent_num)
@@ -284,11 +288,18 @@ class GanttDataService
       end
     end
 
-    # Identify Level 1 headers (no parent) vs Level 2 headers (have parent)
+    # Store header maps for nesting_level calculation (used by task_to_gantt_format)
+    @header_task_numbers = header_task_numbers
+    @header_by_task_number = header_by_task_number
+
+    # PHASE 2: Calculate effective dates for headers (bottom-up)
+    # Level 2 headers first, then Level 1 headers
+    header_effective_dates = {}
+
+    # Identify Level 1 vs Level 2 headers
     level1_headers = []
     level2_headers = []
-
-    header_by_task_number.each do |_task_num, header|
+    header_by_task_number.each_value do |header|
       parent_num = get_parent_task_number(header)
       if parent_num.nil?
         level1_headers << header
@@ -297,132 +308,100 @@ class GanttDataService
       end
     end
 
-    # Sort children within each parent by start_date, then end_date, then sequence_order
-    children_by_parent.each_value do |children|
-      children.sort_by! { |c| [get_start_date(c) || Date.new(9999), get_end_date(c) || Date.new(9999), c.try(:sequence_order) || 0] }
-    end
-
-    # Calculate effective start dates for all headers (recursive)
-    header_start_dates = {}
-
-    # First, calculate start dates for Level 2 headers (from their task children)
+    # Calculate Level 2 header dates from their task children
     level2_headers.each do |header|
       children = children_by_parent[header.task_number].reject { |c| is_header?(c) }
       if children.any?
-        header_start_dates[header.task_number] = children.map { |c| get_start_date(c) || Date.new(9999) }.min
+        start_date = children.map { |c| get_start_date(c) || Date.new(9999) }.min
+        end_date = children.map { |c| get_end_date(c) || Date.new(0) }.max
+        header_effective_dates[header.task_number] = { start: start_date, end: end_date }
       else
-        header_start_dates[header.task_number] = get_start_date(header) || Date.new(9999)
+        header_effective_dates[header.task_number] = {
+          start: get_start_date(header) || Date.new(9999),
+          end: get_end_date(header) || Date.new(9999)
+        }
       end
     end
 
-    # Then, calculate start dates for Level 1 headers (from Level 2 headers + direct task children)
+    # Calculate Level 1 header dates from all children (including Level 2 headers)
     level1_headers.each do |header|
       all_children = children_by_parent[header.task_number]
-      child_dates = all_children.map do |child|
+      if all_children.any?
+        child_starts = all_children.map do |child|
+          if is_header?(child)
+            header_effective_dates[child.task_number]&.dig(:start) || get_start_date(child) || Date.new(9999)
+          else
+            get_start_date(child) || Date.new(9999)
+          end
+        end
+        child_ends = all_children.map do |child|
+          if is_header?(child)
+            header_effective_dates[child.task_number]&.dig(:end) || get_end_date(child) || Date.new(0)
+          else
+            get_end_date(child) || Date.new(0)
+          end
+        end
+        header_effective_dates[header.task_number] = { start: child_starts.min, end: child_ends.max }
+      else
+        header_effective_dates[header.task_number] = {
+          start: get_start_date(header) || Date.new(9999),
+          end: get_end_date(header) || Date.new(9999)
+        }
+      end
+    end
+
+    # PHASE 3: SSoT sort key function - ONE definition used everywhere
+    sort_key = lambda do |r|
+      if is_header?(r) && header_effective_dates[r.task_number]
+        [header_effective_dates[r.task_number][:start],
+         header_effective_dates[r.task_number][:end],
+         r.try(:sequence_order) || 0]
+      else
+        [get_start_date(r) || Date.new(9999),
+         get_end_date(r) || Date.new(9999),
+         r.try(:sequence_order) || 0]
+      end
+    end
+
+    # PHASE 4: Identify top-level items (Level 1 headers + standalone tasks)
+    # Key insight: Sort headers and standalone tasks TOGETHER, then expand headers in place
+    top_level_items = records.select do |r|
+      # Top-level = no header parent
+      parent_num = get_parent_task_number(r)
+      parent_num.nil? || !header_task_numbers.include?(parent_num)
+    end
+
+    # Sort top-level items by the unified sort key
+    sorted_top_level = top_level_items.sort_by(&sort_key)
+
+    # PHASE 5: Expand headers in place (recursive)
+    # Sort children within each header, then flatten
+    expand_header = lambda do |header|
+      items = [header]
+      children = (children_by_parent[header.task_number] || []).sort_by(&sort_key)
+
+      children.each do |child|
         if is_header?(child)
-          header_start_dates[child.task_number] || get_start_date(child) || Date.new(9999)
+          # Level 2 header - recursively expand
+          items.concat(expand_header.call(child))
         else
-          get_start_date(child) || Date.new(9999)
+          items << child
         end
       end
+      items
+    end
 
-      if child_dates.any?
-        header_start_dates[header.task_number] = child_dates.min
+    # Build final result
+    result = []
+    sorted_top_level.each do |item|
+      if is_header?(item)
+        result.concat(expand_header.call(item))
       else
-        header_start_dates[header.task_number] = get_start_date(header) || Date.new(9999)
+        result << item
       end
     end
 
-    # Calculate effective end dates for all headers (recursive) - using MAX instead of MIN
-    header_end_dates = {}
-
-    # First, calculate end dates for Level 2 headers (from their task children)
-    level2_headers.each do |header|
-      children = children_by_parent[header.task_number].reject { |c| is_header?(c) }
-      if children.any?
-        header_end_dates[header.task_number] = children.map { |c| get_end_date(c) || Date.new(0) }.max
-      else
-        header_end_dates[header.task_number] = get_end_date(header) || Date.new(9999)
-      end
-    end
-
-    # Then, calculate end dates for Level 1 headers (from Level 2 headers + direct task children)
-    level1_headers.each do |header|
-      all_children = children_by_parent[header.task_number]
-      child_end_dates = all_children.map do |child|
-        if is_header?(child)
-          header_end_dates[child.task_number] || get_end_date(child) || Date.new(0)
-        else
-          get_end_date(child) || Date.new(0)
-        end
-      end
-
-      if child_end_dates.any?
-        header_end_dates[header.task_number] = child_end_dates.max
-      else
-        header_end_dates[header.task_number] = get_end_date(header) || Date.new(9999)
-      end
-    end
-
-    # Collect standalone/orphaned tasks (no parent, not a header)
-    standalone_tasks = records.reject do |r|
-      is_header?(r) || (get_parent_task_number(r) && header_task_numbers.include?(get_parent_task_number(r)))
-    end
-
-    # Build sortable blocks
-    # Each Level 1 header is a block containing: header, then nested structure
-    blocks = []
-
-    # Add Level 1 header blocks with nested content
-    level1_headers.each do |l1_header|
-      block_items = [l1_header]
-
-      # Get all children of this Level 1 header
-      l1_children = children_by_parent[l1_header.task_number]
-
-      # Sort children: by start_date, then end_date, then sequence_order
-      l1_children.sort_by! { |c| [get_start_date(c) || Date.new(9999), get_end_date(c) || Date.new(9999), c.try(:sequence_order) || 0] }
-
-      l1_children.each do |child|
-        if is_header?(child)
-          # This is a Level 2 header - add it and its children
-          block_items << child
-          l2_children = children_by_parent[child.task_number]
-          l2_children.sort_by! { |c| [get_start_date(c) || Date.new(9999), get_end_date(c) || Date.new(9999), c.try(:sequence_order) || 0] }
-          block_items.concat(l2_children)
-        else
-          # Direct task child of Level 1 header
-          block_items << child
-        end
-      end
-
-      blocks << {
-        start_date: header_start_dates[l1_header.task_number],
-        end_date: header_end_dates[l1_header.task_number],
-        sequence_order: l1_header.try(:sequence_order) || 0,
-        items: block_items
-      }
-    end
-
-    # Add standalone task blocks
-    standalone_tasks.each do |task|
-      blocks << {
-        start_date: get_start_date(task) || Date.new(9999),
-        end_date: get_end_date(task) || Date.new(9999),
-        sequence_order: task.try(:sequence_order) || 0,
-        items: [task]
-      }
-    end
-
-    # Sort all blocks by start_date, then end_date, then sequence_order as tiebreaker
-    blocks.sort_by! { |b| [b[:start_date], b[:end_date], b[:sequence_order]] }
-
-    # Store header maps for nesting_level calculation
-    @header_task_numbers = header_task_numbers
-    @header_by_task_number = header_by_task_number
-
-    # Flatten blocks into result
-    blocks.flat_map { |b| b[:items] }
+    result
   end
 
   # Check if record is a header

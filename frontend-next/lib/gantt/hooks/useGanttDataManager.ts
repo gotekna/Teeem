@@ -344,7 +344,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       // Convert to GanttTask format (with API holidays for weekend/holiday skipping)
       const projectStartDate = getTodayInCompanyTimezone();
-      let convertedTasks = convertRowsToTasks(fetchedRows, projectStartDate, holidayDates);
+      // SSoT: Pass preserveOrder=true for gantt_data to trust backend sort order
+      // Backend GanttDataService.sort_hierarchically is the SSoT for Gantt sort order
+      let convertedTasks = convertRowsToTasks(fetchedRows, projectStartDate, holidayDates, isGanttData);
 
       // For templates: apply backend-calculated dates (SSoT)
       // Backend handles inherited dependencies and header expansion - no frontend cascade needed

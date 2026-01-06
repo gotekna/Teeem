@@ -788,18 +788,21 @@ export function sortRowsHierarchically<T extends {
  * @param rows - The task rows from database
  * @param projectStartDate - The project start date
  * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
+ * @param preserveOrder - If true, skip ALL frontend sorting (trust backend order from gantt_data)
  */
 export function convertRowsToTasks(
   rows: SmScheduleMaster[],
   projectStartDate: Date,
-  holidayDates?: Set<string>
+  holidayDates?: Set<string>,
+  preserveOrder?: boolean
 ): GanttTask[] {
   // First pass: create date map based on sequence order
   // Key by task_number (not row.id) because predecessor_ids reference task_number
   const taskDateMap = new Map<number, { start: Date; end: Date }>();
 
-  // Sort hierarchically: headers with children grouped, then by sequence_order
-  const sortedRows = sortRowsHierarchically(rows);
+  // SSoT: If preserveOrder is true, skip frontend sorting entirely
+  // Backend gantt_data endpoint is the SSoT for sort order
+  const sortedRows = preserveOrder ? rows : sortRowsHierarchically(rows);
 
   // Calculate dates for each row
   for (const row of sortedRows) {
@@ -957,10 +960,11 @@ export function convertRowsToTasks(
     taskDateMap.set(row.task_number, { start: task.startDate, end: task.endDate });
   }
 
-  // Fifth pass: Sort by calculated dates
+  // Fifth pass: Sort by calculated dates (skip if preserveOrder)
   // Headers sorted by start date, children within headers sorted by start date,
   // and if start dates equal, sort by end date (earlier finish first)
-  return sortTasksByDate(tasks, sortedRows);
+  // SSoT: If preserveOrder is true, backend has already sorted - trust it
+  return preserveOrder ? tasks : sortTasksByDate(tasks, sortedRows);
 }
 
 /**
