@@ -326,16 +326,19 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       }>(apiConfig.fetchUrl);
 
       // Handle different response formats
-      // Template: { rows: [...] }
-      // Job: { gantt_data: { tasks: [...], dependencies: [...] } }
+      // Template gantt_data: { gantt_data: { tasks: [...], dependencies: [...] } } - pre-sorted by backend
+      // Job gantt_data: { gantt_data: { tasks: [...], dependencies: [...] } } - pre-sorted by backend
+      // Template rows (Data View): { rows: [...] } - needs frontend sort
+      const isGanttData = !!response.gantt_data;
       const data = response.gantt_data || response;
       const rawRows = data.tasks || data.rows || [];
       const fetchedDeps = data.dependencies || [];
 
-      // Sort by sequence_order (SSoT: same order as Data View)
-      const fetchedRows = [...rawRows].sort((a, b) =>
-        (a.sequence_order || 0) - (b.sequence_order || 0)
-      );
+      // SSoT: Backend sorts gantt_data by (start_date, end_date, sequence_order) in GanttDataService
+      // Only sort by sequence_order for Data View (rows endpoint), not Gantt view (gantt_data endpoint)
+      const fetchedRows = isGanttData
+        ? rawRows // Preserve backend's hierarchical date-based sorting
+        : [...rawRows].sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0));
 
       setRows(fetchedRows);
 
