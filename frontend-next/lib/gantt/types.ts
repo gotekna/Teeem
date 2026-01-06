@@ -146,6 +146,9 @@ export interface SmScheduleMaster {
   // Manual positioning (held dates)
   hold: boolean | null;
   hold_date: string | null;
+  // Calculated dates from backend gantt_data endpoint (templates use topological sort)
+  start_date?: string | null;
+  end_date?: string | null;
   // Task status tracking
   started?: boolean | null;
   // Completion tracking
@@ -576,68 +579,79 @@ export function convertRowToTask(
   let startDate: Date;
   let endDate: Date;
 
-  // Check if task is LOCKED - locked tasks NEVER recalculate from predecessors
-  // Lock types: Confirmed, Supplier Confirmed, Finance Approved, Completed
-  const isLocked = row.confirm || row.supplier_confirm ||
-                   row.finance_approved || row.is_completed;
+  // SSoT: If backend provided calculated dates (gantt_data endpoint), use them directly
+  // This handles forward-referencing predecessors correctly via topological sort
+  if (row.start_date && row.end_date) {
+    startDate = new Date(row.start_date);
+    endDate = new Date(row.end_date);
+  } else {
+    // Fallback: calculate dates locally (for rows endpoint or missing dates)
 
-  // If manually positioned OR locked with hold_date, use the manual start date
-  // Locked tasks should NEVER move based on predecessor changes
-  if ((row.hold || isLocked) && row.hold_date) {
-    startDate = skipToNextWorkingDay(new Date(row.hold_date), holidayDates);
-  } else if (taskDateMap && row.predecessor_ids?.length > 0 && !isLocked) {
-    // Find the latest required start date from all predecessors
-    let latestRequiredStart = projectStartDate;
-    for (const pred of row.predecessor_ids) {
-      const predDates = taskDateMap.get(pred.id);
-      if (predDates) {
-        const predType = pred.type || 'FS';
-        const lag = pred.lag || 0;
-        let requiredStart: Date;
+    // Check if task is LOCKED - locked tasks NEVER recalculate from predecessors
+    // Lock types: Confirmed, Supplier Confirmed, Finance Approved, Completed
+    const isLocked = row.confirm || row.supplier_confirm ||
+                     row.finance_approved || row.is_completed;
 
-        switch (predType) {
-          case 'FS': // Finish-to-Start: successor starts after predecessor ends
-            // Start on next working day after predecessor ends
-            requiredStart = addWorkingDays(predDates.end, 1 + lag, holidayDates);
-            break;
-          case 'SS': // Start-to-Start: successor starts when predecessor starts
-            requiredStart = new Date(predDates.start);
-            if (lag > 0) {
-              requiredStart = addWorkingDays(predDates.start, lag, holidayDates);
-            } else {
-              requiredStart = skipToNextWorkingDay(requiredStart, holidayDates);
-            }
-            break;
-          case 'FF': // Finish-to-Finish: handled by end date, start calculated backwards
-          case 'SF': // Start-to-Finish: rare, start calculated backwards
-          default:
-            // For FF/SF, just use predecessor end as reference
-            requiredStart = addWorkingDays(predDates.end, 1 + lag, holidayDates);
-            break;
-        }
+    // If manually positioned OR locked with hold_date, use the manual start date
+    // Locked tasks should NEVER move based on predecessor changes
+    if ((row.hold || isLocked) && row.hold_date) {
+      startDate = skipToNextWorkingDay(new Date(row.hold_date), holidayDates);
+    } else if (taskDateMap && row.predecessor_ids?.length > 0 && !isLocked) {
+      // Find the latest required start date from all predecessors
+      let latestRequiredStart = projectStartDate;
+      for (const pred of row.predecessor_ids) {
+        const predDates = taskDateMap.get(pred.id);
+        if (predDates) {
+          const predType = pred.type || 'FS';
+          const lag = pred.lag || 0;
+          let requiredStart: Date;
 
-        if (requiredStart > latestRequiredStart) {
-          latestRequiredStart = requiredStart;
+          switch (predType) {
+            case 'FS': // Finish-to-Start: successor starts after predecessor ends
+              // Start on next working day after predecessor ends
+              requiredStart = addWorkingDays(predDates.end, 1 + lag, holidayDates);
+              break;
+            case 'SS': // Start-to-Start: successor starts when predecessor starts
+              requiredStart = new Date(predDates.start);
+              if (lag > 0) {
+                requiredStart = addWorkingDays(predDates.start, lag, holidayDates);
+              } else {
+                requiredStart = skipToNextWorkingDay(requiredStart, holidayDates);
+              }
+              break;
+            case 'FF': // Finish-to-Finish: handled by end date, start calculated backwards
+            case 'SF': // Start-to-Finish: rare, start calculated backwards
+            default:
+              // For FF/SF, just use predecessor end as reference
+              requiredStart = addWorkingDays(predDates.end, 1 + lag, holidayDates);
+              break;
+          }
+
+          if (requiredStart > latestRequiredStart) {
+            latestRequiredStart = requiredStart;
+          }
         }
       }
+      startDate = skipToNextWorkingDay(new Date(latestRequiredStart), holidayDates);
+    } else {
+      // No predecessors - start at project start date (today)
+      startDate = skipToNextWorkingDay(new Date(projectStartDate), holidayDates);
     }
-    startDate = skipToNextWorkingDay(new Date(latestRequiredStart), holidayDates);
-  } else {
-    // No predecessors - start at project start date (today)
-    startDate = skipToNextWorkingDay(new Date(projectStartDate), holidayDates);
-  }
 
-  // Calculate end date based on duration (in working days)
-  const duration = row.duration_days || 1;
-  if (duration <= 1) {
-    // Same day task
-    endDate = new Date(startDate);
-  } else {
-    // Add working days for duration
-    endDate = addWorkingDays(startDate, duration - 1, holidayDates);
+    // Calculate end date based on duration (in working days)
+    const duration = row.duration_days || 1;
+    if (duration <= 1) {
+      // Same day task
+      endDate = new Date(startDate);
+    } else {
+      // Add working days for duration
+      endDate = addWorkingDays(startDate, duration - 1, holidayDates);
+    }
   }
 
   // Determine task shape based on name prefix (spawned tasks) or duration
+  // SSoT: Use row.duration_days directly (not the local 'duration' variable which may not be defined)
+  const taskDuration = row.duration_days || 1;
   let shape: TaskShape = 'task';
   if (row.name.startsWith('Order ')) {
     shape = 'order';
@@ -645,7 +659,7 @@ export function convertRowToTask(
     shape = 'call';
   } else if (row.name.startsWith('Photo ')) {
     shape = 'photo';
-  } else if (duration <= 1) {
+  } else if (taskDuration <= 1) {
     // Single-day tasks could be milestones (optional - keep as task for now)
     // shape = 'milestone';
   }
@@ -988,32 +1002,46 @@ function sortTasksByDate(tasks: GanttTask[], rows: SmScheduleMaster[]): GanttTas
     const row = rowMap.get(task.id);
     if (!row) continue;
 
-    if (isHeaderRow(row)) {
+    const parentTaskNum = getParentTaskNumber(row);
+    const isHeader = isHeaderRow(row);
+
+    // SSoT: Level 1 headers have no parent (header_gantt === 'Header' or null)
+    // Level 2 headers ARE headers but HAVE a parent - treat them as children
+    if (isHeader && !parentTaskNum) {
+      // Top-level header (Level 1)
       headers.push(task);
       childrenByHeader.set(task.id, []);
-    } else {
-      const parentTaskNum = getParentTaskNumber(row);
-      if (parentTaskNum) {
-        const headerId = taskNumberToRowId.get(parentTaskNum);
-        if (headerId) {
-          if (!childrenByHeader.has(headerId)) {
-            childrenByHeader.set(headerId, []);
-          }
-          childrenByHeader.get(headerId)!.push(task);
-        } else {
-          orphans.push(task);
+    } else if (parentTaskNum) {
+      // Has a parent - could be Level 2 header OR regular task
+      const headerId = taskNumberToRowId.get(parentTaskNum);
+      if (headerId) {
+        if (!childrenByHeader.has(headerId)) {
+          childrenByHeader.set(headerId, []);
+        }
+        childrenByHeader.get(headerId)!.push(task);
+        // If this is a Level 2 header, also register it for its own children
+        if (isHeader) {
+          childrenByHeader.set(task.id, []);
         }
       } else {
         orphans.push(task);
       }
+    } else {
+      // No parent, not a header - orphan task
+      orphans.push(task);
     }
   }
 
-  // Sort comparator: start date, then end date (earlier finish first)
+  // Sort comparator: start date, then end date, then sequence_order (SSoT: matches backend)
   const dateCompare = (a: GanttTask, b: GanttTask) => {
     const startDiff = a.startDate.getTime() - b.startDate.getTime();
     if (startDiff !== 0) return startDiff;
-    return a.endDate.getTime() - b.endDate.getTime();
+    const endDiff = a.endDate.getTime() - b.endDate.getTime();
+    if (endDiff !== 0) return endDiff;
+    // SSoT: Use sequence_order as tiebreaker (matches backend GanttDataService)
+    const seqA = (a.rowData as { sequence_order?: number })?.sequence_order || 0;
+    const seqB = (b.rowData as { sequence_order?: number })?.sequence_order || 0;
+    return seqA - seqB;
   };
 
   // Sort headers by start date
@@ -1027,10 +1055,25 @@ function sortTasksByDate(tasks: GanttTask[], rows: SmScheduleMaster[]): GanttTas
   // Sort orphans by date
   orphans.sort(dateCompare);
 
-  // Build header blocks (header + its children)
+  // Build header blocks (header + its children, recursively including Level 2 headers' children)
+  // Helper to flatten a header and all its children (including nested Level 2 headers)
+  const flattenChildren = (children: GanttTask[]): GanttTask[] => {
+    const result: GanttTask[] = [];
+    for (const child of children) {
+      result.push(child);
+      // If this child is a Level 2 header, include its children immediately after
+      const level2Children = childrenByHeader.get(child.id);
+      if (level2Children && level2Children.length > 0) {
+        level2Children.sort(dateCompare);
+        result.push(...level2Children);
+      }
+    }
+    return result;
+  };
+
   const headerBlocks: { task: GanttTask; children: GanttTask[] }[] = headers.map(h => ({
     task: h,
-    children: childrenByHeader.get(h.id) || [],
+    children: flattenChildren(childrenByHeader.get(h.id) || []),
   }));
 
   // Merge headers and orphans by start date (interleaved)

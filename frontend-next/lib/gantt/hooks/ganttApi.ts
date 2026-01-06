@@ -35,10 +35,11 @@ export function getGanttApiConfig(
       throw new Error('templateId required for template mode');
     }
     const baseUrl = `/api/v1/sm_schedule_master_templates/${options.templateId}`;
-    // SSoT: show_all_po=true shows PO required tasks without suppliers (useful for template editing)
+    // SSoT: Use gantt_data endpoint for proper date calculation (topological sort handles forward refs)
+    // show_all_po=true shows PO required tasks without suppliers (useful for template editing)
     const showAllPO = options.showAllPOTasks ? '&show_all_po=true' : '';
     return {
-      fetchUrl: `${baseUrl}/rows?for=gantt${showAllPO}`,
+      fetchUrl: `${baseUrl}/gantt_data?for=gantt${showAllPO}`,
       updateUrl: (taskId) => `${baseUrl}/rows/${taskId}`,
       validateDatesUrl: `${baseUrl}/validate_dates`,
       payloadWrapper: 'row',

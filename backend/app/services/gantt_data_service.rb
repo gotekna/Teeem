@@ -204,13 +204,18 @@ class GanttDataService
   end
 
   # Convert record to Gantt task format
+  # SSoT: Uses calculated dates from @date_overrides (topological sort) for templates
   def task_to_gantt_format(record)
+    # Get calculated dates from date_overrides (for templates) or use stored dates (for jobs)
+    calculated_start = get_start_date(record)
+    calculated_end = get_end_date(record)
+
     {
       id: record.id.to_s,
       task_number: record.task_number,
       name: record.name,
-      start_date: format_date(record.try(:start_date) || record.try(:hold_date)),
-      end_date: format_date(record.try(:end_date)),
+      start_date: format_date(calculated_start || record.try(:hold_date)),
+      end_date: format_date(calculated_end),
       duration_days: record.duration_days || 1,
       status: record.try(:status) || "not_started",
       progress_percentage: record.try(:progress_percentage) || 0,
