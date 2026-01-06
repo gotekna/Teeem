@@ -29,7 +29,7 @@ class Api::V1::UsersController < ApplicationController
 
     # Merge regular user params with admin-only params if user is admin
     update_params = user_params
-    admin_fields_present = params[:user][:role] || params[:user][:assigned_roles] || params[:user][:role_ids] || params[:user].key?(:contact_id)
+    admin_fields_present = params[:user][:role] || params[:user][:role_ids] || params[:user].key?(:contact_id)
     if current_user&.admin? && admin_fields_present
       update_params = update_params.merge(admin_user_params)
     elsif admin_fields_present
@@ -118,12 +118,13 @@ class Api::V1::UsersController < ApplicationController
     )
   end
 
-  # Admin-only params (role, role_ids, assigned_roles, contact_id)
+  # Admin-only params (role, role_ids, contact_id)
   # Only administrators should be able to modify these fields
+  # SSoT: Roles via user_roles join table (role_ids), not assigned_roles column
   # Brakeman warning can be ignored: authorization check in update() prevents
   # non-admin users from accessing these params (returns 403 Forbidden)
   def admin_user_params
-    params.require(:user).permit(:role, :contact_id, assigned_roles: [], role_ids: [])
+    params.require(:user).permit(:role, :contact_id, role_ids: [])
   end
 
   # Returns user data with presence status and integration info

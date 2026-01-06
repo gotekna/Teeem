@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_06_015352) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_06_213400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9151,7 +9151,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_06_015352) do
     t.datetime "oauth_expires_at"
     t.boolean "wphs_appointee", default: false, null: false
     t.boolean "preload_price_books", default: false, null: false
-    t.jsonb "assigned_roles", default: []
     t.bigint "user_group_id"
     t.datetime "last_seen_at"
     t.boolean "can_view_confidential_fields", default: false, null: false

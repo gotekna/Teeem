@@ -268,16 +268,18 @@ class SmTask < ApplicationRecord
   # 3. Department roles: all users with role see all tasks (not job-specific)
   # 4. Fallback: job-specific role with no one assigned on that job
   #
-  # NOTE: SmTask.assigned_role is an integer (Role.id), but User.assigned_roles and
-  # JobContact.role store role names as strings. We must convert names → IDs.
+  # SSoT: User roles come from user_roles join table (user.roles), NOT user.assigned_roles
+  # SmTask.assigned_role is an integer (Role.id)
   scope :for_user_roles, ->(user) {
     return none unless user.present?
 
-    user_roles = user.assigned_roles || []
-    return where(assigned_user_id: user.id) if user_roles.empty?
+    # SSoT: Get role IDs directly from user_roles join table
+    user_role_ids = user.roles.pluck(:id)
+    user_role_names = user.roles.pluck(:name)
+    return where(assigned_user_id: user.id) if user_role_ids.empty?
 
-    # Build role name → ID lookup (cached per request)
-    role_id_map = Role.where(name: user_roles).pluck(:name, :id).to_h
+    # Build role name → ID lookup
+    role_id_map = user.roles.pluck(:name, :id).to_h
 
     # 1. Direct assignment
     direct = where(assigned_user_id: user.id)
@@ -292,13 +294,13 @@ class SmTask < ApplicationRecord
     job_specific = job_conditions.any? ? job_conditions.reduce(:or) : none
 
     # 3. Department roles (all users with role see all tasks globally)
-    dept_role_names = user_roles - JobContact::INTERNAL_ROLES
+    dept_role_names = user_role_names - JobContact::INTERNAL_ROLES
     dept_role_ids = dept_role_names.map { |name| role_id_map[name] }.compact
     department = dept_role_ids.any? ? where(assigned_role: dept_role_ids, assigned_user_id: nil) : none
 
     # 4. Fallback for job-specific roles: tasks where role is INTERNAL but
     #    no JobContact exists for that job+role, and user has that role globally
-    internal_user_roles = user_roles & JobContact::INTERNAL_ROLES
+    internal_user_roles = user_role_names & JobContact::INTERNAL_ROLES
     if internal_user_roles.any?
       # Find tasks with internal roles that have no JobContact assignment
       fallback_conditions = internal_user_roles.map do |role_name|

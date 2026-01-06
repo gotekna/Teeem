@@ -53,7 +53,6 @@ class User < ApplicationRecord
   validates :name, presence: true
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
-  validate :validate_assigned_roles
 
   # SSoT: Sync mobile_phone to linked contact when user is updated
   after_save :sync_mobile_to_contact, if: -> { saved_change_to_mobile_phone? && contact.present? }
@@ -268,11 +267,6 @@ class User < ApplicationRecord
     provider.present? && uid.present?
   end
 
-  # Helper method to check if user has a specific assigned role (for Schedule Master)
-  def has_assigned_role?(role_name)
-    assigned_roles&.include?(role_name.to_s)
-  end
-
   # Multi-role helpers (SSoT: user_roles join table)
   def role_ids
     roles.pluck(:id)
@@ -295,8 +289,8 @@ class User < ApplicationRecord
                        end
                      end.compact.reject(&:blank?)
 
-    assigned_roles = Role.where(id: normalized_ids)
-    self.roles = assigned_roles
+    new_roles = Role.where(id: normalized_ids)
+    self.roles = new_roles
   end
 
   def role_names
@@ -324,20 +318,6 @@ class User < ApplicationRecord
     Rails.logger.info "[User#sync_mobile_to_contact] Synced mobile_phone '#{mobile_phone}' to Contact##{contact.id}"
   rescue StandardError => e
     Rails.logger.error "[User#sync_mobile_to_contact] Failed to sync: #{e.message}"
-  end
-
-  def validate_assigned_roles
-    return if assigned_roles.blank?
-
-    unless assigned_roles.is_a?(Array)
-      errors.add(:assigned_roles, "must be an array")
-      return
-    end
-
-    invalid_roles = assigned_roles - ASSIGNABLE_ROLES
-    if invalid_roles.any?
-      errors.add(:assigned_roles, "contains invalid roles: #{invalid_roles.join(', ')}")
-    end
   end
 
   def password_required?

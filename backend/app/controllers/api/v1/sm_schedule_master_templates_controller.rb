@@ -33,21 +33,23 @@ module Api
       # This is THE SINGLE place that converts task_number references to row.id
       # Use ?show_all_po=true to show all PO required tasks (useful for template editing)
       def gantt_data
-        records = @template.sm_schedule_master_rows.in_sequence.includes(:po_supplier).to_a
-        puts "[gantt_data] Template: #{@template.name}, Total records: #{records.count}, show_all_po param: '#{params[:show_all_po]}', all params: #{params.to_unsafe_h.inspect}"
+        all_records = @template.sm_schedule_master_rows.in_sequence.includes(:po_supplier).to_a
+        puts "[gantt_data] Template: #{@template.name}, Total records: #{all_records.count}, show_all_po param: '#{params[:show_all_po]}'"
+
+        # SSoT: Calculate dates from ALL records FIRST (before filtering)
+        # This ensures the dependency chain is complete for accurate date calculations
+        date_overrides = calculate_template_date_map(all_records)
 
         # Filter out PO-required tasks without a supplier configured (unless show_all_po=true)
         # This ensures incomplete PO tasks don't clutter the Gantt view
-        unless params[:show_all_po] == "true"
-          before_count = records.count
-          records = records.reject { |r| r.po_required && r.po_supplier_id.blank? }
-          puts "[gantt_data] Filtered PO tasks: #{before_count} -> #{records.count}"
-        else
+        records = if params[:show_all_po] == "true"
           puts "[gantt_data] show_all_po=true, NOT filtering"
+          all_records
+        else
+          filtered = all_records.reject { |r| r.po_required && r.po_supplier_id.blank? }
+          puts "[gantt_data] Filtered PO tasks: #{all_records.count} -> #{filtered.count}"
+          filtered
         end
-
-        # Calculate dates from dependencies for sorting (templates don't have stored dates)
-        date_overrides = calculate_template_date_map(records)
 
         service = GanttDataService.new(records, date_overrides: date_overrides)
         result = service.build_response

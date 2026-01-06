@@ -308,46 +308,14 @@ class GanttDataService
       end
     end
 
-    # Calculate Level 2 header dates from their task children
-    level2_headers.each do |header|
-      children = children_by_parent[header.task_number].reject { |c| is_header?(c) }
-      if children.any?
-        start_date = children.map { |c| get_start_date(c) || Date.new(9999) }.min
-        end_date = children.map { |c| get_end_date(c) || Date.new(0) }.max
-        header_effective_dates[header.task_number] = { start: start_date, end: end_date }
-      else
-        header_effective_dates[header.task_number] = {
-          start: get_start_date(header) || Date.new(9999),
-          end: get_end_date(header) || Date.new(9999)
-        }
-      end
-    end
-
-    # Calculate Level 1 header dates from all children (including Level 2 headers)
-    level1_headers.each do |header|
-      all_children = children_by_parent[header.task_number]
-      if all_children.any?
-        child_starts = all_children.map do |child|
-          if is_header?(child)
-            header_effective_dates[child.task_number]&.dig(:start) || get_start_date(child) || Date.new(9999)
-          else
-            get_start_date(child) || Date.new(9999)
-          end
-        end
-        child_ends = all_children.map do |child|
-          if is_header?(child)
-            header_effective_dates[child.task_number]&.dig(:end) || get_end_date(child) || Date.new(0)
-          else
-            get_end_date(child) || Date.new(0)
-          end
-        end
-        header_effective_dates[header.task_number] = { start: child_starts.min, end: child_ends.max }
-      else
-        header_effective_dates[header.task_number] = {
-          start: get_start_date(header) || Date.new(9999),
-          end: get_end_date(header) || Date.new(9999)
-        }
-      end
+    # SSoT: Use date_overrides for ALL headers (calculated from complete dependency graph)
+    # This ensures sort order is preserved even when tasks are filtered out
+    # The date_overrides were calculated from ALL records before any filtering
+    (level2_headers + level1_headers).each do |header|
+      header_effective_dates[header.task_number] = {
+        start: get_start_date(header) || Date.new(9999),
+        end: get_end_date(header) || Date.new(9999)
+      }
     end
 
     # PHASE 3: SSoT sort key function - ONE definition used everywhere

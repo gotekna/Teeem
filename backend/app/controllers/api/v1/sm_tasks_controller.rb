@@ -59,10 +59,8 @@ module Api
       # Returns task counts per user using for_user_roles scope
       # Each user's count = tasks they can work on (direct + job role + dept role + fallback)
       def user_counts
-        # Get users who have assigned_roles (can be assigned to tasks)
-        # Note: User model doesn't have 'active' column - all users with roles are included
-        users_with_roles = User.where.not(assigned_roles: [])
-                               .where.not(assigned_roles: nil)
+        # SSoT: Get users who have roles via user_roles join table (not assigned_roles column)
+        users_with_roles = User.joins(:user_roles).distinct
 
         # Count tasks for each user using for_user_roles scope
         user_counts = users_with_roles.map do |user|

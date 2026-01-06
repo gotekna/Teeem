@@ -444,9 +444,15 @@ export function GanttUnified({
           }
         }
 
-        // If no saved state, apply smart defaults (collapse all except today's tasks)
+        // If no saved state, apply defaults
         if (!restored) {
-          ganttEngineRef.current.collapseAllWithSmartDefaults();
+          // For templates: collapse ALL headers (dates are synthetic, not meaningful)
+          // For jobs: use smart defaults based on today's tasks
+          if (templateId && !jobId) {
+            ganttEngineRef.current.collapseAll();
+          } else {
+            ganttEngineRef.current.collapseAllWithSmartDefaults();
+          }
         }
       }
     }
