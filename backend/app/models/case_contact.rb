@@ -1,5 +1,46 @@
 # CaseContact - links contacts to cases with relationship visualization
 class CaseContact < ApplicationRecord
+  # SSoT: Alignment values - which side the contact is on
+  # Used by: CaseContact, KnownParty
+  ALIGNMENT_VALUES = %w[friendly neutral opposing].freeze
+
+  ROLES = {
+    "subject" => "Subject of Investigation",
+    "witness" => "Witness",
+    "advisor" => "Advisor",
+    "opposing_party" => "Opposing Party",
+    "related_party" => "Related Party"
+  }.freeze
+
+  ALIGNMENTS = {
+    "friendly" => { name: "Friendly", color: "green", icon: "user-check" },
+    "neutral" => { name: "Neutral", color: "gray", icon: "user" },
+    "opposing" => { name: "Opposing", color: "red", icon: "user-x" }
+  }.freeze
+
+  # Relationship types for the visual chart - more granular than roles
+  RELATIONSHIP_TYPES = {
+    "client" => { name: "Client", color: "blue", icon: "user" },
+    "accountant" => { name: "Accountant", color: "green", icon: "calculator" },
+    "lawyer" => { name: "Lawyer", color: "purple", icon: "scale" },
+    "previous_accountant" => { name: "Previous Accountant", color: "emerald", icon: "calculator" },
+    "advisor" => { name: "Advisor", color: "teal", icon: "lightbulb" },
+    "opposing_party" => { name: "Opposing Party", color: "orange", icon: "alert-triangle" },
+    "witness" => { name: "Witness", color: "yellow", icon: "eye" },
+    "related_party" => { name: "Related Party", color: "gray", icon: "users" },
+    "ato_officer" => { name: "ATO Officer", color: "red", icon: "landmark" },
+    "afsa_officer" => { name: "AFSA Officer", color: "red", icon: "landmark" },
+    "inspector_general" => { name: "Inspector-General", color: "red", icon: "landmark" },
+    "trustee" => { name: "Trustee (Bankruptcy)", color: "amber", icon: "briefcase" },
+    "director" => { name: "Director", color: "indigo", icon: "briefcase" },
+    "shareholder" => { name: "Shareholder", color: "pink", icon: "pie-chart" },
+    "bank_manager" => { name: "Bank Manager", color: "cyan", icon: "building" },
+    "insurer" => { name: "Insurer", color: "amber", icon: "shield" },
+    "broker" => { name: "Broker", color: "lime", icon: "trending-up" },
+    "creditor" => { name: "Creditor", color: "orange", icon: "building" },
+    "debtor" => { name: "Debtor", color: "rose", icon: "user" }
+  }.freeze
+
   belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
   belongs_to :contact
   belongs_to :added_by, class_name: "User", optional: true
@@ -31,47 +72,6 @@ class CaseContact < ApplicationRecord
 
   # Callback to trigger auto-linking when flag changes
   after_save :trigger_auto_link_emails, if: :saved_change_to_include_all_emails?
-
-  ROLES = {
-    "subject" => "Subject of Investigation",
-    "witness" => "Witness",
-    "advisor" => "Advisor",
-    "opposing_party" => "Opposing Party",
-    "related_party" => "Related Party"
-  }.freeze
-
-  # SSoT: Alignment values - which side the contact is on
-  # Used by: CaseContact, KnownParty
-  ALIGNMENT_VALUES = %w[friendly neutral opposing].freeze
-
-  ALIGNMENTS = {
-    "friendly" => { name: "Friendly", color: "green", icon: "user-check" },
-    "neutral" => { name: "Neutral", color: "gray", icon: "user" },
-    "opposing" => { name: "Opposing", color: "red", icon: "user-x" }
-  }.freeze
-
-  # Relationship types for the visual chart - more granular than roles
-  RELATIONSHIP_TYPES = {
-    "client" => { name: "Client", color: "blue", icon: "user" },
-    "accountant" => { name: "Accountant", color: "green", icon: "calculator" },
-    "lawyer" => { name: "Lawyer", color: "purple", icon: "scale" },
-    "previous_accountant" => { name: "Previous Accountant", color: "emerald", icon: "calculator" },
-    "advisor" => { name: "Advisor", color: "teal", icon: "lightbulb" },
-    "opposing_party" => { name: "Opposing Party", color: "orange", icon: "alert-triangle" },
-    "witness" => { name: "Witness", color: "yellow", icon: "eye" },
-    "related_party" => { name: "Related Party", color: "gray", icon: "users" },
-    "ato_officer" => { name: "ATO Officer", color: "red", icon: "landmark" },
-    "afsa_officer" => { name: "AFSA Officer", color: "red", icon: "landmark" },
-    "inspector_general" => { name: "Inspector-General", color: "red", icon: "landmark" },
-    "trustee" => { name: "Trustee (Bankruptcy)", color: "amber", icon: "briefcase" },
-    "director" => { name: "Director", color: "indigo", icon: "briefcase" },
-    "shareholder" => { name: "Shareholder", color: "pink", icon: "pie-chart" },
-    "bank_manager" => { name: "Bank Manager", color: "cyan", icon: "building" },
-    "insurer" => { name: "Insurer", color: "amber", icon: "shield" },
-    "broker" => { name: "Broker", color: "lime", icon: "trending-up" },
-    "creditor" => { name: "Creditor", color: "orange", icon: "building" },
-    "debtor" => { name: "Debtor", color: "rose", icon: "user" }
-  }.freeze
 
   def formatted_role
     ROLES[role] || role&.titleize
