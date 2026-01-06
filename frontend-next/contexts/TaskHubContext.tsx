@@ -135,16 +135,9 @@ export interface TaskFilters {
   showMyTasksOnly: boolean;
   showOverdueOnly: boolean;
   selectedUserId: number | 'unassigned' | null;
-  selectedRoleId: number | null;
 }
 
 export interface UserTaskCount {
-  id: number;
-  name: string;
-  count: number;
-}
-
-export interface RoleTaskCount {
   id: number;
   name: string;
   count: number;
@@ -227,7 +220,6 @@ export interface TaskHubContextType extends TaskHubState {
 
   // User counts for "All" dropdown
   userCounts: UserTaskCount[];
-  roleCounts: RoleTaskCount[];
   unassignedCount: number;
   totalActiveCount: number;
 
@@ -246,7 +238,6 @@ const defaultFilters: TaskFilters = {
   showMyTasksOnly: false,
   showOverdueOnly: false,
   selectedUserId: null,
-  selectedRoleId: null,
 };
 
 // Mock data for development testing - DISABLED to avoid confusion with real data
@@ -645,7 +636,6 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
   // User counts for "All" dropdown filter
   const [userCounts, setUserCounts] = useState<UserTaskCount[]>([]);
-  const [roleCounts, setRoleCounts] = useState<RoleTaskCount[]>([]);
   const [unassignedCount, setUnassignedCount] = useState(0);
   const [totalActiveCount, setTotalActiveCount] = useState(0);
 
@@ -655,14 +645,12 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       const response = await api.get<{
         success: boolean;
         users: UserTaskCount[];
-        roles: RoleTaskCount[];
         unassigned: number;
         total: number;
       }>('/api/v1/sm_tasks/user_counts');
 
       if (response.success) {
         setUserCounts(response.users || []);
-        setRoleCounts(response.roles || []);
         setUnassignedCount(response.unassigned || 0);
         setTotalActiveCount(response.total || 0);
       }
@@ -695,15 +683,11 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       }
 
       // Filter by selected user in "All" dropdown
+      // Uses for_user_id to get all tasks user can work on (direct + role-based)
       if (filters.selectedUserId === 'unassigned') {
         params.append('unassigned', 'true');
       } else if (filters.selectedUserId) {
-        params.append('assigned_user_id', filters.selectedUserId.toString());
-      }
-
-      // Filter by selected role in "All" dropdown
-      if (filters.selectedRoleId) {
-        params.append('assigned_role', filters.selectedRoleId.toString());
+        params.append('for_user_id', filters.selectedUserId.toString());
       }
 
       const response = await api.get<{ tasks: SmTask[]; success: boolean }>(`/api/v1/sm_tasks?${params.toString()}`);
@@ -731,7 +715,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     } finally {
       setLoading(false);
     }
-  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, filters.selectedUserId, filters.selectedRoleId, activeView]);
+  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, filters.selectedUserId, activeView]);
 
   // Initial load
   useEffect(() => {
@@ -1190,7 +1174,6 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     removeFollower,
     // User counts for "All" dropdown
     userCounts,
-    roleCounts,
     unassignedCount,
     totalActiveCount,
     refresh,

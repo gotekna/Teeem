@@ -37,7 +37,11 @@ module Api
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
         @tasks = @tasks.for_user_roles(current_user) if params[:mine] == "true"
         @tasks = @tasks.where(assigned_user_id: nil, assigned_role: nil) if params[:unassigned] == "true"
-        @tasks = @tasks.where(assigned_role: params[:assigned_role].to_i, assigned_user_id: nil) if params[:assigned_role].present?
+        # Filter by specific user - shows all tasks they can work on (direct + role-based)
+        if params[:for_user_id].present?
+          user = User.find_by(id: params[:for_user_id])
+          @tasks = @tasks.for_user_roles(user) if user
+        end
 
         render json: {
           success: true,
@@ -52,136 +56,32 @@ module Api
       end
 
       # GET /api/v1/sm_tasks/user_counts
-      # Returns task counts grouped by assigned user for the "All" dropdown filter
+      # Returns task counts per user using for_user_roles scope
+      # Each user's count = tasks they can work on (direct + job role + dept role + fallback)
       def user_counts
-        # Use direct SQL execution to completely bypass ActiveRecord query building
-        # which has issues with OR clauses in Rails 8
-        conn = ActiveRecord::Base.connection
+        # Get users who have assigned_roles (can be assigned to tasks)
+        users_with_roles = User.where.not(assigned_roles: [])
+                               .where.not(assigned_roles: nil)
+                               .where(active: true)
 
-        if current_user&.admin?
-          # Admins see all active tasks - use direct SQL
-          counts_sql = <<~SQL
-            SELECT assigned_user_id, COUNT(*) as count
-            FROM sm_tasks
-            WHERE status IN ('not_started', 'started')
-            AND assigned_user_id IS NOT NULL
-            GROUP BY assigned_user_id
-          SQL
+        # Count tasks for each user using for_user_roles scope
+        user_counts = users_with_roles.map do |user|
+          count = SmTask.active.for_user_roles(user).count
+          { id: user.id, name: user.name, count: count } if count > 0
+        end.compact.sort_by { |u| -u[:count] }
 
-          role_counts_sql = <<~SQL
-            SELECT st.assigned_role, r.name as role_name, COUNT(*) as count
-            FROM sm_tasks st
-            JOIN roles r ON r.id = st.assigned_role
-            WHERE st.status IN ('not_started', 'started')
-            AND st.assigned_user_id IS NULL
-            AND st.assigned_role IS NOT NULL
-            GROUP BY st.assigned_role, r.name
-          SQL
+        # Unassigned = no user AND no role
+        unassigned_count = SmTask.active
+                                 .where(assigned_user_id: nil)
+                                 .where("assigned_role IS NULL OR assigned_role = ''")
+                                 .count
 
-          unassigned_sql = <<~SQL
-            SELECT COUNT(*) as count
-            FROM sm_tasks
-            WHERE status IN ('not_started', 'started')
-            AND assigned_user_id IS NULL
-            AND assigned_role IS NULL
-          SQL
-
-          total_sql = <<~SQL
-            SELECT COUNT(*) as count
-            FROM sm_tasks
-            WHERE status IN ('not_started', 'started')
-          SQL
-
-          # Use select_all for proper type casting (returns ActiveRecord::Result)
-          counts_result = conn.select_all(counts_sql)
-          counts_by_user = parse_user_counts(counts_result)
-
-          role_counts_result = conn.select_all(role_counts_sql)
-          counts_by_role = parse_role_counts(role_counts_result)
-
-          unassigned_count = conn.select_value(unassigned_sql).to_i
-          total_count = conn.select_value(total_sql).to_i
-        else
-          # Non-admins: use direct SQL with visibility filtering
-          user_id = current_user.id
-
-          counts_sql = <<~SQL
-            SELECT assigned_user_id, COUNT(*) as count
-            FROM sm_tasks
-            WHERE status IN ('not_started', 'started')
-            AND assigned_user_id IS NOT NULL
-            AND (
-              (is_private = false OR is_private IS NULL)
-              OR (is_private = true AND created_by_id = #{conn.quote(user_id)})
-              OR (is_private = true AND id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{conn.quote(user_id)}))
-              OR assigned_user_id = #{conn.quote(user_id)}
-            )
-            GROUP BY assigned_user_id
-          SQL
-
-          role_counts_sql = <<~SQL
-            SELECT st.assigned_role, r.name as role_name, COUNT(*) as count
-            FROM sm_tasks st
-            JOIN roles r ON r.id = st.assigned_role
-            WHERE st.status IN ('not_started', 'started')
-            AND st.assigned_user_id IS NULL
-            AND st.assigned_role IS NOT NULL
-            AND (
-              (st.is_private = false OR st.is_private IS NULL)
-              OR (st.is_private = true AND st.created_by_id = #{conn.quote(user_id)})
-              OR (st.is_private = true AND st.id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{conn.quote(user_id)}))
-            )
-            GROUP BY st.assigned_role, r.name
-          SQL
-
-          unassigned_sql = <<~SQL
-            SELECT COUNT(*) as count
-            FROM sm_tasks
-            WHERE status IN ('not_started', 'started')
-            AND assigned_user_id IS NULL
-            AND assigned_role IS NULL
-            AND (
-              (is_private = false OR is_private IS NULL)
-              OR (is_private = true AND created_by_id = #{conn.quote(user_id)})
-              OR (is_private = true AND id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{conn.quote(user_id)}))
-            )
-          SQL
-
-          total_sql = <<~SQL
-            SELECT COUNT(*) as count
-            FROM sm_tasks
-            WHERE status IN ('not_started', 'started')
-            AND (
-              (is_private = false OR is_private IS NULL)
-              OR (is_private = true AND created_by_id = #{conn.quote(user_id)})
-              OR (is_private = true AND id IN (SELECT sm_task_id FROM task_followers WHERE user_id = #{conn.quote(user_id)}))
-              OR assigned_user_id = #{conn.quote(user_id)}
-            )
-          SQL
-
-          # Use select_all for proper type casting (returns ActiveRecord::Result)
-          counts_result = conn.select_all(counts_sql)
-          counts_by_user = parse_user_counts(counts_result)
-
-          role_counts_result = conn.select_all(role_counts_sql)
-          counts_by_role = parse_role_counts(role_counts_result)
-
-          unassigned_count = conn.select_value(unassigned_sql).to_i
-          total_count = conn.select_value(total_sql).to_i
-        end
-
-        # Build response with user names
-        users = counts_by_user.keys.any? ? User.where(id: counts_by_user.keys).index_by(&:id) : {}
+        # Total active tasks
+        total_count = SmTask.active.count
 
         render json: {
           success: true,
-          users: counts_by_user.map { |user_id, count|
-            user = users[user_id]
-            { id: user_id, name: user&.name || "Unknown", count: count }
-          }.sort_by { |u| -u[:count] },
-          roles: counts_by_role.map { |role_id, data|
-            { id: role_id, name: data[:name].titleize.gsub("_", " "), count: data[:count] }
-          }.sort_by { |r| -r[:count] },
+          users: user_counts,
           unassigned: unassigned_count,
           total: total_count
         }

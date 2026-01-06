@@ -261,16 +261,49 @@ class SmTask < ApplicationRecord
   scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
   scope :past_due, -> { where("start_date < ?", Date.current).active }
   scope :for_role, ->(role) { where(assigned_role: role) }
-  # Show tasks assigned directly to user OR assigned to user's roles
+
+  # Show tasks the user can work on based on role assignment rules:
+  # 1. Direct assignment (assigned_user_id = user)
+  # 2. Job-specific roles: user is in Internal Team for that job+role (via JobContact)
+  # 3. Department roles: all users with role see all tasks (not job-specific)
+  # 4. Fallback: job-specific role with no one assigned on that job
   scope :for_user_roles, ->(user) {
     return none unless user.present?
 
-    conditions = []
-    conditions << where(assigned_user_id: user.id) if user.id.present?
-    conditions << where(assigned_role: user.assigned_roles) if user.assigned_roles.present?
+    user_roles = user.assigned_roles || []
+    return where(assigned_user_id: user.id) if user_roles.empty?
 
-    return none if conditions.empty?
-    conditions.reduce(:or)
+    # 1. Direct assignment
+    direct = where(assigned_user_id: user.id)
+
+    # 2. Job-specific roles (user is in Internal Team for that job+role)
+    job_assignments = JobContact.where(user_id: user.id, role: JobContact::INTERNAL_ROLES)
+    job_conditions = job_assignments.map do |jc|
+      where(construction_id: jc.job_id, assigned_role: jc.role, assigned_user_id: nil)
+    end
+    job_specific = job_conditions.any? ? job_conditions.reduce(:or) : none
+
+    # 3. Department roles (all users with role see all tasks globally)
+    dept_roles = user_roles - JobContact::INTERNAL_ROLES
+    department = dept_roles.any? ? where(assigned_role: dept_roles, assigned_user_id: nil) : none
+
+    # 4. Fallback for job-specific roles: tasks where role is INTERNAL but
+    #    no JobContact exists for that job+role, and user has that role globally
+    internal_user_roles = user_roles & JobContact::INTERNAL_ROLES
+    if internal_user_roles.any?
+      # Find tasks with internal roles that have no JobContact assignment
+      fallback_conditions = internal_user_roles.map do |role|
+        # Jobs where someone IS assigned to this role
+        assigned_job_ids = JobContact.where(role: role).where.not(user_id: nil).pluck(:job_id)
+        # Tasks for this role on jobs where NO ONE is assigned
+        where(assigned_role: role, assigned_user_id: nil).where.not(construction_id: assigned_job_ids)
+      end
+      fallback = fallback_conditions.reduce(:or)
+    else
+      fallback = none
+    end
+
+    direct.or(job_specific).or(department).or(fallback)
   }
   scope :recurring, -> { where(source_type: 'recurring') }
   scope :manual, -> { where(source_type: 'manual') }

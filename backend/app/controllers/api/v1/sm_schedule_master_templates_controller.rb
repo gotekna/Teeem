@@ -31,8 +31,20 @@ module Api
       # GET /api/v1/sm_schedule_master_templates/:id/gantt_data
       # SSoT: Returns Gantt-formatted data with dependencies converted to row.id format
       # This is THE SINGLE place that converts task_number references to row.id
+      # Use ?show_all_po=true to show all PO required tasks (useful for template editing)
       def gantt_data
-        records = @template.sm_schedule_master_rows.in_sequence.includes(:po_supplier)
+        records = @template.sm_schedule_master_rows.in_sequence.includes(:po_supplier).to_a
+        puts "[gantt_data] Template: #{@template.name}, Total records: #{records.count}, show_all_po param: '#{params[:show_all_po]}', all params: #{params.to_unsafe_h.inspect}"
+
+        # Filter out PO-required tasks without a supplier configured (unless show_all_po=true)
+        # This ensures incomplete PO tasks don't clutter the Gantt view
+        unless params[:show_all_po] == "true"
+          before_count = records.count
+          records = records.reject { |r| r.po_required && r.po_supplier_id.blank? }
+          puts "[gantt_data] Filtered PO tasks: #{before_count} -> #{records.count}"
+        else
+          puts "[gantt_data] show_all_po=true, NOT filtering"
+        end
 
         # Calculate dates from dependencies for sorting (templates don't have stored dates)
         date_overrides = calculate_template_date_map(records)
