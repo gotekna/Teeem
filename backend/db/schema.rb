@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_06_005445) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_06_012742) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7832,6 +7832,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_06_005445) do
     t.index ["transfer_date"], name: "index_share_transfers_on_transfer_date"
   end
 
+  create_table "signature_usages", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "document_type_id"
+    t.bigint "job_id"
+    t.bigint "job_document_id"
+    t.datetime "signed_at", null: false
+    t.string "certificate_type"
+    t.string "document_name"
+    t.string "purpose"
+    t.string "ip_address"
+    t.string "user_agent"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["certificate_type"], name: "index_signature_usages_on_certificate_type"
+    t.index ["document_type_id"], name: "index_signature_usages_on_document_type_id"
+    t.index ["job_document_id"], name: "index_signature_usages_on_job_document_id"
+    t.index ["job_id"], name: "index_signature_usages_on_job_id"
+    t.index ["signed_at"], name: "index_signature_usages_on_signed_at"
+    t.index ["user_id", "signed_at"], name: "index_signature_usages_on_user_id_and_signed_at"
+    t.index ["user_id"], name: "index_signature_usages_on_user_id"
+  end
+
   create_table "site_presence_sessions", force: :cascade do |t|
     t.bigint "worker_profile_id", null: false
     t.bigint "job_id", null: false
@@ -10461,6 +10483,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_06_005445) do
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
+  add_foreign_key "signature_usages", "document_types"
+  add_foreign_key "signature_usages", "job_documents"
+  add_foreign_key "signature_usages", "jobs"
+  add_foreign_key "signature_usages", "users"
   add_foreign_key "site_presence_sessions", "cost_centres"
   add_foreign_key "site_presence_sessions", "jobs"
   add_foreign_key "site_presence_sessions", "sm_task_photos", column: "checkin_photo_id", on_delete: :nullify

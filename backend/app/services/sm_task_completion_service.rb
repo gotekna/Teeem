@@ -232,6 +232,17 @@ class SmTaskCompletionService
 
     job_document.save!
 
+    # Record signature usage in digital register
+    SignatureUsage.record!(
+      user: supervisor,
+      certificate_type: document_type.certificate_template,
+      document_name: result[:filename],
+      purpose: "#{document_type.certificate_template_display} - #{document_type.name}",
+      document_type: document_type,
+      job: job,
+      job_document: job_document
+    )
+
     Rails.logger.info("[SmTaskCompletionService] Generated certificate: #{result[:filename]} for job #{job.id} (document #{job_document.id})")
   end
 

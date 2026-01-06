@@ -264,6 +264,7 @@ type ColumnStatus = {
 const COLUMN_STATUS_KEY = "sm_column_status";
 
 export function ScheduleMasterTab() {
+  console.log("[ScheduleMasterTab] Component mounted - v2 with document types");
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();

@@ -24,6 +24,9 @@ class User < ApplicationRecord
   # Digital signature for certificates (Form 43, contracts, etc.)
   has_one_attached :signature
 
+  # Signature usage register - tracks every time signature is used
+  has_many :signature_usages, dependent: :destroy
+
   # Multi-role support (SSoT: user_roles join table)
   has_many :user_roles, dependent: :destroy
   has_many :roles, through: :user_roles

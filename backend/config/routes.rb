@@ -937,6 +937,17 @@ Rails.application.routes.draw do
           post :bulk_delete
           get :for_select
         end
+        member do
+          get :signature_usages, to: "signature_usages#user_history"
+        end
+      end
+
+      # Digital Signature Register
+      resources :signature_usages, only: [:index] do
+        collection do
+          get :my_history
+          get :certificate_types
+        end
       end
 
       # User groups management

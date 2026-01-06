@@ -102,6 +102,18 @@ class DocumentType < ApplicationRecord
     generates_certificate == true
   end
 
+  # Human-readable name for certificate template
+  def certificate_template_display
+    case certificate_template
+    when "form_43"
+      "Form 43 - Aspect Certificate"
+    when "form_16"
+      "Form 16 - Final Inspection Certificate"
+    else
+      certificate_template&.titleize || "Certificate"
+    end
+  end
+
   # Resolve form number based on dwelling type using the configured mapping
   # Returns the mapped value, or first mapping as fallback if dwelling type not found
   # Example mapping: { "Class 1A" => "Form 15", "Class 10" => "Form 21" }
