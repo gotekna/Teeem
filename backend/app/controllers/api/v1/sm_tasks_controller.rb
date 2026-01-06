@@ -60,9 +60,9 @@ module Api
       # Each user's count = tasks they can work on (direct + job role + dept role + fallback)
       def user_counts
         # Get users who have assigned_roles (can be assigned to tasks)
+        # Note: User model doesn't have 'active' column - all users with roles are included
         users_with_roles = User.where.not(assigned_roles: [])
                                .where.not(assigned_roles: nil)
-                               .where(active: true)
 
         # Count tasks for each user using for_user_roles scope
         user_counts = users_with_roles.map do |user|
@@ -71,9 +71,9 @@ module Api
         end.compact.sort_by { |u| -u[:count] }
 
         # Unassigned = no user AND no role
+        # Note: assigned_role is an integer column, so just check for NULL
         unassigned_count = SmTask.active
-                                 .where(assigned_user_id: nil)
-                                 .where("assigned_role IS NULL OR assigned_role = ''")
+                                 .where(assigned_user_id: nil, assigned_role: nil)
                                  .count
 
         # Total active tasks
