@@ -72,7 +72,7 @@ module Api
             FROM sm_tasks
             WHERE status IN ('not_started', 'started')
             AND assigned_user_id IS NULL
-            AND (assigned_role IS NULL OR assigned_role = '')
+            AND assigned_role IS NULL
           SQL
 
           total_sql = <<~SQL
@@ -110,7 +110,7 @@ module Api
             FROM sm_tasks
             WHERE status IN ('not_started', 'started')
             AND assigned_user_id IS NULL
-            AND (assigned_role IS NULL OR assigned_role = '')
+            AND assigned_role IS NULL
             AND (
               (is_private = false OR is_private IS NULL)
               OR (is_private = true AND created_by_id = #{conn.quote(user_id)})
