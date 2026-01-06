@@ -184,6 +184,7 @@ interface SmScheduleMaster {
   checklist_id?: number | { id: number; display: string } | null;
   linked_po_task_id?: number | { id: number; display: string } | null;
   spawn_scan_task_id?: number | { id: number; display: string } | null;
+  spawn_scan_lag_days?: number;
   // Document types for GET task spawning (SSoT: via sm_schedule_master_document_types join table)
   document_types?: Array<{
     id: number;
@@ -3353,7 +3354,6 @@ export function ScheduleMasterTab() {
                       <ComboboxDropdown
                         items={availableDocumentTypes.map(dt => ({ id: String(dt.id), label: dt.display_name || dt.name }))}
                         selectedItem={(() => {
-                          // SSoT: Use document_types array from join table
                           const firstDocType = editRowForm.document_types?.[0];
                           if (!firstDocType) return undefined;
                           const docType = availableDocumentTypes.find(dt => dt.id === firstDocType.document_type_id);
@@ -3373,15 +3373,16 @@ export function ScheduleMasterTab() {
                         })}
                         placeholder="Select document type..."
                         emptyResults="No document types found"
+                        searchInTrigger={false}
                         clearable
                         onClear={() => setEditRowForm({ ...editRowForm, document_types: [] })}
                       />
                     </div>
-                    <div className="w-20">
+                    <div className="w-16">
                       <Input
                         type="number"
                         min={0}
-                        placeholder="Lag"
+                        placeholder="0"
                         title="Days after task completion before spawning document task"
                         value={editRowForm.document_types?.[0]?.lag_days || 0}
                         onChange={(e) => {
