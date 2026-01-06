@@ -276,24 +276,19 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                 <div className="space-y-2">
                   <Label htmlFor="job">Job</Label>
                   <Select
-                    value={formData.job_id}
-                    onValueChange={(value) => handleChange('job_id', value)}
+                    value={formData.job_id || '_none'}
+                    onValueChange={(value) => handleChange('job_id', value === '_none' ? '' : value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select a job" />
                     </SelectTrigger>
                     <SelectContent>
-                      {jobs.length === 0 ? (
-                        <SelectItem value="_none" disabled>
-                          No jobs available
+                      <SelectItem value="_none">No job</SelectItem>
+                      {jobs.map((job) => (
+                        <SelectItem key={job.id} value={String(job.id)}>
+                          {job.name}
                         </SelectItem>
-                      ) : (
-                        jobs.map((job) => (
-                          <SelectItem key={job.id} value={String(job.id)}>
-                            {job.name}
-                          </SelectItem>
-                        ))
-                      )}
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
