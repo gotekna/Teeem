@@ -153,9 +153,11 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
       </div>
 
       {/* Virtualized scrollable body - fills remaining flex space */}
+      {/* scrollbar-gutter: stable reserves space for scrollbar to prevent header/body misalignment */}
       <div
         ref={parentRef}
         className="overflow-auto flex-1 min-h-0"
+        style={{ scrollbarGutter: 'stable' }}
         onScroll={handleBodyScroll}
       >
         <div

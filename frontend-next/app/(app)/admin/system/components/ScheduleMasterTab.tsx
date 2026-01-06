@@ -342,7 +342,7 @@ export function ScheduleMasterTab() {
   // Gantt V2 state - template ID for selection
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
   // Show PO required tasks without suppliers (useful for template editing)
-  const [showAllPOTasks, setShowAllPOTasks] = React.useState(true);
+  const [showAllPOTasks, setShowAllPOTasks] = React.useState(false);
 
   // SSoT: Use shared hook for all Gantt V2 behavior
   // Gantt always loads its own data (same as Job Gantt) - no external data mode
@@ -1900,13 +1900,30 @@ export function ScheduleMasterTab() {
   // SSoT: loadGanttV2Data now provided by useGanttDataManager hook (see aliases above)
   // The hook's loadData is automatically triggered when ganttV2TemplateId changes
 
-  // Load Gantt V2 data when template is selected or showAllPOTasks changes
+  // Load Gantt V2 data when template is selected
   React.useEffect(() => {
     if (ganttV2TemplateId) {
-      console.log('[ScheduleMasterTab] Loading Gantt V2 data, showAllPOTasks:', showAllPOTasks);
+      console.log('[ScheduleMasterTab] Loading Gantt V2 data for template:', ganttV2TemplateId);
       gantt.loadData();
     }
-  }, [ganttV2TemplateId, showAllPOTasks, gantt.loadData]);
+  }, [ganttV2TemplateId, gantt.loadData]);
+
+  // Reload when showAllPOTasks changes (separate effect for clarity)
+  // Use ref pattern to avoid stale closure - loadData references apiConfig which includes showAllPOTasks
+  const loadDataRef = React.useRef(gantt.loadData);
+  loadDataRef.current = gantt.loadData; // Always update to latest on every render
+
+  const isFirstRenderForPOToggle = React.useRef(true);
+  React.useEffect(() => {
+    if (isFirstRenderForPOToggle.current) {
+      isFirstRenderForPOToggle.current = false;
+      return;
+    }
+    if (ganttV2TemplateId) {
+      console.log('[ScheduleMasterTab] showAllPOTasks changed to:', showAllPOTasks, '- reloading data via ref');
+      loadDataRef.current(); // Always calls latest version with correct apiConfig
+    }
+  }, [showAllPOTasks, ganttV2TemplateId]);
 
   if (loading) {
     return (
