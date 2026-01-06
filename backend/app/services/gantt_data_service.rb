@@ -331,11 +331,11 @@ class GanttDataService
   # SSoT: Sort hierarchically with 2-level nesting support
   # Structure: Level 1 Header → Level 2 Header (optional) → Tasks
   #
-  # ARCHITECTURE (per plan):
-  # - Sort TASKS only by their calculated dates
-  # - Insert each header BEFORE its first visible child
-  # - Headers are for GROUPING, not scheduling - they don't participate in sort
-  # - This makes sort order immune to filtering (deps are task→task)
+  # ARCHITECTURE:
+  # - Headers are sorted by their EFFECTIVE dates (span of children)
+  # - Effective start = min(children.start_date), Effective end = max(children.end_date)
+  # - Sort rule: [start_date, end_date (earliest first), sequence_order]
+  # - Children remain grouped under their parent headers
   def sort_hierarchically(records)
     return records if records.empty?
 
@@ -362,70 +362,94 @@ class GanttDataService
     @header_task_numbers = header_task_numbers
     @header_by_task_number = header_by_task_number
 
-    # PHASE 2: Separate tasks from headers
-    tasks_only = records.reject { |r| is_header?(r) }
-    headers_only = records.select { |r| is_header?(r) }
+    # PHASE 2: Calculate effective dates for headers
+    # Effective dates = span of ALL descendants (including through sub-headers)
+    header_effective_dates = {}
+
+    # Helper to get all descendant tasks recursively
+    get_all_descendant_tasks = lambda do |header_task_num|
+      result = []
+      children_by_parent[header_task_num].each do |child|
+        if is_header?(child)
+          # Sub-header: recurse into it
+          result.concat(get_all_descendant_tasks.call(child.task_number))
+        else
+          # Task: add it
+          result << child
+        end
+      end
+      result
+    end
+
+    header_by_task_number.each do |task_num, header|
+      descendants = get_all_descendant_tasks.call(task_num)
+      if descendants.any?
+        start_dates = descendants.map { |t| get_start_date(t) }.compact
+        end_dates = descendants.map { |t| get_end_date(t) }.compact
+        header_effective_dates[task_num] = {
+          start_date: start_dates.min,
+          end_date: end_dates.max
+        }
+      else
+        # Orphan header - use Date.new(9999) to sort at end
+        header_effective_dates[task_num] = {
+          start_date: Date.new(9999),
+          end_date: Date.new(9999)
+        }
+      end
+    end
 
     # PHASE 3: Sort key - [start_date, end_date, sequence_order]
+    # For headers: use effective dates (span of children)
+    # For tasks: use their own dates
     sort_key = lambda do |r|
-      [get_start_date(r) || Date.new(9999),
-       get_end_date(r) || Date.new(9999),
-       r.try(:sequence_order) || 0]
-    end
-
-    # PHASE 4: Build sorted result with headers inserted at first child
-    # - Tasks with headers: header inserted before first child
-    # - Orphan tasks: sorted by date in main list
-    # - Orphan headers: sorted by date in main list (no children to anchor them)
-
-    # Find orphan headers (headers with no visible children)
-    headers_with_children = Set.new
-    tasks_only.each do |t|
-      parent = get_parent_task_number(t)
-      headers_with_children.add(parent) if parent && header_task_numbers.include?(parent)
-      # Also mark grandparent headers as having children
-      if parent && header_by_task_number[parent]
-        grandparent = get_parent_task_number(header_by_task_number[parent])
-        headers_with_children.add(grandparent) if grandparent
+      if is_header?(r)
+        effective = header_effective_dates[r.task_number] || {}
+        [effective[:start_date] || Date.new(9999),
+         effective[:end_date] || Date.new(9999),
+         r.try(:sequence_order) || 0]
+      else
+        [get_start_date(r) || Date.new(9999),
+         get_end_date(r) || Date.new(9999),
+         r.try(:sequence_order) || 0]
       end
     end
 
-    orphan_headers = headers_only.reject { |h| headers_with_children.include?(h.task_number) }
+    # PHASE 4: Identify top-level items (Level 1 headers + orphan tasks)
+    # Tasks with parents will be grouped under their headers
+    level1_headers = header_by_task_number.values.select { |h| get_parent_task_number(h).nil? }
+    orphan_tasks = records.reject { |r| is_header?(r) || get_parent_task_number(r) }
 
-    # Combine tasks + orphan headers and sort together
-    all_sortable = tasks_only + orphan_headers
-    sorted_items = all_sortable.sort_by(&sort_key)
+    # Sort Level 1 headers and orphan tasks together
+    top_level_items = (level1_headers + orphan_tasks).sort_by(&sort_key)
 
-    # Helper to get full header chain (task → sub-header → header)
-    get_header_chain = lambda do |task|
-      chain = []
-      current_parent = get_parent_task_number(task)
-      while current_parent && header_by_task_number[current_parent]
-        chain.unshift(header_by_task_number[current_parent])
-        current_parent = get_parent_task_number(header_by_task_number[current_parent])
-      end
-      chain
-    end
-
-    headers_inserted = Set.new
+    # PHASE 5: Build result with children grouped under headers
     result = []
 
-    sorted_items.each do |item|
+    # Helper to recursively add header and all its children (sorted)
+    add_header_with_children = lambda do |header|
+      result << header
+      # Get direct children (could be sub-headers or tasks)
+      direct_children = children_by_parent[header.task_number]
+      # Sort children by their effective dates
+      sorted_children = direct_children.sort_by(&sort_key)
+
+      sorted_children.each do |child|
+        if is_header?(child)
+          # Sub-header: recurse
+          add_header_with_children.call(child)
+        else
+          # Task: add directly
+          result << child
+        end
+      end
+    end
+
+    top_level_items.each do |item|
       if is_header?(item)
-        # Orphan header - insert directly (no children to anchor it)
-        unless headers_inserted.include?(item.task_number)
-          result << item
-          headers_inserted.add(item.task_number)
-        end
+        add_header_with_children.call(item)
       else
-        # Task - insert its header chain first, then the task
-        header_chain = get_header_chain.call(item)
-        header_chain.each do |header|
-          unless headers_inserted.include?(header.task_number)
-            result << header
-            headers_inserted.add(header.task_number)
-          end
-        end
+        # Orphan task
         result << item
       end
     end
