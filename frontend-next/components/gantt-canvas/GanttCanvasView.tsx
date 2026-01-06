@@ -24,6 +24,7 @@ import {
   type SuccessorInfo,
 } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
+import { useAssignableRoles } from "@/hooks/useAssignableRoles";
 import { cn } from "@/lib/utils";
 import { formatDateForAPI } from "@/lib/timezone-utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -160,16 +161,8 @@ interface ColumnConfig {
   align?: 'left' | 'center' | 'right';
 }
 
-// SSoT: Roles are fetched from /api/v1/sm_settings/assignable_roles
-// This is just a fallback in case the API call fails
-const DEFAULT_ASSIGNABLE_ROLES = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'site', label: 'Site' },
-  { value: 'supervisor', label: 'Supervisor' },
-  { value: 'builder', label: 'Builder' },
-  { value: 'estimator', label: 'Estimator' },
-];
+// SSoT: Assignable roles fetched via useAssignableRoles hook
+// (Backend SSoT: User::ASSIGNABLE_ROLES)
 
 /** Default column configuration - matches preferred layout */
 const DEFAULT_COLUMNS: ColumnConfig[] = [
@@ -433,26 +426,8 @@ export function GanttCanvasView({
     manualStartDate: string | null;
   }>>(new Map());
 
-  // SSoT: Assignable roles fetched from backend
-  const [assignableRoles, setAssignableRoles] = React.useState(DEFAULT_ASSIGNABLE_ROLES);
-
-  // Fetch assignable roles from API (SSoT)
-  React.useEffect(() => {
-    const fetchRoles = async () => {
-      try {
-        const response = await api.get<{ success: boolean; assignable_roles: Array<{ value: string; label: string }> }>(
-          '/api/v1/sm_settings/assignable_roles'
-        );
-        if (response?.assignable_roles) {
-          setAssignableRoles(response.assignable_roles);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch assignable roles, using defaults:', err);
-        // Keep using DEFAULT_ASSIGNABLE_ROLES
-      }
-    };
-    fetchRoles();
-  }, []);
+  // SSoT: Assignable roles fetched via hook (backend SSoT: User::ASSIGNABLE_ROLES)
+  const { roles: assignableRoles } = useAssignableRoles();
 
   // Toggle header collapse state
   const toggleHeaderCollapse = React.useCallback((headerId: string) => {

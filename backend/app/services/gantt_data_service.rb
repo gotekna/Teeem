@@ -56,6 +56,10 @@ class GanttDataService
     # Build lookup map: task_number -> row.id
     task_num_to_row_id = build_lookup_map
 
+    # SSoT: Expand header dependencies to task dependencies BEFORE filtering
+    # This ensures inherited deps are calculated from the complete dependency graph
+    @inherited_deps = expand_header_dependencies(@records)
+
     # Filter invisible tasks if requested (po_required without PO)
     visible_records, invisible_ids = filter_records
 
@@ -107,6 +111,72 @@ class GanttDataService
     end
 
     [visible_records, invisible_ids]
+  end
+
+  # SSoT: Expand header dependencies to task dependencies
+  # When a header depends on another header, all tasks under the first header
+  # inherit ALL tasks under the second header as predecessors.
+  #
+  # Supports 2-level nesting:
+  # - Level 1 header can depend on Level 1 header
+  # - Level 2 sub-header can depend on Level 2 sub-header or Level 1 header
+  # - Tasks inherit from their parent header AND grandparent header
+  #
+  # Returns: Hash of record.id => [inherited_predecessor_task_numbers]
+  def expand_header_dependencies(records)
+    headers = records.select { |r| is_header?(r) }
+    header_by_task_num = headers.index_by(&:task_number)
+
+    # Build parent→children map
+    children_by_parent = Hash.new { |h, k| h[k] = [] }
+    records.each { |r| children_by_parent[get_parent_task_number(r)] << r }
+
+    # Helper: Get ALL tasks under a header (recursively into sub-headers)
+    get_all_tasks_under = lambda do |header_task_num|
+      result = []
+      children_by_parent[header_task_num].each do |child|
+        if is_header?(child)
+          # Sub-header: recurse into it
+          result.concat(get_all_tasks_under.call(child.task_number))
+        else
+          # Task: add it
+          result << child.task_number
+        end
+      end
+      result
+    end
+
+    inherited_deps = {}
+
+    records.each do |record|
+      next if is_header?(record)
+
+      inherited = []
+
+      # Walk up the header chain (task → sub-header → header)
+      current_parent = get_parent_task_number(record)
+      while current_parent
+        parent_header = header_by_task_num[current_parent]
+        break unless parent_header
+
+        # Get this header's dependencies on other headers
+        (parent_header.predecessor_ids || []).each do |pred|
+          pred_task_num = (pred["id"] || pred[:id]).to_i
+          pred_header = header_by_task_num[pred_task_num]
+          next unless pred_header
+
+          # Inherit ALL tasks under the predecessor header (recursive)
+          inherited.concat(get_all_tasks_under.call(pred_task_num))
+        end
+
+        # Move up to parent's parent (for sub-header → header chain)
+        current_parent = get_parent_task_number(parent_header)
+      end
+
+      inherited_deps[record.id] = inherited.uniq if inherited.any?
+    end
+
+    inherited_deps
   end
 
   # Build dependencies array with row.id references
@@ -228,6 +298,9 @@ class GanttDataService
       dependency_broken: record.try(:dependency_broken) || false,
       # Include predecessor_ids for frontend display (task_number format)
       predecessor_ids: record.predecessor_ids || [],
+      # SSoT: Inherited predecessors from header dependencies (calculated by backend)
+      # Frontend reads this, does NOT calculate - single source of truth
+      inherited_predecessor_ids: @inherited_deps&.dig(record.id) || [],
       # PO-related fields
       po_required: record.po_required || false,
       supplier_id: record.try(:supplier_id) || record.try(:po_supplier_id),
@@ -255,24 +328,22 @@ class GanttDataService
     date.respond_to?(:strftime) ? date.strftime("%Y-%m-%d") : date.to_s
   end
 
-  # SSoT: Sort hierarchically with 2-level nesting support (ULTRA single-pass architecture)
+  # SSoT: Sort hierarchically with 2-level nesting support
   # Structure: Level 1 Header → Level 2 Header (optional) → Tasks
-  # ALL rows sorted by start_date for intuitive Gantt display
   #
-  # ULTRA ARCHITECTURE:
-  # - ONE sort key function used everywhere
-  # - Sort ALL top-level items together (headers + standalone tasks)
-  # - Expand headers in place (keeps related items adjacent)
-  # - This prevents headers from being inserted between unrelated tasks
+  # ARCHITECTURE (per plan):
+  # - Sort TASKS only by their calculated dates
+  # - Insert each header BEFORE its first visible child
+  # - Headers are for GROUPING, not scheduling - they don't participate in sort
+  # - This makes sort order immune to filtering (deps are task→task)
   def sort_hierarchically(records)
     return records if records.empty?
 
-    # PHASE 1: Build hierarchy maps (no sorting yet)
+    # PHASE 1: Build hierarchy maps
     header_task_numbers = Set.new
     header_by_task_number = {}
     children_by_parent = Hash.new { |h, k| h[k] = [] }
 
-    # Identify all headers
     records.each do |r|
       if is_header?(r)
         header_task_numbers.add(r.task_number)
@@ -280,7 +351,6 @@ class GanttDataService
       end
     end
 
-    # Group records by their parent
     records.each do |r|
       parent_num = get_parent_task_number(r)
       if parent_num && header_task_numbers.include?(parent_num)
@@ -288,83 +358,74 @@ class GanttDataService
       end
     end
 
-    # Store header maps for nesting_level calculation (used by task_to_gantt_format)
+    # Store for nesting_level calculation
     @header_task_numbers = header_task_numbers
     @header_by_task_number = header_by_task_number
 
-    # PHASE 2: Calculate effective dates for headers (bottom-up)
-    # Level 2 headers first, then Level 1 headers
-    header_effective_dates = {}
+    # PHASE 2: Separate tasks from headers
+    tasks_only = records.reject { |r| is_header?(r) }
+    headers_only = records.select { |r| is_header?(r) }
 
-    # Identify Level 1 vs Level 2 headers
-    level1_headers = []
-    level2_headers = []
-    header_by_task_number.each_value do |header|
-      parent_num = get_parent_task_number(header)
-      if parent_num.nil?
-        level1_headers << header
-      else
-        level2_headers << header
-      end
-    end
-
-    # SSoT: Use date_overrides for ALL headers (calculated from complete dependency graph)
-    # This ensures sort order is preserved even when tasks are filtered out
-    # The date_overrides were calculated from ALL records before any filtering
-    (level2_headers + level1_headers).each do |header|
-      header_effective_dates[header.task_number] = {
-        start: get_start_date(header) || Date.new(9999),
-        end: get_end_date(header) || Date.new(9999)
-      }
-    end
-
-    # PHASE 3: SSoT sort key function - ONE definition used everywhere
+    # PHASE 3: Sort key - [start_date, end_date, sequence_order]
     sort_key = lambda do |r|
-      if is_header?(r) && header_effective_dates[r.task_number]
-        [header_effective_dates[r.task_number][:start],
-         header_effective_dates[r.task_number][:end],
-         r.try(:sequence_order) || 0]
-      else
-        [get_start_date(r) || Date.new(9999),
-         get_end_date(r) || Date.new(9999),
-         r.try(:sequence_order) || 0]
+      [get_start_date(r) || Date.new(9999),
+       get_end_date(r) || Date.new(9999),
+       r.try(:sequence_order) || 0]
+    end
+
+    # PHASE 4: Build sorted result with headers inserted at first child
+    # - Tasks with headers: header inserted before first child
+    # - Orphan tasks: sorted by date in main list
+    # - Orphan headers: sorted by date in main list (no children to anchor them)
+
+    # Find orphan headers (headers with no visible children)
+    headers_with_children = Set.new
+    tasks_only.each do |t|
+      parent = get_parent_task_number(t)
+      headers_with_children.add(parent) if parent && header_task_numbers.include?(parent)
+      # Also mark grandparent headers as having children
+      if parent && header_by_task_number[parent]
+        grandparent = get_parent_task_number(header_by_task_number[parent])
+        headers_with_children.add(grandparent) if grandparent
       end
     end
 
-    # PHASE 4: Identify top-level items (Level 1 headers + standalone tasks)
-    # Key insight: Sort headers and standalone tasks TOGETHER, then expand headers in place
-    top_level_items = records.select do |r|
-      # Top-level = no header parent
-      parent_num = get_parent_task_number(r)
-      parent_num.nil? || !header_task_numbers.include?(parent_num)
-    end
+    orphan_headers = headers_only.reject { |h| headers_with_children.include?(h.task_number) }
 
-    # Sort top-level items by the unified sort key
-    sorted_top_level = top_level_items.sort_by(&sort_key)
+    # Combine tasks + orphan headers and sort together
+    all_sortable = tasks_only + orphan_headers
+    sorted_items = all_sortable.sort_by(&sort_key)
 
-    # PHASE 5: Expand headers in place (recursive)
-    # Sort children within each header, then flatten
-    expand_header = lambda do |header|
-      items = [header]
-      children = (children_by_parent[header.task_number] || []).sort_by(&sort_key)
-
-      children.each do |child|
-        if is_header?(child)
-          # Level 2 header - recursively expand
-          items.concat(expand_header.call(child))
-        else
-          items << child
-        end
+    # Helper to get full header chain (task → sub-header → header)
+    get_header_chain = lambda do |task|
+      chain = []
+      current_parent = get_parent_task_number(task)
+      while current_parent && header_by_task_number[current_parent]
+        chain.unshift(header_by_task_number[current_parent])
+        current_parent = get_parent_task_number(header_by_task_number[current_parent])
       end
-      items
+      chain
     end
 
-    # Build final result
+    headers_inserted = Set.new
     result = []
-    sorted_top_level.each do |item|
+
+    sorted_items.each do |item|
       if is_header?(item)
-        result.concat(expand_header.call(item))
+        # Orphan header - insert directly (no children to anchor it)
+        unless headers_inserted.include?(item.task_number)
+          result << item
+          headers_inserted.add(item.task_number)
+        end
       else
+        # Task - insert its header chain first, then the task
+        header_chain = get_header_chain.call(item)
+        header_chain.each do |header|
+          unless headers_inserted.include?(header.task_number)
+            result << header
+            headers_inserted.add(header.task_number)
+          end
+        end
         result << item
       end
     end

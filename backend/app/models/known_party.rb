@@ -3,7 +3,8 @@ class KnownParty < ApplicationRecord
 
   validates :name, presence: true
   validates :email, uniqueness: { allow_blank: true }
-  validates :default_alignment, inclusion: { in: %w[friendly neutral opposing], allow_blank: true }
+  # SSoT: CaseContact::ALIGNMENT_VALUES is the single source of truth for alignment values
+  validates :default_alignment, inclusion: { in: CaseContact::ALIGNMENT_VALUES, allow_blank: true }
 
   scope :by_email, ->(email) { where("LOWER(email) = LOWER(?)", email) if email.present? }
   scope :by_name, ->(name) { where("LOWER(name) = LOWER(?)", name) if name.present? }

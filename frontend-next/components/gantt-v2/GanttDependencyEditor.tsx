@@ -301,51 +301,34 @@ export function GanttDependencyEditor({
     return null;
   };
 
-  // Get inherited predecessors from parent headers (walk up the chain)
+  // SSoT: Read inherited predecessors from backend API (not calculated locally)
+  // Backend returns inherited_predecessor_ids as array of task_numbers
   const inheritedPredecessors = React.useMemo(() => {
     if (!task) return [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const taskRowData = task.rowData as any;
 
-    const inherited: Array<{ taskNumber: number; headerName: string; taskId: string }> = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let currentParentId = extractHeaderParent(taskRowData?.header_gantt);
+    // SSoT: Read from backend-calculated inherited_predecessor_ids
+    const inheritedTaskNumbers: number[] = taskRowData?.inherited_predecessor_ids || [];
 
-    while (currentParentId !== null) {
-      // Find the parent header by task_number
-      const parentHeader = tasks.find(t => {
+    const inherited: Array<{ taskNumber: number; headerName: string; taskId: string }> = [];
+
+    inheritedTaskNumbers.forEach((taskNum: number) => {
+      // Find the task by task_number
+      const predTask = tasks.find(t => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = t.rowData as any;
-        return r?.task_number === currentParentId;
+        return r?.task_number === taskNum;
       });
-
-      if (!parentHeader) break;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parentRowData = parentHeader.rowData as any;
-      const parentPreds = parentRowData?.predecessor_ids || [];
-
-      // Add each predecessor from this header
-      parentPreds.forEach((pred: { id: number }) => {
-        // Find the predecessor task
-        const predTask = tasks.find(t => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const r = t.rowData as any;
-          return r?.task_number === pred.id;
+      if (predTask) {
+        inherited.push({
+          taskNumber: taskNum,
+          headerName: 'Parent header',  // Simplified - backend could provide source
+          taskId: predTask.id,
         });
-        if (predTask) {
-          inherited.push({
-            taskNumber: pred.id,
-            headerName: parentRowData?.name || `Header ${parentRowData?.task_number}`,
-            taskId: predTask.id,
-          });
-        }
-      });
-
-      // Walk up to grandparent
-      currentParentId = extractHeaderParent(parentRowData?.header_gantt);
-    }
+      }
+    });
 
     return inherited;
   }, [task, tasks]);

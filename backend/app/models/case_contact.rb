@@ -15,7 +15,7 @@ class CaseContact < ApplicationRecord
     allow_blank: true
   }
   validates :alignment, inclusion: {
-    in: %w[friendly neutral opposing],
+    in: ALIGNMENT_VALUES,
     allow_blank: true
   }
 
@@ -40,7 +40,10 @@ class CaseContact < ApplicationRecord
     "related_party" => "Related Party"
   }.freeze
 
-  # Alignment - which side the contact is on
+  # SSoT: Alignment values - which side the contact is on
+  # Used by: CaseContact, KnownParty
+  ALIGNMENT_VALUES = %w[friendly neutral opposing].freeze
+
   ALIGNMENTS = {
     "friendly" => { name: "Friendly", color: "green", icon: "user-check" },
     "neutral" => { name: "Neutral", color: "gray", icon: "user" },
