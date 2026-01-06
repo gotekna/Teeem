@@ -13,6 +13,7 @@ export interface ChatMessage {
   message_type: "text" | "image" | "file";
   file_url: string | null;
   file_name: string | null;
+  sharepoint_file_id?: string | null;
   created_at: string;
   formatted_timestamp?: string;
   read_by: number[];

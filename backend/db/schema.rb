@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_06_012742) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_06_015352) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8436,6 +8436,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_06_012742) do
     t.boolean "complete_workflow_enabled", default: false
     t.bigint "complete_workflow_id"
     t.boolean "start_workflow_fired", default: false
+    t.text "email_keywords"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"

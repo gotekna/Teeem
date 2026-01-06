@@ -169,6 +169,11 @@ export default function ChatPage() {
         content: string;
         created_at: string;
         user?: { name?: string };
+        message_type?: "text" | "image" | "file";
+        file_url?: string | null;
+        file_name?: string | null;
+        sharepoint_file_id?: string | null;
+        has_file?: boolean;
       }
 
       const response = await api.get<ApiMessage[]>("/api/v1/chat_messages", { params: apiParams });
@@ -181,9 +186,10 @@ export default function ChatPage() {
         sender_name: msg.user?.name || "Unknown",
         sender_avatar: null,
         content: msg.content,
-        message_type: "text" as const,
-        file_url: null,
-        file_name: null,
+        message_type: msg.message_type || "text",
+        file_url: msg.file_url || null,
+        file_name: msg.file_name || null,
+        sharepoint_file_id: msg.sharepoint_file_id || null,
         created_at: msg.created_at,
         read_by: [msg.user_id],
         is_own: msg.user_id === user.id,
@@ -1174,13 +1180,35 @@ function MessageBubble({
           >
             {message.message_type === "image" ? (
               <div>
-                {message.file_url && (
-                  <img
-                    src={message.file_url}
-                    alt={message.file_name || "Shared image"}
-                    className="max-w-full max-h-96 object-contain"
-                  />
-                )}
+                {message.file_url ? (
+                  // Check if it's actually an image or a PDF/document
+                  message.file_name?.toLowerCase().endsWith('.pdf') ? (
+                    <a
+                      href={message.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-3 py-2 hover:underline"
+                    >
+                      <FileIcon className="h-4 w-4 shrink-0" />
+                      <span className="text-sm break-words">{message.file_name}</span>
+                    </a>
+                  ) : (
+                    <img
+                      src={message.file_url}
+                      alt={message.file_name || "Shared image"}
+                      className="max-w-full max-h-96 object-contain"
+                    />
+                  )
+                ) : message.file_name ? (
+                  // Fallback when file_url is not available yet (uploading to SharePoint)
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <FileIcon className="h-4 w-4 shrink-0" />
+                    <span className="text-sm break-words">{message.file_name}</span>
+                    {!message.sharepoint_file_id && (
+                      <span className="text-xs text-muted-foreground">(uploading...)</span>
+                    )}
+                  </div>
+                ) : null}
                 {message.content && message.content !== "[Image]" && (
                   <p className="text-sm px-3 py-2 break-words whitespace-pre-wrap">{message.content}</p>
                 )}
