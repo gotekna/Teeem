@@ -81,8 +81,9 @@ module Api
             WHERE status IN ('not_started', 'started')
           SQL
 
-          counts_result = conn.execute(counts_sql)
-          counts_by_user = counts_result.to_a.each_with_object({}) { |row, h| h[row["assigned_user_id"]] = row["count"] }
+          # Use select_all for proper type casting (returns ActiveRecord::Result)
+          counts_result = conn.select_all(counts_sql)
+          counts_by_user = parse_user_counts(counts_result)
 
           unassigned_count = conn.select_value(unassigned_sql).to_i
           total_count = conn.select_value(total_sql).to_i
@@ -129,32 +130,21 @@ module Api
             )
           SQL
 
-          counts_result = conn.execute(counts_sql)
-          counts_by_user = counts_result.to_a.each_with_object({}) { |row, h| h[row["assigned_user_id"]] = row["count"] }
+          # Use select_all for proper type casting (returns ActiveRecord::Result)
+          counts_result = conn.select_all(counts_sql)
+          counts_by_user = parse_user_counts(counts_result)
 
           unassigned_count = conn.select_value(unassigned_sql).to_i
           total_count = conn.select_value(total_sql).to_i
         end
 
         # Build response with user names
-        # Filter to only valid integer IDs to prevent PG::InvalidTextRepresentation errors
-        # This handles edge cases where the raw SQL result might contain unexpected values
-        all_keys = counts_by_user.keys
-        valid_user_ids = all_keys.select { |id| id.is_a?(Integer) && id > 0 }
-
-        # Log if we filter out any unexpected values (helps diagnose root cause)
-        invalid_keys = all_keys - valid_user_ids
-        if invalid_keys.any?
-          Rails.logger.warn "[user_counts] Filtered out invalid user IDs: #{invalid_keys.inspect} (types: #{invalid_keys.map(&:class).inspect})"
-        end
-
-        users = valid_user_ids.any? ? User.where(id: valid_user_ids).index_by(&:id) : {}
+        users = counts_by_user.keys.any? ? User.where(id: counts_by_user.keys).index_by(&:id) : {}
 
         render json: {
           success: true,
-          users: valid_user_ids.map { |user_id|
+          users: counts_by_user.map { |user_id, count|
             user = users[user_id]
-            count = counts_by_user[user_id]
             { id: user_id, name: user&.name || "Unknown", count: count }
           }.sort_by { |u| -u[:count] },
           unassigned: unassigned_count,
@@ -1205,6 +1195,25 @@ module Api
       end
 
       private
+
+      # Parse user counts from SQL result, ensuring valid integer IDs
+      # Handles edge cases where raw SQL might return unexpected values
+      def parse_user_counts(result)
+        result.to_a.each_with_object({}) do |row, hash|
+          raw_id = row["assigned_user_id"]
+          # Skip nil, empty strings, or non-numeric values
+          next if raw_id.nil? || raw_id.to_s.strip.empty?
+
+          begin
+            user_id = Integer(raw_id)
+            next if user_id <= 0
+            hash[user_id] = row["count"].to_i
+          rescue ArgumentError, TypeError
+            # Log unexpected value types for debugging
+            Rails.logger.warn "[user_counts] Skipped invalid user_id: #{raw_id.inspect} (#{raw_id.class})"
+          end
+        end
+      end
 
       # Helper to serialize TaskContact for API response
       def task_contact_to_json(tc)
