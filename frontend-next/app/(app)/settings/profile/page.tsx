@@ -9,9 +9,31 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, HardHat, Building2, LayoutGrid, PenTool, X, Check } from "lucide-react";
+import { Upload, HardHat, Building2, LayoutGrid, PenTool, X, Check, History, FileText, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
+
+// Signature usage type
+interface SignatureUsage {
+  id: number;
+  signed_at: string;
+  signed_at_formatted: string;
+  certificate_type: string;
+  certificate_type_display: string;
+  document_name: string;
+  purpose: string;
+  job?: {
+    id: number;
+    job_code: string;
+    name: string;
+    address: string;
+  };
+  document_type?: {
+    id: number;
+    name: string;
+    display_name: string;
+  };
+}
 import {
   Persona,
   PERSONA_CONFIG,
