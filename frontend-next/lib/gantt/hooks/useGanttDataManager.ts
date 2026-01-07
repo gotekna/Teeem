@@ -856,6 +856,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     if (!apiConfig) return;
     try {
       const holdDateStr = newStartDate.toISOString().split('T')[0];
+      console.log('[GanttDataManager] Executing drag move - setting hold=true, hold_date=', holdDateStr);
 
       await api.patch(
         apiConfig.updateUrl(task.id),
@@ -865,7 +866,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         })
       );
 
-      toast({ title: 'Task Moved', description: `Moved to ${newStartDate.toLocaleDateString('en-AU')}` });
+      console.log('[GanttDataManager] Drag move saved successfully');
+      toast({ title: 'Task Moved', description: `Moved to ${newStartDate.toLocaleDateString('en-AU')} (held)` });
       loadData({ silent: true });
     } catch (err) {
       console.error('[GanttDataManager] Drag move failed:', err);

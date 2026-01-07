@@ -1711,6 +1711,19 @@ export class UnifiedGanttCanvas {
             return;
           }
         }
+
+        // Check if hovering over task body (show grab cursor for movable tasks)
+        const taskAtPos = this.getTaskAtPosition(x, y);
+        if (taskAtPos) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rowData = taskAtPos.rowData as any;
+          const isLocked = rowData?.is_completed || rowData?.confirm ||
+                           rowData?.supplier_confirm || rowData?.finance_approved;
+          if (!isLocked) {
+            this.canvas.style.cursor = 'grab';
+            return;
+          }
+        }
         this.canvas.style.cursor = 'default';
       } else {
         this.canvas.style.cursor = 'default';
@@ -2445,7 +2458,7 @@ export class UnifiedGanttCanvas {
 
     const dayWidth = this.config.dayWidth * this.zoom;
     const { rowHeight, taskBarHeight, taskBarPadding, headerHeight } = this.config;
-    const edgeThreshold = 15; // Pixels near edge to trigger resize (increased for easier grabbing)
+    const edgeThreshold = 10; // Pixels near right edge to trigger resize
 
     for (let i = 0; i < this.visibleTasks.length; i++) {
       const task = this.visibleTasks[i];
@@ -2457,18 +2470,16 @@ export class UnifiedGanttCanvas {
       // Calculate task bar position
       const startX = this.tableWidth + this.daysBetween(this.startDate, task.startDate) * dayWidth - this.scrollX;
       const endX = this.tableWidth + this.daysBetween(this.startDate, task.endDate) * dayWidth + dayWidth - this.scrollX;
+      const barWidth = endX - startX;
       const barY = rowY + taskBarPadding;
 
       // Check if within Y bounds
       if (y < barY || y > barY + taskBarHeight) continue;
 
-      // Check left edge
-      if (Math.abs(x - startX) <= edgeThreshold) {
-        return { task, edge: 'left' };
-      }
-
-      // Check right edge
-      if (Math.abs(x - endX) <= edgeThreshold) {
+      // Only check right edge - duration extends into the future only
+      // For short tasks, use a smaller threshold to leave room for grab zone
+      const effectiveThreshold = barWidth < 50 ? Math.min(edgeThreshold, barWidth / 3) : edgeThreshold;
+      if (x >= endX - effectiveThreshold && x <= endX + 5) {
         return { task, edge: 'right' };
       }
     }
@@ -2508,8 +2519,9 @@ export class UnifiedGanttCanvas {
       const rowData = task.rowData as any;
       const progress = task.progress ?? rowData?.progress_percentage ?? 0;
 
-      // Only allow progress drag on tasks with progress < 100
-      if (progress >= 100) continue;
+      // Only allow progress drag on tasks with meaningful progress (> 5% and < 100%)
+      // Skip 0% progress to avoid blocking the grab zone on the left side
+      if (progress <= 5 || progress >= 100) continue;
 
       // Calculate progress handle position
       const progressWidth = barWidth * (progress / 100);
@@ -2527,6 +2539,8 @@ export class UnifiedGanttCanvas {
   /**
    * Check if mouse is over a dependency connector (circle on right edge of task bar)
    * Returns the task if on a connector, null otherwise
+   *
+   * For short tasks (1-2 days), the connector zone is reduced to avoid blocking the grab zone
    */
   private getDependencyConnectorAtPosition(x: number, y: number): GanttTask | null {
     if (y < this.config.headerHeight) return null;
@@ -2542,17 +2556,33 @@ export class UnifiedGanttCanvas {
       // Check if row is visible
       if (rowY + rowHeight < headerHeight || rowY > this.height) continue;
 
-      // Calculate connector position (center of right edge)
+      // Calculate bar dimensions
+      const startX = this.tableWidth + this.daysBetween(this.startDate, task.startDate) * dayWidth - this.scrollX;
       const endX = this.tableWidth + this.daysBetween(this.startDate, task.endDate) * dayWidth + dayWidth - this.scrollX;
+      const barWidth = endX - startX;
       const barY = rowY + taskBarPadding;
       const connectorY = barY + taskBarHeight / 2;
+
+      // For short tasks (< 50px), only trigger connector when clearly past the bar center
+      // This ensures short tasks can still be grabbed for moving
+      const minBarWidthForFullConnector = 50;
+      let hitRadius = connectorRadius + 3; // Default: 8px hit zone
+
+      if (barWidth < minBarWidthForFullConnector) {
+        // For short tasks, require being past the bar center AND close to connector
+        const barCenter = startX + barWidth / 2;
+        if (x < barCenter) {
+          continue; // Don't trigger connector when on left half of short task
+        }
+        hitRadius = connectorRadius; // Tighter hit zone: 5px
+      }
 
       // Check if within connector circle
       const dx = x - endX;
       const dy = y - connectorY;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      if (distance <= connectorRadius + 3) {
+      if (distance <= hitRadius) {
         return task;
       }
     }
