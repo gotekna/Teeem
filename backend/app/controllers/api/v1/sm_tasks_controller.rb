@@ -816,13 +816,16 @@ module Api
           # Create a CorporateCompanyDocument record
           document = CorporateCompanyDocument.create!(
             file_name: filename,
+            display_name: filename,
             file_url: upload_result[:web_url],
             file_size: content.bytesize,
             mime_type: file.content_type,
-            sharepoint_item_id: upload_result[:id],
-            sharepoint_url: upload_result[:web_url],
-            user: current_user,
-            folder: "Task Attachments"
+            sharepoint_file_id: upload_result[:id],
+            sharepoint_download_url: upload_result[:web_url],
+            document_type: "task_attachment",
+            folder: "Task Attachments",
+            filed_by: current_user&.name,
+            job_id: @task.job_id
           )
 
           # Create the attachment link
