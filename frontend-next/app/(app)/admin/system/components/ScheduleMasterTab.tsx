@@ -3924,37 +3924,74 @@ export function ScheduleMasterTab() {
                 </div>
               )}
 
-              {/* Locked successors */}
-              {cascadeDialog.lockedSuccessors.length > 0 && (
-                <div>
-                  <div className="text-[10px] font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1 mb-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                    Locked Tasks ({cascadeDialog.lockedSuccessors.length}):
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {cascadeDialog.lockedSuccessors.map((task) => {
-                      const lockType = task.supplier_confirm ? 'Supplier'
-                        : task.confirm ? 'Confirmed'
-                        : task.is_completed ? 'Done' : 'Locked';
-                      const canUnlock = !task.is_completed;
-                      const decision = lockedTaskDecisions[task.id] || 'break';
+              {/* Locked successors - hierarchical tree view */}
+              {cascadeDialog.lockedSuccessors.length > 0 && (() => {
+                // Build tree: find which locked tasks depend on other locked tasks
+                const lockedTaskNumbers = new Set(cascadeDialog.lockedSuccessors.map(t => t.task_number));
+                const movedTaskNumber = (cascadeDialog.task?.rowData as GanttSmScheduleMaster | undefined)?.task_number;
 
-                      return (
-                        <div
-                          key={task.id}
-                          className="p-1.5 rounded border bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
-                        >
-                          <div className="flex items-center gap-1 text-[10px] mb-1">
-                            <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
-                            <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
-                              task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
-                              : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                              : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                            }`}>
-                              {lockType}
-                            </span>
-                          </div>
+                // Find root locked tasks (depend directly on moved task, not on another locked task)
+                const rootLockedTasks = cascadeDialog.lockedSuccessors.filter(task => {
+                  const preds = task.predecessor_ids || [];
+                  // It's a root if it depends on the moved task OR doesn't depend on any other locked task
+                  const dependsOnMovedTask = preds.some((p: { id: number }) => p.id === movedTaskNumber);
+                  const dependsOnLockedTask = preds.some((p: { id: number }) => lockedTaskNumbers.has(p.id) && p.id !== task.task_number);
+                  return dependsOnMovedTask || !dependsOnLockedTask;
+                });
 
+                // Find children for each locked task
+                const getChildren = (parentTaskNumber: number): typeof cascadeDialog.lockedSuccessors => {
+                  return cascadeDialog.lockedSuccessors.filter(task => {
+                    const preds = task.predecessor_ids || [];
+                    return preds.some((p: { id: number }) => p.id === parentTaskNumber);
+                  });
+                };
+
+                // Check if a task's ancestor chain has any "break" decisions
+                const isDisabledByAncestor = (task: typeof cascadeDialog.lockedSuccessors[0], visited = new Set<number>()): boolean => {
+                  if (visited.has(task.id)) return false;
+                  visited.add(task.id);
+                  const preds = task.predecessor_ids || [];
+                  for (const pred of preds) {
+                    const parentTask = cascadeDialog.lockedSuccessors.find(t => t.task_number === pred.id);
+                    if (parentTask) {
+                      const parentDecision = lockedTaskDecisions[parentTask.id] || 'break';
+                      if (parentDecision === 'break') return true;
+                      if (isDisabledByAncestor(parentTask, visited)) return true;
+                    }
+                  }
+                  return false;
+                };
+
+                // Render a locked task item
+                const renderLockedTask = (task: typeof cascadeDialog.lockedSuccessors[0], depth: number) => {
+                  const lockType = task.supplier_confirm ? 'Supplier'
+                    : task.confirm ? 'Confirmed'
+                    : task.is_completed ? 'Done' : 'Locked';
+                  const canUnlock = !task.is_completed;
+                  const decision = lockedTaskDecisions[task.id] || 'break';
+                  const disabledByAncestor = isDisabledByAncestor(task);
+                  const children = getChildren(task.task_number).filter(c => c.id !== task.id);
+
+                  return (
+                    <div key={task.id} className={depth > 0 ? 'ml-4 border-l-2 border-orange-200 dark:border-orange-700 pl-2' : ''}>
+                      <div
+                        className={`p-1.5 rounded border mb-1 ${disabledByAncestor ? 'opacity-40 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}
+                      >
+                        <div className="flex items-center gap-1 text-[10px] mb-1">
+                          <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
+                          <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
+                            task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                            : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                          }`}>
+                            {lockType}
+                          </span>
+                        </div>
+
+                        {disabledByAncestor ? (
+                          <div className="text-[9px] text-gray-500 italic">Parent task set to break - won&apos;t be affected</div>
+                        ) : (
                           <div className="flex gap-1">
                             <label className={`flex items-center gap-1 cursor-pointer px-1.5 py-0.5 rounded flex-1 border ${decision === 'break' ? 'bg-red-100 dark:bg-red-900/50 border-red-300 dark:border-red-700' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'}`}>
                               <input
@@ -3991,16 +4028,30 @@ export function ScheduleMasterTab() {
                                 </span>
                               </div>
                               {canUnlock && decision === 'cascade' && (
-                                <span className="text-[8px] text-orange-600 dark:text-orange-400 ml-4">will unconfirm and cascade as per dependencies</span>
+                                <span className="text-[8px] text-orange-600 dark:text-orange-400 ml-4">will unconfirm and cascade</span>
                               )}
                             </label>
                           </div>
-                        </div>
-                      );
-                    })}
+                        )}
+                      </div>
+                      {/* Render children recursively */}
+                      {children.length > 0 && children.map(child => renderLockedTask(child, depth + 1))}
+                    </div>
+                  );
+                };
+
+                return (
+                  <div>
+                    <div className="text-[10px] font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1 mb-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                      Locked Tasks ({cascadeDialog.lockedSuccessors.length}):
+                    </div>
+                    <div className="space-y-1">
+                      {rootLockedTasks.map(task => renderLockedTask(task, 0))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Legend */}
