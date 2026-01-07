@@ -498,6 +498,7 @@ export function ScheduleMasterTab() {
   const [claimInvoiceTemplates, setClaimInvoiceTemplates] = React.useState<ClaimInvoiceTemplate[]>([]);
   const [templatePreviewHtml, setTemplatePreviewHtml] = React.useState<string | null>(null);
   const [loadingTemplatePreview, setLoadingTemplatePreview] = React.useState(false);
+  const [showFullPreview, setShowFullPreview] = React.useState(false);
   // SSoT: Trading names for claim invoices (from Foundation trading_names)
   const [tradingNames, setTradingNames] = React.useState<TradingName[]>([]);
 
@@ -1032,13 +1033,24 @@ export function ScheduleMasterTab() {
       return { success: false, error: "No template selected" };
     }
     try {
-      await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${rowId}`, {
-        row: { [field]: value },
-      });
+      // Special case: -1 means "no template" - update directly via Foundation API
+      if (dataViewTemplateId === -1) {
+        await api.patch(`/api/v1/foundations/sm-schedule-master/records/${rowId}`, {
+          record: { [field]: value },
+        });
+      } else {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${rowId}`, {
+          row: { [field]: value },
+        });
+      }
       // SSoT: Refresh TeeemTableView (primary data display via Foundation API)
       setDataViewRefreshKey(prev => prev + 1);
-      // Also refresh predecessor selector list (secondary use)
-      loadDataViewRows(dataViewTemplateId);
+      // Also refresh predecessor selector list (secondary use) - skip for "no template" view
+      if (dataViewTemplateId !== -1) {
+        loadDataViewRows(dataViewTemplateId);
+      }
+      // Refresh no-template count in case template was added/removed
+      loadNoTemplateCount();
       return { success: true };
     } catch (error) {
       console.error("Failed to update row:", error);
@@ -3600,30 +3612,13 @@ export function ScheduleMasterTab() {
                           )}
                         </div>
 
-                        {/* Template Preview */}
-                        {editRowForm.claim_invoice_template_id && (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs">Preview</Label>
-                              {loadingTemplatePreview && <Spinner size={14} />}
-                            </div>
-                            {templatePreviewHtml && !loadingTemplatePreview && (
-                              <div
-                                className="border rounded-lg bg-white overflow-hidden max-h-[300px] overflow-y-auto"
-                                style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "auto" }}
-                              >
-                                <div dangerouslySetInnerHTML={{ __html: templatePreviewHtml }} />
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Column 2: Classification */}
+              {/* Column 2: Classification + Invoice Preview */}
               <div className="space-y-3">
                 <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Classification</h4>
                 <div className="space-y-1">
@@ -3650,6 +3645,32 @@ export function ScheduleMasterTab() {
                     onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
                   />
                 </div>
+
+                {/* Invoice Template Preview - shown when claim task has template selected */}
+                {editRowForm.is_claim_task && editRowForm.claim_invoice_template_id && (
+                  <div className="pt-3 border-t space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Invoice Preview</Label>
+                      {loadingTemplatePreview && <Spinner size={14} />}
+                    </div>
+                    {templatePreviewHtml && !loadingTemplatePreview && (
+                      <div
+                        className="border rounded-lg bg-white overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                        style={{ height: "280px", overflow: "hidden" }}
+                        onDoubleClick={() => setShowFullPreview(true)}
+                        title="Double-click for full size"
+                      >
+                        <div
+                          style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "286%", pointerEvents: "none" }}
+                          dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
+                        />
+                      </div>
+                    )}
+                    {templatePreviewHtml && !loadingTemplatePreview && (
+                      <p className="text-[10px] text-muted-foreground text-center">Double-click to enlarge</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Column 3: Relationships & Header */}
@@ -4014,6 +4035,25 @@ export function ScheduleMasterTab() {
                     </p>
                   }
                 />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Full-Size Invoice Preview Dialog */}
+      <Dialog open={showFullPreview} onOpenChange={setShowFullPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 py-4 border-b">
+            <DialogTitle>Invoice Preview</DialogTitle>
+            <DialogDescription>
+              {editRowForm.name} • {editRowForm.claim_percentage}% of contract
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-6 bg-gray-100 dark:bg-gray-900">
+            {templatePreviewHtml && (
+              <div className="bg-white rounded-lg shadow-lg mx-auto" style={{ maxWidth: "800px" }}>
+                <div dangerouslySetInnerHTML={{ __html: templatePreviewHtml }} />
               </div>
             )}
           </div>
