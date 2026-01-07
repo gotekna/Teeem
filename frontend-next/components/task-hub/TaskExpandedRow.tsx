@@ -95,6 +95,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     addFollower,
     removeFollower,
     deleteTask,
+    refresh,
   } = useTaskHub();
 
   const [loading, setLoading] = useState<string | null>(null);
@@ -416,7 +417,14 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const handleJobChange = async (jobId: number | null) => {
     setLoading('job');
     try {
-      await updateTask(task.id, { job_id: jobId });
+      // Call API with job_id (backend expects job_id)
+      await api.patch(`/api/v1/sm_tasks/${task.id}`, {
+        sm_task: { job_id: jobId }
+      });
+      // Refresh to get updated data from server (includes job_name)
+      await refresh();
+    } catch (err) {
+      console.error('Failed to update job:', err);
     } finally {
       setLoading(null);
     }
