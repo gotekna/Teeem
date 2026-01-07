@@ -240,15 +240,10 @@ class SmTask < ApplicationRecord
     followed_by?(user)
   end
 
-  # Check if user can manage (add action items, toggle privacy) this task
-  # Allowed: admin, creator, assigned user, or follower
+  # Check if user can manage (add action items, etc.) this task
+  # Simple rule: if you can see it, you can edit it
   def manageable_by?(user)
-    return false if user.nil?
-    return true if user.admin?
-    return true if created_by_id == user.id
-    return true if assigned_user_id == user.id
-    return true if followed_by?(user)
-    false
+    visible_to?(user)
   end
 
   # Get the user who last assigned this task to someone
