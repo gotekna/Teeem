@@ -560,7 +560,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     }
 
     try {
-      const holdDateStr = previousState.holdDate || previousState.startDate.toISOString().split('T')[0];
+      // Format date in local timezone (not UTC) to avoid day shift
+      const dateForHold = previousState.startDate;
+      const fallbackHoldDate = `${dateForHold.getFullYear()}-${String(dateForHold.getMonth() + 1).padStart(2, '0')}-${String(dateForHold.getDate()).padStart(2, '0')}`;
+      const holdDateStr = previousState.holdDate || fallbackHoldDate;
 
       await api.patch(
         apiConfig.updateUrl(selectedTaskId),
@@ -700,9 +703,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const task = tasks.find(t => t.id === taskId);
       const updateData: Record<string, unknown> = { [apiField]: checked };
 
-      // Lock position when confirming
+      // Lock position when confirming - format in local timezone to avoid day shift
       if (checked && task?.startDate) {
-        updateData.hold_date = task.startDate.toISOString().split('T')[0];
+        const d = task.startDate;
+        updateData.hold_date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       }
 
       await api.patch(
@@ -732,7 +736,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     if (!row) return;
 
     const dateToUse = startDate || new Date();
-    const dateStr = dateToUse.toISOString().split('T')[0];
+    // Format date in local timezone (not UTC) to avoid day shift
+    const dateStr = `${dateToUse.getFullYear()}-${String(dateToUse.getMonth() + 1).padStart(2, '0')}-${String(dateToUse.getDate()).padStart(2, '0')}`;
 
     try {
       const updateData: Record<string, unknown> = {
@@ -855,7 +860,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   const executeDragMove = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
     if (!apiConfig) return;
     try {
-      const holdDateStr = newStartDate.toISOString().split('T')[0];
+      // Format date in local timezone (not UTC) to avoid day shift
+      const year = newStartDate.getFullYear();
+      const month = String(newStartDate.getMonth() + 1).padStart(2, '0');
+      const day = String(newStartDate.getDate()).padStart(2, '0');
+      const holdDateStr = `${year}-${month}-${day}`;
       console.log('[GanttDataManager] Executing drag move - setting hold=true, hold_date=', holdDateStr);
 
       await api.patch(

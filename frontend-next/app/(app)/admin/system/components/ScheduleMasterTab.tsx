@@ -3966,7 +3966,7 @@ export function ScheduleMasterTab() {
 
                             <label
                               className={`flex flex-col px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}
-                              title={canUnlock ? `Will remove ${lockType.toLowerCase()} confirmation and cascade` : 'Completed tasks cannot be cascaded'}
+                              title={canUnlock ? `Will remove ${lockType.toLowerCase()} confirmation and cascade as per dependencies` : 'Completed tasks cannot be cascaded'}
                             >
                               <div className="flex items-center gap-1">
                                 <input
@@ -3980,10 +3980,12 @@ export function ScheduleMasterTab() {
                                     }
                                   }}
                                 />
-                                <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>Cascade</span>
+                                <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>
+                                  {lockType === 'Supplier' ? 'Un-Supplier Confirm' : lockType === 'Confirmed' ? 'Un-Confirm' : 'Cascade'}
+                                </span>
                               </div>
                               {canUnlock && decision === 'cascade' && (
-                                <span className="text-[8px] text-orange-600 dark:text-orange-400 ml-4">will unconfirm</span>
+                                <span className="text-[8px] text-orange-600 dark:text-orange-400 ml-4">will unconfirm and cascade as per dependencies</span>
                               )}
                             </label>
                           </div>
