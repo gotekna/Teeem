@@ -396,21 +396,40 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Assign To</Label>
-                    {isAssignedToOther && (
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="follow"
-                          checked={formData.follow}
-                          onCheckedChange={(checked) => handleChange('follow', checked === true)}
-                        />
-                        <Label
-                          htmlFor="follow"
-                          className="text-sm font-medium leading-none cursor-pointer"
-                        >
-                          Follow
-                        </Label>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {isAssignedToOther && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                assigned_user_id: String(currentUser?.id || ''),
+                                assigned_role: '',
+                              }));
+                            }}
+                          >
+                            Assign to me
+                          </Button>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="follow"
+                              checked={formData.follow}
+                              onCheckedChange={(checked) => handleChange('follow', checked === true)}
+                            />
+                            <Label
+                              htmlFor="follow"
+                              className="text-sm font-medium leading-none cursor-pointer"
+                            >
+                              Follow
+                            </Label>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <TaskAssignmentField
                     users={users}
@@ -542,14 +561,14 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
                 {/* Visible To (only shown when Private is checked) */}
                 {formData.is_private && (
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1">
-                      <Eye className="h-3.5 w-3.5" />
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-1 text-xs">
+                      <Eye className="h-3 w-3" />
                       Visible To
+                      <span className="text-muted-foreground font-normal ml-1">
+                        (you + assigned always have access)
+                      </span>
                     </Label>
-                    <p className="text-xs text-muted-foreground">
-                      You and the assigned user always have access.
-                    </p>
                     <MultipleSelector
                       key={`viewers-${viewerOptions.length}`}
                       value={selectedViewerOptions}
@@ -558,12 +577,13 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                       }}
                       defaultOptions={viewerOptions}
                       options={viewerOptions}
-                      placeholder="Search users..."
+                      placeholder="Add users..."
                       emptyIndicator={
-                        <p className="text-center text-sm text-muted-foreground py-2">
+                        <p className="text-center text-xs text-muted-foreground py-1">
                           No users available
                         </p>
                       }
+                      className="min-h-[32px]"
                     />
                   </div>
                 )}

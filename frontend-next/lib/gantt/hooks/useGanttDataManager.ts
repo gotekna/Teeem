@@ -837,8 +837,25 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     const lockedSuccessors = successorInfo.filter(s => s.confirm || s.supplier_confirm || s.is_completed);
     const unlockedSuccessors = successorInfo.filter(s => !s.confirm && !s.supplier_confirm && !s.is_completed);
 
+    // Debug logging for cascade detection
+    console.log('[GanttDataManager] Task drag - successor analysis:', {
+      movedTaskNumber: row.task_number,
+      directSuccessorsCount: directSuccessors.length,
+      directSuccessors: directSuccessors.map(s => ({
+        id: s.id,
+        task_number: s.task_number,
+        name: s.name,
+        confirm: s.confirm,
+        supplier_confirm: s.supplier_confirm,
+        is_completed: s.is_completed,
+      })),
+      lockedCount: lockedSuccessors.length,
+      unlockedCount: unlockedSuccessors.length,
+    });
+
     // If no locked successors, just execute move directly - unlocked tasks cascade automatically via SSoT
     if (lockedSuccessors.length === 0) {
+      console.log('[GanttDataManager] No locked successors - executing move directly');
       await executeDragMove(task, newStartDate);
       return;
     }
