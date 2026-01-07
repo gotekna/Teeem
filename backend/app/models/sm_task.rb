@@ -246,6 +246,16 @@ class SmTask < ApplicationRecord
     created_by_id == user&.id
   end
 
+  # Get the user who last assigned this task to someone
+  # Returns nil if no assignment history exists
+  def last_assigner
+    activity_logs
+      .where(activity_type: 'assignment_changed')
+      .order(created_at: :desc)
+      .first
+      &.user
+  end
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   validates :task_number, presence: true  # Template task_number is SSoT - no uniqueness constraint

@@ -4056,6 +4056,21 @@ export function ScheduleMasterTab() {
                     }
                   }
 
+                  // Also clear hold on unlocked successors so they cascade via SSoT
+                  // These are tasks with only hold=true (no confirm/supplier_confirm)
+                  for (const unlockedTask of cascadeDialog.unlockedSuccessors) {
+                    if (unlockedTask.hold) {
+                      try {
+                        await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${unlockedTask.id}`, {
+                          row: { hold: false }
+                        });
+                        console.log('[Gantt V2] Cleared hold on unlocked successor for cascade:', unlockedTask.id, unlockedTask.name);
+                      } catch (err) {
+                        console.error('[Gantt V2] Failed to clear hold on unlocked successor', unlockedTask.id, err);
+                      }
+                    }
+                  }
+
                   // Execute the actual move
                   await executeGanttV2DragMove(cascadeDialog.task, cascadeDialog.newStartDate);
                   setCascadeDialog(prev => ({ ...prev, isOpen: false }));

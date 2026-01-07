@@ -126,6 +126,10 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [history, setHistory] = useState<TaskHistoryEntry[]>([]);
 
+  // Attachments section expanded state - default to expanded only if there are attachments
+  const hasAttachments = (task.attachments?.length || 0) > 0;
+  const [attachmentsExpanded, setAttachmentsExpanded] = useState(hasAttachments);
+
   // Email keywords state
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
 
@@ -1001,17 +1005,19 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             compact
           />
           {/* Quick assign buttons */}
-          {task.assigned_user_id === currentUser?.id && task.created_by_id && task.created_by_id !== currentUser?.id && task.created_by_name && (
+          {/* "Assign back" - when task is assigned to me and someone else assigned it to me */}
+          {task.assigned_user_id === currentUser?.id && task.last_assigner_id && task.last_assigner_id !== currentUser?.id && task.last_assigner_name && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground whitespace-nowrap"
-              onClick={() => handleAssignmentChange(task.created_by_id)}
+              onClick={() => handleAssignmentChange(task.last_assigner_id)}
               disabled={!!loading}
             >
-              Assign to {task.created_by_name.split(' ')[0]}
+              Assign to {task.last_assigner_name.split(' ')[0]}
             </Button>
           )}
+          {/* "Assign to me" - when task is assigned to someone else */}
           {task.assigned_user_id !== currentUser?.id && currentUser?.id && (
             <Button
               variant="ghost"
@@ -1056,13 +1062,32 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
       </div>
 
-      {/* Attachments Section with Tabs */}
+      {/* Attachments Section with Tabs - Collapsible */}
       <div className="border-t pt-3">
         {(() => {
           const emailAttachments = localAttachments.filter(a => a.email);
           const documentAttachments = localAttachments.filter(a => a.document && !a.email);
+          const totalAttachments = emailAttachments.length + documentAttachments.length;
 
           return (
+            <>
+              {/* Collapsible header */}
+              <button
+                onClick={() => setAttachmentsExpanded(!attachmentsExpanded)}
+                className="flex items-center gap-2 w-full hover:bg-muted/50 rounded px-2 py-1 -mx-2 mb-2 transition-colors"
+              >
+                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">
+                  Attachments {totalAttachments > 0 && `(${totalAttachments})`}
+                </span>
+                {attachmentsExpanded ? (
+                  <ChevronUp className="h-3 w-3 text-muted-foreground ml-auto" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto" />
+                )}
+              </button>
+
+              {attachmentsExpanded && (
             <Tabs defaultValue="emails" className="w-full">
               <div className="flex items-center justify-between mb-2">
                 <TabsList className="h-7">
@@ -1235,6 +1260,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                 )}
               </TabsContent>
             </Tabs>
+              )}
+            </>
           );
         })()}
       </div>

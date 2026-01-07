@@ -116,6 +116,9 @@ export interface SmTask {
   is_private?: boolean;
   created_by_id?: number;
   created_by_name?: string;
+  // Last assigner (who assigned this task to current assignee)
+  last_assigner_id?: number;
+  last_assigner_name?: string;
   is_following?: boolean;
 
   // Action Items (checkable items within task)

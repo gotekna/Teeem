@@ -171,8 +171,10 @@ const DEFAULT_COLORS = LIGHT_COLORS;
 const TABLE_LEFT_PADDING = 4;
 
 const DEFAULT_COLUMNS: TableColumn[] = [
-  // Row number (not in original but useful)
+  // Row number (visual index, not task_number)
   { id: 'row_number', label: '#', width: 40, visible: true, type: 'text' },
+  // Task number (actual task_number from database - use this for Deps references)
+  { id: 'task_number', label: 'ID', width: 45, visible: true, type: 'number', field: 'task_number' },
   // Name - always visible (permanent)
   { id: 'name', label: 'Name', width: 242, minWidth: 100, visible: true, type: 'text', field: 'name' },
   // Status checkboxes - hidden by default
