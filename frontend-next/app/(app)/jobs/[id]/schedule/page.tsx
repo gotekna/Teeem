@@ -395,12 +395,15 @@ export default function SchedulePage() {
   const [analyzeResult, setAnalyzeResult] = React.useState<AnalyzeResult | null>(null);
   const [compareResult, setCompareResult] = React.useState<CompareResult | null>(null);
   const [syncResult, setSyncResult] = React.useState<SyncResult | null>(null);
-  const [syncStep, setSyncStep] = React.useState<"analyze" | "compare" | "result">("analyze");
+  const [syncStep, setSyncStep] = React.useState<"select" | "analyze" | "compare" | "result">("select");
   const [jobTemplate, setJobTemplate] = React.useState<JobTemplate | null>(null);
   const [loadingTemplate, setLoadingTemplate] = React.useState(false);
   const [confirmedMatches, setConfirmedMatches] = React.useState<Set<number>>(new Set());
   const [orphansToDelete, setOrphansToDelete] = React.useState<Set<number>>(new Set());
   const [compareFilter, setCompareFilter] = React.useState<"all" | "will_create" | "will_update" | "will_skip" | "unchanged" | "unlinked">("all");
+  // Template selection for sync
+  const [syncTemplateList, setSyncTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean; slug?: string }>>([]);
+  const [loadingSyncTemplates, setLoadingSyncTemplates] = React.useState(false);
 
   // Reset state
   const [showResetDialog, setShowResetDialog] = React.useState(false);
@@ -688,7 +691,7 @@ export default function SchedulePage() {
     }
   }, []);
 
-  // Open sync dialog
+  // Open sync dialog - now shows template selector first
   const handleOpenSyncDialog = async () => {
     setSyncResult(null);
     setCompareResult(null);
@@ -696,13 +699,48 @@ export default function SchedulePage() {
     setConfirmedMatches(new Set());
     setOrphansToDelete(new Set());
     setCompareFilter("all");
-    setSyncStep("analyze");
+    setSyncStep("select"); // Start with template selection
     setShowSyncDialog(true);
 
-    if (!jobTemplate) {
-      await loadJobTemplate();
-    }
+    // Load template list for selection
+    setLoadingSyncTemplates(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        sm_schedule_master_templates: Array<{ id: number; name: string; is_default: boolean; slug?: string }>
+      }>("/api/v1/sm_schedule_master_templates");
 
+      const templates = response.sm_schedule_master_templates || [];
+      setSyncTemplateList(templates);
+
+      // Try to match template by viewSlug (e.g., "po-tasks-only" → "Po Tasks Only")
+      let matchedTemplate = null;
+      if (viewSlug) {
+        // Normalize viewSlug: "po-tasks-only" → "po tasks only"
+        const normalizedSlug = viewSlug.replace(/-/g, ' ').toLowerCase();
+        matchedTemplate = templates.find(t =>
+          t.slug?.toLowerCase() === viewSlug.toLowerCase() ||
+          t.name.toLowerCase() === normalizedSlug ||
+          t.name.toLowerCase().replace(/\s+/g, '-') === viewSlug.toLowerCase()
+        );
+      }
+
+      // Fall back to default template
+      const selectedTemplate = matchedTemplate || templates.find(t => t.is_default) || templates[0];
+      if (selectedTemplate) {
+        setJobTemplate({ id: selectedTemplate.id, name: selectedTemplate.name });
+      }
+    } catch (err) {
+      console.error("Failed to load templates:", err);
+    } finally {
+      setLoadingSyncTemplates(false);
+    }
+  };
+
+  // Proceed from template selection to analyze step
+  const handleProceedToAnalyze = () => {
+    if (!jobTemplate) return;
+    setSyncStep("analyze");
     handleAnalyzeMatches();
   };
 
@@ -1326,14 +1364,17 @@ export default function SchedulePage() {
         }>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
+              {syncStep === "select" && <RefreshCw className="h-5 w-5" />}
               {syncStep === "analyze" && <Link2 className="h-5 w-5" />}
               {syncStep === "compare" && <RefreshCw className="h-5 w-5" />}
               {syncStep === "result" && <Check className="h-5 w-5" />}
+              {syncStep === "select" && "Select Template"}
               {syncStep === "analyze" && "Link Tasks to Template"}
               {syncStep === "compare" && "Sync Schedule Master to Job"}
               {syncStep === "result" && "Sync Complete"}
             </DialogTitle>
             <DialogDescription>
+              {syncStep === "select" && "Choose which schedule master template to sync from."}
               {syncStep === "analyze" && !analyzeResult && "Analyzing task matches..."}
               {syncStep === "analyze" && analyzeResult && "Match existing job tasks to template rows before syncing."}
               {syncStep === "compare" && !compareResult && "Loading comparison..."}
@@ -1341,6 +1382,53 @@ export default function SchedulePage() {
               {syncStep === "result" && "Schedule Master has been synced to the job."}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Template Selection Step */}
+          {syncStep === "select" && (
+            <>
+              {loadingSyncTemplates ? (
+                <div className="py-8 flex flex-col items-center gap-2">
+                  <Spinner size={32} className="text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading templates...</p>
+                </div>
+              ) : (
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label>Template</Label>
+                    <ComboboxDropdown
+                      items={syncTemplateList.map(t => ({
+                        id: String(t.id),
+                        label: `${t.name}${t.is_default ? " (Default)" : ""}`,
+                      }))}
+                      selectedItem={jobTemplate ? {
+                        id: String(jobTemplate.id),
+                        label: jobTemplate.name
+                      } : undefined}
+                      onSelect={(item) => {
+                        const template = syncTemplateList.find(t => t.id.toString() === item.id);
+                        if (template) {
+                          setJobTemplate({ id: template.id, name: template.name });
+                        }
+                      }}
+                      placeholder="Select a template..."
+                    />
+                  </div>
+                  {jobTemplate && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: <span className="font-medium">{jobTemplate.name}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowSyncDialog(false)}>Cancel</Button>
+                <Button onClick={handleProceedToAnalyze} disabled={!jobTemplate || loadingSyncTemplates}>
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  Continue
+                </Button>
+              </DialogFooter>
+            </>
+          )}
 
           {/* Analyze Step */}
           {syncStep === "analyze" && (

@@ -506,6 +506,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Invoice #</TableHead>
+                    <TableHead>Reference</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Due Date</TableHead>
@@ -519,7 +520,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                 <TableBody>
                   {activeInvoices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                         No invoices found for this job
                       </TableCell>
                     </TableRow>
@@ -527,6 +528,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                     activeInvoices.map((invoice) => (
                       <TableRow key={invoice.id}>
                         <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                        <TableCell className="text-muted-foreground">{invoice.reference || "-"}</TableCell>
                         <TableCell>{invoice.contact_name || "-"}</TableCell>
                         <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                         <TableCell>{formatDate(invoice.due_date)}</TableCell>
