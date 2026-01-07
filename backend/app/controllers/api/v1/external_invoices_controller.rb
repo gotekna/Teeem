@@ -105,6 +105,23 @@ module Api
         # Get last sync time
         last_sync = ExternalInvoice.where(source: "xero").maximum(:last_synced_at)
 
+        # Get claim invoice patterns from job's schedule master template
+        claim_patterns = []
+        if job.job_type&.sm_schedule_master_template_id.present?
+          claim_tasks = SmScheduleMaster.where(is_claim_task: true)
+                                        .where("sm_template_ids @> ?", [job.job_type.sm_schedule_master_template_id].to_json)
+                                        .where.not(claim_invoice_pattern: [nil, ""])
+                                        .select(:name, :claim_invoice_pattern, :claim_percentage)
+                                        .order(:sequence_order)
+          claim_patterns = claim_tasks.map do |task|
+            {
+              task_name: task.name,
+              pattern: task.claim_invoice_pattern,
+              percentage: task.claim_percentage&.to_f
+            }
+          end
+        end
+
         render json: {
           success: true,
           data: {
@@ -118,7 +135,8 @@ module Api
             total_quotes: quotes.count,
             job_id: job.id,
             job_title: job.title,
-            tracking_option_name: job.xero_tracking_option_name
+            tracking_option_name: job.xero_tracking_option_name,
+            claim_invoice_patterns: claim_patterns
           },
           meta: {
             source: "local_cache",

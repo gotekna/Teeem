@@ -29,6 +29,13 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
+      # Claim Invoice Templates - visual styles for claim invoices
+      resources :claim_invoice_templates, only: [ :index, :show ] do
+        member do
+          get :preview  # GET /api/v1/claim_invoice_templates/:id/preview - HTML preview
+        end
+      end
+
       # Batch Operations - Global routes for folder_scan, folder_process
       # (Job-scoped routes are also nested under /jobs/:job_id/batch_operations)
       resources :batch_operations, only: [ :create, :show ] do
@@ -323,6 +330,8 @@ Rails.application.routes.draw do
           post :send_contract_for_signing
           # BOQ (Bill of Quantities) comparison
           get :boq
+          # Schedule template link detection
+          get :linked_schedule_template
         end
 
         # Job contacts (nested under jobs)

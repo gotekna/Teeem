@@ -758,60 +758,37 @@ module Api
       end
 
       # POST /api/v1/sm_tasks/:id/attachments/upload
-      # Upload a file and attach it to the task
+      # Upload a file and attach it to the task using ActiveStorage
       def upload_attachment
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
         end
 
         file = params[:file]
-        filename = file.original_filename
-        content = file.read
 
-        # Determine folder path - use job folder if task has job, otherwise general tasks folder
-        if @task.job.present?
-          folder_path = "TEEEM Jobs/#{@task.job.name}/Task Attachments"
-        else
-          folder_path = "TEEEM Tasks/Task #{@task.task_number}"
-        end
-
-        # Upload to SharePoint
         begin
-          graph_client = MicrosoftAppGraphClient.for_org(current_user.organization)
-          site_id = graph_client.default_site_id
-          drive_id = graph_client.default_drive_id
-
-          upload_result = graph_client.upload_file_content(
-            site_id,
-            drive_id,
-            folder_path,
-            filename,
-            content
-          )
-
-          # Create a CorporateCompanyDocument record
-          document = CorporateCompanyDocument.create!(
-            file_name: filename,
-            file_url: upload_result[:web_url],
-            file_size: content.bytesize,
-            mime_type: file.content_type,
-            sharepoint_item_id: upload_result[:id],
-            sharepoint_url: upload_result[:web_url],
-            user: current_user,
-            folder: "Task Attachments"
-          )
-
-          # Create the attachment link
-          attachment = @task.sm_task_attachments.create!(
-            attachable: document,
-            attachment_type: "document",
-            notes: params[:notes],
-            added_by: current_user
-          )
+          # Attach file directly to task using ActiveStorage
+          @task.files.attach(file)
+          attached_file = @task.files.last
 
           render json: {
             success: true,
-            attachment: attachment_to_json(attachment)
+            attachment: {
+              id: attached_file.id,
+              attachment_type: "upload",
+              notes: params[:notes],
+              added_by: current_user&.name,
+              created_at: attached_file.created_at,
+              document: {
+                id: attached_file.id,
+                file_name: attached_file.filename.to_s,
+                display_name: attached_file.filename.to_s,
+                file_size: attached_file.byte_size,
+                content_type: attached_file.content_type,
+                created_at: attached_file.created_at,
+                url: Rails.application.routes.url_helpers.rails_blob_url(attached_file, only_path: true)
+              }
+            }
           }
         rescue => e
           Rails.logger.error "[SmTasksController#upload_attachment] Failed: #{e.message}"
@@ -1563,6 +1540,27 @@ module Api
         result
       end
 
+      # Convert ActiveStorage file to attachment JSON format
+      def file_attachment_to_json(file)
+        {
+          id: "file_#{file.id}",
+          attachment_type: "upload",
+          notes: nil,
+          added_by: nil,
+          created_at: file.created_at,
+          document: {
+            id: file.id,
+            file_name: file.filename.to_s,
+            display_name: file.filename.to_s,
+            file_size: file.byte_size,
+            content_type: file.content_type,
+            document_type: "Upload",
+            created_at: file.created_at,
+            url: Rails.application.routes.url_helpers.rails_blob_path(file, only_path: true)
+          }
+        }
+      end
+
       def save_temp_file(uploaded_file)
         temp_file = Tempfile.new([ "sm_task_import", File.extname(uploaded_file.original_filename) ])
         temp_file.binmode
@@ -1780,9 +1778,11 @@ module Api
           # Required by date (independent of schedule)
           required_by: task.required_by,
           # Use .size instead of .count to use preloaded data (avoids N+1)
-          attachments_count: task.sm_task_attachments.size,
+          attachments_count: task.sm_task_attachments.size + (task.files.attached? ? task.files.size : 0),
           # Include full attachments for task detail view (uses preloaded association)
-          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },
+          # Combines SmTaskAttachment records AND ActiveStorage files
+          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) } +
+            (task.files.attached? ? task.files.map { |f| file_attachment_to_json(f) } : []),
           # Privacy
           is_private: task.is_private,
           created_by_id: task.created_by_id,
@@ -1977,8 +1977,12 @@ module Api
       # Used by job_index?for=gantt and gantt_data endpoints
       # Uses GanttDataService for unified format (all dependencies use row.id, not task_number)
       def render_gantt_data(tasks)
+        # SSoT: Calculate dates from dependencies (same service as templates)
+        # Locked tasks keep stored dates, unlocked tasks recalculate from dependencies
+        date_overrides = GanttDateCalculationService.new(tasks).calculate_date_map
+
         # Use GanttDataService for SSoT conversion of task_number -> row.id
-        service = GanttDataService.new(tasks, filter_invisible: true)
+        service = GanttDataService.new(tasks, filter_invisible: true, date_overrides: date_overrides)
         result = service.build_response
 
         render json: {

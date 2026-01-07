@@ -7,6 +7,9 @@ class JobClaimStage < ApplicationRecord
   belongs_to :external_invoice, optional: true
   belongs_to :retainage_release_invoice, class_name: "Gl::Invoice", optional: true
 
+  # SmTask link - when created from Schedule Master CLAIM task
+  has_one :sm_task, dependent: :nullify
+
   # Status constants
   MATCH_STATUSES = %w[unmatched auto_matched manual_matched].freeze
   PAYMENT_STATUSES = %w[pending partial paid].freeze

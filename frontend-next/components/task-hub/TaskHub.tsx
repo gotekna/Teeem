@@ -152,7 +152,13 @@ export function TaskHub() {
       )}
 
       {/* Compact View Tabs */}
-      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as ViewType)}>
+      <Tabs value={activeView} onValueChange={(v) => {
+        setActiveView(v as ViewType);
+        // Clear user filter when switching to "Mine" - user expects to see only their tasks
+        if (v === 'my-tasks') {
+          setFilters({ selectedUserId: null });
+        }
+      }}>
         <TabsList className="h-8">
           <TabsTrigger value="my-tasks" className="text-xs h-7 px-3">
             <User className="h-3 w-3 mr-1" />

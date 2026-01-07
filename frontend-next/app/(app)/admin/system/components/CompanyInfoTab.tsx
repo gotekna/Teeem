@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { cn } from "@/lib/utils";
+import { Plus, Pencil, Trash2, Star, X, Check } from "lucide-react";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -44,6 +45,11 @@ interface CompanySettings {
   logo_mobile: string;
   logo_dark: string;
   timezone: string;
+  // Bank details for invoices
+  bank_name: string;
+  bank_bsb: string;
+  bank_account_number: string;
+  bank_account_name: string;
   working_days: {
     monday: boolean;
     tuesday: boolean;
@@ -53,6 +59,15 @@ interface CompanySettings {
     saturday: boolean;
     sunday: boolean;
   };
+}
+
+interface TradingName {
+  id: number;
+  name: string;
+  abn?: string;
+  address?: string;
+  is_default?: boolean;
+  is_active?: boolean;
 }
 
 export default function CompanyInfoTab() {
@@ -68,6 +83,11 @@ export default function CompanyInfoTab() {
     logo_mobile: "",
     logo_dark: "",
     timezone: COMPANY_TIMEZONE,
+    // Bank details
+    bank_name: "",
+    bank_bsb: "",
+    bank_account_number: "",
+    bank_account_name: "",
     working_days: {
       monday: true,
       tuesday: true,
@@ -87,6 +107,13 @@ export default function CompanyInfoTab() {
     text: string;
   } | null>(null);
 
+  // Trading Names state
+  const [tradingNames, setTradingNames] = React.useState<TradingName[]>([]);
+  const [loadingTradingNames, setLoadingTradingNames] = React.useState(false);
+  const [editingTradingName, setEditingTradingName] = React.useState<TradingName | null>(null);
+  const [newTradingName, setNewTradingName] = React.useState<Partial<TradingName> | null>(null);
+  const [savingTradingName, setSavingTradingName] = React.useState(false);
+
   const hasChanges = React.useMemo(() => {
     if (!originalSettings) return false;
     return JSON.stringify(settings) !== JSON.stringify(originalSettings);
@@ -94,6 +121,7 @@ export default function CompanyInfoTab() {
 
   React.useEffect(() => {
     loadSettings();
+    loadTradingNames();
   }, []);
 
   const loadSettings = async () => {
@@ -130,6 +158,75 @@ export default function CompanyInfoTab() {
 
   const handleChange = (field: keyof CompanySettings, value: string | object) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Trading Names CRUD
+  const loadTradingNames = async () => {
+    setLoadingTradingNames(true);
+    try {
+      const data = await api.get<{ success: boolean; records: TradingName[] }>(
+        "/api/v1/foundations/trading_names/records"
+      );
+      if (data?.records) {
+        setTradingNames(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load trading names:", error);
+    } finally {
+      setLoadingTradingNames(false);
+    }
+  };
+
+  const saveTradingName = async (tradingName: Partial<TradingName>) => {
+    setSavingTradingName(true);
+    try {
+      if (tradingName.id) {
+        // Update existing
+        await api.put(`/api/v1/foundations/trading_names/records/${tradingName.id}`, {
+          record: { name: tradingName.name, abn: tradingName.abn, address: tradingName.address }
+        });
+      } else {
+        // Create new
+        await api.post("/api/v1/foundations/trading_names/records", {
+          record: { name: tradingName.name, abn: tradingName.abn, address: tradingName.address, is_active: true }
+        });
+      }
+      await loadTradingNames();
+      setEditingTradingName(null);
+      setNewTradingName(null);
+    } catch (error) {
+      console.error("Failed to save trading name:", error);
+    } finally {
+      setSavingTradingName(false);
+    }
+  };
+
+  const deleteTradingName = async (id: number) => {
+    if (!confirm("Delete this trading name?")) return;
+    try {
+      await api.delete(`/api/v1/foundations/trading_names/records/${id}`);
+      await loadTradingNames();
+    } catch (error) {
+      console.error("Failed to delete trading name:", error);
+    }
+  };
+
+  const setDefaultTradingName = async (id: number) => {
+    try {
+      // Clear existing defaults
+      for (const tn of tradingNames.filter(t => t.is_default)) {
+        await api.put(`/api/v1/foundations/trading_names/records/${tn.id}`, {
+          record: { is_default: false }
+        });
+      }
+      // Set new default
+      await api.put(`/api/v1/foundations/trading_names/records/${id}`, {
+        record: { is_default: true }
+      });
+      await loadTradingNames();
+    } catch (error) {
+      console.error("Failed to set default:", error);
+    }
   };
 
   if (loading) {
@@ -492,6 +589,169 @@ export default function CompanyInfoTab() {
           </div>
         </div>
 
+        {/* Trading Names Section */}
+        <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Trading Names</h3>
+              <p className="text-xs text-muted-foreground">
+                Different company names used on invoices and documents
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setNewTradingName({ name: "", abn: "", address: "" })}
+              disabled={newTradingName !== null}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Button>
+          </div>
+
+          {loadingTradingNames ? (
+            <div className="flex justify-center py-4">
+              <Spinner size={20} />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* New trading name form */}
+              {newTradingName && (
+                <div className="flex items-center gap-2 p-2 bg-background rounded border">
+                  <Input
+                    placeholder="Trading name..."
+                    value={newTradingName.name || ""}
+                    onChange={(e) => setNewTradingName({ ...newTradingName, name: e.target.value })}
+                    className="flex-1 h-8"
+                    autoFocus
+                  />
+                  <Input
+                    placeholder="ABN (optional)"
+                    value={newTradingName.abn || ""}
+                    onChange={(e) => setNewTradingName({ ...newTradingName, abn: e.target.value })}
+                    className="w-32 h-8"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => saveTradingName(newTradingName)}
+                    disabled={!newTradingName.name?.trim() || savingTradingName}
+                  >
+                    {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setNewTradingName(null)}
+                  >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+
+              {/* List of trading names */}
+              {tradingNames.length === 0 && !newTradingName ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No trading names configured. Add one to get started.
+                </p>
+              ) : (
+                tradingNames.map((tn) => (
+                  <div key={tn.id} className="flex items-center gap-2 p-2 bg-background rounded border group">
+                    {editingTradingName?.id === tn.id ? (
+                      <>
+                        <Input
+                          value={editingTradingName.name || ""}
+                          onChange={(e) => setEditingTradingName({ ...editingTradingName, name: e.target.value })}
+                          className="flex-1 h-8"
+                          autoFocus
+                        />
+                        <Input
+                          placeholder="ABN"
+                          value={editingTradingName.abn || ""}
+                          onChange={(e) => setEditingTradingName({ ...editingTradingName, abn: e.target.value })}
+                          className="w-32 h-8"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => saveTradingName(editingTradingName)}
+                          disabled={!editingTradingName.name?.trim() || savingTradingName}
+                        >
+                          {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600" />}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setEditingTradingName(null)}
+                        >
+                          <X className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{tn.name}</span>
+                            {tn.is_default && (
+                              <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          {tn.abn && (
+                            <span className="text-xs text-muted-foreground">ABN: {tn.abn}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {!tn.is_default && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setDefaultTradingName(tn.id)}
+                              title="Set as default"
+                            >
+                              <Star className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setEditingTradingName(tn)}
+                          >
+                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={() => deleteTradingName(tn.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <Input
@@ -532,6 +792,58 @@ export default function CompanyInfoTab() {
             onChange={(e) => handleChange("address", e.target.value)}
             className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
+        </div>
+
+        {/* Bank Details Section */}
+        <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+          <div>
+            <h3 className="font-semibold mb-1">Bank Details</h3>
+            <p className="text-xs text-muted-foreground">
+              Used on invoices and payment requests
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="bank_name">Bank Name</Label>
+              <Input
+                id="bank_name"
+                value={settings.bank_name || ""}
+                onChange={(e) => handleChange("bank_name", e.target.value)}
+                placeholder="e.g. Commonwealth Bank"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bank_bsb">BSB</Label>
+              <Input
+                id="bank_bsb"
+                value={settings.bank_bsb || ""}
+                onChange={(e) => handleChange("bank_bsb", e.target.value)}
+                placeholder="e.g. 064-000"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bank_account_number">Account Number</Label>
+              <Input
+                id="bank_account_number"
+                value={settings.bank_account_number || ""}
+                onChange={(e) => handleChange("bank_account_number", e.target.value)}
+                placeholder="e.g. 1234 5678"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bank_account_name">Account Name</Label>
+              <Input
+                id="bank_account_name"
+                value={settings.bank_account_name || ""}
+                onChange={(e) => handleChange("bank_account_name", e.target.value)}
+                placeholder="e.g. Tekna Homes Pty Ltd"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

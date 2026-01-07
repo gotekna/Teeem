@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -91,6 +91,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     confirmTask,
     supplierConfirmTask,
     collapseTask,
+    navigateToTask,
     addActionItem,
     bulkAddActionItems,
     toggleActionItem,
@@ -144,6 +145,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   // Direct drag-and-drop state for attachments section
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   // History state
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -541,7 +543,15 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDraggingFile(false);
+    // Only set to false if we're actually leaving the drop zone
+    // Check if relatedTarget is outside the drop zone
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (dropZoneRef.current && relatedTarget && !dropZoneRef.current.contains(relatedTarget)) {
+      setIsDraggingFile(false);
+    } else if (!relatedTarget) {
+      // relatedTarget is null when leaving the window
+      setIsDraggingFile(false);
+    }
   };
 
   // Save email keywords
@@ -576,6 +586,30 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     } finally {
       setDescriptionSaving(false);
     }
+  };
+
+  // Render text with clickable task IDs (e.g., #123 becomes a link)
+  const renderTextWithTaskLinks = (text: string) => {
+    const parts = text.split(/(#\d+)/g);
+    return parts.map((part, index) => {
+      const match = part.match(/^#(\d+)$/);
+      if (match) {
+        const taskId = parseInt(match[1], 10);
+        return (
+          <button
+            key={index}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateToTask(taskId);
+            }}
+            className="text-primary hover:underline font-medium"
+          >
+            {part}
+          </button>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
   };
 
   return (
@@ -897,7 +931,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             onClick={() => setEditingDescription(true)}
             title="Click to edit"
           >
-            {task.description || <span className="text-muted-foreground italic">Click to add description...</span>}
+            {task.description ? renderTextWithTaskLinks(task.description) : <span className="text-muted-foreground italic">Click to add description...</span>}
           </p>
         )}
       </div>
@@ -1207,7 +1241,15 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                           + Add answer
                         </button>
                         <button
-                          onClick={() => setDelegatingItemId(item.id)}
+                          onClick={async () => {
+                            setDelegatingItemId(item.id);
+                            // Fetch users if not already loaded
+                            if (delegationUsers.length === 0) {
+                              const response = await api.get<{ users?: User[] } | User[]>('/api/v1/users');
+                              const userList = Array.isArray(response) ? response : response?.users || [];
+                              setDelegationUsers(userList);
+                            }
+                          }}
                           className="text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400 hover:underline flex items-center gap-1"
                         >
                           <Send className="h-3 w-3" />
@@ -1640,21 +1682,26 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
               {/* Documents Tab */}
               <TabsContent
+                ref={dropZoneRef}
                 value="documents"
                 className={cn(
-                  "mt-2 transition-colors rounded-lg",
-                  isDraggingFile && "bg-primary/10 border-2 border-dashed border-primary p-2"
+                  "mt-2 transition-colors rounded-lg min-h-[60px]",
+                  isDraggingFile && "bg-primary/10 border-2 border-dashed border-primary p-4"
                 )}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleFileDrop}
               >
-                {isDraggingFile && (
-                  <p className="text-xs font-medium text-primary text-center py-2">
+                {attachmentLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-4">
+                    <Spinner size={16} />
+                    <span className="text-sm text-muted-foreground">Uploading...</span>
+                  </div>
+                ) : isDraggingFile ? (
+                  <p className="text-sm font-medium text-primary text-center py-4">
                     Drop files here to attach
                   </p>
-                )}
-                {!isDraggingFile && documentAttachments.length === 0 ? (
+                ) : documentAttachments.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">
                     No documents attached. Drag files here or click Add.
                   </p>

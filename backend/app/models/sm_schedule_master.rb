@@ -51,6 +51,9 @@ class SmScheduleMaster < ApplicationRecord
   belongs_to :start_workflow, class_name: "BpmnProcess", optional: true
   belongs_to :complete_workflow, class_name: "BpmnProcess", optional: true
 
+  # Claim invoice template - visual style for claim invoices
+  belongs_to :claim_invoice_template, optional: true
+
   # Document types for GET task spawning on completion
   has_many :sm_schedule_master_document_types, dependent: :destroy
   has_many :document_types, through: :sm_schedule_master_document_types
@@ -77,6 +80,11 @@ class SmScheduleMaster < ApplicationRecord
   validate :predecessor_ids_valid
   validate :no_circular_dependencies
 
+  # Claim task validations
+  # Percentage required for claim tasks UNLESS it's a variation (variations have amounts entered later)
+  validates :claim_percentage, presence: true, if: -> { is_claim_task? && !is_variation? }
+  validates :claim_percentage, numericality: { greater_than: 0, less_than_or_equal_to: 100 }, allow_nil: true
+
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :in_sequence, -> { order(sequence_order: :asc) }
@@ -84,6 +92,7 @@ class SmScheduleMaster < ApplicationRecord
   scope :by_stage, ->(stage) { where(stage: stage) if stage.present? }
   scope :requiring_po, -> { where(po_required: true) }
   scope :with_photos, -> { where(require_photo: true) }
+  scope :claim_tasks, -> { where(is_claim_task: true) }
 
   # Multi-template scope - filter rows by template membership
   scope :for_template, ->(template_id) { where("sm_template_ids @> ?", [template_id].to_json) }
@@ -94,6 +103,7 @@ class SmScheduleMaster < ApplicationRecord
   before_validation :clean_invalid_predecessors
   before_validation :uppercase_name_if_header
   before_validation :default_duration_for_tasks
+  before_validation :default_claim_percentage
   before_save :clear_spawn_tasks_if_not_po
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
 
@@ -113,6 +123,15 @@ class SmScheduleMaster < ApplicationRecord
 
   def tag_list
     tags || []
+  end
+
+  # Extract claim stage name from task name
+  # "CLAIM - Slab" -> "Slab"
+  # "CLAIM - Practical Completion" -> "Practical Completion"
+  # "Slab Claim" -> "Slab Claim" (no transformation if no prefix)
+  def claim_stage_name
+    return name unless is_claim_task?
+    name.sub(/^CLAIM\s*[-–—:]\s*/i, "").strip
   end
 
   # Plan types to attach to this task
@@ -207,6 +226,18 @@ class SmScheduleMaster < ApplicationRecord
   def default_duration_for_tasks
     return if allow_header # Headers can have 0 duration
     self.duration_days = 1 if duration_days.blank? || duration_days <= 0
+  end
+
+  # Default claim_percentage when is_claim_task is enabled
+  # This allows inline editing to set is_claim_task without immediately needing the percentage
+  # Skip for variations - they don't need a percentage
+  def default_claim_percentage
+    return unless is_claim_task?
+    return if is_variation? # Variations don't need a percentage
+    return if claim_percentage.present? && claim_percentage > 0
+
+    # Default to 10% - user can adjust afterward
+    self.claim_percentage = 10.0
   end
 
   # Clear spawn_order_task and spawn_call_task if po_required is false

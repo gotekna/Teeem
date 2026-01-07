@@ -794,10 +794,17 @@ export default function TeeemTableView({
   // CACHE RESTORATION: Check if we have cached records with more data than SSR
   // This enables instant restoration of scroll position when navigating back
   // Only runs once on mount to avoid overwriting fresh data
+  // ⚠️ SKIP for embedded context (tables with initialFilters) - cache is keyed by foundationId only,
+  // so different filter sets (e.g., different templates) would incorrectly restore the wrong data
   const hasCacheRestoredRef = useRef(false);
   useEffect(() => {
     if (hasCacheRestoredRef.current) return;
     if (!useAutoFetch || !effectiveFoundationId) return;
+    // Skip cache restoration for embedded context - cache doesn't account for different filter sets
+    if (isEmbeddedContext) {
+      hasCacheRestoredRef.current = true;
+      return;
+    }
 
     const cached = getCachedRecords(effectiveFoundationId);
     if (cached && cached.records.length > (initialRecords?.length || 0)) {
@@ -809,7 +816,7 @@ export default function TeeemTableView({
       hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
     }
     hasCacheRestoredRef.current = true;
-  }, [useAutoFetch, effectiveFoundationId, initialRecords?.length]);
+  }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext]);
 
   // Auto-fetch columns when effectiveFoundationId is set
   // ULTRA: Uses module-level cache for instant loading on repeat visits
@@ -1557,6 +1564,8 @@ export default function TeeemTableView({
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
   // SSR: Mark as loaded if we have initialView to prevent client-side reload
   const initialViewLoadedRef = useRef(!!initialView); // Prevent re-loading views after initial load
+  // Track if user has selected a view in this session (prevents default view override from race condition)
+  const userSelectedViewRef = useRef(false);
 
   // ULTRA: SSR activeViewId init removed - hook handles this automatically
 
@@ -2208,15 +2217,27 @@ export default function TeeemTableView({
         setCurrentSearchMode(mode);
       }
 
-      // ULTRA FIX: If all records loaded, search client-side only
-      // Just update search atom - filteredAndSortedEntries handles filtering
-      if (!hasMore && autoFetchedRecords.length > 0) {
+      // FRC FIX: When CLEARING search (empty value), ALWAYS refresh to get all records
+      // The previous "ULTRA FIX" assumed hasMore=false means all records loaded, but after
+      // a search that returned few results, hasMore=false just means search results are complete
+      // We need to distinguish between "all records loaded" vs "search results loaded"
+      const isClearing = !value && searchRef.current; // Clearing if value is empty but we had a search
+
+      // If all records loaded AND not clearing a search, search client-side only
+      // But if clearing search, always refresh to restore full dataset
+      if (!isClearing && !hasMore && autoFetchedRecords.length > 0) {
         console.log('[TeeemTableView] All records loaded, searching client-side');
-        return; // Skip API call
+        return; // Skip API call - safe because we truly have all records
       }
 
       if (effectiveOnServerSearch) {
-        effectiveOnServerSearch(value, mode);
+        // When clearing search, trigger a refresh to get all records
+        if (isClearing) {
+          console.log('[TeeemTableView] Clearing search - refreshing to restore all records');
+          setAutoFetchRefreshKey(prev => prev + 1);
+        } else {
+          effectiveOnServerSearch(value, mode);
+        }
       }
     },
     [effectiveOnServerSearch, hasMore, autoFetchedRecords.length]
@@ -3261,6 +3282,12 @@ export default function TeeemTableView({
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
     (view: SavedView, skipUrlUpdate = false, isUserAction = false) => {
+      // Mark that user has made a view selection - prevents default view from overriding
+      // This fixes race condition where async loadSavedViews completion could override user's selection
+      if (isUserAction) {
+        userSelectedViewRef.current = true;
+      }
+
       // Apply view state atomically via Jotai atom
       // This handles filters, columns, and other non-grouped state
       applyView(view);
@@ -3335,6 +3362,9 @@ export default function TeeemTableView({
   // IMPORTANT: Only trigger on foundationIdNumeric change to prevent excessive re-runs
   // searchParams is read inside the effect, not as a dependency
   useEffect(() => {
+    // Reset user selection flag when foundation changes (new context = fresh start)
+    userSelectedViewRef.current = false;
+
     const loadSavedViews = async () => {
       if (!effectiveFoundationId) return;
       if (disableSavedViews) {
@@ -3413,8 +3443,10 @@ export default function TeeemTableView({
           // loadViewState should ONLY be called when user clicks a view button
           const ssrAlreadyAppliedView = !!initialView;
 
-          if (!ssrAlreadyAppliedView) {
-            // No SSR view - apply default view now
+          // ALSO skip if user has already selected a view (prevents race condition override)
+          // This fixes: user clicks global view, but async loadSavedViews completion overrides it
+          if (!ssrAlreadyAppliedView && !userSelectedViewRef.current) {
+            // No SSR view and no user selection - apply default view now
             const skipUrlUpdate = !!urlViewExistsForFoundation;
             loadViewState(defaultView, skipUrlUpdate);
           }

@@ -38,7 +38,7 @@ module Api
 
         # SSoT: Calculate dates from ALL records FIRST (before filtering)
         # This ensures the dependency chain is complete for accurate date calculations
-        date_overrides = calculate_template_date_map(all_records)
+        date_overrides = GanttDateCalculationService.new(all_records).calculate_date_map
 
         # SSoT: Pass ALL records to service, let service handle filtering
         # This ensures the lookup map is complete for dependency rewiring
@@ -784,11 +784,10 @@ module Api
         @template = SmScheduleMasterTemplate.find(params[:id])
       end
 
-      # Calculate dates from dependencies for all template rows
-      # Returns: Hash of task_number => { start_date: Date, end_date: Date }
-      # Used by gantt_data for sorting when templates don't have stored dates
-      # SSoT: Uses topological sort to handle forward-referencing predecessors
-      def calculate_template_date_map(rows)
+      # DEPRECATED: Use GanttDateCalculationService instead
+      # This method is kept for reference but no longer called.
+      # SSoT: GanttDateCalculationService is now the single source for date calculation
+      def calculate_template_date_map_DEPRECATED(rows)
         start_date = Date.current
         calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
         start_date = calendar.next_working_day(start_date) unless calendar.working_day?(start_date)

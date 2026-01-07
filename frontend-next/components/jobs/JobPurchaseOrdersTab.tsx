@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -12,28 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
   Plus,
-  ChevronsUpDown,
-  Check,
   AlertTriangle,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
@@ -77,8 +63,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   // Form state
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
-  const [contactOpen, setContactOpen] = useState(false);
-  const [taskOpen, setTaskOpen] = useState(false);
+  const [customTaskName, setCustomTaskName] = useState("");
 
   // Handle row click - navigate to PO detail page
   const handleRowClick = useCallback((row: TableRow) => {
@@ -134,17 +119,18 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     setError(null);
     setSelectedContact(null);
     setSelectedTemplate(null);
+    setCustomTaskName("");
     setShowCreateModal(true);
     await Promise.all([loadContacts(), loadTaskTemplates()]);
   };
 
   const handleCreate = async () => {
     if (!selectedContact) {
-      setError("Please select a contact");
+      setError("Please select a supplier");
       return;
     }
-    if (!selectedTemplate) {
-      setError("Please select a task template");
+    if (!selectedTemplate && !customTaskName.trim()) {
+      setError("Please select a task template or enter a custom task name");
       return;
     }
 
@@ -155,7 +141,8 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         purchase_order: {
           job_id: jobId,
           supplier_id: selectedContact.id,
-          task_template_id: selectedTemplate.id,
+          task_template_id: selectedTemplate?.id || null,
+          task_name: selectedTemplate ? null : customTaskName.trim(),
           status: "draft",
         },
       });
@@ -222,149 +209,76 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             {/* Supplier (Contact) Select */}
             <div className="space-y-2">
               <Label>Supplier</Label>
-              <Popover open={contactOpen} onOpenChange={setContactOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={contactOpen}
-                    className="w-full justify-between"
-                    disabled={loadingContacts}
-                  >
-                    {loadingContacts ? (
-                      <span className="text-muted-foreground">Loading suppliers...</span>
-                    ) : selectedContact ? (
-                      selectedContact.display_name || selectedContact.display_name
-                    ) : (
-                      <span className="text-muted-foreground">Select supplier...</span>
-                    )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[450px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search by company or employee name..." />
-                    <CommandList className="max-h-[350px]">
-                      <CommandEmpty>No supplier found.</CommandEmpty>
-                      <CommandGroup>
-                        {contacts.map((contact) => {
-                          const searchValue = [
-                            contact.display_name,
-                            ...(contact.employee_names || [])
-                          ].filter(Boolean).join(" ");
-
-                          return (
-                            <CommandItem
-                              key={contact.id}
-                              value={searchValue}
-                              onSelect={() => {
-                                setSelectedContact(contact);
-                                setContactOpen(false);
-                              }}
-                              className="flex-col items-start py-2"
-                            >
-                              <div className="flex items-center w-full">
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4 shrink-0",
-                                    selectedContact?.id === contact.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                <span className="font-medium">{contact.display_name}</span>
-                              </div>
-                              {contact.employee_names && contact.employee_names.length > 0 && (
-                                <div className="ml-6 mt-1 space-y-0.5">
-                                  {contact.employee_names.slice(0, 5).map((name, idx) => (
-                                    <div key={idx} className="text-xs text-muted-foreground pl-2 border-l border-muted">
-                                      {name}
-                                    </div>
-                                  ))}
-                                  {(contact.employee_count || 0) > 5 && (
-                                    <div className="text-xs text-muted-foreground/70 pl-2 italic">
-                                      +{(contact.employee_count || 0) - 5} more employees
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <ComboboxDropdown
+                items={contacts.map((contact) => ({
+                  id: String(contact.id),
+                  label: contact.display_name || `Contact ${contact.id}`,
+                }))}
+                selectedItem={selectedContact ? {
+                  id: String(selectedContact.id),
+                  label: selectedContact.display_name || `Contact ${selectedContact.id}`,
+                } : undefined}
+                onSelect={(item) => {
+                  const contact = contacts.find((c) => String(c.id) === item.id);
+                  setSelectedContact(contact || null);
+                }}
+                placeholder={loadingContacts ? "Loading suppliers..." : "Select supplier..."}
+                searchPlaceholder="Search suppliers..."
+                emptyResults="No supplier found."
+                disabled={loadingContacts}
+                isLoading={loadingContacts}
+              />
             </div>
 
             {/* Task Template Select */}
             <div className="space-y-2">
               <Label>Task Template</Label>
-              <Popover open={taskOpen} onOpenChange={setTaskOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={taskOpen}
-                    className="w-full justify-between"
-                    disabled={loadingTasks}
-                  >
-                    {loadingTasks ? (
-                      <span className="text-muted-foreground">Loading templates...</span>
-                    ) : selectedTemplate ? (
-                      <div className="flex flex-col items-start">
-                        <span>{selectedTemplate.name}</span>
-                        {selectedTemplate.category && (
-                          <span className="text-xs text-muted-foreground">
-                            {selectedTemplate.category}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Select task template...</span>
-                    )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search templates..." />
-                    <CommandList>
-                      <CommandEmpty>
-                        {taskTemplates.length === 0
-                          ? "No task templates available"
-                          : "No template found."}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {taskTemplates.map((template) => (
-                          <CommandItem
-                            key={template.id}
-                            value={template.name}
-                            onSelect={() => {
-                              setSelectedTemplate(template);
-                              setTaskOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedTemplate?.id === template.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <div className="flex flex-col">
-                              <span>{template.name}</span>
-                              {template.category && (
-                                <span className="text-xs text-muted-foreground">
-                                  {template.category}
-                                </span>
-                              )}
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <ComboboxDropdown
+                items={taskTemplates.map((template) => ({
+                  id: String(template.id),
+                  label: template.name,
+                }))}
+                selectedItem={selectedTemplate ? {
+                  id: String(selectedTemplate.id),
+                  label: selectedTemplate.name,
+                } : undefined}
+                onSelect={(item) => {
+                  const template = taskTemplates.find((t) => String(t.id) === item.id);
+                  setSelectedTemplate(template || null);
+                  if (template) setCustomTaskName(""); // Clear custom name when template selected
+                }}
+                placeholder={loadingTasks ? "Loading templates..." : "Select task template..."}
+                searchPlaceholder="Search templates..."
+                emptyResults={taskTemplates.length === 0 ? "No task templates available" : "No template found."}
+                disabled={loadingTasks || !!customTaskName}
+                isLoading={loadingTasks}
+                clearable
+                onClear={() => setSelectedTemplate(null)}
+              />
+            </div>
+
+            {/* OR divider */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 border-t border-muted" />
+              <span className="text-xs text-muted-foreground">OR</span>
+              <div className="flex-1 border-t border-muted" />
+            </div>
+
+            {/* Custom Task Name */}
+            <div className="space-y-2">
+              <Label>Custom Task Name</Label>
+              <Input
+                value={customTaskName}
+                onChange={(e) => {
+                  setCustomTaskName(e.target.value);
+                  if (e.target.value) setSelectedTemplate(null); // Clear template when typing custom name
+                }}
+                placeholder="Enter custom task name..."
+                disabled={!!selectedTemplate}
+              />
+              <p className="text-xs text-muted-foreground">
+                Use this if no template matches your needs
+              </p>
             </div>
           </div>
 

@@ -193,6 +193,40 @@ interface SmScheduleMaster {
   }>;
   // Multi-template support
   sm_template_ids: number[];
+  // Claim task settings (SSoT: Schedule Master defines job claims)
+  is_claim_task?: boolean;
+  is_variation?: boolean;
+  claim_percentage?: number | null;
+  claim_invoice_pattern?: string | null;
+  claim_invoice_template_id?: number | null;
+  claim_trading_name_id?: number | null;
+  claim_trading_name?: string | null;
+}
+
+// Claim Invoice Template for selecting invoice styles
+interface ClaimInvoiceTemplate {
+  id: number;
+  name: string;
+  description: string;
+  style_key: string;
+  is_default: boolean;
+  primary_color: string;
+  secondary_color: string;
+  font_family: string;
+  logo_position: string;
+  header_style: string;
+  show_logo: boolean;
+  show_company_details: boolean;
+  show_bank_details: boolean;
+}
+
+// Trading Name for claim invoices (SSoT: Foundation trading_names)
+interface TradingName {
+  id: number;
+  name: string;
+  abn?: string;
+  address?: string;
+  is_default?: boolean;
 }
 
 interface SmScheduleMasterTemplate {
@@ -240,6 +274,8 @@ const ALL_COLUMNS = [
   "order_time_days", "call_time_days", "po_supplier_id",
   // Completion Requirements
   "require_photo", "pass_fail_enabled",
+  // Claim Task Settings (SSoT for job claims)
+  "is_claim_task", "claim_percentage", "claim_invoice_pattern",
   // Subtasks
   "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids",
   // Documentation
@@ -299,6 +335,34 @@ export function ScheduleMasterTab() {
     router.push("/admin/system/schedule-master/data-view", { scroll: false });
   }, [router]);
 
+  // Update URL when view changes (for path-based view persistence)
+  // Also sync template dropdown when a saved view is applied
+  const handleViewChange = React.useCallback((view: {
+    slug?: string | null;
+    filters?: Array<{ column: string; operator: string; value: string | number | boolean | null }>;
+  } | null) => {
+    if (view?.slug) {
+      router.push(`/admin/system/schedule-master/data-view/${view.slug}`, { scroll: false });
+    }
+
+    // Extract template ID from view's filters and sync dropdown
+    // This ensures the template dropdown stays in sync when a global view is selected
+    if (view?.filters) {
+      const templateFilter = view.filters.find(f => f.column === "sm_template_ids");
+      if (templateFilter?.value) {
+        const templateId = typeof templateFilter.value === 'string'
+          ? parseInt(templateFilter.value)
+          : Number(templateFilter.value);
+        if (!isNaN(templateId)) {
+          setDataViewTemplateId(templateId);
+        }
+      } else if (templateFilter?.operator === "is_empty") {
+        // "No Template" view
+        setDataViewTemplateId(-1);
+      }
+    }
+  }, [router]);
+
   // Update URL when tab changes
   const handleTabChange = React.useCallback((value: string) => {
     const newTab = value as SubTab;
@@ -336,6 +400,7 @@ export function ScheduleMasterTab() {
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
+  const [noTemplateCount, setNoTemplateCount] = React.useState<number>(0);
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
   // Gantt V2 state - template ID for selection
@@ -458,6 +523,13 @@ export function ScheduleMasterTab() {
   const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Job-scoped document types for spawn scan task dropdown
   const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
+  // SSoT: Claim invoice templates for styling claim invoices
+  const [claimInvoiceTemplates, setClaimInvoiceTemplates] = React.useState<ClaimInvoiceTemplate[]>([]);
+  const [templatePreviewHtml, setTemplatePreviewHtml] = React.useState<string | null>(null);
+  const [loadingTemplatePreview, setLoadingTemplatePreview] = React.useState(false);
+  const [showFullPreview, setShowFullPreview] = React.useState(false);
+  // SSoT: Trading names for claim invoices (from Foundation trading_names)
+  const [tradingNames, setTradingNames] = React.useState<TradingName[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -502,6 +574,8 @@ export function ScheduleMasterTab() {
     loadHeaderRows();
     loadChecklists();
     loadDocumentTypes();
+    loadClaimInvoiceTemplates();
+    loadTradingNames();
     console.log("[ScheduleMasterTab] All loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
@@ -705,6 +779,87 @@ export function ScheduleMasterTab() {
     }
   };
 
+  // SSoT: Load claim invoice templates for styling claim invoices
+  const loadClaimInvoiceTemplates = async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: ClaimInvoiceTemplate[] }>(
+        "/api/v1/claim_invoice_templates"
+      );
+      if (data?.data) {
+        setClaimInvoiceTemplates(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load claim invoice templates:", error);
+    }
+  };
+
+  // SSoT: Load trading names from Foundation for claim invoices
+  const loadTradingNames = async () => {
+    try {
+      const data = await api.get<{ success: boolean; records: TradingName[] }>(
+        "/api/v1/foundations/trading_names/records"
+      );
+      if (data?.records) {
+        setTradingNames(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load trading names:", error);
+    }
+  };
+
+  // Load preview HTML for a specific template
+  // Accepts optional params to show realistic preview with actual task data
+  const loadTemplatePreview = async (
+    templateId: number,
+    options?: {
+      tradingName?: string;
+      claimPercentage?: number;
+      taskName?: string;
+      jobId?: number;
+    }
+  ) => {
+    setLoadingTemplatePreview(true);
+    try {
+      // Build query params for customized preview
+      // Backend uses real company data from CorporateCompanySetting + job data if provided
+      const params = new URLSearchParams();
+      if (options?.tradingName) params.set('trading_name', options.tradingName);
+      if (options?.claimPercentage) params.set('claim_percentage', String(options.claimPercentage));
+      if (options?.taskName) params.set('task_name', options.taskName);
+      // Use job 201 by default for realistic preview data (address, client, contract price)
+      params.set('job_id', String(options?.jobId || 201));
+
+      const queryString = params.toString();
+      const url = `/api/v1/claim_invoice_templates/${templateId}/preview${queryString ? `?${queryString}` : ''}`;
+
+      const data = await api.get<{ success: boolean; data: { preview_html: string } }>(url);
+      if (data?.data?.preview_html) {
+        setTemplatePreviewHtml(data.data.preview_html);
+      }
+    } catch (error) {
+      console.error("Failed to load template preview:", error);
+      setTemplatePreviewHtml(null);
+    } finally {
+      setLoadingTemplatePreview(false);
+    }
+  };
+
+  // Load count of items with no templates assigned
+  const loadNoTemplateCount = async () => {
+    try {
+      const response = await api.get<{ total: number }>("/api/v1/foundations/sm-schedule-master/records", {
+        params: {
+          per_page: 1,
+          "filter[sm_template_ids][op]": "is_empty",
+        },
+      });
+      setNoTemplateCount(response.total || 0);
+    } catch (error) {
+      console.error("Failed to load no-template count:", error);
+      setNoTemplateCount(0);
+    }
+  };
+
   const loadTemplates = async () => {
     try {
       const url = showInactive
@@ -713,6 +868,9 @@ export function ScheduleMasterTab() {
       const data = await api.get<{ success: boolean; sm_schedule_master_templates: SmScheduleMasterTemplate[] }>(url);
       const loadedTemplates = data?.sm_schedule_master_templates || [];
       setTemplates(loadedTemplates);
+
+      // Load count of items without any template
+      loadNoTemplateCount();
 
       // Auto-select template for Gantt Preview if not already selected
       if (!ganttTemplateId && loadedTemplates.length > 0) {
@@ -732,7 +890,12 @@ export function ScheduleMasterTab() {
       }
 
       // Auto-select template for Data View (same priority as Gantt)
-      if (!dataViewTemplateId && loadedTemplates.length > 0) {
+      // IMPORTANT: Check URL at runtime (not captured state) to avoid stale closure issues
+      // If a view is in the URL (e.g., /data-view/kitchen-claims), don't auto-select default template
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const hasViewInUrl = currentPath.includes('/data-view/') && currentPath.split('/data-view/')[1]?.length > 0;
+
+      if (!dataViewTemplateId && loadedTemplates.length > 0 && !hasViewInUrl) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
@@ -907,13 +1070,24 @@ export function ScheduleMasterTab() {
       return { success: false, error: "No template selected" };
     }
     try {
-      await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${rowId}`, {
-        row: { [field]: value },
-      });
+      // Special case: -1 means "no template" - update directly via Foundation API
+      if (dataViewTemplateId === -1) {
+        await api.patch(`/api/v1/foundations/sm-schedule-master/records/${rowId}`, {
+          record: { [field]: value },
+        });
+      } else {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${rowId}`, {
+          row: { [field]: value },
+        });
+      }
       // SSoT: Refresh TeeemTableView (primary data display via Foundation API)
       setDataViewRefreshKey(prev => prev + 1);
-      // Also refresh predecessor selector list (secondary use)
-      loadDataViewRows(dataViewTemplateId);
+      // Also refresh predecessor selector list (secondary use) - skip for "no template" view
+      if (dataViewTemplateId !== -1) {
+        loadDataViewRows(dataViewTemplateId);
+      }
+      // Refresh no-template count in case template was added/removed
+      loadNoTemplateCount();
       return { success: true };
     } catch (error) {
       console.error("Failed to update row:", error);
@@ -957,7 +1131,38 @@ export function ScheduleMasterTab() {
       allow_header: fullRow.allow_header,
       is_active: fullRow.is_active,
       document_types: fullRow.document_types || [],
+      // Claim task settings
+      is_claim_task: fullRow.is_claim_task || false,
+      is_variation: fullRow.is_variation || false,
+      claim_percentage: fullRow.claim_percentage,
+      claim_invoice_pattern: fullRow.claim_invoice_pattern,
+      // Extract ID from lookup object if present (Foundation API may return {id, display} for lookups)
+      claim_invoice_template_id: extractLookupId(fullRow.claim_invoice_template_id)
+        ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
+        : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null),
+      claim_trading_name_id: extractLookupId(fullRow.claim_trading_name_id) ? parseInt(extractLookupId(fullRow.claim_trading_name_id)!) : null,
+      // Multi-template support
+      sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
+        typeof item === 'object' ? item.id : item
+      ),
     });
+    // Load template preview if claim task has a template selected
+    const claimTemplateId = extractLookupId(fullRow.claim_invoice_template_id)
+      ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
+      : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null);
+    if (fullRow.is_claim_task && claimTemplateId) {
+      const tradingNameId = extractLookupId(fullRow.claim_trading_name_id);
+      const tradingName = tradingNameId
+        ? tradingNames.find(tn => String(tn.id) === tradingNameId)?.name
+        : undefined;
+      loadTemplatePreview(claimTemplateId, {
+        tradingName,
+        claimPercentage: fullRow.claim_percentage || undefined,
+        taskName: fullRow.name,
+      });
+    } else {
+      setTemplatePreviewHtml(null);
+    }
     setShowEditSheet(true);
   };
 
@@ -1010,6 +1215,10 @@ export function ScheduleMasterTab() {
       po_line_items: undefined, // Not in GanttSmScheduleMaster type
       linked_task_ids: rowData.linked_task_ids,
       sm_template_ids: rowData.sm_template_ids || [],
+      // Claim task settings (may not be in GanttSmScheduleMaster type yet)
+      is_claim_task: (rowData as unknown as SmScheduleMaster).is_claim_task || false,
+      claim_percentage: (rowData as unknown as SmScheduleMaster).claim_percentage ?? null,
+      claim_invoice_pattern: (rowData as unknown as SmScheduleMaster).claim_invoice_pattern ?? null,
     };
 
     setEditingRow(fullRow);
@@ -1036,7 +1245,38 @@ export function ScheduleMasterTab() {
       allow_header: fullRow.allow_header,
       is_active: fullRow.is_active,
       document_types: fullRow.document_types || [],
+      // Claim task settings
+      is_claim_task: fullRow.is_claim_task || false,
+      is_variation: fullRow.is_variation || false,
+      claim_percentage: fullRow.claim_percentage,
+      claim_invoice_pattern: fullRow.claim_invoice_pattern,
+      // Handle both plain number and lookup object formats
+      claim_invoice_template_id: extractLookupId(fullRow.claim_invoice_template_id)
+        ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
+        : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null),
+      claim_trading_name_id: extractLookupId(fullRow.claim_trading_name_id) ? parseInt(extractLookupId(fullRow.claim_trading_name_id)!) : null,
+      // Multi-template support
+      sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
+        typeof item === 'object' ? item.id : item
+      ),
     });
+    // Load template preview if claim task has a template selected
+    const ganttClaimTemplateId = extractLookupId(fullRow.claim_invoice_template_id)
+      ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
+      : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null);
+    if (fullRow.is_claim_task && ganttClaimTemplateId) {
+      const tradingNameId = extractLookupId(fullRow.claim_trading_name_id);
+      const tradingName = tradingNameId
+        ? tradingNames.find(tn => String(tn.id) === tradingNameId)?.name
+        : (typeof fullRow.claim_trading_name_id === 'number' ? tradingNames.find(tn => tn.id === fullRow.claim_trading_name_id)?.name : undefined);
+      loadTemplatePreview(ganttClaimTemplateId, {
+        tradingName,
+        claimPercentage: fullRow.claim_percentage || undefined,
+        taskName: fullRow.name,
+      });
+    } else {
+      setTemplatePreviewHtml(null);
+    }
     setShowEditSheet(true);
   };
 
@@ -2253,27 +2493,39 @@ export function ScheduleMasterTab() {
           {/* SSoT: Fullscreen now handled by TeeemTableView via enableFullscreen prop */}
           <div className="flex flex-col h-full">
             <TeeemTableView
-              key={`${dataViewRefreshKey}-${dataViewTemplateId}-${selectedTagFilter}`}
+              key={`${dataViewRefreshKey}-${selectedTagFilter}`}
               foundationId="sm-schedule-master"
-              tableName={dataViewTemplateId
-                ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
-                : "PO Schedule Master"
+              tableName={dataViewTemplateId === -1
+                ? "No Template Selected"
+                : dataViewTemplateId
+                  ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
+                  : "PO Schedule Master"
               }
-              autoFetchRecords={!!dataViewTemplateId}
-              initialFilters={dataViewTemplateId ? (() => {
+              autoFetchRecords={!!dataViewTemplateId || !!viewSlug}
+              initialFilters={viewSlug ? undefined : (dataViewTemplateId ? (() => {
+                // Special case: -1 means "no template selected" - filter for empty sm_template_ids
+                if (dataViewTemplateId === -1) {
+                  return [
+                    { id: "template", column: "sm_template_ids", operator: "is_empty" as const, value: "", label: "No Template" },
+                    ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
+                  ];
+                }
                 const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
                 // Transient drafts: Always filter by template_id (rows belong to template, not version)
                 return [
                   { id: "template", column: "sm_template_ids", operator: "array_contains" as const, value: String(dataViewTemplateId), label: `Template: ${currentTemplate?.name || 'Selected'}` },
                   ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
                 ];
-              })() : []}
+              })() : [])}
               onRefresh={() => {
                 setDataViewRefreshKey(prev => prev + 1);
               }}
               onRowUpdate={handleDataViewRowUpdate}
               onRowDoubleClick={handleDataViewRowDoubleClick}
               initialShowTotals={true}
+              viewSlug={viewSlug}
+              defaultViewSlug={viewSlug}
+              onViewChange={handleViewChange}
               leftActions={
                 <div className="flex items-center gap-2">
 
@@ -2282,8 +2534,11 @@ export function ScheduleMasterTab() {
                     value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
                     onValueChange={(value) => {
                       if (value) {
-                        // SSoT: Just update template ID, TeeemTableView will auto-fetch via Foundation API
+                        // SSoT: Update template ID AND increment refresh key to trigger remount with new initialFilters
+                        // Note: dataViewTemplateId is NOT in the key anymore (to prevent view selection from causing remounts)
+                        // So we must manually trigger a refresh when the dropdown is changed
                         setDataViewTemplateId(parseInt(value));
+                        setDataViewRefreshKey(k => k + 1);
                       }
                     }}
                   >
@@ -2296,6 +2551,10 @@ export function ScheduleMasterTab() {
                           {template.name} ({template.row_count} rows)
                         </SelectItem>
                       ))}
+                      {/* Special option to show items with no template */}
+                      <SelectItem value="-1" className="text-muted-foreground border-t mt-1 pt-1">
+                        No Template Selected ({noTemplateCount} rows)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -3040,6 +3299,17 @@ export function ScheduleMasterTab() {
               </DialogTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {editingRow?.name} (Task #{editingRow?.task_number})
+                {editingRow?.sm_template_ids && editingRow.sm_template_ids.length > 0 && (
+                  <span className="ml-2 text-xs">
+                    • Template: {editingRow.sm_template_ids
+                      .map((item: number | { id: number; display?: string }) => {
+                        // Handle both plain IDs and lookup objects {id, display}
+                        const id = typeof item === 'object' ? item.id : item;
+                        return templates.find(t => t.id === id)?.name || `#${id}`;
+                      })
+                      .join(', ')}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -3258,9 +3528,179 @@ export function ScheduleMasterTab() {
                     </div>
                   </div>
                 </div>
+                {/* Claim Settings - SSoT: Schedule Master defines job claims */}
+                <div className="pt-2 border-t">
+                  <h4 className="font-medium text-sm mb-2">Claim Settings</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-is-claim-task"
+                        checked={editRowForm.is_claim_task || false}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            // Auto-select default template if none selected
+                            const defaultTemplate = claimInvoiceTemplates.find(t => t.is_default);
+                            const templateId = editRowForm.claim_invoice_template_id || defaultTemplate?.id || null;
+                            setEditRowForm({
+                              ...editRowForm,
+                              is_claim_task: checked,
+                              claim_invoice_template_id: templateId,
+                            });
+                            // Load preview if template selected
+                            if (templateId) {
+                              loadTemplatePreview(templateId, { taskName: editRowForm.name });
+                            }
+                          } else {
+                            // Clear claim fields when unchecked
+                            setEditRowForm({
+                              ...editRowForm,
+                              is_claim_task: false,
+                              is_variation: false,
+                              claim_percentage: null,
+                              claim_invoice_pattern: null,
+                              claim_invoice_template_id: null,
+                              claim_trading_name_id: null,
+                            });
+                            setTemplatePreviewHtml(null);
+                          }
+                        }}
+                      />
+                      <div>
+                        <Label htmlFor="row-is-claim-task" className="text-xs">Is Claim Task</Label>
+                        <p className="text-[10px] text-muted-foreground">Creates JobClaimStage on job</p>
+                      </div>
+                    </div>
+                    {editRowForm.is_claim_task && (
+                      <div className="space-y-3 pl-6 border-l-2 border-muted">
+                        {/* Variation checkbox - skips percentage requirement */}
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="row-is-variation"
+                            checked={editRowForm.is_variation || false}
+                            onCheckedChange={(checked) => {
+                              setEditRowForm({
+                                ...editRowForm,
+                                is_variation: checked === true,
+                                claim_percentage: checked === true ? null : editRowForm.claim_percentage,
+                              });
+                            }}
+                          />
+                          <div>
+                            <Label htmlFor="row-is-variation" className="text-xs">Variation</Label>
+                            <p className="text-[10px] text-muted-foreground">Amount entered later (no % needed)</p>
+                          </div>
+                        </div>
+
+                        {/* Percentage - only shown if not a variation */}
+                        {!editRowForm.is_variation && (
+                        <div className="space-y-1">
+                          <Label htmlFor="row-claim-percentage" className="text-xs">Claim Percentage *</Label>
+                          <div className="flex items-center gap-1">
+                            <Input
+                              id="row-claim-percentage"
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.01}
+                              value={editRowForm.claim_percentage || ""}
+                              onChange={(e) => setEditRowForm({ ...editRowForm, claim_percentage: e.target.value ? parseFloat(e.target.value) : null })}
+                              className="h-8 w-24"
+                              placeholder="15.00"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Percentage of contract price</p>
+                        </div>
+                        )}
+
+                        {/* Trading Name Selector */}
+                        <div className="space-y-1">
+                          <Label className="text-xs">Trading Name</Label>
+                          <ComboboxDropdown
+                            items={tradingNames.map(tn => ({ id: String(tn.id), label: tn.name }))}
+                            selectedItem={editRowForm.claim_trading_name_id ? {
+                              id: String(editRowForm.claim_trading_name_id),
+                              label: tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name || `ID ${editRowForm.claim_trading_name_id}`
+                            } : undefined}
+                            onSelect={(item) => setEditRowForm({ ...editRowForm, claim_trading_name_id: parseInt(item.id) })}
+                            placeholder="Select trading name..."
+                            emptyResults="No trading names found"
+                            clearable
+                            onClear={() => setEditRowForm({ ...editRowForm, claim_trading_name_id: null })}
+                          />
+                          <p className="text-[10px] text-muted-foreground">Company name shown on claim invoice</p>
+                        </div>
+
+                        {/* Invoice Match Pattern */}
+                        <div className="space-y-1">
+                          <Label htmlFor="row-claim-invoice-pattern" className="text-xs">Invoice Match Pattern</Label>
+                          <Input
+                            id="row-claim-invoice-pattern"
+                            type="text"
+                            value={editRowForm.claim_invoice_pattern || ""}
+                            onChange={(e) => setEditRowForm({ ...editRowForm, claim_invoice_pattern: e.target.value || null })}
+                            className="h-8"
+                            placeholder="e.g., Deposit, Slab, Frame..."
+                          />
+                          <p className="text-[10px] text-muted-foreground">Pattern to auto-match Xero invoices to this claim stage</p>
+                        </div>
+
+                        {/* Invoice Template Selector */}
+                        <div className="space-y-2">
+                          <Label className="text-xs">Invoice Template</Label>
+                          <div className="grid grid-cols-1 gap-2">
+                            {claimInvoiceTemplates.map((template) => (
+                              <div
+                                key={template.id}
+                                onClick={() => {
+                                  setEditRowForm({ ...editRowForm, claim_invoice_template_id: template.id });
+                                  // Load preview with current form values for realistic preview
+                                  const tradingName = editRowForm.claim_trading_name_id
+                                    ? tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name
+                                    : undefined;
+                                  loadTemplatePreview(template.id, {
+                                    tradingName,
+                                    claimPercentage: editRowForm.claim_percentage || undefined,
+                                    taskName: editRowForm.name,
+                                  });
+                                }}
+                                className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                                  editRowForm.claim_invoice_template_id === template.id
+                                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                    : "border-border hover:border-primary/50"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  {/* Color swatch preview */}
+                                  <div
+                                    className="w-8 h-8 rounded flex-shrink-0"
+                                    style={{
+                                      background: `linear-gradient(135deg, ${template.primary_color} 0%, ${template.primary_color} 60%, ${template.secondary_color} 100%)`
+                                    }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{template.name}</p>
+                                    <p className="text-[10px] text-muted-foreground truncate">{template.description}</p>
+                                  </div>
+                                  {template.is_default && (
+                                    <Badge variant="secondary" className="text-[10px] flex-shrink-0">Default</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {claimInvoiceTemplates.length === 0 && (
+                            <p className="text-[10px] text-muted-foreground">No templates available</p>
+                          )}
+                        </div>
+
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Column 2: Classification */}
+              {/* Column 2: Classification + Invoice Preview */}
               <div className="space-y-3">
                 <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Classification</h4>
                 <div className="space-y-1">
@@ -3287,6 +3727,32 @@ export function ScheduleMasterTab() {
                     onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
                   />
                 </div>
+
+                {/* Invoice Template Preview - shown when claim task has template selected */}
+                {editRowForm.is_claim_task && editRowForm.claim_invoice_template_id && (
+                  <div className="pt-3 border-t space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Invoice Preview</Label>
+                      {loadingTemplatePreview && <Spinner size={14} />}
+                    </div>
+                    {templatePreviewHtml && !loadingTemplatePreview && (
+                      <div
+                        className="border rounded-lg bg-white overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                        style={{ height: "280px", overflow: "hidden" }}
+                        onDoubleClick={() => setShowFullPreview(true)}
+                        title="Double-click for full size"
+                      >
+                        <div
+                          style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "286%", pointerEvents: "none" }}
+                          dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
+                        />
+                      </div>
+                    )}
+                    {templatePreviewHtml && !loadingTemplatePreview && (
+                      <p className="text-[10px] text-muted-foreground text-center">Double-click to enlarge</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Column 3: Relationships & Header */}
@@ -3561,6 +4027,68 @@ export function ScheduleMasterTab() {
               </div>
             </div>
 
+            {/* Template Membership - Multi-template support */}
+            <div className="border-t pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs">Template Membership</Label>
+                {/* Copy to Template dropdown */}
+                <div className="flex items-center gap-2">
+                  <ComboboxDropdown
+                    items={templates
+                      .filter(t => !(editRowForm.sm_template_ids || []).includes(t.id))
+                      .map(t => ({ id: String(t.id), label: t.name }))}
+                    onSelect={async (item) => {
+                      if (!editingRow) return;
+                      try {
+                        const result = await api.post(`/api/v1/sm_schedule_master_templates/${item.id}/rows`, {
+                          row: {
+                            copy_from_id: editingRow.id,
+                          },
+                        });
+                        if (result) {
+                          toast({ title: "Copied", description: `Task copied to ${item.label}` });
+                          // Refresh data views
+                          setDataViewRefreshKey(prev => prev + 1);
+                          loadDataViewRows(dataViewTemplateId);
+                        }
+                      } catch (error) {
+                        console.error("Failed to copy task:", error);
+                        toast({ title: "Error", description: "Failed to copy task", variant: "destructive" });
+                      }
+                    }}
+                    placeholder="Copy to template..."
+                    emptyResults="No other templates"
+                    className="w-48 h-7 text-xs"
+                  />
+                </div>
+              </div>
+              <MultipleSelector
+                value={(editRowForm.sm_template_ids || []).map(id => {
+                  const template = templates.find(t => t.id === id);
+                  return { value: String(id), label: template?.name || `Template ${id}` };
+                })}
+                onChange={(options) => {
+                  setEditRowForm({
+                    ...editRowForm,
+                    sm_template_ids: options.map(o => parseInt(o.value))
+                  });
+                }}
+                defaultOptions={templates.map(t => ({
+                  value: String(t.id),
+                  label: t.name
+                }))}
+                placeholder="Select templates this task belongs to..."
+                emptyIndicator={
+                  <p className="text-center text-xs text-muted-foreground">
+                    No templates available
+                  </p>
+                }
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                This task will appear in all selected templates. Changes sync across templates.
+              </p>
+            </div>
+
             {/* Linked Tasks - only shown when PO Required is on */}
             {editRowForm.po_required && (
               <div className="border-t pt-3">
@@ -3589,6 +4117,25 @@ export function ScheduleMasterTab() {
                     </p>
                   }
                 />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Full-Size Invoice Preview Dialog */}
+      <Dialog open={showFullPreview} onOpenChange={setShowFullPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 py-4 border-b">
+            <DialogTitle>Invoice Preview</DialogTitle>
+            <DialogDescription>
+              {editRowForm.name} • {editRowForm.claim_percentage}% of contract
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-6 bg-gray-100 dark:bg-gray-900">
+            {templatePreviewHtml && (
+              <div className="bg-white rounded-lg shadow-lg mx-auto" style={{ maxWidth: "800px" }}>
+                <div dangerouslySetInnerHTML={{ __html: templatePreviewHtml }} />
               </div>
             )}
           </div>

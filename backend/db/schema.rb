@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_205103) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1112,6 +1112,30 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
+  create_table "claim_invoice_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "description"
+    t.string "style_key", null: false
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.string "primary_color", default: "#1e40af"
+    t.string "secondary_color", default: "#64748b"
+    t.string "font_family", default: "Inter"
+    t.boolean "show_logo", default: true
+    t.boolean "show_company_details", default: true
+    t.boolean "show_bank_details", default: true
+    t.boolean "show_payment_terms", default: true
+    t.string "logo_position", default: "left"
+    t.string "header_style", default: "standard"
+    t.text "header_text"
+    t.text "footer_text"
+    t.text "payment_instructions"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_default"], name: "index_claim_invoice_templates_on_is_default", where: "(is_default = true)"
+    t.index ["style_key"], name: "index_claim_invoice_templates_on_style_key"
+  end
+
   create_table "claim_stage_templates", force: :cascade do |t|
     t.bigint "job_type_id"
     t.string "name", null: false
@@ -1904,6 +1928,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.jsonb "corporate_entity_types", default: ["Company", "Trust", "Superfund", "Charity", "Corporate Trustee", "Sole Trader"], null: false
     t.date "gl_lock_date"
     t.text "team_email_domains", default: [], array: true
+    t.string "bank_name"
+    t.string "bank_bsb"
+    t.string "bank_account_number"
+    t.string "bank_account_name"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|
@@ -3096,6 +3124,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.index ["is_system_default"], name: "index_folder_templates_on_is_system_default"
     t.index ["name"], name: "index_folder_templates_on_name"
     t.index ["template_type"], name: "index_folder_templates_on_template_type"
+  end
+
+  create_table "foundation_trading_names", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "abn"
+    t.string "address"
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "foundation_views", force: :cascade do |t|
@@ -8216,7 +8254,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.bigint "start_workflow_id"
     t.boolean "complete_workflow_enabled", default: false
     t.bigint "complete_workflow_id"
+    t.boolean "is_claim_task", default: false, null: false
+    t.decimal "claim_percentage", precision: 5, scale: 2
+    t.string "claim_invoice_pattern"
+    t.bigint "claim_invoice_template_id"
+    t.bigint "claim_trading_name_id"
+    t.boolean "is_variation", default: false
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
+    t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
     t.index ["confirm"], name: "index_sm_schedule_masters_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_masters_on_cost_centre"
@@ -8225,6 +8270,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.index ["header_gantt"], name: "index_sm_schedule_masters_on_header_gantt"
     t.index ["hold"], name: "index_sm_schedule_masters_on_hold", where: "(hold = true)"
     t.index ["is_active"], name: "index_sm_schedule_masters_on_is_active"
+    t.index ["is_claim_task"], name: "index_sm_schedule_masters_claim_tasks", where: "(is_claim_task = true)"
     t.index ["po_supplier_id"], name: "index_sm_schedule_masters_on_po_supplier_id"
     t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
@@ -8438,6 +8484,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.boolean "start_workflow_fired", default: false
     t.text "email_keywords"
     t.boolean "is_delegated_question", default: false, null: false
+    t.bigint "job_claim_stage_id"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
@@ -8449,6 +8496,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.index ["is_hold_task"], name: "index_sm_tasks_on_is_hold_task", where: "(is_hold_task = true)"
     t.index ["is_private"], name: "index_sm_tasks_on_is_private"
     t.index ["is_ticket"], name: "index_sm_tasks_on_is_ticket"
+    t.index ["job_claim_stage_id"], name: "index_sm_tasks_on_job_claim_stage_id"
     t.index ["job_id", "status", "start_date"], name: "idx_tasks_job_status_start"
     t.index ["job_id", "status"], name: "idx_tasks_job_status"
     t.index ["job_id"], name: "index_sm_tasks_on_job_id"
@@ -9185,8 +9233,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "versions", force: :cascade do |t|
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -10550,6 +10597,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
   add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"
   add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "complete_workflow_id"
   add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "start_workflow_id"
+  add_foreign_key "sm_schedule_masters", "claim_invoice_templates"
   add_foreign_key "sm_schedule_masters", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_schedule_masters", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_schedule_masters", "users", column: "created_by_id"
@@ -10568,6 +10616,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
   add_foreign_key "sm_tasks", "bpmn_processes", column: "complete_workflow_id"
   add_foreign_key "sm_tasks", "bpmn_processes", column: "start_workflow_id"
   add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "job_claim_stages"
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_recurring_task_definitions", column: "recurring_task_definition_id"

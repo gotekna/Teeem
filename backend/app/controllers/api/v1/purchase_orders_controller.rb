@@ -109,12 +109,16 @@ module Api
       # POST /api/v1/purchase_orders
       def create
         schedule_task_id = params[:purchase_order][:schedule_task_id]
-        @purchase_order = PurchaseOrder.new(purchase_order_params.except(:schedule_task_id))
+        task_template_id = params[:purchase_order][:task_template_id]
+        task_name = params[:purchase_order][:task_name]
+
+        @purchase_order = PurchaseOrder.new(purchase_order_params.except(:schedule_task_id, :task_template_id, :task_name))
 
         ActiveRecord::Base.transaction do
           if @purchase_order.save
             # SSoT: Link PO to task via sm_task_id (Option B - single column)
             if schedule_task_id.present?
+              # Link to existing task
               sm_task = SmTask.find(schedule_task_id)
               @purchase_order.update!(sm_task_id: sm_task.id)
 
@@ -123,6 +127,31 @@ module Api
               if spawn_result[:spawned_tasks].any?
                 Rails.logger.info("[PurchaseOrdersController] Spawned #{spawn_result[:spawned_tasks].count} tasks for PO ##{@purchase_order.id}")
               end
+            elsif task_template_id.present? || task_name.present?
+              # Create new task from template or custom name
+              # Calculate sensible defaults for required fields
+              today = Date.current
+              max_sequence = SmTask.where(job_id: @purchase_order.job_id).maximum(:sequence_order) || 0
+              template = task_template_id.present? ? SmScheduleMaster.find(task_template_id) : nil
+
+              sm_task = SmTask.create!(
+                job_id: @purchase_order.job_id,
+                sm_schedule_master_id: task_template_id.presence,
+                name: task_name.presence || template&.name || "PO Task",
+                supplier_id: @purchase_order.supplier_id,
+                status: "not_started",
+                # Required fields with sensible defaults
+                sequence_order: max_sequence + 1,
+                start_date: today,
+                duration_days: template&.duration_days || 1,
+                # Default assigned_user to current user
+                assigned_user_id: current_user.id,
+                # Audit
+                created_by: current_user,
+                updated_by: current_user
+              )
+              @purchase_order.update!(sm_task_id: sm_task.id)
+              Rails.logger.info("[PurchaseOrdersController] Created task '#{sm_task.name}' for PO ##{@purchase_order.id}")
             end
 
             render json: @purchase_order.as_json(include: :line_items), status: :created
@@ -468,6 +497,9 @@ module Api
           :job_id,
           :supplier_id,
           :status,
+          :schedule_task_id,
+          :task_template_id,
+          :task_name,
           :description,
           :delivery_address,
           :special_instructions,

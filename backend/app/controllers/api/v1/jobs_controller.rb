@@ -994,6 +994,50 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/jobs/:id/linked_schedule_template
+      # Returns the schedule template linked to this job's tasks (if any)
+      # Used by frontend to skip template selection in sync dialog when job already has synced tasks
+      def linked_schedule_template
+        job = Job.find(params[:id])
+
+        # Find distinct template IDs from this job's tasks via their sm_schedule_master links
+        template_ids = SmTask.where(construction_id: job.id)
+                             .joins(:sm_schedule_master)
+                             .where.not(sm_schedule_masters: { sm_template_ids: nil })
+                             .pluck(Arel.sql("DISTINCT jsonb_array_elements_text(sm_schedule_masters.sm_template_ids)::integer"))
+
+        if template_ids.any?
+          # Get the most common template (in case tasks are linked to different templates)
+          template_counts = SmTask.where(construction_id: job.id)
+                                  .joins(:sm_schedule_master)
+                                  .where.not(sm_schedule_masters: { sm_template_ids: nil })
+                                  .group(Arel.sql("jsonb_array_elements_text(sm_schedule_masters.sm_template_ids)::integer"))
+                                  .count
+
+          most_common_template_id = template_counts.max_by { |_, count| count }&.first&.to_i
+          template = SmScheduleMasterTemplate.find_by(id: most_common_template_id)
+
+          if template
+            render json: {
+              success: true,
+              has_linked_template: true,
+              template: {
+                id: template.id,
+                name: template.name,
+                is_default: template.is_default
+              },
+              task_count: job.sm_tasks.count
+            }
+          else
+            render json: { success: true, has_linked_template: false, task_count: job.sm_tasks.count }
+          end
+        else
+          render json: { success: true, has_linked_template: false, task_count: job.sm_tasks.count }
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Job not found" }, status: :not_found
+      end
+
       private
 
       def set_job

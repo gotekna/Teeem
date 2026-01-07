@@ -217,6 +217,7 @@ export interface TaskHubContextType extends TaskHubState {
   expandTask: (taskId: number) => void;
   collapseTask: () => void;
   toggleTaskExpansion: (taskId: number) => void;
+  navigateToTask: (taskId: number) => void; // Clears filters and expands the task
 
   // Task actions
   startTask: (taskId: number) => Promise<void>;
@@ -624,24 +625,6 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   const { user } = useAuth();
 
   const [tasks, setTasks] = useState<SmTask[]>([]);
-  const [filters, setFiltersState] = useState<TaskFilters>(() => {
-    // Load saved filters from localStorage
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taskHub_filters');
-      if (saved) {
-        try {
-          return { ...defaultFilters, ...JSON.parse(saved) };
-        } catch {
-          // Ignore invalid JSON
-        }
-      }
-    }
-    return {
-      ...defaultFilters,
-      jobIds: initialJobId ? [initialJobId] : [],
-    };
-  });
-
   const [activeView, setActiveViewState] = useState<ViewType>(() => {
     // Load saved view from localStorage
     if (typeof window !== 'undefined') {
@@ -651,6 +634,30 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       }
     }
     return 'my-tasks';
+  });
+
+  const [filters, setFiltersState] = useState<TaskFilters>(() => {
+    // Load saved filters from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('taskHub_filters');
+      const savedView = localStorage.getItem('taskHub_activeView') as ViewType;
+      if (saved) {
+        try {
+          const parsedFilters = { ...defaultFilters, ...JSON.parse(saved) };
+          // Clear selectedUserId if view is "my-tasks" - user expects only their tasks
+          if (savedView === 'my-tasks' || !savedView) {
+            parsedFilters.selectedUserId = null;
+          }
+          return parsedFilters;
+        } catch {
+          // Ignore invalid JSON
+        }
+      }
+    }
+    return {
+      ...defaultFilters,
+      jobIds: initialJobId ? [initialJobId] : [],
+    };
   });
 
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
@@ -1164,6 +1171,16 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     setExpandedTaskId(prev => prev === taskId ? null : taskId);
   }, []);
 
+  // Navigate to a specific task (clears filters and expands)
+  const navigateToTask = useCallback((taskId: number) => {
+    // Clear filters to show all tasks
+    setFiltersState(defaultFilters);
+    // Switch to list view
+    setActiveViewState('list');
+    // Expand the target task
+    setExpandedTaskId(taskId);
+  }, []);
+
   // Task action handlers
   const startTask = useCallback(async (taskId: number) => {
     const now = new Date().toISOString();
@@ -1239,6 +1256,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     expandTask,
     collapseTask,
     toggleTaskExpansion,
+    navigateToTask,
     startTask,
     completeTask,
     setTaskHold,

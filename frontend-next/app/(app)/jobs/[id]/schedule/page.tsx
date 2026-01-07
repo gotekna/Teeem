@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2 } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2, AlertCircle } from "lucide-react";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -45,6 +45,7 @@ import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { parseISO } from "date-fns";
+import { clearCachedRecords } from "@/lib/records-cache";
 
 interface Job {
   id: number;
@@ -394,12 +395,69 @@ export default function SchedulePage() {
   const [analyzeResult, setAnalyzeResult] = React.useState<AnalyzeResult | null>(null);
   const [compareResult, setCompareResult] = React.useState<CompareResult | null>(null);
   const [syncResult, setSyncResult] = React.useState<SyncResult | null>(null);
-  const [syncStep, setSyncStep] = React.useState<"analyze" | "compare" | "result">("analyze");
+  const [syncStep, setSyncStep] = React.useState<"select" | "analyze" | "compare" | "result">("select");
   const [jobTemplate, setJobTemplate] = React.useState<JobTemplate | null>(null);
   const [loadingTemplate, setLoadingTemplate] = React.useState(false);
   const [confirmedMatches, setConfirmedMatches] = React.useState<Set<number>>(new Set());
   const [orphansToDelete, setOrphansToDelete] = React.useState<Set<number>>(new Set());
   const [compareFilter, setCompareFilter] = React.useState<"all" | "will_create" | "will_update" | "will_skip" | "unchanged" | "unlinked">("all");
+  // Template selection for sync
+  const [syncTemplateList, setSyncTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean; slug?: string }>>([]);
+  const [loadingSyncTemplates, setLoadingSyncTemplates] = React.useState(false);
+
+  // Task edit dialog state - expanded to match Schedule Master
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<Record<string, unknown> | null>(null);
+  const [showTaskEditDialog, setShowTaskEditDialog] = React.useState(false);
+  const [taskEditForm, setTaskEditForm] = React.useState<{
+    name: string;
+    description: string;
+    duration_days: number;
+    sequence_order: number;
+    start_date: string;
+    end_date: string;
+    status: string;
+    // Basic settings
+    trade: string;
+    assigned_role: string | null;
+    // Classification
+    stage: string;
+    cost_centre: string;
+    // PO settings
+    po_required: boolean;
+    critical_po: boolean;
+    // Completion
+    require_photo: boolean;
+    // Flags
+    hold: boolean;
+    confirm: boolean;
+  }>({
+    name: "",
+    description: "",
+    duration_days: 1,
+    sequence_order: 0,
+    start_date: "",
+    end_date: "",
+    status: "not_started",
+    trade: "",
+    assigned_role: null,
+    stage: "",
+    cost_centre: "",
+    po_required: false,
+    critical_po: false,
+    require_photo: false,
+    hold: false,
+    confirm: false,
+  });
+  const [savingTask, setSavingTask] = React.useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const initialFormLoadRef = React.useRef(true);
+
+  // Reference data for task edit dropdowns (SSoT: same as Schedule Master)
+  const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableStages, setAvailableStages] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
+  const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
 
   // Reset state
   const [showResetDialog, setShowResetDialog] = React.useState(false);
@@ -415,6 +473,8 @@ export default function SchedulePage() {
   const [templateList, setTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean }>>([]);
   const [selectedResetTemplateId, setSelectedResetTemplateId] = React.useState<number | null>(null);
   const [loadingTemplateList, setLoadingTemplateList] = React.useState(false);
+  const [resetPreviewError, setResetPreviewError] = React.useState<string | null>(null);
+  const [loadingResetPreview, setLoadingResetPreview] = React.useState(false);
 
   React.useEffect(() => {
     console.log('[SchedulePage] 🔄 Fetch job effect triggered', { jobId });
@@ -437,6 +497,37 @@ export default function SchedulePage() {
     }
   }, [jobId]);
 
+  // SSoT: Load reference data for task edit dropdowns (same endpoints as Schedule Master)
+  React.useEffect(() => {
+    const loadReferenceData = async () => {
+      // Load trades
+      try {
+        const tradesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=100");
+        if (tradesData?.records) setAvailableTrades(tradesData.records);
+      } catch (e) { console.error("Failed to load trades:", e); }
+
+      // Load stages
+      try {
+        const stagesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages/records?per_page=100");
+        if (stagesData?.records) setAvailableStages(stagesData.records);
+      } catch (e) { console.error("Failed to load stages:", e); }
+
+      // Load roles
+      try {
+        const rolesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/roles/records?per_page=100");
+        if (rolesData?.records) setAvailableRoles(rolesData.records.map(r => ({ id: r.id, name: r.name, display_name: r.display_name || r.name })));
+      } catch (e) { console.error("Failed to load roles:", e); }
+
+      // Load cost centres
+      try {
+        const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
+        if (costCentresData?.records) setAvailableCostCentres(costCentresData.records);
+      } catch (e) { console.error("Failed to load cost centres:", e); }
+    };
+
+    loadReferenceData();
+  }, []);
+
   const triggerRefresh = React.useCallback(() => {
     setRefreshKey(k => k + 1);
   }, []);
@@ -453,6 +544,145 @@ export default function SchedulePage() {
       throw error;
     }
   }, [triggerRefresh]);
+
+  // Handle double-click to open task edit dialog
+  const handleRowDoubleClick = React.useCallback((row: Record<string, unknown>) => {
+    console.log('[SchedulePage] Task double-clicked:', row);
+    setSelectedTaskForEdit(row);
+    // Mark as initial form load to skip auto-save
+    initialFormLoadRef.current = true;
+    // Populate the edit form with current values
+    setTaskEditForm({
+      name: String(row.name ?? ""),
+      description: String(row.description ?? ""),
+      duration_days: Number(row.duration_days) || 1,
+      sequence_order: Number(row.sequence_order) || 0,
+      start_date: String(row.start_date ?? ""),
+      end_date: String(row.end_date ?? ""),
+      status: String(row.status ?? "not_started"),
+      // Basic settings - trade stores ID as string
+      trade: row.trade_id ? String(row.trade_id) : "",
+      assigned_role: row.assigned_role_id ? String(row.assigned_role_id) : null,
+      // Classification
+      stage: row.stage_id ? String(row.stage_id) : "",
+      cost_centre: row.cost_centre_id ? String(row.cost_centre_id) : "",
+      // PO settings
+      po_required: row.po_required === true,
+      critical_po: row.critical_po === true,
+      // Completion
+      require_photo: row.require_photo === true,
+      // Flags
+      hold: row.hold === true,
+      confirm: row.confirm === true,
+    });
+    setAutoSaveStatus('idle');
+    setShowTaskEditDialog(true);
+  }, []);
+
+  // Save task changes (supports both manual and auto-save)
+  const handleSaveTask = React.useCallback(async (options?: { silent?: boolean }) => {
+    if (!selectedTaskForEdit?.id) return;
+
+    const silent = options?.silent ?? false;
+
+    if (silent) {
+      setAutoSaveStatus('saving');
+    } else {
+      setSavingTask(true);
+    }
+
+    try {
+      await api.patch(`/api/v1/sm_tasks/${selectedTaskForEdit.id}`, {
+        sm_task: {
+          name: taskEditForm.name,
+          description: taskEditForm.description,
+          duration_days: taskEditForm.duration_days,
+          sequence_order: taskEditForm.sequence_order,
+          start_date: taskEditForm.start_date,
+          end_date: taskEditForm.end_date,
+          status: taskEditForm.status,
+          // Basic settings
+          trade_id: taskEditForm.trade ? parseInt(taskEditForm.trade) : null,
+          assigned_role_id: taskEditForm.assigned_role ? parseInt(taskEditForm.assigned_role) : null,
+          // Classification
+          stage_id: taskEditForm.stage ? parseInt(taskEditForm.stage) : null,
+          cost_centre_id: taskEditForm.cost_centre ? parseInt(taskEditForm.cost_centre) : null,
+          // PO settings
+          po_required: taskEditForm.po_required,
+          critical_po: taskEditForm.critical_po,
+          // Completion
+          require_photo: taskEditForm.require_photo,
+          // Flags
+          hold: taskEditForm.hold,
+          confirm: taskEditForm.confirm,
+        }
+      });
+
+      if (silent) {
+        setAutoSaveStatus('saved');
+        // Reset to idle after 2 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 2000);
+        // Clear cache and refresh
+        clearCachedRecords("sm_tasks");
+        triggerRefresh();
+      } else {
+        toast({
+          title: "Task Updated",
+          description: "Changes saved successfully",
+        });
+        setShowTaskEditDialog(false);
+        // Clear cache and refresh
+        clearCachedRecords("sm_tasks");
+        triggerRefresh();
+      }
+    } catch (error) {
+      console.error("Failed to save task:", error);
+      if (silent) {
+        setAutoSaveStatus('error');
+        // Reset to idle after 3 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 3000);
+      } else {
+        toast({
+          title: "Save Failed",
+          description: "Failed to save task changes",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      if (!silent) {
+        setSavingTask(false);
+      }
+    }
+  }, [selectedTaskForEdit, taskEditForm, toast, triggerRefresh]);
+
+  // Auto-save effect - debounced save when form changes
+  React.useEffect(() => {
+    // Skip auto-save on initial form load
+    if (initialFormLoadRef.current) {
+      initialFormLoadRef.current = false;
+      return;
+    }
+
+    // Skip if dialog is not open or no task is being edited
+    if (!showTaskEditDialog || !selectedTaskForEdit) return;
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Set new timer for debounced save (500ms delay)
+    autoSaveTimerRef.current = setTimeout(() => {
+      handleSaveTask({ silent: true });
+    }, 500);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskEditForm]);
 
   // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
@@ -685,7 +915,7 @@ export default function SchedulePage() {
     }
   }, []);
 
-  // Open sync dialog
+  // Open sync dialog - checks for linked template first, skips selection if found
   const handleOpenSyncDialog = async () => {
     setSyncResult(null);
     setCompareResult(null);
@@ -693,13 +923,71 @@ export default function SchedulePage() {
     setConfirmedMatches(new Set());
     setOrphansToDelete(new Set());
     setCompareFilter("all");
-    setSyncStep("analyze");
     setShowSyncDialog(true);
+    setLoadingSyncTemplates(true);
 
-    if (!jobTemplate) {
-      await loadJobTemplate();
+    try {
+      // First, check if job already has tasks linked to a template
+      const linkedResponse = await api.get<{
+        success: boolean;
+        has_linked_template: boolean;
+        template?: { id: number; name: string; is_default: boolean };
+        task_count: number;
+      }>(`/api/v1/jobs/${jobId}/linked_schedule_template`);
+
+      // Load template list (needed for both cases - selection or for "Reset All" option)
+      const templatesResponse = await api.get<{
+        success: boolean;
+        sm_schedule_master_templates: Array<{ id: number; name: string; is_default: boolean; slug?: string }>
+      }>("/api/v1/sm_schedule_master_templates");
+
+      const templates = templatesResponse.sm_schedule_master_templates || [];
+      setSyncTemplateList(templates);
+
+      // If job has linked template, skip selection and go straight to compare
+      if (linkedResponse.has_linked_template && linkedResponse.template) {
+        const linkedTemplate = linkedResponse.template;
+        setJobTemplate({ id: linkedTemplate.id, name: linkedTemplate.name });
+        setSyncStep("compare");
+        setLoadingSyncTemplates(false);
+        // Start comparing immediately with the linked template ID (don't rely on async state)
+        handleCompare(linkedTemplate.id);
+        return;
+      }
+
+      // No linked template - show template selection
+      setSyncStep("select");
+
+      // Try to match template by viewSlug (e.g., "po-tasks-only" → "Po Tasks Only")
+      let matchedTemplate = null;
+      if (viewSlug) {
+        // Normalize viewSlug: "po-tasks-only" → "po tasks only"
+        const normalizedSlug = viewSlug.replace(/-/g, ' ').toLowerCase();
+        matchedTemplate = templates.find(t =>
+          t.slug?.toLowerCase() === viewSlug.toLowerCase() ||
+          t.name.toLowerCase() === normalizedSlug ||
+          t.name.toLowerCase().replace(/\s+/g, '-') === viewSlug.toLowerCase()
+        );
+      }
+
+      // Fall back to default template
+      const selectedTemplate = matchedTemplate || templates.find(t => t.is_default) || templates[0];
+      if (selectedTemplate) {
+        setJobTemplate({ id: selectedTemplate.id, name: selectedTemplate.name });
+      }
+    } catch (err) {
+      console.error("Failed to load templates:", err);
+      // On error, fall back to template selection
+      setSyncStep("select");
+    } finally {
+      setLoadingSyncTemplates(false);
     }
+  };
 
+  // Proceed from template selection to analyze step
+  const handleProceedToAnalyze = () => {
+    if (!jobTemplate) return;
+    setSyncStep("analyze");
     handleAnalyzeMatches();
   };
 
@@ -814,8 +1102,9 @@ export default function SchedulePage() {
   };
 
   // Compare
-  const handleCompare = async () => {
-    let templateId = jobTemplate?.id;
+  // handleCompare accepts optional templateId to avoid async state issues
+  const handleCompare = async (overrideTemplateId?: number) => {
+    let templateId = overrideTemplateId || jobTemplate?.id;
     if (!templateId) {
       setLoadingTemplate(true);
       try {
@@ -891,6 +1180,8 @@ export default function SchedulePage() {
   // Fetch reset preview for a specific template
   const fetchResetPreview = React.useCallback(async (templateId: number) => {
     setResetPreview(null);
+    setResetPreviewError(null);
+    setLoadingResetPreview(true);
     try {
       const response = await api.post<{
         success: boolean;
@@ -908,12 +1199,22 @@ export default function SchedulePage() {
       }
     } catch (err) {
       console.error("Failed to get reset preview:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to load preview";
+      setResetPreviewError(errorMessage);
+      toast({
+        title: "Preview Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingResetPreview(false);
     }
-  }, [jobId]);
+  }, [jobId, toast]);
 
   // Open reset dialog and load template list
   const handleOpenResetDialog = async () => {
     setResetPreview(null);
+    setResetPreviewError(null);
     setSelectedResetTemplateId(null);
     setShowResetDialog(true);
     setLoadingTemplateList(true);
@@ -980,6 +1281,8 @@ export default function SchedulePage() {
         });
         setShowResetDialog(false);
         setShowSyncDialog(false);
+        // SSoT: Clear cache BEFORE refresh to ensure fresh data
+        clearCachedRecords("sm_tasks");
         triggerRefresh();
       } else {
         toast({
@@ -1245,6 +1548,8 @@ export default function SchedulePage() {
           enableExport={true}
           onRefresh={triggerRefresh}
           onRowUpdate={handleRowUpdate}
+          onRowDoubleClick={handleRowDoubleClick}
+          onEdit={handleRowDoubleClick}
         />
       </div>
 
@@ -1309,14 +1614,17 @@ export default function SchedulePage() {
         }>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
+              {syncStep === "select" && <RefreshCw className="h-5 w-5" />}
               {syncStep === "analyze" && <Link2 className="h-5 w-5" />}
               {syncStep === "compare" && <RefreshCw className="h-5 w-5" />}
               {syncStep === "result" && <Check className="h-5 w-5" />}
+              {syncStep === "select" && "Select Template"}
               {syncStep === "analyze" && "Link Tasks to Template"}
               {syncStep === "compare" && "Sync Schedule Master to Job"}
               {syncStep === "result" && "Sync Complete"}
             </DialogTitle>
             <DialogDescription>
+              {syncStep === "select" && "Choose which schedule master template to sync from."}
               {syncStep === "analyze" && !analyzeResult && "Analyzing task matches..."}
               {syncStep === "analyze" && analyzeResult && "Match existing job tasks to template rows before syncing."}
               {syncStep === "compare" && !compareResult && "Loading comparison..."}
@@ -1324,6 +1632,53 @@ export default function SchedulePage() {
               {syncStep === "result" && "Schedule Master has been synced to the job."}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Template Selection Step */}
+          {syncStep === "select" && (
+            <>
+              {loadingSyncTemplates ? (
+                <div className="py-8 flex flex-col items-center gap-2">
+                  <Spinner size={32} className="text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading templates...</p>
+                </div>
+              ) : (
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label>Template</Label>
+                    <ComboboxDropdown
+                      items={syncTemplateList.map(t => ({
+                        id: String(t.id),
+                        label: `${t.name}${t.is_default ? " (Default)" : ""}`,
+                      }))}
+                      selectedItem={jobTemplate ? {
+                        id: String(jobTemplate.id),
+                        label: jobTemplate.name
+                      } : undefined}
+                      onSelect={(item) => {
+                        const template = syncTemplateList.find(t => t.id.toString() === item.id);
+                        if (template) {
+                          setJobTemplate({ id: template.id, name: template.name });
+                        }
+                      }}
+                      placeholder="Select a template..."
+                    />
+                  </div>
+                  {jobTemplate && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: <span className="font-medium">{jobTemplate.name}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowSyncDialog(false)}>Cancel</Button>
+                <Button onClick={handleProceedToAnalyze} disabled={!jobTemplate || loadingSyncTemplates}>
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  Continue
+                </Button>
+              </DialogFooter>
+            </>
+          )}
 
           {/* Analyze Step */}
           {syncStep === "analyze" && (
@@ -1813,6 +2168,180 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
+      {/* Task Edit Dialog - Similar to Schedule Master */}
+      <Dialog open={showTaskEditDialog} onOpenChange={setShowTaskEditDialog}>
+        <DialogContent className="max-w-2xl">
+          {/* Header */}
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Edit Task
+              <span className="text-sm font-normal text-muted-foreground">
+                #{String(selectedTaskForEdit?.task_number ?? "")}
+              </span>
+            </DialogTitle>
+            <DialogDescription>
+              {String(selectedTaskForEdit?.name ?? "Task")}
+              {selectedTaskForEdit?.trade_name ? (
+                <span className="ml-2">• {String(selectedTaskForEdit.trade_name)}</span>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedTaskForEdit && (
+            <div className="space-y-4 py-2">
+              {/* Row 1: Name */}
+              <div className="space-y-1">
+                <Label htmlFor="task-name" className="text-xs">Name</Label>
+                <Input
+                  id="task-name"
+                  value={taskEditForm.name}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, name: e.target.value })}
+                  className="h-9"
+                />
+              </div>
+
+              {/* Row 2: Description */}
+              <div className="space-y-1">
+                <Label htmlFor="task-description" className="text-xs">Description</Label>
+                <Input
+                  id="task-description"
+                  value={taskEditForm.description}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })}
+                  className="h-9"
+                  placeholder="Optional description..."
+                />
+              </div>
+
+              {/* Row 3: Dates and Duration */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="task-start-date" className="text-xs">Start Date</Label>
+                  <Input
+                    id="task-start-date"
+                    type="date"
+                    value={taskEditForm.start_date}
+                    onChange={(e) => setTaskEditForm({ ...taskEditForm, start_date: e.target.value })}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="task-end-date" className="text-xs">End Date</Label>
+                  <Input
+                    id="task-end-date"
+                    type="date"
+                    value={taskEditForm.end_date}
+                    onChange={(e) => setTaskEditForm({ ...taskEditForm, end_date: e.target.value })}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="task-duration" className="text-xs">Duration (days)</Label>
+                  <Input
+                    id="task-duration"
+                    type="number"
+                    value={taskEditForm.duration_days}
+                    onChange={(e) => setTaskEditForm({ ...taskEditForm, duration_days: parseInt(e.target.value) || 1 })}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="task-status" className="text-xs">Status</Label>
+                  <ComboboxDropdown
+                    items={[
+                      { id: "not_started", label: "Not Started" },
+                      { id: "started", label: "Started" },
+                      { id: "completed", label: "Completed" },
+                    ]}
+                    selectedItem={{ id: taskEditForm.status, label: taskEditForm.status === "completed" ? "Completed" : taskEditForm.status === "started" ? "Started" : "Not Started" }}
+                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, status: item.id })}
+                    placeholder="Select status..."
+                  />
+                </div>
+              </div>
+
+              {/* Read-only Info Section */}
+              <div className="border-t pt-4 mt-2">
+                <h4 className="text-sm font-medium mb-3 text-muted-foreground">Task Info</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {selectedTaskForEdit.trade_name ? (
+                    <div>
+                      <span className="text-muted-foreground">Trade:</span>{" "}
+                      <span>{String(selectedTaskForEdit.trade_name)}</span>
+                    </div>
+                  ) : null}
+                  {selectedTaskForEdit.stage_name ? (
+                    <div>
+                      <span className="text-muted-foreground">Stage:</span>{" "}
+                      <span>{String(selectedTaskForEdit.stage_name)}</span>
+                    </div>
+                  ) : null}
+                  {selectedTaskForEdit.assigned_role ? (
+                    <div>
+                      <span className="text-muted-foreground">Assigned Role:</span>{" "}
+                      <span>{String(selectedTaskForEdit.assigned_role)}</span>
+                    </div>
+                  ) : null}
+                  {selectedTaskForEdit.supplier_name ? (
+                    <div>
+                      <span className="text-muted-foreground">Supplier:</span>{" "}
+                      <span>{String(selectedTaskForEdit.supplier_name)}</span>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Flags */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {selectedTaskForEdit.po_required === true ? (
+                    <Badge variant="outline">PO Required</Badge>
+                  ) : null}
+                  {selectedTaskForEdit.critical_po === true ? (
+                    <Badge variant="outline" className="border-red-500 text-red-600">Critical PO</Badge>
+                  ) : null}
+                  {selectedTaskForEdit.require_photo === true ? (
+                    <Badge variant="outline">Photo Required</Badge>
+                  ) : null}
+                  {selectedTaskForEdit.confirm === true ? (
+                    <Badge variant="outline" className="border-green-500 text-green-600">Confirmed</Badge>
+                  ) : null}
+                  {selectedTaskForEdit.hold === true ? (
+                    <Badge variant="outline" className="border-amber-500 text-amber-600">On Hold</Badge>
+                  ) : null}
+                </div>
+
+                {/* PO Link */}
+                {selectedTaskForEdit.purchase_order_id ? (
+                  <div className="mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`/jobs/${jobId}/purchase-orders/${selectedTaskForEdit.purchase_order_id}`, '_blank')}
+                    >
+                      View Purchase Order →
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTaskEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => handleSaveTask()} disabled={savingTask}>
+              {savingTask ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Reset Confirmation Dialog */}
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <DialogContent className="max-w-md">
@@ -1851,10 +2380,29 @@ export default function SchedulePage() {
             )}
           </div>
 
-          {!resetPreview ? (
+          {loadingResetPreview ? (
             <div className="flex items-center justify-center py-8">
               <Spinner />
               <span className="ml-2 text-sm text-muted-foreground">Loading preview...</span>
+            </div>
+          ) : resetPreviewError ? (
+            <div className="rounded-lg border border-destructive bg-destructive/10 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <span className="font-medium">Failed to load preview</span>
+              </div>
+              <p className="text-sm text-muted-foreground">{resetPreviewError}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => selectedResetTemplateId && fetchResetPreview(selectedResetTemplateId)}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : !resetPreview ? (
+            <div className="flex items-center justify-center py-8">
+              <span className="text-sm text-muted-foreground">Select a template to see preview</span>
             </div>
           ) : (
             <div className="space-y-4">

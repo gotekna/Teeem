@@ -54,6 +54,9 @@ class SmTask < ApplicationRecord
   belongs_to :parent_task, class_name: "SmTask", optional: true
   has_many :children, class_name: "SmTask", foreign_key: :parent_task_id, dependent: :nullify
 
+  # Claim stage link - for CLAIM tasks, links to the job's claim stage
+  belongs_to :job_claim_stage, optional: true
+
   belongs_to :hold_reason, class_name: "SmHoldReason", optional: true
   belongs_to :hold_started_by, class_name: "User", optional: true
   belongs_to :hold_released_by, class_name: "User", optional: true
