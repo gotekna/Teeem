@@ -3061,7 +3061,11 @@ export function ScheduleMasterTab() {
                 {editingRow?.sm_template_ids && editingRow.sm_template_ids.length > 0 && (
                   <span className="ml-2 text-xs">
                     • Template: {editingRow.sm_template_ids
-                      .map((id: number) => templates.find(t => t.id === id)?.name || `#${id}`)
+                      .map((item: number | { id: number; display?: string }) => {
+                        // Handle both plain IDs and lookup objects {id, display}
+                        const id = typeof item === 'object' ? item.id : item;
+                        return templates.find(t => t.id === id)?.name || `#${id}`;
+                      })
                       .join(', ')}
                   </span>
                 )}
