@@ -794,10 +794,17 @@ export default function TeeemTableView({
   // CACHE RESTORATION: Check if we have cached records with more data than SSR
   // This enables instant restoration of scroll position when navigating back
   // Only runs once on mount to avoid overwriting fresh data
+  // ⚠️ SKIP for embedded context (tables with initialFilters) - cache is keyed by foundationId only,
+  // so different filter sets (e.g., different templates) would incorrectly restore the wrong data
   const hasCacheRestoredRef = useRef(false);
   useEffect(() => {
     if (hasCacheRestoredRef.current) return;
     if (!useAutoFetch || !effectiveFoundationId) return;
+    // Skip cache restoration for embedded context - cache doesn't account for different filter sets
+    if (isEmbeddedContext) {
+      hasCacheRestoredRef.current = true;
+      return;
+    }
 
     const cached = getCachedRecords(effectiveFoundationId);
     if (cached && cached.records.length > (initialRecords?.length || 0)) {
@@ -809,7 +816,7 @@ export default function TeeemTableView({
       hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
     }
     hasCacheRestoredRef.current = true;
-  }, [useAutoFetch, effectiveFoundationId, initialRecords?.length]);
+  }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext]);
 
   // Auto-fetch columns when effectiveFoundationId is set
   // ULTRA: Uses module-level cache for instant loading on repeat visits
