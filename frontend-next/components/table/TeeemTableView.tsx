@@ -2217,15 +2217,27 @@ export default function TeeemTableView({
         setCurrentSearchMode(mode);
       }
 
-      // ULTRA FIX: If all records loaded, search client-side only
-      // Just update search atom - filteredAndSortedEntries handles filtering
-      if (!hasMore && autoFetchedRecords.length > 0) {
+      // FRC FIX: When CLEARING search (empty value), ALWAYS refresh to get all records
+      // The previous "ULTRA FIX" assumed hasMore=false means all records loaded, but after
+      // a search that returned few results, hasMore=false just means search results are complete
+      // We need to distinguish between "all records loaded" vs "search results loaded"
+      const isClearing = !value && searchRef.current; // Clearing if value is empty but we had a search
+
+      // If all records loaded AND not clearing a search, search client-side only
+      // But if clearing search, always refresh to restore full dataset
+      if (!isClearing && !hasMore && autoFetchedRecords.length > 0) {
         console.log('[TeeemTableView] All records loaded, searching client-side');
-        return; // Skip API call
+        return; // Skip API call - safe because we truly have all records
       }
 
       if (effectiveOnServerSearch) {
-        effectiveOnServerSearch(value, mode);
+        // When clearing search, trigger a refresh to get all records
+        if (isClearing) {
+          console.log('[TeeemTableView] Clearing search - refreshing to restore all records');
+          setAutoFetchRefreshKey(prev => prev + 1);
+        } else {
+          effectiveOnServerSearch(value, mode);
+        }
       }
     },
     [effectiveOnServerSearch, hasMore, autoFetchedRecords.length]

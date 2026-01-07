@@ -109,7 +109,7 @@ export function RecordFormField({
             </Label>
             <Textarea
               id={column_name}
-              value={String(value || '')}
+              value={displayValue}
               onChange={(e) => handleChange(e.target.value)}
               rows={3}
               disabled={isDisabled}
@@ -264,7 +264,7 @@ export function RecordFormField({
           );
         }
         // Fall through to default text input if no choices
-        // (lookup_foundation_id handling would go here in future)
+        // SSoT: Use displayValue to handle object values (lookups) properly
         return (
           <div className="space-y-2">
             <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
@@ -272,7 +272,7 @@ export function RecordFormField({
             </Label>
             <Input
               id={column_name}
-              value={String(value || '')}
+              value={displayValue}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
               className={cn(isDisabled && "bg-muted")}
@@ -282,6 +282,7 @@ export function RecordFormField({
 
       default:
         // Default: string/short_text input
+        // SSoT: Use displayValue to handle object values (lookups) properly
         return (
           <div className="space-y-2">
             <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
@@ -289,7 +290,7 @@ export function RecordFormField({
             </Label>
             <Input
               id={column_name}
-              value={String(value || '')}
+              value={displayValue}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
               className={cn(isDisabled && "bg-muted")}
