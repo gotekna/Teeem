@@ -29,12 +29,28 @@ module Api
 
       # GET /api/v1/claim_invoice_templates/:id/preview
       # Returns HTML preview of the template with sample data
+      # Accepts optional query params to customize preview:
+      #   - trading_name: Company name to show on invoice
+      #   - claim_percentage: Percentage of contract price
+      #   - task_name: Name of the claim task/stage
+      #   - contract_price: Contract price (default: 45000)
       def preview
         template = ClaimInvoiceTemplate.find(params[:id])
 
+        # Use provided values or defaults
+        trading_name = params[:trading_name].presence || "ABC Construction Pty Ltd"
+        claim_percentage = params[:claim_percentage].present? ? params[:claim_percentage].to_f : 15.0
+        task_name = params[:task_name].presence || "Slab"
+        contract_price = params[:contract_price].present? ? params[:contract_price].to_f : 45_000
+
+        # Calculate amounts based on percentage and contract price
+        claim_amount = (contract_price * claim_percentage / 100).round(2)
+        gst_amount = (claim_amount * 0.1).round(2)
+        total_amount = claim_amount + gst_amount
+
         # Sample data for preview
         sample_data = {
-          company_name: "ABC Construction Pty Ltd",
+          company_name: trading_name,
           company_abn: "12 345 678 901",
           company_address: "123 Builder Street, Brisbane QLD 4000",
           company_phone: "(07) 1234 5678",
@@ -46,18 +62,18 @@ module Api
           invoice_number: "INV-2024-0042",
           invoice_date: Date.current.strftime("%d %B %Y"),
           due_date: (Date.current + 14.days).strftime("%d %B %Y"),
-          claim_stage: "Slab",
-          claim_percentage: 15,
-          contract_price: 450_000,
-          claim_amount: 67_500,
-          gst_amount: 6_750,
-          total_amount: 74_250,
-          previous_claims: 45_000,
-          balance_remaining: 337_500,
+          claim_stage: task_name,
+          claim_percentage: claim_percentage,
+          contract_price: contract_price,
+          claim_amount: claim_amount,
+          gst_amount: gst_amount,
+          total_amount: total_amount,
+          previous_claims: 0,
+          balance_remaining: (contract_price - claim_amount).round(2),
           bank_name: "Commonwealth Bank",
           bsb: "064-000",
           account_number: "1234 5678",
-          account_name: "ABC Construction Pty Ltd"
+          account_name: trading_name
         }
 
         html = render_template_preview(template, sample_data)

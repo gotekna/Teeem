@@ -687,6 +687,19 @@ export function CreateRecordDialog({
     const requiredColumns = filteredColumns.filter((col) => col.required === true);
     const missingFields = requiredColumns.filter((col) => isFieldEmpty(formData[col.key]));
 
+    // Schedule Master specific validation: require at least one template
+    if (isScheduleMaster) {
+      const templateIds = formData["sm_template_ids"];
+      const hasTemplates = Array.isArray(templateIds) && templateIds.length > 0;
+      if (!hasTemplates) {
+        // Add sm_template_ids to missing fields for error display
+        const templateCol = filteredColumns.find((col) => col.key === "sm_template_ids");
+        if (templateCol && !missingFields.find((col) => col.key === "sm_template_ids")) {
+          missingFields.push(templateCol);
+        }
+      }
+    }
+
     if (missingFields.length > 0) {
       // Set validation errors
       setValidationErrors(new Set(missingFields.map((col) => col.key)));

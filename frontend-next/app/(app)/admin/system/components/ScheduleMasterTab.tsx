@@ -777,12 +777,28 @@ export function ScheduleMasterTab() {
   };
 
   // Load preview HTML for a specific template
-  const loadTemplatePreview = async (templateId: number) => {
+  // Accepts optional params to show realistic preview with actual task data
+  const loadTemplatePreview = async (
+    templateId: number,
+    options?: {
+      tradingName?: string;
+      claimPercentage?: number;
+      taskName?: string;
+    }
+  ) => {
     setLoadingTemplatePreview(true);
     try {
-      const data = await api.get<{ success: boolean; data: { preview_html: string } }>(
-        `/api/v1/claim_invoice_templates/${templateId}/preview`
-      );
+      // Build query params for customized preview
+      const params = new URLSearchParams();
+      if (options?.tradingName) params.set('trading_name', options.tradingName);
+      if (options?.claimPercentage) params.set('claim_percentage', String(options.claimPercentage));
+      if (options?.taskName) params.set('task_name', options.taskName);
+      params.set('contract_price', '45000'); // Default $45K for preview
+
+      const queryString = params.toString();
+      const url = `/api/v1/claim_invoice_templates/${templateId}/preview${queryString ? `?${queryString}` : ''}`;
+
+      const data = await api.get<{ success: boolean; data: { preview_html: string } }>(url);
       if (data?.data?.preview_html) {
         setTemplatePreviewHtml(data.data.preview_html);
       }
@@ -1059,7 +1075,14 @@ export function ScheduleMasterTab() {
     });
     // Load template preview if claim task has a template selected
     if (fullRow.is_claim_task && fullRow.claim_invoice_template_id) {
-      loadTemplatePreview(fullRow.claim_invoice_template_id);
+      const tradingName = fullRow.claim_trading_name_id
+        ? tradingNames.find(tn => tn.id === fullRow.claim_trading_name_id)?.name
+        : undefined;
+      loadTemplatePreview(fullRow.claim_invoice_template_id, {
+        tradingName,
+        claimPercentage: fullRow.claim_percentage || undefined,
+        taskName: fullRow.name,
+      });
     } else {
       setTemplatePreviewHtml(null);
     }
@@ -1158,7 +1181,14 @@ export function ScheduleMasterTab() {
     });
     // Load template preview if claim task has a template selected
     if (fullRow.is_claim_task && fullRow.claim_invoice_template_id) {
-      loadTemplatePreview(fullRow.claim_invoice_template_id);
+      const tradingName = fullRow.claim_trading_name_id
+        ? tradingNames.find(tn => tn.id === fullRow.claim_trading_name_id)?.name
+        : undefined;
+      loadTemplatePreview(fullRow.claim_invoice_template_id, {
+        tradingName,
+        claimPercentage: fullRow.claim_percentage || undefined,
+        taskName: fullRow.name,
+      });
     } else {
       setTemplatePreviewHtml(null);
     }
@@ -3141,13 +3171,13 @@ export function ScheduleMasterTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
-      <Dialog open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0">
+      {/* Row Edit Sheet - Right-side panel for better UX */}
+      <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
+        <SheetContent side="right" className="w-[600px] sm:w-[800px] sm:max-w-[800px] flex flex-col p-0 overflow-hidden">
           {/* Sticky Header */}
           <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
             <div>
-              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+              <SheetTitle className="flex items-center gap-2 text-lg font-semibold">
                 Edit Row
                 {/* Show parent header if this task is part of one */}
                 {editingRow && editingRow.header_gantt && (() => {
@@ -3162,7 +3192,7 @@ export function ScheduleMasterTab() {
                   }
                   return null;
                 })()}
-              </DialogTitle>
+              </SheetTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {editingRow?.name} (Task #{editingRow?.task_number})
                 {editingRow?.sm_template_ids && editingRow.sm_template_ids.length > 0 && (
@@ -3471,7 +3501,15 @@ export function ScheduleMasterTab() {
                                 key={template.id}
                                 onClick={() => {
                                   setEditRowForm({ ...editRowForm, claim_invoice_template_id: template.id });
-                                  loadTemplatePreview(template.id);
+                                  // Load preview with current form values for realistic preview
+                                  const tradingName = editRowForm.claim_trading_name_id
+                                    ? tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name
+                                    : undefined;
+                                  loadTemplatePreview(template.id, {
+                                    tradingName,
+                                    claimPercentage: editRowForm.claim_percentage || undefined,
+                                    taskName: editRowForm.name,
+                                  });
                                 }}
                                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
                                   editRowForm.claim_invoice_template_id === template.id
@@ -3920,8 +3958,8 @@ export function ScheduleMasterTab() {
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Auto-PO Configuration Dialog */}
       <Dialog open={showAutoPODialog} onOpenChange={setShowAutoPODialog}>
