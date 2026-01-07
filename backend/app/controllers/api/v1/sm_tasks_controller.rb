@@ -1977,8 +1977,12 @@ module Api
       # Used by job_index?for=gantt and gantt_data endpoints
       # Uses GanttDataService for unified format (all dependencies use row.id, not task_number)
       def render_gantt_data(tasks)
+        # SSoT: Calculate dates from dependencies (same service as templates)
+        # Locked tasks keep stored dates, unlocked tasks recalculate from dependencies
+        date_overrides = GanttDateCalculationService.new(tasks).calculate_date_map
+
         # Use GanttDataService for SSoT conversion of task_number -> row.id
-        service = GanttDataService.new(tasks, filter_invisible: true)
+        service = GanttDataService.new(tasks, filter_invisible: true, date_overrides: date_overrides)
         result = service.build_response
 
         render json: {

@@ -37,7 +37,7 @@ class GanttDataService
     @filter_po_tasks = options[:filter_po_tasks] || false
     # date_overrides: Hash of task_number => { start_date: Date, end_date: Date }
     # Used for templates where dates are calculated from dependencies, not stored
-    # SSoT: Calculated by calculate_template_date_map using topological sort
+    # SSoT: Calculated by GanttDateCalculationService using topological sort
     @date_overrides = options[:date_overrides] || {}
   end
 

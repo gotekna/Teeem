@@ -794,11 +794,12 @@ export default function SchedulePage() {
 
       // If job has linked template, skip selection and go straight to compare
       if (linkedResponse.has_linked_template && linkedResponse.template) {
-        setJobTemplate({ id: linkedResponse.template.id, name: linkedResponse.template.name });
+        const linkedTemplate = linkedResponse.template;
+        setJobTemplate({ id: linkedTemplate.id, name: linkedTemplate.name });
         setSyncStep("compare");
         setLoadingSyncTemplates(false);
-        // Start comparing immediately
-        handleCompare();
+        // Start comparing immediately with the linked template ID (don't rely on async state)
+        handleCompare(linkedTemplate.id);
         return;
       }
 
@@ -949,8 +950,9 @@ export default function SchedulePage() {
   };
 
   // Compare
-  const handleCompare = async () => {
-    let templateId = jobTemplate?.id;
+  // handleCompare accepts optional templateId to avoid async state issues
+  const handleCompare = async (overrideTemplateId?: number) => {
+    let templateId = overrideTemplateId || jobTemplate?.id;
     if (!templateId) {
       setLoadingTemplate(true);
       try {
