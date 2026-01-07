@@ -18,6 +18,8 @@ import {
   Plus,
   AlertTriangle,
   X,
+  Check,
+  CornerDownRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -32,6 +34,14 @@ interface Contact {
   display_name?: string;
   employee_names?: string[];
   employee_count?: number;
+}
+
+// Extended ComboboxItem with employee data for cascading view
+interface SupplierItem {
+  id: string;
+  label: string;
+  searchText?: string;
+  employeeNames: string[];
 }
 
 interface TaskTemplate {
@@ -213,17 +223,19 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             {/* Supplier (Contact) Select */}
             <div className="space-y-2">
               <Label>Supplier</Label>
-              <ComboboxDropdown
+              <ComboboxDropdown<SupplierItem>
                 items={contacts.map((contact) => ({
                   id: String(contact.id),
                   label: contact.display_name || `Contact ${contact.id}`,
                   // Include employee names in searchText so searching "Sandy" finds "Titus Tekform Pty Ltd"
                   searchText: contact.employee_names?.join(" ") || undefined,
+                  employeeNames: contact.employee_names || [],
                 }))}
                 selectedItem={selectedContact ? {
                   id: String(selectedContact.id),
                   label: selectedContact.display_name || `Contact ${selectedContact.id}`,
                   searchText: selectedContact.employee_names?.join(" ") || undefined,
+                  employeeNames: selectedContact.employee_names || [],
                 } : undefined}
                 onSelect={(item) => {
                   const contact = contacts.find((c) => String(c.id) === item.id);
@@ -234,6 +246,50 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 emptyResults="No supplier found."
                 disabled={loadingContacts}
                 isLoading={loadingContacts}
+                renderListItem={({ isChecked, item, searchTerm }) => {
+                  // Find matching employees based on search term
+                  const searchLower = searchTerm.toLowerCase();
+                  const matchingEmployees = searchTerm
+                    ? item.employeeNames.filter(name =>
+                        name.toLowerCase().includes(searchLower)
+                      )
+                    : [];
+
+                  // Check if company name matches (not just employee)
+                  const companyMatches = item.label.toLowerCase().includes(searchLower);
+
+                  return (
+                    <div className="flex flex-col w-full">
+                      <div className="flex items-center">
+                        <Check
+                          className={`mr-2 h-4 w-4 flex-shrink-0 ${
+                            isChecked ? "opacity-100" : "opacity-0"
+                          }`}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </div>
+                      {/* Show matching employees when search matches employee name (not company name) */}
+                      {matchingEmployees.length > 0 && !companyMatches && (
+                        <div className="ml-6 mt-0.5">
+                          {matchingEmployees.slice(0, 2).map((employee, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center text-xs text-muted-foreground"
+                            >
+                              <CornerDownRight className="h-3 w-3 mr-1 flex-shrink-0" />
+                              <span className="truncate">{employee} (Employee)</span>
+                            </div>
+                          ))}
+                          {matchingEmployees.length > 2 && (
+                            <div className="text-xs text-muted-foreground ml-4">
+                              +{matchingEmployees.length - 2} more
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }}
               />
             </div>
 

@@ -73,7 +73,8 @@ class ContactDataQualityService
       contact_id: @contact.id,
       display_name: @contact.display_name,
       current_entity_type: @contact.entity_type,
-      email: @contact.email,
+      # SSoT: Use primary_email from contact_emails table
+      email: @contact.primary_email,
       tax_number: @contact.abn,
       suggested_entity_type: detect_suggested_entity_type,
       confidence: calculate_confidence,
@@ -154,9 +155,11 @@ class ContactDataQualityService
   # Person with admin@, info@, sales@, etc. email pattern
   def check_business_email_prefix
     return unless @contact.entity_type == "person"
-    return if @contact.email.blank?
+    # SSoT: Use primary_email from contact_emails table
+    email = @contact.primary_email
+    return if email.blank?
 
-    email_prefix = @contact.email.split("@").first&.downcase
+    email_prefix = email.split("@").first&.downcase
     return unless BUSINESS_EMAIL_PREFIXES.include?(email_prefix)
 
     domain = extract_email_domain
@@ -296,7 +299,9 @@ class ContactDataQualityService
   end
 
   def analyze_email_domain
-    return nil if @contact.email.blank?
+    # SSoT: Use primary_email from contact_emails table
+    email = @contact.primary_email
+    return nil if email.blank?
 
     domain = extract_email_domain
     return nil if domain.blank? || common_email_domain?(domain)
@@ -305,8 +310,11 @@ class ContactDataQualityService
       domain: domain,
       derived_company_name: derive_company_name_from_domain(domain),
       is_common_domain: false,
-      contacts_with_same_domain: Contact.where("email ILIKE ?", "%@#{domain}")
+      # SSoT: Search contact_emails table for domain matches
+      contacts_with_same_domain: Contact.joins(:contact_emails)
+                                        .where("contact_emails.email ILIKE ?", "%@#{domain}")
                                         .where.not(id: @contact.id)
+                                        .distinct
                                         .count
     }
   end
@@ -329,9 +337,10 @@ class ContactDataQualityService
                             .first
       return domain_match if domain_match
 
-      # Also check if company email has same domain
-      email_match = Contact.where(entity_type: %w[company trust])
-                           .where("email ILIKE ?", "%@#{domain}")
+      # SSoT: Check if company has any email with same domain in contact_emails table
+      email_match = Contact.joins(:contact_emails)
+                           .where(entity_type: %w[company trust])
+                           .where("contact_emails.email ILIKE ?", "%@#{domain}")
                            .where.not(id: @contact.id)
                            .first
       return email_match if email_match
@@ -368,8 +377,10 @@ class ContactDataQualityService
   end
 
   def extract_email_domain
-    return nil if @contact.email.blank?
-    @contact.email.split("@").last&.downcase
+    # SSoT: Use primary_email from contact_emails table
+    email = @contact.primary_email
+    return nil if email.blank?
+    email.split("@").last&.downcase
   end
 
   def common_email_domain?(domain)

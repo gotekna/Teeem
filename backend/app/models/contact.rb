@@ -314,6 +314,30 @@ class Contact < ApplicationRecord
     @primary_fax = nil
   end
 
+  # ============================================
+  # SSoT: Override Legacy Column Accessors
+  # ============================================
+  # These overrides make all reads of legacy columns use SSoT tables.
+  # The setters (email=, mobile_phone=, office_phone=) still work and
+  # trigger callbacks that sync to SSoT tables.
+  # This allows 100+ existing usages to work without modification.
+
+  def email
+    primary_email
+  end
+
+  def mobile_phone
+    primary_mobile
+  end
+
+  def office_phone
+    primary_office_phone
+  end
+
+  def fax_phone
+    primary_fax
+  end
+
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
   # These fields should only be updated via Xero sync, not manual edits
   XERO_READ_ONLY_FIELDS = %w[

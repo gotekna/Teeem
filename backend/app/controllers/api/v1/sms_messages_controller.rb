@@ -19,7 +19,8 @@ module Api
           return render json: { success: false, error: "Message body is required" }, status: :unprocessable_entity
         end
 
-        to_phone = params[:to_phone] || @contact.mobile_phone
+        # SSoT: Use primary_mobile from contact_phones table
+        to_phone = params[:to_phone] || @contact.primary_mobile
 
         unless to_phone.present?
           return render json: { success: false, error: "No phone number available for this contact" }, status: :unprocessable_entity

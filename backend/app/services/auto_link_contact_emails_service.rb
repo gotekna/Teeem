@@ -10,8 +10,12 @@ class AutoLinkContactEmailsService
   def link_all_emails
     return unless @case_contact.include_all_emails?
 
+    # SSoT: Use primary_email from contact_emails table
+    contact_email = @contact.primary_email
+    return 0 unless contact_email.present?
+
     # Find all emails involving this contact
-    emails = EmailWarehouse.involving_email(@contact.email)
+    emails = EmailWarehouse.involving_email(contact_email)
 
     linked_count = 0
 
@@ -26,7 +30,7 @@ class AutoLinkContactEmailsService
       @case_record.add_email(
         email,
         relevance: "supporting",
-        notes: "Auto-linked from #{@contact.display_name || @contact.email}",
+        notes: "Auto-linked from #{@contact.display_name || contact_email}",
         added_by: @case_contact.added_by || @case_record.created_by
       )
 
@@ -40,7 +44,7 @@ class AutoLinkContactEmailsService
       linked_count += 1
     end
 
-    Rails.logger.info "[AutoLinkEmails] Linked #{linked_count} emails from #{@contact.email} to case #{@case_record.id}"
+    Rails.logger.info "[AutoLinkEmails] Linked #{linked_count} emails from #{contact_email} to case #{@case_record.id}"
     linked_count
   end
 

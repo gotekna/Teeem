@@ -40,6 +40,8 @@ type Props<T> = {
   renderListItem?: (listItem: {
     isChecked: boolean;
     item: T;
+    /** Current search term for highlighting/filtering matched content */
+    searchTerm: string;
   }) => React.ReactNode;
   emptyResults?: React.ReactNode;
   popoverProps?: React.ComponentProps<typeof PopoverContent>;
@@ -243,7 +245,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                     onMouseEnter={() => setHighlightedIndex(index)}
                   >
                     {renderListItem ? (
-                      renderListItem({ isChecked, item })
+                      renderListItem({ isChecked, item, searchTerm: inputValue })
                     ) : (
                       <>
                         <Check

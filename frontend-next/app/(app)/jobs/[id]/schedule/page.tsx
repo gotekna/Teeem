@@ -34,7 +34,8 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2, AlertCircle } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2 } from "lucide-react";
+import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -458,6 +459,12 @@ export default function SchedulePage() {
   const [availableStages, setAvailableStages] = React.useState<{ id: number; name: string }[]>([]);
   const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
   const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
+  const [availableTradingNames, setAvailableTradingNames] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableInvoiceTemplates, setAvailableInvoiceTemplates] = React.useState<{ id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[]>([]);
+  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
+  const [allTasks, setAllTasks] = React.useState<EditRowData[]>([]);
 
   // Reset state
   const [showResetDialog, setShowResetDialog] = React.useState(false);
