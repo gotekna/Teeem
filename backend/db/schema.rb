@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_205103) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_233900) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1483,9 +1483,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_205103) do
 
   create_table "contacts", force: :cascade do |t|
     t.string "abn"
-    t.string "email"
-    t.string "office_phone"
-    t.string "mobile_phone"
     t.string "website"
     t.string "first_name"
     t.string "last_name"
@@ -1534,7 +1531,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_205103) do
     t.decimal "accounts_payable_outstanding", precision: 15, scale: 2, default: "0.0"
     t.decimal "accounts_payable_overdue", precision: 15, scale: 2, default: "0.0"
     t.string "company_number"
-    t.string "fax_phone"
     t.jsonb "email_domains", default: [], null: false, comment: "Email domains for auto-linking employees (e.g., ['tekna.com.au', 'bunnings.com.au']). Used by rake task to create employee_of relationships."
     t.text "notes"
     t.boolean "has_trust_account", default: false, null: false
@@ -1577,14 +1573,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_205103) do
     t.boolean "is_customer_cached", default: false, null: false
     t.boolean "is_supplier_cached", default: false, null: false
     t.boolean "is_director_cached", default: false, null: false
-    t.index "lower((email)::text)", name: "idx_contacts_lower_email"
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["display_name"], name: "idx_contacts_display_name_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["email"], name: "index_contacts_on_email"
     t.index ["entity_type", "display_name"], name: "idx_contacts_entity_type_display_name"
     t.index ["entity_type", "is_active"], name: "idx_contacts_entity_type_active"
     t.index ["entity_type"], name: "index_contacts_on_entity_type"

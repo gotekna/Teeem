@@ -46,6 +46,8 @@ import type { GanttTask, SmScheduleMaster } from '@/lib/gantt/types';
 import type { PhotoItem } from '@/components/ui/photo-gallery';
 import { ImageLightbox } from '@/components/ui/image-lightbox';
 import { useGanttDataManager } from '@/lib/gantt/hooks';
+import { EditRowDialog, type EditRowData, type EditRowFormData } from '@/components/schedule/EditRowDialog';
+import { clearCachedRecords } from '@/lib/records-cache';
 
 // =============================================================================
 // Types
@@ -80,6 +82,22 @@ export default function GanttV2Page() {
   const [lightboxOpen, setLightboxOpen] = React.useState(false);
   const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
+  // Edit Row Dialog state (SSoT: uses shared EditRowDialog component)
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<EditRowData | null>(null);
+  const [showTaskEditDialog, setShowTaskEditDialog] = React.useState(false);
+
+  // Reference data for EditRowDialog
+  const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
+  const [availableStages, setAvailableStages] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
+  const [availableTradingNames, setAvailableTradingNames] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableInvoiceTemplates, setAvailableInvoiceTemplates] = React.useState<{ id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[]>([]);
+  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
+  const [allTasksForEdit, setAllTasksForEdit] = React.useState<EditRowData[]>([]);
+
   // ==========================================================================
   // Load Job and Gantt Data
   // ==========================================================================
@@ -101,6 +119,207 @@ export default function GanttV2Page() {
       gantt.loadData();
     }
   }, [jobId, gantt.loadData]);
+
+  // ==========================================================================
+  // Load Reference Data for EditRowDialog
+  // ==========================================================================
+
+  React.useEffect(() => {
+    const loadReferenceData = async () => {
+      // Load trades
+      try {
+        const tradesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=100");
+        if (tradesData?.records) setAvailableTrades(tradesData.records);
+      } catch (e) { console.error("Failed to load trades:", e); }
+
+      // Load stages
+      try {
+        const stagesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages/records?per_page=100");
+        if (stagesData?.records) setAvailableStages(stagesData.records);
+      } catch (e) { console.error("Failed to load stages:", e); }
+
+      // Load roles
+      try {
+        const rolesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/roles/records?per_page=100");
+        if (rolesData?.records) setAvailableRoles(rolesData.records.map(r => ({ id: r.id, name: r.name, display_name: r.display_name || r.name })));
+      } catch (e) { console.error("Failed to load roles:", e); }
+
+      // Load cost centres
+      try {
+        const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
+        if (costCentresData?.records) setAvailableCostCentres(costCentresData.records);
+      } catch (e) { console.error("Failed to load cost centres:", e); }
+
+      // Load checklists
+      try {
+        const checklistsData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/supervisor_checklist_templates/records?per_page=100");
+        if (checklistsData?.records) setAvailableChecklists(checklistsData.records);
+      } catch (e) { console.error("Failed to load checklists:", e); }
+
+      // Load document types
+      try {
+        const docTypesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/foundations/document_types/records?per_page=100&filter[scope]=job");
+        if (docTypesData?.records) setAvailableDocumentTypes(docTypesData.records);
+      } catch (e) { console.error("Failed to load document types:", e); }
+
+      // Load trading names
+      try {
+        const tradingNamesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/trading_names/records?per_page=100");
+        if (tradingNamesData?.records) setAvailableTradingNames(tradingNamesData.records);
+      } catch (e) { console.error("Failed to load trading names:", e); }
+
+      // Load invoice templates
+      try {
+        const templatesData = await api.get<{ success: boolean; data: { id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[] }>("/api/v1/claim_invoice_templates");
+        if (templatesData?.data) setAvailableInvoiceTemplates(templatesData.data);
+      } catch (e) { console.error("Failed to load invoice templates:", e); }
+    };
+
+    loadReferenceData();
+  }, []);
+
+  // ==========================================================================
+  // Update Header Rows and All Tasks for EditRowDialog
+  // ==========================================================================
+
+  React.useEffect(() => {
+    if (!gantt.tasks.length) return;
+
+    // Extract header rows from gantt tasks
+    const headers = gantt.tasks
+      .filter((t) => {
+        const row = t.rowData as SmScheduleMaster | undefined;
+        return row?.allow_header || row?.header_gantt === 'Header';
+      })
+      .map((t) => {
+        const row = t.rowData as SmScheduleMaster;
+        return { id: row.id, task_number: row.task_number, name: row.name };
+      });
+    setAvailableHeaderRows(headers);
+
+    // Convert all gantt tasks to EditRowData format
+    const allRows: EditRowData[] = gantt.tasks.map((t) => {
+      const row = t.rowData as SmScheduleMaster;
+      return {
+        id: row.id,
+        task_number: row.task_number,
+        name: row.name,
+        description: row.description || undefined,
+        duration_days: row.duration_days || 1,
+        sequence_order: row.sequence_order || 0,
+        trade: row.trade_id ? String(row.trade_id) : undefined,
+        stage: row.stage_id ? String(row.stage_id) : undefined,
+        assigned_role: row.assigned_role_id ? String(row.assigned_role_id) : null,
+        cost_centre: row.cost_centre_id ? String(row.cost_centre_id) : undefined,
+        header_gantt: row.header_gantt as string | null | undefined,
+        allow_header: row.allow_header || false,
+        is_active: row.is_active !== false,
+        po_required: row.po_required || false,
+        critical_po: row.critical_po || false,
+        create_po_on_job_start: row.create_po_on_job_start || false,
+        spawn_order_task: row.spawn_order_task || false,
+        spawn_call_task: row.spawn_call_task || false,
+        require_photo: row.require_photo || false,
+        pass_fail_enabled: row.pass_fail_enabled || false,
+        checklist_id: row.checklist_id as number | undefined,
+        is_claim_task: row.is_claim_task || false,
+        is_variation: row.is_variation || false,
+        claim_percentage: row.claim_percentage as number | null | undefined,
+        claim_invoice_pattern: row.claim_invoice_pattern as string | null | undefined,
+        claim_invoice_template_id: row.claim_invoice_template_id as number | null | undefined,
+        claim_trading_name_id: row.claim_trading_name_id as number | null | undefined,
+      };
+    });
+    setAllTasksForEdit(allRows);
+  }, [gantt.tasks]);
+
+  // ==========================================================================
+  // EditRowDialog Handlers
+  // ==========================================================================
+
+  // Handle task double-click to open EditRowDialog
+  const handleTaskEditDoubleClick = React.useCallback((task: GanttTask) => {
+    const row = task.rowData as SmScheduleMaster | undefined;
+    if (!row) return;
+
+    // Convert to EditRowData format (SSoT: same as Schedule Master)
+    const editRow: EditRowData = {
+      id: row.id,
+      task_number: row.task_number,
+      name: row.name,
+      description: row.description || undefined,
+      duration_days: row.duration_days || 1,
+      sequence_order: row.sequence_order || 0,
+      trade: row.trade_id ? String(row.trade_id) : undefined,
+      trade_name: row.trade_name ? String(row.trade_name) : undefined,
+      stage: row.stage_id ? String(row.stage_id) : undefined,
+      stage_name: row.stage_name ? String(row.stage_name) : undefined,
+      assigned_role: row.assigned_role_id ? String(row.assigned_role_id) : null,
+      cost_centre: row.cost_centre_id ? String(row.cost_centre_id) : undefined,
+      header_gantt: row.header_gantt as string | null | undefined,
+      allow_header: row.allow_header || false,
+      is_active: row.is_active !== false,
+      po_required: row.po_required || false,
+      critical_po: row.critical_po || false,
+      create_po_on_job_start: row.create_po_on_job_start || false,
+      spawn_order_task: row.spawn_order_task || false,
+      spawn_call_task: row.spawn_call_task || false,
+      require_photo: row.require_photo || false,
+      pass_fail_enabled: row.pass_fail_enabled || false,
+      checklist_id: row.checklist_id as number | undefined,
+      is_claim_task: row.is_claim_task || false,
+      is_variation: row.is_variation || false,
+      claim_percentage: row.claim_percentage as number | null | undefined,
+      claim_invoice_pattern: row.claim_invoice_pattern as string | null | undefined,
+      claim_invoice_template_id: row.claim_invoice_template_id as number | null | undefined,
+      claim_trading_name_id: row.claim_trading_name_id as number | null | undefined,
+    };
+    setSelectedTaskForEdit(editRow);
+    setShowTaskEditDialog(true);
+  }, []);
+
+  // Save task changes - callback for EditRowDialog
+  const handleSaveTask = React.useCallback(async (rowId: number, data: EditRowFormData) => {
+    await api.patch(`/api/v1/sm_tasks/${rowId}`, {
+      sm_task: {
+        name: data.name,
+        description: data.description,
+        duration_days: data.duration_days,
+        sequence_order: data.sequence_order,
+        // Basic settings - sm_tasks uses _id suffix
+        trade_id: data.trade ? parseInt(data.trade) : null,
+        assigned_role_id: data.assigned_role ? parseInt(data.assigned_role) : null,
+        // Classification
+        stage_id: data.stage ? parseInt(data.stage) : null,
+        cost_centre_id: data.cost_centre ? parseInt(data.cost_centre) : null,
+        // PO settings
+        po_required: data.po_required,
+        critical_po: data.critical_po,
+        create_po_on_job_start: data.create_po_on_job_start,
+        spawn_order_task: data.spawn_order_task,
+        spawn_call_task: data.spawn_call_task,
+        // Completion
+        require_photo: data.require_photo,
+        pass_fail_enabled: data.pass_fail_enabled,
+        // Relationships
+        header_gantt: data.header_gantt,
+        allow_header: data.allow_header,
+        checklist_id: data.checklist_id,
+        // Claim settings
+        is_claim_task: data.is_claim_task,
+        is_variation: data.is_variation,
+        claim_percentage: data.claim_percentage,
+        claim_invoice_pattern: data.claim_invoice_pattern,
+        claim_invoice_template_id: data.claim_invoice_template_id,
+        claim_trading_name_id: data.claim_trading_name_id,
+        // Active status
+        is_active: data.is_active,
+      }
+    });
+    // Clear cache and reload gantt data
+    clearCachedRecords("sm_tasks");
+    gantt.loadData({ silent: true });
+  }, [gantt]);
 
   // ==========================================================================
   // Photo Panel (Job-specific)
@@ -216,7 +435,7 @@ export default function GanttV2Page() {
             jobId={jobId}
             showToolbar={true}
             onTaskClick={gantt.handleTaskClick}
-            onTaskDoubleClick={gantt.handleTaskDoubleClick}
+            onTaskDoubleClick={handleTaskEditDoubleClick}
             onCheckboxToggle={gantt.handleCheckboxToggle}
             onRollover={gantt.handleRollover}
             onEditDependencies={gantt.openDependencyEditor}

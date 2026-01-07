@@ -406,53 +406,9 @@ export default function SchedulePage() {
   const [syncTemplateList, setSyncTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean; slug?: string }>>([]);
   const [loadingSyncTemplates, setLoadingSyncTemplates] = React.useState(false);
 
-  // Task edit dialog state - expanded to match Schedule Master
-  const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<Record<string, unknown> | null>(null);
+  // Task edit dialog state - uses shared EditRowDialog (SSoT with Schedule Master)
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<EditRowData | null>(null);
   const [showTaskEditDialog, setShowTaskEditDialog] = React.useState(false);
-  const [taskEditForm, setTaskEditForm] = React.useState<{
-    name: string;
-    description: string;
-    duration_days: number;
-    sequence_order: number;
-    start_date: string;
-    end_date: string;
-    status: string;
-    // Basic settings
-    trade: string;
-    assigned_role: string | null;
-    // Classification
-    stage: string;
-    cost_centre: string;
-    // PO settings
-    po_required: boolean;
-    critical_po: boolean;
-    // Completion
-    require_photo: boolean;
-    // Flags
-    hold: boolean;
-    confirm: boolean;
-  }>({
-    name: "",
-    description: "",
-    duration_days: 1,
-    sequence_order: 0,
-    start_date: "",
-    end_date: "",
-    status: "not_started",
-    trade: "",
-    assigned_role: null,
-    stage: "",
-    cost_centre: "",
-    po_required: false,
-    critical_po: false,
-    require_photo: false,
-    hold: false,
-    confirm: false,
-  });
-  const [savingTask, setSavingTask] = React.useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const initialFormLoadRef = React.useRef(true);
 
   // Reference data for task edit dropdowns (SSoT: same as Schedule Master)
   const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
@@ -530,6 +486,30 @@ export default function SchedulePage() {
         const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
         if (costCentresData?.records) setAvailableCostCentres(costCentresData.records);
       } catch (e) { console.error("Failed to load cost centres:", e); }
+
+      // Load checklists (SSoT: supervisor_checklist_templates foundation)
+      try {
+        const checklistsData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/supervisor_checklist_templates/records?per_page=100");
+        if (checklistsData?.records) setAvailableChecklists(checklistsData.records);
+      } catch (e) { console.error("Failed to load checklists:", e); }
+
+      // Load document types (SSoT: document_types foundation with scope=job)
+      try {
+        const docTypesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/foundations/document_types/records?per_page=100&filter[scope]=job");
+        if (docTypesData?.records) setAvailableDocumentTypes(docTypesData.records);
+      } catch (e) { console.error("Failed to load document types:", e); }
+
+      // Load trading names
+      try {
+        const tradingNamesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/trading_names/records?per_page=100");
+        if (tradingNamesData?.records) setAvailableTradingNames(tradingNamesData.records);
+      } catch (e) { console.error("Failed to load trading names:", e); }
+
+      // Load invoice templates
+      try {
+        const templatesData = await api.get<{ success: boolean; data: { id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[] }>("/api/v1/claim_invoice_templates");
+        if (templatesData?.data) setAvailableInvoiceTemplates(templatesData.data);
+      } catch (e) { console.error("Failed to load invoice templates:", e); }
     };
 
     loadReferenceData();
@@ -553,143 +533,88 @@ export default function SchedulePage() {
   }, [triggerRefresh]);
 
   // Handle double-click to open task edit dialog
+  // Converts table row to EditRowData format for the shared EditRowDialog
   const handleRowDoubleClick = React.useCallback((row: Record<string, unknown>) => {
     console.log('[SchedulePage] Task double-clicked:', row);
-    setSelectedTaskForEdit(row);
-    // Mark as initial form load to skip auto-save
-    initialFormLoadRef.current = true;
-    // Populate the edit form with current values
-    setTaskEditForm({
+    // Convert to EditRowData format (SSoT: same as Schedule Master)
+    const editRow: EditRowData = {
+      id: Number(row.id),
+      task_number: Number(row.task_number) || 0,
       name: String(row.name ?? ""),
-      description: String(row.description ?? ""),
+      description: row.description ? String(row.description) : undefined,
       duration_days: Number(row.duration_days) || 1,
       sequence_order: Number(row.sequence_order) || 0,
-      start_date: String(row.start_date ?? ""),
-      end_date: String(row.end_date ?? ""),
-      status: String(row.status ?? "not_started"),
-      // Basic settings - trade stores ID as string
-      trade: row.trade_id ? String(row.trade_id) : "",
+      trade: row.trade_id ? String(row.trade_id) : undefined,
+      trade_name: row.trade_name ? String(row.trade_name) : undefined,
+      stage: row.stage_id ? String(row.stage_id) : undefined,
+      stage_name: row.stage_name ? String(row.stage_name) : undefined,
       assigned_role: row.assigned_role_id ? String(row.assigned_role_id) : null,
-      // Classification
-      stage: row.stage_id ? String(row.stage_id) : "",
-      cost_centre: row.cost_centre_id ? String(row.cost_centre_id) : "",
-      // PO settings
+      cost_centre: row.cost_centre_id ? String(row.cost_centre_id) : undefined,
+      header_gantt: row.header_gantt as string | null | undefined,
+      allow_header: row.allow_header === true,
+      is_active: row.is_active !== false,
       po_required: row.po_required === true,
       critical_po: row.critical_po === true,
-      // Completion
+      create_po_on_job_start: row.create_po_on_job_start === true,
+      spawn_order_task: row.spawn_order_task === true,
+      spawn_call_task: row.spawn_call_task === true,
       require_photo: row.require_photo === true,
-      // Flags
-      hold: row.hold === true,
-      confirm: row.confirm === true,
-    });
-    setAutoSaveStatus('idle');
+      pass_fail_enabled: row.pass_fail_enabled === true,
+      checklist_id: row.checklist_id as number | undefined,
+      is_claim_task: row.is_claim_task === true,
+      is_variation: row.is_variation === true,
+      claim_percentage: row.claim_percentage as number | null | undefined,
+      claim_invoice_pattern: row.claim_invoice_pattern as string | null | undefined,
+      claim_invoice_template_id: row.claim_invoice_template_id as number | null | undefined,
+      claim_trading_name_id: row.claim_trading_name_id as number | null | undefined,
+    };
+    setSelectedTaskForEdit(editRow);
     setShowTaskEditDialog(true);
   }, []);
 
-  // Save task changes (supports both manual and auto-save)
-  const handleSaveTask = React.useCallback(async (options?: { silent?: boolean }) => {
-    if (!selectedTaskForEdit?.id) return;
-
-    const silent = options?.silent ?? false;
-
-    if (silent) {
-      setAutoSaveStatus('saving');
-    } else {
-      setSavingTask(true);
-    }
-
-    try {
-      await api.patch(`/api/v1/sm_tasks/${selectedTaskForEdit.id}`, {
-        sm_task: {
-          name: taskEditForm.name,
-          description: taskEditForm.description,
-          duration_days: taskEditForm.duration_days,
-          sequence_order: taskEditForm.sequence_order,
-          start_date: taskEditForm.start_date,
-          end_date: taskEditForm.end_date,
-          status: taskEditForm.status,
-          // Basic settings
-          trade_id: taskEditForm.trade ? parseInt(taskEditForm.trade) : null,
-          assigned_role_id: taskEditForm.assigned_role ? parseInt(taskEditForm.assigned_role) : null,
-          // Classification
-          stage_id: taskEditForm.stage ? parseInt(taskEditForm.stage) : null,
-          cost_centre_id: taskEditForm.cost_centre ? parseInt(taskEditForm.cost_centre) : null,
-          // PO settings
-          po_required: taskEditForm.po_required,
-          critical_po: taskEditForm.critical_po,
-          // Completion
-          require_photo: taskEditForm.require_photo,
-          // Flags
-          hold: taskEditForm.hold,
-          confirm: taskEditForm.confirm,
-        }
-      });
-
-      if (silent) {
-        setAutoSaveStatus('saved');
-        // Reset to idle after 2 seconds
-        setTimeout(() => setAutoSaveStatus('idle'), 2000);
-        // Clear cache and refresh
-        clearCachedRecords("sm_tasks");
-        triggerRefresh();
-      } else {
-        toast({
-          title: "Task Updated",
-          description: "Changes saved successfully",
-        });
-        setShowTaskEditDialog(false);
-        // Clear cache and refresh
-        clearCachedRecords("sm_tasks");
-        triggerRefresh();
+  // Save task changes - callback for EditRowDialog
+  // Transforms EditRowFormData to sm_tasks API format
+  const handleSaveTask = React.useCallback(async (rowId: number, data: EditRowFormData) => {
+    await api.patch(`/api/v1/sm_tasks/${rowId}`, {
+      sm_task: {
+        name: data.name,
+        description: data.description,
+        duration_days: data.duration_days,
+        sequence_order: data.sequence_order,
+        // Basic settings - sm_tasks uses _id suffix
+        trade_id: data.trade ? parseInt(data.trade) : null,
+        assigned_role_id: data.assigned_role ? parseInt(data.assigned_role) : null,
+        // Classification
+        stage_id: data.stage ? parseInt(data.stage) : null,
+        cost_centre_id: data.cost_centre ? parseInt(data.cost_centre) : null,
+        // PO settings
+        po_required: data.po_required,
+        critical_po: data.critical_po,
+        create_po_on_job_start: data.create_po_on_job_start,
+        spawn_order_task: data.spawn_order_task,
+        spawn_call_task: data.spawn_call_task,
+        // Completion
+        require_photo: data.require_photo,
+        pass_fail_enabled: data.pass_fail_enabled,
+        // Relationships
+        header_gantt: data.header_gantt,
+        allow_header: data.allow_header,
+        checklist_id: data.checklist_id,
+        // Claim settings
+        is_claim_task: data.is_claim_task,
+        is_variation: data.is_variation,
+        claim_percentage: data.claim_percentage,
+        claim_invoice_pattern: data.claim_invoice_pattern,
+        claim_invoice_template_id: data.claim_invoice_template_id,
+        claim_trading_name_id: data.claim_trading_name_id,
+        // Active status
+        is_active: data.is_active,
       }
-    } catch (error) {
-      console.error("Failed to save task:", error);
-      if (silent) {
-        setAutoSaveStatus('error');
-        // Reset to idle after 3 seconds
-        setTimeout(() => setAutoSaveStatus('idle'), 3000);
-      } else {
-        toast({
-          title: "Save Failed",
-          description: "Failed to save task changes",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      if (!silent) {
-        setSavingTask(false);
-      }
-    }
-  }, [selectedTaskForEdit, taskEditForm, toast, triggerRefresh]);
-
-  // Auto-save effect - debounced save when form changes
-  React.useEffect(() => {
-    // Skip auto-save on initial form load
-    if (initialFormLoadRef.current) {
-      initialFormLoadRef.current = false;
-      return;
-    }
-
-    // Skip if dialog is not open or no task is being edited
-    if (!showTaskEditDialog || !selectedTaskForEdit) return;
-
-    // Clear existing timer
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    // Set new timer for debounced save (500ms delay)
-    autoSaveTimerRef.current = setTimeout(() => {
-      handleSaveTask({ silent: true });
-    }, 500);
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskEditForm]);
+    });
+    // Clear cache and refresh
+    clearCachedRecords("sm_tasks");
+    triggerRefresh();
+  }, [triggerRefresh]);
 
   // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
@@ -2175,300 +2100,26 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Task Edit Dialog - Full-screen style like Schedule Master */}
-      <Dialog open={showTaskEditDialog} onOpenChange={setShowTaskEditDialog}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0 overflow-hidden">
-          {/* Sticky Header */}
-          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
-            <div>
-              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
-                Edit Row
-              </DialogTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                {selectedTaskForEdit?.name ? String(selectedTaskForEdit.name) : "Task"} (Task #{selectedTaskForEdit?.task_number ? String(selectedTaskForEdit.task_number) : ""})
-                {selectedTaskForEdit?.trade_name ? (
-                  <span className="ml-2 text-xs">• Trade: {String(selectedTaskForEdit.trade_name)}</span>
-                ) : null}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* Auto-save status indicator */}
-              <div className="flex items-center text-sm">
-                {autoSaveStatus === 'saving' && (
-                  <span className="flex items-center text-muted-foreground">
-                    <Spinner size={16} className="mr-2" />
-                    Saving...
-                  </span>
-                )}
-                {autoSaveStatus === 'saved' && (
-                  <span className="flex items-center text-green-600 dark:text-green-500">
-                    <Check className="h-4 w-4 mr-2" />
-                    Saved
-                  </span>
-                )}
-                {autoSaveStatus === 'error' && (
-                  <span className="flex items-center text-red-600 dark:text-red-500">
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Save failed
-                  </span>
-                )}
-                {autoSaveStatus === 'idle' && (
-                  <span className="text-muted-foreground">Auto-save enabled</span>
-                )}
-              </div>
-              <Button variant="outline" onClick={() => setShowTaskEditDialog(false)}>
-                Close
-              </Button>
-            </div>
-          </div>
-
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
-            {selectedTaskForEdit && (
-              <>
-                {/* Row 1: Name + Duration + Sequence */}
-                <div className="grid grid-cols-[1fr_80px_80px] gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="task-name" className="text-xs">Name</Label>
-                    <Input
-                      id="task-name"
-                      value={taskEditForm.name}
-                      onChange={(e) => setTaskEditForm({ ...taskEditForm, name: e.target.value })}
-                      className="h-8"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="task-duration" className="text-xs">Days</Label>
-                    <Input
-                      id="task-duration"
-                      type="number"
-                      value={taskEditForm.duration_days}
-                      onChange={(e) => setTaskEditForm({ ...taskEditForm, duration_days: parseInt(e.target.value) || 1 })}
-                      className="h-8"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="task-sequence" className="text-xs">Seq</Label>
-                    <Input
-                      id="task-sequence"
-                      type="number"
-                      step="0.1"
-                      value={taskEditForm.sequence_order}
-                      onChange={(e) => setTaskEditForm({ ...taskEditForm, sequence_order: parseFloat(e.target.value) || 0 })}
-                      className="h-8"
-                    />
-                  </div>
-                </div>
-
-                {/* Description - full width */}
-                <div className="space-y-1">
-                  <Label htmlFor="task-description" className="text-xs">Description</Label>
-                  <Input
-                    id="task-description"
-                    value={taskEditForm.description}
-                    onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })}
-                    className="h-8"
-                    placeholder="Optional description..."
-                  />
-                </div>
-
-                {/* Three-column layout */}
-                <div className="grid grid-cols-3 gap-6">
-                  {/* Column 1: Basic Settings */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Basic Settings</h4>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Trade</Label>
-                      <ComboboxDropdown
-                        items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
-                        selectedItem={taskEditForm.trade ? { id: taskEditForm.trade, label: availableTrades.find(t => String(t.id) === taskEditForm.trade)?.name || taskEditForm.trade } : undefined}
-                        onSelect={(item) => setTaskEditForm({ ...taskEditForm, trade: item.id })}
-                        placeholder="Select trade..."
-                        emptyResults="No trades found"
-                        clearable
-                        onClear={() => setTaskEditForm({ ...taskEditForm, trade: "" })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Assigned Role</Label>
-                      <ComboboxDropdown
-                        items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
-                        selectedItem={taskEditForm.assigned_role ? { id: taskEditForm.assigned_role, label: availableRoles.find(r => String(r.id) === taskEditForm.assigned_role)?.display_name || taskEditForm.assigned_role } : undefined}
-                        onSelect={(item) => setTaskEditForm({ ...taskEditForm, assigned_role: item.id })}
-                        placeholder="Select role..."
-                        emptyResults="No roles found"
-                        clearable
-                        onClear={() => setTaskEditForm({ ...taskEditForm, assigned_role: null })}
-                      />
-                    </div>
-
-                    {/* PO Settings */}
-                    <div className="pt-2 border-t">
-                      <h4 className="font-medium text-sm mb-2">PO Settings</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="task-po-required"
-                            checked={taskEditForm.po_required}
-                            onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, po_required: checked })}
-                          />
-                          <Label htmlFor="task-po-required" className="text-xs">PO Required</Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="task-critical-po"
-                            checked={taskEditForm.critical_po}
-                            onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, critical_po: checked })}
-                          />
-                          <Label htmlFor="task-critical-po" className="text-xs">Critical PO</Label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Completion Settings */}
-                    <div className="pt-2 border-t">
-                      <h4 className="font-medium text-sm mb-2">Completion</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="task-require-photo"
-                            checked={taskEditForm.require_photo}
-                            onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, require_photo: checked })}
-                          />
-                          <Label htmlFor="task-require-photo" className="text-xs">Require Photo</Label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Column 2: Classification + Dates */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Classification</h4>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Stage</Label>
-                      <ComboboxDropdown
-                        items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
-                        selectedItem={taskEditForm.stage ? { id: taskEditForm.stage, label: availableStages.find(s => String(s.id) === taskEditForm.stage)?.name || taskEditForm.stage } : undefined}
-                        onSelect={(item) => setTaskEditForm({ ...taskEditForm, stage: item.id })}
-                        placeholder="Select stage..."
-                        emptyResults="No stages found"
-                        clearable
-                        onClear={() => setTaskEditForm({ ...taskEditForm, stage: "" })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Cost Centre</Label>
-                      <ComboboxDropdown
-                        items={availableCostCentres.map(c => ({ id: String(c.id), label: c.name }))}
-                        selectedItem={taskEditForm.cost_centre ? { id: taskEditForm.cost_centre, label: availableCostCentres.find(c => String(c.id) === taskEditForm.cost_centre)?.name || taskEditForm.cost_centre } : undefined}
-                        onSelect={(item) => setTaskEditForm({ ...taskEditForm, cost_centre: item.id })}
-                        placeholder="Select cost centre..."
-                        emptyResults="No cost centres found"
-                        clearable
-                        onClear={() => setTaskEditForm({ ...taskEditForm, cost_centre: "" })}
-                      />
-                    </div>
-
-                    {/* Dates */}
-                    <div className="pt-2 border-t">
-                      <h4 className="font-medium text-sm mb-2">Schedule</h4>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label htmlFor="task-start-date" className="text-xs">Start Date</Label>
-                          <Input
-                            id="task-start-date"
-                            type="date"
-                            value={taskEditForm.start_date}
-                            onChange={(e) => setTaskEditForm({ ...taskEditForm, start_date: e.target.value })}
-                            className="h-8"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="task-end-date" className="text-xs">End Date</Label>
-                          <Input
-                            id="task-end-date"
-                            type="date"
-                            value={taskEditForm.end_date}
-                            onChange={(e) => setTaskEditForm({ ...taskEditForm, end_date: e.target.value })}
-                            className="h-8"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1 mt-2">
-                        <Label className="text-xs">Status</Label>
-                        <ComboboxDropdown
-                          items={[
-                            { id: "not_started", label: "Not Started" },
-                            { id: "started", label: "Started" },
-                            { id: "completed", label: "Completed" },
-                          ]}
-                          selectedItem={{ id: taskEditForm.status, label: taskEditForm.status === "completed" ? "Completed" : taskEditForm.status === "started" ? "Started" : "Not Started" }}
-                          onSelect={(item) => setTaskEditForm({ ...taskEditForm, status: item.id })}
-                          placeholder="Select status..."
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Column 3: Flags + Info */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Flags</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id="task-hold"
-                          checked={taskEditForm.hold}
-                          onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, hold: checked })}
-                        />
-                        <div>
-                          <Label htmlFor="task-hold" className="text-xs">On Hold</Label>
-                          <p className="text-[10px] text-muted-foreground">Pauses task scheduling</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id="task-confirm"
-                          checked={taskEditForm.confirm}
-                          onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, confirm: checked })}
-                        />
-                        <div>
-                          <Label htmlFor="task-confirm" className="text-xs">Confirmed</Label>
-                          <p className="text-[10px] text-muted-foreground">Locks dates from auto-adjustment</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Task Info (read-only) */}
-                    <div className="pt-2 border-t">
-                      <h4 className="font-medium text-sm mb-2">Task Info</h4>
-                      <div className="space-y-2 text-sm">
-                        {selectedTaskForEdit.supplier_name ? (
-                          <div>
-                            <span className="text-muted-foreground">Supplier:</span>{" "}
-                            <span>{String(selectedTaskForEdit.supplier_name)}</span>
-                          </div>
-                        ) : null}
-                        {selectedTaskForEdit.purchase_order_id ? (
-                          <div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => window.open(`/jobs/${jobId}/purchase-orders/${selectedTaskForEdit.purchase_order_id}`, '_blank')}
-                            >
-                              View Purchase Order →
-                            </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Task Edit Dialog - SSoT: Uses shared EditRowDialog (same as Schedule Master) */}
+      <EditRowDialog
+        open={showTaskEditDialog}
+        onOpenChange={setShowTaskEditDialog}
+        row={selectedTaskForEdit}
+        onSave={handleSaveTask}
+        onRefresh={triggerRefresh}
+        trades={availableTrades}
+        roles={availableRoles}
+        stages={availableStages}
+        costCentres={availableCostCentres}
+        checklists={availableChecklists}
+        documentTypes={availableDocumentTypes}
+        tradingNames={availableTradingNames}
+        invoiceTemplates={availableInvoiceTemplates}
+        headerRows={availableHeaderRows}
+        allRows={allTasks}
+        showTemplateSection={false}
+        jobId={jobId ? Number(jobId) : undefined}
+      />
 
       {/* Reset Confirmation Dialog */}
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
