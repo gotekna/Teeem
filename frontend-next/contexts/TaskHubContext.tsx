@@ -217,6 +217,7 @@ export interface TaskHubContextType extends TaskHubState {
   expandTask: (taskId: number) => void;
   collapseTask: () => void;
   toggleTaskExpansion: (taskId: number) => void;
+  navigateToTask: (taskId: number) => void; // Clears filters and expands the task
 
   // Task actions
   startTask: (taskId: number) => Promise<void>;
@@ -1164,6 +1165,16 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     setExpandedTaskId(prev => prev === taskId ? null : taskId);
   }, []);
 
+  // Navigate to a specific task (clears filters and expands)
+  const navigateToTask = useCallback((taskId: number) => {
+    // Clear filters to show all tasks
+    setFiltersState(defaultFilters);
+    // Switch to list view
+    setActiveViewState('list');
+    // Expand the target task
+    setExpandedTaskId(taskId);
+  }, []);
+
   // Task action handlers
   const startTask = useCallback(async (taskId: number) => {
     const now = new Date().toISOString();
@@ -1239,6 +1250,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     expandTask,
     collapseTask,
     toggleTaskExpansion,
+    navigateToTask,
     startTask,
     completeTask,
     setTaskHold,

@@ -91,7 +91,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     confirmTask,
     supplierConfirmTask,
     collapseTask,
-    expandTask,
+    navigateToTask,
     addActionItem,
     bulkAddActionItems,
     toggleActionItem,
@@ -600,7 +600,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             key={index}
             onClick={(e) => {
               e.stopPropagation();
-              expandTask(taskId);
+              navigateToTask(taskId);
             }}
             className="text-primary hover:underline font-medium"
           >

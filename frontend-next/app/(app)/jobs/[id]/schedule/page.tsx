@@ -415,6 +415,8 @@ export default function SchedulePage() {
   const [templateList, setTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean }>>([]);
   const [selectedResetTemplateId, setSelectedResetTemplateId] = React.useState<number | null>(null);
   const [loadingTemplateList, setLoadingTemplateList] = React.useState(false);
+  const [resetPreviewError, setResetPreviewError] = React.useState<string | null>(null);
+  const [loadingResetPreview, setLoadingResetPreview] = React.useState(false);
 
   React.useEffect(() => {
     console.log('[SchedulePage] 🔄 Fetch job effect triggered', { jobId });
@@ -891,6 +893,8 @@ export default function SchedulePage() {
   // Fetch reset preview for a specific template
   const fetchResetPreview = React.useCallback(async (templateId: number) => {
     setResetPreview(null);
+    setResetPreviewError(null);
+    setLoadingResetPreview(true);
     try {
       const response = await api.post<{
         success: boolean;
@@ -908,12 +912,22 @@ export default function SchedulePage() {
       }
     } catch (err) {
       console.error("Failed to get reset preview:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to load preview";
+      setResetPreviewError(errorMessage);
+      toast({
+        title: "Preview Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingResetPreview(false);
     }
-  }, [jobId]);
+  }, [jobId, toast]);
 
   // Open reset dialog and load template list
   const handleOpenResetDialog = async () => {
     setResetPreview(null);
+    setResetPreviewError(null);
     setSelectedResetTemplateId(null);
     setShowResetDialog(true);
     setLoadingTemplateList(true);
@@ -1851,10 +1865,29 @@ export default function SchedulePage() {
             )}
           </div>
 
-          {!resetPreview ? (
+          {loadingResetPreview ? (
             <div className="flex items-center justify-center py-8">
               <Spinner />
               <span className="ml-2 text-sm text-muted-foreground">Loading preview...</span>
+            </div>
+          ) : resetPreviewError ? (
+            <div className="rounded-lg border border-destructive bg-destructive/10 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <span className="font-medium">Failed to load preview</span>
+              </div>
+              <p className="text-sm text-muted-foreground">{resetPreviewError}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => selectedResetTemplateId && fetchResetPreview(selectedResetTemplateId)}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : !resetPreview ? (
+            <div className="flex items-center justify-center py-8">
+              <span className="text-sm text-muted-foreground">Select a template to see preview</span>
             </div>
           ) : (
             <div className="space-y-4">
