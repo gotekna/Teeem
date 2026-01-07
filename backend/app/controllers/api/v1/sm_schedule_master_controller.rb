@@ -8,11 +8,11 @@ module Api
 
       # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
       # SSoT: Use ?for=gantt to filter invisible tasks (po_required without supplier)
-      # Performance: includes po_supplier, spawn_scan_task, linked_po_task to avoid N+1
+      # Performance: includes po_supplier, spawn_scan_task to avoid N+1
       def index
         # Sort by sequence_order - dependencies drive scheduling, calculated client-side
         @rows = @template.sm_schedule_master_rows.active
-                         .includes(:po_supplier, :spawn_scan_task, :linked_po_task)
+                         .includes(:po_supplier, :spawn_scan_task)
                          .order(Arel.sql("COALESCE(sequence_order, 0) ASC"))
 
         # Gantt mode: Filter out PO-required tasks without a supplier configured
@@ -154,7 +154,7 @@ module Api
 
         render json: {
           success: true,
-          rows: @template.sm_schedule_master_rows.active.includes(:po_supplier, :spawn_scan_task, :linked_po_task).in_sequence.map { |r| row_json(r) }
+          rows: @template.sm_schedule_master_rows.active.includes(:po_supplier, :spawn_scan_task).in_sequence.map { |r| row_json(r) }
         }
       end
 
@@ -198,7 +198,6 @@ module Api
           :start_workflow_enabled, :start_workflow_id,
           :complete_workflow_enabled, :complete_workflow_id,
           # New Schedule Master fields
-          :linked_po_task_id,
           :supplier_confirm,
           # Manual positioning and task status
           :hold, :hold_date, :dependency_broken, :started,
@@ -309,8 +308,6 @@ module Api
           # Multi-template support
           sm_template_ids: row.sm_template_ids || [],
           # New Schedule Master fields
-          linked_po_task_id: row.linked_po_task_id,
-          linked_po_task_name: row.linked_po_task&.name,
           supplier_confirm: row.supplier_confirm,
           # Manual positioning (for held/locked dates)
           hold: row.hold,

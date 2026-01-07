@@ -18,14 +18,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from '@/components/ui/sheet';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -351,12 +343,12 @@ export default function GanttV2Page() {
         onSave={gantt.handleDependencyEditorSave}
       />
 
-      {/* Edit Sheet - SSoT: uses hook's state */}
-      <Sheet open={gantt.editSheetOpen} onOpenChange={gantt.setEditSheetOpen}>
-        <SheetContent side="right" className="w-[400px] sm:w-[500px]">
-          <SheetHeader>
+      {/* Edit Dialog - SSoT: uses hook's state */}
+      <Dialog open={gantt.editSheetOpen} onOpenChange={gantt.setEditSheetOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
             <div className="flex items-center gap-2">
-              <SheetTitle>Edit Task</SheetTitle>
+              <DialogTitle>Edit Task</DialogTitle>
               {/* Auto-save status indicator */}
               {gantt.autoSaveStatus === 'saving' && (
                 <span className="flex items-center text-xs text-muted-foreground">
@@ -377,10 +369,10 @@ export default function GanttV2Page() {
                 </span>
               )}
             </div>
-            <SheetDescription>
+            <DialogDescription>
               {gantt.editingTask?.name} (Task #{gantt.editingRow?.task_number})
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
 
           <div className="py-4 space-y-4">
             <div className="space-y-2">
@@ -550,7 +542,7 @@ export default function GanttV2Page() {
             </div>
           </div>
 
-          <SheetFooter>
+          <DialogFooter>
             <Button variant="outline" onClick={() => gantt.setEditSheetOpen(false)}>
               Close
             </Button>
@@ -558,9 +550,9 @@ export default function GanttV2Page() {
               {gantt.saving ? <Spinner className="mr-2 h-4 w-4" /> : null}
               Save
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm Dialog - SSoT: for supplier_confirm/confirm toggles */}
       <Dialog

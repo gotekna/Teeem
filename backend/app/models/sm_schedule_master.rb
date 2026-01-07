@@ -21,7 +21,7 @@ class SmScheduleMaster < ApplicationRecord
   DEPENDENCY_TYPES = %w[FS SS FF SF].freeze
 
   # Performance: Define which associations are safe to eager load
-  # Excludes self-referential (linked_po_task, spawn_scan_task) and heavy (po_supplier) associations
+  # Excludes self-referential (spawn_scan_task) and heavy (po_supplier) associations
   # Used by Foundation API's apply_eager_loading method
   def self.safe_eager_load_associations
     [:checklist, :created_by, :updated_by]
@@ -32,10 +32,6 @@ class SmScheduleMaster < ApplicationRecord
   # sm_template_ids (JSONB array) handles multi-template membership
 
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
-
-  # PO hierarchy - link this task's PO to another task's PO
-  belongs_to :linked_po_task, class_name: "SmScheduleMaster", optional: true
-  has_many :linked_po_children, class_name: "SmScheduleMaster", foreign_key: :linked_po_task_id, dependent: :nullify
 
   # Spawn scan task - which task template to spawn on completion
   belongs_to :spawn_scan_task, class_name: "SmScheduleMaster", optional: true

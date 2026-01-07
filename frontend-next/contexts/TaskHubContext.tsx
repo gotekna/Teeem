@@ -37,14 +37,21 @@ export interface TaskAttachment {
   document?: TaskAttachmentDocument;
 }
 
+export type ActionItemType = 'action' | 'question';
+
 export interface TaskActionItem {
   id: number;
   text: string;
+  item_type: ActionItemType;
   checked: boolean;
   position: number;
   checked_by_id?: number;
   checked_by_name?: string;
   checked_at?: string;
+  response?: string;
+  responded_by_id?: number;
+  responded_by_name?: string;
+  responded_at?: string;
 }
 
 export interface TaskFollower {
@@ -209,8 +216,10 @@ export interface TaskHubContextType extends TaskHubState {
   supplierConfirmTask: (taskId: number, date: string) => Promise<void>;
 
   // Action items
-  addActionItem: (taskId: number, text: string) => Promise<TaskActionItem>;
+  addActionItem: (taskId: number, text: string, itemType?: ActionItemType) => Promise<TaskActionItem>;
+  bulkAddActionItems: (taskId: number, items: { text: string; item_type: ActionItemType }[]) => Promise<TaskActionItem[]>;
   toggleActionItem: (taskId: number, itemId: number) => Promise<void>;
+  answerActionItem: (taskId: number, itemId: number, response: string) => Promise<TaskActionItem>;
   updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
   removeActionItem: (taskId: number, itemId: number) => Promise<void>;
 
@@ -925,10 +934,10 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   }, [tasks]);
 
   // Action Items methods
-  const addActionItem = useCallback(async (taskId: number, text: string): Promise<TaskActionItem> => {
+  const addActionItem = useCallback(async (taskId: number, text: string, itemType: ActionItemType = 'action'): Promise<TaskActionItem> => {
     const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
       `/api/v1/sm_tasks/${taskId}/action_items`,
-      { text }
+      { text, item_type: itemType }
     );
     if (response?.success && response?.action_item) {
       // Update local task state
@@ -940,6 +949,23 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       return response.action_item;
     }
     throw new Error('Failed to add action item');
+  }, []);
+
+  const bulkAddActionItems = useCallback(async (taskId: number, items: { text: string; item_type: ActionItemType }[]): Promise<TaskActionItem[]> => {
+    const response = await api.post<{ action_items: TaskActionItem[]; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/bulk`,
+      { items }
+    );
+    if (response?.success && response?.action_items) {
+      // Update local task state
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, action_items: [...(t.action_items || []), ...response.action_items] }
+          : t
+      ));
+      return response.action_items;
+    }
+    throw new Error('Failed to add action items');
   }, []);
 
   const toggleActionItem = useCallback(async (taskId: number, itemId: number) => {
@@ -959,6 +985,27 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
           : t
       ));
     }
+  }, []);
+
+  const answerActionItem = useCallback(async (taskId: number, itemId: number, answerText: string): Promise<TaskActionItem> => {
+    const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/answer`,
+      { response: answerText }
+    );
+    if (response?.success && response?.action_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to answer question');
   }, []);
 
   const updateActionItem = useCallback(async (taskId: number, itemId: number, text: string): Promise<TaskActionItem> => {
@@ -1167,7 +1214,9 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     supplierConfirmTask,
     // Action items
     addActionItem,
+    bulkAddActionItems,
     toggleActionItem,
+    answerActionItem,
     updateActionItem,
     removeActionItem,
     // Privacy

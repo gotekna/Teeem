@@ -337,6 +337,7 @@ class GanttDataService
       trade: record.try(:trade),
       stage: record.try(:stage),
       assigned_role: record.try(:assigned_role),
+      assigned_role_name: roles_map[record.try(:assigned_role).to_i],
       color: record.try(:color)
     }.compact
   end
@@ -344,6 +345,12 @@ class GanttDataService
   def format_date(date)
     return nil unless date
     date.respond_to?(:strftime) ? date.strftime("%Y-%m-%d") : date.to_s
+  end
+
+  # SSoT: Load roles lookup map (ID => display_name) from Role model
+  # Memoized per request to avoid N+1 queries
+  def roles_map
+    @roles_map ||= Role.all.each_with_object({}) { |r, h| h[r.id] = r.display_name || r.name }
   end
 
   # SSoT: Sort hierarchically with 2-level nesting support

@@ -991,12 +991,43 @@ module Api
 
         item = @task.action_items.create!(
           text: params[:text],
+          item_type: params[:item_type] || 'action',
           position: params[:position] || @task.action_items.maximum(:position).to_i + 1
         )
 
         render json: {
           success: true,
           action_item: action_item_to_json(item)
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/bulk
+      # Create multiple action items at once (e.g., from pasted questions)
+      def bulk_create_action_items
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        items_data = params[:items] || []
+        created_items = []
+        max_position = @task.action_items.maximum(:position).to_i
+
+        items_data.each_with_index do |item_data, index|
+          item = @task.action_items.create!(
+            text: item_data[:text],
+            item_type: item_data[:item_type] || 'action',
+            position: max_position + index + 1
+          )
+          created_items << action_item_to_json(item)
+        end
+
+        render json: {
+          success: true,
+          action_items: created_items
         }
       rescue ActiveRecord::RecordInvalid => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
@@ -1038,7 +1069,13 @@ module Api
         end
 
         item = @task.action_items.find(params[:item_id])
-        item.update!(text: params[:text])
+
+        # Build update attributes
+        update_attrs = {}
+        update_attrs[:text] = params[:text] if params.key?(:text)
+        update_attrs[:item_type] = params[:item_type] if params.key?(:item_type)
+
+        item.update!(update_attrs)
 
         render json: {
           success: true,
@@ -1046,6 +1083,24 @@ module Api
         }
       rescue ActiveRecord::RecordInvalid => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/answer
+      # Answer a question-type action item
+      def answer_action_item
+        @task = SmTask.find(params[:id])
+        item = @task.action_items.find(params[:item_id])
+
+        unless item.question?
+          return render json: { success: false, error: "Can only answer question items" }, status: :unprocessable_entity
+        end
+
+        item.answer!(params[:response], current_user)
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item)
+        }
       end
 
       # PATCH /api/v1/sm_tasks/:id/privacy
@@ -1458,11 +1513,16 @@ module Api
         {
           id: item.id,
           text: item.text,
+          item_type: item.item_type,
           checked: item.checked,
           position: item.position,
           checked_by_id: item.checked_by_id,
           checked_by_name: item.checked_by&.name,
-          checked_at: item.checked_at
+          checked_at: item.checked_at,
+          response: item.response,
+          responded_by_id: item.responded_by_id,
+          responded_by_name: item.responded_by&.name,
+          responded_at: item.responded_at
         }
       end
 

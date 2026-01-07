@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_005427) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_043255) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8187,7 +8187,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_005427) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "linked_po_task_id"
     t.integer "cost_centre"
     t.boolean "supplier_confirm", default: false
     t.integer "header_gantt"
@@ -8224,7 +8223,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_005427) do
     t.index ["header_gantt"], name: "index_sm_schedule_masters_on_header_gantt"
     t.index ["hold"], name: "index_sm_schedule_masters_on_hold", where: "(hold = true)"
     t.index ["is_active"], name: "index_sm_schedule_masters_on_is_active"
-    t.index ["linked_po_task_id"], name: "index_sm_schedule_masters_on_linked_po_task_id"
     t.index ["po_supplier_id"], name: "index_sm_schedule_masters_on_po_supplier_id"
     t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
@@ -8893,7 +8891,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_005427) do
     t.datetime "checked_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "item_type", default: "action", null: false
+    t.text "response"
+    t.bigint "responded_by_id"
+    t.datetime "responded_at"
     t.index ["checked_by_id"], name: "index_task_action_items_on_checked_by_id"
+    t.index ["responded_by_id"], name: "index_task_action_items_on_responded_by_id"
     t.index ["sm_task_id", "position"], name: "index_task_action_items_on_sm_task_id_and_position"
     t.index ["sm_task_id"], name: "index_task_action_items_on_sm_task_id"
   end
@@ -10603,6 +10606,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_005427) do
   add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "users", column: "checked_by_id"
+  add_foreign_key "task_action_items", "users", column: "responded_by_id"
   add_foreign_key "task_activity_logs", "sm_tasks"
   add_foreign_key "task_activity_logs", "users"
   add_foreign_key "task_contacts", "contacts", on_delete: :cascade

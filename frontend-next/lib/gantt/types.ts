@@ -107,6 +107,7 @@ export interface SmScheduleMaster {
   stage: string | null;
   cost_centre: string | null;
   assigned_role: string | null;
+  assigned_role_name: string | null;
   supplier_id: number | null;
   supplier_name: string | null;
   checklist_id: number | null;
@@ -134,8 +135,6 @@ export interface SmScheduleMaster {
   color: string | null;
   is_active: boolean;
   // New Schedule Master fields
-  linked_po_task_id: number | null;
-  linked_po_task_name: string | null;
   supplier_confirm: boolean;
   finance_approved: boolean;
   header_gantt: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup

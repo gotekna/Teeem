@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub } from '@/contexts/TaskHubContext';
+import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,14 +20,18 @@ import { api } from '@/lib/api';
 import {
   AlertTriangle,
   Calendar as CalendarIcon,
+  Check,
   ChevronDown,
   ChevronUp,
   Clock,
   ExternalLink,
   FileText,
+  HelpCircle,
   History,
+  ListTodo,
   Lock,
   Mail,
+  MessageSquare,
   Paperclip,
   Plus,
   Trash2,
@@ -87,7 +91,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     supplierConfirmTask,
     collapseTask,
     addActionItem,
+    bulkAddActionItems,
     toggleActionItem,
+    answerActionItem,
     updateActionItem,
     removeActionItem,
     setTaskPrivacy,
@@ -117,9 +123,14 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   // Action items state
   const [newActionItemText, setNewActionItemText] = useState('');
-  const [actionItemLoading, setActionItemLoading] = useState<number | 'new' | null>(null);
+  const [newActionItemType, setNewActionItemType] = useState<ActionItemType>('action');
+  const [actionItemLoading, setActionItemLoading] = useState<number | 'new' | 'bulk' | null>(null);
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
+  const [answeringItemId, setAnsweringItemId] = useState<number | null>(null);
+  const [answerText, setAnswerText] = useState('');
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
+  const [bulkPasteText, setBulkPasteText] = useState('');
 
   // Share/Followers state
   const [shareOpen, setShareOpen] = useState(false);
@@ -888,108 +899,306 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       </div>
 
       {/* Action Items Section */}
-      {(task.action_items?.length || 0) > 0 || true ? (
-        <div className="p-2 bg-background/50 rounded border">
-          <div className="text-xs text-muted-foreground mb-2">Action Items</div>
-          <div className="space-y-1">
-            {task.action_items?.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-2 group"
-              >
-                <Checkbox
-                  checked={item.checked}
-                  onCheckedChange={async () => {
-                    setActionItemLoading(item.id);
-                    try {
-                      await toggleActionItem(task.id, item.id);
-                    } finally {
-                      setActionItemLoading(null);
-                    }
-                  }}
-                  disabled={actionItemLoading === item.id || editingItemId === item.id}
-                  className="h-4 w-4"
-                />
-                {editingItemId === item.id ? (
-                  <Input
-                    value={editingItemText}
-                    onChange={(e) => setEditingItemText(e.target.value)}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter' && editingItemText.trim()) {
-                        setActionItemLoading(item.id);
-                        try {
-                          await updateActionItem(task.id, item.id, editingItemText.trim());
-                          setEditingItemId(null);
-                          setEditingItemText('');
-                        } finally {
-                          setActionItemLoading(null);
-                        }
-                      } else if (e.key === 'Escape') {
-                        setEditingItemId(null);
-                        setEditingItemText('');
-                      }
-                    }}
-                    onBlur={async () => {
-                      if (editingItemText.trim() && editingItemText.trim() !== item.text) {
-                        setActionItemLoading(item.id);
-                        try {
-                          await updateActionItem(task.id, item.id, editingItemText.trim());
-                        } finally {
-                          setActionItemLoading(null);
-                        }
-                      }
-                      setEditingItemId(null);
-                      setEditingItemText('');
-                    }}
-                    className="flex-1 h-7 text-sm"
-                    autoFocus
-                    disabled={actionItemLoading === item.id}
-                  />
-                ) : (
-                  <span
-                    className={cn(
-                      "flex-1 text-sm cursor-pointer hover:bg-muted/50 px-1 -mx-1 rounded",
-                      item.checked && "line-through text-muted-foreground"
-                    )}
-                    onClick={() => {
-                      setEditingItemId(item.id);
-                      setEditingItemText(item.text);
-                    }}
-                    title="Click to edit"
-                  >
-                    {item.text}
-                  </span>
-                )}
-                {actionItemLoading === item.id ? (
-                  <Spinner size={12} />
-                ) : editingItemId !== item.id && (
-                  <button
-                    onClick={async () => {
+      <div className="p-2 bg-background/50 rounded border">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-muted-foreground">Actions & Questions</div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setShowBulkPaste(true)}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Paste List
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {task.action_items?.map((item) => (
+            <div key={item.id} className="group">
+              {/* Action type item (checkbox) */}
+              {item.item_type === 'action' && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={item.checked}
+                    onCheckedChange={async () => {
                       setActionItemLoading(item.id);
                       try {
-                        await removeActionItem(task.id, item.id);
+                        await toggleActionItem(task.id, item.id);
                       } finally {
                         setActionItemLoading(null);
                       }
                     }}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            ))}
-            {/* Add new action item */}
-            <div className="flex items-center gap-2 pt-1">
+                    disabled={actionItemLoading === item.id || editingItemId === item.id}
+                    className="h-4 w-4"
+                  />
+                  {editingItemId === item.id ? (
+                    <Input
+                      value={editingItemText}
+                      onChange={(e) => setEditingItemText(e.target.value)}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && editingItemText.trim()) {
+                          setActionItemLoading(item.id);
+                          try {
+                            await updateActionItem(task.id, item.id, editingItemText.trim());
+                            setEditingItemId(null);
+                            setEditingItemText('');
+                          } finally {
+                            setActionItemLoading(null);
+                          }
+                        } else if (e.key === 'Escape') {
+                          setEditingItemId(null);
+                          setEditingItemText('');
+                        }
+                      }}
+                      onBlur={async () => {
+                        if (editingItemText.trim() && editingItemText.trim() !== item.text) {
+                          setActionItemLoading(item.id);
+                          try {
+                            await updateActionItem(task.id, item.id, editingItemText.trim());
+                          } finally {
+                            setActionItemLoading(null);
+                          }
+                        }
+                        setEditingItemId(null);
+                        setEditingItemText('');
+                      }}
+                      className="flex-1 h-7 text-sm"
+                      autoFocus
+                      disabled={actionItemLoading === item.id}
+                    />
+                  ) : (
+                    <span
+                      className={cn(
+                        "flex-1 text-sm cursor-pointer hover:bg-muted/50 px-1 -mx-1 rounded",
+                        item.checked && "line-through text-muted-foreground"
+                      )}
+                      onClick={() => {
+                        setEditingItemId(item.id);
+                        setEditingItemText(item.text);
+                      }}
+                      title="Click to edit"
+                    >
+                      {item.text}
+                    </span>
+                  )}
+                  {actionItemLoading === item.id ? (
+                    <Spinner size={12} />
+                  ) : editingItemId !== item.id && (
+                    <button
+                      onClick={async () => {
+                        setActionItemLoading(item.id);
+                        try {
+                          await removeActionItem(task.id, item.id);
+                        } finally {
+                          setActionItemLoading(null);
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Question type item */}
+              {item.item_type === 'question' && (
+                <div className="pl-1 border-l-2 border-blue-400">
+                  <div className="flex items-start gap-2">
+                    <HelpCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                    {editingItemId === item.id ? (
+                      <Input
+                        value={editingItemText}
+                        onChange={(e) => setEditingItemText(e.target.value)}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter' && editingItemText.trim()) {
+                            setActionItemLoading(item.id);
+                            try {
+                              await updateActionItem(task.id, item.id, editingItemText.trim());
+                              setEditingItemId(null);
+                              setEditingItemText('');
+                            } finally {
+                              setActionItemLoading(null);
+                            }
+                          } else if (e.key === 'Escape') {
+                            setEditingItemId(null);
+                            setEditingItemText('');
+                          }
+                        }}
+                        onBlur={async () => {
+                          if (editingItemText.trim() && editingItemText.trim() !== item.text) {
+                            setActionItemLoading(item.id);
+                            try {
+                              await updateActionItem(task.id, item.id, editingItemText.trim());
+                            } finally {
+                              setActionItemLoading(null);
+                            }
+                          }
+                          setEditingItemId(null);
+                          setEditingItemText('');
+                        }}
+                        className="flex-1 h-7 text-sm"
+                        autoFocus
+                        disabled={actionItemLoading === item.id}
+                      />
+                    ) : (
+                      <span
+                        className="flex-1 text-sm cursor-pointer hover:bg-muted/50 px-1 -mx-1 rounded font-medium"
+                        onClick={() => {
+                          setEditingItemId(item.id);
+                          setEditingItemText(item.text);
+                        }}
+                        title="Click to edit"
+                      >
+                        {item.text}
+                      </span>
+                    )}
+                    {actionItemLoading === item.id ? (
+                      <Spinner size={12} />
+                    ) : editingItemId !== item.id && (
+                      <button
+                        onClick={async () => {
+                          setActionItemLoading(item.id);
+                          try {
+                            await removeActionItem(task.id, item.id);
+                          } finally {
+                            setActionItemLoading(null);
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                  {/* Answer section */}
+                  <div className="ml-6 mt-1">
+                    {item.response ? (
+                      <div className="text-sm bg-green-50 dark:bg-green-950 p-2 rounded border border-green-200 dark:border-green-800">
+                        <div className="flex items-start gap-2">
+                          <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-foreground">{item.response}</p>
+                            {item.responded_by_name && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                — {item.responded_by_name}
+                                {item.responded_at && `, ${format(new Date(item.responded_at), 'MMM d')}`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : answeringItemId === item.id ? (
+                      <div className="flex gap-2">
+                        <Input
+                          value={answerText}
+                          onChange={(e) => setAnswerText(e.target.value)}
+                          placeholder="Type your answer..."
+                          className="flex-1 h-7 text-sm"
+                          autoFocus
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter' && answerText.trim()) {
+                              setActionItemLoading(item.id);
+                              try {
+                                await answerActionItem(task.id, item.id, answerText.trim());
+                                setAnsweringItemId(null);
+                                setAnswerText('');
+                              } finally {
+                                setActionItemLoading(null);
+                              }
+                            } else if (e.key === 'Escape') {
+                              setAnsweringItemId(null);
+                              setAnswerText('');
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={async () => {
+                            if (!answerText.trim()) return;
+                            setActionItemLoading(item.id);
+                            try {
+                              await answerActionItem(task.id, item.id, answerText.trim());
+                              setAnsweringItemId(null);
+                              setAnswerText('');
+                            } finally {
+                              setActionItemLoading(null);
+                            }
+                          }}
+                          disabled={!answerText.trim()}
+                        >
+                          {actionItemLoading === item.id ? <Spinner size={12} /> : <Check className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => {
+                            setAnsweringItemId(null);
+                            setAnswerText('');
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setAnsweringItemId(item.id);
+                          setAnswerText('');
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:underline"
+                      >
+                        + Add answer
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Add new action/question */}
+          <div className="pt-2 border-t border-dashed space-y-2">
+            {/* Type selector */}
+            <div className="flex gap-1">
+              <Button
+                variant={newActionItemType === 'action' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-6 text-xs px-2"
+                onClick={() => setNewActionItemType('action')}
+              >
+                <ListTodo className="h-3 w-3 mr-1" />
+                Action
+              </Button>
+              <Button
+                variant={newActionItemType === 'question' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-6 text-xs px-2"
+                onClick={() => setNewActionItemType('question')}
+              >
+                <HelpCircle className="h-3 w-3 mr-1" />
+                Question
+              </Button>
+            </div>
+            {/* Input row */}
+            <div className="flex items-center gap-2">
+              {newActionItemType === 'action' ? (
+                <Checkbox disabled className="h-4 w-4 opacity-50" />
+              ) : (
+                <HelpCircle className="h-4 w-4 text-blue-500 opacity-50" />
+              )}
               <Input
-                placeholder="Add action item..."
+                placeholder={newActionItemType === 'action' ? "Add action item..." : "Add question..."}
                 value={newActionItemText}
                 onChange={(e) => setNewActionItemText(e.target.value)}
                 onKeyDown={async (e) => {
                   if (e.key === 'Enter' && newActionItemText.trim()) {
                     setActionItemLoading('new');
                     try {
-                      await addActionItem(task.id, newActionItemText.trim());
+                      await addActionItem(task.id, newActionItemText.trim(), newActionItemType);
                       setNewActionItemText('');
                     } finally {
                       setActionItemLoading(null);
@@ -1007,7 +1216,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                   if (!newActionItemText.trim()) return;
                   setActionItemLoading('new');
                   try {
-                    await addActionItem(task.id, newActionItemText.trim());
+                    await addActionItem(task.id, newActionItemText.trim(), newActionItemType);
                     setNewActionItemText('');
                   } finally {
                     setActionItemLoading(null);
@@ -1024,7 +1233,78 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             </div>
           </div>
         </div>
-      ) : null}
+
+        {/* Bulk Paste Dialog */}
+        {showBulkPaste && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-background rounded-lg shadow-lg p-4 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium">Paste Questions from Email</h3>
+                <button
+                  onClick={() => {
+                    setShowBulkPaste(false);
+                    setBulkPasteText('');
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Paste a list of questions (one per line). They will be added as question items.
+              </p>
+              <textarea
+                className="w-full h-40 border rounded p-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                placeholder="What is the delivery date?&#10;Can you confirm the quantity?&#10;Are there any special requirements?"
+                value={bulkPasteText}
+                onChange={(e) => setBulkPasteText(e.target.value)}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2 mt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowBulkPaste(false);
+                    setBulkPasteText('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!bulkPasteText.trim() || actionItemLoading === 'bulk'}
+                  onClick={async () => {
+                    const lines = bulkPasteText
+                      .split('\n')
+                      .map(line => line.trim())
+                      .filter(line => line.length > 0);
+
+                    if (lines.length === 0) return;
+
+                    setActionItemLoading('bulk');
+                    try {
+                      await bulkAddActionItems(
+                        task.id,
+                        lines.map(text => ({ text, item_type: 'question' as ActionItemType }))
+                      );
+                      setShowBulkPaste(false);
+                      setBulkPasteText('');
+                    } finally {
+                      setActionItemLoading(null);
+                    }
+                  }}
+                >
+                  {actionItemLoading === 'bulk' ? (
+                    <Spinner size={12} className="mr-1" />
+                  ) : null}
+                  Add {bulkPasteText.split('\n').filter(l => l.trim()).length || 0} Questions
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Duration, Job and Assignment */}
       <div className="flex flex-wrap items-end gap-4">

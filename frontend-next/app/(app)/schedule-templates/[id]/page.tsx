@@ -119,8 +119,6 @@ interface SmScheduleMaster {
     _destroy?: boolean;
   }>;
   // Schedule Master fields
-  linked_po_task_id: number | null;
-  linked_po_task_name: string | null;
   supplier_confirm: boolean;
   // Multi-template support
   sm_template_ids: number[];
@@ -349,7 +347,6 @@ export default function ScheduleTemplateDetailPage() {
       po_required: row.po_required,
       critical_po: row.critical_po,
       require_photo: row.require_photo,
-      linked_po_task_id: row.linked_po_task_id,
       supplier_confirm: row.supplier_confirm,
       // Workflow fields
       start_workflow_enabled: row.start_workflow_enabled,
@@ -661,11 +658,6 @@ export default function ScheduleTemplateDetailPage() {
     value: String(tab.id),
     label: tab.display_name || tab.tab_key,
   }));
-
-  // Get other rows for linked_po_task dropdown
-  const otherRowOptions = rows
-    .filter((r) => editingRow && r.id !== editingRow.id)
-    .map((r) => ({ id: r.id, name: `${r.task_number}. ${r.name}` }));
 
   if (loading) {
     return (
@@ -1021,27 +1013,6 @@ export default function ScheduleTemplateDetailPage() {
                     onCheckedChange={(checked) => setEditForm({ ...editForm, require_photo: !!checked })}
                   />
                   <Label htmlFor="require_photo" className="text-sm">Require Photo</Label>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Link to PO Task</Label>
-                  <Select
-                    value={editForm.linked_po_task_id ? String(editForm.linked_po_task_id) : "none"}
-                    onValueChange={(value) => setEditForm({ ...editForm, linked_po_task_id: value === "none" ? null : parseInt(value) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select parent PO task" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {otherRowOptions.map((r) => (
-                        <SelectItem key={r.id} value={String(r.id)}>
-                          {r.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
             </div>

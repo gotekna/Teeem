@@ -182,7 +182,6 @@ interface SmScheduleMaster {
   linked_task_ids?: number[];
   // Checklist and task linking
   checklist_id?: number | { id: number; display: string } | null;
-  linked_po_task_id?: number | { id: number; display: string } | null;
   spawn_scan_task_id?: number | { id: number; display: string } | null;
   // Document types for GET task spawning (SSoT: via sm_schedule_master_document_types join table)
   document_types?: Array<{
@@ -237,7 +236,7 @@ const ALL_COLUMNS = [
   // PO Settings
   "po_required", "critical_po",
   // Auto-PO (create_po_on_job_start + po_line_items work together)
-  "create_po_on_job_start", "po_line_items", "linked_po_task_id",
+  "create_po_on_job_start", "po_line_items",
   "order_time_days", "call_time_days", "po_supplier_id",
   // Completion Requirements
   "require_photo", "pass_fail_enabled",
@@ -457,8 +456,6 @@ export function ScheduleMasterTab() {
   const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
   // SSoT: Checklists from Supervisor Checklist Template foundation
   const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
-  // SSoT: All tasks for linked_po_task lookups
-  const [availableTasks, setAvailableTasks] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Job-scoped document types for spawn scan task dropdown
   const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
 
@@ -504,7 +501,6 @@ export function ScheduleMasterTab() {
     loadCostCentres();
     loadHeaderRows();
     loadChecklists();
-    loadAllTasks();
     loadDocumentTypes();
     console.log("[ScheduleMasterTab] All loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -677,20 +673,6 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load checklists:", error);
-    }
-  };
-
-  // SSoT: Load all tasks for linked_po_task lookups
-  const loadAllTasks = async () => {
-    try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
-        "/api/v1/foundations/sm-schedule-master/records?per_page=500"
-      );
-      if (data?.records) {
-        setAvailableTasks(data.records);
-      }
-    } catch (error) {
-      console.error("Failed to load tasks:", error);
     }
   };
 
@@ -2647,12 +2629,6 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground">↳ The items to include when auto-creating a PO. Each entry specifies a pricebook item and quantity. Example: concrete, timber, or fixtures that are always needed for this task.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["linked_po_task_id"] || false} onCheckedChange={(v) => updateColumnStatus("linked_po_task_id", !!v)} />
-                    <CopyableCode>linked_po_task_id</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
-                    <span className="text-muted-foreground">Connects this task to another task&apos;s PO instead of having its own. Useful when multiple tasks share one purchase order (e.g., plumbing rough-in and plumbing fit-off on same PO).</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["order_time_days"] || false} onCheckedChange={(v) => updateColumnStatus("order_time_days", !!v)} />
                     <CopyableCode>order_time_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
@@ -3353,25 +3329,6 @@ export function ScheduleMasterTab() {
                     emptyResults="No checklists found"
                     clearable
                     onClear={() => setEditRowForm({ ...editRowForm, checklist_id: null })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Linked PO Task</Label>
-                  <ComboboxDropdown
-                    items={availableTasks.filter(t => t.id !== editingRow?.id).map(t => ({ id: String(t.id), label: t.name }))}
-                    selectedItem={(() => {
-                      const taskId = extractLookupId(editRowForm.linked_po_task_id);
-                      if (!taskId) return undefined;
-                      const taskName = availableTasks.find(t => String(t.id) === taskId)?.name
-                        || extractLookupDisplay(editingRow?.linked_po_task_id)
-                        || taskId;
-                      return { id: taskId, label: taskName };
-                    })()}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, linked_po_task_id: Number(item.id) })}
-                    placeholder="Select task..."
-                    emptyResults="No tasks found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, linked_po_task_id: null })}
                   />
                 </div>
                 <div className="space-y-1">

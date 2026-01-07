@@ -1022,12 +1022,34 @@ export default function TeeemTableView({
         autoFetchRefreshKey,
       });
 
-      // IMPORTANT: Skip initial fetch if there's an active search term
-      // The search handler (handleAutoFetchSearch) is responsible for fetching when searching
-      // This prevents overwriting search results with non-search results
-      const currentSearch = searchRef.current;
-      if (currentSearch) {
-        console.log('[TeeemTableView] Skipping fetch - search active');
+      // ⚠️ DO NOT SIMPLIFY - Race Condition Fix (2026-01-07)
+      // ════════════════════════════════════════════════════════════════════════
+      // Why we check URL param directly instead of just searchRef.current:
+      //
+      // On mount, two effects race:
+      //   1. This fetch effect - checks if search is active
+      //   2. Search init effect - reads URL param, sets searchRef via atom
+      //
+      // Problem: searchRef is updated via useEffect (ASYNC), but this effect
+      // runs BEFORE that update propagates. So searchRef.current is empty
+      // even when URL has ?search=xyz.
+      //
+      // Solution: Check URL param DIRECTLY (sync) - it's always available.
+      //
+      // ❌ WRONG (race condition):
+      //    if (searchRef.current) return;
+      //
+      // ✅ CORRECT (sync check):
+      //    const urlSearch = searchParams.get('search');
+      //    if (urlSearch || searchRef.current) return;
+      //
+      // If you remove the urlSearchParam check, search from URL will break -
+      // initial fetch will overwrite search results with unfiltered data.
+      // ════════════════════════════════════════════════════════════════════════
+      const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
+      const hasPersistedSearch = urlSearchParam || initialSearch || searchRef.current;
+      if (hasPersistedSearch) {
+        console.log('[TeeemTableView] Skipping fetch - search pending:', { urlSearchParam, initialSearch, ref: searchRef.current });
         return;
       }
 
@@ -2809,6 +2831,16 @@ export default function TeeemTableView({
     setEditingData({});
     setValidationErrors({});
   }, []);
+
+  // Handler for row double-click - uses parent handler if provided, else starts inline editing
+  const handleRowDoubleClick = useCallback((row: TableRowType) => {
+    if (editingRowIds.has(row.id)) return; // Already editing
+    if (onRowDoubleClick) {
+      onRowDoubleClick(row);
+    } else {
+      startEditing(row);
+    }
+  }, [editingRowIds, onRowDoubleClick, startEditing]);
 
   // Default handler for health issue click - opens row for editing
   const handleHealthIssueClick = useCallback(async (item: { id: number | string; display?: string }, _check: unknown) => {
@@ -4671,7 +4703,7 @@ export default function TeeemTableView({
             onRowClick(row);
           }
         }}
-        onDoubleClick={() => onRowDoubleClick?.(row)}
+        onDoubleClick={() => handleRowDoubleClick(row)}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
@@ -4915,7 +4947,7 @@ export default function TeeemTableView({
                     onRowClick(companyRow);
                   }
                 }}
-                onDoubleClick={() => onRowDoubleClick?.(companyRow)}
+                onDoubleClick={() => handleRowDoubleClick(companyRow)}
                 onMouseEnter={() => handleRowMouseEnter(companyRow.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5001,7 +5033,7 @@ export default function TeeemTableView({
                     onRowClick(row);
                   }
                 }}
-                onDoubleClick={() => onRowDoubleClick?.(row)}
+                onDoubleClick={() => handleRowDoubleClick(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5192,7 +5224,7 @@ export default function TeeemTableView({
                     onRowClick(row);
                   }
                 }}
-                onDoubleClick={() => onRowDoubleClick?.(row)}
+                onDoubleClick={() => handleRowDoubleClick(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5406,9 +5438,7 @@ export default function TeeemTableView({
                   }
                   setFocusedRowIndex(globalIndex);
                 }}
-                onDoubleClick={() =>
-                  !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
-                }
+                onDoubleClick={() => handleRowDoubleClick(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {

@@ -86,6 +86,25 @@ Fix: Add null check AND consider if all api.post() calls need this pattern
 
 **Mantra:** "A bug is a gift - it reveals a weakness in the system. Don't waste it on a bandaid."
 
+### Code Comments Policy
+
+**Don't proactively add comments.** But when you see existing comments that are:
+- Outdated or incorrect
+- Missing context for non-obvious code
+- Warning about race conditions, edge cases, or "DO NOT SIMPLIFY" patterns
+
+**Update them.** Future Claude sessions read comments to understand intent.
+
+For race condition fixes or non-obvious code, use this pattern:
+```typescript
+// ⚠️ DO NOT SIMPLIFY - [Brief reason] ([date])
+// ════════════════════════════════════════════
+// Why: [Explain the non-obvious reason]
+// ❌ WRONG: [What looks right but breaks]
+// ✅ CORRECT: [What we do and why]
+// ════════════════════════════════════════════
+```
+
 ## 🔴 CRITICAL: Quality Triggers
 
 | Keyword | What Claude Missed | Action |

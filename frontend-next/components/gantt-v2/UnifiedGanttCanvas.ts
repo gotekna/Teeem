@@ -191,7 +191,7 @@ const DEFAULT_COLUMNS: TableColumn[] = [
   { id: 'supplier', label: 'Supplier', width: 100, visible: true, type: 'text', field: 'supplier_name' },
   { id: 'poNumber', label: 'PO #', width: 70, visible: true, type: 'text', field: 'purchase_order_number' },
   // Role
-  { id: 'role', label: 'Role', width: 90, visible: true, type: 'text', field: 'assigned_role' },
+  { id: 'role', label: 'Role', width: 90, visible: true, type: 'text', field: 'assigned_role_name' },
   // Hidden by default
   { id: 'startDate', label: 'Start', width: 80, visible: false, type: 'date', field: 'start_date' },
   { id: 'endDate', label: 'End', width: 80, visible: false, type: 'date', field: 'end_date' },
