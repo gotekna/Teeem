@@ -336,9 +336,30 @@ export function ScheduleMasterTab() {
   }, [router]);
 
   // Update URL when view changes (for path-based view persistence)
-  const handleViewChange = React.useCallback((view: { slug?: string | null } | null) => {
+  // Also sync template dropdown when a saved view is applied
+  const handleViewChange = React.useCallback((view: {
+    slug?: string | null;
+    filters?: Array<{ column: string; operator: string; value: string | number | boolean | null }>;
+  } | null) => {
     if (view?.slug) {
       router.push(`/admin/system/schedule-master/data-view/${view.slug}`, { scroll: false });
+    }
+
+    // Extract template ID from view's filters and sync dropdown
+    // This ensures the template dropdown stays in sync when a global view is selected
+    if (view?.filters) {
+      const templateFilter = view.filters.find(f => f.column === "sm_template_ids");
+      if (templateFilter?.value) {
+        const templateId = typeof templateFilter.value === 'string'
+          ? parseInt(templateFilter.value)
+          : Number(templateFilter.value);
+        if (!isNaN(templateId)) {
+          setDataViewTemplateId(templateId);
+        }
+      } else if (templateFilter?.operator === "is_empty") {
+        // "No Template" view
+        setDataViewTemplateId(-1);
+      }
     }
   }, [router]);
 

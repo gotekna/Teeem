@@ -148,6 +148,13 @@ class SmScheduleMasterTemplateCopyService
         start_workflow_id: row.start_workflow_id,
         complete_workflow_enabled: row.complete_workflow_enabled,
         complete_workflow_id: row.complete_workflow_id,
+        # Claim task settings (SSoT: Schedule Master defines claims)
+        is_claim_task: row.is_claim_task,
+        is_variation: row.is_variation,
+        claim_percentage: row.claim_percentage,
+        claim_invoice_pattern: row.claim_invoice_pattern,
+        claim_invoice_template_id: row.claim_invoice_template_id,
+        claim_trading_name_id: row.claim_trading_name_id,
         # Start with template row start_date offset, will be calculated later
         # For headers (duration 0), end_date = start_date to avoid validation error
         start_date: start_date,
@@ -162,7 +169,8 @@ class SmScheduleMasterTemplateCopyService
         @task_number_map[row.task_number] = task
 
         # Create JobClaimStage for CLAIM tasks (SSoT: Schedule Master defines claims)
-        if row.is_claim_task && row.claim_percentage.present?
+        # Skip variations - they get claim stages when manually added to a job, not during initial sync
+        if row.is_claim_task && row.claim_percentage.present? && !row.is_variation
           claim_stage = create_claim_stage_for_task(task, row, sequence)
           if claim_stage
             @created_claim_stages << claim_stage
