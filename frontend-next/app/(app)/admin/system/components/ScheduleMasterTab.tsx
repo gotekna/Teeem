@@ -371,6 +371,7 @@ export function ScheduleMasterTab() {
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
+  const [noTemplateCount, setNoTemplateCount] = React.useState<number>(0);
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
   // Gantt V2 state - template ID for selection
@@ -810,6 +811,22 @@ export function ScheduleMasterTab() {
     }
   };
 
+  // Load count of items with no templates assigned
+  const loadNoTemplateCount = async () => {
+    try {
+      const response = await api.get<{ total: number }>("/api/v1/foundations/sm-schedule-master/records", {
+        params: {
+          per_page: 1,
+          "filter[sm_template_ids][op]": "is_empty",
+        },
+      });
+      setNoTemplateCount(response.total || 0);
+    } catch (error) {
+      console.error("Failed to load no-template count:", error);
+      setNoTemplateCount(0);
+    }
+  };
+
   const loadTemplates = async () => {
     try {
       const url = showInactive
@@ -818,6 +835,9 @@ export function ScheduleMasterTab() {
       const data = await api.get<{ success: boolean; sm_schedule_master_templates: SmScheduleMasterTemplate[] }>(url);
       const loadedTemplates = data?.sm_schedule_master_templates || [];
       setTemplates(loadedTemplates);
+
+      // Load count of items without any template
+      loadNoTemplateCount();
 
       // Auto-select template for Gantt Preview if not already selected
       if (!ganttTemplateId && loadedTemplates.length > 0) {
@@ -2410,12 +2430,21 @@ export function ScheduleMasterTab() {
             <TeeemTableView
               key={`${dataViewRefreshKey}-${dataViewTemplateId}-${selectedTagFilter}`}
               foundationId="sm-schedule-master"
-              tableName={dataViewTemplateId
-                ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
-                : "PO Schedule Master"
+              tableName={dataViewTemplateId === -1
+                ? "No Template Selected"
+                : dataViewTemplateId
+                  ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
+                  : "PO Schedule Master"
               }
               autoFetchRecords={!!dataViewTemplateId}
               initialFilters={dataViewTemplateId ? (() => {
+                // Special case: -1 means "no template selected" - filter for empty sm_template_ids
+                if (dataViewTemplateId === -1) {
+                  return [
+                    { id: "template", column: "sm_template_ids", operator: "is_empty" as const, value: "", label: "No Template" },
+                    ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
+                  ];
+                }
                 const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
                 // Transient drafts: Always filter by template_id (rows belong to template, not version)
                 return [
@@ -2451,6 +2480,10 @@ export function ScheduleMasterTab() {
                           {template.name} ({template.row_count} rows)
                         </SelectItem>
                       ))}
+                      {/* Special option to show items with no template */}
+                      <SelectItem value="-1" className="text-muted-foreground border-t mt-1 pt-1">
+                        No Template Selected ({noTemplateCount} rows)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -3171,13 +3204,13 @@ export function ScheduleMasterTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Row Edit Sheet - Right-side panel for better UX */}
-      <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <SheetContent side="right-wide" className="!p-0 overflow-hidden flex flex-col">
+      {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
+      <Dialog open={showEditSheet} onOpenChange={setShowEditSheet}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0">
           {/* Sticky Header */}
           <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
             <div>
-              <SheetTitle className="flex items-center gap-2 text-lg font-semibold">
+              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
                 Edit Row
                 {/* Show parent header if this task is part of one */}
                 {editingRow && editingRow.header_gantt && (() => {
@@ -3192,7 +3225,7 @@ export function ScheduleMasterTab() {
                   }
                   return null;
                 })()}
-              </SheetTitle>
+              </DialogTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {editingRow?.name} (Task #{editingRow?.task_number})
                 {editingRow?.sm_template_ids && editingRow.sm_template_ids.length > 0 && (
@@ -3984,8 +4017,8 @@ export function ScheduleMasterTab() {
               </div>
             )}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Auto-PO Configuration Dialog */}
       <Dialog open={showAutoPODialog} onOpenChange={setShowAutoPODialog}>
