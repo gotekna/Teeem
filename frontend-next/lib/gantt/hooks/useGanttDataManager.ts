@@ -795,7 +795,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const direct = tasks
         .filter(t => {
           const r = t.rowData as SmScheduleMaster | undefined;
-          return r?.predecessor_ids?.some(p => p.id === taskNumber) && !visited.has(r.id);
+          // Use == for loose comparison (handles string/number mismatch)
+          return r?.predecessor_ids?.some(p => p.id == taskNumber) && !visited.has(r.id);
         })
         .map(t => t.rowData as SmScheduleMaster);
 
@@ -810,9 +811,12 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     const directSuccessors = tasks
       .filter(t => {
         const r = t.rowData as SmScheduleMaster | undefined;
-        return r?.predecessor_ids?.some(p => p.id === row.task_number);
+        // Use == for loose comparison (handles string/number mismatch)
+        return r?.predecessor_ids?.some(p => p.id == row.task_number);
       })
       .map(t => t.rowData as SmScheduleMaster);
+
+    console.log('[GanttDataManager] Found direct successors:', directSuccessors.length, 'for task_number:', row.task_number);
 
     if (directSuccessors.length === 0) {
       await executeDragMove(task, newStartDate);
