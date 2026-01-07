@@ -203,6 +203,8 @@ module Api
           :hold, :hold_date, :dependency_broken, :started,
           # Header and active status
           :allow_header, :is_active,
+          # Claim task settings (SSoT for job claims)
+          :is_claim_task, :claim_percentage, :claim_invoice_pattern,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           subtask_names: [],

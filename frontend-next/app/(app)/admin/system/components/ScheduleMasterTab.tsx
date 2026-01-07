@@ -193,6 +193,10 @@ interface SmScheduleMaster {
   }>;
   // Multi-template support
   sm_template_ids: number[];
+  // Claim task settings (SSoT: Schedule Master defines job claims)
+  is_claim_task?: boolean;
+  claim_percentage?: number | null;
+  claim_invoice_pattern?: string | null;
 }
 
 interface SmScheduleMasterTemplate {
@@ -240,6 +244,8 @@ const ALL_COLUMNS = [
   "order_time_days", "call_time_days", "po_supplier_id",
   // Completion Requirements
   "require_photo", "pass_fail_enabled",
+  // Claim Task Settings (SSoT for job claims)
+  "is_claim_task", "claim_percentage", "claim_invoice_pattern",
   // Subtasks
   "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids",
   // Documentation
@@ -957,6 +963,10 @@ export function ScheduleMasterTab() {
       allow_header: fullRow.allow_header,
       is_active: fullRow.is_active,
       document_types: fullRow.document_types || [],
+      // Claim task settings
+      is_claim_task: fullRow.is_claim_task || false,
+      claim_percentage: fullRow.claim_percentage,
+      claim_invoice_pattern: fullRow.claim_invoice_pattern,
     });
     setShowEditSheet(true);
   };
@@ -1010,6 +1020,10 @@ export function ScheduleMasterTab() {
       po_line_items: undefined, // Not in GanttSmScheduleMaster type
       linked_task_ids: rowData.linked_task_ids,
       sm_template_ids: rowData.sm_template_ids || [],
+      // Claim task settings (may not be in GanttSmScheduleMaster type yet)
+      is_claim_task: (rowData as unknown as SmScheduleMaster).is_claim_task || false,
+      claim_percentage: (rowData as unknown as SmScheduleMaster).claim_percentage ?? null,
+      claim_invoice_pattern: (rowData as unknown as SmScheduleMaster).claim_invoice_pattern ?? null,
     };
 
     setEditingRow(fullRow);
@@ -1036,6 +1050,10 @@ export function ScheduleMasterTab() {
       allow_header: fullRow.allow_header,
       is_active: fullRow.is_active,
       document_types: fullRow.document_types || [],
+      // Claim task settings
+      is_claim_task: fullRow.is_claim_task || false,
+      claim_percentage: fullRow.claim_percentage,
+      claim_invoice_pattern: fullRow.claim_invoice_pattern,
     });
     setShowEditSheet(true);
   };
@@ -3040,6 +3058,13 @@ export function ScheduleMasterTab() {
               </DialogTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {editingRow?.name} (Task #{editingRow?.task_number})
+                {editingRow?.sm_template_ids && editingRow.sm_template_ids.length > 0 && (
+                  <span className="ml-2 text-xs">
+                    • Template: {editingRow.sm_template_ids
+                      .map((id: number) => templates.find(t => t.id === id)?.name || `#${id}`)
+                      .join(', ')}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -3256,6 +3281,68 @@ export function ScheduleMasterTab() {
                         <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
                       </div>
                     </div>
+                  </div>
+                </div>
+                {/* Claim Settings - SSoT: Schedule Master defines job claims */}
+                <div className="pt-2 border-t">
+                  <h4 className="font-medium text-sm mb-2">Claim Settings</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="row-is-claim-task"
+                        checked={editRowForm.is_claim_task || false}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setEditRowForm({ ...editRowForm, is_claim_task: checked });
+                          } else {
+                            // Clear claim fields when unchecked
+                            setEditRowForm({
+                              ...editRowForm,
+                              is_claim_task: false,
+                              claim_percentage: null,
+                              claim_invoice_pattern: null,
+                            });
+                          }
+                        }}
+                      />
+                      <div>
+                        <Label htmlFor="row-is-claim-task" className="text-xs">Is Claim Task</Label>
+                        <p className="text-[10px] text-muted-foreground">Creates JobClaimStage on job</p>
+                      </div>
+                    </div>
+                    {editRowForm.is_claim_task && (
+                      <div className="space-y-2 pl-6 border-l-2 border-muted">
+                        <div className="space-y-1">
+                          <Label htmlFor="row-claim-percentage" className="text-xs">Claim Percentage *</Label>
+                          <div className="flex items-center gap-1">
+                            <Input
+                              id="row-claim-percentage"
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.01}
+                              value={editRowForm.claim_percentage || ""}
+                              onChange={(e) => setEditRowForm({ ...editRowForm, claim_percentage: e.target.value ? parseFloat(e.target.value) : null })}
+                              className="h-8 w-24"
+                              placeholder="15.00"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Percentage of contract price</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="row-claim-invoice-pattern" className="text-xs">Invoice Match Pattern</Label>
+                          <Input
+                            id="row-claim-invoice-pattern"
+                            value={editRowForm.claim_invoice_pattern || ""}
+                            onChange={(e) => setEditRowForm({ ...editRowForm, claim_invoice_pattern: e.target.value || null })}
+                            className="h-8"
+                            placeholder="e.g., SLAB, PC-*"
+                          />
+                          <p className="text-[10px] text-muted-foreground">Optional pattern to auto-match Xero invoices</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

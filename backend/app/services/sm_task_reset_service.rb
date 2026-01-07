@@ -34,6 +34,8 @@ class SmTaskResetService
       success: false,
       po_links_preserved: 0,
       po_links_orphaned: 0,
+      claim_stages_created: 0,
+      claim_stages_cleaned: 0,
       tasks_deleted: 0,
       tasks_created: 0,
       errors: []
@@ -47,6 +49,7 @@ class SmTaskResetService
 
       # Step 2: Delete all tasks using existing copy service with clear_existing
       # The copy service handles clearing and creating in one atomic operation
+      # It also creates/reuses JobClaimStages for CLAIM tasks
       copy_result = SmScheduleMasterTemplateCopyService.new(template, job, {
         user: user,
         start_date: job.start_date || Date.current,
@@ -57,6 +60,7 @@ class SmTaskResetService
       if copy_result[:success]
         result[:tasks_deleted] = original_task_count
         result[:tasks_created] = copy_result[:tasks_created]
+        result[:claim_stages_created] = copy_result[:claim_stages_created] || 0
       else
         @errors.concat(copy_result[:errors] || ["Copy failed"])
         raise ActiveRecord::Rollback
@@ -67,7 +71,10 @@ class SmTaskResetService
       result[:po_links_preserved] = relink_result[:preserved]
       result[:po_links_orphaned] = relink_result[:orphaned]
 
-      Rails.logger.info "[SmTaskResetService] Reset complete: #{result[:tasks_created]} tasks created, #{result[:po_links_preserved]} PO links preserved, #{result[:po_links_orphaned]} POs orphaned"
+      # Step 4: Clean up orphaned claim stages (no invoice, no task link)
+      result[:claim_stages_cleaned] = cleanup_orphaned_claim_stages
+
+      Rails.logger.info "[SmTaskResetService] Reset complete: #{result[:tasks_created]} tasks created, #{result[:po_links_preserved]} PO links preserved, #{result[:po_links_orphaned]} POs orphaned, #{result[:claim_stages_created]} claim stages, #{result[:claim_stages_cleaned]} cleaned"
 
       result[:success] = true
     end
@@ -176,5 +183,28 @@ class SmTaskResetService
     end
 
     { preserved: preserved, orphaned: orphaned }
+  end
+
+  # Clean up claim stages that are orphaned after reset:
+  # - No invoice linked (external_invoice_id is null)
+  # - No SmTask linked (sm_task is nil)
+  # - Not custom (is_custom = false, meaning they were created from template)
+  def cleanup_orphaned_claim_stages
+    # Find claim stages that are:
+    # 1. Not linked to any SmTask
+    # 2. Don't have an invoice matched
+    # 3. Were created from template (not custom)
+    orphaned_stages = job.job_claim_stages
+                         .where(external_invoice_id: nil)
+                         .where(is_custom: false)
+                         .left_joins(:sm_task)
+                         .where(sm_tasks: { id: nil })
+
+    count = orphaned_stages.count
+    if count > 0
+      orphaned_stages.destroy_all
+      Rails.logger.info "[SmTaskResetService] Cleaned up #{count} orphaned claim stages"
+    end
+    count
   end
 end
