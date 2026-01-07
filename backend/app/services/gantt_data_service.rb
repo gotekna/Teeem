@@ -307,6 +307,7 @@ class GanttDataService
       status: record.try(:status) || "not_started",
       progress_percentage: record.try(:progress_percentage) || 0,
       locked: record.try(:confirm) || false,
+      confirm: record.try(:confirm) || false,
       supplier_confirm: record.try(:supplier_confirm) || false,
       hold: record.try(:hold) || false,
       hold_date: format_date(record.try(:hold_date)),
