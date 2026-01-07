@@ -2168,177 +2168,298 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Task Edit Dialog - Similar to Schedule Master */}
+      {/* Task Edit Dialog - Full-screen style like Schedule Master */}
       <Dialog open={showTaskEditDialog} onOpenChange={setShowTaskEditDialog}>
-        <DialogContent className="max-w-2xl">
-          {/* Header */}
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              Edit Task
-              <span className="text-sm font-normal text-muted-foreground">
-                #{String(selectedTaskForEdit?.task_number ?? "")}
-              </span>
-            </DialogTitle>
-            <DialogDescription>
-              {String(selectedTaskForEdit?.name ?? "Task")}
-              {selectedTaskForEdit?.trade_name ? (
-                <span className="ml-2">• {String(selectedTaskForEdit.trade_name)}</span>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedTaskForEdit && (
-            <div className="space-y-4 py-2">
-              {/* Row 1: Name */}
-              <div className="space-y-1">
-                <Label htmlFor="task-name" className="text-xs">Name</Label>
-                <Input
-                  id="task-name"
-                  value={taskEditForm.name}
-                  onChange={(e) => setTaskEditForm({ ...taskEditForm, name: e.target.value })}
-                  className="h-9"
-                />
-              </div>
-
-              {/* Row 2: Description */}
-              <div className="space-y-1">
-                <Label htmlFor="task-description" className="text-xs">Description</Label>
-                <Input
-                  id="task-description"
-                  value={taskEditForm.description}
-                  onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })}
-                  className="h-9"
-                  placeholder="Optional description..."
-                />
-              </div>
-
-              {/* Row 3: Dates and Duration */}
-              <div className="grid grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="task-start-date" className="text-xs">Start Date</Label>
-                  <Input
-                    id="task-start-date"
-                    type="date"
-                    value={taskEditForm.start_date}
-                    onChange={(e) => setTaskEditForm({ ...taskEditForm, start_date: e.target.value })}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="task-end-date" className="text-xs">End Date</Label>
-                  <Input
-                    id="task-end-date"
-                    type="date"
-                    value={taskEditForm.end_date}
-                    onChange={(e) => setTaskEditForm({ ...taskEditForm, end_date: e.target.value })}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="task-duration" className="text-xs">Duration (days)</Label>
-                  <Input
-                    id="task-duration"
-                    type="number"
-                    value={taskEditForm.duration_days}
-                    onChange={(e) => setTaskEditForm({ ...taskEditForm, duration_days: parseInt(e.target.value) || 1 })}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="task-status" className="text-xs">Status</Label>
-                  <ComboboxDropdown
-                    items={[
-                      { id: "not_started", label: "Not Started" },
-                      { id: "started", label: "Started" },
-                      { id: "completed", label: "Completed" },
-                    ]}
-                    selectedItem={{ id: taskEditForm.status, label: taskEditForm.status === "completed" ? "Completed" : taskEditForm.status === "started" ? "Started" : "Not Started" }}
-                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, status: item.id })}
-                    placeholder="Select status..."
-                  />
-                </div>
-              </div>
-
-              {/* Read-only Info Section */}
-              <div className="border-t pt-4 mt-2">
-                <h4 className="text-sm font-medium mb-3 text-muted-foreground">Task Info</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  {selectedTaskForEdit.trade_name ? (
-                    <div>
-                      <span className="text-muted-foreground">Trade:</span>{" "}
-                      <span>{String(selectedTaskForEdit.trade_name)}</span>
-                    </div>
-                  ) : null}
-                  {selectedTaskForEdit.stage_name ? (
-                    <div>
-                      <span className="text-muted-foreground">Stage:</span>{" "}
-                      <span>{String(selectedTaskForEdit.stage_name)}</span>
-                    </div>
-                  ) : null}
-                  {selectedTaskForEdit.assigned_role ? (
-                    <div>
-                      <span className="text-muted-foreground">Assigned Role:</span>{" "}
-                      <span>{String(selectedTaskForEdit.assigned_role)}</span>
-                    </div>
-                  ) : null}
-                  {selectedTaskForEdit.supplier_name ? (
-                    <div>
-                      <span className="text-muted-foreground">Supplier:</span>{" "}
-                      <span>{String(selectedTaskForEdit.supplier_name)}</span>
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Flags */}
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {selectedTaskForEdit.po_required === true ? (
-                    <Badge variant="outline">PO Required</Badge>
-                  ) : null}
-                  {selectedTaskForEdit.critical_po === true ? (
-                    <Badge variant="outline" className="border-red-500 text-red-600">Critical PO</Badge>
-                  ) : null}
-                  {selectedTaskForEdit.require_photo === true ? (
-                    <Badge variant="outline">Photo Required</Badge>
-                  ) : null}
-                  {selectedTaskForEdit.confirm === true ? (
-                    <Badge variant="outline" className="border-green-500 text-green-600">Confirmed</Badge>
-                  ) : null}
-                  {selectedTaskForEdit.hold === true ? (
-                    <Badge variant="outline" className="border-amber-500 text-amber-600">On Hold</Badge>
-                  ) : null}
-                </div>
-
-                {/* PO Link */}
-                {selectedTaskForEdit.purchase_order_id ? (
-                  <div className="mt-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(`/jobs/${jobId}/purchase-orders/${selectedTaskForEdit.purchase_order_id}`, '_blank')}
-                    >
-                      View Purchase Order →
-                    </Button>
-                  </div>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          {/* Sticky Header */}
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+                Edit Row
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {selectedTaskForEdit?.name ? String(selectedTaskForEdit.name) : "Task"} (Task #{selectedTaskForEdit?.task_number ? String(selectedTaskForEdit.task_number) : ""})
+                {selectedTaskForEdit?.trade_name ? (
+                  <span className="ml-2 text-xs">• Trade: {String(selectedTaskForEdit.trade_name)}</span>
                 ) : null}
-              </div>
+              </p>
             </div>
-          )}
+            <div className="flex items-center gap-4">
+              {/* Auto-save status indicator */}
+              <div className="flex items-center text-sm">
+                {autoSaveStatus === 'saving' && (
+                  <span className="flex items-center text-muted-foreground">
+                    <Spinner size={16} className="mr-2" />
+                    Saving...
+                  </span>
+                )}
+                {autoSaveStatus === 'saved' && (
+                  <span className="flex items-center text-green-600 dark:text-green-500">
+                    <Check className="h-4 w-4 mr-2" />
+                    Saved
+                  </span>
+                )}
+                {autoSaveStatus === 'error' && (
+                  <span className="flex items-center text-red-600 dark:text-red-500">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Save failed
+                  </span>
+                )}
+                {autoSaveStatus === 'idle' && (
+                  <span className="text-muted-foreground">Auto-save enabled</span>
+                )}
+              </div>
+              <Button variant="outline" onClick={() => setShowTaskEditDialog(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTaskEditDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => handleSaveTask()} disabled={savingTask}>
-              {savingTask ? (
-                <>
-                  <Spinner size={16} className="mr-2" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </DialogFooter>
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
+            {selectedTaskForEdit && (
+              <>
+                {/* Row 1: Name + Duration + Sequence */}
+                <div className="grid grid-cols-[1fr_80px_80px] gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="task-name" className="text-xs">Name</Label>
+                    <Input
+                      id="task-name"
+                      value={taskEditForm.name}
+                      onChange={(e) => setTaskEditForm({ ...taskEditForm, name: e.target.value })}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="task-duration" className="text-xs">Days</Label>
+                    <Input
+                      id="task-duration"
+                      type="number"
+                      value={taskEditForm.duration_days}
+                      onChange={(e) => setTaskEditForm({ ...taskEditForm, duration_days: parseInt(e.target.value) || 1 })}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="task-sequence" className="text-xs">Seq</Label>
+                    <Input
+                      id="task-sequence"
+                      type="number"
+                      step="0.1"
+                      value={taskEditForm.sequence_order}
+                      onChange={(e) => setTaskEditForm({ ...taskEditForm, sequence_order: parseFloat(e.target.value) || 0 })}
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+
+                {/* Description - full width */}
+                <div className="space-y-1">
+                  <Label htmlFor="task-description" className="text-xs">Description</Label>
+                  <Input
+                    id="task-description"
+                    value={taskEditForm.description}
+                    onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })}
+                    className="h-8"
+                    placeholder="Optional description..."
+                  />
+                </div>
+
+                {/* Three-column layout */}
+                <div className="grid grid-cols-3 gap-6">
+                  {/* Column 1: Basic Settings */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Basic Settings</h4>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Trade</Label>
+                      <ComboboxDropdown
+                        items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
+                        selectedItem={taskEditForm.trade ? { id: taskEditForm.trade, label: availableTrades.find(t => String(t.id) === taskEditForm.trade)?.name || taskEditForm.trade } : undefined}
+                        onSelect={(item) => setTaskEditForm({ ...taskEditForm, trade: item.id })}
+                        placeholder="Select trade..."
+                        emptyResults="No trades found"
+                        clearable
+                        onClear={() => setTaskEditForm({ ...taskEditForm, trade: "" })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Assigned Role</Label>
+                      <ComboboxDropdown
+                        items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
+                        selectedItem={taskEditForm.assigned_role ? { id: taskEditForm.assigned_role, label: availableRoles.find(r => String(r.id) === taskEditForm.assigned_role)?.display_name || taskEditForm.assigned_role } : undefined}
+                        onSelect={(item) => setTaskEditForm({ ...taskEditForm, assigned_role: item.id })}
+                        placeholder="Select role..."
+                        emptyResults="No roles found"
+                        clearable
+                        onClear={() => setTaskEditForm({ ...taskEditForm, assigned_role: null })}
+                      />
+                    </div>
+
+                    {/* PO Settings */}
+                    <div className="pt-2 border-t">
+                      <h4 className="font-medium text-sm mb-2">PO Settings</h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="task-po-required"
+                            checked={taskEditForm.po_required}
+                            onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, po_required: checked })}
+                          />
+                          <Label htmlFor="task-po-required" className="text-xs">PO Required</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="task-critical-po"
+                            checked={taskEditForm.critical_po}
+                            onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, critical_po: checked })}
+                          />
+                          <Label htmlFor="task-critical-po" className="text-xs">Critical PO</Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Completion Settings */}
+                    <div className="pt-2 border-t">
+                      <h4 className="font-medium text-sm mb-2">Completion</h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="task-require-photo"
+                            checked={taskEditForm.require_photo}
+                            onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, require_photo: checked })}
+                          />
+                          <Label htmlFor="task-require-photo" className="text-xs">Require Photo</Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 2: Classification + Dates */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Classification</h4>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Stage</Label>
+                      <ComboboxDropdown
+                        items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
+                        selectedItem={taskEditForm.stage ? { id: taskEditForm.stage, label: availableStages.find(s => String(s.id) === taskEditForm.stage)?.name || taskEditForm.stage } : undefined}
+                        onSelect={(item) => setTaskEditForm({ ...taskEditForm, stage: item.id })}
+                        placeholder="Select stage..."
+                        emptyResults="No stages found"
+                        clearable
+                        onClear={() => setTaskEditForm({ ...taskEditForm, stage: "" })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Cost Centre</Label>
+                      <ComboboxDropdown
+                        items={availableCostCentres.map(c => ({ id: String(c.id), label: c.name }))}
+                        selectedItem={taskEditForm.cost_centre ? { id: taskEditForm.cost_centre, label: availableCostCentres.find(c => String(c.id) === taskEditForm.cost_centre)?.name || taskEditForm.cost_centre } : undefined}
+                        onSelect={(item) => setTaskEditForm({ ...taskEditForm, cost_centre: item.id })}
+                        placeholder="Select cost centre..."
+                        emptyResults="No cost centres found"
+                        clearable
+                        onClear={() => setTaskEditForm({ ...taskEditForm, cost_centre: "" })}
+                      />
+                    </div>
+
+                    {/* Dates */}
+                    <div className="pt-2 border-t">
+                      <h4 className="font-medium text-sm mb-2">Schedule</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="task-start-date" className="text-xs">Start Date</Label>
+                          <Input
+                            id="task-start-date"
+                            type="date"
+                            value={taskEditForm.start_date}
+                            onChange={(e) => setTaskEditForm({ ...taskEditForm, start_date: e.target.value })}
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="task-end-date" className="text-xs">End Date</Label>
+                          <Input
+                            id="task-end-date"
+                            type="date"
+                            value={taskEditForm.end_date}
+                            onChange={(e) => setTaskEditForm({ ...taskEditForm, end_date: e.target.value })}
+                            className="h-8"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1 mt-2">
+                        <Label className="text-xs">Status</Label>
+                        <ComboboxDropdown
+                          items={[
+                            { id: "not_started", label: "Not Started" },
+                            { id: "started", label: "Started" },
+                            { id: "completed", label: "Completed" },
+                          ]}
+                          selectedItem={{ id: taskEditForm.status, label: taskEditForm.status === "completed" ? "Completed" : taskEditForm.status === "started" ? "Started" : "Not Started" }}
+                          onSelect={(item) => setTaskEditForm({ ...taskEditForm, status: item.id })}
+                          placeholder="Select status..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 3: Flags + Info */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Flags</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="task-hold"
+                          checked={taskEditForm.hold}
+                          onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, hold: checked })}
+                        />
+                        <div>
+                          <Label htmlFor="task-hold" className="text-xs">On Hold</Label>
+                          <p className="text-[10px] text-muted-foreground">Pauses task scheduling</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="task-confirm"
+                          checked={taskEditForm.confirm}
+                          onCheckedChange={(checked) => setTaskEditForm({ ...taskEditForm, confirm: checked })}
+                        />
+                        <div>
+                          <Label htmlFor="task-confirm" className="text-xs">Confirmed</Label>
+                          <p className="text-[10px] text-muted-foreground">Locks dates from auto-adjustment</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Task Info (read-only) */}
+                    <div className="pt-2 border-t">
+                      <h4 className="font-medium text-sm mb-2">Task Info</h4>
+                      <div className="space-y-2 text-sm">
+                        {selectedTaskForEdit.supplier_name ? (
+                          <div>
+                            <span className="text-muted-foreground">Supplier:</span>{" "}
+                            <span>{String(selectedTaskForEdit.supplier_name)}</span>
+                          </div>
+                        ) : null}
+                        {selectedTaskForEdit.purchase_order_id ? (
+                          <div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => window.open(`/jobs/${jobId}/purchase-orders/${selectedTaskForEdit.purchase_order_id}`, '_blank')}
+                            >
+                              View Purchase Order →
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
