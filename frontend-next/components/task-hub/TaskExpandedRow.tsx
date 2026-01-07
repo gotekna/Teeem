@@ -1692,7 +1692,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                 onDragLeave={handleDragLeave}
                 onDrop={handleFileDrop}
               >
-                {isDraggingFile ? (
+                {attachmentLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-4">
+                    <Spinner size={16} />
+                    <span className="text-sm text-muted-foreground">Uploading...</span>
+                  </div>
+                ) : isDraggingFile ? (
                   <p className="text-sm font-medium text-primary text-center py-4">
                     Drop files here to attach
                   </p>
