@@ -71,10 +71,31 @@ class TaskActionItem < ApplicationRecord
 
     parent_task = sm_task
 
+    # Build rich description with context
+    description_parts = []
+    description_parts << "Please answer this question and attach any required documents."
+    description_parts << ""
+    description_parts << "**Question:** #{text}"
+    description_parts << ""
+    description_parts << "---"
+    description_parts << "**Context:**"
+    description_parts << "- From task: #{parent_task.name}"
+    description_parts << "- Sent by: #{created_by.name}"
+
+    if parent_task.job.present?
+      description_parts << "- Job: #{parent_task.job.name}"
+    end
+
+    # Include link to original task if not private
+    unless parent_task.is_private?
+      description_parts << ""
+      description_parts << "**Original Task ID:** ##{parent_task.id} (view for more context)"
+    end
+
     # Create a sub-task for the delegated question
     sub_task = SmTask.create!(
       name: "Question: #{text.truncate(100)}",
-      description: "Please answer this question and attach any required documents.\n\nQuestion: #{text}",
+      description: description_parts.join("\n"),
       parent_task_id: parent_task.id,
       assigned_user_id: user.id,
       created_by: created_by,

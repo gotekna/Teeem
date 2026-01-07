@@ -91,6 +91,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     confirmTask,
     supplierConfirmTask,
     collapseTask,
+    expandTask,
     addActionItem,
     bulkAddActionItems,
     toggleActionItem,
@@ -578,6 +579,30 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     }
   };
 
+  // Render text with clickable task IDs (e.g., #123 becomes a link)
+  const renderTextWithTaskLinks = (text: string) => {
+    const parts = text.split(/(#\d+)/g);
+    return parts.map((part, index) => {
+      const match = part.match(/^#(\d+)$/);
+      if (match) {
+        const taskId = parseInt(match[1], 10);
+        return (
+          <button
+            key={index}
+            onClick={(e) => {
+              e.stopPropagation();
+              expandTask(taskId);
+            }}
+            className="text-primary hover:underline font-medium"
+          >
+            {part}
+          </button>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
   return (
     <div className="bg-muted/30 border-t border-b px-3 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
       {/* Header with close button */}
@@ -897,7 +922,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             onClick={() => setEditingDescription(true)}
             title="Click to edit"
           >
-            {task.description || <span className="text-muted-foreground italic">Click to add description...</span>}
+            {task.description ? renderTextWithTaskLinks(task.description) : <span className="text-muted-foreground italic">Click to add description...</span>}
           </p>
         )}
       </div>
