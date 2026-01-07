@@ -1564,6 +1564,8 @@ export default function TeeemTableView({
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
   // SSR: Mark as loaded if we have initialView to prevent client-side reload
   const initialViewLoadedRef = useRef(!!initialView); // Prevent re-loading views after initial load
+  // Track if user has selected a view in this session (prevents default view override from race condition)
+  const userSelectedViewRef = useRef(false);
 
   // ULTRA: SSR activeViewId init removed - hook handles this automatically
 
@@ -3268,6 +3270,12 @@ export default function TeeemTableView({
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
     (view: SavedView, skipUrlUpdate = false, isUserAction = false) => {
+      // Mark that user has made a view selection - prevents default view from overriding
+      // This fixes race condition where async loadSavedViews completion could override user's selection
+      if (isUserAction) {
+        userSelectedViewRef.current = true;
+      }
+
       // Apply view state atomically via Jotai atom
       // This handles filters, columns, and other non-grouped state
       applyView(view);
@@ -3342,6 +3350,9 @@ export default function TeeemTableView({
   // IMPORTANT: Only trigger on foundationIdNumeric change to prevent excessive re-runs
   // searchParams is read inside the effect, not as a dependency
   useEffect(() => {
+    // Reset user selection flag when foundation changes (new context = fresh start)
+    userSelectedViewRef.current = false;
+
     const loadSavedViews = async () => {
       if (!effectiveFoundationId) return;
       if (disableSavedViews) {
@@ -3420,8 +3431,10 @@ export default function TeeemTableView({
           // loadViewState should ONLY be called when user clicks a view button
           const ssrAlreadyAppliedView = !!initialView;
 
-          if (!ssrAlreadyAppliedView) {
-            // No SSR view - apply default view now
+          // ALSO skip if user has already selected a view (prevents race condition override)
+          // This fixes: user clicks global view, but async loadSavedViews completion overrides it
+          if (!ssrAlreadyAppliedView && !userSelectedViewRef.current) {
+            // No SSR view and no user selection - apply default view now
             const skipUrlUpdate = !!urlViewExistsForFoundation;
             loadViewState(defaultView, skipUrlUpdate);
           }
