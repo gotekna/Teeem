@@ -3173,7 +3173,7 @@ export function ScheduleMasterTab() {
 
       {/* Row Edit Sheet - Right-side panel for better UX */}
       <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <SheetContent side="right" className="w-[600px] sm:w-[800px] sm:max-w-[800px] flex flex-col p-0 overflow-hidden">
+        <SheetContent side="right-wide" className="!p-0 overflow-hidden flex flex-col">
           {/* Sticky Header */}
           <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
             <div>
@@ -3434,7 +3434,18 @@ export function ScheduleMasterTab() {
                         checked={editRowForm.is_claim_task || false}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setEditRowForm({ ...editRowForm, is_claim_task: checked });
+                            // Auto-select default template if none selected
+                            const defaultTemplate = claimInvoiceTemplates.find(t => t.is_default);
+                            const templateId = editRowForm.claim_invoice_template_id || defaultTemplate?.id || null;
+                            setEditRowForm({
+                              ...editRowForm,
+                              is_claim_task: checked,
+                              claim_invoice_template_id: templateId,
+                            });
+                            // Load preview if template selected
+                            if (templateId) {
+                              loadTemplatePreview(templateId, { taskName: editRowForm.name });
+                            }
                           } else {
                             // Clear claim fields when unchecked
                             setEditRowForm({
@@ -3445,6 +3456,7 @@ export function ScheduleMasterTab() {
                               claim_invoice_template_id: null,
                               claim_trading_name_id: null,
                             });
+                            setTemplatePreviewHtml(null);
                           }
                         }}
                       />
@@ -3490,6 +3502,20 @@ export function ScheduleMasterTab() {
                             onClear={() => setEditRowForm({ ...editRowForm, claim_trading_name_id: null })}
                           />
                           <p className="text-[10px] text-muted-foreground">Company name shown on claim invoice</p>
+                        </div>
+
+                        {/* Invoice Match Pattern */}
+                        <div className="space-y-1">
+                          <Label htmlFor="row-claim-invoice-pattern" className="text-xs">Invoice Match Pattern</Label>
+                          <Input
+                            id="row-claim-invoice-pattern"
+                            type="text"
+                            value={editRowForm.claim_invoice_pattern || ""}
+                            onChange={(e) => setEditRowForm({ ...editRowForm, claim_invoice_pattern: e.target.value || null })}
+                            className="h-8"
+                            placeholder="e.g., Deposit, Slab, Frame..."
+                          />
+                          <p className="text-[10px] text-muted-foreground">Pattern to auto-match Xero invoices to this claim stage</p>
                         </div>
 
                         {/* Invoice Template Selector */}

@@ -96,7 +96,7 @@ const SheetContent = React.forwardRef<
             ref={contentRef}
             tabIndex={-1}
             className={cn(
-              "border w-full h-full bg-background p-6 relative overflow-hidden outline-none",
+              "border w-full h-full bg-background p-6 relative outline-none",
               className,
             )}
           >
