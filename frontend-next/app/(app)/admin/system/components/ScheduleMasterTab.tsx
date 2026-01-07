@@ -2488,7 +2488,7 @@ export function ScheduleMasterTab() {
           {/* SSoT: Fullscreen now handled by TeeemTableView via enableFullscreen prop */}
           <div className="flex flex-col h-full">
             <TeeemTableView
-              key={`${dataViewRefreshKey}-${dataViewTemplateId}-${selectedTagFilter}`}
+              key={`${dataViewRefreshKey}-${selectedTagFilter}`}
               foundationId="sm-schedule-master"
               tableName={dataViewTemplateId === -1
                 ? "No Template Selected"
@@ -2528,8 +2528,11 @@ export function ScheduleMasterTab() {
                     value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
                     onValueChange={(value) => {
                       if (value) {
-                        // SSoT: Just update template ID, TeeemTableView will auto-fetch via Foundation API
+                        // SSoT: Update template ID AND increment refresh key to trigger remount with new initialFilters
+                        // Note: dataViewTemplateId is NOT in the key anymore (to prevent view selection from causing remounts)
+                        // So we must manually trigger a refresh when the dropdown is changed
                         setDataViewTemplateId(parseInt(value));
+                        setDataViewRefreshKey(k => k + 1);
                       }
                     }}
                   >
