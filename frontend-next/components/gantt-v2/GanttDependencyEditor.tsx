@@ -522,12 +522,11 @@ export function GanttDependencyEditor({
               <div className="space-y-2">
                 {depEditorLinks.map((link, index) => {
                   const predecessorTask = tasks.find(t => t.id === link.predecessorId);
-                  const predecessorRowNum = predecessorTask
-                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
-                    : '';
-                  const predecessorRowId = predecessorTask?.id || '';
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const predecessorRowData = predecessorTask?.rowData as any;
+                  // Use task_number for Row # display, not array index
+                  const predecessorRowNum = predecessorRowData?.task_number || '';
+                  const predecessorRowId = predecessorTask?.id || '';
                   const predecessorSelectedItem = predecessorTask ? {
                     id: predecessorTask.id,
                     label: predecessorRowData?.name || predecessorTask.name,
@@ -535,15 +534,18 @@ export function GanttDependencyEditor({
 
                   return (
                     <div key={index} className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 items-center">
-                      {/* Row # input */}
+                      {/* Row # input - lookup by task_number */}
                       <Input
                         type="number"
                         min={1}
-                        max={tasks.length}
                         value={predecessorRowNum}
                         onChange={(e) => {
-                          const rowNum = parseInt(e.target.value, 10);
-                          const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                          const taskNum = parseInt(e.target.value, 10);
+                          // Find task by task_number, not array index
+                          const t = tasks.find(t => {
+                            const rd = t.rowData as any;
+                            return rd?.task_number === taskNum;
+                          });
                           if (t && t.id !== task?.id) {
                             updatePredecessorLink(index, { predecessorId: t.id });
                           } else if (!e.target.value) {
@@ -790,12 +792,11 @@ export function GanttDependencyEditor({
               <div className="space-y-2">
                 {depEditorSuccessorLinks.map((link, index) => {
                   const successorTask = tasks.find(t => t.id === link.predecessorId);
-                  const successorRowNum = successorTask
-                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
-                    : '';
-                  const successorRowId = successorTask?.id || '';
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const successorRowData = successorTask?.rowData as any;
+                  // Use task_number for Row # display, not array index
+                  const successorRowNum = successorRowData?.task_number || '';
+                  const successorRowId = successorTask?.id || '';
                   const successorSelectedItem = successorTask ? {
                     id: successorTask.id,
                     label: successorRowData?.name || successorTask.name,
@@ -803,15 +804,18 @@ export function GanttDependencyEditor({
 
                   return (
                     <div key={index} className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 items-center">
-                      {/* Row # input */}
+                      {/* Row # input - lookup by task_number */}
                       <Input
                         type="number"
                         min={1}
-                        max={tasks.length}
                         value={successorRowNum}
                         onChange={(e) => {
-                          const rowNum = parseInt(e.target.value, 10);
-                          const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                          const taskNum = parseInt(e.target.value, 10);
+                          // Find task by task_number, not array index
+                          const t = tasks.find(t => {
+                            const rd = t.rowData as any;
+                            return rd?.task_number === taskNum;
+                          });
                           if (t && t.id !== task?.id) {
                             updateSuccessorLink(index, { predecessorId: t.id });
                           } else if (!e.target.value) {

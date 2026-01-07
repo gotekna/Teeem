@@ -83,6 +83,29 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     return formData.assigned_user_id !== String(currentUser.id);
   }, [formData.assigned_user_id, formData.assigned_role, currentUser]);
 
+  // Convert users to MultipleSelector options for followers (exclude assigned user)
+  const followerOptions: Option[] = users
+    .filter(u => String(u.id) !== formData.assigned_user_id)
+    .map(u => ({ value: String(u.id), label: u.name }));
+
+  // Convert users to MultipleSelector options for viewers (exclude assigned user and current user)
+  const viewerOptions: Option[] = users
+    .filter(u =>
+      String(u.id) !== formData.assigned_user_id &&
+      String(u.id) !== String(currentUser?.id)
+    )
+    .map(u => ({ value: String(u.id), label: u.name }));
+
+  // Get selected follower options
+  const selectedFollowerOptions = followerOptions.filter(opt =>
+    formData.follower_ids.includes(opt.value)
+  );
+
+  // Get selected viewer options
+  const selectedViewerOptions = viewerOptions.filter(opt =>
+    formData.viewer_ids.includes(opt.value)
+  );
+
   // Load jobs and users when dialog opens
   React.useEffect(() => {
     if (open) {
@@ -470,19 +493,19 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                     Followers
                   </Label>
                   <MultipleSelector
-                    value={formData.follower_ids.map(id => {
-                      const user = users.find(u => String(u.id) === id);
-                      return { value: id, label: user?.name || '' };
-                    })}
-                    options={users
-                      .filter(u => String(u.id) !== formData.assigned_user_id)
-                      .map(u => ({ value: String(u.id), label: u.name }))}
-                    onChange={(options: Option[]) => {
-                      setFormData(prev => ({ ...prev, follower_ids: options.map(o => o.value) }));
+                    key={`followers-${followerOptions.length}`}
+                    value={selectedFollowerOptions}
+                    onChange={(selected) => {
+                      setFormData(prev => ({ ...prev, follower_ids: selected.map(o => o.value) }));
                     }}
+                    defaultOptions={followerOptions}
+                    options={followerOptions}
                     placeholder="Search followers..."
-                    emptyIndicator="No users found"
-                    hidePlaceholderWhenSelected
+                    emptyIndicator={
+                      <p className="text-center text-sm text-muted-foreground py-2">
+                        No users available
+                      </p>
+                    }
                   />
                 </div>
 
@@ -528,22 +551,19 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                       You and the assigned user always have access.
                     </p>
                     <MultipleSelector
-                      value={formData.viewer_ids.map(id => {
-                        const user = users.find(u => String(u.id) === id);
-                        return { value: id, label: user?.name || '' };
-                      })}
-                      options={users
-                        .filter(u =>
-                          String(u.id) !== formData.assigned_user_id &&
-                          String(u.id) !== String(currentUser?.id)
-                        )
-                        .map(u => ({ value: String(u.id), label: u.name }))}
-                      onChange={(options: Option[]) => {
-                        setFormData(prev => ({ ...prev, viewer_ids: options.map(o => o.value) }));
+                      key={`viewers-${viewerOptions.length}`}
+                      value={selectedViewerOptions}
+                      onChange={(selected) => {
+                        setFormData(prev => ({ ...prev, viewer_ids: selected.map(o => o.value) }));
                       }}
+                      defaultOptions={viewerOptions}
+                      options={viewerOptions}
                       placeholder="Search users..."
-                      emptyIndicator="No users found"
-                      hidePlaceholderWhenSelected
+                      emptyIndicator={
+                        <p className="text-center text-sm text-muted-foreground py-2">
+                          No users available
+                        </p>
+                      }
                     />
                   </div>
                 )}
