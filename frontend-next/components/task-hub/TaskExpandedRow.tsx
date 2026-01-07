@@ -992,7 +992,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         </div>
 
         {/* Assignment */}
-        <div className="flex-1 min-w-[200px]">
+        <div className="flex-1 min-w-[200px] flex items-center gap-2">
           <TaskAssignmentInline
             assignedUserId={task.assigned_user_id}
             assignedRole={task.assigned_role}
@@ -1000,6 +1000,29 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             disabled={!!loading}
             compact
           />
+          {/* Quick assign buttons */}
+          {task.assigned_user_id === currentUser?.id && task.created_by_id && task.created_by_id !== currentUser?.id && task.created_by_name && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground whitespace-nowrap"
+              onClick={() => handleAssignmentChange(task.created_by_id)}
+              disabled={!!loading}
+            >
+              Assign to {task.created_by_name.split(' ')[0]}
+            </Button>
+          )}
+          {task.assigned_user_id !== currentUser?.id && currentUser?.id && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground whitespace-nowrap"
+              onClick={() => handleAssignmentChange(currentUser.id)}
+              disabled={!!loading}
+            >
+              Assign to me
+            </Button>
+          )}
         </div>
       </div>
 
