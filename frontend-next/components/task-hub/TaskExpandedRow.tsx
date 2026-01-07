@@ -1207,7 +1207,15 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                           + Add answer
                         </button>
                         <button
-                          onClick={() => setDelegatingItemId(item.id)}
+                          onClick={async () => {
+                            setDelegatingItemId(item.id);
+                            // Fetch users if not already loaded
+                            if (delegationUsers.length === 0) {
+                              const response = await api.get<{ users?: User[] } | User[]>('/api/v1/users');
+                              const userList = Array.isArray(response) ? response : response?.users || [];
+                              setDelegationUsers(userList);
+                            }
+                          }}
                           className="text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400 hover:underline flex items-center gap-1"
                         >
                           <Send className="h-3 w-3" />
