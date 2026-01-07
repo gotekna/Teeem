@@ -1110,7 +1110,10 @@ export function ScheduleMasterTab() {
       is_variation: fullRow.is_variation || false,
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
-      claim_invoice_template_id: fullRow.claim_invoice_template_id,
+      // Extract ID from lookup object if present (Foundation API may return {id, display} for lookups)
+      claim_invoice_template_id: extractLookupId(fullRow.claim_invoice_template_id)
+        ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
+        : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null),
       claim_trading_name_id: extractLookupId(fullRow.claim_trading_name_id) ? parseInt(extractLookupId(fullRow.claim_trading_name_id)!) : null,
       // Multi-template support
       sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
@@ -1118,11 +1121,15 @@ export function ScheduleMasterTab() {
       ),
     });
     // Load template preview if claim task has a template selected
-    if (fullRow.is_claim_task && fullRow.claim_invoice_template_id) {
-      const tradingName = fullRow.claim_trading_name_id
-        ? tradingNames.find(tn => tn.id === fullRow.claim_trading_name_id)?.name
+    const claimTemplateId = extractLookupId(fullRow.claim_invoice_template_id)
+      ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
+      : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null);
+    if (fullRow.is_claim_task && claimTemplateId) {
+      const tradingNameId = extractLookupId(fullRow.claim_trading_name_id);
+      const tradingName = tradingNameId
+        ? tradingNames.find(tn => String(tn.id) === tradingNameId)?.name
         : undefined;
-      loadTemplatePreview(fullRow.claim_invoice_template_id, {
+      loadTemplatePreview(claimTemplateId, {
         tradingName,
         claimPercentage: fullRow.claim_percentage || undefined,
         taskName: fullRow.name,
@@ -1217,7 +1224,10 @@ export function ScheduleMasterTab() {
       is_variation: fullRow.is_variation || false,
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
-      claim_invoice_template_id: fullRow.claim_invoice_template_id,
+      // Handle both plain number and lookup object formats
+      claim_invoice_template_id: extractLookupId(fullRow.claim_invoice_template_id)
+        ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
+        : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null),
       claim_trading_name_id: extractLookupId(fullRow.claim_trading_name_id) ? parseInt(extractLookupId(fullRow.claim_trading_name_id)!) : null,
       // Multi-template support
       sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
@@ -1225,11 +1235,15 @@ export function ScheduleMasterTab() {
       ),
     });
     // Load template preview if claim task has a template selected
-    if (fullRow.is_claim_task && fullRow.claim_invoice_template_id) {
-      const tradingName = fullRow.claim_trading_name_id
-        ? tradingNames.find(tn => tn.id === fullRow.claim_trading_name_id)?.name
-        : undefined;
-      loadTemplatePreview(fullRow.claim_invoice_template_id, {
+    const ganttClaimTemplateId = extractLookupId(fullRow.claim_invoice_template_id)
+      ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
+      : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null);
+    if (fullRow.is_claim_task && ganttClaimTemplateId) {
+      const tradingNameId = extractLookupId(fullRow.claim_trading_name_id);
+      const tradingName = tradingNameId
+        ? tradingNames.find(tn => String(tn.id) === tradingNameId)?.name
+        : (typeof fullRow.claim_trading_name_id === 'number' ? tradingNames.find(tn => tn.id === fullRow.claim_trading_name_id)?.name : undefined);
+      loadTemplatePreview(ganttClaimTemplateId, {
         tradingName,
         claimPercentage: fullRow.claim_percentage || undefined,
         taskName: fullRow.name,
