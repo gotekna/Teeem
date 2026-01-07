@@ -330,6 +330,8 @@ Rails.application.routes.draw do
           post :send_contract_for_signing
           # BOQ (Bill of Quantities) comparison
           get :boq
+          # Schedule template link detection
+          get :linked_schedule_template
         end
 
         # Job contacts (nested under jobs)

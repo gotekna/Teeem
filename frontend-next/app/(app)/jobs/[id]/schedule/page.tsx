@@ -405,9 +405,25 @@ export default function SchedulePage() {
   const [syncTemplateList, setSyncTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean; slug?: string }>>([]);
   const [loadingSyncTemplates, setLoadingSyncTemplates] = React.useState(false);
 
-  // Task details sheet state
-  const [selectedTaskForDetails, setSelectedTaskForDetails] = React.useState<Record<string, unknown> | null>(null);
-  const [showTaskDetailsSheet, setShowTaskDetailsSheet] = React.useState(false);
+  // Task edit dialog state
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<Record<string, unknown> | null>(null);
+  const [showTaskEditDialog, setShowTaskEditDialog] = React.useState(false);
+  const [taskEditForm, setTaskEditForm] = React.useState<{
+    name: string;
+    description: string;
+    duration_days: number;
+    start_date: string;
+    end_date: string;
+    status: string;
+  }>({
+    name: "",
+    description: "",
+    duration_days: 1,
+    start_date: "",
+    end_date: "",
+    status: "not_started",
+  });
+  const [savingTask, setSavingTask] = React.useState(false);
 
   // Reset state
   const [showResetDialog, setShowResetDialog] = React.useState(false);
@@ -464,12 +480,57 @@ export default function SchedulePage() {
     }
   }, [triggerRefresh]);
 
-  // Handle double-click to open task details sheet
+  // Handle double-click to open task edit dialog
   const handleRowDoubleClick = React.useCallback((row: Record<string, unknown>) => {
     console.log('[SchedulePage] Task double-clicked:', row);
-    setSelectedTaskForDetails(row);
-    setShowTaskDetailsSheet(true);
+    setSelectedTaskForEdit(row);
+    // Populate the edit form with current values
+    setTaskEditForm({
+      name: String(row.name ?? ""),
+      description: String(row.description ?? ""),
+      duration_days: Number(row.duration_days) || 1,
+      start_date: String(row.start_date ?? ""),
+      end_date: String(row.end_date ?? ""),
+      status: String(row.status ?? "not_started"),
+    });
+    setShowTaskEditDialog(true);
   }, []);
+
+  // Save task changes
+  const handleSaveTask = React.useCallback(async () => {
+    if (!selectedTaskForEdit?.id) return;
+
+    setSavingTask(true);
+    try {
+      await api.patch(`/api/v1/sm_tasks/${selectedTaskForEdit.id}`, {
+        sm_task: {
+          name: taskEditForm.name,
+          description: taskEditForm.description,
+          duration_days: taskEditForm.duration_days,
+          start_date: taskEditForm.start_date,
+          end_date: taskEditForm.end_date,
+          status: taskEditForm.status,
+        }
+      });
+      toast({
+        title: "Task Updated",
+        description: "Changes saved successfully",
+      });
+      setShowTaskEditDialog(false);
+      // Clear cache and refresh
+      clearCachedRecords("sm_tasks");
+      triggerRefresh();
+    } catch (error) {
+      console.error("Failed to save task:", error);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save task changes",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTask(false);
+    }
+  }, [selectedTaskForEdit, taskEditForm, toast, triggerRefresh]);
 
   // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
@@ -702,7 +763,7 @@ export default function SchedulePage() {
     }
   }, []);
 
-  // Open sync dialog - now shows template selector first
+  // Open sync dialog - checks for linked template first, skips selection if found
   const handleOpenSyncDialog = async () => {
     setSyncResult(null);
     setCompareResult(null);
@@ -710,19 +771,39 @@ export default function SchedulePage() {
     setConfirmedMatches(new Set());
     setOrphansToDelete(new Set());
     setCompareFilter("all");
-    setSyncStep("select"); // Start with template selection
     setShowSyncDialog(true);
-
-    // Load template list for selection
     setLoadingSyncTemplates(true);
+
     try {
-      const response = await api.get<{
+      // First, check if job already has tasks linked to a template
+      const linkedResponse = await api.get<{
+        success: boolean;
+        has_linked_template: boolean;
+        template?: { id: number; name: string; is_default: boolean };
+        task_count: number;
+      }>(`/api/v1/jobs/${jobId}/linked_schedule_template`);
+
+      // Load template list (needed for both cases - selection or for "Reset All" option)
+      const templatesResponse = await api.get<{
         success: boolean;
         sm_schedule_master_templates: Array<{ id: number; name: string; is_default: boolean; slug?: string }>
       }>("/api/v1/sm_schedule_master_templates");
 
-      const templates = response.sm_schedule_master_templates || [];
+      const templates = templatesResponse.sm_schedule_master_templates || [];
       setSyncTemplateList(templates);
+
+      // If job has linked template, skip selection and go straight to compare
+      if (linkedResponse.has_linked_template && linkedResponse.template) {
+        setJobTemplate({ id: linkedResponse.template.id, name: linkedResponse.template.name });
+        setSyncStep("compare");
+        setLoadingSyncTemplates(false);
+        // Start comparing immediately
+        handleCompare();
+        return;
+      }
+
+      // No linked template - show template selection
+      setSyncStep("select");
 
       // Try to match template by viewSlug (e.g., "po-tasks-only" → "Po Tasks Only")
       let matchedTemplate = null;
@@ -743,6 +824,8 @@ export default function SchedulePage() {
       }
     } catch (err) {
       console.error("Failed to load templates:", err);
+      // On error, fall back to template selection
+      setSyncStep("select");
     } finally {
       setLoadingSyncTemplates(false);
     }
@@ -1930,133 +2013,179 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Task Details Sheet */}
-      <Sheet open={showTaskDetailsSheet} onOpenChange={setShowTaskDetailsSheet}>
-        <SheetContent side="right" className="w-[500px] sm:w-[540px]">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              Task Details
-            </SheetTitle>
-            <SheetDescription>
-              {selectedTaskForDetails?.name as string || "Task"}
-            </SheetDescription>
-          </SheetHeader>
-          {selectedTaskForDetails && (
-            <div className="mt-6 space-y-4">
-              {/* Task Number and Name */}
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Task Number</Label>
-                <p className="font-mono text-sm">{String(selectedTaskForDetails.task_number ?? '-')}</p>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Name</Label>
-                <p className="font-medium">{String(selectedTaskForDetails.name ?? '-')}</p>
-              </div>
-
-              {/* Description */}
-              {selectedTaskForDetails.description ? (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Description</Label>
-                  <p className="text-sm">{String(selectedTaskForDetails.description)}</p>
-                </div>
+      {/* Task Edit Dialog - Similar to Schedule Master */}
+      <Dialog open={showTaskEditDialog} onOpenChange={setShowTaskEditDialog}>
+        <DialogContent className="max-w-2xl">
+          {/* Header */}
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Edit Task
+              <span className="text-sm font-normal text-muted-foreground">
+                #{String(selectedTaskForEdit?.task_number ?? "")}
+              </span>
+            </DialogTitle>
+            <DialogDescription>
+              {String(selectedTaskForEdit?.name ?? "Task")}
+              {selectedTaskForEdit?.trade_name ? (
+                <span className="ml-2">• {String(selectedTaskForEdit.trade_name)}</span>
               ) : null}
+            </DialogDescription>
+          </DialogHeader>
 
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-4">
+          {selectedTaskForEdit && (
+            <div className="space-y-4 py-2">
+              {/* Row 1: Name */}
+              <div className="space-y-1">
+                <Label htmlFor="task-name" className="text-xs">Name</Label>
+                <Input
+                  id="task-name"
+                  value={taskEditForm.name}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, name: e.target.value })}
+                  className="h-9"
+                />
+              </div>
+
+              {/* Row 2: Description */}
+              <div className="space-y-1">
+                <Label htmlFor="task-description" className="text-xs">Description</Label>
+                <Input
+                  id="task-description"
+                  value={taskEditForm.description}
+                  onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })}
+                  className="h-9"
+                  placeholder="Optional description..."
+                />
+              </div>
+
+              {/* Row 3: Dates and Duration */}
+              <div className="grid grid-cols-4 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Start Date</Label>
-                  <p className="text-sm">{selectedTaskForDetails.start_date ? String(selectedTaskForDetails.start_date) : '-'}</p>
+                  <Label htmlFor="task-start-date" className="text-xs">Start Date</Label>
+                  <Input
+                    id="task-start-date"
+                    type="date"
+                    value={taskEditForm.start_date}
+                    onChange={(e) => setTaskEditForm({ ...taskEditForm, start_date: e.target.value })}
+                    className="h-9"
+                  />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">End Date</Label>
-                  <p className="text-sm">{selectedTaskForDetails.end_date ? String(selectedTaskForDetails.end_date) : '-'}</p>
+                  <Label htmlFor="task-end-date" className="text-xs">End Date</Label>
+                  <Input
+                    id="task-end-date"
+                    type="date"
+                    value={taskEditForm.end_date}
+                    onChange={(e) => setTaskEditForm({ ...taskEditForm, end_date: e.target.value })}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="task-duration" className="text-xs">Duration (days)</Label>
+                  <Input
+                    id="task-duration"
+                    type="number"
+                    value={taskEditForm.duration_days}
+                    onChange={(e) => setTaskEditForm({ ...taskEditForm, duration_days: parseInt(e.target.value) || 1 })}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="task-status" className="text-xs">Status</Label>
+                  <ComboboxDropdown
+                    items={[
+                      { id: "not_started", label: "Not Started" },
+                      { id: "started", label: "Started" },
+                      { id: "completed", label: "Completed" },
+                    ]}
+                    selectedItem={{ id: taskEditForm.status, label: taskEditForm.status === "completed" ? "Completed" : taskEditForm.status === "started" ? "Started" : "Not Started" }}
+                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, status: item.id })}
+                    placeholder="Select status..."
+                  />
                 </div>
               </div>
 
-              {/* Duration and Status */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Duration (days)</Label>
-                  <p className="text-sm">{selectedTaskForDetails.duration_days ? String(selectedTaskForDetails.duration_days) : '-'}</p>
+              {/* Read-only Info Section */}
+              <div className="border-t pt-4 mt-2">
+                <h4 className="text-sm font-medium mb-3 text-muted-foreground">Task Info</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {selectedTaskForEdit.trade_name ? (
+                    <div>
+                      <span className="text-muted-foreground">Trade:</span>{" "}
+                      <span>{String(selectedTaskForEdit.trade_name)}</span>
+                    </div>
+                  ) : null}
+                  {selectedTaskForEdit.stage_name ? (
+                    <div>
+                      <span className="text-muted-foreground">Stage:</span>{" "}
+                      <span>{String(selectedTaskForEdit.stage_name)}</span>
+                    </div>
+                  ) : null}
+                  {selectedTaskForEdit.assigned_role ? (
+                    <div>
+                      <span className="text-muted-foreground">Assigned Role:</span>{" "}
+                      <span>{String(selectedTaskForEdit.assigned_role)}</span>
+                    </div>
+                  ) : null}
+                  {selectedTaskForEdit.supplier_name ? (
+                    <div>
+                      <span className="text-muted-foreground">Supplier:</span>{" "}
+                      <span>{String(selectedTaskForEdit.supplier_name)}</span>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Status</Label>
-                  <Badge variant="secondary">
-                    {String(selectedTaskForDetails.status ?? 'not_started')}
-                  </Badge>
-                </div>
-              </div>
 
-              {/* Trade and Stage */}
-              <div className="grid grid-cols-2 gap-4">
-                {selectedTaskForDetails.trade_name ? (
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Trade</Label>
-                    <p className="text-sm">{String(selectedTaskForDetails.trade_name)}</p>
-                  </div>
-                ) : null}
-                {selectedTaskForDetails.stage_name ? (
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Stage</Label>
-                    <p className="text-sm">{String(selectedTaskForDetails.stage_name)}</p>
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Supplier and PO */}
-              {(selectedTaskForDetails.supplier_name || selectedTaskForDetails.purchase_order_id) ? (
-                <div className="border-t pt-4 mt-4">
-                  <h4 className="text-sm font-medium mb-2">Purchase Order</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    {selectedTaskForDetails.supplier_name ? (
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Supplier</Label>
-                        <p className="text-sm">{String(selectedTaskForDetails.supplier_name)}</p>
-                      </div>
-                    ) : null}
-                    {selectedTaskForDetails.purchase_order_id ? (
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">PO</Label>
-                        <Button
-                          variant="link"
-                          className="p-0 h-auto text-sm"
-                          onClick={() => {
-                            window.open(`/jobs/${jobId}/purchase-orders/${selectedTaskForDetails.purchase_order_id}`, '_blank');
-                          }}
-                        >
-                          View PO →
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Flags */}
-              <div className="border-t pt-4 mt-4">
-                <h4 className="text-sm font-medium mb-2">Settings</h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedTaskForDetails.po_required === true ? (
+                {/* Flags */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {selectedTaskForEdit.po_required === true ? (
                     <Badge variant="outline">PO Required</Badge>
                   ) : null}
-                  {selectedTaskForDetails.critical_po === true ? (
+                  {selectedTaskForEdit.critical_po === true ? (
                     <Badge variant="outline" className="border-red-500 text-red-600">Critical PO</Badge>
                   ) : null}
-                  {selectedTaskForDetails.require_photo === true ? (
+                  {selectedTaskForEdit.require_photo === true ? (
                     <Badge variant="outline">Photo Required</Badge>
                   ) : null}
-                  {selectedTaskForDetails.confirm === true ? (
+                  {selectedTaskForEdit.confirm === true ? (
                     <Badge variant="outline" className="border-green-500 text-green-600">Confirmed</Badge>
                   ) : null}
-                  {selectedTaskForDetails.hold === true ? (
+                  {selectedTaskForEdit.hold === true ? (
                     <Badge variant="outline" className="border-amber-500 text-amber-600">On Hold</Badge>
                   ) : null}
                 </div>
+
+                {/* PO Link */}
+                {selectedTaskForEdit.purchase_order_id ? (
+                  <div className="mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`/jobs/${jobId}/purchase-orders/${selectedTaskForEdit.purchase_order_id}`, '_blank')}
+                    >
+                      View Purchase Order →
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTaskEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTask} disabled={savingTask}>
+              {savingTask ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset Confirmation Dialog */}
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>

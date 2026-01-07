@@ -890,7 +890,12 @@ export function ScheduleMasterTab() {
       }
 
       // Auto-select template for Data View (same priority as Gantt)
-      if (!dataViewTemplateId && loadedTemplates.length > 0) {
+      // IMPORTANT: Check URL at runtime (not captured state) to avoid stale closure issues
+      // If a view is in the URL (e.g., /data-view/kitchen-claims), don't auto-select default template
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const hasViewInUrl = currentPath.includes('/data-view/') && currentPath.split('/data-view/')[1]?.length > 0;
+
+      if (!dataViewTemplateId && loadedTemplates.length > 0 && !hasViewInUrl) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
