@@ -765,11 +765,11 @@ export function ScheduleMasterTab() {
   // SSoT: Load trading names from Foundation for claim invoices
   const loadTradingNames = async () => {
     try {
-      const data = await api.get<{ success: boolean; data: TradingName[] }>(
+      const data = await api.get<{ success: boolean; records: TradingName[] }>(
         "/api/v1/foundations/trading_names/records"
       );
-      if (data?.data) {
-        setTradingNames(data.data);
+      if (data?.records) {
+        setTradingNames(data.records);
       }
     } catch (error) {
       console.error("Failed to load trading names:", error);
