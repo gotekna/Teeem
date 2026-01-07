@@ -4003,7 +4003,11 @@ export function ScheduleMasterTab() {
           </div>
 
           <DialogFooter className="pt-2">
-            <Button variant="outline" size="sm" onClick={() => setCascadeDialog(prev => ({ ...prev, isOpen: false }))}>
+            <Button variant="outline" size="sm" onClick={() => {
+              setCascadeDialog(prev => ({ ...prev, isOpen: false }));
+              // Restore original task positions by reloading data
+              loadGanttV2Data({ silent: true });
+            }}>
               Cancel
             </Button>
             <Button size="sm"
