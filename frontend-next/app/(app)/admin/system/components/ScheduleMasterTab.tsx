@@ -1023,6 +1023,10 @@ export function ScheduleMasterTab() {
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
       claim_invoice_template_id: fullRow.claim_invoice_template_id,
+      // Multi-template support
+      sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
+        typeof item === 'object' ? item.id : item
+      ),
     });
     // Load template preview if claim task has a template selected
     if (fullRow.is_claim_task && fullRow.claim_invoice_template_id) {
@@ -1117,6 +1121,10 @@ export function ScheduleMasterTab() {
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
       claim_invoice_template_id: fullRow.claim_invoice_template_id,
+      // Multi-template support
+      sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
+        typeof item === 'object' ? item.id : item
+      ),
     });
     // Load template preview if claim task has a template selected
     if (fullRow.is_claim_task && fullRow.claim_invoice_template_id) {
@@ -3767,6 +3775,68 @@ export function ScheduleMasterTab() {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* Template Membership - Multi-template support */}
+            <div className="border-t pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs">Template Membership</Label>
+                {/* Copy to Template dropdown */}
+                <div className="flex items-center gap-2">
+                  <ComboboxDropdown
+                    items={templates
+                      .filter(t => !(editRowForm.sm_template_ids || []).includes(t.id))
+                      .map(t => ({ id: String(t.id), label: t.name }))}
+                    onSelect={async (item) => {
+                      if (!editingRow) return;
+                      try {
+                        const result = await api.post(`/api/v1/sm_schedule_master_templates/${item.id}/rows`, {
+                          row: {
+                            copy_from_id: editingRow.id,
+                          },
+                        });
+                        if (result) {
+                          toast({ title: "Copied", description: `Task copied to ${item.label}` });
+                          // Refresh data views
+                          setDataViewRefreshKey(prev => prev + 1);
+                          loadDataViewRows(dataViewTemplateId);
+                        }
+                      } catch (error) {
+                        console.error("Failed to copy task:", error);
+                        toast({ title: "Error", description: "Failed to copy task", variant: "destructive" });
+                      }
+                    }}
+                    placeholder="Copy to template..."
+                    emptyResults="No other templates"
+                    className="w-48 h-7 text-xs"
+                  />
+                </div>
+              </div>
+              <MultipleSelector
+                value={(editRowForm.sm_template_ids || []).map(id => {
+                  const template = templates.find(t => t.id === id);
+                  return { value: String(id), label: template?.name || `Template ${id}` };
+                })}
+                onChange={(options) => {
+                  setEditRowForm({
+                    ...editRowForm,
+                    sm_template_ids: options.map(o => parseInt(o.value))
+                  });
+                }}
+                defaultOptions={templates.map(t => ({
+                  value: String(t.id),
+                  label: t.name
+                }))}
+                placeholder="Select templates this task belongs to..."
+                emptyIndicator={
+                  <p className="text-center text-xs text-muted-foreground">
+                    No templates available
+                  </p>
+                }
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                This task will appear in all selected templates. Changes sync across templates.
+              </p>
             </div>
 
             {/* Linked Tasks - only shown when PO Required is on */}

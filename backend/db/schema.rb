@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_073809) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_075919) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3120,6 +3120,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_073809) do
     t.index ["is_system_default"], name: "index_folder_templates_on_is_system_default"
     t.index ["name"], name: "index_folder_templates_on_name"
     t.index ["template_type"], name: "index_folder_templates_on_template_type"
+  end
+
+  create_table "foundation_trading_names", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "abn"
+    t.string "address"
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "foundation_views", force: :cascade do |t|
@@ -8244,6 +8254,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_073809) do
     t.decimal "claim_percentage", precision: 5, scale: 2
     t.string "claim_invoice_pattern"
     t.bigint "claim_invoice_template_id"
+    t.bigint "claim_trading_name_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"

@@ -625,24 +625,6 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   const { user } = useAuth();
 
   const [tasks, setTasks] = useState<SmTask[]>([]);
-  const [filters, setFiltersState] = useState<TaskFilters>(() => {
-    // Load saved filters from localStorage
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taskHub_filters');
-      if (saved) {
-        try {
-          return { ...defaultFilters, ...JSON.parse(saved) };
-        } catch {
-          // Ignore invalid JSON
-        }
-      }
-    }
-    return {
-      ...defaultFilters,
-      jobIds: initialJobId ? [initialJobId] : [],
-    };
-  });
-
   const [activeView, setActiveViewState] = useState<ViewType>(() => {
     // Load saved view from localStorage
     if (typeof window !== 'undefined') {
@@ -652,6 +634,30 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       }
     }
     return 'my-tasks';
+  });
+
+  const [filters, setFiltersState] = useState<TaskFilters>(() => {
+    // Load saved filters from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('taskHub_filters');
+      const savedView = localStorage.getItem('taskHub_activeView') as ViewType;
+      if (saved) {
+        try {
+          const parsedFilters = { ...defaultFilters, ...JSON.parse(saved) };
+          // Clear selectedUserId if view is "my-tasks" - user expects only their tasks
+          if (savedView === 'my-tasks' || !savedView) {
+            parsedFilters.selectedUserId = null;
+          }
+          return parsedFilters;
+        } catch {
+          // Ignore invalid JSON
+        }
+      }
+    }
+    return {
+      ...defaultFilters,
+      jobIds: initialJobId ? [initialJobId] : [],
+    };
   });
 
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());

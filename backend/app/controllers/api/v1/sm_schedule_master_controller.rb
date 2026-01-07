@@ -38,8 +38,18 @@ module Api
 
       # POST /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
       def create
-        @row = SmScheduleMaster.new(row_params)
-        @row.sm_template_ids = [@template.id]  # Add to this template
+        # Support copying from existing row
+        if params[:row][:copy_from_id].present?
+          source_row = SmScheduleMaster.find(params[:row][:copy_from_id])
+          @row = source_row.dup
+          @row.sm_template_ids = [@template.id]  # New row only belongs to target template
+          @row.task_number = nil  # Let DB assign new task_number
+          @row.predecessor_ids = []  # Clear predecessors (they belong to source template context)
+          @row.header_gantt = nil  # Clear header (belongs to source template context)
+        else
+          @row = SmScheduleMaster.new(row_params)
+          @row.sm_template_ids = [@template.id]  # Add to this template
+        end
         @row.created_by = current_user
 
         # Auto-set sequence order if not provided
@@ -204,7 +214,7 @@ module Api
           # Header and active status
           :allow_header, :is_active,
           # Claim task settings (SSoT for job claims)
-          :is_claim_task, :claim_percentage, :claim_invoice_pattern, :claim_invoice_template_id,
+          :is_claim_task, :claim_percentage, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           subtask_names: [],
@@ -311,6 +321,13 @@ module Api
           sm_template_ids: row.sm_template_ids || [],
           # New Schedule Master fields
           supplier_confirm: row.supplier_confirm,
+          # Claim task settings (SSoT for job claims)
+          is_claim_task: row.is_claim_task,
+          claim_percentage: row.claim_percentage,
+          claim_invoice_pattern: row.claim_invoice_pattern,
+          claim_invoice_template_id: row.claim_invoice_template_id,
+          claim_trading_name_id: row.claim_trading_name_id,
+          claim_trading_name: row.claim_trading_name_id.present? ? trading_names_map[row.claim_trading_name_id] : nil,
           # Manual positioning (for held/locked dates)
           hold: row.hold,
           hold_date: row.hold_date,
@@ -361,6 +378,20 @@ module Api
       def cost_centres_map
         @cost_centres_map ||= begin
           foundation = Foundation.find_by(slug: "cost_centres") || Foundation.find_by(name: "Cost Centres")
+          return {} unless foundation
+
+          ActiveRecord::Base.connection
+            .execute("SELECT id, name FROM #{foundation.database_table_name}")
+            .to_a
+            .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
+        end
+      end
+
+      # SSoT: Load trading names lookup map (ID => name) from Foundation Trading Names
+      # Memoized per request to avoid N+1 queries
+      def trading_names_map
+        @trading_names_map ||= begin
+          foundation = Foundation.find_by(slug: "trading_names")
           return {} unless foundation
 
           ActiveRecord::Base.connection
