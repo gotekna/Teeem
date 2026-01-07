@@ -2524,6 +2524,7 @@ export function ScheduleMasterTab() {
               onRowDoubleClick={handleDataViewRowDoubleClick}
               initialShowTotals={true}
               viewSlug={viewSlug}
+              defaultViewSlug={viewSlug}
               onViewChange={handleViewChange}
               leftActions={
                 <div className="flex items-center gap-2">
