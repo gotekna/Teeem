@@ -777,11 +777,17 @@ module Api
 
         # Upload to SharePoint
         begin
-          # Get organization - use 'tekna' as default (SSoT for org)
+          # Get organization credential - use 'tekna' as default (SSoT for org)
           org = Organization.find_by(slug: 'tekna') || Organization.first
-          graph_client = MicrosoftAppGraphClient.for_org(org)
-          site_id = graph_client.default_site_id
-          drive_id = graph_client.default_drive_id
+          credential = MicrosoftCredential.active_for_org(org)
+
+          unless credential&.sharepoint_configured?
+            return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
+          end
+
+          graph_client = MicrosoftAppGraphClient.new(credential)
+          site_id = credential.sharepoint_site_id
+          drive_id = credential.sharepoint_drive_id
 
           upload_result = graph_client.upload_file_content(
             site_id,
