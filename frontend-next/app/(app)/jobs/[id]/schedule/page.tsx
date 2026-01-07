@@ -405,6 +405,10 @@ export default function SchedulePage() {
   const [syncTemplateList, setSyncTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean; slug?: string }>>([]);
   const [loadingSyncTemplates, setLoadingSyncTemplates] = React.useState(false);
 
+  // Task details sheet state
+  const [selectedTaskForDetails, setSelectedTaskForDetails] = React.useState<Record<string, unknown> | null>(null);
+  const [showTaskDetailsSheet, setShowTaskDetailsSheet] = React.useState(false);
+
   // Reset state
   const [showResetDialog, setShowResetDialog] = React.useState(false);
   const [resetting, setResetting] = React.useState(false);
@@ -459,6 +463,13 @@ export default function SchedulePage() {
       throw error;
     }
   }, [triggerRefresh]);
+
+  // Handle double-click to open task details sheet
+  const handleRowDoubleClick = React.useCallback((row: Record<string, unknown>) => {
+    console.log('[SchedulePage] Task double-clicked:', row);
+    setSelectedTaskForDetails(row);
+    setShowTaskDetailsSheet(true);
+  }, []);
 
   // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
@@ -1300,6 +1311,7 @@ export default function SchedulePage() {
           enableExport={true}
           onRefresh={triggerRefresh}
           onRowUpdate={handleRowUpdate}
+          onRowDoubleClick={handleRowDoubleClick}
         />
       </div>
 
@@ -1917,6 +1929,134 @@ export default function SchedulePage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Task Details Sheet */}
+      <Sheet open={showTaskDetailsSheet} onOpenChange={setShowTaskDetailsSheet}>
+        <SheetContent side="right" className="w-[500px] sm:w-[540px]">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              Task Details
+            </SheetTitle>
+            <SheetDescription>
+              {selectedTaskForDetails?.name as string || "Task"}
+            </SheetDescription>
+          </SheetHeader>
+          {selectedTaskForDetails && (
+            <div className="mt-6 space-y-4">
+              {/* Task Number and Name */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Task Number</Label>
+                <p className="font-mono text-sm">{String(selectedTaskForDetails.task_number ?? '-')}</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Name</Label>
+                <p className="font-medium">{String(selectedTaskForDetails.name ?? '-')}</p>
+              </div>
+
+              {/* Description */}
+              {selectedTaskForDetails.description ? (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Description</Label>
+                  <p className="text-sm">{String(selectedTaskForDetails.description)}</p>
+                </div>
+              ) : null}
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Start Date</Label>
+                  <p className="text-sm">{selectedTaskForDetails.start_date ? String(selectedTaskForDetails.start_date) : '-'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">End Date</Label>
+                  <p className="text-sm">{selectedTaskForDetails.end_date ? String(selectedTaskForDetails.end_date) : '-'}</p>
+                </div>
+              </div>
+
+              {/* Duration and Status */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Duration (days)</Label>
+                  <p className="text-sm">{selectedTaskForDetails.duration_days ? String(selectedTaskForDetails.duration_days) : '-'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <Badge variant="secondary">
+                    {String(selectedTaskForDetails.status ?? 'not_started')}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Trade and Stage */}
+              <div className="grid grid-cols-2 gap-4">
+                {selectedTaskForDetails.trade_name ? (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Trade</Label>
+                    <p className="text-sm">{String(selectedTaskForDetails.trade_name)}</p>
+                  </div>
+                ) : null}
+                {selectedTaskForDetails.stage_name ? (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Stage</Label>
+                    <p className="text-sm">{String(selectedTaskForDetails.stage_name)}</p>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Supplier and PO */}
+              {(selectedTaskForDetails.supplier_name || selectedTaskForDetails.purchase_order_id) ? (
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="text-sm font-medium mb-2">Purchase Order</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedTaskForDetails.supplier_name ? (
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Supplier</Label>
+                        <p className="text-sm">{String(selectedTaskForDetails.supplier_name)}</p>
+                      </div>
+                    ) : null}
+                    {selectedTaskForDetails.purchase_order_id ? (
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">PO</Label>
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto text-sm"
+                          onClick={() => {
+                            window.open(`/jobs/${jobId}/purchase-orders/${selectedTaskForDetails.purchase_order_id}`, '_blank');
+                          }}
+                        >
+                          View PO →
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Flags */}
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-sm font-medium mb-2">Settings</h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTaskForDetails.po_required === true ? (
+                    <Badge variant="outline">PO Required</Badge>
+                  ) : null}
+                  {selectedTaskForDetails.critical_po === true ? (
+                    <Badge variant="outline" className="border-red-500 text-red-600">Critical PO</Badge>
+                  ) : null}
+                  {selectedTaskForDetails.require_photo === true ? (
+                    <Badge variant="outline">Photo Required</Badge>
+                  ) : null}
+                  {selectedTaskForDetails.confirm === true ? (
+                    <Badge variant="outline" className="border-green-500 text-green-600">Confirmed</Badge>
+                  ) : null}
+                  {selectedTaskForDetails.hold === true ? (
+                    <Badge variant="outline" className="border-amber-500 text-amber-600">On Hold</Badge>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Reset Confirmation Dialog */}
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
