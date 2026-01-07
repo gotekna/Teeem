@@ -122,7 +122,6 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
   // Debounced job search
   const searchJobs = React.useCallback((query: string) => {
-    console.log('[searchJobs] Called with query:', query);
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -132,11 +131,9 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
       const url = query
         ? `/api/v1/jobs/for_select?q=${encodeURIComponent(query)}`
         : '/api/v1/jobs/for_select';
-      console.log('[searchJobs] Fetching:', url);
       setSearchingJobs(true);
       try {
         const response = await api.get<{ jobs?: Job[] }>(url);
-        console.log('[searchJobs] Response:', response?.jobs?.length, 'jobs');
         setJobs(response?.jobs || []);
       } catch (error) {
         console.error('Failed to search jobs:', error);
@@ -321,7 +318,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                     onInputChange={searchJobs}
                     disableInternalFilter
                     renderListItem={({ isChecked, item }) => {
-                      const jobItem = item as ComboboxItem & { client_name?: string; employee_names?: string[]; matched_contact?: { name: string; role: string } };
+                      const jobItem = item as ComboboxItem & { client_name?: string; employee_names?: string[]; matched_contact?: { name: string; role: string; company_name?: string } };
                       const roleLabels: Record<string, string> = {
                         client: 'Client',
                         coordinator: 'Coordinator',
@@ -330,6 +327,19 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                         site_coordinator: 'Site Coordinator',
                         supervisor: 'Supervisor',
                       };
+
+                      // Format matched contact display
+                      const formatMatchedContact = () => {
+                        if (!jobItem.matched_contact) return null;
+                        const mc = jobItem.matched_contact;
+                        if (mc.role === 'employee_of' && mc.company_name) {
+                          // Employee of a company contact
+                          return `↳ ${mc.name} (Employee of ${mc.company_name})`;
+                        }
+                        // Direct job contact
+                        return `↳ ${roleLabels[mc.role] || mc.role}: ${mc.name}`;
+                      };
+
                       return (
                         <div className="flex flex-col w-full py-1">
                           <div className="flex items-center">
@@ -338,7 +348,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                           </div>
                           {jobItem.matched_contact && (
                             <div className="ml-6 text-xs text-primary font-medium">
-                              ↳ {roleLabels[jobItem.matched_contact.role] || jobItem.matched_contact.role}: {jobItem.matched_contact.name}
+                              {formatMatchedContact()}
                             </div>
                           )}
                           {!jobItem.matched_contact && jobItem.client_name && (

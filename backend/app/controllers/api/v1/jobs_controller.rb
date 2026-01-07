@@ -117,19 +117,29 @@ module Api
 
       # GET /api/v1/jobs/for_select
       # GET /api/v1/jobs/for_select?q=search_term
-      # Lightweight endpoint for dropdowns - searchable by job name, client name, or employee name
+      # Lightweight endpoint for dropdowns - searchable by job name, client name, employee name,
+      # AND employees of company contacts (two levels deep)
       def for_select
         search_term = params[:q].present? ? "%#{params[:q].downcase}%" : nil
 
         jobs = Job.joins(:job_status)
-                  .includes(job_contacts: :contact)
+                  .includes(job_contacts: { contact: :employees })
                   .where.not(job_statuses: { name: ["Lost - Pre Contract", "Lost - Contract", "Archived"] })
 
         # Server-side search if query provided
+        # Search: job name, direct contacts, AND employees of company contacts
         if search_term
-          jobs = jobs.left_joins(job_contacts: :contact)
+          jobs = jobs.joins("LEFT OUTER JOIN job_contacts ON job_contacts.job_id = jobs.id")
+                     .joins("LEFT OUTER JOIN contacts ON contacts.id = job_contacts.contact_id")
+                     .joins("LEFT OUTER JOIN contacts AS company_employees ON company_employees.primary_company_id = contacts.id")
                      .where(
-                       "LOWER(jobs.name) LIKE :q OR LOWER(contacts.display_name) LIKE :q OR LOWER(contacts.first_name) LIKE :q OR LOWER(contacts.last_name) LIKE :q",
+                       "LOWER(jobs.name) LIKE :q " \
+                       "OR LOWER(contacts.display_name) LIKE :q " \
+                       "OR LOWER(contacts.first_name) LIKE :q " \
+                       "OR LOWER(contacts.last_name) LIKE :q " \
+                       "OR LOWER(company_employees.display_name) LIKE :q " \
+                       "OR LOWER(company_employees.first_name) LIKE :q " \
+                       "OR LOWER(company_employees.last_name) LIKE :q",
                        q: search_term
                      )
                      .distinct
@@ -148,14 +158,36 @@ module Api
                           .reject(&:blank?)
 
             # Find which contact matched the search (for highlighting)
+            # Check direct contacts first, then employees of company contacts
             matched_contact = nil
-            if search_term
+            if search_term && params[:q].present?
+              query = params[:q].downcase
+
+              # Check direct job contacts
               job.job_contacts.each do |jc|
-                contact_name = jc.contact&.display_name || "#{jc.contact&.first_name} #{jc.contact&.last_name}".strip
-                if contact_name.downcase.include?(params[:q].downcase)
+                contact = jc.contact
+                next unless contact
+                contact_name = contact.display_name.presence || "#{contact.first_name} #{contact.last_name}".strip
+                if contact_name.downcase.include?(query)
                   matched_contact = { name: contact_name, role: jc.role }
                   break
                 end
+
+                # Check employees of this contact (companies, trusts, etc. can have employees)
+                if contact.employees.loaded? ? contact.employees.any? : contact.employees.exists?
+                  contact.employees.each do |emp|
+                    emp_name = emp.display_name.presence || "#{emp.first_name} #{emp.last_name}".strip
+                    if emp_name.downcase.include?(query)
+                      matched_contact = {
+                        name: emp_name,
+                        role: "employee_of",
+                        company_name: contact_name
+                      }
+                      break
+                    end
+                  end
+                end
+                break if matched_contact
               end
             end
 

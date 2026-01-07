@@ -167,7 +167,6 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   // Handle input change for searchInTrigger mode
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    console.log('[ComboboxDropdown] handleInputChange:', value, 'onInputChange:', !!onInputChange);
     setInputValue(value);
     onInputChange?.(value);
     if (!open && value) {
@@ -288,8 +287,6 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   // When closed: show selected value as display text
   // When open: show empty input for searching (clears on open)
   if (searchInTrigger) {
-    // Debug: prove this code is running
-    console.log('[ComboboxDropdown] Rendering searchInTrigger mode, inputValue:', inputValue, 'open:', open);
     // Display value: when closed show selected item label, when open show search input
     const displayValue = open
       ? inputValue
@@ -297,7 +294,6 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
     return (
       <Popover open={open} onOpenChange={(isOpen) => {
-        console.log('[ComboboxDropdown] onOpenChange:', isOpen, '(was:', open, ')');
         setOpen(isOpen);
         if (!isOpen) {
           setInputValue(""); // Clear search when closing
@@ -309,25 +305,15 @@ export function ComboboxDropdown<T extends ComboboxItem>({
               ref={inputRef}
               type="text"
               value={displayValue}
-              onChange={(e) => {
-                console.log('[ComboboxDropdown] RAW onChange event:', e.target.value);
-                handleInputChange(e);
-              }}
-              onInput={(e) => {
-                console.log('[ComboboxDropdown] onInput event:', (e.target as HTMLInputElement).value);
-              }}
-              onKeyDown={(e) => {
-                console.log('[ComboboxDropdown] onKeyDown:', e.key);
-                handleKeyDown(e);
-              }}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               onFocus={() => {
-                console.log('[ComboboxDropdown] onFocus, open was:', open);
                 if (!open) {
                   setOpen(true);
                   setInputValue(""); // Only clear when first opening
                 }
               }}
-              placeholder={placeholder as string ?? "Type to search..."}
+              placeholder={placeholder as string ?? "Search..."}
               disabled={disabled}
               className={cn(
                 "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-8 text-sm shadow-sm transition-colors",

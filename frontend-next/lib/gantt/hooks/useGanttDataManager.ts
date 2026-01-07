@@ -224,8 +224,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // Data Loading
   // ---------------------------------------------------------------------------
 
-  const loadData = React.useCallback(async () => {
-    console.log('[GanttDataManager] loadData called', { mode, hasApiConfig: !!apiConfig, jobId, templateId });
+  const loadData = React.useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    console.log('[GanttDataManager] loadData called', { mode, hasApiConfig: !!apiConfig, jobId, templateId, silent });
 
     if (!apiConfig) {
       console.log('[GanttDataManager] No apiConfig, returning early');
@@ -235,7 +236,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       return;
     }
 
-    setLoading(true);
+    // Silent mode: skip loading state to avoid white screen flash
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -573,7 +577,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         return next;
       });
 
-      loadData();
+      loadData({ silent: true });
       toast({ title: 'Undo', description: 'Change undone' });
     } catch (err) {
       console.error('[GanttDataManager] Undo failed:', err);
@@ -707,7 +711,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       );
 
       toast({ title: 'Updated', description: `${field} ${checked ? 'enabled' : 'disabled'}` });
-      loadData();
+      loadData({ silent: true });
     } catch (err) {
       console.error('[GanttDataManager] Checkbox toggle failed:', err);
       toast({ title: 'Error', description: 'Failed to update', variant: 'destructive' });
@@ -759,7 +763,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       }
 
       toast({ title: 'Task Started', description: actionText });
-      loadData();
+      loadData({ silent: true });
     } catch (err) {
       console.error('[GanttDataManager] Start task failed:', err);
       toast({ title: 'Error', description: 'Failed to start task', variant: 'destructive' });
@@ -862,7 +866,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       );
 
       toast({ title: 'Task Moved', description: `Moved to ${newStartDate.toLocaleDateString('en-AU')}` });
-      loadData();
+      loadData({ silent: true });
     } catch (err) {
       console.error('[GanttDataManager] Drag move failed:', err);
       toast({ title: 'Error', description: 'Failed to move task', variant: 'destructive' });
@@ -900,7 +904,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
             title: 'Schedule Updated',
             description: `${fixCount} task(s) moved forward`,
           });
-          loadData();
+          loadData({ silent: true });
         } else {
           toast({
             title: 'Schedule Up to Date',
@@ -989,7 +993,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         );
       }
 
-      loadData();
+      loadData({ silent: true });
       toast({ title: 'Success', description: 'Dependencies updated' });
     } catch (err) {
       console.error('[GanttDataManager] Dependency save failed:', err);
@@ -1027,7 +1031,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       );
 
       toast({ title: 'Duration updated', description: `${newDuration} days` });
-      loadData();
+      loadData({ silent: true });
     } catch (error) {
       console.error('[GanttDataManager] Failed to save duration:', error);
       toast({ title: 'Error', description: 'Failed to update duration', variant: 'destructive' });
@@ -1063,17 +1067,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     }));
 
     try {
-      const url = apiConfig.updateUrl(taskId);
-      const payload = wrapPayload(apiConfig, { duration_days: newDuration });
-      console.log('[GanttDataManager] Saving duration - URL:', url, 'Payload:', payload);
-
-      const result = await api.patch(url, payload) as { success: boolean; row: { duration_days: number } };
-      console.log('[GanttDataManager] Save result:', result);
-      console.log('[GanttDataManager] Response duration_days:', result?.row?.duration_days, '(expected:', newDuration, ')');
-
-      if (result?.row?.duration_days !== newDuration) {
-        console.error('[GanttDataManager] MISMATCH! Server returned different duration than what we sent!');
-      }
+      await api.patch(
+        apiConfig.updateUrl(taskId),
+        wrapPayload(apiConfig, { duration_days: newDuration })
+      );
 
       toast({ title: 'Duration updated', description: `${newDuration} days` });
       // No loadData() - already updated optimistically
@@ -1167,7 +1164,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         wrapPayload(apiConfig, { predecessor_ids: updatedPreds })
       );
 
-      loadData();
+      loadData({ silent: true });
       toast({ title: 'Success', description: 'Dependency deleted' });
     } catch (error) {
       console.error('[GanttDataManager] Failed to delete dependency:', error);
@@ -1196,7 +1193,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         wrapPayload(apiConfig, { hold: false, hold_date: null })
       );
 
-      loadData();
+      loadData({ silent: true });
       toast({ title: 'Success', description: 'Manual position reset' });
     } catch (error) {
       console.error('[GanttDataManager] Failed to reset manual position:', error);
@@ -1263,11 +1260,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       if (silent) {
         setAutoSaveStatus('saved');
         setTimeout(() => setAutoSaveStatus('idle'), 2000);
-        loadData();
+        loadData({ silent: true });
       } else {
         toast({ title: 'Success', description: 'Task updated' });
         setEditSheetOpen(false);
-        loadData();
+        loadData({ silent: true });
       }
     } catch (err) {
       console.error('[GanttDataManager] Save failed:', err);
