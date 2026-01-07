@@ -198,6 +198,8 @@ interface SmScheduleMaster {
   claim_percentage?: number | null;
   claim_invoice_pattern?: string | null;
   claim_invoice_template_id?: number | null;
+  claim_trading_name_id?: number | null;
+  claim_trading_name?: string | null;
 }
 
 // Claim Invoice Template for selecting invoice styles
@@ -215,6 +217,15 @@ interface ClaimInvoiceTemplate {
   show_logo: boolean;
   show_company_details: boolean;
   show_bank_details: boolean;
+}
+
+// Trading Name for claim invoices (SSoT: Foundation trading_names)
+interface TradingName {
+  id: number;
+  name: string;
+  abn?: string;
+  address?: string;
+  is_default?: boolean;
 }
 
 interface SmScheduleMasterTemplate {
@@ -486,6 +497,8 @@ export function ScheduleMasterTab() {
   const [claimInvoiceTemplates, setClaimInvoiceTemplates] = React.useState<ClaimInvoiceTemplate[]>([]);
   const [templatePreviewHtml, setTemplatePreviewHtml] = React.useState<string | null>(null);
   const [loadingTemplatePreview, setLoadingTemplatePreview] = React.useState(false);
+  // SSoT: Trading names for claim invoices (from Foundation trading_names)
+  const [tradingNames, setTradingNames] = React.useState<TradingName[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -531,6 +544,7 @@ export function ScheduleMasterTab() {
     loadChecklists();
     loadDocumentTypes();
     loadClaimInvoiceTemplates();
+    loadTradingNames();
     console.log("[ScheduleMasterTab] All loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
@@ -745,6 +759,20 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load claim invoice templates:", error);
+    }
+  };
+
+  // SSoT: Load trading names from Foundation for claim invoices
+  const loadTradingNames = async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: TradingName[] }>(
+        "/api/v1/foundations/trading_names/records"
+      );
+      if (data?.data) {
+        setTradingNames(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load trading names:", error);
     }
   };
 
@@ -1023,6 +1051,7 @@ export function ScheduleMasterTab() {
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
       claim_invoice_template_id: fullRow.claim_invoice_template_id,
+      claim_trading_name_id: fullRow.claim_trading_name_id,
       // Multi-template support
       sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
         typeof item === 'object' ? item.id : item
@@ -1121,6 +1150,7 @@ export function ScheduleMasterTab() {
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
       claim_invoice_template_id: fullRow.claim_invoice_template_id,
+      claim_trading_name_id: fullRow.claim_trading_name_id,
       // Multi-template support
       sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
         typeof item === 'object' ? item.id : item
@@ -3382,6 +3412,8 @@ export function ScheduleMasterTab() {
                               is_claim_task: false,
                               claim_percentage: null,
                               claim_invoice_pattern: null,
+                              claim_invoice_template_id: null,
+                              claim_trading_name_id: null,
                             });
                           }
                         }}
@@ -3410,6 +3442,24 @@ export function ScheduleMasterTab() {
                             <span className="text-xs text-muted-foreground">%</span>
                           </div>
                           <p className="text-[10px] text-muted-foreground">Percentage of contract price</p>
+                        </div>
+
+                        {/* Trading Name Selector */}
+                        <div className="space-y-1">
+                          <Label className="text-xs">Trading Name</Label>
+                          <ComboboxDropdown
+                            items={tradingNames.map(tn => ({ id: String(tn.id), label: tn.name }))}
+                            selectedItem={editRowForm.claim_trading_name_id ? {
+                              id: String(editRowForm.claim_trading_name_id),
+                              label: tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name || `ID ${editRowForm.claim_trading_name_id}`
+                            } : undefined}
+                            onSelect={(item) => setEditRowForm({ ...editRowForm, claim_trading_name_id: parseInt(item.id) })}
+                            placeholder="Select trading name..."
+                            emptyResults="No trading names found"
+                            clearable
+                            onClear={() => setEditRowForm({ ...editRowForm, claim_trading_name_id: null })}
+                          />
+                          <p className="text-[10px] text-muted-foreground">Company name shown on claim invoice</p>
                         </div>
 
                         {/* Invoice Template Selector */}
