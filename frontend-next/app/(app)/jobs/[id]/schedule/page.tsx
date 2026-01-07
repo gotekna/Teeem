@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2 } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2, AlertCircle } from "lucide-react";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -405,25 +405,59 @@ export default function SchedulePage() {
   const [syncTemplateList, setSyncTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean; slug?: string }>>([]);
   const [loadingSyncTemplates, setLoadingSyncTemplates] = React.useState(false);
 
-  // Task edit dialog state
+  // Task edit dialog state - expanded to match Schedule Master
   const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<Record<string, unknown> | null>(null);
   const [showTaskEditDialog, setShowTaskEditDialog] = React.useState(false);
   const [taskEditForm, setTaskEditForm] = React.useState<{
     name: string;
     description: string;
     duration_days: number;
+    sequence_order: number;
     start_date: string;
     end_date: string;
     status: string;
+    // Basic settings
+    trade: string;
+    assigned_role: string | null;
+    // Classification
+    stage: string;
+    cost_centre: string;
+    // PO settings
+    po_required: boolean;
+    critical_po: boolean;
+    // Completion
+    require_photo: boolean;
+    // Flags
+    hold: boolean;
+    confirm: boolean;
   }>({
     name: "",
     description: "",
     duration_days: 1,
+    sequence_order: 0,
     start_date: "",
     end_date: "",
     status: "not_started",
+    trade: "",
+    assigned_role: null,
+    stage: "",
+    cost_centre: "",
+    po_required: false,
+    critical_po: false,
+    require_photo: false,
+    hold: false,
+    confirm: false,
   });
   const [savingTask, setSavingTask] = React.useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const initialFormLoadRef = React.useRef(true);
+
+  // Reference data for task edit dropdowns (SSoT: same as Schedule Master)
+  const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableStages, setAvailableStages] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
+  const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
 
   // Reset state
   const [showResetDialog, setShowResetDialog] = React.useState(false);
@@ -463,6 +497,37 @@ export default function SchedulePage() {
     }
   }, [jobId]);
 
+  // SSoT: Load reference data for task edit dropdowns (same endpoints as Schedule Master)
+  React.useEffect(() => {
+    const loadReferenceData = async () => {
+      // Load trades
+      try {
+        const tradesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=100");
+        if (tradesData?.records) setAvailableTrades(tradesData.records);
+      } catch (e) { console.error("Failed to load trades:", e); }
+
+      // Load stages
+      try {
+        const stagesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages/records?per_page=100");
+        if (stagesData?.records) setAvailableStages(stagesData.records);
+      } catch (e) { console.error("Failed to load stages:", e); }
+
+      // Load roles
+      try {
+        const rolesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/roles/records?per_page=100");
+        if (rolesData?.records) setAvailableRoles(rolesData.records.map(r => ({ id: r.id, name: r.name, display_name: r.display_name || r.name })));
+      } catch (e) { console.error("Failed to load roles:", e); }
+
+      // Load cost centres
+      try {
+        const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
+        if (costCentresData?.records) setAvailableCostCentres(costCentresData.records);
+      } catch (e) { console.error("Failed to load cost centres:", e); }
+    };
+
+    loadReferenceData();
+  }, []);
+
   const triggerRefresh = React.useCallback(() => {
     setRefreshKey(k => k + 1);
   }, []);
@@ -484,53 +549,140 @@ export default function SchedulePage() {
   const handleRowDoubleClick = React.useCallback((row: Record<string, unknown>) => {
     console.log('[SchedulePage] Task double-clicked:', row);
     setSelectedTaskForEdit(row);
+    // Mark as initial form load to skip auto-save
+    initialFormLoadRef.current = true;
     // Populate the edit form with current values
     setTaskEditForm({
       name: String(row.name ?? ""),
       description: String(row.description ?? ""),
       duration_days: Number(row.duration_days) || 1,
+      sequence_order: Number(row.sequence_order) || 0,
       start_date: String(row.start_date ?? ""),
       end_date: String(row.end_date ?? ""),
       status: String(row.status ?? "not_started"),
+      // Basic settings - trade stores ID as string
+      trade: row.trade_id ? String(row.trade_id) : "",
+      assigned_role: row.assigned_role_id ? String(row.assigned_role_id) : null,
+      // Classification
+      stage: row.stage_id ? String(row.stage_id) : "",
+      cost_centre: row.cost_centre_id ? String(row.cost_centre_id) : "",
+      // PO settings
+      po_required: row.po_required === true,
+      critical_po: row.critical_po === true,
+      // Completion
+      require_photo: row.require_photo === true,
+      // Flags
+      hold: row.hold === true,
+      confirm: row.confirm === true,
     });
+    setAutoSaveStatus('idle');
     setShowTaskEditDialog(true);
   }, []);
 
-  // Save task changes
-  const handleSaveTask = React.useCallback(async () => {
+  // Save task changes (supports both manual and auto-save)
+  const handleSaveTask = React.useCallback(async (options?: { silent?: boolean }) => {
     if (!selectedTaskForEdit?.id) return;
 
-    setSavingTask(true);
+    const silent = options?.silent ?? false;
+
+    if (silent) {
+      setAutoSaveStatus('saving');
+    } else {
+      setSavingTask(true);
+    }
+
     try {
       await api.patch(`/api/v1/sm_tasks/${selectedTaskForEdit.id}`, {
         sm_task: {
           name: taskEditForm.name,
           description: taskEditForm.description,
           duration_days: taskEditForm.duration_days,
+          sequence_order: taskEditForm.sequence_order,
           start_date: taskEditForm.start_date,
           end_date: taskEditForm.end_date,
           status: taskEditForm.status,
+          // Basic settings
+          trade_id: taskEditForm.trade ? parseInt(taskEditForm.trade) : null,
+          assigned_role_id: taskEditForm.assigned_role ? parseInt(taskEditForm.assigned_role) : null,
+          // Classification
+          stage_id: taskEditForm.stage ? parseInt(taskEditForm.stage) : null,
+          cost_centre_id: taskEditForm.cost_centre ? parseInt(taskEditForm.cost_centre) : null,
+          // PO settings
+          po_required: taskEditForm.po_required,
+          critical_po: taskEditForm.critical_po,
+          // Completion
+          require_photo: taskEditForm.require_photo,
+          // Flags
+          hold: taskEditForm.hold,
+          confirm: taskEditForm.confirm,
         }
       });
-      toast({
-        title: "Task Updated",
-        description: "Changes saved successfully",
-      });
-      setShowTaskEditDialog(false);
-      // Clear cache and refresh
-      clearCachedRecords("sm_tasks");
-      triggerRefresh();
+
+      if (silent) {
+        setAutoSaveStatus('saved');
+        // Reset to idle after 2 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 2000);
+        // Clear cache and refresh
+        clearCachedRecords("sm_tasks");
+        triggerRefresh();
+      } else {
+        toast({
+          title: "Task Updated",
+          description: "Changes saved successfully",
+        });
+        setShowTaskEditDialog(false);
+        // Clear cache and refresh
+        clearCachedRecords("sm_tasks");
+        triggerRefresh();
+      }
     } catch (error) {
       console.error("Failed to save task:", error);
-      toast({
-        title: "Save Failed",
-        description: "Failed to save task changes",
-        variant: "destructive",
-      });
+      if (silent) {
+        setAutoSaveStatus('error');
+        // Reset to idle after 3 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 3000);
+      } else {
+        toast({
+          title: "Save Failed",
+          description: "Failed to save task changes",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setSavingTask(false);
+      if (!silent) {
+        setSavingTask(false);
+      }
     }
   }, [selectedTaskForEdit, taskEditForm, toast, triggerRefresh]);
+
+  // Auto-save effect - debounced save when form changes
+  React.useEffect(() => {
+    // Skip auto-save on initial form load
+    if (initialFormLoadRef.current) {
+      initialFormLoadRef.current = false;
+      return;
+    }
+
+    // Skip if dialog is not open or no task is being edited
+    if (!showTaskEditDialog || !selectedTaskForEdit) return;
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Set new timer for debounced save (500ms delay)
+    autoSaveTimerRef.current = setTimeout(() => {
+      handleSaveTask({ silent: true });
+    }, 500);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskEditForm]);
 
   // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
@@ -2176,7 +2328,7 @@ export default function SchedulePage() {
             <Button variant="outline" onClick={() => setShowTaskEditDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveTask} disabled={savingTask}>
+            <Button onClick={() => handleSaveTask()} disabled={savingTask}>
               {savingTask ? (
                 <>
                   <Spinner size={16} className="mr-2" />

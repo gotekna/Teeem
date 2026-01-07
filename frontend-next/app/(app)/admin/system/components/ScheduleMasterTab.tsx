@@ -2501,8 +2501,8 @@ export function ScheduleMasterTab() {
                   ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
                   : "PO Schedule Master"
               }
-              autoFetchRecords={!!dataViewTemplateId}
-              initialFilters={dataViewTemplateId ? (() => {
+              autoFetchRecords={!!dataViewTemplateId || !!viewSlug}
+              initialFilters={viewSlug ? undefined : (dataViewTemplateId ? (() => {
                 // Special case: -1 means "no template selected" - filter for empty sm_template_ids
                 if (dataViewTemplateId === -1) {
                   return [
@@ -2516,7 +2516,7 @@ export function ScheduleMasterTab() {
                   { id: "template", column: "sm_template_ids", operator: "array_contains" as const, value: String(dataViewTemplateId), label: `Template: ${currentTemplate?.name || 'Selected'}` },
                   ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
                 ];
-              })() : []}
+              })() : [])}
               onRefresh={() => {
                 setDataViewRefreshKey(prev => prev + 1);
               }}

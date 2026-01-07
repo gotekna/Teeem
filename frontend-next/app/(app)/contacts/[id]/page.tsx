@@ -370,45 +370,64 @@ export default function ContactDetailPage() {
   }, [contact?.id]);
 
   // Initialize contact_emails and contact_phones from legacy fields if needed
+  // SSoT: Use functional setState to avoid stale state bug when both conditions are true
   useEffect(() => {
-    if (contact && (!contact.contact_emails || contact.contact_emails.length === 0)) {
-      const emails: ContactEmail[] = [];
-      if (contact.email) {
-        emails.push({
-          _tempId: `legacy-email-${Date.now()}`, // Required for click-to-edit to work
-          email: contact.email,
-          is_primary: true,
-          label: null,
-          position: 0
-        });
-      }
-      setContact({ ...contact, contact_emails: emails });
-    }
+    if (!contact) return;
 
-    if (contact && (!contact.contact_phones || contact.contact_phones.length === 0)) {
-      const phones: ContactPhone[] = [];
-      if (contact.mobile_phone) {
-        phones.push({
-          _tempId: `legacy-mobile-${Date.now()}`, // Required for click-to-edit to work
-          phone_number: contact.mobile_phone,
-          phone_type: 'mobile',
-          is_primary: true,
-          label: null,
-          position: 0
-        });
+    const needsEmails = !contact.contact_emails || contact.contact_emails.length === 0;
+    const needsPhones = !contact.contact_phones || contact.contact_phones.length === 0;
+
+    if (!needsEmails && !needsPhones) return;
+
+    // Build updates in a single setState to avoid race conditions
+    setContact(prev => {
+      if (!prev) return prev;
+
+      let updated = { ...prev };
+
+      // Initialize emails from legacy field
+      if (needsEmails) {
+        const emails: ContactEmail[] = [];
+        if (prev.email) {
+          emails.push({
+            _tempId: `legacy-email-${Date.now()}`,
+            email: prev.email,
+            is_primary: true,
+            label: null,
+            position: 0
+          });
+        }
+        updated = { ...updated, contact_emails: emails };
       }
-      if (contact.office_phone) {
-        phones.push({
-          _tempId: `legacy-office-${Date.now()}`, // Required for click-to-edit to work
-          phone_number: contact.office_phone,
-          phone_type: 'office',
-          is_primary: !contact.mobile_phone, // Primary only if no mobile
-          label: null,
-          position: 1
-        });
+
+      // Initialize phones from legacy fields
+      if (needsPhones) {
+        const phones: ContactPhone[] = [];
+        if (prev.mobile_phone) {
+          phones.push({
+            _tempId: `legacy-mobile-${Date.now()}`,
+            phone_number: prev.mobile_phone,
+            phone_type: 'mobile',
+            is_primary: true,
+            label: null,
+            position: 0
+          });
+        }
+        if (prev.office_phone) {
+          phones.push({
+            _tempId: `legacy-office-${Date.now()}`,
+            phone_number: prev.office_phone,
+            phone_type: 'office',
+            is_primary: !prev.mobile_phone,
+            label: null,
+            position: 1
+          });
+        }
+        updated = { ...updated, contact_phones: phones };
       }
-      setContact({ ...contact, contact_phones: phones });
-    }
+
+      return updated;
+    });
   }, [contact?.id]);
 
   // Cleanup: Set mounted to false when component unmounts
