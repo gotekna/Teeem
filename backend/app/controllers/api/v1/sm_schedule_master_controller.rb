@@ -213,6 +213,8 @@ module Api
           :hold, :hold_date, :dependency_broken, :started,
           # Header and active status
           :allow_header, :is_active,
+          # Multi-template support
+          sm_template_ids: [],
           # Claim task settings (SSoT for job claims)
           :is_claim_task, :claim_percentage, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
           predecessor_ids: [ :id, :type, :lag ],
