@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_075919) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_203210) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8255,6 +8255,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_075919) do
     t.string "claim_invoice_pattern"
     t.bigint "claim_invoice_template_id"
     t.bigint "claim_trading_name_id"
+    t.boolean "is_variation", default: false
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"

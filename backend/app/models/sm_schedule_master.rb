@@ -81,7 +81,8 @@ class SmScheduleMaster < ApplicationRecord
   validate :no_circular_dependencies
 
   # Claim task validations
-  validates :claim_percentage, presence: true, if: :is_claim_task?
+  # Percentage required for claim tasks UNLESS it's a variation (variations have amounts entered later)
+  validates :claim_percentage, presence: true, if: -> { is_claim_task? && !is_variation? }
   validates :claim_percentage, numericality: { greater_than: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   # Scopes
@@ -229,8 +230,10 @@ class SmScheduleMaster < ApplicationRecord
 
   # Default claim_percentage when is_claim_task is enabled
   # This allows inline editing to set is_claim_task without immediately needing the percentage
+  # Skip for variations - they don't need a percentage
   def default_claim_percentage
     return unless is_claim_task?
+    return if is_variation? # Variations don't need a percentage
     return if claim_percentage.present? && claim_percentage > 0
 
     # Default to 10% - user can adjust afterward

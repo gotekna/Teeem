@@ -195,6 +195,7 @@ interface SmScheduleMaster {
   sm_template_ids: number[];
   // Claim task settings (SSoT: Schedule Master defines job claims)
   is_claim_task?: boolean;
+  is_variation?: boolean;
   claim_percentage?: number | null;
   claim_invoice_pattern?: string | null;
   claim_invoice_template_id?: number | null;
@@ -1096,6 +1097,7 @@ export function ScheduleMasterTab() {
       document_types: fullRow.document_types || [],
       // Claim task settings
       is_claim_task: fullRow.is_claim_task || false,
+      is_variation: fullRow.is_variation || false,
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
       claim_invoice_template_id: fullRow.claim_invoice_template_id,
@@ -1202,6 +1204,7 @@ export function ScheduleMasterTab() {
       document_types: fullRow.document_types || [],
       // Claim task settings
       is_claim_task: fullRow.is_claim_task || false,
+      is_variation: fullRow.is_variation || false,
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
       claim_invoice_template_id: fullRow.claim_invoice_template_id,
@@ -3496,6 +3499,7 @@ export function ScheduleMasterTab() {
                             setEditRowForm({
                               ...editRowForm,
                               is_claim_task: false,
+                              is_variation: false,
                               claim_percentage: null,
                               claim_invoice_pattern: null,
                               claim_invoice_template_id: null,
@@ -3512,6 +3516,27 @@ export function ScheduleMasterTab() {
                     </div>
                     {editRowForm.is_claim_task && (
                       <div className="space-y-3 pl-6 border-l-2 border-muted">
+                        {/* Variation checkbox - skips percentage requirement */}
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="row-is-variation"
+                            checked={editRowForm.is_variation || false}
+                            onCheckedChange={(checked) => {
+                              setEditRowForm({
+                                ...editRowForm,
+                                is_variation: checked === true,
+                                claim_percentage: checked === true ? null : editRowForm.claim_percentage,
+                              });
+                            }}
+                          />
+                          <div>
+                            <Label htmlFor="row-is-variation" className="text-xs">Variation</Label>
+                            <p className="text-[10px] text-muted-foreground">Amount entered later (no % needed)</p>
+                          </div>
+                        </div>
+
+                        {/* Percentage - only shown if not a variation */}
+                        {!editRowForm.is_variation && (
                         <div className="space-y-1">
                           <Label htmlFor="row-claim-percentage" className="text-xs">Claim Percentage *</Label>
                           <div className="flex items-center gap-1">
@@ -3530,6 +3555,7 @@ export function ScheduleMasterTab() {
                           </div>
                           <p className="text-[10px] text-muted-foreground">Percentage of contract price</p>
                         </div>
+                        )}
 
                         {/* Trading Name Selector */}
                         <div className="space-y-1">
