@@ -114,9 +114,28 @@ class TaskActionItem < ApplicationRecord
     # Link the action item to the sub-task
     update!(delegated_task_id: sub_task.id)
 
+    # Notify the assignee about the delegated question
+    notify_delegation_assignee(sub_task, user, created_by)
+
     { success: true, task: sub_task }
   rescue => e
     { success: false, error: e.message }
+  end
+
+  private
+
+  def notify_delegation_assignee(sub_task, assignee, sender)
+    job_context = sub_task.job.present? ? " for #{sub_task.job.name}" : ""
+
+    Notification.create!(
+      user: assignee,
+      notifiable: sub_task,
+      notification_type: "question_delegated",
+      title: "Question from #{sender.name}",
+      message: "#{sender.name} sent you a question#{job_context}: \"#{text.truncate(80)}\""
+    )
+  rescue StandardError => e
+    Rails.logger.error("[TaskActionItem] Failed to create delegation notification: #{e.message}")
   end
 
   # Called when the delegated sub-task is completed
@@ -138,5 +157,29 @@ class TaskActionItem < ApplicationRecord
         sm_task.files.attach(file.blob)
       end
     end
+
+    # Notify the original sender that their question was answered
+    notify_delegation_completed(responded_by)
+  end
+
+  def notify_delegation_completed(answered_by)
+    # The original sender is the created_by of the delegated task
+    original_sender = delegated_task.created_by
+    return unless original_sender.present?
+    # Don't notify if the same person answered their own question
+    return if original_sender.id == answered_by&.id
+
+    parent_task = sm_task
+    job_context = parent_task.job.present? ? " (#{parent_task.job.name})" : ""
+
+    Notification.create!(
+      user: original_sender,
+      notifiable: parent_task,
+      notification_type: "question_answered",
+      title: "Question answered by #{answered_by&.name || 'Unknown'}",
+      message: "Your question \"#{text.truncate(60)}\" was answered#{job_context}"
+    )
+  rescue StandardError => e
+    Rails.logger.error("[TaskActionItem] Failed to create completion notification: #{e.message}")
   end
 end

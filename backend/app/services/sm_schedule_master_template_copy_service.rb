@@ -29,6 +29,7 @@ class SmScheduleMasterTemplateCopyService
     @created_tasks = []
     @created_dependencies = []
     @created_purchase_orders = [] # POs created from template auto-PO config
+    @created_claim_stages = [] # JobClaimStages created from CLAIM tasks
     @tasks_needing_pos = [] # Tasks where template row had create_po_on_job_start but no supplier configured
     @task_number_map = {} # Maps template row task_number to created SmTask
     @row_map = {}         # Maps template row id to SmScheduleMaster
@@ -159,6 +160,15 @@ class SmScheduleMasterTemplateCopyService
       if task.save
         @created_tasks << task
         @task_number_map[row.task_number] = task
+
+        # Create JobClaimStage for CLAIM tasks (SSoT: Schedule Master defines claims)
+        if row.is_claim_task && row.claim_percentage.present?
+          claim_stage = create_claim_stage_for_task(task, row, sequence)
+          if claim_stage
+            @created_claim_stages << claim_stage
+          end
+        end
+
         # Track tasks that need POs created (from template row setting)
         # Only add to tasks_needing_pos if no supplier is configured (needs manual setup)
         if row.create_po_on_job_start && row.po_supplier_id.blank?
@@ -378,6 +388,58 @@ class SmScheduleMasterTemplateCopyService
     po
   end
 
+  # SSoT: Create or reuse JobClaimStage from CLAIM task template row
+  # Schedule Master defines claims - when template is copied, claim stages are auto-created
+  # If a claim stage with the same name exists (with invoice links), it's reused to preserve them
+  def create_claim_stage_for_task(task, template_row, sequence_order)
+    # Extract clean claim name (strip "CLAIM - " prefix if present)
+    claim_name = template_row.claim_stage_name
+
+    # Check for existing claim stage with same name (preserve matched invoices)
+    existing_stage = job.job_claim_stages.find_by(name: claim_name)
+    if existing_stage
+      # Update the existing stage with template values (percentage may have changed)
+      existing_stage.update!(
+        percentage: template_row.claim_percentage,
+        invoice_match_pattern: template_row.claim_invoice_pattern,
+        sequence_order: sequence_order
+      )
+      # Link the task to the existing claim stage
+      task.update!(job_claim_stage_id: existing_stage.id)
+      Rails.logger.info "SmScheduleMasterTemplateCopyService: Re-linked existing claim stage '#{claim_name}' to task #{task.task_number}"
+      return existing_stage
+    end
+
+    # Calculate expected amount from job's contract price
+    expected_amount = if job.contract_price.present? && job.contract_price > 0
+                        (job.contract_price * template_row.claim_percentage / 100).round(2)
+                      else
+                        0 # Will be recalculated when contract price is set
+                      end
+
+    claim_stage = JobClaimStage.new(
+      job_id: job.id,
+      name: claim_name,
+      percentage: template_row.claim_percentage,
+      expected_amount: expected_amount,
+      invoice_match_pattern: template_row.claim_invoice_pattern,
+      sequence_order: sequence_order,
+      is_custom: false, # Created from template, not manually
+      match_status: "unmatched",
+      payment_status: "pending"
+    )
+
+    if claim_stage.save
+      # Link the task to the claim stage (bidirectional)
+      task.update!(job_claim_stage_id: claim_stage.id)
+      Rails.logger.info "SmScheduleMasterTemplateCopyService: Created claim stage '#{claim_name}' (#{template_row.claim_percentage}%) for task #{task.task_number}"
+      claim_stage
+    else
+      @errors << "Claim stage for '#{template_row.name}': #{claim_stage.errors.full_messages.join(', ')}"
+      nil
+    end
+  end
+
   def success
     {
       success: true,
@@ -386,6 +448,7 @@ class SmScheduleMasterTemplateCopyService
       tasks_created: @created_tasks.count,
       dependencies_created: @created_dependencies.count,
       purchase_orders_created: @created_purchase_orders.count,
+      claim_stages_created: @created_claim_stages.count,
       tasks: @created_tasks,
       dependencies: @created_dependencies,
       purchase_orders: @created_purchase_orders.map { |po|
@@ -395,6 +458,15 @@ class SmScheduleMasterTemplateCopyService
           supplier_name: po.supplier&.name,
           total: po.total,
           line_items_count: po.line_items.count
+        }
+      },
+      claim_stages: @created_claim_stages.map { |cs|
+        {
+          id: cs.id,
+          name: cs.name,
+          percentage: cs.percentage,
+          expected_amount: cs.expected_amount,
+          sm_task_id: cs.sm_task&.id
         }
       },
       tasks_needing_pos: @tasks_needing_pos.map { |t|
@@ -408,6 +480,7 @@ class SmScheduleMasterTemplateCopyService
         task_count: @created_tasks.count,
         dependency_count: @created_dependencies.count,
         purchase_orders_created: @created_purchase_orders.count,
+        claim_stages_created: @created_claim_stages.count,
         tasks_needing_pos_count: @tasks_needing_pos.count
       }
     }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_071219) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8216,6 +8216,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.bigint "start_workflow_id"
     t.boolean "complete_workflow_enabled", default: false
     t.bigint "complete_workflow_id"
+    t.boolean "is_claim_task", default: false, null: false
+    t.decimal "claim_percentage", precision: 5, scale: 2
+    t.string "claim_invoice_pattern"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
     t.index ["confirm"], name: "index_sm_schedule_masters_on_confirm", where: "(confirm = true)"
@@ -8225,6 +8228,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.index ["header_gantt"], name: "index_sm_schedule_masters_on_header_gantt"
     t.index ["hold"], name: "index_sm_schedule_masters_on_hold", where: "(hold = true)"
     t.index ["is_active"], name: "index_sm_schedule_masters_on_is_active"
+    t.index ["is_claim_task"], name: "index_sm_schedule_masters_claim_tasks", where: "(is_claim_task = true)"
     t.index ["po_supplier_id"], name: "index_sm_schedule_masters_on_po_supplier_id"
     t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
@@ -8438,6 +8442,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.boolean "start_workflow_fired", default: false
     t.text "email_keywords"
     t.boolean "is_delegated_question", default: false, null: false
+    t.bigint "job_claim_stage_id"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
@@ -8449,6 +8454,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
     t.index ["is_hold_task"], name: "index_sm_tasks_on_is_hold_task", where: "(is_hold_task = true)"
     t.index ["is_private"], name: "index_sm_tasks_on_is_private"
     t.index ["is_ticket"], name: "index_sm_tasks_on_is_ticket"
+    t.index ["job_claim_stage_id"], name: "index_sm_tasks_on_job_claim_stage_id"
     t.index ["job_id", "status", "start_date"], name: "idx_tasks_job_status_start"
     t.index ["job_id", "status"], name: "idx_tasks_job_status"
     t.index ["job_id"], name: "index_sm_tasks_on_job_id"
@@ -10568,6 +10574,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
   add_foreign_key "sm_tasks", "bpmn_processes", column: "complete_workflow_id"
   add_foreign_key "sm_tasks", "bpmn_processes", column: "start_workflow_id"
   add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "job_claim_stages"
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_recurring_task_definitions", column: "recurring_task_definition_id"

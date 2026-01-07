@@ -22,6 +22,8 @@ class Notification < ApplicationRecord
     task_followed
     task_updated_followed
     task_comment_followed
+    question_delegated
+    question_answered
   ].freeze
 
   validates :notification_type, presence: true, inclusion: { in: TYPES }

@@ -77,6 +77,10 @@ class SmScheduleMaster < ApplicationRecord
   validate :predecessor_ids_valid
   validate :no_circular_dependencies
 
+  # Claim task validations
+  validates :claim_percentage, presence: true, if: :is_claim_task?
+  validates :claim_percentage, numericality: { greater_than: 0, less_than_or_equal_to: 100 }, allow_nil: true
+
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :in_sequence, -> { order(sequence_order: :asc) }
@@ -84,6 +88,7 @@ class SmScheduleMaster < ApplicationRecord
   scope :by_stage, ->(stage) { where(stage: stage) if stage.present? }
   scope :requiring_po, -> { where(po_required: true) }
   scope :with_photos, -> { where(require_photo: true) }
+  scope :claim_tasks, -> { where(is_claim_task: true) }
 
   # Multi-template scope - filter rows by template membership
   scope :for_template, ->(template_id) { where("sm_template_ids @> ?", [template_id].to_json) }
@@ -113,6 +118,15 @@ class SmScheduleMaster < ApplicationRecord
 
   def tag_list
     tags || []
+  end
+
+  # Extract claim stage name from task name
+  # "CLAIM - Slab" -> "Slab"
+  # "CLAIM - Practical Completion" -> "Practical Completion"
+  # "Slab Claim" -> "Slab Claim" (no transformation if no prefix)
+  def claim_stage_name
+    return name unless is_claim_task?
+    name.sub(/^CLAIM\s*[-–—:]\s*/i, "").strip
   end
 
   # Plan types to attach to this task
