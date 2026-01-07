@@ -45,6 +45,7 @@ import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { parseISO } from "date-fns";
+import { clearCachedRecords } from "@/lib/records-cache";
 
 interface Job {
   id: number;
@@ -994,6 +995,8 @@ export default function SchedulePage() {
         });
         setShowResetDialog(false);
         setShowSyncDialog(false);
+        // SSoT: Clear cache BEFORE refresh to ensure fresh data
+        clearCachedRecords("sm_tasks");
         triggerRefresh();
       } else {
         toast({
