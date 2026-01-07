@@ -114,16 +114,17 @@ class SmTaskResetService
     links = {}
 
     # Single query with joins - no N+1
+    # Note: Use raw attribute access to avoid alias_attribute conflicts
     PurchaseOrder
       .joins("INNER JOIN sm_tasks ON sm_tasks.id = purchase_orders.sm_task_id")
       .where(sm_tasks: { job_id: job.id })
-      .select("purchase_orders.id AS po_id, purchase_orders.purchase_order_number AS po_number, sm_tasks.task_number, sm_tasks.name AS task_name")
-      .each do |row|
-        links[row.task_number] ||= []
-        links[row.task_number] << {
-          po_id: row.po_id,
-          po_number: row.po_number,
-          task_name: row.task_name
+      .pluck("purchase_orders.id", "purchase_orders.purchase_order_number", "sm_tasks.task_number", "sm_tasks.name")
+      .each do |po_id, po_number, task_number, task_name|
+        links[task_number] ||= []
+        links[task_number] << {
+          po_id: po_id,
+          po_number: po_number,
+          task_name: task_name
         }
       end
 
