@@ -162,7 +162,7 @@ interface ColumnConfig {
 }
 
 // SSoT: Assignable roles fetched via useAssignableRoles hook
-// (Backend SSoT: User::ASSIGNABLE_ROLES)
+// (Backend SSoT: Role.for_select)
 
 /** Default column configuration - matches preferred layout */
 const DEFAULT_COLUMNS: ColumnConfig[] = [
@@ -426,7 +426,7 @@ export function GanttCanvasView({
     manualStartDate: string | null;
   }>>(new Map());
 
-  // SSoT: Assignable roles fetched via hook (backend SSoT: User::ASSIGNABLE_ROLES)
+  // SSoT: Assignable roles fetched via hook (backend SSoT: Role.for_select)
   const { roles: assignableRoles } = useAssignableRoles();
 
   // Toggle header collapse state

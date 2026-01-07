@@ -13,9 +13,8 @@
 class SmScheduleMaster < ApplicationRecord
   # Table renamed from sm_schedule_master to sm_schedule_masters (Rails convention)
 
-  # SSoT: Use User::ASSIGNABLE_ROLES - single source of truth for role constants
-  # This alias provides backward compatibility for any existing references
-  ASSIGNABLE_ROLES = User::ASSIGNABLE_ROLES
+  # SSoT: Roles come from Role model (see Role.for_select)
+  # No hardcoded ASSIGNABLE_ROLES constant - database is the source of truth
 
   # Dependency types
   DEPENDENCY_TYPES = %w[FS SS FF SF].freeze

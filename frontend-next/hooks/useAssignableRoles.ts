@@ -4,14 +4,14 @@ import { api } from '@/lib/api';
 /**
  * SSoT: Assignable roles for task/schedule assignment
  *
- * Fetches from /api/v1/sm_settings/assignable_roles (backend SSoT: User::ASSIGNABLE_ROLES)
+ * Fetches from /api/v1/sm_settings/assignable_roles (backend SSoT: Role.for_select)
  * Returns empty array while loading or on error - no hardcoded fallback to ensure SSoT.
  *
  * Usage:
  *   const { roles, isLoading, error } = useAssignableRoles();
  *   if (isLoading) return <Spinner />;
  *   if (error) return <ErrorMessage />;
- *   // roles = [{ value: 'admin', label: 'Admin' }, ...]
+ *   // roles = [{ value: 'user', label: 'User' }, { value: 'admin', label: 'Admin' }, ...]
  */
 
 export interface AssignableRole {

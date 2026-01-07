@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAssignableRoles } from "@/hooks/useAssignableRoles";
 
 export interface LinkedDocumentType {
   id?: number;
@@ -34,20 +35,13 @@ interface DocumentTypeLinkerProps {
   onChange: (linkedDocumentTypes: LinkedDocumentType[]) => void;
 }
 
-// SSoT: Use User::ASSIGNABLE_ROLES from backend
-const ASSIGNABLE_ROLES = [
-  { value: "project_manager", label: "Project Manager" },
-  { value: "supervisor", label: "Supervisor" },
-  { value: "accounts", label: "Accounts" },
-  { value: "admin", label: "Admin" },
-  { value: "estimator", label: "Estimator" },
-];
-
 export function DocumentTypeLinker({
   linkedDocumentTypes,
   documentTypes,
   onChange,
 }: DocumentTypeLinkerProps) {
+  // SSoT: Fetch roles from database via Role.for_select
+  const { roles: assignableRoles } = useAssignableRoles();
   // Filter out deleted items for display
   const visibleItems = linkedDocumentTypes.filter((dt) => !dt._destroy);
 
@@ -188,7 +182,7 @@ export function DocumentTypeLinker({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
-                      {ASSIGNABLE_ROLES.map((role) => (
+                      {assignableRoles.map((role) => (
                         <SelectItem key={role.value} value={role.value}>
                           {role.label}
                         </SelectItem>

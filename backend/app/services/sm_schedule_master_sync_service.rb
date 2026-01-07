@@ -666,6 +666,120 @@ class SmScheduleMasterSyncService
     results
   end
 
+  # ============================================================================
+  # RESET AND RELINK POs - Nuclear reset with PO preservation
+  # ============================================================================
+  #
+  # Deletes ALL SmTasks for a job, re-creates from template, and re-links existing
+  # PurchaseOrders to the new tasks by matching sm_schedule_master_id.
+  #
+  # This is a "nuclear reset" option when the schedule is too broken to sync
+  # incrementally, but existing POs must be preserved.
+  #
+  # Returns:
+  # {
+  #   success: true,
+  #   deleted_tasks: N,
+  #   created_tasks: N,
+  #   pos_relinked: N,
+  #   pos_not_found: [{ po_id: X, master_id: Y, po_number: "PO-123" }...]
+  # }
+  def self.reset_and_relink_pos(template, job, user = nil)
+    ActiveRecord::Base.transaction do
+      # 1. Capture PO → SmScheduleMaster mapping BEFORE deleting tasks
+      po_to_master = capture_po_to_master_mapping(job)
+      Rails.logger.info "[SmScheduleMasterSyncService] Captured #{po_to_master.size} PO → master mappings"
+
+      # 2. Clear sm_task_id from POs (prevent FK constraint issues during delete)
+      PurchaseOrder.where(id: po_to_master.keys).update_all(sm_task_id: nil)
+      Rails.logger.info "[SmScheduleMasterSyncService] Cleared sm_task_id from #{po_to_master.size} POs"
+
+      # 3. Delete ALL SmTasks for this job
+      deleted_count = job.sm_tasks.delete_all
+      Rails.logger.info "[SmScheduleMasterSyncService] Deleted #{deleted_count} SmTasks for job #{job.id}"
+
+      # 4. Copy fresh from template using SmScheduleMasterTemplateCopyService
+      copy_service = SmScheduleMasterTemplateCopyService.new(template, job, user)
+      copy_result = copy_service.execute
+
+      unless copy_result[:success]
+        raise ActiveRecord::Rollback, "Template copy failed: #{copy_result[:error]}"
+      end
+
+      Rails.logger.info "[SmScheduleMasterSyncService] Created #{copy_result[:tasks_created]} tasks from template"
+
+      # 5. Re-link POs to new tasks by matching sm_schedule_master_id
+      relink_result = relink_pos_to_new_tasks(job, po_to_master)
+      Rails.logger.info "[SmScheduleMasterSyncService] Re-linked #{relink_result[:linked]} POs, #{relink_result[:not_found].size} not found"
+
+      {
+        success: true,
+        deleted_tasks: deleted_count,
+        created_tasks: copy_result[:tasks_created],
+        dependencies_created: copy_result[:dependencies_created],
+        purchase_orders_created: copy_result[:purchase_orders_created],
+        pos_relinked: relink_result[:linked],
+        pos_not_found: relink_result[:not_found]
+      }
+    end
+  rescue StandardError => e
+    Rails.logger.error "[SmScheduleMasterSyncService] reset_and_relink_pos failed: #{e.message}"
+    Rails.logger.error e.backtrace.first(10).join("\n")
+    {
+      success: false,
+      error: e.message
+    }
+  end
+
+  # Capture mapping: PO.id => sm_schedule_master_id (via the PO's linked SmTask)
+  def self.capture_po_to_master_mapping(job)
+    mapping = {}
+
+    PurchaseOrder.where(job_id: job.id).where.not(sm_task_id: nil).find_each do |po|
+      task = SmTask.find_by(id: po.sm_task_id)
+      if task&.sm_schedule_master_id
+        mapping[po.id] = {
+          master_id: task.sm_schedule_master_id,
+          po_number: po.po_number,
+          task_name: task.name
+        }
+      end
+    end
+
+    mapping
+  end
+
+  # Re-link POs to new SmTasks by matching sm_schedule_master_id
+  def self.relink_pos_to_new_tasks(job, po_to_master)
+    # Build lookup: sm_schedule_master_id → new SmTask
+    master_to_task = job.sm_tasks.where.not(sm_schedule_master_id: nil)
+                         .index_by(&:sm_schedule_master_id)
+
+    linked = 0
+    not_found = []
+
+    po_to_master.each do |po_id, info|
+      master_id = info[:master_id]
+      new_task = master_to_task[master_id]
+
+      if new_task
+        PurchaseOrder.where(id: po_id).update_all(sm_task_id: new_task.id)
+        linked += 1
+        Rails.logger.debug "[SmScheduleMasterSyncService] Re-linked PO #{po_id} (#{info[:po_number]}) to task #{new_task.id}"
+      else
+        not_found << {
+          po_id: po_id,
+          po_number: info[:po_number],
+          master_id: master_id,
+          original_task_name: info[:task_name]
+        }
+        Rails.logger.warn "[SmScheduleMasterSyncService] No new task found for PO #{po_id} (master_id: #{master_id})"
+      end
+    end
+
+    { linked: linked, not_found: not_found }
+  end
+
   # SSoT: Sync predecessor_ids from templates to tasks with proper task_number remapping
   # Template predecessor_ids reference template task_numbers, but SmTask needs SmTask task_numbers
   def self.sync_predecessor_ids_for_job(job, template)

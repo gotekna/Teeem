@@ -15,7 +15,7 @@ class SmRecurringTaskDefinition < ApplicationRecord
   validates :assignment_type, inclusion: { in: %w[user role] }
   validates :day_of_month, numericality: { greater_than_or_equal_to: -1, less_than_or_equal_to: 28 }, allow_nil: true
   validates :day_of_week, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 6 }, allow_nil: true
-  validates :assigned_role, inclusion: { in: User::ASSIGNABLE_ROLES }, allow_blank: true
+  validates :assigned_role, inclusion: { in: ->(_) { Role.active.pluck(:name) } }, allow_blank: true
   validate :end_date_after_start_date, if: -> { end_date.present? }
   validate :assignment_present
 

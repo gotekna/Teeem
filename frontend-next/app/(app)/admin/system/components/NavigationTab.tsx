@@ -34,16 +34,7 @@ import {
   Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// User roles (matching backend)
-const USER_ROLES = [
-  { value: "admin", label: "Admin" },
-  { value: "product_owner", label: "Product Owner" },
-  { value: "estimator", label: "Estimator" },
-  { value: "supervisor", label: "Supervisor" },
-  { value: "builder", label: "Builder" },
-  { value: "user", label: "User" },
-];
+import { useAssignableRoles } from "@/hooks/useAssignableRoles";
 
 interface NavigationItem {
   id: number;
@@ -61,6 +52,9 @@ interface NavigationItem {
 }
 
 export function NavigationTab() {
+  // SSoT: Fetch roles from database via Role.for_select
+  const { roles: userRoles } = useAssignableRoles();
+
   const [items, setItems] = React.useState<NavigationItem[]>([]);
   const [emailAccounts, setEmailAccounts] = React.useState<{ id: number | string; type: string; name: string; nav_position: number; org_name?: string }[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -646,7 +640,7 @@ export function NavigationTab() {
                           {hasRoleRestrictions ? (
                             // Show only the inherited roles as solid badges
                             parentRoles.map((roleValue) => {
-                              const role = USER_ROLES.find((r) => r.value === roleValue);
+                              const role = userRoles.find((r) => r.value === roleValue);
                               return (
                                 <Badge
                                   key={roleValue}
@@ -671,7 +665,7 @@ export function NavigationTab() {
                 <>
                   <p className="text-xs text-muted-foreground">Leave empty for all roles</p>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {USER_ROLES.map((role) => {
+                    {userRoles.map((role) => {
                       const isSelected = itemForm.visible_to_roles.includes(role.value);
                       return (
                         <Badge
@@ -854,7 +848,7 @@ export function NavigationTab() {
                         {hasRoleRestrictions ? (
                           // Show only the inherited roles as solid badges
                           parentRoles.map((roleValue) => {
-                            const role = USER_ROLES.find((r) => r.value === roleValue);
+                            const role = userRoles.find((r) => r.value === roleValue);
                             return (
                               <Badge
                                 key={roleValue}
@@ -878,7 +872,7 @@ export function NavigationTab() {
                 <>
                   <p className="text-xs text-muted-foreground">Leave empty for all roles</p>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {USER_ROLES.map((role) => {
+                    {userRoles.map((role) => {
                       const isSelected = itemForm.visible_to_roles.includes(role.value);
                       return (
                         <Badge

@@ -85,7 +85,7 @@ grep -ri "SEARCH_TERM" backend/app/ backend/lib/ --include="*.rb" | head -20
 | Thing | SSoT Location |
 |-------|---------------|
 | Column types | `Column::COLUMN_SQL_TYPE_MAP` |
-| User roles | `User::ASSIGNABLE_ROLES` |
+| User roles | `Role.for_select` (database) |
 | API responses | `{ success: true/false, data/error: ... }` |
 | Record queries | Foundation API (`/api/v1/foundations/{slug}/records`) |
 | Display values | `DisplayValueResolver` service |
