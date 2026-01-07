@@ -30,36 +30,57 @@ module Api
       # GET /api/v1/claim_invoice_templates/:id/preview
       # Returns HTML preview of the template with sample data
       # Accepts optional query params to customize preview:
-      #   - trading_name: Company name to show on invoice
+      #   - trading_name: Company name to show on invoice (overrides company settings)
       #   - claim_percentage: Percentage of contract price
       #   - task_name: Name of the claim task/stage
-      #   - contract_price: Contract price (default: 45000)
+      #   - contract_price: Contract price (overrides job data)
+      #   - job_id: Job ID to fetch real job data from
       def preview
         template = ClaimInvoiceTemplate.find(params[:id])
 
-        # Use provided values or defaults
-        trading_name = params[:trading_name].presence || "ABC Construction Pty Ltd"
+        # SSoT: Use real company data from CorporateCompanySetting
+        company_settings = CorporateCompanySetting.instance
+
+        # Optionally fetch real job data
+        job = params[:job_id].present? ? Job.find_by(id: params[:job_id]) : nil
+
+        # Use provided trading_name, fallback to company name from settings
+        trading_name = params[:trading_name].presence || company_settings.company_name || "ABC Construction Pty Ltd"
         claim_percentage = params[:claim_percentage].present? ? params[:claim_percentage].to_f : 15.0
         task_name = params[:task_name].presence || "Slab"
-        contract_price = params[:contract_price].present? ? params[:contract_price].to_f : 45_000
+
+        # Contract price priority: param > job > default
+        contract_price = if params[:contract_price].present?
+                           params[:contract_price].to_f
+                         elsif job&.contract_price.present?
+                           job.contract_price.to_f
+                         else
+                           450_000  # Default for house build
+                         end
 
         # Calculate amounts based on percentage and contract price
         claim_amount = (contract_price * claim_percentage / 100).round(2)
         gst_amount = (claim_amount * 0.1).round(2)
         total_amount = claim_amount + gst_amount
 
-        # Sample data for preview
+        # Build job/client data from real job or defaults
+        job_name = job&.name.presence || "Smith Residence - New Home Build"
+        job_address = job&.job_address.presence || job&.name.presence || "45 Example Avenue, Suburb QLD 4000"
+        client_name = job&.client&.display_name.presence || job&.client&.name.presence || "John & Jane Smith"
+        client_address = job&.client&.address.presence || "Current Address, Brisbane QLD 4000"
+
+        # Sample data for preview using real company data
         sample_data = {
           company_name: trading_name,
-          company_abn: "12 345 678 901",
-          company_address: "123 Builder Street, Brisbane QLD 4000",
-          company_phone: "(07) 1234 5678",
-          company_email: "accounts@abcconstruction.com.au",
-          job_name: "Smith Residence - New Home Build",
-          job_address: "45 Example Avenue, Suburb QLD 4000",
-          client_name: "John & Jane Smith",
-          client_address: "Current Address, Brisbane QLD 4000",
-          invoice_number: "INV-2024-0042",
+          company_abn: company_settings.abn.presence || "12 345 678 901",
+          company_address: company_settings.address&.gsub("\n", ", ").presence || "123 Builder Street, Brisbane QLD 4000",
+          company_phone: company_settings.phone.presence || "(07) 1234 5678",
+          company_email: company_settings.email.presence || "accounts@example.com.au",
+          job_name: job_name,
+          job_address: job_address,
+          client_name: client_name,
+          client_address: client_address,
+          invoice_number: "INV-#{Date.current.year}-0042",
           invoice_date: Date.current.strftime("%d %B %Y"),
           due_date: (Date.current + 14.days).strftime("%d %B %Y"),
           claim_stage: task_name,
@@ -70,10 +91,11 @@ module Api
           total_amount: total_amount,
           previous_claims: 0,
           balance_remaining: (contract_price - claim_amount).round(2),
-          bank_name: "Commonwealth Bank",
-          bsb: "064-000",
-          account_number: "1234 5678",
-          account_name: trading_name
+          # SSoT: Bank details from CorporateCompanySetting
+          bank_name: company_settings.bank_name.presence || "Commonwealth Bank",
+          bsb: company_settings.bank_bsb.presence || "064-000",
+          account_number: company_settings.bank_account_number.presence || "1234 5678",
+          account_name: company_settings.bank_account_name.presence || trading_name
         }
 
         html = render_template_preview(template, sample_data)

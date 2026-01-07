@@ -45,6 +45,11 @@ interface CompanySettings {
   logo_mobile: string;
   logo_dark: string;
   timezone: string;
+  // Bank details for invoices
+  bank_name: string;
+  bank_bsb: string;
+  bank_account_number: string;
+  bank_account_name: string;
   working_days: {
     monday: boolean;
     tuesday: boolean;
@@ -78,6 +83,11 @@ export default function CompanyInfoTab() {
     logo_mobile: "",
     logo_dark: "",
     timezone: COMPANY_TIMEZONE,
+    // Bank details
+    bank_name: "",
+    bank_bsb: "",
+    bank_account_number: "",
+    bank_account_name: "",
     working_days: {
       monday: true,
       tuesday: true,
@@ -782,6 +792,58 @@ export default function CompanyInfoTab() {
             onChange={(e) => handleChange("address", e.target.value)}
             className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
+        </div>
+
+        {/* Bank Details Section */}
+        <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+          <div>
+            <h3 className="font-semibold mb-1">Bank Details</h3>
+            <p className="text-xs text-muted-foreground">
+              Used on invoices and payment requests
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="bank_name">Bank Name</Label>
+              <Input
+                id="bank_name"
+                value={settings.bank_name || ""}
+                onChange={(e) => handleChange("bank_name", e.target.value)}
+                placeholder="e.g. Commonwealth Bank"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bank_bsb">BSB</Label>
+              <Input
+                id="bank_bsb"
+                value={settings.bank_bsb || ""}
+                onChange={(e) => handleChange("bank_bsb", e.target.value)}
+                placeholder="e.g. 064-000"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bank_account_number">Account Number</Label>
+              <Input
+                id="bank_account_number"
+                value={settings.bank_account_number || ""}
+                onChange={(e) => handleChange("bank_account_number", e.target.value)}
+                placeholder="e.g. 1234 5678"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bank_account_name">Account Name</Label>
+              <Input
+                id="bank_account_name"
+                value={settings.bank_account_name || ""}
+                onChange={(e) => handleChange("bank_account_name", e.target.value)}
+                placeholder="e.g. Tekna Homes Pty Ltd"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

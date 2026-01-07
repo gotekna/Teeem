@@ -787,16 +787,19 @@ export function ScheduleMasterTab() {
       tradingName?: string;
       claimPercentage?: number;
       taskName?: string;
+      jobId?: number;
     }
   ) => {
     setLoadingTemplatePreview(true);
     try {
       // Build query params for customized preview
+      // Backend uses real company data from CorporateCompanySetting + job data if provided
       const params = new URLSearchParams();
       if (options?.tradingName) params.set('trading_name', options.tradingName);
       if (options?.claimPercentage) params.set('claim_percentage', String(options.claimPercentage));
       if (options?.taskName) params.set('task_name', options.taskName);
-      params.set('contract_price', '45000'); // Default $45K for preview
+      // Use job 201 by default for realistic preview data (address, client, contract price)
+      params.set('job_id', String(options?.jobId || 201));
 
       const queryString = params.toString();
       const url = `/api/v1/claim_invoice_templates/${templateId}/preview${queryString ? `?${queryString}` : ''}`;

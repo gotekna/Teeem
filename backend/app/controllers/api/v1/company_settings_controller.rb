@@ -20,7 +20,12 @@ module Api
             logo_dark: settings.logo_dark,
             timezone: settings.timezone,
             working_days: settings.working_days,
-            team_email_domains: settings.team_email_domains || []
+            team_email_domains: settings.team_email_domains || [],
+            # Bank details for invoices
+            bank_name: settings.bank_name,
+            bank_bsb: settings.bank_bsb,
+            bank_account_number: settings.bank_account_number,
+            bank_account_name: settings.bank_account_name
           }
         }
       end
@@ -47,7 +52,12 @@ module Api
               logo_dark: settings.logo_dark,
               timezone: settings.timezone,
               working_days: settings.working_days,
-              team_email_domains: settings.team_email_domains || []
+              team_email_domains: settings.team_email_domains || [],
+              # Bank details for invoices
+              bank_name: settings.bank_name,
+              bank_bsb: settings.bank_bsb,
+              bank_account_number: settings.bank_account_number,
+              bank_account_name: settings.bank_account_name
             }
           }
         else
@@ -133,6 +143,11 @@ module Api
           :twilio_auth_token,
           :twilio_phone_number,
           :twilio_enabled,
+          # Bank details for invoices
+          :bank_name,
+          :bank_bsb,
+          :bank_account_number,
+          :bank_account_name,
           working_days: [ :monday, :tuesday, :wednesday, :thursday, :friday, :saturday, :sunday ],
           team_email_domains: []
         )

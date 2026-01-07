@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_203210) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_205103) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1928,6 +1928,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_203210) do
     t.jsonb "corporate_entity_types", default: ["Company", "Trust", "Superfund", "Charity", "Corporate Trustee", "Sole Trader"], null: false
     t.date "gl_lock_date"
     t.text "team_email_domains", default: [], array: true
+    t.string "bank_name"
+    t.string "bank_bsb"
+    t.string "bank_account_number"
+    t.string "bank_account_name"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|
