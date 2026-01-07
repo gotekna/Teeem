@@ -313,7 +313,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                       label: jobs.find(j => String(j.id) === formData.job_id)?.name || ''
                     } : undefined}
                     onSelect={(item) => handleChange('job_id', item.id)}
-                    placeholder="[V2] Search by job, client, or employee..."
+                    placeholder="Search by job, client, or employee..."
                     clearable
                     onClear={() => handleChange('job_id', '')}
                     emptyResults="No jobs found"

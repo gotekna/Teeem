@@ -288,6 +288,8 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   // When closed: show selected value as display text
   // When open: show empty input for searching (clears on open)
   if (searchInTrigger) {
+    // Debug: prove this code is running
+    console.log('[ComboboxDropdown] Rendering searchInTrigger mode, inputValue:', inputValue, 'open:', open);
     // Display value: when closed show selected item label, when open show search input
     const displayValue = open
       ? inputValue
@@ -295,6 +297,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
     return (
       <Popover open={open} onOpenChange={(isOpen) => {
+        console.log('[ComboboxDropdown] onOpenChange:', isOpen, '(was:', open, ')');
         setOpen(isOpen);
         if (!isOpen) {
           setInputValue(""); // Clear search when closing
