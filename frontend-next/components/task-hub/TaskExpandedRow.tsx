@@ -34,6 +34,7 @@ import {
   MessageSquare,
   Paperclip,
   Plus,
+  Send,
   Trash2,
   UserPlus,
   Users,
@@ -96,6 +97,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     answerActionItem,
     updateActionItem,
     removeActionItem,
+    delegateActionItem,
     setTaskPrivacy,
     getFollowers,
     addFollower,
@@ -131,6 +133,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [answerText, setAnswerText] = useState('');
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkPasteText, setBulkPasteText] = useState('');
+  const [delegatingItemId, setDelegatingItemId] = useState<number | null>(null);
+  const [delegationUsers, setDelegationUsers] = useState<User[]>([]);
 
   // Share/Followers state
   const [shareOpen, setShareOpen] = useState(false);
@@ -1088,6 +1092,54 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                           </div>
                         </div>
                       </div>
+                    ) : item.delegated && item.delegated_task ? (
+                      // Delegated - show status
+                      <div className="text-sm bg-purple-50 dark:bg-purple-950 p-2 rounded border border-purple-200 dark:border-purple-800">
+                        <div className="flex items-center gap-2">
+                          <Send className="h-4 w-4 text-purple-600 shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-xs text-purple-700 dark:text-purple-300">
+                              Sent to <span className="font-medium">{item.delegated_task.assigned_user_name || 'Unknown'}</span>
+                              {item.delegated_task.status === 'completed' && ' • Completed'}
+                              {item.delegated_task.status === 'started' && ' • In Progress'}
+                              {item.delegated_task.status === 'not_started' && ' • Pending'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : delegatingItemId === item.id ? (
+                      // User selection for delegation
+                      <div className="flex gap-2 items-center">
+                        <ComboboxDropdown
+                          items={delegationUsers.map(u => ({
+                            id: String(u.id),
+                            label: u.name,
+                          }))}
+                          onSelect={async (selected) => {
+                            setActionItemLoading(item.id);
+                            try {
+                              await delegateActionItem(task.id, item.id, parseInt(selected.id));
+                              setDelegatingItemId(null);
+                            } finally {
+                              setActionItemLoading(null);
+                            }
+                          }}
+                          placeholder="Select user..."
+                          className="h-7 text-xs w-40"
+                        />
+                        {actionItemLoading === item.id ? (
+                          <Spinner size={12} />
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setDelegatingItemId(null)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     ) : answeringItemId === item.id ? (
                       <div className="flex gap-2">
                         <Input
@@ -1144,15 +1196,24 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                         </Button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => {
-                          setAnsweringItemId(item.id);
-                          setAnswerText('');
-                        }}
-                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:underline"
-                      >
-                        + Add answer
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => {
+                            setAnsweringItemId(item.id);
+                            setAnswerText('');
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:underline"
+                        >
+                          + Add answer
+                        </button>
+                        <button
+                          onClick={() => setDelegatingItemId(item.id)}
+                          className="text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400 hover:underline flex items-center gap-1"
+                        >
+                          <Send className="h-3 w-3" />
+                          Send to...
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

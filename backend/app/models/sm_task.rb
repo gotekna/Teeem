@@ -177,6 +177,8 @@ class SmTask < ApplicationRecord
 
   # Action Items (checkable items within a task)
   has_many :action_items, class_name: "TaskActionItem", dependent: :destroy
+  # Reverse link for delegated questions (this task was created from a question)
+  has_one :source_action_item, class_name: "TaskActionItem", foreign_key: :delegated_task_id
 
   # Activity Logs (history of changes)
   has_many :activity_logs, class_name: "TaskActivityLog", dependent: :destroy
@@ -384,6 +386,8 @@ class SmTask < ApplicationRecord
   # Activity logging callbacks
   after_create :log_task_created
   after_update :log_task_changes
+  # Delegation completion callback
+  after_update :handle_delegation_completion, if: -> { saved_change_to_status? && status_completed? && is_delegated_question? }
 
   # Lock hierarchy check (Rule 9.22)
   # Priority: supplier_confirm > confirm > started > completed > hold
@@ -742,6 +746,23 @@ class SmTask < ApplicationRecord
     end
   rescue => e
     Rails.logger.error("[SmTask] Failed to log task changes: #{e.message}")
+  end
+
+  # Handle completion of a delegated question task
+  # Copies the answer (description) and attachments back to the source action item
+  def handle_delegation_completion
+    return unless is_delegated_question?
+    return unless source_action_item.present?
+
+    Rails.logger.info("[SmTask] Completing delegation for task #{id}, copying to action item #{source_action_item.id}")
+
+    # Copy the description as the answer
+    source_action_item.complete_delegation!(description, assigned_user)
+
+    # Optionally: Auto-delete the sub-task after copying (or just leave as completed)
+    # destroy! # Uncomment to auto-delete
+  rescue => e
+    Rails.logger.error("[SmTask] Failed to handle delegation completion: #{e.message}")
   end
 
   # ============================================

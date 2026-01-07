@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_045957) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8437,6 +8437,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_045957) do
     t.bigint "complete_workflow_id"
     t.boolean "start_workflow_fired", default: false
     t.text "email_keywords"
+    t.boolean "is_delegated_question", default: false, null: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
@@ -8897,7 +8898,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_045957) do
     t.text "response"
     t.bigint "responded_by_id"
     t.datetime "responded_at"
+    t.bigint "delegated_task_id"
     t.index ["checked_by_id"], name: "index_task_action_items_on_checked_by_id"
+    t.index ["delegated_task_id"], name: "index_task_action_items_on_delegated_task_id"
     t.index ["responded_by_id"], name: "index_task_action_items_on_responded_by_id"
     t.index ["sm_task_id", "position"], name: "index_task_action_items_on_sm_task_id_and_position"
     t.index ["sm_task_id"], name: "index_task_action_items_on_sm_task_id"
@@ -10607,6 +10610,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_045957) do
   add_foreign_key "subcontractor_invoices", "purchase_orders"
   add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_action_items", "sm_tasks"
+  add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
   add_foreign_key "task_action_items", "users", column: "checked_by_id"
   add_foreign_key "task_action_items", "users", column: "responded_by_id"
   add_foreign_key "task_activity_logs", "sm_tasks"

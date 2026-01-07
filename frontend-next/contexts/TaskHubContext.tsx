@@ -52,6 +52,16 @@ export interface TaskActionItem {
   responded_by_id?: number;
   responded_by_name?: string;
   responded_at?: string;
+  // Delegation fields
+  delegated?: boolean;
+  delegated_task_id?: number;
+  delegated_task?: {
+    id: number;
+    name: string;
+    status: string;
+    assigned_user_id?: number;
+    assigned_user_name?: string;
+  };
 }
 
 export interface TaskFollower {
@@ -222,6 +232,7 @@ export interface TaskHubContextType extends TaskHubState {
   answerActionItem: (taskId: number, itemId: number, response: string) => Promise<TaskActionItem>;
   updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
   removeActionItem: (taskId: number, itemId: number) => Promise<void>;
+  delegateActionItem: (taskId: number, itemId: number, userId: number) => Promise<TaskActionItem>;
 
   // Privacy
   setTaskPrivacy: (taskId: number, isPrivate: boolean) => Promise<void>;
@@ -1039,6 +1050,27 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     ));
   }, []);
 
+  const delegateActionItem = useCallback(async (taskId: number, itemId: number, userId: number): Promise<TaskActionItem> => {
+    const response = await api.post<{ action_item: TaskActionItem; delegated_task: SmTask; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/delegate`,
+      { user_id: userId }
+    );
+    if (response?.success && response?.action_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to delegate question');
+  }, []);
+
   const setTaskPrivacy = useCallback(async (taskId: number, isPrivate: boolean) => {
     const originalTasks = [...tasks];
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, is_private: isPrivate } : t));
@@ -1219,6 +1251,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     answerActionItem,
     updateActionItem,
     removeActionItem,
+    delegateActionItem,
     // Privacy
     setTaskPrivacy,
     // Followers

@@ -83,52 +83,67 @@ class SmTaskResetService
 
   # Preview what will happen without making changes
   def preview
-    po_links = capture_po_links
-    template_task_numbers = template.sm_schedule_masters.pluck(:task_number).to_set
+    po_links = capture_po_links_optimized
+    template_task_numbers = template.sm_schedule_master_rows.pluck(:task_number).to_set
 
-    preserved = []
+    preserved_count = 0
     orphaned = []
 
-    po_links.each do |task_number, po_ids|
+    po_links.each do |task_number, po_data_list|
       if template_task_numbers.include?(task_number)
-        po_ids.each { |po_id| preserved << { task_number: task_number, po_id: po_id } }
+        preserved_count += po_data_list.count
       else
-        po_ids.each { |po_id| orphaned << { task_number: task_number, po_id: po_id } }
+        po_data_list.each { |po_data| orphaned << po_data.merge(task_number: task_number) }
       end
     end
 
     {
       current_task_count: job.sm_tasks.count,
-      template_task_count: template.sm_schedule_masters.active.count,
-      po_links_to_preserve: preserved.count,
+      template_task_count: template.sm_schedule_master_rows.active.count,
+      po_links_to_preserve: preserved_count,
       po_links_to_orphan: orphaned.count,
-      orphaned_pos: orphaned.map do |item|
-        po = PurchaseOrder.find_by(id: item[:po_id])
-        {
-          po_id: item[:po_id],
-          po_number: po&.purchase_order_number,
-          task_number: item[:task_number],
-          task_name: job.sm_tasks.find_by(task_number: item[:task_number])&.name
-        }
-      end
+      orphaned_pos: orphaned
     }
   end
 
   private
 
-  # Capture PO links by task_number before deletion
+  # Optimized: Capture PO links with task details in a single query (for preview)
+  # Returns: { task_number => [{ po_id:, po_number:, task_name: }, ...] }
+  def capture_po_links_optimized
+    links = {}
+
+    # Single query with joins - no N+1
+    PurchaseOrder
+      .joins("INNER JOIN sm_tasks ON sm_tasks.id = purchase_orders.sm_task_id")
+      .where(sm_tasks: { job_id: job.id })
+      .select("purchase_orders.id AS po_id, purchase_orders.purchase_order_number AS po_number, sm_tasks.task_number, sm_tasks.name AS task_name")
+      .each do |row|
+        links[row.task_number] ||= []
+        links[row.task_number] << {
+          po_id: row.po_id,
+          po_number: row.po_number,
+          task_name: row.task_name
+        }
+      end
+
+    links
+  end
+
+  # Capture PO links by task_number before deletion (for reset!)
   # Returns: { task_number => [purchase_order_ids] }
   def capture_po_links
     links = {}
 
-    job.sm_tasks.each do |task|
-      # Use the SSoT method for getting linked PO
-      po = task.linked_purchase_order
-      next unless po
-
-      links[task.task_number] ||= []
-      links[task.task_number] << po.id
-    end
+    # Single query - no N+1
+    PurchaseOrder
+      .joins("INNER JOIN sm_tasks ON sm_tasks.id = purchase_orders.sm_task_id")
+      .where(sm_tasks: { job_id: job.id })
+      .pluck("sm_tasks.task_number", "purchase_orders.id")
+      .each do |task_number, po_id|
+        links[task_number] ||= []
+        links[task_number] << po_id
+      end
 
     links
   end

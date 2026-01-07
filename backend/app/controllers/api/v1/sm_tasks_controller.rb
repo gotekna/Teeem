@@ -1103,6 +1103,27 @@ module Api
         }
       end
 
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/delegate
+      # Delegate a question to another user by creating a sub-task
+      def delegate_action_item
+        @task = SmTask.find(params[:id])
+        item = @task.action_items.find(params[:item_id])
+
+        user = User.find(params[:user_id])
+
+        result = item.delegate_to!(user, created_by: current_user)
+
+        if result[:success]
+          render json: {
+            success: true,
+            action_item: action_item_to_json(item.reload),
+            delegated_task: task_to_json(result[:task])
+          }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      end
+
       # PATCH /api/v1/sm_tasks/:id/privacy
       def update_privacy
         @task = SmTask.find(params[:id])
@@ -1510,7 +1531,7 @@ module Api
       end
 
       def action_item_to_json(item)
-        {
+        result = {
           id: item.id,
           text: item.text,
           item_type: item.item_type,
@@ -1522,8 +1543,24 @@ module Api
           response: item.response,
           responded_by_id: item.responded_by_id,
           responded_by_name: item.responded_by&.name,
-          responded_at: item.responded_at
+          responded_at: item.responded_at,
+          # Delegation info
+          delegated: item.delegated?,
+          delegated_task_id: item.delegated_task_id
         }
+
+        # Include delegated task details if present
+        if item.delegated_task.present?
+          result[:delegated_task] = {
+            id: item.delegated_task.id,
+            name: item.delegated_task.name,
+            status: item.delegated_task.status,
+            assigned_user_id: item.delegated_task.assigned_user_id,
+            assigned_user_name: item.delegated_task.assigned_user&.name
+          }
+        end
+
+        result
       end
 
       def save_temp_file(uploaded_file)
