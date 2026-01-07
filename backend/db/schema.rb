@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_043255) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_045957) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7743,6 +7743,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_043255) do
     t.integer "position", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "god_view_access", default: false, null: false
+    t.boolean "can_approve_payments", default: false, null: false
     t.index ["name"], name: "index_roles_on_name", unique: true
     t.index ["position"], name: "index_roles_on_position"
   end

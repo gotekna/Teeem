@@ -104,9 +104,9 @@ class User < ApplicationRecord
 
   # SSoT: God View access (internal staff sees everything)
   # God View users see all entities in all groups they have access to
-  # SSoT: Check against user_roles join table, not legacy role column
+  # SSoT: Check against Role.god_view_access column (database is SSoT)
   def god_view?
-    (role_names & %w[admin product_owner user estimator supervisor builder]).any?
+    roles.with_god_view.exists?
   end
 
   # SSoT: Can this user view confidential fields (TFN, passport, bank details)?

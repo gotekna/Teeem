@@ -13,6 +13,8 @@ class Role < ApplicationRecord
   # Scopes
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(:position) }
+  scope :with_god_view, -> { where(god_view_access: true) }
+  scope :with_payment_approval, -> { where(can_approve_payments: true) }
 
   # Class methods
   def self.for_select

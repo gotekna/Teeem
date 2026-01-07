@@ -412,6 +412,9 @@ export default function SchedulePage() {
     po_links_to_preserve: number;
     po_links_to_orphan: number;
   } | null>(null);
+  const [templateList, setTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean }>>([]);
+  const [selectedResetTemplateId, setSelectedResetTemplateId] = React.useState<number | null>(null);
+  const [loadingTemplateList, setLoadingTemplateList] = React.useState(false);
 
   React.useEffect(() => {
     console.log('[SchedulePage] 🔄 Fetch job effect triggered', { jobId });
@@ -885,49 +888,69 @@ export default function SchedulePage() {
     }
   };
 
-  // Open reset dialog and load preview
-  const handleOpenResetDialog = async () => {
+  // Fetch reset preview for a specific template
+  const fetchResetPreview = React.useCallback(async (templateId: number) => {
     setResetPreview(null);
-    setShowResetDialog(true);
-
-    // Get preview
     try {
-      let templateId = jobTemplate?.id;
-      if (!templateId) {
-        // Fetch default template if not loaded
-        const defaultTemplate = await api.get<{ id: number; name: string }>(
-          `/api/v1/sm_schedule_master_templates/default`
-        );
-        if (defaultTemplate) {
-          templateId = defaultTemplate.id;
-          setJobTemplate({ id: defaultTemplate.id, name: defaultTemplate.name });
-        }
-      }
-
-      if (templateId) {
-        const response = await api.post<{
-          success: boolean;
-          preview: boolean;
-          current_task_count: number;
-          template_task_count: number;
-          po_links_to_preserve: number;
-          po_links_to_orphan: number;
-        }>(
-          `/api/v1/sm_schedule_master_templates/${templateId}/reset_job_tasks`,
-          { job_id: parseInt(String(jobId)), preview: true }
-        );
-        if (response) {
-          setResetPreview(response);
-        }
+      const response = await api.post<{
+        success: boolean;
+        preview: boolean;
+        current_task_count: number;
+        template_task_count: number;
+        po_links_to_preserve: number;
+        po_links_to_orphan: number;
+      }>(
+        `/api/v1/sm_schedule_master_templates/${templateId}/reset_job_tasks`,
+        { job_id: parseInt(String(jobId)), preview: true }
+      );
+      if (response) {
+        setResetPreview(response);
       }
     } catch (err) {
       console.error("Failed to get reset preview:", err);
     }
+  }, [jobId]);
+
+  // Open reset dialog and load template list
+  const handleOpenResetDialog = async () => {
+    setResetPreview(null);
+    setSelectedResetTemplateId(null);
+    setShowResetDialog(true);
+    setLoadingTemplateList(true);
+
+    try {
+      // Load all templates
+      const response = await api.get<{
+        success: boolean;
+        sm_schedule_master_templates: Array<{ id: number; name: string; is_default: boolean }>
+      }>("/api/v1/sm_schedule_master_templates");
+
+      const templates = response.sm_schedule_master_templates || [];
+      setTemplateList(templates);
+
+      // Default to the default template or first one
+      const defaultTemplate = templates.find(t => t.is_default) || templates[0];
+      if (defaultTemplate) {
+        setSelectedResetTemplateId(defaultTemplate.id);
+        // Fetch preview for this template
+        await fetchResetPreview(defaultTemplate.id);
+      }
+    } catch (err) {
+      console.error("Failed to load templates:", err);
+    } finally {
+      setLoadingTemplateList(false);
+    }
+  };
+
+  // Handle template selection change
+  const handleResetTemplateChange = async (templateId: number) => {
+    setSelectedResetTemplateId(templateId);
+    await fetchResetPreview(templateId);
   };
 
   // Execute the reset
   const handleReset = async () => {
-    if (!jobTemplate?.id) {
+    if (!selectedResetTemplateId) {
       toast({
         title: "Error",
         description: "No template selected",
@@ -946,7 +969,7 @@ export default function SchedulePage() {
         po_links_preserved: number;
         po_links_orphaned: number;
       }>(
-        `/api/v1/sm_schedule_master_templates/${jobTemplate.id}/reset_job_tasks`,
+        `/api/v1/sm_schedule_master_templates/${selectedResetTemplateId}/reset_job_tasks`,
         { job_id: parseInt(String(jobId)) }
       );
 
@@ -1799,10 +1822,34 @@ export default function SchedulePage() {
               Reset All Tasks
             </DialogTitle>
             <DialogDescription>
-              This will DELETE all tasks and re-sync fresh from the template.
+              This will DELETE all tasks and re-sync fresh from the selected template.
               PO links will be preserved by task number.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Template Selector */}
+          <div className="space-y-2">
+            <Label>Select Template</Label>
+            {loadingTemplateList ? (
+              <div className="flex items-center gap-2 py-2">
+                <Spinner size={16} />
+                <span className="text-sm text-muted-foreground">Loading templates...</span>
+              </div>
+            ) : (
+              <ComboboxDropdown
+                items={templateList.map(t => ({
+                  id: String(t.id),
+                  label: t.name + (t.is_default ? " (Default)" : "")
+                }))}
+                selectedItem={selectedResetTemplateId ? {
+                  id: String(selectedResetTemplateId),
+                  label: templateList.find(t => t.id === selectedResetTemplateId)?.name || ""
+                } : undefined}
+                onSelect={(item) => handleResetTemplateChange(parseInt(item.id))}
+                placeholder="Select a template..."
+              />
+            )}
+          </div>
 
           {!resetPreview ? (
             <div className="flex items-center justify-center py-8">
