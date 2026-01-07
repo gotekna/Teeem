@@ -83,6 +83,7 @@ import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
 import { isWorkingDay, skipToPreviousWorkingDay, type GanttTask, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
 import { useToast } from "@/components/ui/use-toast";
+import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch } from "lucide-react";
 
@@ -441,6 +442,7 @@ export function ScheduleMasterTab() {
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
   const [editingRow, setEditingRow] = React.useState<SmScheduleMaster | null>(null);
+  const [selectedRowForEdit, setSelectedRowForEdit] = React.useState<EditRowData | null>(null);  // SSoT: converted for EditRowDialog
   const [activeEditTemplateId, setActiveEditTemplateId] = React.useState<number | null>(null); // Tracks which template to save to
   const [editRowForm, setEditRowForm] = React.useState<Partial<SmScheduleMaster>>({});
   const [savingRow, setSavingRow] = React.useState(false);
@@ -1095,83 +1097,152 @@ export function ScheduleMasterTab() {
     }
   };
 
+  // ==========================================================================
+  // SSoT EditRowDialog Integration
+  // ==========================================================================
+
+  // Helper: Convert SmScheduleMaster to EditRowData for shared dialog
+  const convertToEditRowData = React.useCallback((row: SmScheduleMaster): EditRowData => {
+    return {
+      id: row.id,
+      task_number: row.task_number,
+      name: row.name,
+      description: row.description || undefined,
+      duration_days: row.duration_days,
+      sequence_order: row.sequence_order,
+      trade: extractLookupId(row.trade) || undefined,
+      trade_name: row.trade_name || extractLookupDisplay(row.trade) || undefined,
+      stage: extractLookupId(row.stage) || undefined,
+      stage_name: row.stage_name || extractLookupDisplay(row.stage) || undefined,
+      assigned_role: extractLookupId(row.assigned_role) || null,
+      cost_centre: extractLookupId(row.cost_centre) || undefined,
+      header_gantt: extractLookupId(row.header_gantt) || undefined,
+      allow_header: row.allow_header || false,
+      is_active: row.is_active !== false,
+      po_required: row.po_required || false,
+      critical_po: row.critical_po || false,
+      create_po_on_job_start: row.create_po_on_job_start || false,
+      spawn_order_task: row.spawn_order_task || false,
+      spawn_call_task: row.spawn_call_task || false,
+      require_photo: row.require_photo || false,
+      pass_fail_enabled: row.pass_fail_enabled || false,
+      checklist_id: typeof row.checklist_id === 'number' ? row.checklist_id : undefined,
+      is_claim_task: row.is_claim_task || false,
+      is_variation: row.is_variation || false,
+      claim_percentage: row.claim_percentage,
+      claim_invoice_pattern: row.claim_invoice_pattern,
+      claim_invoice_template_id: extractLookupId(row.claim_invoice_template_id)
+        ? parseInt(extractLookupId(row.claim_invoice_template_id)!)
+        : (typeof row.claim_invoice_template_id === 'number' ? row.claim_invoice_template_id : undefined),
+      claim_trading_name_id: extractLookupId(row.claim_trading_name_id)
+        ? parseInt(extractLookupId(row.claim_trading_name_id)!)
+        : (typeof row.claim_trading_name_id === 'number' ? row.claim_trading_name_id : undefined),
+      // Template membership (Schedule Master specific)
+      sm_template_ids: (row.sm_template_ids || []).map((item: number | { id: number }) =>
+        typeof item === 'object' ? item.id : item
+      ),
+    };
+  }, []);
+
+  // SSoT: Save handler for EditRowDialog
+  const handleEditRowSave = React.useCallback(async (rowId: number, data: EditRowFormData) => {
+    if (!activeEditTemplateId) {
+      throw new Error("No active template to save to");
+    }
+
+    // Transform EditRowFormData to API payload
+    const rowPayload: Record<string, unknown> = {
+      name: data.name,
+      description: data.description,
+      duration_days: data.duration_days,
+      sequence_order: data.sequence_order,
+      trade: data.trade,
+      stage: data.stage,
+      assigned_role: data.assigned_role,
+      cost_centre: data.cost_centre,
+      header_gantt: data.header_gantt,
+      allow_header: data.allow_header,
+      is_active: data.is_active,
+      po_required: data.po_required,
+      critical_po: data.critical_po,
+      create_po_on_job_start: data.create_po_on_job_start,
+      spawn_order_task: data.spawn_order_task,
+      spawn_call_task: data.spawn_call_task,
+      require_photo: data.require_photo,
+      pass_fail_enabled: data.pass_fail_enabled,
+      checklist_id: data.checklist_id,
+      is_claim_task: data.is_claim_task,
+      is_variation: data.is_variation,
+      claim_percentage: data.claim_percentage,
+      claim_invoice_pattern: data.claim_invoice_pattern,
+      claim_invoice_template_id: data.claim_invoice_template_id,
+      claim_trading_name_id: data.claim_trading_name_id,
+    };
+
+    await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {
+      row: rowPayload,
+    });
+
+    // Refresh data
+    setDataViewRefreshKey(prev => prev + 1);
+    loadDataViewRows(dataViewTemplateId);
+    if (activeEditTemplateId === ganttV2TemplateId && ganttV2TemplateId) {
+      loadGanttV2Data();
+    }
+  }, [activeEditTemplateId, dataViewTemplateId, ganttV2TemplateId, loadDataViewRows, loadGanttV2Data]);
+
+  // SSoT: Refresh handler for EditRowDialog
+  const handleEditRowRefresh = React.useCallback(() => {
+    setDataViewRefreshKey(prev => prev + 1);
+    loadDataViewRows(dataViewTemplateId);
+    if (ganttV2TemplateId) {
+      loadGanttV2Data();
+    }
+  }, [dataViewTemplateId, ganttV2TemplateId, loadDataViewRows, loadGanttV2Data]);
+
+  // SSoT: Copy to template handler for EditRowDialog
+  const handleCopyToTemplate = React.useCallback(async (templateId: number, rowId: number) => {
+    // Add template membership via API
+    if (!editingRow) return;
+    const currentTemplateIds = editingRow.sm_template_ids || [];
+    const normalizedIds = currentTemplateIds.map((item: number | { id: number }) =>
+      typeof item === 'object' ? item.id : item
+    );
+    if (!normalizedIds.includes(templateId)) {
+      normalizedIds.push(templateId);
+    }
+    await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {
+      row: { sm_template_ids: normalizedIds },
+    });
+    handleEditRowRefresh();
+  }, [editingRow, activeEditTemplateId, handleEditRowRefresh]);
+
+  // SSoT: Child task update handler for EditRowDialog
+  const handleChildTaskHeaderUpdate = React.useCallback(async (childId: number, headerGantt: number | null) => {
+    if (!activeEditTemplateId) return;
+    await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${childId}`, {
+      row: { header_gantt: headerGantt },
+    });
+    handleEditRowRefresh();
+  }, [activeEditTemplateId, handleEditRowRefresh]);
+
   // Handle row double-click - open edit sheet
   // SSoT: Use row directly from TeeemTableView callback (Foundation API data)
   // Don't lookup from dataViewRows which comes from custom endpoint with broken lookup expansion
   const handleDataViewRowDoubleClick = (row: Record<string, unknown>) => {
-    // Reset auto-save state for fresh sheet
-    initialFormLoadRef.current = true;
-    setAutoSaveStatus('idle');
     setActiveEditTemplateId(dataViewTemplateId); // Track which template to save to
 
     // Cast row from TeeemTableView - it has all the data with proper lookup expansion from Foundation API
     const fullRow = row as unknown as SmScheduleMaster;
     setEditingRow(fullRow);
-    setEditRowForm({
-      name: fullRow.name,
-      description: fullRow.description,
-      duration_days: fullRow.duration_days,
-      sequence_order: fullRow.sequence_order,
-      // Extract IDs from lookup columns (Foundation API returns {id: 123, display: "..."} format)
-      trade: extractLookupId(fullRow.trade),
-      stage: extractLookupId(fullRow.stage),
-      assigned_role: extractLookupId(fullRow.assigned_role),
-      cost_centre: extractLookupId(fullRow.cost_centre),
-      header_gantt: extractLookupId(fullRow.header_gantt),  // Parent header row (self-reference lookup)
-      po_required: fullRow.po_required,
-      critical_po: fullRow.critical_po,
-      create_po_on_job_start: fullRow.create_po_on_job_start,
-      require_photo: fullRow.require_photo,
-      pass_fail_enabled: fullRow.pass_fail_enabled,
-      spawn_order_task: fullRow.spawn_order_task,
-      spawn_call_task: fullRow.spawn_call_task,
-      order_time_days: fullRow.order_time_days,
-      call_time_days: fullRow.call_time_days,
-      linked_task_ids: fullRow.linked_task_ids,
-      allow_header: fullRow.allow_header,
-      is_active: fullRow.is_active,
-      document_types: fullRow.document_types || [],
-      // Claim task settings
-      is_claim_task: fullRow.is_claim_task || false,
-      is_variation: fullRow.is_variation || false,
-      claim_percentage: fullRow.claim_percentage,
-      claim_invoice_pattern: fullRow.claim_invoice_pattern,
-      // Extract ID from lookup object if present (Foundation API may return {id, display} for lookups)
-      claim_invoice_template_id: extractLookupId(fullRow.claim_invoice_template_id)
-        ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
-        : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null),
-      claim_trading_name_id: extractLookupId(fullRow.claim_trading_name_id) ? parseInt(extractLookupId(fullRow.claim_trading_name_id)!) : null,
-      // Multi-template support
-      sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
-        typeof item === 'object' ? item.id : item
-      ),
-    });
-    // Load template preview if claim task has a template selected
-    const claimTemplateId = extractLookupId(fullRow.claim_invoice_template_id)
-      ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
-      : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null);
-    if (fullRow.is_claim_task && claimTemplateId) {
-      const tradingNameId = extractLookupId(fullRow.claim_trading_name_id);
-      const tradingName = tradingNameId
-        ? tradingNames.find(tn => String(tn.id) === tradingNameId)?.name
-        : undefined;
-      loadTemplatePreview(claimTemplateId, {
-        tradingName,
-        claimPercentage: fullRow.claim_percentage || undefined,
-        taskName: fullRow.name,
-      });
-    } else {
-      setTemplatePreviewHtml(null);
-    }
+    // SSoT: Convert to EditRowData for shared EditRowDialog
+    setSelectedRowForEdit(convertToEditRowData(fullRow));
     setShowEditSheet(true);
   };
 
   // Handle Gantt V2 task double-click - open edit sheet
   const handleGanttV2TaskDoubleClick = (task: GanttTask) => {
     console.log('[ScheduleMasterTab] handleGanttV2TaskDoubleClick called with task:', task.id, task.name);
-    // Reset auto-save state for fresh sheet
-    initialFormLoadRef.current = true;
-    setAutoSaveStatus('idle');
     setActiveEditTemplateId(ganttV2TemplateId); // Track which template to save to
 
     // Extract row data from task.rowData (set by convertRowsToTasks)
@@ -1204,79 +1275,28 @@ export function ScheduleMasterTab() {
       po_required: rowData.po_required || false,
       critical_po: rowData.critical_po || false,
       create_po_on_job_start: rowData.create_po_on_job_start || false,
-      spawn_order_task: false, // Not in GanttSmScheduleMaster type
-      spawn_call_task: false, // Not in GanttSmScheduleMaster type
+      spawn_order_task: (rowData as unknown as SmScheduleMaster).spawn_order_task || false,
+      spawn_call_task: (rowData as unknown as SmScheduleMaster).spawn_call_task || false,
       order_time_days: rowData.order_time_days ?? undefined,
       call_time_days: rowData.call_time_days ?? undefined,
       require_photo: rowData.require_photo || false,
       pass_fail_enabled: rowData.pass_fail_enabled || false,
-      po_supplier_id: rowData.supplier_id ?? undefined, // Map from supplier_id
-      po_supplier_name: rowData.supplier_name ?? undefined, // Map from supplier_name
-      po_line_items: undefined, // Not in GanttSmScheduleMaster type
+      po_supplier_id: rowData.supplier_id ?? undefined,
+      po_supplier_name: rowData.supplier_name ?? undefined,
+      po_line_items: undefined,
       linked_task_ids: rowData.linked_task_ids,
       sm_template_ids: rowData.sm_template_ids || [],
-      // Claim task settings (may not be in GanttSmScheduleMaster type yet)
       is_claim_task: (rowData as unknown as SmScheduleMaster).is_claim_task || false,
+      is_variation: (rowData as unknown as SmScheduleMaster).is_variation || false,
       claim_percentage: (rowData as unknown as SmScheduleMaster).claim_percentage ?? null,
       claim_invoice_pattern: (rowData as unknown as SmScheduleMaster).claim_invoice_pattern ?? null,
+      claim_invoice_template_id: (rowData as unknown as SmScheduleMaster).claim_invoice_template_id ?? null,
+      claim_trading_name_id: (rowData as unknown as SmScheduleMaster).claim_trading_name_id ?? null,
     };
 
     setEditingRow(fullRow);
-    setEditRowForm({
-      name: fullRow.name,
-      description: fullRow.description,
-      duration_days: fullRow.duration_days,
-      sequence_order: fullRow.sequence_order,
-      trade: fullRow.trade,
-      stage: fullRow.stage,
-      assigned_role: fullRow.assigned_role,
-      cost_centre: fullRow.cost_centre,
-      header_gantt: fullRow.header_gantt,
-      po_required: fullRow.po_required,
-      critical_po: fullRow.critical_po,
-      create_po_on_job_start: fullRow.create_po_on_job_start,
-      require_photo: fullRow.require_photo,
-      pass_fail_enabled: fullRow.pass_fail_enabled,
-      spawn_order_task: fullRow.spawn_order_task,
-      spawn_call_task: fullRow.spawn_call_task,
-      order_time_days: fullRow.order_time_days,
-      call_time_days: fullRow.call_time_days,
-      linked_task_ids: fullRow.linked_task_ids,
-      allow_header: fullRow.allow_header,
-      is_active: fullRow.is_active,
-      document_types: fullRow.document_types || [],
-      // Claim task settings
-      is_claim_task: fullRow.is_claim_task || false,
-      is_variation: fullRow.is_variation || false,
-      claim_percentage: fullRow.claim_percentage,
-      claim_invoice_pattern: fullRow.claim_invoice_pattern,
-      // Handle both plain number and lookup object formats
-      claim_invoice_template_id: extractLookupId(fullRow.claim_invoice_template_id)
-        ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
-        : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null),
-      claim_trading_name_id: extractLookupId(fullRow.claim_trading_name_id) ? parseInt(extractLookupId(fullRow.claim_trading_name_id)!) : null,
-      // Multi-template support
-      sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
-        typeof item === 'object' ? item.id : item
-      ),
-    });
-    // Load template preview if claim task has a template selected
-    const ganttClaimTemplateId = extractLookupId(fullRow.claim_invoice_template_id)
-      ? parseInt(extractLookupId(fullRow.claim_invoice_template_id)!)
-      : (typeof fullRow.claim_invoice_template_id === 'number' ? fullRow.claim_invoice_template_id : null);
-    if (fullRow.is_claim_task && ganttClaimTemplateId) {
-      const tradingNameId = extractLookupId(fullRow.claim_trading_name_id);
-      const tradingName = tradingNameId
-        ? tradingNames.find(tn => String(tn.id) === tradingNameId)?.name
-        : (typeof fullRow.claim_trading_name_id === 'number' ? tradingNames.find(tn => tn.id === fullRow.claim_trading_name_id)?.name : undefined);
-      loadTemplatePreview(ganttClaimTemplateId, {
-        tradingName,
-        claimPercentage: fullRow.claim_percentage || undefined,
-        taskName: fullRow.name,
-      });
-    } else {
-      setTemplatePreviewHtml(null);
-    }
+    // SSoT: Convert to EditRowData for shared EditRowDialog
+    setSelectedRowForEdit(convertToEditRowData(fullRow));
     setShowEditSheet(true);
   };
 
@@ -3275,853 +3295,29 @@ export function ScheduleMasterTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
-      <Dialog open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0">
-          {/* Sticky Header */}
-          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
-            <div>
-              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
-                Edit Row
-                {/* Show parent header if this task is part of one */}
-                {editingRow && editingRow.header_gantt && (() => {
-                  const parentTaskNumber = extractLookupId(editingRow.header_gantt);
-                  const parentHeader = parentTaskNumber ? dataViewRows.find(r => String(r.task_number) === String(parentTaskNumber)) : null;
-                  if (parentHeader) {
-                    return (
-                      <Badge variant="outline" className="text-xs font-normal">
-                        Part of: {parentHeader.name}
-                      </Badge>
-                    );
-                  }
-                  return null;
-                })()}
-              </DialogTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                {editingRow?.name} (Task #{editingRow?.task_number})
-                {editingRow?.sm_template_ids && editingRow.sm_template_ids.length > 0 && (
-                  <span className="ml-2 text-xs">
-                    • Template: {editingRow.sm_template_ids
-                      .map((item: number | { id: number; display?: string }) => {
-                        // Handle both plain IDs and lookup objects {id, display}
-                        const id = typeof item === 'object' ? item.id : item;
-                        return templates.find(t => t.id === id)?.name || `#${id}`;
-                      })
-                      .join(', ')}
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* Auto-save status indicator */}
-              <div className="flex items-center text-sm">
-                {autoSaveStatus === 'saving' && (
-                  <span className="flex items-center text-muted-foreground">
-                    <Spinner size={16} className="mr-2" />
-                    Saving...
-                  </span>
-                )}
-                {autoSaveStatus === 'saved' && (
-                  <span className="flex items-center text-green-600 dark:text-green-500">
-                    <Check className="h-4 w-4 mr-2" />
-                    Saved
-                  </span>
-                )}
-                {autoSaveStatus === 'error' && (
-                  <span className="flex items-center text-red-600 dark:text-red-500">
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Save failed
-                  </span>
-                )}
-                {autoSaveStatus === 'idle' && (
-                  <span className="text-muted-foreground">Auto-save enabled</span>
-                )}
-              </div>
-              <Button variant="outline" onClick={() => setShowEditSheet(false)}>
-                Close
-              </Button>
-            </div>
-          </div>
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
-            {/* Row 1: Name + Duration + Sequence - full width */}
-            <div className="grid grid-cols-[1fr_80px_80px] gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="row-name" className="text-xs">Name</Label>
-                <Input
-                  id="row-name"
-                  value={editRowForm.name || ""}
-                  onChange={(e) => setEditRowForm({ ...editRowForm, name: e.target.value })}
-                  className="h-8"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="row-duration" className="text-xs">Days</Label>
-                <Input
-                  id="row-duration"
-                  type="number"
-                  value={editRowForm.duration_days || 0}
-                  onChange={(e) => setEditRowForm({ ...editRowForm, duration_days: parseInt(e.target.value) || 0 })}
-                  className="h-8"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="row-sequence" className="text-xs">Seq</Label>
-                <Input
-                  id="row-sequence"
-                  type="number"
-                  step="0.1"
-                  value={editRowForm.sequence_order || 0}
-                  onChange={(e) => setEditRowForm({ ...editRowForm, sequence_order: parseFloat(e.target.value) || 0 })}
-                  className="h-8"
-                />
-              </div>
-            </div>
-            {/* Description - full width */}
-            <div className="space-y-1">
-              <Label htmlFor="row-description" className="text-xs">Description</Label>
-              <Input
-                id="row-description"
-                value={editRowForm.description || ""}
-                onChange={(e) => setEditRowForm({ ...editRowForm, description: e.target.value })}
-                className="h-8"
-                placeholder="Optional description..."
-              />
-            </div>
-            {/* Three-column layout for wider modal */}
-            <div className="grid grid-cols-3 gap-6">
-              {/* Column 1: Basic Settings */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Basic Settings</h4>
-                <div className="space-y-1">
-                  <Label className="text-xs">Trade</Label>
-                  <ComboboxDropdown
-                    items={availableTrades.map(t => ({ id: String(t.id), label: t.name }))}
-                    selectedItem={editRowForm.trade ? { id: editRowForm.trade, label: availableTrades.find(t => String(t.id) === editRowForm.trade)?.name || editingRow?.trade_name || editRowForm.trade } : undefined}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, trade: item.id })}
-                    placeholder="Select trade..."
-                    emptyResults="No trades found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, trade: "" })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Assigned Role</Label>
-                  <ComboboxDropdown
-                    items={availableRoles.map(r => ({ id: String(r.id), label: r.display_name }))}
-                    selectedItem={editRowForm.assigned_role ? { id: editRowForm.assigned_role, label: availableRoles.find(r => String(r.id) === editRowForm.assigned_role)?.display_name || editRowForm.assigned_role } : undefined}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, assigned_role: item.id })}
-                    placeholder="Select role..."
-                    emptyResults="No roles found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, assigned_role: null })}
-                  />
-                </div>
-                <div className="pt-2 border-t">
-                  <h4 className="font-medium text-sm mb-2">PO Settings</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-po-required"
-                        checked={editRowForm.po_required || false}
-                        onCheckedChange={(checked) => {
-                          if (!checked && !editRowForm.create_po_on_job_start) {
-                            setEditRowForm({
-                              ...editRowForm,
-                              po_required: checked,
-                              spawn_order_task: false,
-                              spawn_call_task: false,
-                              order_time_days: undefined,
-                              call_time_days: undefined,
-                            });
-                          } else {
-                            setEditRowForm({ ...editRowForm, po_required: checked });
-                          }
-                        }}
-                      />
-                      <Label htmlFor="row-po-required" className="text-xs">PO Required</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-critical-po"
-                        checked={editRowForm.critical_po || false}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, critical_po: checked })}
-                      />
-                      <Label htmlFor="row-critical-po" className="text-xs">Critical PO</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-create-po"
-                        checked={editRowForm.create_po_on_job_start || false}
-                        onCheckedChange={(checked) => {
-                          if (!checked && !editRowForm.po_required) {
-                            setEditRowForm({
-                              ...editRowForm,
-                              create_po_on_job_start: checked,
-                              spawn_order_task: false,
-                              spawn_call_task: false,
-                              order_time_days: undefined,
-                              call_time_days: undefined,
-                            });
-                          } else {
-                            setEditRowForm({ ...editRowForm, create_po_on_job_start: checked });
-                          }
-                          if (checked && !editingRow?.po_supplier_id) {
-                            handleOpenAutoPODialog();
-                          }
-                        }}
-                      />
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="row-create-po" className="text-xs">Auto-PO on Start</Label>
-                        {editRowForm.create_po_on_job_start && (
-                          <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={handleOpenAutoPODialog}>
-                            Edit
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-spawn-order"
-                        checked={editRowForm.spawn_order_task || false}
-                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_order_task: checked })}
-                      />
-                      <Label htmlFor="row-spawn-order" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
-                        Spawn Order Task
-                      </Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-spawn-call"
-                        checked={editRowForm.spawn_call_task || false}
-                        disabled={!(editRowForm.po_required || editRowForm.create_po_on_job_start)}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, spawn_call_task: checked })}
-                      />
-                      <Label htmlFor="row-spawn-call" className={`text-xs ${!(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
-                        Spawn Call Task
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-                <div className="pt-2 border-t">
-                  <h4 className="font-medium text-sm mb-2">Completion</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-require-photo"
-                        checked={editRowForm.require_photo || false}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_photo: checked })}
-                      />
-                      <Label htmlFor="row-require-photo" className="text-xs">Require Photo</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-pass-fail"
-                        checked={editRowForm.pass_fail_enabled || false}
-                        onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, pass_fail_enabled: checked })}
-                      />
-                      <div>
-                        <Label htmlFor="row-pass-fail" className="text-xs">Pass/Fail</Label>
-                        <p className="text-[10px] text-muted-foreground">Spawns re-inspect if failed</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Claim Settings - SSoT: Schedule Master defines job claims */}
-                <div className="pt-2 border-t">
-                  <h4 className="font-medium text-sm mb-2">Claim Settings</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="row-is-claim-task"
-                        checked={editRowForm.is_claim_task || false}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            // Auto-select default template if none selected
-                            const defaultTemplate = claimInvoiceTemplates.find(t => t.is_default);
-                            const templateId = editRowForm.claim_invoice_template_id || defaultTemplate?.id || null;
-                            setEditRowForm({
-                              ...editRowForm,
-                              is_claim_task: checked,
-                              claim_invoice_template_id: templateId,
-                            });
-                            // Load preview if template selected
-                            if (templateId) {
-                              loadTemplatePreview(templateId, { taskName: editRowForm.name });
-                            }
-                          } else {
-                            // Clear claim fields when unchecked
-                            setEditRowForm({
-                              ...editRowForm,
-                              is_claim_task: false,
-                              is_variation: false,
-                              claim_percentage: null,
-                              claim_invoice_pattern: null,
-                              claim_invoice_template_id: null,
-                              claim_trading_name_id: null,
-                            });
-                            setTemplatePreviewHtml(null);
-                          }
-                        }}
-                      />
-                      <div>
-                        <Label htmlFor="row-is-claim-task" className="text-xs">Is Claim Task</Label>
-                        <p className="text-[10px] text-muted-foreground">Creates JobClaimStage on job</p>
-                      </div>
-                    </div>
-                    {editRowForm.is_claim_task && (
-                      <div className="space-y-3 pl-6 border-l-2 border-muted">
-                        {/* Variation checkbox - skips percentage requirement */}
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="row-is-variation"
-                            checked={editRowForm.is_variation || false}
-                            onCheckedChange={(checked) => {
-                              setEditRowForm({
-                                ...editRowForm,
-                                is_variation: checked === true,
-                                claim_percentage: checked === true ? null : editRowForm.claim_percentage,
-                              });
-                            }}
-                          />
-                          <div>
-                            <Label htmlFor="row-is-variation" className="text-xs">Variation</Label>
-                            <p className="text-[10px] text-muted-foreground">Amount entered later (no % needed)</p>
-                          </div>
-                        </div>
-
-                        {/* Percentage - only shown if not a variation */}
-                        {!editRowForm.is_variation && (
-                        <div className="space-y-1">
-                          <Label htmlFor="row-claim-percentage" className="text-xs">Claim Percentage *</Label>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              id="row-claim-percentage"
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={0.01}
-                              value={editRowForm.claim_percentage || ""}
-                              onChange={(e) => setEditRowForm({ ...editRowForm, claim_percentage: e.target.value ? parseFloat(e.target.value) : null })}
-                              className="h-8 w-24"
-                              placeholder="15.00"
-                            />
-                            <span className="text-xs text-muted-foreground">%</span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">Percentage of contract price</p>
-                        </div>
-                        )}
-
-                        {/* Trading Name Selector */}
-                        <div className="space-y-1">
-                          <Label className="text-xs">Trading Name</Label>
-                          <ComboboxDropdown
-                            items={tradingNames.map(tn => ({ id: String(tn.id), label: tn.name }))}
-                            selectedItem={editRowForm.claim_trading_name_id ? {
-                              id: String(editRowForm.claim_trading_name_id),
-                              label: tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name || `ID ${editRowForm.claim_trading_name_id}`
-                            } : undefined}
-                            onSelect={(item) => setEditRowForm({ ...editRowForm, claim_trading_name_id: parseInt(item.id) })}
-                            placeholder="Select trading name..."
-                            emptyResults="No trading names found"
-                            clearable
-                            onClear={() => setEditRowForm({ ...editRowForm, claim_trading_name_id: null })}
-                          />
-                          <p className="text-[10px] text-muted-foreground">Company name shown on claim invoice</p>
-                        </div>
-
-                        {/* Invoice Match Pattern */}
-                        <div className="space-y-1">
-                          <Label htmlFor="row-claim-invoice-pattern" className="text-xs">Invoice Match Pattern</Label>
-                          <Input
-                            id="row-claim-invoice-pattern"
-                            type="text"
-                            value={editRowForm.claim_invoice_pattern || ""}
-                            onChange={(e) => setEditRowForm({ ...editRowForm, claim_invoice_pattern: e.target.value || null })}
-                            className="h-8"
-                            placeholder="e.g., Deposit, Slab, Frame..."
-                          />
-                          <p className="text-[10px] text-muted-foreground">Pattern to auto-match Xero invoices to this claim stage</p>
-                        </div>
-
-                        {/* Invoice Template Selector */}
-                        <div className="space-y-2">
-                          <Label className="text-xs">Invoice Template</Label>
-                          <div className="grid grid-cols-1 gap-2">
-                            {claimInvoiceTemplates.map((template) => (
-                              <div
-                                key={template.id}
-                                onClick={() => {
-                                  setEditRowForm({ ...editRowForm, claim_invoice_template_id: template.id });
-                                  // Load preview with current form values for realistic preview
-                                  const tradingName = editRowForm.claim_trading_name_id
-                                    ? tradingNames.find(tn => tn.id === editRowForm.claim_trading_name_id)?.name
-                                    : undefined;
-                                  loadTemplatePreview(template.id, {
-                                    tradingName,
-                                    claimPercentage: editRowForm.claim_percentage || undefined,
-                                    taskName: editRowForm.name,
-                                  });
-                                }}
-                                className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                                  editRowForm.claim_invoice_template_id === template.id
-                                    ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                    : "border-border hover:border-primary/50"
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  {/* Color swatch preview */}
-                                  <div
-                                    className="w-8 h-8 rounded flex-shrink-0"
-                                    style={{
-                                      background: `linear-gradient(135deg, ${template.primary_color} 0%, ${template.primary_color} 60%, ${template.secondary_color} 100%)`
-                                    }}
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{template.name}</p>
-                                    <p className="text-[10px] text-muted-foreground truncate">{template.description}</p>
-                                  </div>
-                                  {template.is_default && (
-                                    <Badge variant="secondary" className="text-[10px] flex-shrink-0">Default</Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          {claimInvoiceTemplates.length === 0 && (
-                            <p className="text-[10px] text-muted-foreground">No templates available</p>
-                          )}
-                        </div>
-
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Column 2: Classification + Invoice Preview */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Classification</h4>
-                <div className="space-y-1">
-                  <Label className="text-xs">Stage</Label>
-                  <ComboboxDropdown
-                    items={availableStages.map(s => ({ id: String(s.id), label: s.name }))}
-                    selectedItem={editRowForm.stage ? { id: editRowForm.stage, label: availableStages.find(s => String(s.id) === editRowForm.stage)?.name || editingRow?.stage_name || editRowForm.stage } : undefined}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, stage: item.id })}
-                    placeholder="Select stage..."
-                    emptyResults="No stages found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, stage: "" })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Cost Centre</Label>
-                  <ComboboxDropdown
-                    items={availableCostCentres.map(c => ({ id: String(c.id), label: c.name }))}
-                    selectedItem={editRowForm.cost_centre ? { id: editRowForm.cost_centre, label: availableCostCentres.find(c => String(c.id) === editRowForm.cost_centre)?.name || editRowForm.cost_centre } : undefined}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, cost_centre: item.id })}
-                    placeholder="Cost centre..."
-                    emptyResults="No cost centres found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
-                  />
-                </div>
-
-                {/* Invoice Template Preview - shown when claim task has template selected */}
-                {editRowForm.is_claim_task && editRowForm.claim_invoice_template_id && (
-                  <div className="pt-3 border-t space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs">Invoice Preview</Label>
-                      {loadingTemplatePreview && <Spinner size={14} />}
-                    </div>
-                    {templatePreviewHtml && !loadingTemplatePreview && (
-                      <div
-                        className="border rounded-lg bg-white overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-                        style={{ height: "280px", overflow: "hidden" }}
-                        onDoubleClick={() => setShowFullPreview(true)}
-                        title="Double-click for full size"
-                      >
-                        <div
-                          style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "286%", pointerEvents: "none" }}
-                          dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
-                        />
-                      </div>
-                    )}
-                    {templatePreviewHtml && !loadingTemplatePreview && (
-                      <p className="text-[10px] text-muted-foreground text-center">Double-click to enlarge</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Column 3: Relationships & Header */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Relationships</h4>
-                <div className="space-y-1">
-                  <Label className="text-xs">Header Gantt</Label>
-                  <ComboboxDropdown
-                    items={availableHeaderRows.map(h => ({ id: String(h.task_number), label: h.name }))}
-                    selectedItem={(() => {
-                      // SSoT: header_gantt stores task_number (not id)
-                      const headerTaskNum = extractLookupId(editRowForm.header_gantt);
-                      if (!headerTaskNum || headerTaskNum === 'Header') return undefined;  // Skip if "Header" marker
-                      const headerName = availableHeaderRows.find(h => String(h.task_number) === headerTaskNum)?.name
-                        || extractLookupDisplay(editingRow?.header_gantt)
-                        || headerTaskNum;
-                      return { id: headerTaskNum, label: headerName };
-                    })()}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, header_gantt: item.id })}
-                    placeholder="Select header..."
-                    emptyResults="No header rows found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, header_gantt: null })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Checklist</Label>
-                  <ComboboxDropdown
-                    items={availableChecklists.map(c => ({ id: String(c.id), label: c.name }))}
-                    selectedItem={(() => {
-                      const checklistId = extractLookupId(editRowForm.checklist_id);
-                      if (!checklistId) return undefined;
-                      const checklistName = availableChecklists.find(c => String(c.id) === checklistId)?.name
-                        || extractLookupDisplay(editingRow?.checklist_id)
-                        || checklistId;
-                      return { id: checklistId, label: checklistName };
-                    })()}
-                    onSelect={(item) => setEditRowForm({ ...editRowForm, checklist_id: Number(item.id) })}
-                    placeholder="Select checklist..."
-                    emptyResults="No checklists found"
-                    clearable
-                    onClear={() => setEditRowForm({ ...editRowForm, checklist_id: null })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Spawn Scan Task</Label>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <ComboboxDropdown
-                        items={availableDocumentTypes.map(dt => ({ id: String(dt.id), label: dt.name }))}
-                        selectedItem={(() => {
-                          const firstDocType = editRowForm.document_types?.[0];
-                          if (!firstDocType) return undefined;
-                          const docType = availableDocumentTypes.find(dt => dt.id === firstDocType.document_type_id);
-                          return {
-                            id: String(firstDocType.document_type_id),
-                            label: docType?.name || firstDocType.document_type_name
-                          };
-                        })()}
-                        onSelect={(item) => setEditRowForm({
-                          ...editRowForm,
-                          document_types: [{
-                            id: editRowForm.document_types?.[0]?.id || 0,
-                            document_type_id: Number(item.id),
-                            document_type_name: item.label,
-                            lag_days: editRowForm.document_types?.[0]?.lag_days || 0
-                          }]
-                        })}
-                        placeholder="Select document type..."
-                        emptyResults="No document types found"
-                        clearable
-                        onClear={() => setEditRowForm({ ...editRowForm, document_types: [] })}
-                      />
-                    </div>
-                    <div className="w-16">
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="0"
-                        title="Days after task completion before spawning document task"
-                        value={editRowForm.document_types?.[0]?.lag_days || 0}
-                        onChange={(e) => {
-                          const lagDays = parseInt(e.target.value) || 0;
-                          const currentDocType = editRowForm.document_types?.[0];
-                          if (currentDocType) {
-                            setEditRowForm({
-                              ...editRowForm,
-                              document_types: [{
-                                ...currentDocType,
-                                lag_days: lagDays
-                              }]
-                            });
-                          }
-                        }}
-                        disabled={!editRowForm.document_types?.[0]}
-                      />
-                    </div>
-                  </div>
-                  {/* Preview of spawn behavior */}
-                  {editRowForm.document_types?.[0]?.document_type_id ? (() => {
-                    const docType = availableDocumentTypes.find(dt => dt.id === editRowForm.document_types![0].document_type_id);
-                    const formNumbers = docType?.form_number_mapping ? Object.values(docType.form_number_mapping) : [];
-                    const uniqueFormNumbers = [...new Set(formNumbers)].filter(Boolean);
-                    const formNumberDisplay = uniqueFormNumbers.length > 0
-                      ? ` ${uniqueFormNumbers.join('/')}`
-                      : '';
-
-                    return (
-                      <div className="text-xs bg-muted/50 rounded px-2 py-1.5 border border-dashed">
-                        <span className="text-muted-foreground">When completed → </span>
-                        <span className="font-medium text-foreground">
-                          GET - {(editRowForm.document_types![0].document_type_name || 'Scan task')
-                            .replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\s*/g, '')
-                            .replace(/\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\s*/g, '')
-                            .replace(/\s*\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{2,4}\s*/gi, '')
-                            .trim()}{formNumberDisplay}
-                        </span>
-                        {(editRowForm.document_types![0].lag_days || 0) > 0 && (
-                          <span className="text-muted-foreground">
-                            {' '}spawns in {editRowForm.document_types![0].lag_days} day{editRowForm.document_types![0].lag_days !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                        {(editRowForm.document_types![0].lag_days || 0) === 0 && (
-                          <span className="text-muted-foreground"> spawns immediately</span>
-                        )}
-                      </div>
-                    );
-                  })() : (
-                    <p className="text-xs text-muted-foreground">Select a document type to spawn a scan task on completion</p>
-                  )}
-                </div>
-                {/* Allow Header */}
-                <div className="flex items-center gap-2 pt-2 border-t">
-                  <Switch
-                    id="row-allow-header"
-                    checked={editRowForm.allow_header || false}
-                    disabled={editRowForm.po_required || editRowForm.create_po_on_job_start}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        // Clear header_gantt field when becoming a header
-                        setEditRowForm({ ...editRowForm, allow_header: checked, header_gantt: null });
-                      } else {
-                        setEditRowForm({ ...editRowForm, allow_header: checked });
-                      }
-                    }}
-                  />
-                  <div>
-                    <Label htmlFor="row-allow-header" className={`text-xs ${(editRowForm.po_required || editRowForm.create_po_on_job_start) ? "text-muted-foreground" : ""}`}>
-                      Allow Header
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground">Can be selected as parent for other tasks</p>
-                  </div>
-                  {editRowForm.allow_header && editingRow && (() => {
-                    const children = dataViewRows.filter(r => {
-                      const parentId = extractLookupId(r.header_gantt);
-                      return parentId && String(parentId) === String(editingRow.task_number);
-                    });
-                    const childCount = children.length;
-                    const subHeaderCount = children.filter(c => c.allow_header).length;
-
-                    return (
-                      <div className="flex items-center gap-1">
-                        <Badge className="text-[10px] bg-blue-500">Header</Badge>
-                        <Badge variant="outline" className="text-[10px]">
-                          {childCount} {childCount === 1 ? 'child' : 'children'}
-                        </Badge>
-                        {subHeaderCount > 0 && (
-                          <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-500">
-                            {subHeaderCount} sub-header{subHeaderCount !== 1 ? 's' : ''}
-                          </Badge>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-                {/* Child Tasks - shown when Allow Header is enabled */}
-                {editRowForm.allow_header && editingRow && (
-                  <div className="pt-2 border-t">
-                    <Label className="text-xs">Child Tasks ({dataViewRows.filter(r => {
-                      const parentId = extractLookupId(r.header_gantt);
-                      return parentId && String(parentId) === String(editingRow.task_number);
-                    }).length} grouped under this header)</Label>
-                    <MultipleSelector
-                      value={dataViewRows
-                        .filter(r => {
-                          const parentId = extractLookupId(r.header_gantt);
-                          return parentId && String(parentId) === String(editingRow.task_number);
-                        })
-                        .map(r => ({ value: String(r.id), label: r.name }))}
-                      onChange={async (options) => {
-                        // Get current children IDs
-                        const currentChildIds = dataViewRows
-                          .filter(r => {
-                            const parentId = extractLookupId(r.header_gantt);
-                            return parentId && String(parentId) === String(editingRow.task_number);
-                          })
-                          .map(r => r.id);
-                        const newChildIds = options.map(o => parseInt(o.value));
-
-                        // Find added and removed children
-                        const addedIds = newChildIds.filter(id => !currentChildIds.includes(id));
-                        const removedIds = currentChildIds.filter(id => !newChildIds.includes(id));
-
-                        // Update children's header_gantt field
-                        // SSoT: header_gantt stores task_number (not id) to match Gantt rendering
-                        try {
-                          // Add new children
-                          for (const childId of addedIds) {
-                            await api.patch(`/api/v1/foundations/sm-schedule-master/records/${childId}`, {
-                              header_gantt: editingRow.task_number
-                            });
-                          }
-                          // Remove old children (clear their header_gantt)
-                          for (const childId of removedIds) {
-                            await api.patch(`/api/v1/foundations/sm-schedule-master/records/${childId}`, {
-                              header_gantt: null
-                            });
-                          }
-                          // Refresh the data to show updated relationships
-                          await loadDataViewRows(dataViewTemplateId);
-                        } catch (error) {
-                          console.error("Failed to update child tasks:", error);
-                          toast({
-                            title: "Error",
-                            description: "Failed to update child tasks",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                      defaultOptions={dataViewRows
-                        .filter(r => {
-                          // Exclude: this task and tasks that already have a different header
-                          if (r.id === editingRow.id) return false;
-                          // Note: Headers CAN be children (sub-headers) - e.g., DRIVEWAY under SITE COSTS
-                          const parentId = extractLookupId(r.header_gantt);
-                          // Include if no parent or parent is this task
-                          return !parentId || String(parentId) === String(editingRow.task_number);
-                        })
-                        .map(r => ({
-                          value: String(r.id),
-                          label: r.name
-                        }))}
-                      placeholder="Select child tasks..."
-                      emptyIndicator={
-                        <p className="text-center text-xs text-muted-foreground">
-                          No available tasks to add as children
-                        </p>
-                      }
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      These tasks will be grouped under this header in the Gantt chart
-                    </p>
-                  </div>
-                )}
-                {/* Active Status */}
-                <div className="flex items-center gap-2 pt-2 border-t">
-                  <Switch
-                    id="row-is-active"
-                    checked={editRowForm.is_active !== false}
-                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, is_active: checked })}
-                  />
-                  <div>
-                    <Label htmlFor="row-is-active" className="text-xs">
-                      Active
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground">Inactive tasks won't appear in new jobs</p>
-                  </div>
-                  {editRowForm.is_active === false && (
-                    <Badge variant="destructive" className="text-[10px]">Inactive</Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Template Membership - Multi-template support */}
-            <div className="border-t pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-xs">Template Membership</Label>
-                {/* Copy to Template dropdown */}
-                <div className="flex items-center gap-2">
-                  <ComboboxDropdown
-                    items={templates
-                      .filter(t => !(editRowForm.sm_template_ids || []).includes(t.id))
-                      .map(t => ({ id: String(t.id), label: t.name }))}
-                    onSelect={async (item) => {
-                      if (!editingRow) return;
-                      try {
-                        const result = await api.post(`/api/v1/sm_schedule_master_templates/${item.id}/rows`, {
-                          row: {
-                            copy_from_id: editingRow.id,
-                          },
-                        });
-                        if (result) {
-                          toast({ title: "Copied", description: `Task copied to ${item.label}` });
-                          // Refresh data views
-                          setDataViewRefreshKey(prev => prev + 1);
-                          loadDataViewRows(dataViewTemplateId);
-                        }
-                      } catch (error) {
-                        console.error("Failed to copy task:", error);
-                        toast({ title: "Error", description: "Failed to copy task", variant: "destructive" });
-                      }
-                    }}
-                    placeholder="Copy to template..."
-                    emptyResults="No other templates"
-                    className="w-48 h-7 text-xs"
-                  />
-                </div>
-              </div>
-              <MultipleSelector
-                value={(editRowForm.sm_template_ids || []).map(id => {
-                  const template = templates.find(t => t.id === id);
-                  return { value: String(id), label: template?.name || `Template ${id}` };
-                })}
-                onChange={(options) => {
-                  setEditRowForm({
-                    ...editRowForm,
-                    sm_template_ids: options.map(o => parseInt(o.value))
-                  });
-                }}
-                defaultOptions={templates.map(t => ({
-                  value: String(t.id),
-                  label: t.name
-                }))}
-                placeholder="Select templates this task belongs to..."
-                emptyIndicator={
-                  <p className="text-center text-xs text-muted-foreground">
-                    No templates available
-                  </p>
-                }
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                This task will appear in all selected templates. Changes sync across templates.
-              </p>
-            </div>
-
-            {/* Linked Tasks - only shown when PO Required is on */}
-            {editRowForm.po_required && (
-              <div className="border-t pt-3">
-                <Label className="text-xs">Linked Tasks (appear when this PO task is included)</Label>
-                <MultipleSelector
-                  value={(editRowForm.linked_task_ids || []).map(id => {
-                    const linkedRow = dataViewRows.find(r => r.id === id);
-                    return { value: String(id), label: linkedRow?.name || `Task ${id}` };
-                  })}
-                  onChange={(options) => {
-                    setEditRowForm({
-                      ...editRowForm,
-                      linked_task_ids: options.map(o => parseInt(o.value))
-                    });
-                  }}
-                  defaultOptions={dataViewRows
-                    .filter(r => !r.po_required && r.id !== editingRow?.id)
-                    .map(r => ({
-                      value: String(r.id),
-                      label: r.name
-                    }))}
-                  placeholder="Select tasks to link..."
-                  emptyIndicator={
-                    <p className="text-center text-xs text-muted-foreground">
-                      No non-PO tasks available
-                    </p>
-                  }
-                />
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* SSoT: Row Edit Dialog using shared EditRowDialog component */}
+      <EditRowDialog
+        open={showEditSheet}
+        onOpenChange={setShowEditSheet}
+        row={selectedRowForEdit}
+        onSave={handleEditRowSave}
+        onRefresh={handleEditRowRefresh}
+        trades={availableTrades}
+        roles={availableRoles}
+        stages={availableStages}
+        costCentres={availableCostCentres}
+        checklists={availableChecklists}
+        documentTypes={availableDocumentTypes}
+        tradingNames={tradingNames}
+        invoiceTemplates={claimInvoiceTemplates}
+        headerRows={availableHeaderRows}
+        allRows={dataViewRows.map(r => convertToEditRowData(r))}
+        showTemplateSection={true}
+        templates={templates}
+        onCopyToTemplate={handleCopyToTemplate}
+        onChildTaskUpdate={handleChildTaskHeaderUpdate}
+        onOpenAutoPODialog={() => setShowAutoPODialog(true)}
+      />
 
       {/* Full-Size Invoice Preview Dialog */}
       <Dialog open={showFullPreview} onOpenChange={setShowFullPreview}>

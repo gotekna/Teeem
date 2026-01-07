@@ -44,11 +44,11 @@ interface SupplierItem {
   employeeNames: string[];
 }
 
-interface TaskTemplate {
+// Trade represents a task category from sm_trades (SSoT for PO task types)
+// Previously used TaskTemplate table which was dropped - sm_trades is now THE ONE
+interface Trade {
   id: number;
   name: string;
-  category?: string;
-  default_duration_days?: number;
 }
 
 interface JobPurchaseOrdersTabProps {
@@ -64,15 +64,15 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
+  const [trades, setTrades] = useState<Trade[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
-  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [loadingTrades, setLoadingTrades] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [customTaskName, setCustomTaskName] = useState("");
 
   // Handle row click - navigate to PO detail page
@@ -114,28 +114,35 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  const loadTaskTemplates = async () => {
-    if (taskTemplates.length > 0) return;
+  // Load trades from sm_trades foundation (SSoT for PO task categories)
+  // Note: task_templates table was dropped - sm_trades is now THE ONE
+  const loadTrades = async () => {
+    if (trades.length > 0) return;
     try {
-      setLoadingTasks(true);
-      const response = await api.get<{ task_templates: TaskTemplate[] }>(
-        `/api/v1/task_templates`
+      setLoadingTrades(true);
+      // Use Foundation API for sm_trades
+      const response = await api.get<{ records: Trade[] }>(
+        `/api/v1/foundations/sm_trades/records?per_page=200`
       );
-      setTaskTemplates(response?.task_templates || []);
+      // Sort by name for easier selection
+      const sortedTrades = (response?.records || []).sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+      setTrades(sortedTrades);
     } catch (err) {
-      console.error("Failed to load task templates:", err);
+      console.error("Failed to load trades:", err);
     } finally {
-      setLoadingTasks(false);
+      setLoadingTrades(false);
     }
   };
 
   const handleOpenCreateModal = async () => {
     setError(null);
     setSelectedContact(null);
-    setSelectedTemplate(null);
+    setSelectedTrade(null);
     setCustomTaskName("");
     setShowCreateModal(true);
-    await Promise.all([loadContacts(), loadTaskTemplates()]);
+    await Promise.all([loadContacts(), loadTrades()]);
   };
 
   const handleCreate = async () => {
@@ -143,20 +150,20 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setError("Please select a supplier");
       return;
     }
-    if (!selectedTemplate && !customTaskName.trim()) {
-      setError("Please select a task template or enter a custom task name");
+    if (!selectedTrade && !customTaskName.trim()) {
+      setError("Please select a trade or enter a custom task name");
       return;
     }
 
     try {
       setSaving(true);
       setError(null);
+      // Use ted_task field for the trade/task name (SSoT for PO task category)
       await api.post(`/api/v1/purchase_orders`, {
         purchase_order: {
           job_id: jobId,
           supplier_id: selectedContact.id,
-          task_template_id: selectedTemplate?.id || null,
-          task_name: selectedTemplate ? null : customTaskName.trim(),
+          ted_task: selectedTrade?.name || customTaskName.trim(),
           status: "draft",
         },
       });
@@ -293,30 +300,30 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               />
             </div>
 
-            {/* Task Template Select */}
+            {/* Trade Select (Task Category) */}
             <div className="space-y-2">
-              <Label>Task Template</Label>
+              <Label>Trade</Label>
               <ComboboxDropdown
-                items={taskTemplates.map((template) => ({
-                  id: String(template.id),
-                  label: template.name,
+                items={trades.map((trade) => ({
+                  id: String(trade.id),
+                  label: trade.name,
                 }))}
-                selectedItem={selectedTemplate ? {
-                  id: String(selectedTemplate.id),
-                  label: selectedTemplate.name,
+                selectedItem={selectedTrade ? {
+                  id: String(selectedTrade.id),
+                  label: selectedTrade.name,
                 } : undefined}
                 onSelect={(item) => {
-                  const template = taskTemplates.find((t) => String(t.id) === item.id);
-                  setSelectedTemplate(template || null);
-                  if (template) setCustomTaskName(""); // Clear custom name when template selected
+                  const trade = trades.find((t) => String(t.id) === item.id);
+                  setSelectedTrade(trade || null);
+                  if (trade) setCustomTaskName(""); // Clear custom name when trade selected
                 }}
-                placeholder={loadingTasks ? "Loading templates..." : "Select task template..."}
-                searchPlaceholder="Search templates..."
-                emptyResults={taskTemplates.length === 0 ? "No task templates available" : "No template found."}
-                disabled={loadingTasks || !!customTaskName}
-                isLoading={loadingTasks}
+                placeholder={loadingTrades ? "Loading trades..." : "Select trade..."}
+                searchPlaceholder="Search trades..."
+                emptyResults={trades.length === 0 ? "No trades available" : "No trade found."}
+                disabled={loadingTrades || !!customTaskName}
+                isLoading={loadingTrades}
                 clearable
-                onClear={() => setSelectedTemplate(null)}
+                onClear={() => setSelectedTrade(null)}
               />
             </div>
 
@@ -334,13 +341,13 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 value={customTaskName}
                 onChange={(e) => {
                   setCustomTaskName(e.target.value);
-                  if (e.target.value) setSelectedTemplate(null); // Clear template when typing custom name
+                  if (e.target.value) setSelectedTrade(null); // Clear trade when typing custom name
                 }}
                 placeholder="Enter custom task name..."
-                disabled={!!selectedTemplate}
+                disabled={!!selectedTrade}
               />
               <p className="text-xs text-muted-foreground">
-                Use this if no template matches your needs
+                Use this if no trade matches your needs
               </p>
             </div>
           </div>
