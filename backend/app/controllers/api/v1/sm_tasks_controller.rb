@@ -758,87 +758,37 @@ module Api
       end
 
       # POST /api/v1/sm_tasks/:id/attachments/upload
-      # Upload a file and attach it to the task
+      # Upload a file and attach it to the task using ActiveStorage
       def upload_attachment
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
         end
 
         file = params[:file]
-        filename = file.original_filename
-        content = file.read
 
-        # Determine folder path - use job folder if task has job, otherwise general tasks folder
-        if @task.job.present?
-          folder_path = "TEEEM Jobs/#{@task.job.name}/Task Attachments"
-        else
-          folder_path = "TEEEM Tasks/Task #{@task.task_number}"
-        end
-
-        # Upload to SharePoint
         begin
-          # Get organization credential - use 'tekna' as default (SSoT for org)
-          org = Organization.find_by(slug: 'tekna') || Organization.first
-          credential = MicrosoftCredential.active_for_org(org)
-
-          unless credential&.connected?
-            return render json: { success: false, error: "Microsoft not connected" }, status: :unprocessable_entity
-          end
-
-          graph_client = MicrosoftAppGraphClient.new(credential)
-
-          # Find TEEEM site dynamically (same pattern used elsewhere in codebase)
-          sites = graph_client.list_sharepoint_sites(search: "TEEEM")
-          teeem_site = sites.find { |s| s[:display_name]&.include?("TEEEM") || s[:name]&.include?("teeem") }
-
-          unless teeem_site
-            return render json: { success: false, error: "TEEEM SharePoint site not found" }, status: :unprocessable_entity
-          end
-
-          drives = graph_client.get_site_drives(teeem_site[:id])
-          documents_drive = drives.find { |d| d[:name] == "Documents" || d[:name] == "Shared Documents" }
-
-          unless documents_drive
-            return render json: { success: false, error: "Documents drive not found" }, status: :unprocessable_entity
-          end
-
-          site_id = teeem_site[:id]
-          drive_id = documents_drive[:id]
-
-          upload_result = graph_client.upload_file_content(
-            site_id,
-            drive_id,
-            folder_path,
-            filename,
-            content
-          )
-
-          # Create a CorporateCompanyDocument record
-          document = CorporateCompanyDocument.create!(
-            file_name: filename,
-            display_name: filename,
-            file_url: upload_result[:web_url],
-            file_size: content.bytesize,
-            mime_type: file.content_type,
-            sharepoint_file_id: upload_result[:id],
-            sharepoint_download_url: upload_result[:web_url],
-            document_type: "task_attachment",
-            folder: "Task Attachments",
-            filed_by: current_user&.name,
-            job_id: @task.job_id
-          )
-
-          # Create the attachment link
-          attachment = @task.sm_task_attachments.create!(
-            attachable: document,
-            attachment_type: "document",
-            notes: params[:notes],
-            added_by: current_user
-          )
+          # Attach file directly to task using ActiveStorage
+          @task.files.attach(file)
+          attached_file = @task.files.last
 
           render json: {
             success: true,
-            attachment: attachment_to_json(attachment)
+            attachment: {
+              id: attached_file.id,
+              attachment_type: "upload",
+              notes: params[:notes],
+              added_by: current_user&.name,
+              created_at: attached_file.created_at,
+              document: {
+                id: attached_file.id,
+                file_name: attached_file.filename.to_s,
+                display_name: attached_file.filename.to_s,
+                file_size: attached_file.byte_size,
+                content_type: attached_file.content_type,
+                created_at: attached_file.created_at,
+                url: Rails.application.routes.url_helpers.rails_blob_url(attached_file, only_path: true)
+              }
+            }
           }
         rescue => e
           Rails.logger.error "[SmTasksController#upload_attachment] Failed: #{e.message}"
