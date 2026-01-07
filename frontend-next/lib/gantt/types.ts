@@ -581,24 +581,30 @@ export function convertRowToTask(
   let startDate: Date;
   let endDate: Date;
 
-  // SSoT: If backend provided calculated dates (gantt_data endpoint), use them directly
-  // This handles forward-referencing predecessors correctly via topological sort
-  if (row.start_date && row.end_date) {
+  // Check if task is LOCKED - locked tasks NEVER recalculate from predecessors
+  // Lock types: Confirmed, Supplier Confirmed, Finance Approved, Completed
+  const isLocked = row.confirm || row.supplier_confirm ||
+                   row.finance_approved || row.is_completed;
+
+  // SSoT: Backend gantt_data endpoint calculates dates correctly using topological sort
+  // Always use backend dates when provided - they account for dependencies correctly
+  // Frontend calculation is only a fallback for when backend doesn't provide dates
+  const shouldUseBackendDates = row.start_date && row.end_date;
+
+  // Only used in fallback path when backend doesn't provide dates
+  const hasDependencies = taskDateMap && row.predecessor_ids?.length > 0;
+
+  if (shouldUseBackendDates && row.start_date && row.end_date) {
     startDate = new Date(row.start_date);
     endDate = new Date(row.end_date);
   } else {
-    // Fallback: calculate dates locally (for rows endpoint or missing dates)
-
-    // Check if task is LOCKED - locked tasks NEVER recalculate from predecessors
-    // Lock types: Confirmed, Supplier Confirmed, Finance Approved, Completed
-    const isLocked = row.confirm || row.supplier_confirm ||
-                     row.finance_approved || row.is_completed;
+    // Calculate dates from dependencies or project start
 
     // If manually positioned OR locked with hold_date, use the manual start date
     // Locked tasks should NEVER move based on predecessor changes
     if ((row.hold || isLocked) && row.hold_date) {
       startDate = skipToNextWorkingDay(new Date(row.hold_date), holidayDates);
-    } else if (taskDateMap && row.predecessor_ids?.length > 0 && !isLocked) {
+    } else if (hasDependencies && !isLocked) {
       // Find the latest required start date from all predecessors
       let latestRequiredStart = projectStartDate;
       for (const pred of row.predecessor_ids) {

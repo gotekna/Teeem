@@ -422,7 +422,8 @@ class SmScheduleMasterTemplateCopyService
       name: claim_name,
       percentage: template_row.claim_percentage,
       expected_amount: expected_amount,
-      invoice_match_pattern: template_row.claim_invoice_pattern,
+      # NOTE: invoice_match_pattern column not yet on job_claim_stages - stored on claim_stage_templates only
+      # invoice_match_pattern: template_row.claim_invoice_pattern,
       sequence_order: sequence_order,
       is_custom: false, # Created from template, not manually
       match_status: "unmatched",
