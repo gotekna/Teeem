@@ -781,13 +781,29 @@ module Api
           org = Organization.find_by(slug: 'tekna') || Organization.first
           credential = MicrosoftCredential.active_for_org(org)
 
-          unless credential&.sharepoint_configured?
-            return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
+          unless credential&.connected?
+            return render json: { success: false, error: "Microsoft not connected" }, status: :unprocessable_entity
           end
 
           graph_client = MicrosoftAppGraphClient.new(credential)
-          site_id = credential.sharepoint_site_id
-          drive_id = credential.sharepoint_drive_id
+
+          # Find TEEEM site dynamically (same pattern used elsewhere in codebase)
+          sites = graph_client.list_sites
+          teeem_site = sites.find { |s| s[:display_name]&.include?("TEEEM") || s[:name]&.include?("teeem") }
+
+          unless teeem_site
+            return render json: { success: false, error: "TEEEM SharePoint site not found" }, status: :unprocessable_entity
+          end
+
+          drives = graph_client.get_site_drives(teeem_site[:id])
+          documents_drive = drives.find { |d| d[:name] == "Documents" || d[:name] == "Shared Documents" }
+
+          unless documents_drive
+            return render json: { success: false, error: "Documents drive not found" }, status: :unprocessable_entity
+          end
+
+          site_id = teeem_site[:id]
+          drive_id = documents_drive[:id]
 
           upload_result = graph_client.upload_file_content(
             site_id,
