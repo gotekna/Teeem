@@ -1132,16 +1132,17 @@ class XeroContactSyncService
 
     payload[:FirstName] = teeem_contact.first_name if teeem_contact.first_name.present?
     payload[:LastName] = teeem_contact.last_name if teeem_contact.last_name.present?
-    payload[:EmailAddress] = teeem_contact.email if teeem_contact.email.present?
+    # SSoT: Use primary_email from contact_emails table
+    payload[:EmailAddress] = teeem_contact.primary_email if teeem_contact.primary_email.present?
     payload[:TaxNumber] = teeem_contact.abn if teeem_contact.abn.present?
 
-    # Add phone numbers
+    # Add phone numbers (SSoT: Use helper methods from contact_phones table)
     phones = []
-    if teeem_contact.mobile_phone.present?
-      phones << { PhoneType: "MOBILE", PhoneNumber: teeem_contact.mobile_phone }
+    if teeem_contact.primary_mobile.present?
+      phones << { PhoneType: "MOBILE", PhoneNumber: teeem_contact.primary_mobile }
     end
-    if teeem_contact.office_phone.present?
-      phones << { PhoneType: "DEFAULT", PhoneNumber: teeem_contact.office_phone }
+    if teeem_contact.primary_office_phone.present?
+      phones << { PhoneType: "DEFAULT", PhoneNumber: teeem_contact.primary_office_phone }
     end
     payload[:Phones] = phones if phones.any?
 
