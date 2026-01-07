@@ -1252,6 +1252,12 @@ export function ScheduleMasterTab() {
       !s.confirm && !s.supplier_confirm && !s.is_completed
     );
 
+    // If no locked successors, just execute move directly - unlocked tasks cascade automatically via SSoT
+    if (lockedSuccessors.length === 0) {
+      await executeGanttV2DragMove(task, newStartDate);
+      return;
+    }
+
     // Reset decisions - default all to 'break'
     const defaultDecisions: Record<number, 'break' | 'cascade'> = {};
     lockedSuccessors.forEach(s => {
@@ -1262,7 +1268,7 @@ export function ScheduleMasterTab() {
     });
     setLockedTaskDecisions(defaultDecisions);
 
-    // Show cascade dialog
+    // Show cascade dialog only when locked tasks need user decision
     setCascadeDialog({
       isOpen: true,
       task,
