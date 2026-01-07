@@ -217,10 +217,13 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 items={contacts.map((contact) => ({
                   id: String(contact.id),
                   label: contact.display_name || `Contact ${contact.id}`,
+                  // Include employee names in searchText so searching "Sandy" finds "Titus Tekform Pty Ltd"
+                  searchText: contact.employee_names?.join(" ") || undefined,
                 }))}
                 selectedItem={selectedContact ? {
                   id: String(selectedContact.id),
                   label: selectedContact.display_name || `Contact ${selectedContact.id}`,
+                  searchText: selectedContact.employee_names?.join(" ") || undefined,
                 } : undefined}
                 onSelect={(item) => {
                   const contact = contacts.find((c) => String(c.id) === item.id);

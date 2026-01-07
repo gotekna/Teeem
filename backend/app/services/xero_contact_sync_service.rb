@@ -225,8 +225,9 @@ class XeroContactSyncService
     teeem_by_xero_link = existing_links.transform_values { |link| Contact.find_by(id: link.contact_id) }
     teeem_by_tax_number = teeem_contacts.select { |c| c.abn.present? }
                                           .group_by(&:abn)
-    teeem_by_email = teeem_contacts.select { |c| c.email.present? }
-                                     .index_by { |c| c.email.downcase.strip }
+    # SSoT: Use primary_email from contact_emails table
+    teeem_by_email = teeem_contacts.select { |c| c.primary_email.present? }
+                                     .index_by { |c| c.primary_email.downcase.strip }
 
     # Process each Xero contact (import from Xero)
     if import_enabled

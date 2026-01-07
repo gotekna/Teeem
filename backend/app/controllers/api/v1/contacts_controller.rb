@@ -266,7 +266,10 @@ module Api
         end
 
         # Add employee names and payment terms for supplier contacts
-        if params[:type] == "suppliers"
+        # Also include for entity_type queries that include companies (for PO supplier selection)
+        entity_types = params[:entity_type].to_s.split(",").map(&:strip)
+        is_company_query = entity_types.intersect?(%w[company trust sole_trader])
+        if params[:type] == "suppliers" || (params[:entity_type].present? && is_company_query)
           supplier_ids = @contacts.map(&:id)
 
           # Performance: Pre-fetch employee counts and names with GROUP BY (avoids N+1)

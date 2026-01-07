@@ -159,13 +159,13 @@ class Contact < ApplicationRecord
     [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence || display_name
   end
 
-  # Phone aliases for document templates
+  # Phone aliases for document templates (SSoT: use contact_phones table)
   def phone
-    mobile_phone.presence || office_phone
+    primary_phone
   end
 
   def mobile
-    mobile_phone
+    primary_mobile
   end
 
   # Company name alias for document templates
@@ -236,6 +236,82 @@ class Contact < ApplicationRecord
 
   def full_address
     primary_street_address&.display_address
+  end
+
+  # ============================================
+  # SSoT: Email Helper Methods
+  # ============================================
+  # contact_emails table is the SSoT for all email data.
+  # Legacy 'email' column is deprecated and scheduled for removal.
+  # These methods read from the SSoT table.
+
+  # Primary email from contact_emails table (cached per request)
+  def primary_email
+    @primary_email ||= contact_emails.find_by(is_primary: true)&.email ||
+                       contact_emails.first&.email
+  end
+
+  # All emails as array
+  def all_emails
+    contact_emails.pluck(:email)
+  end
+
+  # Check if contact has any email
+  def has_email?
+    contact_emails.exists?
+  end
+
+  # Clear cached email (call after modifying contact_emails)
+  def clear_email_cache!
+    @primary_email = nil
+  end
+
+  # ============================================
+  # SSoT: Phone Helper Methods
+  # ============================================
+  # contact_phones table is the SSoT for all phone data.
+  # Legacy 'mobile_phone', 'office_phone', 'fax_phone' columns are
+  # deprecated and scheduled for removal.
+  # These methods read from the SSoT table.
+
+  # Primary mobile phone from contact_phones table (cached per request)
+  def primary_mobile
+    @primary_mobile ||= contact_phones.where(phone_type: 'mobile').find_by(is_primary: true)&.phone_number ||
+                        contact_phones.where(phone_type: 'mobile').first&.phone_number
+  end
+
+  # Primary office phone from contact_phones table
+  def primary_office_phone
+    @primary_office_phone ||= contact_phones.where(phone_type: 'office').find_by(is_primary: true)&.phone_number ||
+                              contact_phones.where(phone_type: 'office').first&.phone_number
+  end
+
+  # Primary fax from contact_phones table
+  def primary_fax
+    @primary_fax ||= contact_phones.where(phone_type: 'fax').find_by(is_primary: true)&.phone_number ||
+                     contact_phones.where(phone_type: 'fax').first&.phone_number
+  end
+
+  # Any phone (preference: mobile > office)
+  def primary_phone
+    primary_mobile.presence || primary_office_phone
+  end
+
+  # Check if contact has any phone
+  def has_phone?
+    contact_phones.exists?
+  end
+
+  # Check if contact has any contact method (email or phone)
+  def has_contact_info?
+    has_email? || has_phone?
+  end
+
+  # Clear all cached phones (call after modifying contact_phones)
+  def clear_phone_cache!
+    @primary_mobile = nil
+    @primary_office_phone = nil
+    @primary_fax = nil
   end
 
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
@@ -314,9 +390,18 @@ class Contact < ApplicationRecord
   # SSoT: Sync mobile_phone to linked user when contact is updated
   after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
 
+  # SSoT: Sync legacy email/phone columns to contact_emails/contact_phones tables
+  # This ensures SSoT tables stay in sync when legacy columns are updated (e.g., from Xero sync)
+  after_save :sync_legacy_email_to_ssot, if: -> { saved_change_to_email? }
+  after_save :sync_legacy_phones_to_ssot, if: -> { saved_change_to_mobile_phone? || saved_change_to_office_phone? || saved_change_to_fax_phone? }
+
   # Scopes
-  scope :with_email, -> { where.not(email: [ nil, "" ]) }
-  scope :with_phone, -> { where.not(mobile_phone: [ nil, "" ]).or(where.not(office_phone: [ nil, "" ])) }
+  # SSoT: Scopes using contact_emails and contact_phones tables
+  scope :with_email, -> { joins(:contact_emails).distinct }
+  scope :with_phone, -> { joins(:contact_phones).distinct }
+  scope :without_email, -> { left_joins(:contact_emails).where(contact_emails: { id: nil }) }
+  scope :without_phone, -> { left_joins(:contact_phones).where(contact_phones: { id: nil }) }
+  scope :without_contact_info, -> { without_email.without_phone }
   # Note: roles is TEXT storing JSON array like '["Employee"]', so use LIKE pattern
   # The pattern matches the role surrounded by quotes to avoid partial matches
   scope :with_role, ->(role) { where("roles LIKE ?", "%\"#{role}\"%") }
@@ -1136,6 +1221,62 @@ class Contact < ApplicationRecord
     Rails.logger.info "[Contact#sync_mobile_to_user] Synced mobile_phone '#{mobile_phone}' to User##{user.id}"
   rescue StandardError => e
     Rails.logger.error "[Contact#sync_mobile_to_user] Failed to sync: #{e.message}"
+  end
+
+  # SSoT: Sync legacy email column to contact_emails table
+  # Called when legacy 'email' column is updated (e.g., from Xero sync)
+  def sync_legacy_email_to_ssot
+    return if email.blank?
+
+    # Find or create primary email record
+    existing = contact_emails.find_by(is_primary: true) || contact_emails.first
+
+    if existing
+      # Update existing primary email if different
+      existing.update(email: email) unless existing.email == email
+    else
+      # Create new primary email
+      contact_emails.create!(
+        email: email,
+        is_primary: true,
+        position: 0
+      )
+    end
+    clear_email_cache!
+  rescue StandardError => e
+    Rails.logger.error "[Contact#sync_legacy_email_to_ssot] Contact##{id}: #{e.message}"
+  end
+
+  # SSoT: Sync legacy phone columns to contact_phones table
+  # Called when legacy 'mobile_phone', 'office_phone', or 'fax_phone' columns are updated
+  def sync_legacy_phones_to_ssot
+    sync_legacy_phone_to_ssot(:mobile_phone, 'mobile')
+    sync_legacy_phone_to_ssot(:office_phone, 'office')
+    sync_legacy_phone_to_ssot(:fax_phone, 'fax')
+    clear_phone_cache!
+  rescue StandardError => e
+    Rails.logger.error "[Contact#sync_legacy_phones_to_ssot] Contact##{id}: #{e.message}"
+  end
+
+  def sync_legacy_phone_to_ssot(column_name, phone_type)
+    value = send(column_name)
+    return if value.blank?
+
+    # Find or create phone record for this type
+    existing = contact_phones.find_by(phone_type: phone_type)
+
+    if existing
+      # Update existing phone if different
+      existing.update(phone_number: value) unless existing.phone_number == value
+    else
+      # Create new phone - mobile is primary by default, others are not
+      contact_phones.create!(
+        phone_number: value,
+        phone_type: phone_type,
+        is_primary: phone_type == 'mobile' && !contact_phones.where(is_primary: true).exists?,
+        position: contact_phones.maximum(:position).to_i + 1
+      )
+    end
   end
 
   # SSoT: Guard method for syncing primary_company_id to employee_of relationship
