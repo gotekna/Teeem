@@ -37,6 +37,14 @@ import {
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
+import { Briefcase } from 'lucide-react';
+
+interface Job {
+  id: number;
+  name: string;
+  client_name?: string;
+}
 
 interface TaskExpandedRowProps {
   task: SmTask;
@@ -141,6 +149,11 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   // Email detail dialog state
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
   const [keywordsSaving, setKeywordsSaving] = useState(false);
+
+  // Job assignment state
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [jobSearchTimeout, setJobSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // Load followers on mount for all tasks
   useEffect(() => {
@@ -372,6 +385,38 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       } else if (role) {
         await updateTask(task.id, { assigned_role: role, assigned_user_id: undefined });
       }
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Job search with debounce
+  const searchJobs = (query: string) => {
+    if (jobSearchTimeout) {
+      clearTimeout(jobSearchTimeout);
+    }
+    const timeout = setTimeout(async () => {
+      setJobsLoading(true);
+      try {
+        const url = query
+          ? `/api/v1/jobs/for_select?q=${encodeURIComponent(query)}`
+          : '/api/v1/jobs/for_select';
+        const response = await api.get<{ jobs?: Job[] }>(url);
+        setJobs(response?.jobs || []);
+      } catch (error) {
+        console.error('Failed to search jobs:', error);
+      } finally {
+        setJobsLoading(false);
+      }
+    }, query ? 300 : 0);
+    setJobSearchTimeout(timeout);
+  };
+
+  // Handle job change
+  const handleJobChange = async (jobId: number | null) => {
+    setLoading('job');
+    try {
+      await updateTask(task.id, { job_id: jobId });
     } finally {
       setLoading(null);
     }
@@ -973,7 +1018,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         </div>
       ) : null}
 
-      {/* Duration and Assignment */}
+      {/* Duration, Job and Assignment */}
       <div className="flex flex-wrap items-end gap-4">
         {/* Duration */}
         <div className="flex items-center gap-2">
@@ -995,6 +1040,42 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           {loading === 'duration' && <Spinner size={12} />}
         </div>
 
+        {/* Job Assignment */}
+        <div className="flex items-center gap-2 min-w-[200px]">
+          <Briefcase className="h-4 w-4 text-muted-foreground" />
+          <ComboboxDropdown
+            items={jobs.map((job) => ({
+              id: String(job.id),
+              label: job.name,
+              client_name: job.client_name,
+            } as ComboboxItem & { client_name?: string }))}
+            selectedItem={task.construction_id > 0 ? {
+              id: String(task.construction_id),
+              label: task.job_name || 'Unknown Job'
+            } : undefined}
+            onSelect={(item) => handleJobChange(parseInt(item.id))}
+            placeholder="Assign to job..."
+            clearable
+            onClear={() => handleJobChange(null)}
+            emptyResults="No jobs found"
+            isLoading={jobsLoading}
+            onInputChange={searchJobs}
+            disableInternalFilter
+            renderListItem={({ item }) => {
+              const jobItem = item as ComboboxItem & { client_name?: string };
+              return (
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">{item.label}</span>
+                  {jobItem.client_name && (
+                    <span className="text-xs text-muted-foreground">{jobItem.client_name}</span>
+                  )}
+                </div>
+              );
+            }}
+          />
+          {loading === 'job' && <Spinner size={12} />}
+        </div>
+
         {/* Assignment */}
         <div className="flex-1 min-w-[200px] flex items-center gap-2">
           <TaskAssignmentInline
@@ -1005,8 +1086,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             compact
           />
           {/* Quick assign buttons */}
-          {/* "Assign back" - when task is assigned to me and someone else assigned it to me */}
-          {task.assigned_user_id === currentUser?.id && task.last_assigner_id && task.last_assigner_id !== currentUser?.id && task.last_assigner_name && (
+          {/* "Assign to [last assigner]" - show when last assigner is different from current assignee */}
+          {task.last_assigner_id && task.last_assigner_id !== task.assigned_user_id && task.last_assigner_name && (
             <Button
               variant="ghost"
               size="sm"
