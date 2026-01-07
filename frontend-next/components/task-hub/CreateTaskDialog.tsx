@@ -482,6 +482,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                     }}
                     placeholder="Search followers..."
                     emptyIndicator="No users found"
+                    hidePlaceholderWhenSelected
                   />
                 </div>
 
@@ -542,6 +543,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                       }}
                       placeholder="Search users..."
                       emptyIndicator="No users found"
+                      hidePlaceholderWhenSelected
                     />
                   </div>
                 )}

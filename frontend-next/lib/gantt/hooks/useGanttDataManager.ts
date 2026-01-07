@@ -837,6 +837,12 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     const lockedSuccessors = successorInfo.filter(s => s.confirm || s.supplier_confirm || s.is_completed);
     const unlockedSuccessors = successorInfo.filter(s => !s.confirm && !s.supplier_confirm && !s.is_completed);
 
+    // If no locked successors, just execute move directly - unlocked tasks cascade automatically via SSoT
+    if (lockedSuccessors.length === 0) {
+      await executeDragMove(task, newStartDate);
+      return;
+    }
+
     // Default decisions
     const defaultDecisions: Record<number, 'break' | 'cascade'> = {};
     lockedSuccessors.forEach(s => {
