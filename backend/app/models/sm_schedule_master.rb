@@ -102,6 +102,7 @@ class SmScheduleMaster < ApplicationRecord
   before_validation :clean_invalid_predecessors
   before_validation :uppercase_name_if_header
   before_validation :default_duration_for_tasks
+  before_validation :default_claim_percentage
   before_save :clear_spawn_tasks_if_not_po
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
 
@@ -224,6 +225,16 @@ class SmScheduleMaster < ApplicationRecord
   def default_duration_for_tasks
     return if allow_header # Headers can have 0 duration
     self.duration_days = 1 if duration_days.blank? || duration_days <= 0
+  end
+
+  # Default claim_percentage when is_claim_task is enabled
+  # This allows inline editing to set is_claim_task without immediately needing the percentage
+  def default_claim_percentage
+    return unless is_claim_task?
+    return if claim_percentage.present? && claim_percentage > 0
+
+    # Default to 10% - user can adjust afterward
+    self.claim_percentage = 10.0
   end
 
   # Clear spawn_order_task and spawn_call_task if po_required is false
