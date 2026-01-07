@@ -1397,6 +1397,7 @@ export default function SchedulePage() {
           onRefresh={triggerRefresh}
           onRowUpdate={handleRowUpdate}
           onRowDoubleClick={handleRowDoubleClick}
+          onEdit={handleRowDoubleClick}
         />
       </div>
 

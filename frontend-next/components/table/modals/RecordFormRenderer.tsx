@@ -42,6 +42,26 @@ export interface RecordFormFieldProps {
 /**
  * Renders a single form field based on column type
  */
+/**
+ * Extract display value from a field value that might be an object (lookup)
+ * Fallback chain: display_name → name → title → label → id → String conversion
+ */
+function getDisplayValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') return String(value);
+
+  // It's an object - extract a meaningful display value
+  const obj = value as Record<string, unknown>;
+  if (obj.display_name) return String(obj.display_name);
+  if (obj.name) return String(obj.name);
+  if (obj.title) return String(obj.title);
+  if (obj.label) return String(obj.label);
+  if (obj.id) return String(obj.id);
+
+  // Last resort - but this shouldn't happen if the above fallbacks are comprehensive
+  return '';
+}
+
 export function RecordFormField({
   column,
   value,
@@ -54,6 +74,9 @@ export function RecordFormField({
   const label = name || column_name;
   const isSystem = column.system || ['id', 'created_at', 'updated_at'].includes(column_name);
   const isDisabled = disabled || isSystem;
+
+  // SSoT: Convert value to display string, handling objects properly
+  const displayValue = getDisplayValue(value);
 
   const handleChange = (newValue: unknown) => {
     if (!isDisabled) {
