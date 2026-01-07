@@ -91,7 +91,11 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     if (contacts.length > 0) return;
     try {
       setLoadingContacts(true);
-      const response = await api.get<{ contacts: Contact[] }>("/api/v1/contacts?type=suppliers");
+      // FRC FIX: Use entity_type filter instead of type=suppliers
+      // type=suppliers only returns contacts with is_supplier_cached=true (existing suppliers with POs)
+      // But we need to show ALL potential suppliers (companies/trusts/sole_traders)
+      // so users can create their first PO for a new supplier
+      const response = await api.get<{ contacts: Contact[] }>("/api/v1/contacts?entity_type=company,trust,sole_trader");
       setContacts(response?.contacts || []);
     } catch (err) {
       console.error("Failed to load contacts:", err);
