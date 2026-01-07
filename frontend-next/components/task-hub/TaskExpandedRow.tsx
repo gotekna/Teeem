@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -145,6 +145,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   // Direct drag-and-drop state for attachments section
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   // History state
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -542,7 +543,15 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDraggingFile(false);
+    // Only set to false if we're actually leaving the drop zone
+    // Check if relatedTarget is outside the drop zone
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (dropZoneRef.current && relatedTarget && !dropZoneRef.current.contains(relatedTarget)) {
+      setIsDraggingFile(false);
+    } else if (!relatedTarget) {
+      // relatedTarget is null when leaving the window
+      setIsDraggingFile(false);
+    }
   };
 
   // Save email keywords
@@ -1673,21 +1682,21 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
               {/* Documents Tab */}
               <TabsContent
+                ref={dropZoneRef}
                 value="documents"
                 className={cn(
-                  "mt-2 transition-colors rounded-lg",
-                  isDraggingFile && "bg-primary/10 border-2 border-dashed border-primary p-2"
+                  "mt-2 transition-colors rounded-lg min-h-[60px]",
+                  isDraggingFile && "bg-primary/10 border-2 border-dashed border-primary p-4"
                 )}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleFileDrop}
               >
-                {isDraggingFile && (
-                  <p className="text-xs font-medium text-primary text-center py-2">
+                {isDraggingFile ? (
+                  <p className="text-sm font-medium text-primary text-center py-4">
                     Drop files here to attach
                   </p>
-                )}
-                {!isDraggingFile && documentAttachments.length === 0 ? (
+                ) : documentAttachments.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">
                     No documents attached. Drag files here or click Add.
                   </p>
