@@ -826,21 +826,21 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       return;
     }
 
-    // Build successor info
-    const visited = new Set<number>(directSuccessors.map(s => s.id));
-    const successorInfo: SuccessorInfo[] = directSuccessors.map(s => {
-      const downstream = findAllSuccessors(s.task_number, new Set(visited));
-      const locked = downstream.filter(ds => ds.confirm || ds.supplier_confirm || ds.is_completed);
+    // Find ALL successors recursively (not just direct)
+    const allSuccessors = findAllSuccessors(row.task_number);
 
-      return {
-        ...s,
-        downstreamCount: downstream.length,
-        downstreamTasks: locked,
-        lockedDownstreamCount: locked.length,
-        hasMoreDownstream: false,
-      };
-    });
+    console.log('[GanttDataManager] Found ALL successors (recursive):', allSuccessors.length, 'for task_number:', row.task_number);
 
+    // Build successor info for ALL descendants
+    const successorInfo: SuccessorInfo[] = allSuccessors.map(s => ({
+      ...s,
+      downstreamCount: 0,
+      downstreamTasks: [],
+      lockedDownstreamCount: 0,
+      hasMoreDownstream: false,
+    }));
+
+    // Split into locked vs unlocked - checking ALL descendants, not just direct
     const lockedSuccessors = successorInfo.filter(s => s.confirm || s.supplier_confirm || s.is_completed);
     const unlockedSuccessors = successorInfo.filter(s => !s.confirm && !s.supplier_confirm && !s.is_completed);
 
@@ -848,13 +848,15 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     console.log('[GanttDataManager] Task drag - successor analysis:', {
       movedTaskNumber: row.task_number,
       directSuccessorsCount: directSuccessors.length,
-      directSuccessors: directSuccessors.map(s => ({
+      allSuccessorsCount: allSuccessors.length,
+      allSuccessors: allSuccessors.map(s => ({
         id: s.id,
         task_number: s.task_number,
         name: s.name,
         confirm: s.confirm,
         supplier_confirm: s.supplier_confirm,
         is_completed: s.is_completed,
+        hold: s.hold,
       })),
       lockedCount: lockedSuccessors.length,
       unlockedCount: unlockedSuccessors.length,
