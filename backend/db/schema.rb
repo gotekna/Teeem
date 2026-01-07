@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_071219) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_073809) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1110,6 +1110,30 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_071219) do
     t.index ["recipient_user_id"], name: "index_chat_messages_on_recipient_user_id"
     t.index ["sharepoint_file_id"], name: "index_chat_messages_on_sharepoint_file_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
+  end
+
+  create_table "claim_invoice_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "description"
+    t.string "style_key", null: false
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.string "primary_color", default: "#1e40af"
+    t.string "secondary_color", default: "#64748b"
+    t.string "font_family", default: "Inter"
+    t.boolean "show_logo", default: true
+    t.boolean "show_company_details", default: true
+    t.boolean "show_bank_details", default: true
+    t.boolean "show_payment_terms", default: true
+    t.string "logo_position", default: "left"
+    t.string "header_style", default: "standard"
+    t.text "header_text"
+    t.text "footer_text"
+    t.text "payment_instructions"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_default"], name: "index_claim_invoice_templates_on_is_default", where: "(is_default = true)"
+    t.index ["style_key"], name: "index_claim_invoice_templates_on_style_key"
   end
 
   create_table "claim_stage_templates", force: :cascade do |t|
@@ -8219,7 +8243,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_071219) do
     t.boolean "is_claim_task", default: false, null: false
     t.decimal "claim_percentage", precision: 5, scale: 2
     t.string "claim_invoice_pattern"
+    t.bigint "claim_invoice_template_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
+    t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
     t.index ["confirm"], name: "index_sm_schedule_masters_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_masters_on_cost_centre"
@@ -10556,6 +10582,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_071219) do
   add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"
   add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "complete_workflow_id"
   add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "start_workflow_id"
+  add_foreign_key "sm_schedule_masters", "claim_invoice_templates"
   add_foreign_key "sm_schedule_masters", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_schedule_masters", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_schedule_masters", "users", column: "created_by_id"

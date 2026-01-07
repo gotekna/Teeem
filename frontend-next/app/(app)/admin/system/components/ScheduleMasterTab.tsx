@@ -197,6 +197,24 @@ interface SmScheduleMaster {
   is_claim_task?: boolean;
   claim_percentage?: number | null;
   claim_invoice_pattern?: string | null;
+  claim_invoice_template_id?: number | null;
+}
+
+// Claim Invoice Template for selecting invoice styles
+interface ClaimInvoiceTemplate {
+  id: number;
+  name: string;
+  description: string;
+  style_key: string;
+  is_default: boolean;
+  primary_color: string;
+  secondary_color: string;
+  font_family: string;
+  logo_position: string;
+  header_style: string;
+  show_logo: boolean;
+  show_company_details: boolean;
+  show_bank_details: boolean;
 }
 
 interface SmScheduleMasterTemplate {
@@ -464,6 +482,10 @@ export function ScheduleMasterTab() {
   const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Job-scoped document types for spawn scan task dropdown
   const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
+  // SSoT: Claim invoice templates for styling claim invoices
+  const [claimInvoiceTemplates, setClaimInvoiceTemplates] = React.useState<ClaimInvoiceTemplate[]>([]);
+  const [templatePreviewHtml, setTemplatePreviewHtml] = React.useState<string | null>(null);
+  const [loadingTemplatePreview, setLoadingTemplatePreview] = React.useState(false);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -508,6 +530,7 @@ export function ScheduleMasterTab() {
     loadHeaderRows();
     loadChecklists();
     loadDocumentTypes();
+    loadClaimInvoiceTemplates();
     console.log("[ScheduleMasterTab] All loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
@@ -708,6 +731,38 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load document types:", error);
+    }
+  };
+
+  // SSoT: Load claim invoice templates for styling claim invoices
+  const loadClaimInvoiceTemplates = async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: ClaimInvoiceTemplate[] }>(
+        "/api/v1/claim_invoice_templates"
+      );
+      if (data?.data) {
+        setClaimInvoiceTemplates(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load claim invoice templates:", error);
+    }
+  };
+
+  // Load preview HTML for a specific template
+  const loadTemplatePreview = async (templateId: number) => {
+    setLoadingTemplatePreview(true);
+    try {
+      const data = await api.get<{ success: boolean; data: { preview_html: string } }>(
+        `/api/v1/claim_invoice_templates/${templateId}/preview`
+      );
+      if (data?.data?.preview_html) {
+        setTemplatePreviewHtml(data.data.preview_html);
+      }
+    } catch (error) {
+      console.error("Failed to load template preview:", error);
+      setTemplatePreviewHtml(null);
+    } finally {
+      setLoadingTemplatePreview(false);
     }
   };
 
@@ -967,7 +1022,14 @@ export function ScheduleMasterTab() {
       is_claim_task: fullRow.is_claim_task || false,
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
+      claim_invoice_template_id: fullRow.claim_invoice_template_id,
     });
+    // Load template preview if claim task has a template selected
+    if (fullRow.is_claim_task && fullRow.claim_invoice_template_id) {
+      loadTemplatePreview(fullRow.claim_invoice_template_id);
+    } else {
+      setTemplatePreviewHtml(null);
+    }
     setShowEditSheet(true);
   };
 
@@ -1054,7 +1116,14 @@ export function ScheduleMasterTab() {
       is_claim_task: fullRow.is_claim_task || false,
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
+      claim_invoice_template_id: fullRow.claim_invoice_template_id,
     });
+    // Load template preview if claim task has a template selected
+    if (fullRow.is_claim_task && fullRow.claim_invoice_template_id) {
+      loadTemplatePreview(fullRow.claim_invoice_template_id);
+    } else {
+      setTemplatePreviewHtml(null);
+    }
     setShowEditSheet(true);
   };
 
@@ -3315,7 +3384,7 @@ export function ScheduleMasterTab() {
                       </div>
                     </div>
                     {editRowForm.is_claim_task && (
-                      <div className="space-y-2 pl-6 border-l-2 border-muted">
+                      <div className="space-y-3 pl-6 border-l-2 border-muted">
                         <div className="space-y-1">
                           <Label htmlFor="row-claim-percentage" className="text-xs">Claim Percentage *</Label>
                           <div className="flex items-center gap-1">
@@ -3334,17 +3403,65 @@ export function ScheduleMasterTab() {
                           </div>
                           <p className="text-[10px] text-muted-foreground">Percentage of contract price</p>
                         </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="row-claim-invoice-pattern" className="text-xs">Invoice Match Pattern</Label>
-                          <Input
-                            id="row-claim-invoice-pattern"
-                            value={editRowForm.claim_invoice_pattern || ""}
-                            onChange={(e) => setEditRowForm({ ...editRowForm, claim_invoice_pattern: e.target.value || null })}
-                            className="h-8"
-                            placeholder="e.g., SLAB, PC-*"
-                          />
-                          <p className="text-[10px] text-muted-foreground">Optional pattern to auto-match Xero invoices</p>
+
+                        {/* Invoice Template Selector */}
+                        <div className="space-y-2">
+                          <Label className="text-xs">Invoice Template</Label>
+                          <div className="grid grid-cols-1 gap-2">
+                            {claimInvoiceTemplates.map((template) => (
+                              <div
+                                key={template.id}
+                                onClick={() => {
+                                  setEditRowForm({ ...editRowForm, claim_invoice_template_id: template.id });
+                                  loadTemplatePreview(template.id);
+                                }}
+                                className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                                  editRowForm.claim_invoice_template_id === template.id
+                                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                    : "border-border hover:border-primary/50"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  {/* Color swatch preview */}
+                                  <div
+                                    className="w-8 h-8 rounded flex-shrink-0"
+                                    style={{
+                                      background: `linear-gradient(135deg, ${template.primary_color} 0%, ${template.primary_color} 60%, ${template.secondary_color} 100%)`
+                                    }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{template.name}</p>
+                                    <p className="text-[10px] text-muted-foreground truncate">{template.description}</p>
+                                  </div>
+                                  {template.is_default && (
+                                    <Badge variant="secondary" className="text-[10px] flex-shrink-0">Default</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {claimInvoiceTemplates.length === 0 && (
+                            <p className="text-[10px] text-muted-foreground">No templates available</p>
+                          )}
                         </div>
+
+                        {/* Template Preview */}
+                        {editRowForm.claim_invoice_template_id && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs">Preview</Label>
+                              {loadingTemplatePreview && <Spinner size={14} />}
+                            </div>
+                            {templatePreviewHtml && !loadingTemplatePreview && (
+                              <div
+                                className="border rounded-lg bg-white overflow-hidden max-h-[300px] overflow-y-auto"
+                                style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "auto" }}
+                              >
+                                <div dangerouslySetInnerHTML={{ __html: templatePreviewHtml }} />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -51,6 +51,9 @@ class SmScheduleMaster < ApplicationRecord
   belongs_to :start_workflow, class_name: "BpmnProcess", optional: true
   belongs_to :complete_workflow, class_name: "BpmnProcess", optional: true
 
+  # Claim invoice template - visual style for claim invoices
+  belongs_to :claim_invoice_template, optional: true
+
   # Document types for GET task spawning on completion
   has_many :sm_schedule_master_document_types, dependent: :destroy
   has_many :document_types, through: :sm_schedule_master_document_types
