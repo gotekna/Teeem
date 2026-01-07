@@ -1050,7 +1050,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
         {/* Job Assignment */}
         <div className="flex items-center gap-2 min-w-[200px]">
-          <Briefcase className="h-4 w-4 text-muted-foreground" />
+          <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
           <ComboboxDropdown
             items={jobs.map((job) => ({
               id: String(job.id),
@@ -1069,11 +1069,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             isLoading={jobsLoading}
             onInputChange={searchJobs}
             disableInternalFilter
+            className="h-7 text-xs"
             renderListItem={({ item }) => {
               const jobItem = item as ComboboxItem & { client_name?: string };
               return (
                 <div className="flex flex-col">
-                  <span className="font-medium text-sm">{item.label}</span>
+                  <span className="font-medium text-xs">{item.label}</span>
                   {jobItem.client_name && (
                     <span className="text-xs text-muted-foreground">{jobItem.client_name}</span>
                   )}
