@@ -1540,6 +1540,27 @@ module Api
         result
       end
 
+      # Convert ActiveStorage file to attachment JSON format
+      def file_attachment_to_json(file)
+        {
+          id: "file_#{file.id}",
+          attachment_type: "upload",
+          notes: nil,
+          added_by: nil,
+          created_at: file.created_at,
+          document: {
+            id: file.id,
+            file_name: file.filename.to_s,
+            display_name: file.filename.to_s,
+            file_size: file.byte_size,
+            content_type: file.content_type,
+            document_type: "Upload",
+            created_at: file.created_at,
+            url: Rails.application.routes.url_helpers.rails_blob_path(file, only_path: true)
+          }
+        }
+      end
+
       def save_temp_file(uploaded_file)
         temp_file = Tempfile.new([ "sm_task_import", File.extname(uploaded_file.original_filename) ])
         temp_file.binmode
@@ -1757,9 +1778,11 @@ module Api
           # Required by date (independent of schedule)
           required_by: task.required_by,
           # Use .size instead of .count to use preloaded data (avoids N+1)
-          attachments_count: task.sm_task_attachments.size,
+          attachments_count: task.sm_task_attachments.size + (task.files.attached? ? task.files.size : 0),
           # Include full attachments for task detail view (uses preloaded association)
-          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },
+          # Combines SmTaskAttachment records AND ActiveStorage files
+          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) } +
+            (task.files.attached? ? task.files.map { |f| file_attachment_to_json(f) } : []),
           # Privacy
           is_private: task.is_private,
           created_by_id: task.created_by_id,
