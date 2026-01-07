@@ -129,12 +129,24 @@ module Api
               end
             elsif task_template_id.present? || task_name.present?
               # Create new task from template or custom name
+              # Calculate sensible defaults for required fields
+              today = Date.current
+              max_sequence = SmTask.where(job_id: @purchase_order.job_id).maximum(:sequence_order) || 0
+              template = task_template_id.present? ? SmScheduleMaster.find(task_template_id) : nil
+
               sm_task = SmTask.create!(
                 job_id: @purchase_order.job_id,
                 sm_schedule_master_id: task_template_id.presence,
-                name: task_name.presence || SmScheduleMaster.find(task_template_id).name,
+                name: task_name.presence || template&.name || "PO Task",
                 supplier_id: @purchase_order.supplier_id,
                 status: "not_started",
+                # Required fields with sensible defaults
+                sequence_order: max_sequence + 1,
+                start_date: today,
+                duration_days: template&.duration_days || 1,
+                # Default assigned_user to current user
+                assigned_user_id: current_user.id,
+                # Audit
                 created_by: current_user,
                 updated_by: current_user
               )
