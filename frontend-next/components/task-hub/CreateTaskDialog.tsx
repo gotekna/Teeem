@@ -17,8 +17,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
-import { Check, Lock, Plus } from "lucide-react";
+import { Check, Eye, Lock, Plus, Users } from "lucide-react";
 import { TaskAssignmentField } from './TaskAssignmentField';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { useToast } from '@/components/ui/use-toast';
@@ -67,6 +69,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     required_by: '',
     follow: false,
     is_private: false,
+    follower_ids: [] as string[],
+    viewer_ids: [] as string[],
   });
 
   // Track pending attachments (before task is created)
@@ -180,6 +184,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             required_by: formData.required_by || null,
             is_private: formData.is_private,
           },
+          follower_ids: formData.follower_ids.length > 0 ? formData.follower_ids : null,
+          viewer_ids: formData.is_private && formData.viewer_ids.length > 0 ? formData.viewer_ids : null,
         }
       );
 
@@ -233,6 +239,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           required_by: '',
           follow: false,
           is_private: false,
+          follower_ids: [],
+          viewer_ids: [],
         });
         setPendingAttachments([]);
         onOpenChange(false);
@@ -456,6 +464,60 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                   />
                 </div>
 
+                {/* Followers */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5" />
+                    Followers
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start font-normal h-auto min-h-9 py-1.5"
+                      >
+                        {formData.follower_ids.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {formData.follower_ids.map((id) => {
+                              const user = users.find(u => String(u.id) === id);
+                              return user ? (
+                                <Badge key={id} variant="secondary" className="text-xs">
+                                  {user.name}
+                                </Badge>
+                              ) : null;
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Select followers...</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2" align="start">
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {users.filter(u => String(u.id) !== formData.assigned_user_id).map((user) => (
+                          <div
+                            key={user.id}
+                            className="flex items-center space-x-2 p-2 rounded hover:bg-accent cursor-pointer"
+                            onClick={() => {
+                              const userId = String(user.id);
+                              const newFollowers = formData.follower_ids.includes(userId)
+                                ? formData.follower_ids.filter(id => id !== userId)
+                                : [...formData.follower_ids, userId];
+                              setFormData(prev => ({ ...prev, follower_ids: newFollowers }));
+                            }}
+                          >
+                            <Checkbox
+                              checked={formData.follower_ids.includes(String(user.id))}
+                              onCheckedChange={() => {}}
+                            />
+                            <span className="text-sm">{user.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
                 {/* Started & Private checkboxes */}
                 <div className="flex items-center gap-6">
                   <div className="flex items-center space-x-2">
@@ -486,6 +548,68 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                     </Label>
                   </div>
                 </div>
+
+                {/* Visible To (only shown when Private is checked) */}
+                {formData.is_private && (
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1">
+                      <Eye className="h-3.5 w-3.5" />
+                      Visible To
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start font-normal h-auto min-h-9 py-1.5"
+                        >
+                          {formData.viewer_ids.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {formData.viewer_ids.map((id) => {
+                                const user = users.find(u => String(u.id) === id);
+                                return user ? (
+                                  <Badge key={id} variant="secondary" className="text-xs">
+                                    {user.name}
+                                  </Badge>
+                                ) : null;
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">Select who can view...</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2" align="start">
+                        <p className="text-xs text-muted-foreground mb-2 px-2">
+                          You and the assigned user always have access.
+                        </p>
+                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                          {users.filter(u =>
+                            String(u.id) !== formData.assigned_user_id &&
+                            String(u.id) !== String(currentUser?.id)
+                          ).map((user) => (
+                            <div
+                              key={user.id}
+                              className="flex items-center space-x-2 p-2 rounded hover:bg-accent cursor-pointer"
+                              onClick={() => {
+                                const userId = String(user.id);
+                                const newViewers = formData.viewer_ids.includes(userId)
+                                  ? formData.viewer_ids.filter(id => id !== userId)
+                                  : [...formData.viewer_ids, userId];
+                                setFormData(prev => ({ ...prev, viewer_ids: newViewers }));
+                              }}
+                            >
+                              <Checkbox
+                                checked={formData.viewer_ids.includes(String(user.id))}
+                                onCheckedChange={() => {}}
+                              />
+                              <span className="text-sm">{user.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
 
                 {/* Description */}
                 <div className="space-y-1">

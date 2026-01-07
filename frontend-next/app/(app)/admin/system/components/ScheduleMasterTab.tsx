@@ -3964,19 +3964,27 @@ export function ScheduleMasterTab() {
                               <span className="text-[9px] font-medium text-red-700 dark:text-red-300">Break</span>
                             </label>
 
-                            <label className={`flex items-center gap-1 px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}>
-                              <input
-                                type="checkbox"
-                                checked={decision === 'cascade'}
-                                disabled={!canUnlock}
-                                className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
-                                onChange={(e) => {
-                                  if (e.target.checked && canUnlock) {
-                                    setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'cascade' }));
-                                  }
-                                }}
-                              />
-                              <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>Cascade</span>
+                            <label
+                              className={`flex flex-col px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}
+                              title={canUnlock ? `Will remove ${lockType.toLowerCase()} confirmation and cascade` : 'Completed tasks cannot be cascaded'}
+                            >
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  checked={decision === 'cascade'}
+                                  disabled={!canUnlock}
+                                  className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                  onChange={(e) => {
+                                    if (e.target.checked && canUnlock) {
+                                      setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'cascade' }));
+                                    }
+                                  }}
+                                />
+                                <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>Cascade</span>
+                              </div>
+                              {canUnlock && decision === 'cascade' && (
+                                <span className="text-[8px] text-orange-600 dark:text-orange-400 ml-4">will unconfirm</span>
+                              )}
                             </label>
                           </div>
                         </div>
@@ -3988,8 +3996,8 @@ export function ScheduleMasterTab() {
             </div>
 
             {/* Legend */}
-            <div className="text-[9px] text-muted-foreground flex gap-3 pt-1 border-t">
-              <span><span className="text-green-600">●</span> Cascade = moves with parent</span>
+            <div className="text-[9px] text-muted-foreground flex flex-col gap-0.5 pt-1 border-t">
+              <span><span className="text-green-600">●</span> Cascade = moves with parent (removes confirmation if locked)</span>
               <span><span className="text-red-600">●</span> Break = stays in place, dependency removed</span>
             </div>
           </div>

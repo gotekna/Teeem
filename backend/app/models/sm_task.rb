@@ -165,6 +165,10 @@ class SmTask < ApplicationRecord
   has_many :task_followers, dependent: :destroy
   has_many :followers, through: :task_followers, source: :user
 
+  # Task Viewers (for private task access control)
+  has_many :task_viewers, dependent: :destroy
+  has_many :viewers, through: :task_viewers, source: :user
+
   # Task Contacts (email participants, assigned contacts/users)
   # Links both internal Users and external Contacts to tasks
   has_many :task_contacts, dependent: :destroy

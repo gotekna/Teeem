@@ -145,6 +145,22 @@ module Api
         @task.created_by = current_user
 
         if @task.save
+          # Add followers if provided
+          if params[:follower_ids].present?
+            Array(params[:follower_ids]).each do |user_id|
+              @task.task_followers.find_or_create_by(user_id: user_id) do |tf|
+                tf.followed_at = Time.current
+              end
+            end
+          end
+
+          # Add viewers if provided (for private task access)
+          if params[:viewer_ids].present?
+            Array(params[:viewer_ids]).each do |user_id|
+              @task.task_viewers.find_or_create_by(user_id: user_id)
+            end
+          end
+
           # Create notification if task was created with an assignee
           notify_new_task_assignment(@task)
 
