@@ -129,6 +129,11 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   // Email keywords state
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
 
+  // Description editing state
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionText, setDescriptionText] = useState(task.description || '');
+  const [descriptionSaving, setDescriptionSaving] = useState(false);
+
   // Email detail dialog state
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
   const [keywordsSaving, setKeywordsSaving] = useState(false);
@@ -137,6 +142,13 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
   }, [task.id, getFollowers]);
+
+  // Sync description text when task updates
+  useEffect(() => {
+    if (!editingDescription) {
+      setDescriptionText(task.description || '');
+    }
+  }, [task.description, editingDescription]);
 
   // Check if this is a PO task
   const isPOTask = !!task.purchase_order_id;
@@ -475,6 +487,25 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     }
   };
 
+  // Save description
+  const saveDescription = async () => {
+    if (descriptionText === (task.description || '')) {
+      setEditingDescription(false);
+      return;
+    }
+
+    setDescriptionSaving(true);
+    try {
+      await updateTask(task.id, { description: descriptionText });
+      setEditingDescription(false);
+    } catch (error) {
+      console.error('Failed to save description:', error);
+      setDescriptionText(task.description || ''); // Revert on error
+    } finally {
+      setDescriptionSaving(false);
+    }
+  };
+
   return (
     <div className="bg-muted/30 border-t border-b px-3 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
       {/* Header with close button */}
@@ -766,13 +797,38 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         </div>
       </div>
 
-      {/* Description Section */}
-      {task.description && (
-        <div className="p-2 bg-background/50 rounded border">
-          <div className="text-xs text-muted-foreground mb-1">Description</div>
-          <p className="text-sm whitespace-pre-wrap">{task.description}</p>
+      {/* Description Section - Always show (editable) */}
+      <div className="p-2 bg-background/50 rounded border">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-xs text-muted-foreground">Description</div>
+          {descriptionSaving && <Spinner size={12} />}
         </div>
-      )}
+        {editingDescription ? (
+          <textarea
+            value={descriptionText}
+            onChange={(e) => setDescriptionText(e.target.value)}
+            onBlur={saveDescription}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setDescriptionText(task.description || '');
+                setEditingDescription(false);
+              }
+            }}
+            placeholder="Add a description..."
+            className="w-full text-sm bg-transparent border-0 resize-none focus:outline-none focus:ring-0 min-h-[60px]"
+            autoFocus
+            disabled={descriptionSaving}
+          />
+        ) : (
+          <p
+            className="text-sm whitespace-pre-wrap cursor-pointer hover:bg-muted/50 px-1 -mx-1 rounded min-h-[24px]"
+            onClick={() => setEditingDescription(true)}
+            title="Click to edit"
+          >
+            {task.description || <span className="text-muted-foreground italic">Click to add description...</span>}
+          </p>
+        )}
+      </div>
 
       {/* Action Items Section */}
       {(task.action_items?.length || 0) > 0 || true ? (

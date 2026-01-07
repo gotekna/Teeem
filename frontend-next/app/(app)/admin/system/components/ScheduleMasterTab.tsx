@@ -4043,10 +4043,12 @@ export function ScheduleMasterTab() {
                         }
                       } else {
                         // Cascade: unlock the task so it can move
+                        // Clear hold as well so SSoT can recalculate its position
                         try {
                           await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${lockedTask.id}`, {
-                            row: { confirm: false, supplier_confirm: false }
+                            row: { confirm: false, supplier_confirm: false, hold: false }
                           });
+                          console.log('[Gantt V2] Unlocked task for cascade:', lockedTask.id, lockedTask.name);
                         } catch (err) {
                           console.error('[Gantt V2] Failed to unlock task for cascade', lockedTask.id, err);
                         }

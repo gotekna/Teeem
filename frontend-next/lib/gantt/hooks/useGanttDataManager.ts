@@ -783,12 +783,15 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     if (!apiConfig) return;
     storeUndoState(task);
     console.log('[GanttDataManager] Task dragged:', task.id, 'to', newStartDate);
+    console.log('[GanttDataManager] task.rowData:', task.rowData);
 
     const row = task.rowData as SmScheduleMaster | undefined;
     if (!row) {
+      console.log('[GanttDataManager] ⚠️ rowData is undefined, skipping cascade check');
       await executeDragMove(task, newStartDate);
       return;
     }
+    console.log('[GanttDataManager] Row exists - task_number:', row.task_number, 'name:', row.name);
 
     // Find successors recursively
     const findAllSuccessors = (taskNumber: number, visited = new Set<number>()): SmScheduleMaster[] => {
