@@ -335,6 +335,13 @@ export function ScheduleMasterTab() {
     router.push("/admin/system/schedule-master/data-view", { scroll: false });
   }, [router]);
 
+  // Update URL when view changes (for path-based view persistence)
+  const handleViewChange = React.useCallback((view: { slug?: string | null } | null) => {
+    if (view?.slug) {
+      router.push(`/admin/system/schedule-master/data-view/${view.slug}`, { scroll: false });
+    }
+  }, [router]);
+
   // Update URL when tab changes
   const handleTabChange = React.useCallback((value: string) => {
     const newTab = value as SubTab;
@@ -2476,6 +2483,8 @@ export function ScheduleMasterTab() {
               onRowUpdate={handleDataViewRowUpdate}
               onRowDoubleClick={handleDataViewRowDoubleClick}
               initialShowTotals={true}
+              viewSlug={viewSlug}
+              onViewChange={handleViewChange}
               leftActions={
                 <div className="flex items-center gap-2">
 
