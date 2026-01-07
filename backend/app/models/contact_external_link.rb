@@ -22,7 +22,8 @@ class ContactExternalLink < ApplicationRecord
   validates :tenant_id, presence: true
   validates :external_contact_id, presence: true
   validates :sync_direction, inclusion: { in: SYNC_DIRECTIONS }
-  validates :contact_id, uniqueness: { scope: [ :source, :tenant_id ], message: "already linked to this organization" }
+  # NOTE: Removed contact_id uniqueness validation to support merged Xero contacts
+  # One TEEEM contact CAN have multiple Xero links (e.g., "Bunnings" and "Bunnings Group Limited" after merge)
   validates :external_contact_id, uniqueness: { scope: [ :source, :tenant_id ], message: "already linked to another contact" }
 
   scope :enabled, -> { where(sync_enabled: true) }

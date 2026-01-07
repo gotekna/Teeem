@@ -30,6 +30,7 @@ export interface TableColumn {
   system?: boolean; // System column like id, created_at, updated_at (default: false)
   defaultHidden?: boolean; // Whether the column is hidden by default (default: false)
   searchable?: boolean; // Whether this column is included in search (from foundation schema)
+  required?: boolean; // Whether the column is required for validation (from foundation schema)
   // Header and data alignment
   headerAlign?: "left" | "center" | "right";
   dataAlign?: "left" | "center" | "right";
@@ -69,7 +70,8 @@ export interface SavedView {
   id: number | string;
   slug?: string; // URL-friendly identifier (auto-generated from name)
   name: string;
-  view_type?: "table" | "relational"; // Display mode: table grid or relational network graph
+  view_type?: "custom" | "default" | null; // Whether view is custom or default (legacy field)
+  view_display_type?: "table" | "grouped" | "relational" | "hierarchy"; // Display mode: table grid, grouped by relationship, relational, or header hierarchy
   filters?: CascadeFilter[];
   filterGroups?: FilterGroup[];
   interGroupLogic?: "AND" | "OR";
@@ -149,13 +151,21 @@ export interface TeeemTableViewProps {
 
   // View configuration
   viewOnly?: boolean;
-  preloadedViews?: SavedView[] | null;
+  // SSR views - can be ViewData[] from SSR or SavedView[] from client
+  // The component will map ViewData to SavedView internally
+  preloadedViews?: Partial<SavedView>[] | null;
   disableSavedViews?: boolean; // Completely disable saved views feature (don't fetch or show views)
   defaultViewId?: number; // Auto-select this view ID on load (if it exists)
+  defaultViewSlug?: string | null; // Auto-select view by slug on load (for path-based URLs, takes precedence over defaultViewId)
+  viewSlug?: string | null; // Current view slug from URL path (e.g., "live" from /jobs/view/live). Used by new view-state architecture.
   hideUpdateViewButton?: boolean;
   initialGroupByColumn?: string | null;
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
   inheritViewsFrom?: number | string | (number | string)[]; // Include global views from related foundations (e.g., SM Tasks inherits from Schedule Master)
+
+  // Company/Role Search Mode - Group by relationship column
+  groupByRelationship?: string; // Column key for relationship grouping (e.g., "linked_company")
+  relationshipDisplayFields?: string[]; // Fields to show for nested items (e.g., ["name", "role", "phone", "email"])
 
   // Server-side operations
   // Note: Second parameter can be:
@@ -197,6 +207,59 @@ export interface TeeemTableViewProps {
 
   // Header display
   showHeader?: boolean; // Show built-in header with tableName and record count (default: true)
+
+  // SSR Props - Server-side rendered initial data for fast LCP
+  // When provided, TeeemTableView skips client-side fetch and renders immediately
+  initialColumns?: TableColumn[]; // Pre-fetched columns from server
+  initialRecords?: TableRow[]; // Pre-fetched records from server (first 20-50 for fast LCP)
+  initialTotalCount?: number; // Total record count from server
+  initialHasMore?: boolean; // Whether more records available for load-more
+
+  // SSR View - Pre-fetched view configuration to eliminate flash on grouped views
+  // When provided, TeeemTableView initializes with the view's grouping/filters
+  // applied immediately, preventing the flash from flat table to grouped view
+  initialView?: {
+    id: number;
+    name: string;
+    slug?: string;
+    view_display_type?: 'table' | 'grouped' | 'relational' | 'hierarchy';
+    group_by_columns?: string[];
+    group_by_column?: string;
+    filters?: {
+      cascadeFilters?: Array<{
+        id?: string;
+        column: string;
+        operator: string;
+        value: unknown;
+      }>;
+      filterGroups?: Array<{ id: string; logic: 'AND' | 'OR' }>;
+      interGroupLogic?: 'AND' | 'OR';
+    };
+    columns?: {
+      visible?: Record<string, boolean>;
+      order?: string[];
+      widths?: Record<string, number>;
+      autoFitColumns?: boolean;
+      smartFit?: boolean;
+      showTotals?: boolean;
+      stickyActions?: boolean;
+    };
+    sort_order?: Array<{ column: string; dir: 'asc' | 'desc' }>;
+  } | null;
+
+  // SSR Group Counts - Pre-fetched group counts to eliminate CLS on grouped views
+  // When provided, TeeemTableView initializes with the group counts ready,
+  // preventing the layout shift when groupedEntries recalculates after API load
+  initialGroupCounts?: {
+    groups: Array<{ key: string | null; count: number; displayValue: string }>;
+    totalRecords: number;
+    displayValuesMap: Record<string, Record<number, string>>;
+  } | null;
+
+  // Parent-triggered refresh signal
+  // Increment this number to trigger an internal refresh without unmounting/remounting the component
+  // Use this INSTEAD OF key={refreshKey} pattern to avoid losing SSR data
+  refreshTrigger?: number;
 }
 
 // Column visibility state

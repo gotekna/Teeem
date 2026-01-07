@@ -1,15 +1,23 @@
+# NOTE: This file contains LEGACY sync tasks for old ScheduleTemplate/ScheduleTemplateRow models
+# The current system uses SmScheduleMasterTemplate/SmScheduleMaster (SM = Schedule Master)
+# DocumentationCategory has been removed - use DocumentType + SmScheduleMasterDocumentType instead
+
 namespace :setup do
-  desc "Deploy setup data (documentation categories, supervisor checklists, schedule templates) to staging/production"
+  desc "LEGACY: Deploy setup data (supervisor checklists, schedule templates) to staging/production"
   task deploy_setup_data: :environment do
     require "csv"
 
     puts "\n" + "="*60
     puts "DEPLOYING SETUP DATA"
     puts "="*60
+    puts ""
+    puts "NOTE: This is a LEGACY task for old ScheduleTemplate/ScheduleTemplateRow models."
+    puts "The current system uses SmScheduleMasterTemplate/SmScheduleMaster."
+    puts "DocumentationCategory has been replaced by DocumentType + SmScheduleMasterDocumentType."
+    puts ""
 
     # Use CSV files from db/import_data
     users_file = Rails.root.join("db", "import_data", "users.csv")
-    doc_categories_file = Rails.root.join("db", "import_data", "documentation_categories.csv")
     checklist_templates_file = Rails.root.join("db", "import_data", "supervisor_checklist_templates.csv")
     schedule_templates_file = Rails.root.join("db", "import_data", "schedule_templates.csv")
     schedule_rows_file = Rails.root.join("db", "import_data", "schedule_template_rows.csv")
@@ -29,9 +37,7 @@ namespace :setup do
     SupervisorChecklistTemplate.delete_all
     puts "  ✓ Deleted #{deleted_checklists} supervisor checklist templates"
 
-    deleted_categories = DocumentationCategory.count
-    DocumentationCategory.delete_all
-    puts "  ✓ Deleted #{deleted_categories} documentation categories"
+    # NOTE: DocumentationCategory removed - use DocumentType + SmScheduleMasterDocumentType
 
     puts "  ⚠ Skipping user deletion (users may be referenced by projects/other records)"
 
@@ -64,27 +70,8 @@ namespace :setup do
       puts "\n⚠ Users file not found at #{users_file}"
     end
 
-    # Step 3: Import Documentation Categories
-    if File.exist?(doc_categories_file)
-      puts "\nStep 2: Importing documentation categories..."
-      category_count = 0
-
-      CSV.foreach(doc_categories_file, headers: true, header_converters: :symbol) do |row|
-        DocumentationCategory.create!(
-          name: row[:name],
-          icon: row[:icon],
-          color: row[:color],
-          description: row[:description],
-          sequence_order: row[:sequence_order].to_i,
-          is_active: row[:is_active] == "true"
-        )
-        category_count += 1
-      end
-
-      puts "  ✓ Imported #{category_count} documentation categories"
-    else
-      puts "\n⚠ Documentation categories file not found at #{doc_categories_file}"
-    end
+    # NOTE: Documentation Categories removed - use DocumentType + SmScheduleMasterDocumentType
+    puts "\n  ℹ Skipping documentation categories (use DocumentType + SmScheduleMasterDocumentType)"
 
     # Step 4: Import Supervisor Checklist Templates
     if File.exist?(checklist_templates_file)
@@ -154,7 +141,7 @@ namespace :setup do
         # Parse array fields
         predecessor_ids = row[:predecessor_ids].present? ? JSON.parse(row[:predecessor_ids]) : []
         price_book_item_ids = row[:price_book_item_ids].present? ? JSON.parse(row[:price_book_item_ids]) : []
-        documentation_category_ids = row[:documentation_category_ids].present? ? JSON.parse(row[:documentation_category_ids]) : []
+        # NOTE: documentation_category_ids removed - use DocumentType + SmScheduleMasterDocumentType
         supervisor_checklist_template_ids = row[:supervisor_checklist_template_ids].present? ? JSON.parse(row[:supervisor_checklist_template_ids]) : []
         tags = row[:tags].present? ? JSON.parse(row[:tags]) : []
         subtask_names = row[:subtask_names].present? ? JSON.parse(row[:subtask_names]) : []
@@ -171,7 +158,7 @@ namespace :setup do
           create_po_on_job_start: row[:create_po_on_job_start] == "true",
           critical_po: row[:critical_po] == "true",
           price_book_item_ids: price_book_item_ids,
-          documentation_category_ids: documentation_category_ids,
+          # NOTE: documentation_category_ids removed - use DocumentType + SmScheduleMasterDocumentType
           tags: tags,
           require_photo: row[:require_photo] == "true",
           require_certificate: row[:require_certificate] == "true",
@@ -205,11 +192,12 @@ namespace :setup do
     puts "DEPLOYMENT COMPLETE"
     puts "="*60
     puts "Users: #{User.count}"
-    puts "Documentation Categories: #{DocumentationCategory.count}"
     puts "Supervisor Checklist Templates: #{SupervisorChecklistTemplate.count}"
     puts "Schedule Templates: #{ScheduleTemplate.count}"
     puts "Schedule Template Rows: #{ScheduleTemplateRow.count}"
     puts "\nSetup data successfully deployed!"
+    puts "\nNOTE: For Schedule Master templates, use SmScheduleMasterTemplate/SmScheduleMaster."
+    puts "      For document types, use Admin > Document Types."
   end
 
   desc "Export setup data to CSV files for deployment"
@@ -240,23 +228,8 @@ namespace :setup do
     end
     puts "  ✓ Exported #{User.count} users to #{users_file}"
 
-    # Export Documentation Categories
-    puts "\nExporting documentation categories..."
-    doc_categories_file = import_dir.join("documentation_categories.csv")
-    CSV.open(doc_categories_file, "w") do |csv|
-      csv << [ "name", "icon", "color", "description", "sequence_order", "is_active" ]
-      DocumentationCategory.order(:sequence_order).each do |cat|
-        csv << [
-          cat.name,
-          cat.icon,
-          cat.color,
-          cat.description,
-          cat.sequence_order,
-          cat.is_active
-        ]
-      end
-    end
-    puts "  ✓ Exported #{DocumentationCategory.count} categories to #{doc_categories_file}"
+    # NOTE: Documentation Categories removed - use DocumentType + SmScheduleMasterDocumentType
+    puts "\n  ℹ Skipping documentation categories export (use DocumentType + SmScheduleMasterDocumentType)"
 
     # Export Supervisor Checklist Templates
     puts "\nExporting supervisor checklist templates..."
@@ -300,16 +273,17 @@ namespace :setup do
     has_supervisor_checklist = ScheduleTemplateRow.column_names.include?("supervisor_checklist_template_ids")
 
     CSV.open(rows_file, "w") do |csv|
+      # NOTE: documentation_category_ids removed - use DocumentType + SmScheduleMasterDocumentType
       headers = [
         "schedule_template_id", "name", "supplier_id", "assigned_user_id",
         "predecessor_ids", "po_required", "create_po_on_job_start", "critical_po",
-        "price_book_item_ids", "documentation_category_ids",
+        "price_book_item_ids",
         "tags", "require_photo", "require_certificate", "cert_lag_days",
         "confirm", "auto_complete_predecessors",
         "has_subtasks", "subtask_count", "subtask_names", "sequence_order",
         "linked_task_ids", "linked_template_id"
       ]
-      headers.insert(10, "supervisor_checklist_template_ids") if has_supervisor_checklist
+      headers.insert(9, "supervisor_checklist_template_ids") if has_supervisor_checklist
       csv << headers
 
       ScheduleTemplateRow.order(:sequence_order).each do |row|
@@ -323,7 +297,7 @@ namespace :setup do
           row.create_po_on_job_start,
           row.critical_po,
           row.price_book_item_ids.to_json,
-          row.documentation_category_ids.to_json,
+          # NOTE: documentation_category_ids removed
           row.tags.to_json,
           row.require_photo,
           row.require_certificate,
@@ -337,7 +311,7 @@ namespace :setup do
           row.linked_task_ids.to_json,
           row.linked_template_id
         ]
-        data.insert(10, (row.respond_to?(:supervisor_checklist_template_ids) ? row.supervisor_checklist_template_ids.to_json : [].to_json)) if has_supervisor_checklist
+        data.insert(9, (row.respond_to?(:supervisor_checklist_template_ids) ? row.supervisor_checklist_template_ids.to_json : [].to_json)) if has_supervisor_checklist
         csv << data
       end
     end
@@ -351,12 +325,12 @@ namespace :setup do
     puts "="*60
     puts "Files created in: #{import_dir}"
     puts "Users: #{User.count}"
-    puts "Documentation Categories: #{DocumentationCategory.count}"
     puts "Supervisor Checklist Templates: #{SupervisorChecklistTemplate.count}"
     puts "Schedule Templates: #{ScheduleTemplate.count}"
     puts "Schedule Template Rows: #{ScheduleTemplateRow.count}"
     puts "\nTo deploy to staging/production:"
     puts "1. Commit and push the CSV files to git"
     puts "2. On the target environment, run: rails setup:deploy_setup_data"
+    puts "\nNOTE: This is a LEGACY export. For Schedule Master, use SmScheduleMasterTemplate."
   end
 end

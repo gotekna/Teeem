@@ -387,26 +387,61 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # Test the connection by making a simple API call
+  # IMPORTANT: App credentials (client_credentials) cannot call /me - no user context
+  # Use different endpoints based on credential type
   def test_connection!
     if app_credential?
       return false unless fetch_app_token!
+      # App credentials: test with /organization endpoint (works without user context)
+      test_url = "https://graph.microsoft.com/v1.0/organization"
     else
       return false unless valid_access_token
+      # Delegated credentials: test with /me endpoint (requires user context)
+      test_url = "https://graph.microsoft.com/v1.0/me"
     end
 
-    response = HTTP.auth("Bearer #{access_token}")
-                   .get("https://graph.microsoft.com/v1.0/me")
+    response = HTTP.auth("Bearer #{access_token}").get(test_url)
 
     if response.status.success?
       update!(status: "connected", error_message: nil)
       true
     else
-      mark_error!("API test failed: #{response.status}")
+      error_body = response.body.to_s rescue ""
+      mark_error!("API test failed: #{response.status} - #{error_body.truncate(200)}")
       false
     end
   rescue StandardError => e
     mark_error!(e.message)
     false
+  end
+
+  # Get list of users in the tenant (for sync configuration and mailbox access)
+  # Returns array of { id:, name:, email: } hashes
+  def list_tenant_users
+    return [] unless status == "connected"
+
+    token = valid_access_token
+    return [] if token.blank?
+
+    response = HTTP.auth("Bearer #{token}")
+                   .get("https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName")
+
+    if response.status.success?
+      data = response.parse
+      data["value"].map do |user|
+        {
+          id: user["id"],
+          name: user["displayName"],
+          email: user["mail"] || user["userPrincipalName"]
+        }
+      end
+    else
+      Rails.logger.error "[MicrosoftCredential] Failed to list users for #{name}: #{response.body}"
+      []
+    end
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftCredential] Error listing users for #{name}: #{e.message}"
+    []
   end
 
   private

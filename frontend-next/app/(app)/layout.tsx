@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useAtomValue } from "jotai";
 import { Sidebar } from "@/components/ui/sidebar";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
@@ -12,7 +11,6 @@ import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { LayoutModeProvider, useLayoutMode } from "@/contexts/LayoutModeContext";
 import { BreadcrumbProvider } from "@/contexts/BreadcrumbContext";
 import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/BreadcrumbTrail";
-import { breadcrumbPinnedAtom, breadcrumbTrailAtom, breadcrumbVisibleAtom } from "@/lib/breadcrumb-atoms";
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 
@@ -24,13 +22,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const vitalsInitialized = useRef(false);
 
-  // Breadcrumb state for content push-down
-  const isPinned = useAtomValue(breadcrumbPinnedAtom);
-  const isVisible = useAtomValue(breadcrumbVisibleAtom);
-  const trail = useAtomValue(breadcrumbTrailAtom);
-  // Push content down when breadcrumb is showing (pinned or hover)
-  const hasTrail = trail.length >= 1;
-  const shouldShowBreadcrumbSpace = hasTrail && (isPinned || isVisible);
+  // Note: Breadcrumb trail is rendered by BreadcrumbTrail component
+  // Padding is always reserved (48 + BREADCRUMB_BAR_HEIGHT) to prevent CLS
 
   // Initialize Performance Observatory Web Vitals collection
   useEffect(() => {
@@ -82,10 +75,16 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       `}</style>
 
       {/* Main Content - below header, beside sidebar */}
-      {/* pt-12 = 48px for header, add BREADCRUMB_BAR_HEIGHT when pinned */}
+      {/* pt-12 = 48px for header, add BREADCRUMB_BAR_HEIGHT (except fullscreen) */}
+      {/* CLS FIX: Always reserve breadcrumb space even when trail is empty
+       * Trail is populated via useEffect which runs after first render
+       * Without consistent padding, there's a 36px layout shift (CLS 0.28) */}
+      {/* CLS FIX: Use transition-[padding-left] instead of transition-all
+       * transition-all caused non-composited border-color animations triggering CLS
+       * Only padding-left needs to animate (for sidebar resize) */}
       <main
-        className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-all duration-300 ease-in-out`}
-        style={{ paddingTop: shouldShowBreadcrumbSpace ? 48 + BREADCRUMB_BAR_HEIGHT : 48 }}
+        className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-[padding-left] duration-300 ease-in-out`}
+        style={{ paddingTop: shouldHideSidebar ? 48 : 48 + BREADCRUMB_BAR_HEIGHT }}
       >
         <div className={`h-full overflow-auto ${contentClassName}`}>
           {children}
@@ -97,8 +96,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <FloatingHelpButton />
       </div>
 
-      {/* Breadcrumb Trail - floating overlay below header */}
-      <BreadcrumbTrail />
+      {/* Breadcrumb Trail - floating overlay below header (hidden in fullscreen) */}
+      {!shouldHideSidebar && <BreadcrumbTrail />}
     </div>
   );
 }

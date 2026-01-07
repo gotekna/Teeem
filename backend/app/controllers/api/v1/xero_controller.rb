@@ -2200,49 +2200,194 @@ module Api
         end
       end
 
-      # POST /api/v1/xero/link_unlinked_contact
-      # Links all invoices with a given Xero contact name to a TEEEM contact
-      # Can optionally create a new contact if create_new: true
-      def link_unlinked_contact
-        xero_contact_name = params[:xero_contact_name]
-        contact_id = params[:contact_id]
-        create_new = params[:create_new] == true || params[:create_new] == "true"
+      # GET /api/v1/xero/xero_duplicates
+      # Finds potential duplicate contacts WITHIN Xero tenants (same entity, different Xero contact IDs)
+      # These need to be merged in Xero, not in TEEEM
+      #
+      # Real duplicates are like:
+      #   - "Bunnings" vs "Bunnings Group Limited" (one is substring of other)
+      #   - "Coles" vs "Coles Express" (one is prefix of other)
+      #   - "Homes of Hope" vs "Homes of Hope LTD" (differ only by suffix)
+      #
+      # NOT duplicates (false positives to filter):
+      #   - "David Kim" vs "David Kilner" (different last names)
+      #   - "Austral Bricks" vs "Austral Insulation" (different products)
+      #   - "Joii Tiling" vs "Joii Carpentry" (intentionally separate divisions)
+      def xero_duplicates
+        begin
+          duplicates = []
 
-        unless xero_contact_name.present?
-          return render json: { success: false, error: "xero_contact_name is required" }, status: :bad_request
+          # Common business suffixes to ignore when comparing
+          suffixes = %w[pty ltd limited inc corp company group holdings trust
+                        australia australian qld nsw vic sa wa nt act tas
+                        services solutions consulting enterprises industries]
+
+          # Get all unique Xero contacts per tenant
+          tenant_contacts = ExternalInvoice
+            .where.not(contact_name: [ nil, "", "No Contact" ])
+            .where.not(external_contact_id: nil)
+            .select("DISTINCT tenant_id, contact_name, external_contact_id")
+            .to_a
+
+          # Group by tenant
+          by_tenant = tenant_contacts.group_by(&:tenant_id)
+
+          by_tenant.each do |tenant_id, contacts|
+            cred = XeroCredential.find_by(tenant_id: tenant_id)
+            tenant_name = cred&.tenant_name || tenant_id[0..7]
+
+            names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
+
+            # Pre-compute TEEEM links for all Xero contacts in this tenant
+            teeem_links = {}
+            names.each do |contact|
+              link = ContactExternalLink.find_by(external_contact_id: contact[:xero_id])
+              teeem_links[contact[:xero_id]] = link&.contact_id
+            end
+
+            # Compare each pair of names to find real duplicates
+            # Real duplicate = one name is essentially contained in the other (ignoring suffixes)
+            checked_pairs = Set.new
+            names.each do |a|
+              names.each do |b|
+                next if a[:xero_id] == b[:xero_id]
+                pair_key = [ a[:xero_id], b[:xero_id] ].sort.join("-")
+                next if checked_pairs.include?(pair_key)
+                checked_pairs.add(pair_key)
+
+                # Skip if both contacts are linked to DIFFERENT TEEEM contacts
+                # (user has already determined these are separate people)
+                teeem_id_a = teeem_links[a[:xero_id]]
+                teeem_id_b = teeem_links[b[:xero_id]]
+                if teeem_id_a.present? && teeem_id_b.present? && teeem_id_a != teeem_id_b
+                  next
+                end
+
+                if likely_duplicate?(a[:name], b[:name], suffixes)
+                  # Find or create group for this pair
+                  existing_group = duplicates.find do |d|
+                    d[:tenant_id] == tenant_id &&
+                    d[:xero_contacts].any? { |c| c[:xero_id] == a[:xero_id] || c[:xero_id] == b[:xero_id] }
+                  end
+
+                  if existing_group
+                    # Add to existing group if not already there
+                    [ a, b ].each do |contact|
+                      unless existing_group[:xero_contacts].any? { |c| c[:xero_id] == contact[:xero_id] }
+                        existing_group[:xero_contacts] << build_xero_contact_info(contact)
+                      end
+                    end
+                    existing_group[:variation_count] = existing_group[:xero_contacts].length
+                  else
+                    # Create new group
+                    duplicates << {
+                      tenant_id: tenant_id,
+                      tenant_name: tenant_name,
+                      base_name: normalize_name(a[:name], suffixes).split.first&.capitalize || a[:name],
+                      variation_count: 2,
+                      xero_contacts: [
+                        build_xero_contact_info(a),
+                        build_xero_contact_info(b)
+                      ].sort_by { |c| -c[:invoice_count] }
+                    }
+                  end
+                end
+              end
+            end
+          end
+
+          # Sort contacts within each group by invoice count, then sort groups
+          duplicates.each do |d|
+            d[:xero_contacts].sort_by! { |c| -c[:invoice_count] }
+          end
+          duplicates.sort_by! { |d| -d[:variation_count] }
+
+          render json: {
+            success: true,
+            data: {
+              total_groups: duplicates.size,
+              groups: duplicates
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero xero_duplicates error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to get Xero duplicates: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/link_unlinked_contact
+      # Links a Xero contact to a TEEEM contact by creating a ContactExternalLink
+      # Also updates any invoices with this Xero contact to point to the TEEEM contact
+      def link_unlinked_contact
+        xero_contact_id = params[:xero_contact_id]
+        xero_contact_name = params[:xero_contact_name]
+        tenant_id = params[:tenant_id]
+        contact_id = params[:contact_id]
+
+        unless xero_contact_id.present?
+          return render json: { success: false, error: "xero_contact_id is required" }, status: :bad_request
         end
 
-        unless contact_id.present? || create_new
-          return render json: { success: false, error: "contact_id or create_new is required" }, status: :bad_request
+        unless contact_id.present?
+          return render json: { success: false, error: "contact_id is required" }, status: :bad_request
         end
 
         begin
           ActiveRecord::Base.transaction do
-            # Find the TEEEM contact (or create new)
-            if create_new
-              # Create a new contact with the Xero contact name
-              # Default to "company" entity_type since most Xero contacts are businesses
-              @contact = Contact.create!(
-                display_name: xero_contact_name,
-                company_name_or_trust: xero_contact_name,
-                entity_type: "company",
-                is_active: true
-              )
-            else
-              @contact = Contact.find(contact_id)
+            @contact = Contact.find(contact_id)
+
+            # Get tenant info - prefer passed tenant_id, fall back to finding from invoices
+            effective_tenant_id = tenant_id
+            if effective_tenant_id.blank?
+              # Try to find tenant_id from an invoice with this Xero contact
+              invoice = ExternalInvoice.find_by(external_contact_id: xero_contact_id)
+              effective_tenant_id = invoice&.tenant_id
             end
 
-            # Update all unlinked invoices with this contact name
-            updated_count = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
+            # Get tenant name from XeroCredential
+            xero_credential = XeroCredential.find_by(tenant_id: effective_tenant_id) if effective_tenant_id.present?
+
+            # Create or update ContactExternalLink
+            link = ContactExternalLink.find_or_initialize_by(
+              source: "xero",
+              external_contact_id: xero_contact_id,
+              tenant_id: effective_tenant_id
+            )
+
+            link.assign_attributes(
+              contact_id: @contact.id,
+              external_name: xero_contact_name || link.external_name,
+              tenant_name: xero_credential&.tenant_name || link.tenant_name,
+              sync_enabled: true,
+              sync_direction: "bidirectional",
+              match_type: "manual",
+              needs_review: false,
+              last_synced_at: Time.current
+            )
+            link.save!
+
+            # Update all invoices with this Xero contact ID to point to the TEEEM contact
+            updated_count = ExternalInvoice.where(external_contact_id: xero_contact_id)
               .update_all(contact_id: @contact.id)
+
+            # Also update by name if we have it (for invoices that might have the name but not the ID)
+            if xero_contact_name.present?
+              name_updated = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
+                .update_all(contact_id: @contact.id)
+              updated_count += name_updated
+            end
 
             render json: {
               success: true,
               data: {
                 contact_id: @contact.id,
                 contact_name: @contact.display_name,
-                invoices_linked: updated_count,
-                created_new: create_new
+                xero_link_id: link.id,
+                invoices_linked: updated_count
               }
             }
           end
@@ -2250,6 +2395,7 @@ module Api
           render json: { success: false, error: "Contact not found" }, status: :not_found
         rescue StandardError => e
           Rails.logger.error("Xero link_unlinked_contact error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
           render json: { success: false, error: "Failed to link contact: #{e.message}" }, status: :internal_server_error
         end
       end
@@ -2306,6 +2452,404 @@ module Api
         rescue StandardError => e
           Rails.logger.error("Xero auto_match_contacts error: #{e.message}")
           render json: { success: false, error: "Failed to auto-match: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/push_contact_names
+      # Updates Xero contact names to match TEEEM contact display names
+      # Takes an array of xero_link_ids and pushes the TEEEM name to Xero
+      def push_contact_names
+        xero_link_ids = params[:xero_link_ids]
+
+        unless xero_link_ids.present? && xero_link_ids.is_a?(Array)
+          return render json: { success: false, error: "xero_link_ids array is required" }, status: :bad_request
+        end
+
+        begin
+          results = { success: 0, failed: 0, errors: [] }
+          xero_client = XeroApiClient.new
+
+          xero_link_ids.each do |link_id|
+            link = ContactExternalLink.find_by(id: link_id)
+            unless link
+              results[:failed] += 1
+              results[:errors] << { link_id: link_id, error: "Link not found" }
+              next
+            end
+
+            contact = link.contact
+            unless contact
+              results[:failed] += 1
+              results[:errors] << { link_id: link_id, error: "Contact not found" }
+              next
+            end
+
+            # Build the Xero payload - just update the name
+            xero_payload = {
+              Contacts: [
+                {
+                  ContactID: link.external_contact_id,
+                  Name: contact.display_name
+                }
+              ]
+            }
+
+            # Push to Xero - wrap in per-contact exception handling
+            begin
+              result = xero_client.post("Contacts", xero_payload, tenant_id: link.tenant_id)
+
+              if result[:success]
+                # Update the external_name to match what we pushed
+                link.update!(
+                  external_name: contact.display_name,
+                  match_confidence: 1.0,
+                  last_synced_at: Time.current
+                )
+                results[:success] += 1
+                Rails.logger.info("[Xero] Pushed name '#{contact.display_name}' to Xero contact #{link.external_contact_id}")
+              else
+                results[:failed] += 1
+                results[:errors] << {
+                  link_id: link_id,
+                  contact_name: contact.display_name,
+                  error: result[:error] || "Failed to update Xero contact",
+                  error_type: "api_error"
+                }
+                Rails.logger.error("[Xero] Failed to push name for link #{link_id}: #{result[:error]}")
+              end
+            rescue XeroApiClient::ApiError => e
+              # Handle Xero validation errors (400 responses) per-contact
+              results[:failed] += 1
+              results[:errors] << {
+                link_id: link_id,
+                contact_name: contact.display_name,
+                error: humanize_xero_push_error(e.message),
+                error_type: classify_xero_push_error(e.message)
+              }
+              Rails.logger.error("[Xero] API error pushing name for link #{link_id}: #{e.message}")
+            rescue XeroApiClient::RateLimitError => e
+              # Stop processing on rate limit
+              results[:failed] += 1
+              results[:errors] << {
+                link_id: link_id,
+                contact_name: contact.display_name,
+                error: "Rate limit exceeded - try again later",
+                error_type: "rate_limit"
+              }
+              Rails.logger.warn("[Xero] Rate limit hit during push_contact_names")
+              break
+            end
+          end
+
+          render json: {
+            success: true,
+            data: results
+          }
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("[Xero] push_contact_names auth error: #{e.message}")
+          render json: { success: false, error: "Xero authentication failed: #{e.message}" }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("[Xero] push_contact_names error: #{e.message}")
+          render json: { success: false, error: "Failed to push contact names: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/pull_contact_details
+      # Fetches Xero contact details and compares with TEEEM contact
+      # Returns differences for user review before applying
+      def pull_contact_details
+        xero_link_ids = params[:xero_link_ids]
+
+        unless xero_link_ids.present? && xero_link_ids.is_a?(Array)
+          return render json: { success: false, error: "xero_link_ids array is required" }, status: :bad_request
+        end
+
+        begin
+          xero_client = XeroApiClient.new
+          comparisons = []
+
+          xero_link_ids.each do |link_id|
+            link = ContactExternalLink.find_by(id: link_id)
+            next unless link
+
+            contact = link.contact
+            next unless contact
+
+            # Fetch Xero contact details
+            result = xero_client.get("Contacts/#{link.external_contact_id}", tenant_id: link.tenant_id)
+
+            unless result[:success] && result[:data].present?
+              comparisons << {
+                link_id: link_id,
+                contact_id: contact.id,
+                teeem_name: contact.display_name,
+                error: result[:error] || "Failed to fetch from Xero"
+              }
+              next
+            end
+
+            xero_contact = result[:data]["Contacts"]&.first
+            next unless xero_contact
+
+            # Compare fields and find differences
+            differences = []
+
+            # Name comparison
+            xero_name = xero_contact["Name"]
+            if xero_name.present? && xero_name != contact.display_name
+              differences << {
+                field: "name",
+                label: "Name",
+                teeem_value: contact.display_name,
+                xero_value: xero_name
+              }
+            end
+
+            # ABN/Tax Number comparison (normalize by removing spaces/dashes)
+            xero_abn = xero_contact["TaxNumber"]
+            teeem_abn = contact.abn
+            xero_abn_normalized = xero_abn&.gsub(/[\s\-]/, "")
+            teeem_abn_normalized = teeem_abn&.gsub(/[\s\-]/, "")
+            if xero_abn.present? && xero_abn_normalized != teeem_abn_normalized
+              differences << {
+                field: "abn",
+                label: "ABN",
+                teeem_value: teeem_abn,
+                xero_value: xero_abn
+              }
+            end
+
+            # Email comparison (from Xero EmailAddress field)
+            # Check both primary email AND secondary emails (contact_emails table)
+            xero_email = xero_contact["EmailAddress"]
+            if xero_email.present?
+              xero_email_normalized = xero_email.downcase.strip
+              primary_email_normalized = contact.email&.downcase&.strip
+
+              # Check if Xero email matches primary or any secondary email
+              email_already_in_teeem = (xero_email_normalized == primary_email_normalized) ||
+                                       contact.contact_emails.exists?(["LOWER(email) = ?", xero_email_normalized])
+
+              unless email_already_in_teeem
+                differences << {
+                  field: "email",
+                  label: "Email",
+                  teeem_value: contact.email,
+                  xero_value: xero_email
+                }
+              end
+            end
+
+            # Phone comparison (normalize by removing spaces, dashes, parentheses)
+            phones = xero_contact["Phones"] || []
+            xero_phone = phones.find { |p| p["PhoneType"] == "DEFAULT" }&.dig("PhoneNumber")
+            xero_mobile = phones.find { |p| p["PhoneType"] == "MOBILE" }&.dig("PhoneNumber")
+
+            normalize_phone = ->(p) { p&.gsub(/[\s\-\(\)]/, "") }
+
+            if xero_phone.present? && normalize_phone.call(xero_phone) != normalize_phone.call(contact.office_phone)
+              differences << {
+                field: "phone",
+                label: "Phone",
+                teeem_value: contact.office_phone,
+                xero_value: xero_phone
+              }
+            end
+
+            if xero_mobile.present? && normalize_phone.call(xero_mobile) != normalize_phone.call(contact.mobile_phone)
+              differences << {
+                field: "mobile",
+                label: "Mobile",
+                teeem_value: contact.mobile_phone,
+                xero_value: xero_mobile
+              }
+            end
+
+            # Address comparison (normalize whitespace and punctuation)
+            addresses = xero_contact["Addresses"] || []
+            street_address = addresses.find { |a| a["AddressType"] == "STREET" }
+            if street_address.present?
+              xero_address = [
+                street_address["AddressLine1"],
+                street_address["AddressLine2"],
+                street_address["City"],
+                street_address["Region"],
+                street_address["PostalCode"]
+              ].compact.reject(&:blank?).join(", ")
+
+              teeem_address = contact.address.presence
+
+              # Normalize addresses: downcase, remove extra spaces, normalize punctuation
+              normalize_address = ->(a) {
+                return nil if a.blank?
+                a.downcase.gsub(/\s+/, " ").gsub(/\s*,\s*/, ", ").gsub(/\s*-\s*/, " - ").strip
+              }
+
+              if xero_address.present? && normalize_address.call(xero_address) != normalize_address.call(teeem_address)
+                differences << {
+                  field: "address",
+                  label: "Address",
+                  teeem_value: teeem_address,
+                  xero_value: xero_address,
+                  xero_address_parts: {
+                    line1: street_address["AddressLine1"],
+                    line2: street_address["AddressLine2"],
+                    city: street_address["City"],
+                    region: street_address["Region"],
+                    postal_code: street_address["PostalCode"],
+                    country: street_address["Country"]
+                  }
+                }
+              end
+            end
+
+            # Website comparison
+            xero_website = xero_contact["Website"]
+            if xero_website.present? && xero_website != contact.website
+              differences << {
+                field: "website",
+                label: "Website",
+                teeem_value: contact.website,
+                xero_value: xero_website
+              }
+            end
+
+            comparisons << {
+              link_id: link_id,
+              contact_id: contact.id,
+              teeem_name: contact.display_name,
+              xero_name: xero_name,
+              xero_id: link.external_contact_id,
+              tenant_name: link.tenant_name,
+              has_differences: differences.any?,
+              differences: differences
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              total: comparisons.size,
+              with_differences: comparisons.count { |c| c[:has_differences] },
+              comparisons: comparisons
+            }
+          }
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("[Xero] pull_contact_details auth error: #{e.message}")
+          render json: { success: false, error: "Xero authentication failed: #{e.message}" }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("[Xero] pull_contact_details error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: { success: false, error: "Failed to pull contact details: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/apply_xero_updates
+      # Applies selected Xero field values to TEEEM contacts
+      def apply_xero_updates
+        updates = params[:updates]
+
+        unless updates.present? && updates.is_a?(Array)
+          return render json: { success: false, error: "updates array is required" }, status: :bad_request
+        end
+
+        begin
+          results = { success: 0, failed: 0, errors: [] }
+
+          updates.each do |update|
+            contact_id = update[:contact_id] || update["contact_id"]
+            # Convert to Hash first, then add indifferent access for consistent key access
+            # Use to_unsafe_h for ActionController::Parameters (bypasses permit requirement)
+            raw_fields = update[:fields] || update["fields"] || {}
+            fields = raw_fields.respond_to?(:to_unsafe_h) ? raw_fields.to_unsafe_h.with_indifferent_access : (raw_fields.is_a?(Hash) ? raw_fields.with_indifferent_access : {})
+            tenant_name = update[:tenant_name] || update["tenant_name"]
+
+            Rails.logger.info("[Xero] Processing update for contact #{contact_id}, fields: #{fields.keys.inspect}")
+
+            contact = Contact.find_by(id: contact_id)
+            unless contact
+              results[:failed] += 1
+              results[:errors] << { contact_id: contact_id, error: "Contact not found" }
+              next
+            end
+
+            # Build attributes to update
+            attrs = {}
+
+            # Handle name update based on entity type
+            # For person/sole_trader: update first_name (display_name auto-generates from first+last)
+            # For company/trust: update display_name directly (syncs to company_name_or_trust)
+            if fields[:name].present?
+              xero_name = fields[:name].strip
+              if contact.is_person? || contact.entity_type == "sole_trader"
+                # Smart name parsing: if Xero name ends with existing last_name, only update first_name
+                if contact.last_name.present? && xero_name.downcase.end_with?(contact.last_name.downcase)
+                  # Extract first name (everything before the last name)
+                  new_first = xero_name[0...(xero_name.length - contact.last_name.length)].strip
+                  attrs[:first_name] = new_first if new_first.present?
+                else
+                  # Different last name or no existing last name - split on spaces
+                  name_parts = xero_name.split(/\s+/)
+                  if name_parts.length >= 2
+                    attrs[:first_name] = name_parts[0..-2].join(" ")
+                    attrs[:last_name] = name_parts[-1]
+                  else
+                    attrs[:first_name] = xero_name
+                  end
+                end
+                Rails.logger.info("[Xero] Person contact - updating first_name/last_name instead of display_name")
+              else
+                # Company/trust - update display_name directly
+                attrs[:display_name] = xero_name
+              end
+            end
+            attrs[:abn] = fields[:abn] if fields[:abn].present?
+            attrs[:office_phone] = fields[:phone] if fields[:phone].present?
+            attrs[:mobile_phone] = fields[:mobile] if fields[:mobile].present?
+            attrs[:website] = fields[:website] if fields[:website].present?
+            attrs[:address] = fields[:address] if fields[:address].present?
+
+            # Handle email specially - add as secondary if contact already has different email
+            if fields[:email].present?
+              xero_email = fields[:email].downcase.strip
+              existing_email = contact.email&.downcase&.strip
+
+              if existing_email.blank?
+                # No existing email - set it directly
+                attrs[:email] = fields[:email]
+              elsif existing_email != xero_email
+                # Different email exists - add Xero email as secondary
+                # Check if this email already exists for this contact
+                unless contact.contact_emails.exists?(email: xero_email)
+                  # Use tenant name as label if available, otherwise "Xero"
+                  email_label = tenant_name.present? ? "Xero (#{tenant_name})" : "Xero"
+                  contact.contact_emails.create!(
+                    email: fields[:email],
+                    label: email_label,
+                    is_primary: false
+                  )
+                  Rails.logger.info("[Xero] Added secondary email '#{fields[:email]}' to contact #{contact_id} with label '#{email_label}'")
+                end
+              end
+              # If same email, do nothing
+            end
+
+            if attrs.present?
+              contact.update!(attrs)
+              results[:success] += 1
+              Rails.logger.info("[Xero] Applied Xero updates to contact #{contact_id}: #{attrs.keys.join(', ')}")
+            else
+              results[:success] += 1 # No changes needed (or only email was added as secondary)
+            end
+          end
+
+          render json: {
+            success: true,
+            data: results
+          }
+        rescue StandardError => e
+          Rails.logger.error("[Xero] apply_xero_updates error: #{e.message}")
+          render json: { success: false, error: "Failed to apply updates: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -2440,7 +2984,179 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/stale_xero_links
+      # Returns links to Xero contacts that no longer exist (merged/deleted in Xero)
+      # along with the invoices that still reference them
+      def stale_xero_links
+        begin
+          # Find all ContactExternalLinks where xero_contact_status = 'not_found'
+          stale_links = ContactExternalLink
+            .where(source: 'xero', xero_contact_status: 'not_found')
+            .includes(:contact)
+
+          result = stale_links.map do |link|
+            # Find invoices still pointing to this stale Xero contact
+            invoices = ExternalInvoice
+              .where(tenant_id: link.tenant_id, external_contact_id: link.external_contact_id)
+              .order(invoice_date: :desc)
+              .limit(10)
+
+            {
+              link_id: link.id,
+              xero_contact_name: link.external_contact_name,
+              xero_contact_id: link.external_contact_id,
+              tenant_id: link.tenant_id,
+              tenant_name: XeroCredential.find_by(tenant_id: link.tenant_id)&.tenant_name,
+              sync_error: link.sync_error,
+              teeem_contact_id: link.contact_id,
+              teeem_contact_name: link.contact&.display_name,
+              invoice_count: invoices.count,
+              invoices: invoices.map do |inv|
+                {
+                  number: inv.invoice_number,
+                  contact_name: inv.contact_name,
+                  date: inv.invoice_date&.to_s,
+                  total: inv.total
+                }
+              end
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              stale_links: result,
+              total: result.size
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero stale_xero_links error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to get stale Xero links: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # DELETE /api/v1/xero/stale_xero_links/:id
+      # Deletes a stale link (user acknowledges they'll fix the invoices in Xero)
+      def delete_stale_link
+        begin
+          link = ContactExternalLink.find(params[:id])
+
+          unless link.xero_contact_status == 'not_found'
+            return render json: {
+              success: false,
+              error: "This link is not stale - cannot delete"
+            }, status: :bad_request
+          end
+
+          link.destroy!
+
+          render json: {
+            success: true,
+            message: "Stale link deleted. Update the invoices in Xero to prevent it from reappearing."
+          }
+        rescue ActiveRecord::RecordNotFound
+          render json: { success: false, error: "Link not found" }, status: :not_found
+        rescue StandardError => e
+          Rails.logger.error("Xero delete_stale_link error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to delete stale link: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       private
+
+      # Humanize Xero push errors to user-friendly messages
+      def humanize_xero_push_error(message)
+        case message
+        when /already assigned to another contact/i
+          "This name is already used by another contact in Xero"
+        when /archived contact/i
+          "This contact is archived in Xero - restore it first"
+        when /validation/i
+          message.sub(/^.*?:\s*/, "")  # Remove prefix
+        else
+          message
+        end
+      end
+
+      # Classify Xero push errors by type for frontend handling
+      def classify_xero_push_error(message)
+        case message
+        when /archived/i then "archived"
+        when /already assigned|duplicate/i then "duplicate"
+        when /validation/i then "validation"
+        else "unknown"
+        end
+      end
+
+      # Check if two names are likely duplicates (for xero_duplicates endpoint)
+      # Returns true if one name is essentially contained in the other
+      # Uses strict word-level matching to avoid false positives
+      def likely_duplicate?(name1, name2, suffixes)
+        n1 = normalize_name(name1, suffixes)
+        n2 = normalize_name(name2, suffixes)
+
+        return false if n1.empty? || n2.empty?
+        return true if n1 == n2  # Same after normalization
+
+        words1 = n1.split
+        words2 = n2.split
+
+        # Require at least 2 characters per word to avoid false matches
+        return false if words1.any? { |w| w.length < 3 } || words2.any? { |w| w.length < 3 }
+
+        # Check if one name's words are a subset of the other (word-level matching only)
+        # This catches "Coles" vs "Coles Express" or "Star" vs "Star Airconditioning"
+        shorter, longer = words1.length <= words2.length ? [ words1, words2 ] : [ words2, words1 ]
+
+        # For single-word names: the word must be the FIRST word of the longer name
+        # This prevents "STA" matching "inSTAllations"
+        if shorter.length == 1
+          return shorter.first == longer.first
+        end
+
+        # For two-word names: the first word must match the first word of the longer name,
+        # and all words must appear in the longer name
+        if shorter.length == 2
+          return false unless shorter.first == longer.first
+          return shorter.all? { |w| longer.include?(w) }
+        end
+
+        # For longer names: require exact first word match and high word overlap
+        return false unless shorter.first == longer.first
+        matching_words = shorter.count { |w| longer.include?(w) }
+        matching_words >= (shorter.length * 0.8).ceil
+      end
+
+      # Normalize name by removing common suffixes and lowercasing (for xero_duplicates endpoint)
+      def normalize_name(name, suffixes)
+        words = name.downcase.gsub(/[^a-z0-9\s]/, "").split
+        words.reject { |w| suffixes.include?(w) || w.length < 2 }.join(" ")
+      end
+
+      # Build contact info hash for a Xero contact (for xero_duplicates endpoint)
+      def build_xero_contact_info(contact)
+        inv_count = ExternalInvoice.where(external_contact_id: contact[:xero_id]).count
+        total_amount = ExternalInvoice.where(external_contact_id: contact[:xero_id]).sum(:total)&.to_f || 0
+        has_link = ContactExternalLink.exists?(external_contact_id: contact[:xero_id])
+        linked_contact = has_link ? ContactExternalLink.find_by(external_contact_id: contact[:xero_id])&.contact : nil
+
+        {
+          xero_name: contact[:name],
+          xero_id: contact[:xero_id],
+          invoice_count: inv_count,
+          total_amount: total_amount,
+          has_teeem_link: has_link,
+          teeem_contact_id: linked_contact&.id,
+          teeem_contact_name: linked_contact&.display_name
+        }
+      end
 
       # Calculate Xero data statistics for sync dashboard
       def calculate_xero_data_stats

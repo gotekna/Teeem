@@ -6,6 +6,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { JotaiProvider } from "@/components/providers/jotai-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { DynamicTitle } from "@/components/dynamic-title";
@@ -38,18 +39,20 @@ export default function RootLayout({
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >
-          <QueryProvider>
-            <AuthProvider>
-              <DynamicTitle />
-              {children}
-              <Toaster />
-              <SonnerToaster />
-            </AuthProvider>
-          </QueryProvider>
+          <JotaiProvider>
+            <QueryProvider>
+              <AuthProvider>
+                <DynamicTitle />
+                {children}
+                <Toaster />
+                <SonnerToaster />
+              </AuthProvider>
+            </QueryProvider>
+          </JotaiProvider>
         </ThemeProvider>
       </body>
     </html>

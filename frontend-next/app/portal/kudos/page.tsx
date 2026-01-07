@@ -174,8 +174,8 @@ export default function PortalKudos() {
 
   if (error || !kudosData) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <p className="text-red-800">{error || "Failed to load kudos data"}</p>
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+        <p className="text-red-800 dark:text-red-200">{error || "Failed to load kudos data"}</p>
       </div>
     );
   }
@@ -186,8 +186,8 @@ export default function PortalKudos() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Kudos Score</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Kudos Score</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Track your performance and earn points for great work
         </p>
       </div>
@@ -236,113 +236,113 @@ export default function PortalKudos() {
 
       {/* Statistics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 Jobs Completed
               </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
+              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
                 {kudosData.statistics.total_jobs_completed}
               </p>
             </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <CheckCircleIcon className="h-8 w-8 text-green-600" />
+            <div className="p-3 bg-green-100 dark:bg-green-900/50 rounded-full">
+              <CheckCircleIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 On-Time Arrivals
               </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
+              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
                 {kudosData.statistics.on_time_arrivals}
               </p>
             </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <ClockIcon className="h-8 w-8 text-blue-600" />
+            <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-full">
+              <ClockIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 On-Time Completions
               </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
+              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
                 {kudosData.statistics.on_time_completions}
               </p>
             </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <TrophyIcon className="h-8 w-8 text-purple-600" />
+            <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-full">
+              <TrophyIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 Fast Quote Responses
               </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
+              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
                 {kudosData.statistics.fast_quote_responses}
               </p>
             </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <RocketLaunchIcon className="h-8 w-8 text-orange-600" />
+            <div className="p-3 bg-orange-100 dark:bg-orange-900/50 rounded-full">
+              <RocketLaunchIcon className="h-8 w-8 text-orange-600 dark:text-orange-400" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Points Breakdown */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
             Points Breakdown
           </h3>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             How you've earned your kudos points
           </p>
         </div>
         <div className="overflow-x-auto">
           <Table className="min-w-full">
-            <TableHeader className="bg-gray-50">
+            <TableHeader className="bg-gray-50 dark:bg-gray-700">
               <TableRow>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Event Type
                 </TableHead>
-                <TableHead className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Points/Event
                 </TableHead>
-                <TableHead className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Count
                 </TableHead>
-                <TableHead className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Total Points
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="bg-white divide-y divide-gray-200">
+            <TableBody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {Object.entries(kudosData.breakdown).map(
                 ([eventType, data]) => (
-                  <TableRow key={eventType}>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <TableRow key={eventType} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {formatEventType(eventType)}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">
                       {data.points_per_event}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">
                       {data.event_count}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-right">
                       {data.total_points}
                     </TableCell>
                   </TableRow>
@@ -354,16 +354,16 @@ export default function PortalKudos() {
       </div>
 
       {/* Recent Events */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Recent Events</h3>
-          <p className="mt-1 text-sm text-gray-500">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Recent Events</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Your latest kudos-earning activities
           </p>
         </div>
         <div className="px-6 py-4">
           {kudosData.recent_events.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">
+            <p className="text-center text-gray-500 dark:text-gray-400 py-8">
               No recent events yet. Complete jobs to start earning kudos!
             </p>
           ) : (
@@ -374,31 +374,31 @@ export default function PortalKudos() {
                     <div className="relative pb-8">
                       {eventIdx !== kudosData.recent_events.length - 1 && (
                         <span
-                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
+                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-700"
                           aria-hidden="true"
                         />
                       )}
                       <div className="relative flex space-x-3">
                         <div>
-                          <span className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center ring-8 ring-white">
-                            <StarIcon className="h-5 w-5 text-indigo-600" />
+                          <span className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center ring-8 ring-white dark:ring-gray-800">
+                            <StarIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                           </span>
                         </div>
                         <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
                           <div>
-                            <p className="text-sm text-gray-900">
+                            <p className="text-sm text-gray-900 dark:text-white">
                               {formatEventType(event.event_type)}
-                              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300">
                                 +{event.points} points
                               </span>
                             </p>
                             {event.description && (
-                              <p className="mt-1 text-sm text-gray-500">
+                              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                 {event.description}
                               </p>
                             )}
                           </div>
-                          <div className="whitespace-nowrap text-right text-sm text-gray-500">
+                          <div className="whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
                             <time dateTime={event.created_at}>
                               {formatDate(event.created_at)}
                             </time>
@@ -415,16 +415,16 @@ export default function PortalKudos() {
       </div>
 
       {/* Tier Information */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
         <div className="flex">
           <div className="flex-shrink-0">
-            <ChartBarIcon className="h-6 w-6 text-blue-400" />
+            <ChartBarIcon className="h-6 w-6 text-blue-400 dark:text-blue-300" />
           </div>
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-blue-800">
+            <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
               About Kudos Tiers
             </h3>
-            <div className="mt-2 text-sm text-blue-700">
+            <div className="mt-2 text-sm text-blue-700 dark:text-blue-300">
               <p className="mb-2">
                 Earn points by completing jobs on time, responding quickly to
                 quotes, and delivering great service. Your tier unlocks special

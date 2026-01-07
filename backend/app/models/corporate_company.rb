@@ -186,14 +186,18 @@ class CorporateCompany < ApplicationRecord
 
   def formatted_acn
     return nil unless acn.present?
-    # Format as XXX XXX XXX
-    acn.scan(/.{1,3}/).join(" ")
+    # Strip all non-digits first, then format as XXX XXX XXX
+    digits = acn.gsub(/\D/, "")
+    return acn if digits.length != 9
+    "#{digits[0..2]} #{digits[3..5]} #{digits[6..8]}"
   end
 
   def formatted_abn
     return nil unless abn.present?
-    # Format as XX XXX XXX XXX
-    "#{abn[0..1]} #{abn[2..4]} #{abn[5..7]} #{abn[8..10]}"
+    # Strip all non-digits first, then format as XX XXX XXX XXX
+    digits = abn.gsub(/\D/, "")
+    return abn if digits.length != 11
+    "#{digits[0..1]} #{digits[2..4]} #{digits[5..7]} #{digits[8..10]}"
   end
 
   def active?
@@ -513,6 +517,7 @@ class CorporateCompany < ApplicationRecord
   # SSoT: Automatically create Contact and ContactCorporateGroupMembership for new companies
   def ensure_ssot_contact_and_membership
     # 1. Create Contact for this company (SSoT identity)
+    # DB index idx_contacts_unique_company_name prevents duplicates for active companies
     entity_type = trust_name.present? ? "trust" : "company"
     ssot_contact = Contact.find_or_create_by!(entity_type: entity_type, display_name: name) do |c|
       c.tax_number = abn
@@ -528,6 +533,14 @@ class CorporateCompany < ApplicationRecord
 
     # 4. Create membership if in a group
     create_ssot_membership(ssot_contact) if company_group_id.present?
+  rescue ActiveRecord::RecordNotUnique
+    # DB constraint caught a duplicate (concurrent creation)
+    ssot_contact = Contact.find_by(entity_type: entity_type, display_name: name, is_active: true)
+    if ssot_contact
+      update_column(:contact_id, ssot_contact.id) if contact_id.nil?
+      ssot_contact.update_columns(linked_company_id: id, link_to_cg: true) if ssot_contact.linked_company_id.nil?
+      create_ssot_membership(ssot_contact) if company_group_id.present?
+    end
   rescue StandardError => e
     Rails.logger.error("Company##{id}: SSoT contact/membership creation failed - #{e.message}")
   end

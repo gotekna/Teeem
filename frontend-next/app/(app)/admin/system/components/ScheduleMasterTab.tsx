@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,13 +74,17 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { GanttCanvasView } from "@/components/gantt-canvas";
+import { GanttUnified, GanttDependencyEditor } from "@/components/gantt-v2";
+import { useGanttDataManager } from "@/lib/gantt/hooks";
 import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
 import { api } from "@/lib/api";
+import { isWorkingDay, skipToPreviousWorkingDay, type GanttTask, type SmScheduleMaster as GanttSmScheduleMaster, type SuccessorInfo } from "@/lib/gantt/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle } from "lucide-react";
+import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch } from "lucide-react";
 
 // Copyable code component for column names
 function CopyableCode({ children }: { children: string }) {
@@ -175,6 +180,17 @@ interface SmScheduleMaster {
   po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
   // Linked non-PO tasks (visibility follows this PO task)
   linked_task_ids?: number[];
+  // Checklist and task linking
+  checklist_id?: number | { id: number; display: string } | null;
+  spawn_scan_task_id?: number | { id: number; display: string } | null;
+  // Document types for GET task spawning (SSoT: via sm_schedule_master_document_types join table)
+  document_types?: Array<{
+    id: number;
+    document_type_id: number;
+    document_type_name: string;
+    lag_days?: number;
+    assigned_role?: string;
+  }>;
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -196,6 +212,7 @@ const VALID_SUBTABS = [
   "schedule-templates",
   "display-settings",
   "gantt-preview",
+  "gantt-v2",
   "data-view",
   "column-reference",
   "tables",
@@ -219,7 +236,7 @@ const ALL_COLUMNS = [
   // PO Settings
   "po_required", "critical_po",
   // Auto-PO (create_po_on_job_start + po_line_items work together)
-  "create_po_on_job_start", "po_line_items", "linked_po_task_id",
+  "create_po_on_job_start", "po_line_items",
   "order_time_days", "call_time_days", "po_supplier_id",
   // Completion Requirements
   "require_photo", "pass_fail_enabled",
@@ -246,6 +263,7 @@ type ColumnStatus = {
 const COLUMN_STATUS_KEY = "sm_column_status";
 
 export function ScheduleMasterTab() {
+  console.log("[ScheduleMasterTab] Component mounted - v2 with document types");
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
@@ -264,6 +282,14 @@ export function ScheduleMasterTab() {
   const activeTab: SubTab = VALID_SUBTABS.includes(pathSegments.subtab as SubTab)
     ? (pathSegments.subtab as SubTab)
     : "schedule-templates";
+
+  // SSoT: Set fullscreen layout mode for gantt tabs (hides sidebar & breadcrumbs)
+  const { setMode } = useLayoutMode();
+  React.useEffect(() => {
+    const isGanttTab = activeTab === "gantt-preview" || activeTab === "gantt-v2";
+    setMode(isGanttTab ? "fullscreen" : "full-height");
+    return () => setMode("padded"); // Reset on unmount
+  }, [activeTab, setMode]);
 
   // URL view param (Foundation view filter) - only for data-view tab
   const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;
@@ -312,10 +338,45 @@ export function ScheduleMasterTab() {
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
+  // Gantt V2 state - template ID for selection
+  const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
+  // Show PO required tasks without suppliers (useful for template editing)
+  const [showAllPOTasks, setShowAllPOTasks] = React.useState(false);
+
+  // SSoT: Use shared hook for all Gantt V2 behavior
+  // Gantt always loads its own data (same as Job Gantt) - no external data mode
+  const gantt = useGanttDataManager({
+    mode: 'template',
+    templateId: ganttV2TemplateId ?? undefined,
+    showAllPOTasks,
+  });
+
+  // Aliases for backward compatibility during transition
+  const ganttV2Tasks = gantt.tasks;
+  const ganttV2Dependencies = gantt.dependencies;
+  const ganttV2Loading = gantt.loading;
+  const ganttV2UndoHistory = gantt.undoHistory;
+  const cascadeDialog = gantt.cascadeDialog;
+  const setCascadeDialog = gantt.setCascadeDialog;
+  const lockedTaskDecisions = gantt.lockedTaskDecisions;
+  const setLockedTaskDecisions = gantt.setLockedTaskDecisions;
+  const confirmDialog = gantt.confirmDialog;
+  const setConfirmDialog = gantt.setConfirmDialog;
+  const startTaskDialog = gantt.startTaskDialog;
+  const setStartTaskDialog = gantt.setStartTaskDialog;
+  const dependencyEditorState = gantt.dependencyEditorState;
+  const setDependencyEditorState = gantt.setDependencyEditorState;
+  const executeGanttV2CheckboxToggle = gantt.executeCheckboxToggle;
+  const executeGanttV2DragMove = gantt.executeDragMove;
+  const executeStartTask = gantt.executeStartTask;
+  const loadGanttV2Data = gantt.loadData;
+  const storeGanttV2UndoState = gantt.storeUndoState;
+  const handleGanttV2Undo = gantt.handleUndo;
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
   const [editingRow, setEditingRow] = React.useState<SmScheduleMaster | null>(null);
+  const [activeEditTemplateId, setActiveEditTemplateId] = React.useState<number | null>(null); // Tracks which template to save to
   const [editRowForm, setEditRowForm] = React.useState<Partial<SmScheduleMaster>>({});
   const [savingRow, setSavingRow] = React.useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -391,7 +452,12 @@ export function ScheduleMasterTab() {
   // SSoT: Cost Centres come from Foundation Cost Centres (ID 533)
   const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Header rows are rows with header=NULL (they ARE headers, no parent)
-  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: header_gantt uses task_number (not id) - include both for proper lookups
+  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
+  // SSoT: Checklists from Supervisor Checklist Template foundation
+  const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: Job-scoped document types for spawn scan task dropdown
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -425,6 +491,7 @@ export function ScheduleMasterTab() {
     const totalColumns = ALL_COLUMNS.length;
 
   React.useEffect(() => {
+    console.log("[ScheduleMasterTab] useEffect running, loading all data...");
     loadTemplates();
     loadJobEntityTabs();
     loadTags();
@@ -433,6 +500,9 @@ export function ScheduleMasterTab() {
     loadRoles();
     loadCostCentres();
     loadHeaderRows();
+    loadChecklists();
+    loadDocumentTypes();
+    console.log("[ScheduleMasterTab] All loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
 
@@ -578,7 +648,8 @@ export function ScheduleMasterTab() {
   const loadHeaderRows = async () => {
     try {
       // Query sm_schedule_master rows where allow_header = true (the ones that CAN be headers)
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
+      // SSoT: header_gantt uses task_number (not id) - we need both for proper lookups
+      const data = await api.get<{ success: boolean; records: { id: number; task_number: number; name: string }[] }>(
         "/api/v1/foundations/sm-schedule-master/records?per_page=100&filters=" + encodeURIComponent(JSON.stringify([
           { column: "allow_header", operator: "equals", value: "true" }
         ]))
@@ -588,6 +659,49 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load header rows:", error);
+    }
+  };
+
+  // SSoT: Load checklists from Supervisor Checklist Template foundation
+  const loadChecklists = async () => {
+    try {
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
+        "/api/v1/foundations/supervisor_checklist_templates/records?per_page=100"
+      );
+      if (data?.records) {
+        setAvailableChecklists(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load checklists:", error);
+    }
+  };
+
+  // SSoT: Load job-scoped document types for spawn scan task dropdown
+  // Fetch both "job" and "both" scoped document types
+  const loadDocumentTypes = async () => {
+    try {
+      console.log("[loadDocumentTypes] Fetching document types...");
+      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; scope?: string }> }>(
+        "/api/v1/document_types"
+      );
+      console.log("[loadDocumentTypes] Response:", data);
+      console.log("[loadDocumentTypes] First 3 items:", data?.data?.slice(0, 3));
+      if (data?.data) {
+        // Filter to job-applicable document types (scope = "job" or "both")
+        const jobDocTypes = data.data.filter(dt => dt.scope === "job" || dt.scope === "both");
+        console.log("[loadDocumentTypes] Filtered job doc types:", jobDocTypes.length);
+        if (jobDocTypes.length > 0) {
+          setAvailableDocumentTypes(jobDocTypes);
+        } else {
+          // Fallback: show all if no job-scoped types found (shouldn't happen)
+          console.warn("[loadDocumentTypes] No job-scoped types, showing all");
+          setAvailableDocumentTypes(data.data);
+        }
+      } else {
+        console.warn("[loadDocumentTypes] No data in response");
+      }
+    } catch (error) {
+      console.error("Failed to load document types:", error);
     }
   };
 
@@ -627,6 +741,19 @@ export function ScheduleMasterTab() {
 
         if (autoSelectTemplate) {
           loadDataViewRows(autoSelectTemplate.id);
+        }
+      }
+
+      // Auto-select template for Gantt V2 (same priority as others)
+      if (!ganttV2TemplateId && loadedTemplates.length > 0) {
+        const autoSelectTemplate = loadedTemplates.find(t =>
+          t.name.toLowerCase() === 'po schedule master'
+        ) || loadedTemplates.find(t =>
+          t.name.toLowerCase().includes('schedule master')
+        ) || loadedTemplates[0];
+
+        if (autoSelectTemplate) {
+          setGanttV2TemplateId(autoSelectTemplate.id);
         }
       }
     } catch (error) {
@@ -801,6 +928,7 @@ export function ScheduleMasterTab() {
     // Reset auto-save state for fresh sheet
     initialFormLoadRef.current = true;
     setAutoSaveStatus('idle');
+    setActiveEditTemplateId(dataViewTemplateId); // Track which template to save to
 
     // Cast row from TeeemTableView - it has all the data with proper lookup expansion from Foundation API
     const fullRow = row as unknown as SmScheduleMaster;
@@ -828,13 +956,636 @@ export function ScheduleMasterTab() {
       linked_task_ids: fullRow.linked_task_ids,
       allow_header: fullRow.allow_header,
       is_active: fullRow.is_active,
+      document_types: fullRow.document_types || [],
     });
     setShowEditSheet(true);
   };
 
+  // Handle Gantt V2 task double-click - open edit sheet
+  const handleGanttV2TaskDoubleClick = (task: GanttTask) => {
+    console.log('[ScheduleMasterTab] handleGanttV2TaskDoubleClick called with task:', task.id, task.name);
+    // Reset auto-save state for fresh sheet
+    initialFormLoadRef.current = true;
+    setAutoSaveStatus('idle');
+    setActiveEditTemplateId(ganttV2TemplateId); // Track which template to save to
+
+    // Extract row data from task.rowData (set by convertRowsToTasks)
+    const rowData = task.rowData as GanttSmScheduleMaster | undefined;
+    if (!rowData) {
+      console.error('[Gantt V2] No rowData found on task:', task);
+      return;
+    }
+
+    // Convert to SmScheduleMaster format for the edit sheet
+    // Note: GanttSmScheduleMaster uses supplier_id/supplier_name, local type uses po_supplier_id/po_supplier_name
+    const fullRow: SmScheduleMaster = {
+      id: Number(task.id),
+      task_number: rowData.task_number,
+      name: rowData.name,
+      description: rowData.description || undefined,
+      duration_days: rowData.duration_days,
+      sequence_order: rowData.sequence_order,
+      predecessor_ids: rowData.predecessor_ids || [],
+      trade: rowData.trade || undefined,
+      stage: rowData.stage || undefined,
+      trade_name: rowData.trade || undefined,
+      stage_name: rowData.stage || undefined,
+      assigned_role: rowData.assigned_role || undefined,
+      cost_centre: rowData.cost_centre || undefined,
+      header_gantt: rowData.header_gantt || undefined,
+      allow_header: rowData.allow_header || false,
+      is_active: rowData.is_active ?? true,
+      tags: rowData.tags || [],
+      po_required: rowData.po_required || false,
+      critical_po: rowData.critical_po || false,
+      create_po_on_job_start: rowData.create_po_on_job_start || false,
+      spawn_order_task: false, // Not in GanttSmScheduleMaster type
+      spawn_call_task: false, // Not in GanttSmScheduleMaster type
+      order_time_days: rowData.order_time_days ?? undefined,
+      call_time_days: rowData.call_time_days ?? undefined,
+      require_photo: rowData.require_photo || false,
+      pass_fail_enabled: rowData.pass_fail_enabled || false,
+      po_supplier_id: rowData.supplier_id ?? undefined, // Map from supplier_id
+      po_supplier_name: rowData.supplier_name ?? undefined, // Map from supplier_name
+      po_line_items: undefined, // Not in GanttSmScheduleMaster type
+      linked_task_ids: rowData.linked_task_ids,
+      sm_template_ids: rowData.sm_template_ids || [],
+    };
+
+    setEditingRow(fullRow);
+    setEditRowForm({
+      name: fullRow.name,
+      description: fullRow.description,
+      duration_days: fullRow.duration_days,
+      sequence_order: fullRow.sequence_order,
+      trade: fullRow.trade,
+      stage: fullRow.stage,
+      assigned_role: fullRow.assigned_role,
+      cost_centre: fullRow.cost_centre,
+      header_gantt: fullRow.header_gantt,
+      po_required: fullRow.po_required,
+      critical_po: fullRow.critical_po,
+      create_po_on_job_start: fullRow.create_po_on_job_start,
+      require_photo: fullRow.require_photo,
+      pass_fail_enabled: fullRow.pass_fail_enabled,
+      spawn_order_task: fullRow.spawn_order_task,
+      spawn_call_task: fullRow.spawn_call_task,
+      order_time_days: fullRow.order_time_days,
+      call_time_days: fullRow.call_time_days,
+      linked_task_ids: fullRow.linked_task_ids,
+      allow_header: fullRow.allow_header,
+      is_active: fullRow.is_active,
+      document_types: fullRow.document_types || [],
+    });
+    setShowEditSheet(true);
+  };
+
+  // Gantt V2: Handle checkbox toggle (Started, Hold, Confirm, Supplier Confirm, Complete)
+  const handleGanttV2CheckboxToggle = async (taskId: string, field: string, checked: boolean) => {
+    if (!ganttV2TemplateId) return;
+
+    console.log('[Gantt V2] Checkbox toggle:', taskId, field, checked);
+
+    // For "started" field, check if task is under a header or has predecessors
+    if (field === 'started' && checked) {
+      const task = ganttV2Tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const row = task.rowData as GanttSmScheduleMaster | undefined;
+      if (!row) {
+        await executeGanttV2CheckboxToggle(taskId, field, checked);
+        return;
+      }
+
+      // Check if task is under a header (has header_gantt that references a parent)
+      const headerGanttValue = row.header_gantt;
+      const isUnderHeader = headerGanttValue !== null &&
+                            headerGanttValue !== undefined &&
+                            headerGanttValue !== 'Header'; // 'Header' means this IS a header
+
+      // Check if task has predecessors
+      const hasPredecessors = (row.predecessor_ids?.length ?? 0) > 0;
+
+      if (isUnderHeader || hasPredecessors) {
+        // Find header name for display
+        let headerName: string | null = null;
+        if (isUnderHeader) {
+          const headerTaskNumber = extractLookupId(headerGanttValue);
+          if (headerTaskNumber) {
+            // Find header row by task_number
+            const headerRow = ganttRows.find((r: SmScheduleMaster) => String(r.task_number) === headerTaskNumber);
+            headerName = headerRow?.name || extractLookupDisplay(headerGanttValue) || `Task #${headerTaskNumber}`;
+          }
+        }
+
+        // Fetch holidays from API to check working days
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        let holidayDates: Set<string> | undefined;
+
+        try {
+          const holidayResponse = await api.get<{ dates: string[] }>(
+            `/api/v1/public_holidays/dates?year_start=${currentYear - 1}&year_end=${currentYear + 1}&region=QLD`
+          );
+          if (holidayResponse?.dates) {
+            holidayDates = new Set(holidayResponse.dates);
+            console.log('[Start Task] Fetched holidays from API:', holidayResponse.dates.filter(d => d.startsWith('2026-01')));
+          }
+        } catch (err) {
+          console.warn('[Gantt V2] Failed to fetch holidays, using fallback:', err);
+        }
+
+        console.log('[Start Task] Today:', today.toISOString().split('T')[0], 'isWorkingDay:', isWorkingDay(today, holidayDates));
+        console.log('[Start Task] Holiday dates in set:', holidayDates ? [...holidayDates].filter(d => d.startsWith('2025-12') || d.startsWith('2026-01')).sort() : 'using fallback');
+
+        // Check if today is a working day
+        const isTodayWorking = isWorkingDay(today, holidayDates);
+        const lastWorking = isTodayWorking ? null : skipToPreviousWorkingDay(today, holidayDates);
+        console.log('[Start Task] isTodayWorking:', isTodayWorking, 'lastWorkingDay:', lastWorking?.toISOString().split('T')[0] || 'N/A');
+
+        // Show start task dialog
+        setStartTaskDialog({
+          isOpen: true,
+          task,
+          headerName,
+          hasPredecessors,
+          isTodayWorkingDay: isTodayWorking,
+          lastWorkingDay: lastWorking
+        });
+        return;
+      }
+    }
+
+    // For supplier_confirm and confirm fields, show confirmation dialog first
+    if (field === 'supplier_confirm' || field === 'confirm') {
+      const task = ganttV2Tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const row = task.rowData as GanttSmScheduleMaster | undefined;
+      if (!row) {
+        // No row data, just save directly
+        await executeGanttV2CheckboxToggle(taskId, field, checked);
+        return;
+      }
+
+      // Find successors that depend on this task
+      const successors = ganttV2Tasks
+        .filter(t => {
+          const r = t.rowData as GanttSmScheduleMaster | undefined;
+          return r?.predecessor_ids?.some((p: { id: number }) => p.id === row.task_number);
+        })
+        .map(t => t.rowData as GanttSmScheduleMaster);
+
+      // Show confirmation dialog
+      setConfirmDialog({
+        isOpen: true,
+        type: field === 'supplier_confirm' ? 'supplierConfirm' : 'confirm',
+        task,
+        isChecking: checked,
+        affectedSuccessors: successors
+      });
+      return;
+    }
+
+    // For other fields, save directly
+    await executeGanttV2CheckboxToggle(taskId, field, checked);
+  };
+
+  // SSoT: executeGanttV2CheckboxToggle now provided by useGanttDataManager hook (see aliases above)
+
+  // SSoT: executeStartTask now provided by useGanttDataManager hook (see aliases above)
+
+  // Gantt V2: Handle task drag (reschedule) - shows cascade dialog if successors exist
+  const handleGanttV2TaskDrag = async (task: GanttTask, newStartDate: Date) => {
+    if (!ganttV2TemplateId) return;
+
+    // Store undo state before making changes
+    storeGanttV2UndoState(task);
+
+    console.log('[Gantt V2] Task dragged:', task.id, 'to', newStartDate);
+
+    // Find the row for this task
+    const row = task.rowData as GanttSmScheduleMaster | undefined;
+    if (!row) {
+      // No row data, just save directly
+      await executeGanttV2DragMove(task, newStartDate);
+      return;
+    }
+
+    // Recursive function to find all successors down the tree
+    const findAllSuccessorsRecursive = (taskNumber: number, visited: Set<number> = new Set()): GanttSmScheduleMaster[] => {
+      const directSuccessors = ganttV2Tasks
+        .filter(t => {
+          const r = t.rowData as GanttSmScheduleMaster | undefined;
+          return r?.predecessor_ids?.some((p: { id: number }) => p.id === taskNumber) && !visited.has(r.id);
+        })
+        .map(t => t.rowData as GanttSmScheduleMaster);
+
+      let allDescendants = [...directSuccessors];
+
+      directSuccessors.forEach(s => visited.add(s.id));
+
+      directSuccessors.forEach(successor => {
+        const childSuccessors = findAllSuccessorsRecursive(successor.task_number, visited);
+        allDescendants = [...allDescendants, ...childSuccessors];
+      });
+
+      return allDescendants;
+    };
+
+    // Find direct successors
+    const taskTaskNumber = row.task_number;
+    const directSuccessors = ganttV2Tasks
+      .filter(t => {
+        const r = t.rowData as GanttSmScheduleMaster | undefined;
+        return r?.predecessor_ids?.some((p: { id: number }) => p.id === taskTaskNumber);
+      })
+      .map(t => t.rowData as GanttSmScheduleMaster);
+
+    if (directSuccessors.length === 0) {
+      // No successors, save directly
+      await executeGanttV2DragMove(task, newStartDate);
+      return;
+    }
+
+    // Build successor info with downstream data
+    const visited = new Set<number>(directSuccessors.map(s => s.id));
+
+    const successorInfo: SuccessorInfo[] = directSuccessors.map(s => {
+      const downstreamSuccessors = findAllSuccessorsRecursive(s.task_number, new Set(visited));
+      const lockedDownstream = downstreamSuccessors.filter(ds =>
+        ds.confirm || ds.supplier_confirm || ds.is_completed
+      );
+
+      return {
+        ...s,
+        downstreamCount: downstreamSuccessors.length,
+        downstreamTasks: lockedDownstream,
+        lockedDownstreamCount: lockedDownstream.length,
+        hasMoreDownstream: false
+      };
+    });
+
+    // Categorize successors
+    const lockedSuccessors = successorInfo.filter(s =>
+      s.confirm || s.supplier_confirm || s.is_completed
+    );
+    const unlockedSuccessors = successorInfo.filter(s =>
+      !s.confirm && !s.supplier_confirm && !s.is_completed
+    );
+
+    // If no locked successors, just execute move directly - unlocked tasks cascade automatically via SSoT
+    if (lockedSuccessors.length === 0) {
+      await executeGanttV2DragMove(task, newStartDate);
+      return;
+    }
+
+    // Reset decisions - default all to 'break'
+    const defaultDecisions: Record<number, 'break' | 'cascade'> = {};
+    lockedSuccessors.forEach(s => {
+      defaultDecisions[s.id] = 'break';
+      s.downstreamTasks?.forEach((dt) => {
+        defaultDecisions[dt.id] = 'break';
+      });
+    });
+    setLockedTaskDecisions(defaultDecisions);
+
+    // Show cascade dialog only when locked tasks need user decision
+    setCascadeDialog({
+      isOpen: true,
+      task,
+      newStartDate,
+      successors: successorInfo,
+      lockedSuccessors,
+      unlockedSuccessors
+    });
+  };
+
+  // SSoT: executeGanttV2DragMove now provided by useGanttDataManager hook (see aliases above)
+
+  // Gantt V2: Handle task resize (change duration)
+  const handleGanttV2TaskResize = async (task: GanttTask, _newStartDate: Date, newEndDate: Date) => {
+    if (!ganttV2TemplateId) return;
+
+    // Store undo state before making changes
+    storeGanttV2UndoState(task);
+
+    // Calculate new duration in days
+    const startDate = task.startDate;
+    const diffTime = newEndDate.getTime() - startDate.getTime();
+    const newDuration = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+    console.log('[Gantt V2] Task resized:', task.id, 'new duration:', newDuration);
+
+    try {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${task.id}`, {
+        row: { duration_days: newDuration },
+      });
+
+      toast({ title: "Duration updated", description: `${newDuration} days` });
+
+      // Refresh data
+      loadGanttV2Data();
+    } catch (error) {
+      console.error('[Gantt V2] Failed to save duration:', error);
+      toast({ title: "Error", description: "Failed to update duration", variant: "destructive" });
+    }
+  };
+
+  // Gantt V2: Handle inline duration change (from Days column double-click edit)
+  const handleGanttV2DurationChange = async (taskId: string, newDuration: number) => {
+    if (!ganttV2TemplateId) return;
+
+    console.log('[Gantt V2] Duration changed via inline edit:', taskId, 'new duration:', newDuration);
+
+    try {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskId}`, {
+        row: { duration_days: newDuration },
+      });
+
+      toast({ title: "Duration updated", description: `${newDuration} days` });
+
+      // Refresh data
+      loadGanttV2Data();
+    } catch (error) {
+      console.error('[Gantt V2] Failed to save duration:', error);
+      toast({ title: "Error", description: "Failed to update duration", variant: "destructive" });
+    }
+  };
+
+  // Gantt V2: Handle rollover (move tasks off weekends/holidays)
+  // SSoT: POST /api/v1/sm_schedule_master_templates/:id/validate_dates
+  const handleGanttV2Rollover = async () => {
+    if (!ganttV2TemplateId) return null;
+
+    console.log('[Gantt V2] Rollover: validating dates for template:', ganttV2TemplateId);
+
+    try {
+      const result = await api.post<{
+        success: boolean;
+        updated: number;
+        date_map: Record<number, { start_date: string; end_date: string }>;
+      }>(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/validate_dates`);
+
+      if (result?.success) {
+        toast({
+          title: "Schedule Updated",
+          description: `${result.updated} task(s) recalculated to working days`,
+        });
+
+        // Refresh data to show new dates
+        loadGanttV2Data();
+
+        return { rolled_over: result.updated, extended: 0, cascaded: 0 };
+      }
+      return null;
+    } catch (error) {
+      console.error('[Gantt V2] Rollover failed:', error);
+      toast({ title: "Error", description: "Failed to validate dates", variant: "destructive" });
+      return null;
+    }
+  };
+
+  // Gantt V2: Handle dependency create
+  const handleGanttV2DependencyCreate = async (fromId: string, toId: string, type: string) => {
+    if (!ganttV2TemplateId) return;
+
+    console.log('[Gantt V2] Dependency create:', fromId, '->', toId, 'type:', type);
+
+    // Find the target task by task_number (toId is task_number from canvas)
+    const targetTask = ganttV2Tasks.find(t => t.rowData?.task_number === parseInt(toId, 10));
+    if (!targetTask || !targetTask.rowData) {
+      console.error('[Gantt V2] Target task not found:', toId);
+      toast({ title: "Error", description: "Target task not found", variant: "destructive" });
+      return;
+    }
+
+    // Get current predecessor_ids and add the new one
+    const currentPreds = targetTask.rowData.predecessor_ids || [];
+    const newPred = {
+      id: parseInt(fromId, 10),
+      type: type || 'FS',
+      lag: 0
+    };
+
+    // Check if already exists
+    if (currentPreds.some((p: { id: number }) => p.id === newPred.id)) {
+      toast({ title: "Info", description: "Dependency already exists" });
+      return;
+    }
+
+    try {
+      // Save to API (cast to GanttSmScheduleMaster since we're in Gantt V2 context)
+      const rowData = targetTask.rowData as GanttSmScheduleMaster;
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${rowData.id}`, {
+        row: {
+          predecessor_ids: [...currentPreds, newPred]
+        }
+      });
+
+      // Refresh data
+      loadGanttV2Data();
+      toast({ title: "Success", description: "Dependency created" });
+    } catch (error) {
+      console.error('[Gantt V2] Failed to create dependency:', error);
+      toast({ title: "Error", description: "Failed to create dependency", variant: "destructive" });
+    }
+  };
+
+  // Gantt V2: Handle dependency delete
+  const handleGanttV2DependencyDelete = async (dependencyId: string) => {
+    if (!ganttV2TemplateId) return;
+
+    console.log('[Gantt V2] Dependency delete:', dependencyId);
+
+    // Parse dependency ID: format is "dep-{predecessor_task_number}-{row_id}"
+    const match = dependencyId.match(/^dep-(\d+)-(\d+)$/);
+    if (!match) {
+      console.error('[Gantt V2] Invalid dependency ID format:', dependencyId);
+      toast({ title: "Error", description: "Invalid dependency ID", variant: "destructive" });
+      return;
+    }
+
+    const predecessorTaskNumber = parseInt(match[1], 10);
+    const rowId = parseInt(match[2], 10);
+
+    // Find the target task by row id (cast to GanttSmScheduleMaster since we're in Gantt V2 context)
+    const targetTask = ganttV2Tasks.find(t => (t.rowData as GanttSmScheduleMaster | undefined)?.id === rowId);
+    if (!targetTask || !targetTask.rowData) {
+      console.error('[Gantt V2] Target task not found for row:', rowId);
+      toast({ title: "Error", description: "Target task not found", variant: "destructive" });
+      return;
+    }
+
+    // Remove the predecessor from predecessor_ids
+    const currentPreds = targetTask.rowData.predecessor_ids || [];
+    const updatedPreds = currentPreds.filter((p: { id: number }) => p.id !== predecessorTaskNumber);
+
+    if (updatedPreds.length === currentPreds.length) {
+      toast({ title: "Info", description: "Dependency not found" });
+      return;
+    }
+
+    try {
+      // Save to API
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${rowId}`, {
+        row: {
+          predecessor_ids: updatedPreds
+        }
+      });
+
+      // Refresh data
+      loadGanttV2Data();
+      toast({ title: "Success", description: "Dependency deleted" });
+    } catch (error) {
+      console.error('[Gantt V2] Failed to delete dependency:', error);
+      toast({ title: "Error", description: "Failed to delete dependency", variant: "destructive" });
+    }
+  };
+
+  // Gantt V2: Handle reset manual position (clear hold and hold_date)
+  const handleGanttV2ResetManualPosition = async (task: GanttTask) => {
+    if (!ganttV2TemplateId) return;
+
+    console.log('[Gantt V2] Reset manual position:', task.id);
+
+    const row = task.rowData as GanttSmScheduleMaster | undefined;
+    if (!row) {
+      console.error('[Gantt V2] No row data for task:', task.id);
+      return;
+    }
+
+    try {
+      // Clear hold and hold_date
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${row.id}`, {
+        row: {
+          hold: false,
+          hold_date: null
+        }
+      });
+
+      // Refresh data
+      loadGanttV2Data();
+      toast({ title: "Success", description: "Manual position reset" });
+    } catch (error) {
+      console.error('[Gantt V2] Failed to reset manual position:', error);
+      toast({ title: "Error", description: "Failed to reset manual position", variant: "destructive" });
+    }
+  };
+
+  // SSoT: storeGanttV2UndoState and handleGanttV2Undo are aliases to gantt.storeUndoState and gantt.handleUndo (see above)
+
+  // Gantt V2: Open dependency editor
+  const handleGanttV2EditDependencies = (task: GanttTask, visibleTasks: GanttTask[]) => {
+    setDependencyEditorState({ isOpen: true, task, visibleTasks });
+  };
+
+  // Gantt V2: Save dependencies from full dependency editor (predecessors + successors)
+  const handleDependencyEditorSave = async (
+    taskId: string,
+    predecessors: Array<{ taskNumber: number; type: string; lag: number }>,
+    successors: Array<{ taskNumber: number; type: string; lag: number }>
+  ) => {
+    console.log('[handleDependencyEditorSave] Called with taskId:', taskId, 'predecessors:', predecessors);
+    if (!ganttV2TemplateId) {
+      console.log('[handleDependencyEditorSave] No templateId, returning early');
+      return;
+    }
+
+    const task = ganttV2Tasks.find(t => t.id === taskId);
+    const taskRow = task?.rowData as GanttSmScheduleMaster | undefined;
+    if (!taskRow) {
+      console.log('[handleDependencyEditorSave] Task not found:', taskId);
+      return;
+    }
+
+    console.log('[handleDependencyEditorSave] Found task:', taskRow.id, taskRow.name);
+
+    const currentTaskNumber = taskRow.task_number;
+
+    try {
+      // 1. Update the current task's predecessors
+      const newPredecessorIds = predecessors.map(p => ({
+        id: p.taskNumber,
+        type: p.type,
+        lag: p.lag
+      }));
+
+      console.log('[handleDependencyEditorSave] Patching row', taskRow.id, 'with predecessor_ids:', newPredecessorIds);
+      const result = await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskRow.id}`, {
+        row: { predecessor_ids: newPredecessorIds }
+      });
+      console.log('[handleDependencyEditorSave] Patch result:', result);
+
+      // 2. Update successors - each successor needs this task as a predecessor
+      // Get current successors (tasks that have this task in their predecessor_ids)
+      const currentSuccessors = ganttV2Tasks.filter(t => {
+        const r = t.rowData as GanttSmScheduleMaster | undefined;
+        return r?.predecessor_ids?.some((p: { id: number }) => p.id === currentTaskNumber);
+      });
+
+      // Tasks that should be successors now
+      const newSuccessorTaskNumbers = new Set(successors.map(s => s.taskNumber));
+
+      // For each new successor that isn't already a successor, add this task as predecessor
+      for (const succ of successors) {
+        const succTask = ganttV2Tasks.find(t => {
+          const r = t.rowData as GanttSmScheduleMaster | undefined;
+          return r?.task_number === succ.taskNumber;
+        });
+        const succRow = succTask?.rowData as GanttSmScheduleMaster | undefined;
+        if (!succRow) continue;
+
+        // Check if this task is already in successor's predecessors
+        const alreadyHasPred = succRow.predecessor_ids?.some((p: { id: number }) => p.id === currentTaskNumber);
+        if (!alreadyHasPred) {
+          // Add this task as a predecessor to the successor
+          const updatedPreds = [...(succRow.predecessor_ids || []), {
+            id: currentTaskNumber,
+            type: succ.type,
+            lag: succ.lag
+          }];
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${succRow.id}`, {
+            row: { predecessor_ids: updatedPreds }
+          });
+        } else {
+          // Update the existing predecessor entry (type/lag might have changed)
+          const updatedPreds = (succRow.predecessor_ids || []).map((p: { id: number; type?: string; lag?: number }) =>
+            p.id === currentTaskNumber ? { id: currentTaskNumber, type: succ.type, lag: succ.lag } : p
+          );
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${succRow.id}`, {
+            row: { predecessor_ids: updatedPreds }
+          });
+        }
+      }
+
+      // For each current successor that is no longer in the new list, remove this task from their predecessors
+      for (const currSucc of currentSuccessors) {
+        const r = currSucc.rowData as GanttSmScheduleMaster | undefined;
+        if (!r) continue;
+        if (!newSuccessorTaskNumbers.has(r.task_number)) {
+          // Remove this task from successor's predecessors
+          const updatedPreds = (r.predecessor_ids || []).filter((p: { id: number }) => p.id !== currentTaskNumber);
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${r.id}`, {
+            row: { predecessor_ids: updatedPreds }
+          });
+        }
+      }
+
+      // Refresh data
+      console.log('[handleDependencyEditorSave] ✅ Save complete for task', taskId, 'predecessor_ids:', newPredecessorIds);
+      await loadGanttV2Data();
+      toast({ title: "Success", description: "Dependencies updated" });
+    } catch (error) {
+      console.error('[Gantt V2] Failed to save dependencies:', error);
+      toast({ title: "Error", description: "Failed to save dependencies", variant: "destructive" });
+      throw error; // Re-throw so the editor knows it failed
+    }
+  };
+
   // Save row from edit sheet (supports both manual and auto-save)
   const handleSaveRow = async (options?: { silent?: boolean }) => {
-    if (!editingRow || !dataViewTemplateId) return;
+    if (!editingRow || !activeEditTemplateId) return;
 
     const silent = options?.silent ?? false;
 
@@ -845,8 +1596,52 @@ export function ScheduleMasterTab() {
     }
 
     try {
-      await api.patch(`/api/v1/sm_schedule_master_templates/${dataViewTemplateId}/rows/${editingRow.id}`, {
-        row: editRowForm,
+      // Transform document_types to nested attributes format for backend
+      // SSoT: sm_schedule_master_document_types join table via accepts_nested_attributes_for
+      const rowPayload: Record<string, unknown> = { ...editRowForm };
+      if (editRowForm.document_types !== undefined) {
+        // Get existing document type IDs to track what to destroy
+        const existingDocTypes = editingRow.document_types || [];
+        const newDocTypes = editRowForm.document_types || [];
+        const newDocTypeIds = new Set(newDocTypes.map(dt => dt.document_type_id));
+
+        // Build attributes array: new/updated items + items to destroy
+        const attributes: Array<{
+          id?: number;
+          document_type_id: number;
+          lag_days?: number;
+          assigned_role?: string;
+          _destroy?: boolean;
+        }> = [];
+
+        // Add new/updated document types
+        for (const dt of newDocTypes) {
+          const existing = existingDocTypes.find(e => e.document_type_id === dt.document_type_id);
+          attributes.push({
+            id: existing?.id, // Use existing join record ID if updating
+            document_type_id: dt.document_type_id,
+            lag_days: dt.lag_days || 0,
+            assigned_role: dt.assigned_role,
+          });
+        }
+
+        // Mark removed document types for destruction
+        for (const existing of existingDocTypes) {
+          if (!newDocTypeIds.has(existing.document_type_id)) {
+            attributes.push({
+              id: existing.id,
+              document_type_id: existing.document_type_id,
+              _destroy: true,
+            });
+          }
+        }
+
+        rowPayload.sm_schedule_master_document_types_attributes = attributes;
+        delete rowPayload.document_types; // Don't send document_types directly
+      }
+
+      await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${editingRow.id}`, {
+        row: rowPayload,
       });
 
       if (silent) {
@@ -857,6 +1652,10 @@ export function ScheduleMasterTab() {
         setDataViewRefreshKey(prev => prev + 1);
         // Also refresh predecessor selector list (secondary use - still uses custom endpoint)
         loadDataViewRows(dataViewTemplateId);
+        // Refresh Gantt V2 if edit was from there
+        if (activeEditTemplateId === ganttV2TemplateId && ganttV2TemplateId) {
+          loadGanttV2Data();
+        }
       } else {
         toast({ title: "Success", description: "Row updated" });
         setShowEditSheet(false);
@@ -864,6 +1663,10 @@ export function ScheduleMasterTab() {
         setDataViewRefreshKey(prev => prev + 1);
         // Also refresh predecessor selector list (secondary use)
         loadDataViewRows(dataViewTemplateId);
+        // Refresh Gantt V2 if edit was from there
+        if (activeEditTemplateId === ganttV2TemplateId && ganttV2TemplateId) {
+          loadGanttV2Data();
+        }
       }
     } catch (error) {
       console.error("Failed to save row:", error);
@@ -1072,8 +1875,9 @@ export function ScheduleMasterTab() {
     setGanttTemplateId(templateId);
     setLoadingRows(templateId);
     try {
+      // SSoT: Use ?for=gantt to filter invisible tasks (po_required without supplier)
       const data = await api.get<{ success: boolean; rows: SmScheduleMaster[] }>(
-        `/api/v1/sm_schedule_master_templates/${templateId}/rows`
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows?for=gantt`
       );
       setGanttRows(data.rows || []);
     } catch (error) {
@@ -1083,6 +1887,34 @@ export function ScheduleMasterTab() {
       setLoadingRows(null);
     }
   };
+
+  // SSoT: loadGanttV2Data now provided by useGanttDataManager hook (see aliases above)
+  // The hook's loadData is automatically triggered when ganttV2TemplateId changes
+
+  // Load Gantt V2 data when template is selected
+  React.useEffect(() => {
+    if (ganttV2TemplateId) {
+      console.log('[ScheduleMasterTab] Loading Gantt V2 data for template:', ganttV2TemplateId);
+      gantt.loadData();
+    }
+  }, [ganttV2TemplateId, gantt.loadData]);
+
+  // Reload when showAllPOTasks changes (separate effect for clarity)
+  // Use ref pattern to avoid stale closure - loadData references apiConfig which includes showAllPOTasks
+  const loadDataRef = React.useRef(gantt.loadData);
+  loadDataRef.current = gantt.loadData; // Always update to latest on every render
+
+  const isFirstRenderForPOToggle = React.useRef(true);
+  React.useEffect(() => {
+    if (isFirstRenderForPOToggle.current) {
+      isFirstRenderForPOToggle.current = false;
+      return;
+    }
+    if (ganttV2TemplateId) {
+      console.log('[ScheduleMasterTab] showAllPOTasks changed to:', showAllPOTasks, '- reloading data via ref');
+      loadDataRef.current(); // Always calls latest version with correct apiConfig
+    }
+  }, [showAllPOTasks, ganttV2TemplateId]);
 
   if (loading) {
     return (
@@ -1094,7 +1926,7 @@ export function ScheduleMasterTab() {
 
   return (
     <div className="h-full w-full flex flex-col">
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col relative">
         <TabsList className="shrink-0 mx-4">
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
@@ -1107,6 +1939,10 @@ export function ScheduleMasterTab() {
           <TabsTrigger value="gantt-preview">
             <BarChart3 className="h-4 w-4 mr-2" />
             Gantt Preview
+          </TabsTrigger>
+          <TabsTrigger value="gantt-v2">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Gantt V2
           </TabsTrigger>
           <TabsTrigger value="data-view">
             <TableIcon className="h-4 w-4 mr-2" />
@@ -1178,11 +2014,7 @@ export function ScheduleMasterTab() {
                         className="flex items-center gap-3 cursor-pointer flex-1"
                         onClick={() => toggleExpand(template.id)}
                       >
-                        {expandedTemplate === template.id ? (
-                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        )}
+                        <ExpandChevron expanded={expandedTemplate === template.id} size={20} className="text-muted-foreground" />
                         <div>
                           <div className="flex items-center gap-2">
                             <CardTitle className="text-base">{template.name}</CardTitle>
@@ -1329,8 +2161,95 @@ export function ScheduleMasterTab() {
           )}
         </TabsContent>
 
+          {/* Gantt V2 Tab - For debugging the new Gantt implementation */}
+          <TabsContent value="gantt-v2" className="absolute top-0 right-0 bottom-0 left-4 overflow-hidden data-[state=inactive]:hidden">
+          <div className="flex flex-col h-full">
+            {/* Template selector header */}
+            <div className="flex items-center gap-4 px-4 py-2 border-b bg-background">
+              <Select
+                value={ganttV2TemplateId ? String(ganttV2TemplateId) : ""}
+                onValueChange={(value) => {
+                  if (value) {
+                    setGanttV2TemplateId(parseInt(value));
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue placeholder="Select a template to preview..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={String(template.id)}>
+                      {template.name} ({template.row_count} tasks)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {ganttV2Tasks.length > 0 && (
+                <Badge variant="secondary">
+                  {ganttV2Tasks.length} tasks
+                </Badge>
+              )}
+              {/* Show All PO Tasks toggle - useful for template editing */}
+              <div className="flex items-center gap-2 ml-auto">
+                <Switch
+                  id="show-all-po"
+                  checked={showAllPOTasks}
+                  onCheckedChange={setShowAllPOTasks}
+                />
+                <Label htmlFor="show-all-po" className="text-sm cursor-pointer">
+                  Show All PO Tasks
+                </Label>
+              </div>
+            </div>
+
+            {/* Gantt V2 content */}
+            <div className="flex-1 min-h-0">
+              {ganttV2Loading && (
+                <div className="flex items-center justify-center h-full">
+                  <Spinner size={32} className="text-muted-foreground" />
+                </div>
+              )}
+
+              {!ganttV2Loading && !ganttV2TemplateId && (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
+                  <h3 className="text-lg font-medium mb-2">Select a template</h3>
+                  <p className="text-center max-w-md">
+                    Choose a schedule template from the dropdown above to preview in Gantt V2.
+                  </p>
+                </div>
+              )}
+
+              {!ganttV2Loading && ganttV2TemplateId && ganttV2Tasks.length > 0 && (
+                <GanttUnified
+                  tasks={ganttV2Tasks}
+                  dependencies={ganttV2Dependencies}
+                  templateId={ganttV2TemplateId}
+                  showToolbar={true}
+                  showBaselineControls={false}
+                  className="h-full"
+                  onTaskClick={gantt.handleTaskClick}
+                  onTaskDoubleClick={handleGanttV2TaskDoubleClick}
+                  onTaskDrag={gantt.handleTaskDrag}
+                  onTaskResize={gantt.handleTaskResize}
+                  onCheckboxToggle={gantt.handleCheckboxToggle}
+                  onDependencyCreate={gantt.handleDependencyCreate}
+                  onDependencyDelete={gantt.handleDependencyDelete}
+                  onResetManualPosition={gantt.handleResetManualPosition}
+                  onUndo={gantt.handleUndo}
+                  onEditDependencies={gantt.openDependencyEditor}
+                  onDurationChange={gantt.handleDurationChange}
+                  onRollover={handleGanttV2Rollover}
+                  onDataChange={gantt.loadData}
+                />
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
           {/* Data View Tab - Full TeeemTableView */}
-          <TabsContent value="data-view" className="absolute inset-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent value="data-view" className="absolute inset-0 flex flex-col data-[state=inactive]:hidden">
           {/* SSoT: Fullscreen now handled by TeeemTableView via enableFullscreen prop */}
           <div className="flex flex-col h-full">
             <TeeemTableView
@@ -1708,12 +2627,6 @@ export function ScheduleMasterTab() {
                     <CopyableCode>po_line_items</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">jsonb</Badge>
                     <span className="text-muted-foreground">↳ The items to include when auto-creating a PO. Each entry specifies a pricebook item and quantity. Example: concrete, timber, or fixtures that are always needed for this task.</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["linked_po_task_id"] || false} onCheckedChange={(v) => updateColumnStatus("linked_po_task_id", !!v)} />
-                    <CopyableCode>linked_po_task_id</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
-                    <span className="text-muted-foreground">Connects this task to another task&apos;s PO instead of having its own. Useful when multiple tasks share one purchase order (e.g., plumbing rough-in and plumbing fit-off on same PO).</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["order_time_days"] || false} onCheckedChange={(v) => updateColumnStatus("order_time_days", !!v)} />
@@ -2103,16 +3016,64 @@ export function ScheduleMasterTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Row Edit Sheet - Compact 2-column layout to avoid scrolling */}
-      <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
-        <SheetContent side="right-xl">
-          <SheetHeader className="pb-2">
-            <SheetTitle>Edit Row</SheetTitle>
-            <SheetDescription>
-              {editingRow?.name} (Task #{editingRow?.task_number})
-            </SheetDescription>
-          </SheetHeader>
-          <div className="py-3 space-y-3">
+      {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
+      <Dialog open={showEditSheet} onOpenChange={setShowEditSheet}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0">
+          {/* Sticky Header */}
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+                Edit Row
+                {/* Show parent header if this task is part of one */}
+                {editingRow && editingRow.header_gantt && (() => {
+                  const parentTaskNumber = extractLookupId(editingRow.header_gantt);
+                  const parentHeader = parentTaskNumber ? dataViewRows.find(r => String(r.task_number) === String(parentTaskNumber)) : null;
+                  if (parentHeader) {
+                    return (
+                      <Badge variant="outline" className="text-xs font-normal">
+                        Part of: {parentHeader.name}
+                      </Badge>
+                    );
+                  }
+                  return null;
+                })()}
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {editingRow?.name} (Task #{editingRow?.task_number})
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Auto-save status indicator */}
+              <div className="flex items-center text-sm">
+                {autoSaveStatus === 'saving' && (
+                  <span className="flex items-center text-muted-foreground">
+                    <Spinner size={16} className="mr-2" />
+                    Saving...
+                  </span>
+                )}
+                {autoSaveStatus === 'saved' && (
+                  <span className="flex items-center text-green-600 dark:text-green-500">
+                    <Check className="h-4 w-4 mr-2" />
+                    Saved
+                  </span>
+                )}
+                {autoSaveStatus === 'error' && (
+                  <span className="flex items-center text-red-600 dark:text-red-500">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Save failed
+                  </span>
+                )}
+                {autoSaveStatus === 'idle' && (
+                  <span className="text-muted-foreground">Auto-save enabled</span>
+                )}
+              </div>
+              <Button variant="outline" onClick={() => setShowEditSheet(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
             {/* Row 1: Name + Duration + Sequence - full width */}
             <div className="grid grid-cols-[1fr_80px_80px] gap-3">
               <div className="space-y-1">
@@ -2157,10 +3118,11 @@ export function ScheduleMasterTab() {
                 placeholder="Optional description..."
               />
             </div>
-            {/* Two-column layout for dropdowns and settings */}
-            <div className="grid grid-cols-2 gap-6">
-              {/* Left Column */}
+            {/* Three-column layout for wider modal */}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Column 1: Basic Settings */}
               <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Basic Settings</h4>
                 <div className="space-y-1">
                   <Label className="text-xs">Trade</Label>
                   <ComboboxDropdown
@@ -2298,8 +3260,9 @@ export function ScheduleMasterTab() {
                 </div>
               </div>
 
-              {/* Right Column */}
+              {/* Column 2: Classification */}
               <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Classification</h4>
                 <div className="space-y-1">
                   <Label className="text-xs">Stage</Label>
                   <ComboboxDropdown
@@ -2324,17 +3287,23 @@ export function ScheduleMasterTab() {
                     onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
                   />
                 </div>
+              </div>
+
+              {/* Column 3: Relationships & Header */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">Relationships</h4>
                 <div className="space-y-1">
                   <Label className="text-xs">Header Gantt</Label>
                   <ComboboxDropdown
-                    items={availableHeaderRows.map(h => ({ id: String(h.id), label: h.name }))}
+                    items={availableHeaderRows.map(h => ({ id: String(h.task_number), label: h.name }))}
                     selectedItem={(() => {
-                      const headerId = extractLookupId(editRowForm.header_gantt);
-                      if (!headerId || headerId === 'Header') return undefined;  // Skip if "Header" marker
-                      const headerName = availableHeaderRows.find(h => String(h.id) === headerId)?.name
+                      // SSoT: header_gantt stores task_number (not id)
+                      const headerTaskNum = extractLookupId(editRowForm.header_gantt);
+                      if (!headerTaskNum || headerTaskNum === 'Header') return undefined;  // Skip if "Header" marker
+                      const headerName = availableHeaderRows.find(h => String(h.task_number) === headerTaskNum)?.name
                         || extractLookupDisplay(editingRow?.header_gantt)
-                        || headerId;
-                      return { id: headerId, label: headerName };
+                        || headerTaskNum;
+                      return { id: headerTaskNum, label: headerName };
                     })()}
                     onSelect={(item) => setEditRowForm({ ...editRowForm, header_gantt: item.id })}
                     placeholder="Select header..."
@@ -2343,28 +3312,110 @@ export function ScheduleMasterTab() {
                     onClear={() => setEditRowForm({ ...editRowForm, header_gantt: null })}
                   />
                 </div>
-                {/* Auto-save status indicator */}
-                <div className="flex items-center text-sm pt-2">
-                  {autoSaveStatus === 'saving' && (
-                    <span className="flex items-center text-muted-foreground">
-                      <Spinner size={16} className="mr-2" />
-                      Saving...
-                    </span>
-                  )}
-                  {autoSaveStatus === 'saved' && (
-                    <span className="flex items-center text-green-600 dark:text-green-500">
-                      <Check className="h-4 w-4 mr-2" />
-                      Saved
-                    </span>
-                  )}
-                  {autoSaveStatus === 'error' && (
-                    <span className="flex items-center text-red-600 dark:text-red-500">
-                      <AlertCircle className="h-4 w-4 mr-2" />
-                      Save failed
-                    </span>
-                  )}
-                  {autoSaveStatus === 'idle' && (
-                    <span className="text-muted-foreground">Auto-save enabled</span>
+                <div className="space-y-1">
+                  <Label className="text-xs">Checklist</Label>
+                  <ComboboxDropdown
+                    items={availableChecklists.map(c => ({ id: String(c.id), label: c.name }))}
+                    selectedItem={(() => {
+                      const checklistId = extractLookupId(editRowForm.checklist_id);
+                      if (!checklistId) return undefined;
+                      const checklistName = availableChecklists.find(c => String(c.id) === checklistId)?.name
+                        || extractLookupDisplay(editingRow?.checklist_id)
+                        || checklistId;
+                      return { id: checklistId, label: checklistName };
+                    })()}
+                    onSelect={(item) => setEditRowForm({ ...editRowForm, checklist_id: Number(item.id) })}
+                    placeholder="Select checklist..."
+                    emptyResults="No checklists found"
+                    clearable
+                    onClear={() => setEditRowForm({ ...editRowForm, checklist_id: null })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Spawn Scan Task</Label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <ComboboxDropdown
+                        items={availableDocumentTypes.map(dt => ({ id: String(dt.id), label: dt.name }))}
+                        selectedItem={(() => {
+                          const firstDocType = editRowForm.document_types?.[0];
+                          if (!firstDocType) return undefined;
+                          const docType = availableDocumentTypes.find(dt => dt.id === firstDocType.document_type_id);
+                          return {
+                            id: String(firstDocType.document_type_id),
+                            label: docType?.name || firstDocType.document_type_name
+                          };
+                        })()}
+                        onSelect={(item) => setEditRowForm({
+                          ...editRowForm,
+                          document_types: [{
+                            id: editRowForm.document_types?.[0]?.id || 0,
+                            document_type_id: Number(item.id),
+                            document_type_name: item.label,
+                            lag_days: editRowForm.document_types?.[0]?.lag_days || 0
+                          }]
+                        })}
+                        placeholder="Select document type..."
+                        emptyResults="No document types found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, document_types: [] })}
+                      />
+                    </div>
+                    <div className="w-16">
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="0"
+                        title="Days after task completion before spawning document task"
+                        value={editRowForm.document_types?.[0]?.lag_days || 0}
+                        onChange={(e) => {
+                          const lagDays = parseInt(e.target.value) || 0;
+                          const currentDocType = editRowForm.document_types?.[0];
+                          if (currentDocType) {
+                            setEditRowForm({
+                              ...editRowForm,
+                              document_types: [{
+                                ...currentDocType,
+                                lag_days: lagDays
+                              }]
+                            });
+                          }
+                        }}
+                        disabled={!editRowForm.document_types?.[0]}
+                      />
+                    </div>
+                  </div>
+                  {/* Preview of spawn behavior */}
+                  {editRowForm.document_types?.[0]?.document_type_id ? (() => {
+                    const docType = availableDocumentTypes.find(dt => dt.id === editRowForm.document_types![0].document_type_id);
+                    const formNumbers = docType?.form_number_mapping ? Object.values(docType.form_number_mapping) : [];
+                    const uniqueFormNumbers = [...new Set(formNumbers)].filter(Boolean);
+                    const formNumberDisplay = uniqueFormNumbers.length > 0
+                      ? ` ${uniqueFormNumbers.join('/')}`
+                      : '';
+
+                    return (
+                      <div className="text-xs bg-muted/50 rounded px-2 py-1.5 border border-dashed">
+                        <span className="text-muted-foreground">When completed → </span>
+                        <span className="font-medium text-foreground">
+                          GET - {(editRowForm.document_types![0].document_type_name || 'Scan task')
+                            .replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\s*/g, '')
+                            .replace(/\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\s*/g, '')
+                            .replace(/\s*\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{2,4}\s*/gi, '')
+                            .trim()}{formNumberDisplay}
+                        </span>
+                        {(editRowForm.document_types![0].lag_days || 0) > 0 && (
+                          <span className="text-muted-foreground">
+                            {' '}spawns in {editRowForm.document_types![0].lag_days} day{editRowForm.document_types![0].lag_days !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {(editRowForm.document_types![0].lag_days || 0) === 0 && (
+                          <span className="text-muted-foreground"> spawns immediately</span>
+                        )}
+                      </div>
+                    );
+                  })() : (
+                    <p className="text-xs text-muted-foreground">Select a document type to spawn a scan task on completion</p>
                   )}
                 </div>
                 {/* Allow Header */}
@@ -2388,10 +3439,108 @@ export function ScheduleMasterTab() {
                     </Label>
                     <p className="text-[10px] text-muted-foreground">Can be selected as parent for other tasks</p>
                   </div>
-                  {editRowForm.allow_header && (
-                    <Badge className="text-[10px] bg-blue-500">Header</Badge>
-                  )}
+                  {editRowForm.allow_header && editingRow && (() => {
+                    const children = dataViewRows.filter(r => {
+                      const parentId = extractLookupId(r.header_gantt);
+                      return parentId && String(parentId) === String(editingRow.task_number);
+                    });
+                    const childCount = children.length;
+                    const subHeaderCount = children.filter(c => c.allow_header).length;
+
+                    return (
+                      <div className="flex items-center gap-1">
+                        <Badge className="text-[10px] bg-blue-500">Header</Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {childCount} {childCount === 1 ? 'child' : 'children'}
+                        </Badge>
+                        {subHeaderCount > 0 && (
+                          <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-500">
+                            {subHeaderCount} sub-header{subHeaderCount !== 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
+                {/* Child Tasks - shown when Allow Header is enabled */}
+                {editRowForm.allow_header && editingRow && (
+                  <div className="pt-2 border-t">
+                    <Label className="text-xs">Child Tasks ({dataViewRows.filter(r => {
+                      const parentId = extractLookupId(r.header_gantt);
+                      return parentId && String(parentId) === String(editingRow.task_number);
+                    }).length} grouped under this header)</Label>
+                    <MultipleSelector
+                      value={dataViewRows
+                        .filter(r => {
+                          const parentId = extractLookupId(r.header_gantt);
+                          return parentId && String(parentId) === String(editingRow.task_number);
+                        })
+                        .map(r => ({ value: String(r.id), label: r.name }))}
+                      onChange={async (options) => {
+                        // Get current children IDs
+                        const currentChildIds = dataViewRows
+                          .filter(r => {
+                            const parentId = extractLookupId(r.header_gantt);
+                            return parentId && String(parentId) === String(editingRow.task_number);
+                          })
+                          .map(r => r.id);
+                        const newChildIds = options.map(o => parseInt(o.value));
+
+                        // Find added and removed children
+                        const addedIds = newChildIds.filter(id => !currentChildIds.includes(id));
+                        const removedIds = currentChildIds.filter(id => !newChildIds.includes(id));
+
+                        // Update children's header_gantt field
+                        // SSoT: header_gantt stores task_number (not id) to match Gantt rendering
+                        try {
+                          // Add new children
+                          for (const childId of addedIds) {
+                            await api.patch(`/api/v1/foundations/sm-schedule-master/records/${childId}`, {
+                              header_gantt: editingRow.task_number
+                            });
+                          }
+                          // Remove old children (clear their header_gantt)
+                          for (const childId of removedIds) {
+                            await api.patch(`/api/v1/foundations/sm-schedule-master/records/${childId}`, {
+                              header_gantt: null
+                            });
+                          }
+                          // Refresh the data to show updated relationships
+                          await loadDataViewRows(dataViewTemplateId);
+                        } catch (error) {
+                          console.error("Failed to update child tasks:", error);
+                          toast({
+                            title: "Error",
+                            description: "Failed to update child tasks",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      defaultOptions={dataViewRows
+                        .filter(r => {
+                          // Exclude: this task and tasks that already have a different header
+                          if (r.id === editingRow.id) return false;
+                          // Note: Headers CAN be children (sub-headers) - e.g., DRIVEWAY under SITE COSTS
+                          const parentId = extractLookupId(r.header_gantt);
+                          // Include if no parent or parent is this task
+                          return !parentId || String(parentId) === String(editingRow.task_number);
+                        })
+                        .map(r => ({
+                          value: String(r.id),
+                          label: r.name
+                        }))}
+                      placeholder="Select child tasks..."
+                      emptyIndicator={
+                        <p className="text-center text-xs text-muted-foreground">
+                          No available tasks to add as children
+                        </p>
+                      }
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      These tasks will be grouped under this header in the Gantt chart
+                    </p>
+                  </div>
+                )}
                 {/* Active Status */}
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <Switch
@@ -2443,13 +3592,8 @@ export function ScheduleMasterTab() {
               </div>
             )}
           </div>
-          <SheetFooter className="flex items-center justify-end">
-            <Button variant="outline" onClick={() => setShowEditSheet(false)}>
-              Close
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Auto-PO Configuration Dialog */}
       <Dialog open={showAutoPODialog} onOpenChange={setShowAutoPODialog}>
@@ -2693,6 +3837,535 @@ export function ScheduleMasterTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cascade Dependencies Dialog - shown when moving a task with successors (Gantt V2) */}
+      <Dialog open={cascadeDialog.isOpen} onOpenChange={(open) => setCascadeDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+              Cascade Dependencies
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-2 py-2">
+            {/* Task being moved */}
+            <div className="p-2 bg-muted rounded text-xs">
+              Moving <span className="font-semibold">{cascadeDialog.task?.name}</span> to{' '}
+              <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">
+                {cascadeDialog.newStartDate?.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            </div>
+
+            {/* Affected successors */}
+            <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+              <p className="text-[10px] font-medium text-yellow-800 dark:text-yellow-200 mb-1.5">
+                {cascadeDialog.successors.length} dependent task{cascadeDialog.successors.length > 1 ? 's' : ''}
+              </p>
+
+              {/* Unlocked successors - will cascade */}
+              {cascadeDialog.unlockedSuccessors.length > 0 && (
+                <div className="mb-1.5">
+                  <div className="text-[10px] font-semibold text-green-700 dark:text-green-300 flex items-center gap-1 mb-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    Will Cascade ({cascadeDialog.unlockedSuccessors.length}):
+                  </div>
+                  <div className="flex flex-wrap gap-1 ml-2">
+                    {cascadeDialog.unlockedSuccessors.map((s) => (
+                      <span key={s.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/40 rounded text-[9px] text-green-700 dark:text-green-300">
+                        #{s.task_number} {s.name.length > 15 ? s.name.slice(0, 15) + '...' : s.name}
+                        {s.downstreamCount > 0 && <span className="font-semibold">+{s.downstreamCount}</span>}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Locked successors - hierarchical tree view */}
+              {cascadeDialog.lockedSuccessors.length > 0 && (() => {
+                // Build tree: find which locked tasks depend on other locked tasks
+                const lockedTaskNumbers = new Set(cascadeDialog.lockedSuccessors.map(t => t.task_number));
+                const movedTaskNumber = (cascadeDialog.task?.rowData as GanttSmScheduleMaster | undefined)?.task_number;
+
+                // Find root locked tasks (depend directly on moved task, not on another locked task)
+                const rootLockedTasks = cascadeDialog.lockedSuccessors.filter(task => {
+                  const preds = task.predecessor_ids || [];
+                  // It's a root if it depends on the moved task OR doesn't depend on any other locked task
+                  const dependsOnMovedTask = preds.some((p: { id: number }) => p.id === movedTaskNumber);
+                  const dependsOnLockedTask = preds.some((p: { id: number }) => lockedTaskNumbers.has(p.id) && p.id !== task.task_number);
+                  return dependsOnMovedTask || !dependsOnLockedTask;
+                });
+
+                // Find children for each locked task
+                const getChildren = (parentTaskNumber: number): typeof cascadeDialog.lockedSuccessors => {
+                  return cascadeDialog.lockedSuccessors.filter(task => {
+                    const preds = task.predecessor_ids || [];
+                    return preds.some((p: { id: number }) => p.id === parentTaskNumber);
+                  });
+                };
+
+                // Check if a task's ancestor chain has any "break" decisions
+                const isDisabledByAncestor = (task: typeof cascadeDialog.lockedSuccessors[0], visited = new Set<number>()): boolean => {
+                  if (visited.has(task.id)) return false;
+                  visited.add(task.id);
+                  const preds = task.predecessor_ids || [];
+                  for (const pred of preds) {
+                    const parentTask = cascadeDialog.lockedSuccessors.find(t => t.task_number === pred.id);
+                    if (parentTask) {
+                      const parentDecision = lockedTaskDecisions[parentTask.id] || 'break';
+                      if (parentDecision === 'break') return true;
+                      if (isDisabledByAncestor(parentTask, visited)) return true;
+                    }
+                  }
+                  return false;
+                };
+
+                // Render a locked task item
+                const renderLockedTask = (task: typeof cascadeDialog.lockedSuccessors[0], depth: number) => {
+                  const lockType = task.supplier_confirm ? 'Supplier'
+                    : task.confirm ? 'Confirmed'
+                    : task.is_completed ? 'Done' : 'Locked';
+                  const canUnlock = !task.is_completed;
+                  const decision = lockedTaskDecisions[task.id] || 'break';
+                  const disabledByAncestor = isDisabledByAncestor(task);
+                  const children = getChildren(task.task_number).filter(c => c.id !== task.id);
+
+                  return (
+                    <div key={task.id} className={depth > 0 ? 'ml-4 border-l-2 border-orange-200 dark:border-orange-700 pl-2' : ''}>
+                      <div
+                        className={`p-1.5 rounded border mb-1 ${disabledByAncestor ? 'opacity-40 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}
+                      >
+                        <div className="flex items-center gap-1 text-[10px] mb-1">
+                          <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
+                          <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
+                            task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                            : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                          }`}>
+                            {lockType}
+                          </span>
+                        </div>
+
+                        {disabledByAncestor ? (
+                          <div className="text-[9px] text-gray-500 italic">Parent task set to break - won&apos;t be affected</div>
+                        ) : (
+                          <div className="flex gap-1">
+                            <label className={`flex items-center gap-1 cursor-pointer px-1.5 py-0.5 rounded flex-1 border ${decision === 'break' ? 'bg-red-100 dark:bg-red-900/50 border-red-300 dark:border-red-700' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'}`}>
+                              <input
+                                type="checkbox"
+                                checked={decision === 'break'}
+                                className="h-3 w-3 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'break' }));
+                                  }
+                                }}
+                              />
+                              <span className="text-[9px] font-medium text-red-700 dark:text-red-300">Break</span>
+                            </label>
+
+                            <label
+                              className={`flex flex-col px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}
+                              title={canUnlock ? `Will remove ${lockType.toLowerCase()} confirmation and cascade as per dependencies` : 'Completed tasks cannot be cascaded'}
+                            >
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  checked={decision === 'cascade'}
+                                  disabled={!canUnlock}
+                                  className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                  onChange={(e) => {
+                                    if (e.target.checked && canUnlock) {
+                                      setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'cascade' }));
+                                    }
+                                  }}
+                                />
+                                <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>
+                                  {lockType === 'Supplier' ? 'Un-Supplier Confirm' : lockType === 'Confirmed' ? 'Un-Confirm' : 'Cascade'}
+                                </span>
+                              </div>
+                              {canUnlock && decision === 'cascade' && (
+                                <span className="text-[8px] text-orange-600 dark:text-orange-400 ml-4">will unconfirm and cascade</span>
+                              )}
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                      {/* Render children recursively */}
+                      {children.length > 0 && children.map(child => renderLockedTask(child, depth + 1))}
+                    </div>
+                  );
+                };
+
+                return (
+                  <div>
+                    <div className="text-[10px] font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1 mb-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                      Locked Tasks ({cascadeDialog.lockedSuccessors.length}):
+                    </div>
+                    <div className="space-y-1">
+                      {rootLockedTasks.map(task => renderLockedTask(task, 0))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Legend */}
+            <div className="text-[9px] text-muted-foreground flex flex-col gap-0.5 pt-1 border-t">
+              <span><span className="text-green-600">●</span> Cascade = moves with parent (removes confirmation if locked)</span>
+              <span><span className="text-red-600">●</span> Break = stays in place, dependency removed</span>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => {
+              setCascadeDialog(prev => ({ ...prev, isOpen: false }));
+              // Restore original task positions by reloading data
+              loadGanttV2Data({ silent: true });
+            }}>
+              Cancel
+            </Button>
+            <Button size="sm"
+              onClick={async () => {
+                if (cascadeDialog.task && cascadeDialog.newStartDate) {
+                  // For locked tasks with "break" decision, remove the dependency
+                  const movedTaskRow = cascadeDialog.task.rowData as GanttSmScheduleMaster | undefined;
+                  const movedTaskNumber = movedTaskRow?.task_number;
+
+                  if (movedTaskNumber) {
+                    // Process locked successors with "break" decision
+                    for (const lockedTask of cascadeDialog.lockedSuccessors) {
+                      const decision = lockedTaskDecisions[lockedTask.id] || 'break';
+                      if (decision === 'break') {
+                        // Remove dependency from this locked task
+                        const currentPreds = lockedTask.predecessor_ids || [];
+                        const updatedPreds = currentPreds.filter((p: { id: number }) => p.id !== movedTaskNumber);
+
+                        try {
+                          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${lockedTask.id}`, {
+                            row: { predecessor_ids: updatedPreds }
+                          });
+                        } catch (err) {
+                          console.error('[Gantt V2] Failed to break dependency for task', lockedTask.id, err);
+                        }
+                      } else {
+                        // Cascade: unlock the task so it can move
+                        // Clear hold as well so SSoT can recalculate its position
+                        try {
+                          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${lockedTask.id}`, {
+                            row: { confirm: false, supplier_confirm: false, hold: false }
+                          });
+                          console.log('[Gantt V2] Unlocked task for cascade:', lockedTask.id, lockedTask.name);
+                        } catch (err) {
+                          console.error('[Gantt V2] Failed to unlock task for cascade', lockedTask.id, err);
+                        }
+                      }
+                    }
+                  }
+
+                  // Also clear hold on unlocked successors so they cascade via SSoT
+                  // These are tasks with only hold=true (no confirm/supplier_confirm)
+                  for (const unlockedTask of cascadeDialog.unlockedSuccessors) {
+                    if (unlockedTask.hold) {
+                      try {
+                        await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${unlockedTask.id}`, {
+                          row: { hold: false }
+                        });
+                        console.log('[Gantt V2] Cleared hold on unlocked successor for cascade:', unlockedTask.id, unlockedTask.name);
+                      } catch (err) {
+                        console.error('[Gantt V2] Failed to clear hold on unlocked successor', unlockedTask.id, err);
+                      }
+                    }
+                  }
+
+                  // Execute the actual move
+                  await executeGanttV2DragMove(cascadeDialog.task, cascadeDialog.newStartDate);
+                  setCascadeDialog(prev => ({ ...prev, isOpen: false }));
+                }
+              }}
+            >
+              Confirm Move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Dialog - shown when toggling supplier_confirm or confirm in Gantt V2 */}
+      <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {confirmDialog.isChecking ? (
+                <>
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  {confirmDialog.type === 'supplierConfirm' ? 'Supplier Confirm' : 'Confirm'} Task
+                </>
+              ) : (
+                <>
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                  Unlock Task
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmDialog.isChecking ? (
+                <>This will lock the task position. It will no longer move when predecessors change.</>
+              ) : (
+                <>This will unlock the task. It will move based on its predecessor dependencies.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            {/* Task info */}
+            <div className="p-2 bg-muted rounded text-sm mb-2">
+              <span className="font-medium">{confirmDialog.task?.name}</span>
+            </div>
+
+            {/* Affected successors info */}
+            {confirmDialog.affectedSuccessors.length > 0 && (
+              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                <p className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                  {confirmDialog.affectedSuccessors.length} successor{confirmDialog.affectedSuccessors.length > 1 ? 's' : ''} will be affected
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {confirmDialog.affectedSuccessors.slice(0, 5).map(s => (
+                    <span key={s.id} className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-800 rounded text-[10px]">
+                      #{s.task_number} {s.name.length > 20 ? s.name.slice(0, 20) + '...' : s.name}
+                    </span>
+                  ))}
+                  {confirmDialog.affectedSuccessors.length > 5 && (
+                    <span className="px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      +{confirmDialog.affectedSuccessors.length - 5} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant={confirmDialog.isChecking ? "default" : "outline"}
+              onClick={async () => {
+                if (confirmDialog.task) {
+                  const field = confirmDialog.type === 'supplierConfirm' ? 'supplier_confirm' : 'confirm';
+                  await executeGanttV2CheckboxToggle(confirmDialog.task.id, field, confirmDialog.isChecking);
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                }
+              }}
+            >
+              {confirmDialog.isChecking ? 'Confirm' : 'Unlock'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Start Task Dialog - shown when starting a task that's under a header or has predecessors */}
+      <Dialog open={startTaskDialog.isOpen} onOpenChange={(open) => setStartTaskDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+              Start Task
+            </DialogTitle>
+            <DialogDescription>
+              Starting this task will set its start date to today and lock its position.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 space-y-3">
+            {/* Task info */}
+            <div className="p-2 bg-muted rounded text-sm">
+              <span className="font-medium">{startTaskDialog.task?.name}</span>
+            </div>
+
+            {/* Context info */}
+            {startTaskDialog.headerName && (
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs">
+                <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">
+                  This task is under header:
+                </p>
+                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-[11px]">
+                  {startTaskDialog.headerName}
+                </span>
+              </div>
+            )}
+
+            {startTaskDialog.hasPredecessors && (
+              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                <p className="font-medium text-yellow-800 dark:text-yellow-200">
+                  This task has predecessor dependencies
+                </p>
+              </div>
+            )}
+
+            {/* Non-working day warning */}
+            {!startTaskDialog.isTodayWorkingDay && startTaskDialog.lastWorkingDay && (
+              <div className="p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded text-xs">
+                <p className="font-medium text-orange-800 dark:text-orange-200">
+                  Today is a weekend or holiday
+                </p>
+              </div>
+            )}
+
+            {/* Options - different layout based on working day */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">How do you want to start this task?</p>
+
+              {/* If today is a working day - simple options */}
+              {startTaskDialog.isTodayWorkingDay && (
+                <>
+                  {startTaskDialog.headerName && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start gap-2 h-auto py-2"
+                      onClick={async () => {
+                        if (startTaskDialog.task) {
+                          await executeStartTask(startTaskDialog.task, 'break-header', new Date());
+                          setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                        }
+                      }}
+                    >
+                      <GitBranch className="h-4 w-4 rotate-180 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-medium">Break out of header</div>
+                        <div className="text-[10px] text-muted-foreground">Task becomes standalone, start today</div>
+                      </div>
+                    </Button>
+                  )}
+
+                  {startTaskDialog.hasPredecessors && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start gap-2 h-auto py-2"
+                      onClick={async () => {
+                        if (startTaskDialog.task) {
+                          await executeStartTask(startTaskDialog.task, 'break-dependency', new Date());
+                          setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                        }
+                      }}
+                    >
+                      <Link2Off className="h-4 w-4 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-medium">Break dependencies</div>
+                        <div className="text-[10px] text-muted-foreground">Clear predecessors, start today</div>
+                      </div>
+                    </Button>
+                  )}
+                </>
+              )}
+
+              {/* If NOT a working day - show date choice for each action */}
+              {!startTaskDialog.isTodayWorkingDay && startTaskDialog.lastWorkingDay && (
+                <>
+                  {/* Break out of header options */}
+                  {startTaskDialog.headerName && (
+                    <div className="border rounded-md p-2 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-medium">
+                        <GitBranch className="h-3.5 w-3.5 rotate-180" />
+                        Break out of header
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8"
+                          onClick={async () => {
+                            if (startTaskDialog.task && startTaskDialog.lastWorkingDay) {
+                              await executeStartTask(startTaskDialog.task, 'break-header', startTaskDialog.lastWorkingDay);
+                              setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                            }
+                          }}
+                        >
+                          {startTaskDialog.lastWorkingDay.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8 border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400"
+                          onClick={async () => {
+                            if (startTaskDialog.task) {
+                              await executeStartTask(startTaskDialog.task, 'break-header', new Date());
+                              setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                            }
+                          }}
+                        >
+                          Today (weekend)
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Break dependencies options */}
+                  {startTaskDialog.hasPredecessors && (
+                    <div className="border rounded-md p-2 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-medium">
+                        <Link2Off className="h-3.5 w-3.5" />
+                        Break dependencies
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8"
+                          onClick={async () => {
+                            if (startTaskDialog.task && startTaskDialog.lastWorkingDay) {
+                              await executeStartTask(startTaskDialog.task, 'break-dependency', startTaskDialog.lastWorkingDay);
+                              setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                            }
+                          }}
+                        >
+                          {startTaskDialog.lastWorkingDay.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8 border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400"
+                          onClick={async () => {
+                            if (startTaskDialog.task) {
+                              await executeStartTask(startTaskDialog.task, 'break-dependency', new Date());
+                              setStartTaskDialog(prev => ({ ...prev, isOpen: false }));
+                            }
+                          }}
+                        >
+                          Today (weekend)
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setStartTaskDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dependency Editor - shown when editing dependencies in Gantt V2 */}
+      {/* SSoT: Always pass ALL tasks (ganttV2Tasks), not just visible tasks
+          The editor needs to look up inherited predecessors which might be in collapsed headers */}
+      <GanttDependencyEditor
+        isOpen={dependencyEditorState.isOpen}
+        onClose={() => setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] })}
+        task={dependencyEditorState.task}
+        tasks={ganttV2Tasks}
+        onSave={handleDependencyEditorSave}
+        pendingPredecessor={dependencyEditorState.pendingPredecessor}
+        pendingSuccessor={dependencyEditorState.pendingSuccessor}
+      />
 
       {/* NOTE: Trades/Stages are managed in Tables tab (SSoT: Foundation SM Trades ID 542, SM Stages ID 543) */}
       {/* NOTE: Roles are managed in Admin > System > Company > Security > Roles (SSoT) */}

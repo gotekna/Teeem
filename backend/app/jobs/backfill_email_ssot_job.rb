@@ -43,14 +43,15 @@ class BackfillEmailSsotJob < ApplicationJob
 
   def backfill_email(email, skip_if_populated:)
     # Skip if already populated and flag is set
-    if skip_if_populated && email.direction.present? && email.body_preview.present?
+    has_direction = email.respond_to?(:direction) && email.direction.present?
+    if skip_if_populated && has_direction && email.body_preview.present?
       return :skipped
     end
 
     updates = {}
 
-    # Set direction based on folder_name
-    if email.direction.blank?
+    # Set direction based on folder_name (if column exists)
+    if email.respond_to?(:direction) && email.direction.blank?
       updates[:direction] = determine_direction(email)
     end
 

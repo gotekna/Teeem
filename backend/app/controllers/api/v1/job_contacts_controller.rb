@@ -117,6 +117,22 @@ module Api
               }
             }
           end
+
+          # Include related jobs (other jobs this contact is associated with)
+          related_job_ids = JobContact.where(contact_id: job_contact.contact_id)
+                                      .where.not(job_id: job_contact.job_id)
+                                      .pluck(:job_id)
+                                      .uniq
+          related_jobs = Job.where(id: related_job_ids).limit(5)
+          response[:related_jobs_count] = related_job_ids.count
+          response[:related_jobs] = related_jobs.map do |job|
+            {
+              id: job.id,
+              address: job.address,
+              job_status: job.job_status&.name,
+              contract_value: job.contract_value
+            }
+          end
         end
 
         response

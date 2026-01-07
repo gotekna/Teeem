@@ -177,7 +177,8 @@ module Api
         options = records.map do |record|
           option = {
             id: record.id,
-            display: record.send(column.lookup_display_column).to_s
+            # SSoT: Use DisplayValueResolver for fallback chain
+            display: DisplayValueResolver.resolve_lookup(record, column)
           }
           # Include display_order if the lookup table has that column (for workflow sorting)
           # Check for common ordering column names: display_order, position, sort_order, order
@@ -325,7 +326,8 @@ module Api
 
           {
             id: record.id,
-            display: record.send(column.lookup_display_column).to_s,
+            # SSoT: Use DisplayValueResolver for fallback chain
+            display: DisplayValueResolver.resolve_lookup(record, column),
             context: context_fields
           }
         rescue => e
@@ -618,7 +620,8 @@ module Api
           :is_multiple,
           :header_align,
           :data_align,
-          available_choices: []
+          available_choices: [],
+          choice_descriptions: {}  # SSoT: descriptions for each choice value
         )
 
         # SSoT: If slug is provided, use it as the input for resolution

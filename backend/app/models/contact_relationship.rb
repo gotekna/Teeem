@@ -220,6 +220,18 @@ class ContactRelationship < ApplicationRecord
   validate :validate_entity_types_for_relationship
   validates :ownership_percentage, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
+  # Helper method to get role names from role_ids (looks up from ContactType SSoT)
+  def role_names
+    return [] if role_ids.blank?
+    ContactType.where(id: role_ids).pluck(:display_name)
+  end
+
+  # Helper to get roles with IDs for API responses
+  def roles_with_details
+    return [] if role_ids.blank?
+    ContactType.where(id: role_ids).map { |ct| { id: ct.id, name: ct.display_name } }
+  end
+
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :inactive, -> { where(is_active: false) }

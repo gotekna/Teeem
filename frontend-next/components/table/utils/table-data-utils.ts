@@ -18,6 +18,41 @@ import { fuzzyMatch } from "./table-utils";
 // ============================================================================
 
 /**
+ * Parse a numeric filter value, handling percentage symbols
+ * Returns both the parsed value and whether it looks like a percentage
+ * "99%" -> 99, "0.99" -> 0.99, "99" -> 99
+ */
+function parseNumericFilterValue(filterValue: unknown): number {
+  const str = String(filterValue).trim();
+  // Strip % sign if present
+  const cleaned = str.replace(/%$/, '');
+  return Number(cleaned);
+}
+
+/**
+ * Compare numeric values for percentage columns
+ * Handles decimal storage (0.99 = 99%) vs whole number storage (99 = 99%)
+ * If raw value is <= 1 (decimal) and filter value is > 1 (whole %), convert filter to decimal
+ */
+function compareNumericValues(rawValue: number, filterValue: number, operator: string): boolean {
+  let compareValue = filterValue;
+
+  // If raw value looks like decimal storage (0-1) but filter value looks like whole percentage (>1)
+  // Convert filter to decimal for fair comparison
+  if (rawValue >= 0 && rawValue <= 1 && filterValue > 1) {
+    compareValue = filterValue / 100;
+  }
+
+  switch (operator) {
+    case ">": return rawValue > compareValue;
+    case "<": return rawValue < compareValue;
+    case ">=": return rawValue >= compareValue;
+    case "<=": return rawValue <= compareValue;
+    default: return false;
+  }
+}
+
+/**
  * Extract display value from lookup objects
  * Handles objects with display, name, or id properties
  *
@@ -82,13 +117,10 @@ export function evaluateFilter(entry: TableRow, filter: CascadeFilter): boolean 
     case "!=":
       return !compareValues(valueForEquality, filterValue);
     case ">":
-      return Number(value) > Number(filterValue);
     case "<":
-      return Number(value) < Number(filterValue);
     case ">=":
-      return Number(value) >= Number(filterValue);
     case "<=":
-      return Number(value) <= Number(filterValue);
+      return compareNumericValues(Number(value), parseNumericFilterValue(filterValue), filter.operator);
     case "contains":
       return String(value ?? "")
         .toLowerCase()
@@ -232,6 +264,29 @@ interface SearchOptions {
 }
 
 /**
+ * Extract searchable text from a cell value
+ * Handles lookup objects by extracting display_value, display, name, etc.
+ */
+function getSearchableText(value: unknown): string {
+  if (value == null) return "";
+
+  // Handle lookup objects (from expanded relationships like linked_company)
+  if (typeof value === "object" && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    // Try common display fields in priority order
+    const displayValue = obj.display_value || obj.display || obj.name || obj.label || obj.id;
+    return String(displayValue ?? "");
+  }
+
+  // Handle arrays (multi-select lookups)
+  if (Array.isArray(value)) {
+    return value.map((item) => getSearchableText(item)).join(" ");
+  }
+
+  return String(value);
+}
+
+/**
  * Apply search to entries (client-side filtering)
  *
  * Supports multiple search modes:
@@ -259,7 +314,10 @@ export function applySearch(entries: TableRow[], options: SearchOptions): TableR
       const value = entry[col.key];
       if (value == null) return false;
 
-      const strValue = String(value).toLowerCase();
+      // Use helper to extract searchable text from lookup objects
+      const strValue = getSearchableText(value).toLowerCase();
+      if (!strValue) return false;
+
       const searchLower = search.toLowerCase();
 
       switch (searchMode) {
@@ -270,7 +328,7 @@ export function applySearch(entries: TableRow[], options: SearchOptions): TableR
         case "starts_with":
           return strValue.startsWith(searchLower);
         case "fuzzy":
-          return fuzzyMatch(search, String(value));
+          return fuzzyMatch(search, getSearchableText(value));
         case "regex":
           try {
             const regex = new RegExp(search, "i");
@@ -391,7 +449,8 @@ interface ServerGroupCount {
  * Extract display value from a cell for grouping
  */
 export function getGroupDisplayValue(value: unknown): string {
-  if (value === null || value === undefined) return "No Value";
+  // SSoT: Use "(Empty)" to match server convention (server returns null key which becomes "(Empty)")
+  if (value === null || value === undefined) return "(Empty)";
   // Handle arrays - join as comma-separated string
   if (Array.isArray(value)) {
     if (value.length === 0) return "—";
@@ -399,7 +458,13 @@ export function getGroupDisplayValue(value: unknown): string {
   }
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
-    return String(obj.display || obj.display_value || obj.name || obj.id || "No Value");
+    // IMPORTANT: For lookup objects, use ID as key to match server group counts
+    // The display name is shown via serverDisplayMap in the UI
+    // This ensures groups from data match groups from server (both keyed by ID)
+    if (obj.id !== undefined) {
+      return String(obj.id);
+    }
+    return String(obj.display || obj.display_value || obj.name || "(Empty)");
   }
   return String(value);
 }
@@ -463,12 +528,60 @@ export function buildGroupedEntries(
     const currentCol = columns[depth];
     const unsortedGroups: Record<string, NestedGroup> = {};
 
+    // SSoT: Company/Role View Special Handling
+    // When grouping by employer (primary_company_id), companies should create their OWN group
+    // using their ID, not be grouped by their employer (which is null).
+    // This makes companies appear as group headers, not in "No Employees Assigned".
+    const isGroupingByCompany = currentCol.includes('company') || currentCol.includes('employer');
+
+    // When grouping by company: separate companies from employees
+    // Companies WITH employees → appear as group headers (not rows)
+    // Companies WITHOUT employees → appear in "No Employees Assigned" group
+    const companiesInData: TableRow[] = [];
+
     for (const entry of groupEntries) {
+      if (isGroupingByCompany && entry.entity_type === 'company') {
+        // Track companies separately - we'll add them to appropriate group after
+        companiesInData.push(entry);
+        continue;
+      }
+
+      // SSoT: For Company/Role view, use employer_ids array (supports multiple employers)
+      // This includes both primary_company_id AND contact_relationships
+      if (isGroupingByCompany && Array.isArray(entry.employer_ids) && entry.employer_ids.length > 0) {
+        // Add employee to EACH employer's group (they can work for multiple companies)
+        for (const employerId of entry.employer_ids) {
+          const groupKey = String(employerId);
+          if (!unsortedGroups[groupKey]) {
+            unsortedGroups[groupKey] = { rows: [] };
+          }
+          unsortedGroups[groupKey].rows.push(entry);
+        }
+        continue;
+      }
+
       const groupKey = getGroupDisplayValue(entry[currentCol]);
       if (!unsortedGroups[groupKey]) {
         unsortedGroups[groupKey] = { rows: [] };
       }
       unsortedGroups[groupKey].rows.push(entry);
+    }
+
+    // Handle companies: those with employees become group headers, those without go to "No Employees Assigned"
+    if (isGroupingByCompany && companiesInData.length > 0) {
+      for (const company of companiesInData) {
+        const companyId = String(company.id);
+        // If this company has employees (a group exists with their ID as key), they're a header - skip
+        if (unsortedGroups[companyId]) {
+          continue; // Company is a group header via its employees
+        }
+        // Company has NO employees in current data - add to "(Empty)" (No Employees Assigned)
+        const noValueKey = "(Empty)";
+        if (!unsortedGroups[noValueKey]) {
+          unsortedGroups[noValueKey] = { rows: [] };
+        }
+        unsortedGroups[noValueKey].rows.push(company);
+      }
     }
 
     // Sort group keys by customOrder if available for this column

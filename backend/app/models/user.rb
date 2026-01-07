@@ -2,6 +2,7 @@ class User < ApplicationRecord
   has_secure_password validations: false  # Disable default validations to make password optional for OAuth
 
   belongs_to :user_group, optional: true
+  belongs_to :contact, optional: true  # Link user to their contact record for data sync
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :foundation_views, dependent: :destroy
@@ -19,6 +20,12 @@ class User < ApplicationRecord
   has_many :user_navigation_configs, dependent: :destroy
   has_many :task_followers, dependent: :destroy
   has_many :followed_tasks, through: :task_followers, source: :sm_task
+
+  # Digital signature for certificates (Form 43, contracts, etc.)
+  has_one_attached :signature
+
+  # Signature usage register - tracks every time signature is used
+  has_many :signature_usages, dependent: :destroy
 
   # Multi-role support (SSoT: user_roles join table)
   has_many :user_roles, dependent: :destroy
@@ -38,15 +45,16 @@ class User < ApplicationRecord
     MicrosoftCredential.for_user(self).delegated_credentials.connected.first
   end
 
-  # SSoT: Assignable roles for task/schedule assignment
-  # Used by: SmScheduleMaster, SmTask, GanttCanvasView (via /api/v1/sm_settings/assignable_roles)
-  ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze
+  # SSoT: Assignable roles come from Role model (see Role.for_select)
+  # No hardcoded ASSIGNABLE_ROLES constant - database is the source of truth
 
   validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :name, presence: true
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
-  validate :validate_assigned_roles
+
+  # SSoT: Sync mobile_phone to linked contact when user is updated
+  after_save :sync_mobile_to_contact, if: -> { saved_change_to_mobile_phone? && contact.present? }
 
   # Role helper methods
   # SSoT: ONLY use user_roles join table - legacy role column is deprecated
@@ -80,11 +88,25 @@ class User < ApplicationRecord
     name.split.map { |n| n[0] }.join.upcase[0..2]
   end
 
+  # Get signature URL for PDF generation (base64 data URL for embedding)
+  def signature_data_url
+    return nil unless signature.attached?
+    content_type = signature.content_type
+    blob_data = signature.download
+    base64_data = Base64.strict_encode64(blob_data)
+    "data:#{content_type};base64,#{base64_data}"
+  end
+
+  # Check if user has complete QBCC credentials for certificate signing
+  def can_sign_certificates?
+    signature.attached? && qbcc_licence_number.present? && qbcc_licence_class.present?
+  end
+
   # SSoT: God View access (internal staff sees everything)
   # God View users see all entities in all groups they have access to
-  # SSoT: Check against user_roles join table, not legacy role column
+  # SSoT: Check against Role.god_view_access column (database is SSoT)
   def god_view?
-    (role_names & %w[admin product_owner user estimator supervisor builder]).any?
+    roles.with_god_view.exists?
   end
 
   # SSoT: Can this user view confidential fields (TFN, passport, bank details)?
@@ -244,11 +266,6 @@ class User < ApplicationRecord
     provider.present? && uid.present?
   end
 
-  # Helper method to check if user has a specific assigned role (for Schedule Master)
-  def has_assigned_role?(role_name)
-    assigned_roles&.include?(role_name.to_s)
-  end
-
   # Multi-role helpers (SSoT: user_roles join table)
   def role_ids
     roles.pluck(:id)
@@ -271,8 +288,8 @@ class User < ApplicationRecord
                        end
                      end.compact.reject(&:blank?)
 
-    assigned_roles = Role.where(id: normalized_ids)
-    self.roles = assigned_roles
+    new_roles = Role.where(id: normalized_ids)
+    self.roles = new_roles
   end
 
   def role_names
@@ -291,18 +308,15 @@ class User < ApplicationRecord
 
   private
 
-  def validate_assigned_roles
-    return if assigned_roles.blank?
+  # SSoT: Sync mobile_phone to linked contact
+  def sync_mobile_to_contact
+    return unless contact.present?
+    return if contact.mobile_phone == mobile_phone  # No change needed
 
-    unless assigned_roles.is_a?(Array)
-      errors.add(:assigned_roles, "must be an array")
-      return
-    end
-
-    invalid_roles = assigned_roles - ASSIGNABLE_ROLES
-    if invalid_roles.any?
-      errors.add(:assigned_roles, "contains invalid roles: #{invalid_roles.join(', ')}")
-    end
+    contact.update_column(:mobile_phone, mobile_phone)
+    Rails.logger.info "[User#sync_mobile_to_contact] Synced mobile_phone '#{mobile_phone}' to Contact##{contact.id}"
+  rescue StandardError => e
+    Rails.logger.error "[User#sync_mobile_to_contact] Failed to sync: #{e.message}"
   end
 
   def password_required?

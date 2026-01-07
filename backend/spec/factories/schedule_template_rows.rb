@@ -45,7 +45,7 @@ FactoryBot.define do
     subtask_count { nil }
 
     # Array fields
-    documentation_category_ids { [] }
+    # NOTE: documentation_category_ids removed - use DocumentType + SmScheduleMasterDocumentType
     supervisor_checklist_template_ids { [] }
 
     # Text fields

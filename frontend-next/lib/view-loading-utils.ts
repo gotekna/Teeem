@@ -20,8 +20,7 @@ export interface ViewSelectionOptions {
   urlViewId?: number | null;
 
   /**
-   * Whether to prefer global views over personal views
-   * Default: true
+   * @deprecated No longer used - views are selected by position (first in list)
    */
   preferGlobal?: boolean;
 }
@@ -31,12 +30,13 @@ export interface ViewSelectionOptions {
  *
  * Priority order:
  * 1. URL parameter match by ID (?view=123)
- * 2. Explicit default flag (global preferred if preferGlobal=true)
- * 3. First global view at display_order 0
- * 4. First view at display_order 0
- * 5. First view in array
+ * 2. First view in array (views should already be sorted by display_order)
  *
- * @param views - Array of available SavedView objects
+ * NOTE: Removed complex isDefault/display_order logic - just use the first view
+ * in the list. Views are sorted by display_order before being passed here,
+ * so the first view IS the default (position 1 in the View Manager).
+ *
+ * @param views - Array of available SavedView objects (pre-sorted by display_order)
  * @param options - Selection options
  * @returns Selected view or null if no views available
  */
@@ -46,7 +46,7 @@ export function selectDefaultView(
 ): SavedView | null {
   if (views.length === 0) return null;
 
-  const { urlViewId, preferGlobal = true } = options;
+  const { urlViewId } = options;
 
   // Priority 1: Check URL parameter by ID (fast O(1) lookup)
   if (urlViewId !== null && urlViewId !== undefined) {
@@ -56,32 +56,8 @@ export function selectDefaultView(
     }
   }
 
-  // Priority 2: Explicit default flag (global preferred if enabled)
-  if (preferGlobal) {
-    const defaultGlobalView = views.find(v => v.isDefault && v.is_global);
-    if (defaultGlobalView) {
-      return defaultGlobalView;
-    }
-  }
-
-  const defaultView = views.find(v => v.isDefault);
-  if (defaultView) {
-    return defaultView;
-  }
-
-  // Priority 3: First global view at display_order 0
-  const firstGlobal = views.find(v => v.is_global && v.display_order === 0);
-  if (firstGlobal) {
-    return firstGlobal;
-  }
-
-  // Priority 4: First view at display_order 0
-  const firstOrdered = views.find(v => v.display_order === 0);
-  if (firstOrdered) {
-    return firstOrdered;
-  }
-
-  // Priority 5: Fallback to first view
+  // Priority 2: First view in array (already sorted by display_order)
+  // This is position 1 in the View Manager - the top of the list
   return views[0];
 }
 

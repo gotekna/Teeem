@@ -559,6 +559,8 @@ module Api
           fix_abn_format(item_ids, auto)
         when "acn_format"
           fix_acn_format(item_ids, auto)
+        when "employee_role_cleanup"
+          fix_employee_role_cleanup(item_ids, auto)
         else
           { success: false, error: "Unknown fix type: #{fix_type}" }
         end
@@ -868,6 +870,50 @@ module Api
           fixed_count: fixed_count,
           points_earned: points_earned,
           message: "Formatted #{fixed_count} ACN numbers (XXX XXX XXX)"
+        }
+      end
+
+      # Remove Employee role from contacts without a company link
+      # FRC: Contacts should not have Employee role without primary_company or active employee_of relationship
+      def fix_employee_role_cleanup(item_ids, auto)
+        fixed_count = 0
+        fixed_ids = []
+
+        if item_ids.present?
+          contacts = Contact.where(id: item_ids)
+        else
+          # Find all contacts with Employee role but no company link
+          contacts_with_active_employment = ContactRelationship
+            .where(relationship_type: "employee_of", is_active: true)
+            .select(:source_contact_id)
+
+          # Note: roles is TEXT storing JSON array like '["Employee"]', so use LIKE pattern
+          contacts = Contact
+            .where("roles LIKE ?", '%"Employee"%')
+            .where(primary_company_id: nil)
+            .where.not(id: contacts_with_active_employment)
+        end
+
+        contacts.find_each do |contact|
+          # Parse JSON string to array (roles is TEXT storing JSON like '["Employee"]')
+          current_roles = contact.roles.is_a?(String) ? (JSON.parse(contact.roles) rescue []) : (contact.roles || [])
+          next unless current_roles.include?("Employee")
+
+          new_roles = current_roles - [ "Employee" ]
+
+          # Use update_columns to skip callbacks and validations for this cleanup
+          if contact.update_columns(roles: new_roles.to_json)
+            fixed_count += 1
+            fixed_ids << contact.id
+            Rails.logger.info "[HealthController#fix_employee_role_cleanup] Removed Employee role from Contact##{contact.id} (#{contact.display_name})"
+          end
+        end
+
+        {
+          success: true,
+          fixed_count: fixed_count,
+          points_earned: 0,
+          message: "Removed 'Employee' role from #{fixed_count} contacts without company"
         }
       end
 

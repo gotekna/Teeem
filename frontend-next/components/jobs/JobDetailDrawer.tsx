@@ -345,7 +345,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                         <p className="text-sm text-muted-foreground mb-3">
                           View the full Schedule Master for task management
                         </p>
-                        <Button onClick={() => router.push(`/jobs/${job.id}/schedule`)}>
+                        <Button onClick={() => router.push(`/jobs/${job.id}/schedule/gantt-v2`)}>
                           Open Schedule
                         </Button>
                       </CardContent>

@@ -57,7 +57,15 @@ module Api
         if search.present?
           search_mode = params[:search_mode] || "contains"
 
-          searchable_columns = if search_all
+          # Detect Company/Role view (panel view with group_by=primary_company_id)
+          group_by_column = params[:group_by]&.split(",")&.first
+          is_company_role_view = @foundation.slug == "contacts" && group_by_column == "primary_company_id"
+
+          searchable_columns = if is_company_role_view
+            # Company/Role panel view: ONLY search display_name and email
+            # This prevents matching irrelevant contacts via city, place_of_birth, abn_entity_name, etc.
+            %w[display_name email]
+          elsif search_all
             # Search ALL text columns (comprehensive but slower)
             if @foundation.table_type == "system"
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name)
@@ -81,6 +89,17 @@ module Api
             end
           end
 
+          # SSoT: Jobs foundation - also search client name via job_contacts join
+          # Client is linked through job_contacts table with role='client'
+          if @foundation.slug == "jobs"
+            # Join jobs to job_contacts to contacts for client search
+            query = query.joins("LEFT JOIN job_contacts ON job_contacts.job_id = jobs.id AND job_contacts.role = 'client'")
+                         .joins("LEFT JOIN contacts ON contacts.id = job_contacts.contact_id")
+            # Qualify all column references with table name to avoid ambiguity
+            # (jobs and contacts both have columns like 'postcode', 'state', etc.)
+            searchable_columns = searchable_columns.map { |col| "jobs.#{col}" } + ["contacts.display_name"]
+          end
+
           if searchable_columns.any?
             conn = ActiveRecord::Base.connection
             sanitized_search = conn.quote(search)
@@ -90,12 +109,30 @@ module Api
 
             # Helper to get SQL-safe column reference with optional TEXT casting
             # Must cast non-text types to TEXT for ILIKE to work
+            # Supports table-qualified columns (e.g., "jobs.name", "contacts.display_name")
             get_column_sql = ->(col) {
-              col_type = column_types[col]
-              if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime, :jsonb, :json].include?(col_type)
-                "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+              if col.include?(".")
+                # Table-qualified column - extract the column name to check type
+                table_name, col_name = col.split(".", 2)
+                # For joined tables (not the main model), assume text type
+                if table_name != model.table_name
+                  col
+                else
+                  # For main model columns, check the type and cast if needed
+                  col_type = column_types[col_name]
+                  if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime, :jsonb, :json].include?(col_type)
+                    "CAST(#{col} AS TEXT)"
+                  else
+                    col
+                  end
+                end
               else
-                conn.quote_column_name(col)
+                col_type = column_types[col]
+                if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime, :jsonb, :json].include?(col_type)
+                  "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+                else
+                  conn.quote_column_name(col)
+                end
               end
             }
 
@@ -163,6 +200,64 @@ module Api
               query = query.where(conditions, search: "%#{search}%")
             end
           end
+
+          # SSoT: Bidirectional company/employee search for contacts foundation
+          # ONLY applies when grouping by company (Company/Role view) - not for regular search
+          # When searching contacts, also return related company/employees
+          # - Search for company → also return its employees
+          # - Search for employee → also return their employer
+          # Uses BOTH primary_company_id AND contact_relationships table
+          # NOTE: is_company_role_view was already set above (reuses same detection)
+          if is_company_role_view
+            model = @foundation.dynamic_model
+
+            # Get IDs of records that matched the search
+            matching_ids = query.pluck(:id)
+
+            # Find companies that matched (could be company, trust, or sole_trader)
+            matching_company_ids = model.where(id: matching_ids, entity_type: %w[company trust sole_trader]).pluck(:id)
+
+            # Find employees of those companies
+            if matching_company_ids.any?
+              # Via primary_company_id
+              employee_query = model.where(primary_company_id: matching_company_ids)
+              employee_query = employee_query.where(is_active: [true, nil]) if model.column_names.include?("is_active")
+              employee_ids = employee_query.pluck(:id)
+
+              # Via contact_relationships (employee_of relationship)
+              relationship_employee_ids = ContactRelationship
+                .where(related_contact_id: matching_company_ids, relationship_type: "employee_of")
+                .pluck(:source_contact_id)
+
+              matching_ids = (matching_ids + employee_ids + relationship_employee_ids).uniq
+            end
+
+            # Find employers of people who matched (reverse lookup)
+            person_ids = model.where(id: matching_ids).where.not(entity_type: %w[company trust sole_trader]).pluck(:id)
+
+            # Via primary_company_id
+            employer_ids = model.where(id: person_ids)
+                               .where.not(primary_company_id: nil)
+                               .pluck(:primary_company_id)
+                               .compact
+                               .uniq
+
+            # Via contact_relationships (employee_of relationship - person is source, company is related)
+            relationship_employer_ids = ContactRelationship
+              .where(source_contact_id: person_ids, relationship_type: "employee_of")
+              .pluck(:related_contact_id)
+
+            all_employer_ids = (employer_ids + relationship_employer_ids).uniq
+            if all_employer_ids.any?
+              matching_ids = (matching_ids + all_employer_ids).uniq
+            end
+
+            # Re-filter query to include related records
+            query = model.where(id: matching_ids)
+            # Re-apply soft delete and is_active filters
+            query = query.where(deleted_at: nil) if model.column_names.include?("deleted_at")
+            query = query.where(is_active: [true, nil]) if model.column_names.include?("is_active")
+          end
         end
 
         # Apply cascade filters (sent from frontend view state)
@@ -203,6 +298,10 @@ module Api
                 conn = ActiveRecord::Base.connection
                 quoted_column = conn.quote_column_name(column)
 
+                # Get actual database column type for type-safe operations
+                db_column = model.columns.find { |c| c.name == column }
+                db_column_type = db_column&.type
+
                 # Convert boolean string values ("Yes"/"No"/"true"/"false") to actual booleans
                 # Frontend dropdowns send string values for boolean columns
                 col_def = @foundation.columns.find_by(column_name: column)
@@ -214,6 +313,28 @@ module Api
                           else value
                           end
                   Rails.logger.info "[BOOL_FILTER] Converted to: #{value.inspect}"
+                end
+
+                # Resolve lookup display values to IDs
+                # If filtering a lookup column with a string value (display name), find the corresponding ID
+                # This handles saved views or filters that store display values instead of IDs
+                if col_def&.column_type == "lookup" && col_def&.lookup_foundation.present? && value.is_a?(String) && !value.match?(/\A\d+\z/)
+                  lookup_model = col_def.lookup_foundation.dynamic_model
+                  display_col = col_def.lookup_display_column || "name"
+
+                  # Try to find the lookup record by display value (case-insensitive)
+                  if lookup_model.column_names.include?(display_col)
+                    # Real database column - search directly
+                    lookup_record = lookup_model.find_by("LOWER(#{display_col}) = ?", value.downcase)
+                    value = lookup_record&.id
+                  else
+                    # Computed column (e.g., full_name) - need to iterate
+                    lookup_record = lookup_model.all.find { |r| r.respond_to?(display_col) && r.send(display_col)&.downcase == value.downcase }
+                    value = lookup_record&.id
+                  end
+
+                  # Skip this filter if we couldn't resolve the display value to an ID
+                  next nil if value.nil?
                 end
 
                 case operator
@@ -231,13 +352,43 @@ module Api
                 when "<="
                   ["#{quoted_column} <= ?", value]
                 when "contains"
-                  ["#{quoted_column} ILIKE ?", "%#{value}%"]
+                  # Skip ILIKE for boolean columns (doesn't make semantic sense)
+                  # Cast other non-text columns to TEXT for ILIKE to work
+                  if db_column_type == :boolean
+                    Rails.logger.warn "[FILTER] Skipping 'contains' operator for boolean column #{column}"
+                    nil
+                  elsif [:integer, :bigint, :decimal, :float, :date, :datetime, :jsonb, :json].include?(db_column_type)
+                    ["CAST(#{quoted_column} AS TEXT) ILIKE ?", "%#{value}%"]
+                  else
+                    ["#{quoted_column} ILIKE ?", "%#{value}%"]
+                  end
                 when "not_contains"
-                  ["#{quoted_column} NOT ILIKE ? OR #{quoted_column} IS NULL", "%#{value}%"]
+                  if db_column_type == :boolean
+                    Rails.logger.warn "[FILTER] Skipping 'not_contains' operator for boolean column #{column}"
+                    nil
+                  elsif [:integer, :bigint, :decimal, :float, :date, :datetime, :jsonb, :json].include?(db_column_type)
+                    ["CAST(#{quoted_column} AS TEXT) NOT ILIKE ? OR #{quoted_column} IS NULL", "%#{value}%"]
+                  else
+                    ["#{quoted_column} NOT ILIKE ? OR #{quoted_column} IS NULL", "%#{value}%"]
+                  end
                 when "starts_with"
-                  ["#{quoted_column} ILIKE ?", "#{value}%"]
+                  if db_column_type == :boolean
+                    Rails.logger.warn "[FILTER] Skipping 'starts_with' operator for boolean column #{column}"
+                    nil
+                  elsif [:integer, :bigint, :decimal, :float, :date, :datetime, :jsonb, :json].include?(db_column_type)
+                    ["CAST(#{quoted_column} AS TEXT) ILIKE ?", "#{value}%"]
+                  else
+                    ["#{quoted_column} ILIKE ?", "#{value}%"]
+                  end
                 when "ends_with"
-                  ["#{quoted_column} ILIKE ?", "%#{value}"]
+                  if db_column_type == :boolean
+                    Rails.logger.warn "[FILTER] Skipping 'ends_with' operator for boolean column #{column}"
+                    nil
+                  elsif [:integer, :bigint, :decimal, :float, :date, :datetime, :jsonb, :json].include?(db_column_type)
+                    ["CAST(#{quoted_column} AS TEXT) ILIKE ?", "%#{value}"]
+                  else
+                    ["#{quoted_column} ILIKE ?", "%#{value}"]
+                  end
                 when "is_empty"
                   ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
                 when "is_not_empty"
@@ -346,8 +497,16 @@ module Api
         # Build lookup cache to prevent N+1 queries (for all foundations with lookup columns)
         lookup_cache = build_lookup_cache(records)
 
+        # Pre-fetch employer_ids for person contacts (prevents N+1 in record_to_json)
+        # This fetches ALL relationships in ONE query instead of per-contact
+        employer_ids_cache = if @foundation.slug == "contacts"
+          build_employer_ids_cache(records)
+        else
+          {}
+        end
+
         # Serialize records to JSON
-        serialized_records = records.map { |r| record_to_json(r, lookup_cache) }
+        serialized_records = records.map { |r| record_to_json(r, lookup_cache, employer_ids_cache) }
 
         # DEBUG: Log if we're finding duplicates in the query result
         record_ids = records.map(&:id)
@@ -477,6 +636,9 @@ module Api
             # Hard delete - no related records, safe to remove completely
             record.destroy!
           end
+        elsif model.table_name == "jobs"
+          # Jobs: Always soft delete via archived_at (has many FK constraints)
+          record.update!(archived_at: Time.current, archive_reason: "Deleted from table view")
         elsif model.column_names.include?("deleted")
           # Other tables with deleted column: soft delete
           record.update!(deleted: true)
@@ -798,7 +960,7 @@ module Api
         attrs
       end
 
-      def record_to_json(record, lookup_cache = nil)
+      def record_to_json(record, lookup_cache = nil, employer_ids_cache = nil)
         json = {
           id: record.id,
           created_at: record.created_at,
@@ -875,14 +1037,14 @@ module Api
               elsif parsed_values.any? && column.lookup_foundation.present?
                 # Values are IDs - look up display values
                 lookup_model = column.lookup_foundation.dynamic_model
-                display_col = column.lookup_display_column || "name"
                 related_records = lookup_model.where(id: parsed_values).index_by(&:id)
 
+                # SSoT: Use DisplayValueResolver for consistent display value resolution
                 json[column.column_name] = parsed_values.map do |lookup_id|
                   related = related_records[lookup_id.to_i]
                   {
                     id: lookup_id,
-                    display_value: related ? related.send(display_col).to_s : "[Deleted ##{lookup_id}]"
+                    display_value: related ? DisplayValueResolver.resolve_lookup(related, column) : "[Deleted ##{lookup_id}]"
                   }
                 end
               else
@@ -922,10 +1084,10 @@ module Api
               end
 
               if related_record
-                display_col = column.lookup_display_column || "name"
+                # SSoT: Use DisplayValueResolver for consistent display value resolution
                 json[column.column_name] = {
                   id: related_record.id,  # Always use the actual record ID
-                  display: related_record.send(display_col).to_s
+                  display: DisplayValueResolver.resolve_lookup(related_record, column)
                 }
               else
                 json[column.column_name] = { id: numeric_id || 0, display: "[Deleted]" }
@@ -944,9 +1106,21 @@ module Api
             json[:display_name] = record.display_name  # Computed: includes company name for team contacts
 
             # SSoT: Xero link data from contact_external_links (not legacy xero_id)
+            # Use cached columns (xero_linked_count, xero_tenant_names) - NOT xero_link_summary
+            # xero_link_summary triggers N+1 queries and is only needed on detail views
             json[:xero_linked_count] = record.xero_linked_count
             json[:xero_tenant_names] = record.xero_tenant_names
-            json[:xero_link_summary] = record.xero_link_summary
+
+            # SSoT: employer_ids - all companies this person works for
+            # Used by Company/Role view to group employees under multiple employers
+            # Combines primary_company_id AND contact_relationships (employee_of)
+            # PERFORMANCE: Uses pre-fetched cache instead of per-contact query
+            entity_type = record.entity_type
+            if entity_type == "person" || entity_type.nil?
+              employer_ids_from_primary = record.primary_company_id ? [record.primary_company_id] : []
+              employer_ids_from_relationships = employer_ids_cache&.dig(record.id) || []
+              json[:employer_ids] = (employer_ids_from_primary + employer_ids_from_relationships).uniq
+            end
           end
 
           # SSoT: PurchaseOrder required_date comes from linked task's start_date
@@ -954,6 +1128,12 @@ module Api
           if record.class.name == "PurchaseOrder"
             json[:required_date] = record.effective_required_date
             json[:po_task_name] = record.po_task_name  # SSoT: PurchaseOrder.sm_task_id is THE link
+          end
+
+          # SSoT: Job client_name comes from job_contacts where role='client'
+          # This enables searching and displaying client name without denormalization
+          if record.class.name == "Job"
+            json[:client_name] = record.client&.display_name
           end
 
           return json
@@ -1002,9 +1182,10 @@ module Api
                 related_record = column.lookup_foundation.dynamic_model.find_by(id: value)
               end
 
+              # SSoT: Use DisplayValueResolver for consistent display value resolution
               json[column.column_name] = {
                 id: lookup_id,
-                display: related_record ? related_record.send(column.lookup_display_column).to_s : "[Deleted]"
+                display: related_record ? DisplayValueResolver.resolve_lookup(related_record, column) : "[Deleted]"
               }
             rescue => e
               Rails.logger.error "Error loading lookup value for #{column.column_name}: #{e.message}"
@@ -1030,14 +1211,14 @@ module Api
               elsif parsed_values.any? && column.lookup_foundation.present?
                 # Values are IDs - look up display values from the lookup table
                 lookup_model = column.lookup_foundation.dynamic_model
-                display_col = column.lookup_display_column || "name"
                 related_records = lookup_model.where(id: parsed_values).index_by(&:id)
 
+                # SSoT: Use DisplayValueResolver for consistent display value resolution
                 json[column.column_name] = parsed_values.map do |lookup_id|
                   related = related_records[lookup_id.to_i]
                   {
                     id: lookup_id,
-                    display_value: related ? related.send(display_col).to_s : "[Deleted ##{lookup_id}]"
+                    display_value: related ? DisplayValueResolver.resolve_lookup(related, column) : "[Deleted ##{lookup_id}]"
                   }
                 end
               else
@@ -1080,18 +1261,56 @@ module Api
         lookup_cache
       end
 
-      # Find all contact IDs that are possible duplicates (share normalized name with another contact)
-      def find_duplicate_contact_ids
-        contacts_by_name = Contact.where(deleted: [ false, nil ])
-          .group_by { |c| normalize_contact_name(c.display_name) }
+      # Build cache of employer_ids for person contacts
+      # Fetches ALL relationships in ONE query instead of per-contact
+      # Returns: { contact_id => [employer_id, ...], ... }
+      def build_employer_ids_cache(records)
+        return {} if records.empty?
 
-        duplicate_ids = []
-        contacts_by_name.each do |normalized_name, contacts|
-          next if normalized_name.blank?
-          next if contacts.size < 2
-          duplicate_ids.concat(contacts.map(&:id))
+        # Get IDs of person contacts (not companies/trusts)
+        person_contact_ids = records.select do |r|
+          r.entity_type == "person" || r.entity_type.nil?
+        end.map(&:id)
+
+        return {} if person_contact_ids.empty?
+
+        # Fetch ALL employer relationships in ONE query
+        relationships = ContactRelationship
+          .where(source_contact_id: person_contact_ids, relationship_type: "employee_of")
+          .pluck(:source_contact_id, :related_contact_id)
+
+        # Build cache: { contact_id => [employer_ids] }
+        cache = {}
+        relationships.each do |source_id, related_id|
+          cache[source_id] ||= []
+          cache[source_id] << related_id
         end
-        duplicate_ids
+
+        cache
+      end
+
+      # Find all contact IDs that are possible duplicates (share normalized name with another contact)
+      # Performance: Uses SQL HAVING instead of loading ALL contacts into memory
+      # Previously: O(n) memory usage, now: O(d) where d = number of duplicate names
+      def find_duplicate_contact_ids
+        # Step 1: Find normalized names that appear more than once (using SQL HAVING)
+        duplicate_names = Contact
+          .where(is_active: true)
+          .where.not(display_name: [nil, ""])
+          .group(Arel.sql("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g')))"))
+          .having("COUNT(*) > 1")
+          .pluck(Arel.sql("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g')))"))
+
+        return [] if duplicate_names.empty?
+
+        # Step 2: Get all contact IDs with those normalized names
+        Contact
+          .where(is_active: true)
+          .where(
+            "LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) IN (?)",
+            duplicate_names
+          )
+          .pluck(:id)
       end
 
       def normalize_contact_name(name)
@@ -1130,6 +1349,12 @@ module Api
           next if skip_associations.include?(reflection.name)
 
           associations << reflection.name
+        end
+
+        # Add specific has_many eager loads for computed columns
+        # Job: Need job_contacts with contact for client_name
+        if model == Job
+          associations << { job_contacts: :contact }
         end
 
         # Apply eager loading if we found associations

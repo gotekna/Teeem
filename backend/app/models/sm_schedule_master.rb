@@ -13,15 +13,14 @@
 class SmScheduleMaster < ApplicationRecord
   # Table renamed from sm_schedule_master to sm_schedule_masters (Rails convention)
 
-  # SSoT: Use User::ASSIGNABLE_ROLES - single source of truth for role constants
-  # This alias provides backward compatibility for any existing references
-  ASSIGNABLE_ROLES = User::ASSIGNABLE_ROLES
+  # SSoT: Roles come from Role model (see Role.for_select)
+  # No hardcoded ASSIGNABLE_ROLES constant - database is the source of truth
 
   # Dependency types
   DEPENDENCY_TYPES = %w[FS SS FF SF].freeze
 
   # Performance: Define which associations are safe to eager load
-  # Excludes self-referential (linked_po_task, spawn_scan_task) and heavy (po_supplier) associations
+  # Excludes self-referential (spawn_scan_task) and heavy (po_supplier) associations
   # Used by Foundation API's apply_eager_loading method
   def self.safe_eager_load_associations
     [:checklist, :created_by, :updated_by]
@@ -33,12 +32,11 @@ class SmScheduleMaster < ApplicationRecord
 
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 
-  # PO hierarchy - link this task's PO to another task's PO
-  belongs_to :linked_po_task, class_name: "SmScheduleMaster", optional: true
-  has_many :linked_po_children, class_name: "SmScheduleMaster", foreign_key: :linked_po_task_id, dependent: :nullify
-
   # Spawn scan task - which task template to spawn on completion
   belongs_to :spawn_scan_task, class_name: "SmScheduleMaster", optional: true
+
+  # SmTasks created from this template - nullify on delete so tasks remain but lose template link
+  has_many :sm_tasks, dependent: :nullify
 
   # Photo storage EntityTab
   belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
@@ -49,6 +47,15 @@ class SmScheduleMaster < ApplicationRecord
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
 
+  # Workflow triggers
+  belongs_to :start_workflow, class_name: "BpmnProcess", optional: true
+  belongs_to :complete_workflow, class_name: "BpmnProcess", optional: true
+
+  # Document types for GET task spawning on completion
+  has_many :sm_schedule_master_document_types, dependent: :destroy
+  has_many :document_types, through: :sm_schedule_master_document_types
+  accepts_nested_attributes_for :sm_schedule_master_document_types, allow_destroy: true
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   # Note: task_number uniqueness is per-template, not global
@@ -57,15 +64,7 @@ class SmScheduleMaster < ApplicationRecord
   validates :task_number, presence: true
   validates :sequence_order, presence: true
   validates :duration_days, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-  validate :duration_positive_for_tasks
   validate :header_cannot_be_po
-
-  def duration_positive_for_tasks
-    return if allow_header # Headers can have 0 duration
-    if duration_days.present? && duration_days <= 0
-      errors.add(:duration_days, 'must be greater than 0 for tasks')
-    end
-  end
 
   def header_cannot_be_po
     if allow_header && (po_required || create_po_on_job_start)
@@ -91,8 +90,10 @@ class SmScheduleMaster < ApplicationRecord
 
   # Callbacks
   before_validation :set_task_number, on: :create
+  before_validation :set_sequence_order, on: :create
   before_validation :clean_invalid_predecessors
   before_validation :uppercase_name_if_header
+  before_validation :default_duration_for_tasks
   before_save :clear_spawn_tasks_if_not_po
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
 
@@ -189,9 +190,23 @@ class SmScheduleMaster < ApplicationRecord
     self.task_number = max_number + 1
   end
 
+  def set_sequence_order
+    return if sequence_order.present?
+
+    # Auto-generate sequence order at the end of the list
+    max_order = SmScheduleMaster.maximum(:sequence_order) || 0
+    self.sequence_order = max_order + 1
+  end
+
   # Force uppercase name for header rows
   def uppercase_name_if_header
     self.name = name.upcase if allow_header && name.present?
+  end
+
+  # Default duration_days to 1 for non-header tasks if 0 or nil
+  def default_duration_for_tasks
+    return if allow_header # Headers can have 0 duration
+    self.duration_days = 1 if duration_days.blank? || duration_days <= 0
   end
 
   # Clear spawn_order_task and spawn_call_task if po_required is false

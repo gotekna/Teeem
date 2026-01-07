@@ -38,11 +38,15 @@ export const CACHE_TTL_VIEWS = 60000; // 1 minute
 export const CACHE_TTL_LOOKUPS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Default TTL for records cache (5 minutes).
+ * Default TTL for records cache (30 minutes).
  * General purpose record caching.
  * SSoT for: lib/records-cache.ts
+ *
+ * ULTRA FIX: Increased from 5 to 30 minutes for better UX.
+ * Mutations already call clearCachedRecords() to invalidate stale data.
+ * Longer cache enables instant back-navigation and view switching.
  */
-export const CACHE_TTL_RECORDS = 5 * 60 * 1000; // 5 minutes
+export const CACHE_TTL_RECORDS = 30 * 60 * 1000; // 30 minutes
 
 // =============================================================================
 // LONG-LIVED CACHE (Session/persistent data)

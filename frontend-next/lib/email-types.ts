@@ -18,6 +18,11 @@ export interface EmailContact {
   id: number;
   display_name: string;
   email: string | null;
+  /** Company the contact belongs to (for grouping in autocomplete) */
+  primary_company?: {
+    id: number;
+    name: string;
+  };
 }
 
 // =============================================================================

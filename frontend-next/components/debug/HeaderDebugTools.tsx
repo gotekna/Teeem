@@ -9,6 +9,7 @@ import {
   Camera,
 } from "lucide-react";
 import consoleCapture, { type LogEntry } from "@/utils/consoleCapture";
+import html2canvas from "html2canvas";
 
 export function HeaderDebugTools() {
   const [logCount, setLogCount] = useState(0);
@@ -112,7 +113,6 @@ export function HeaderDebugTools() {
 
   const handleScreenshot = async () => {
     try {
-      const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(document.body, {
         logging: false,
         useCORS: true,
@@ -160,7 +160,6 @@ export function HeaderDebugTools() {
       const errors = logs.filter((log) => log.type === "error");
       const warnings = logs.filter((log) => log.type === "warn");
 
-      const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(document.body, {
         logging: false,
         useCORS: true,

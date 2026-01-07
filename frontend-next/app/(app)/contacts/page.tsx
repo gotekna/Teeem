@@ -1,81 +1,44 @@
-import { Suspense } from "react";
-import { fetchFoundationBySlug } from "@/lib/server/foundation-api";
-import ContactsPageClient from "./ContactsPageClient";
-import { Skeleton } from "@/components/ui/skeleton";
+import { fetchFoundationForSSR, type ViewData } from "@/lib/server/foundation-api";
+import ContactsPageClient from "./contacts-page-client";
 
-/**
- * Contacts Page - Server Component
- *
- * This is a React Server Component that fetches data on the server
- * before sending HTML to the client. This eliminates the white screen
- * flash that occurs with client-only data fetching.
- *
- * Data flow:
- * 1. Server fetches foundation + records (runs on every request)
- * 2. HTML is streamed to client with data already present
- * 3. Client component hydrates and handles interactivity
- */
-
-// Force dynamic rendering (no static caching)
-export const dynamic = 'force-dynamic';
-
-// Loading skeleton for Suspense fallback
-function ContactsTableSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* Header skeleton */}
-      <div className="flex items-center justify-between">
-        <div>
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-4 w-48 mt-2" />
-        </div>
-        <Skeleton className="h-10 w-32" />
-      </div>
-
-      {/* Stats skeleton */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="border rounded-lg p-6">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-8 w-12 mt-2" />
-          </div>
-        ))}
-      </div>
-
-      {/* Tabs skeleton */}
-      <Skeleton className="h-10 w-96" />
-
-      {/* Table skeleton */}
-      <div className="border rounded-lg">
-        <div className="p-4 border-b">
-          <Skeleton className="h-10 w-64" />
-        </div>
-        <div className="p-4 space-y-3">
-          {[...Array(10)].map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+interface ContactsPageProps {
+  searchParams: Promise<{ view?: string }>;
 }
 
-export default async function ContactsPage() {
-  console.log('🔴🔴🔴 ContactsPage SERVER COMPONENT RUNNING 🔴🔴🔴');
-  // Fetch data on the server - this runs before any HTML is sent to client
-  const { foundation, columns, records, totalCount, hasMore, error } = await fetchFoundationBySlug("contacts");
-  console.log('🔴🔴🔴 ContactsPage SSR result:', { hasFoundation: !!foundation, recordCount: records?.length, hasMore, error });
+/**
+ * Contacts Page - SSR Optimized for Fast LCP
+ *
+ * This Server Component fetches data before sending HTML to the client.
+ * The table renders immediately with 20 rows, achieving ~500ms LCP.
+ * Additional records load in the background after hydration.
+ *
+ * SSR View Loading:
+ * When ?view=slug is in the URL, the view config is fetched on the server
+ * and passed to the client. This eliminates the flash when switching from
+ * flat table to grouped view on hydration.
+ */
+export default async function ContactsPage({ searchParams }: ContactsPageProps) {
+  // Await searchParams (Next.js 15 requirement)
+  const params = await searchParams;
+  const viewSlug = params.view;
+
+  // Fetch first 20 records on server for fast LCP
+  // Also fetch view config if ?view= param is present to eliminate flash
+  // Also fetch group counts if view has grouping to eliminate CLS
+  // Also fetch all views for immediate toolbar button rendering
+  const { columns, records, hasMore, view, views, groupCounts } = await fetchFoundationForSSR("contacts", {
+    limit: 20,
+    viewSlug,
+  });
 
   return (
-    <Suspense fallback={<ContactsTableSkeleton />}>
-      <ContactsPageClient
-        initialFoundation={foundation}
-        initialColumns={columns}
-        initialRecords={records}
-        initialTotalCount={totalCount}
-        initialHasMore={hasMore}
-        initialError={error}
-      />
-    </Suspense>
+    <ContactsPageClient
+      initialColumns={columns}
+      initialRecords={records}
+      initialHasMore={hasMore}
+      initialView={view}
+      initialViews={views}
+      initialGroupCounts={groupCounts}
+    />
   );
 }

@@ -16,15 +16,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
+import MultipleSelector, { Option } from '@/components/ui/multiple-selector';
 import { api } from '@/lib/api';
-import { Plus } from "lucide-react";
+import { Check, Eye, Lock, Plus, Users } from "lucide-react";
 import { TaskAssignmentField } from './TaskAssignmentField';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { useToast } from '@/components/ui/use-toast';
@@ -33,6 +28,9 @@ import { Spinner } from "@/components/ui/spinner";
 interface Job {
   id: number;
   name: string;
+  client_name?: string;
+  employee_names?: string[];
+  matched_contact?: { name: string; role: string };
 }
 
 interface User {
@@ -54,6 +52,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [users, setUsers] = React.useState<User[]>([]);
   const [loadingData, setLoadingData] = React.useState(true);
+  const [searchingJobs, setSearchingJobs] = React.useState(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Form state
   const [formData, setFormData] = React.useState({
@@ -67,6 +67,9 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     started: false,
     required_by: '',
     follow: false,
+    is_private: false,
+    follower_ids: [] as string[],
+    viewer_ids: [] as string[],
   });
 
   // Track pending attachments (before task is created)
@@ -79,6 +82,29 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     if (!formData.assigned_user_id) return false;
     return formData.assigned_user_id !== String(currentUser.id);
   }, [formData.assigned_user_id, formData.assigned_role, currentUser]);
+
+  // Convert users to MultipleSelector options for followers (exclude assigned user)
+  const followerOptions: Option[] = users
+    .filter(u => String(u.id) !== formData.assigned_user_id)
+    .map(u => ({ value: String(u.id), label: u.name }));
+
+  // Convert users to MultipleSelector options for viewers (exclude assigned user and current user)
+  const viewerOptions: Option[] = users
+    .filter(u =>
+      String(u.id) !== formData.assigned_user_id &&
+      String(u.id) !== String(currentUser?.id)
+    )
+    .map(u => ({ value: String(u.id), label: u.name }));
+
+  // Get selected follower options
+  const selectedFollowerOptions = followerOptions.filter(opt =>
+    formData.follower_ids.includes(opt.value)
+  );
+
+  // Get selected viewer options
+  const selectedViewerOptions = viewerOptions.filter(opt =>
+    formData.viewer_ids.includes(opt.value)
+  );
 
   // Load jobs and users when dialog opens
   React.useEffect(() => {
@@ -120,6 +146,29 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     }
   };
 
+  // Debounced job search
+  const searchJobs = React.useCallback((query: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Always debounce to avoid flickering
+    searchTimeoutRef.current = setTimeout(async () => {
+      const url = query
+        ? `/api/v1/jobs/for_select?q=${encodeURIComponent(query)}`
+        : '/api/v1/jobs/for_select';
+      setSearchingJobs(true);
+      try {
+        const response = await api.get<{ jobs?: Job[] }>(url);
+        setJobs(response?.jobs || []);
+      } catch (error) {
+        console.error('Failed to search jobs:', error);
+      } finally {
+        setSearchingJobs(false);
+      }
+    }, query ? 300 : 0); // Immediate for clear, debounced for search
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -155,7 +204,10 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             duration_days: parseInt(formData.duration_days) || 1,
             status: status,
             required_by: formData.required_by || null,
+            is_private: formData.is_private,
           },
+          follower_ids: formData.follower_ids.length > 0 ? formData.follower_ids : null,
+          viewer_ids: formData.is_private && formData.viewer_ids.length > 0 ? formData.viewer_ids : null,
         }
       );
 
@@ -208,6 +260,9 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           started: false,
           required_by: '',
           follow: false,
+          is_private: false,
+          follower_ids: [],
+          viewer_ids: [],
         });
         setPendingAttachments([]);
         onOpenChange(false);
@@ -272,48 +327,109 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                 {/* Job Selection */}
                 <div className="space-y-2">
                   <Label htmlFor="job">Job</Label>
-                  <Select
-                    value={formData.job_id}
-                    onValueChange={(value) => handleChange('job_id', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a job" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {jobs.length === 0 ? (
-                        <SelectItem value="_none" disabled>
-                          No jobs available
-                        </SelectItem>
-                      ) : (
-                        jobs.map((job) => (
-                          <SelectItem key={job.id} value={String(job.id)}>
-                            {job.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <ComboboxDropdown
+                    items={jobs.map((job) => ({
+                      id: String(job.id),
+                      label: job.name,
+                      client_name: job.client_name,
+                      employee_names: job.employee_names,
+                      matched_contact: job.matched_contact,
+                    } as ComboboxItem & { client_name?: string; employee_names?: string[]; matched_contact?: { name: string; role: string } }))}
+                    selectedItem={formData.job_id ? {
+                      id: formData.job_id,
+                      label: jobs.find(j => String(j.id) === formData.job_id)?.name || ''
+                    } : undefined}
+                    onSelect={(item) => handleChange('job_id', item.id)}
+                    placeholder="Search by job, client, or employee..."
+                    clearable
+                    onClear={() => handleChange('job_id', '')}
+                    emptyResults="No jobs found"
+                    isLoading={searchingJobs}
+                    onInputChange={searchJobs}
+                    disableInternalFilter
+                    renderListItem={({ isChecked, item }) => {
+                      const jobItem = item as ComboboxItem & { client_name?: string; employee_names?: string[]; matched_contact?: { name: string; role: string; company_name?: string } };
+                      const roleLabels: Record<string, string> = {
+                        client: 'Client',
+                        coordinator: 'Coordinator',
+                        estimator: 'Estimator',
+                        internal_sales: 'Internal Sales',
+                        site_coordinator: 'Site Coordinator',
+                        supervisor: 'Supervisor',
+                      };
+
+                      // Format matched contact display
+                      const formatMatchedContact = () => {
+                        if (!jobItem.matched_contact) return null;
+                        const mc = jobItem.matched_contact;
+                        if (mc.role === 'employee_of' && mc.company_name) {
+                          // Employee of a company contact
+                          return `↳ ${mc.name} (Employee of ${mc.company_name})`;
+                        }
+                        // Direct job contact
+                        return `↳ ${roleLabels[mc.role] || mc.role}: ${mc.name}`;
+                      };
+
+                      return (
+                        <div className="flex flex-col w-full py-1">
+                          <div className="flex items-center">
+                            <Check className={`mr-2 h-4 w-4 flex-shrink-0 ${isChecked ? 'opacity-100' : 'opacity-0'}`} />
+                            <span className="font-medium">{jobItem.label}</span>
+                          </div>
+                          {jobItem.matched_contact && (
+                            <div className="ml-6 text-xs text-primary font-medium">
+                              {formatMatchedContact()}
+                            </div>
+                          )}
+                          {!jobItem.matched_contact && jobItem.client_name && (
+                            <div className="ml-6 text-xs text-muted-foreground">
+                              Client: {jobItem.client_name}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }}
+                  />
                 </div>
 
                 {/* Assign To (User or Role) + Follow checkbox */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Assign To</Label>
-                    {isAssignedToOther && (
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="follow"
-                          checked={formData.follow}
-                          onCheckedChange={(checked) => handleChange('follow', checked === true)}
-                        />
-                        <Label
-                          htmlFor="follow"
-                          className="text-sm font-medium leading-none cursor-pointer"
-                        >
-                          Follow
-                        </Label>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {isAssignedToOther && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                assigned_user_id: String(currentUser?.id || ''),
+                                assigned_role: '',
+                              }));
+                            }}
+                          >
+                            Assign to me
+                          </Button>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="follow"
+                              checked={formData.follow}
+                              onCheckedChange={(checked) => handleChange('follow', checked === true)}
+                            />
+                            <Label
+                              htmlFor="follow"
+                              className="text-sm font-medium leading-none cursor-pointer"
+                            >
+                              Follow
+                            </Label>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <TaskAssignmentField
                     users={users}
@@ -378,18 +494,43 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                   </Button>
                 </div>
 
-                {/* Required By & Started */}
-                <div className="grid grid-cols-2 gap-4 items-end">
-                  <div className="space-y-2">
-                    <Label htmlFor="required_by">Required By</Label>
-                    <Input
-                      id="required_by"
-                      type="date"
-                      value={formData.required_by}
-                      onChange={(e) => handleChange('required_by', e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2 pb-2">
+                {/* Required By */}
+                <div className="space-y-2">
+                  <Label htmlFor="required_by">Required By</Label>
+                  <Input
+                    id="required_by"
+                    type="date"
+                    value={formData.required_by}
+                    onChange={(e) => handleChange('required_by', e.target.value)}
+                  />
+                </div>
+
+                {/* Followers */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5" />
+                    Followers
+                  </Label>
+                  <MultipleSelector
+                    key={`followers-${followerOptions.length}`}
+                    value={selectedFollowerOptions}
+                    onChange={(selected) => {
+                      setFormData(prev => ({ ...prev, follower_ids: selected.map(o => o.value) }));
+                    }}
+                    defaultOptions={followerOptions}
+                    options={followerOptions}
+                    placeholder="Search followers..."
+                    emptyIndicator={
+                      <p className="text-center text-sm text-muted-foreground py-2">
+                        No users available
+                      </p>
+                    }
+                  />
+                </div>
+
+                {/* Started & Private checkboxes */}
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center space-x-2">
                     <Checkbox
                       id="started"
                       checked={formData.started}
@@ -402,7 +543,50 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                       Mark as Started
                     </Label>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="is_private"
+                      checked={formData.is_private}
+                      onCheckedChange={(checked) => handleChange('is_private', checked === true)}
+                    />
+                    <Label
+                      htmlFor="is_private"
+                      className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
+                    >
+                      <Lock className="h-3 w-3" />
+                      Private
+                    </Label>
+                  </div>
                 </div>
+
+                {/* Visible To (only shown when Private is checked) */}
+                {formData.is_private && (
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-1 text-xs">
+                      <Eye className="h-3 w-3" />
+                      Visible To
+                      <span className="text-muted-foreground font-normal ml-1">
+                        (you + assigned always have access)
+                      </span>
+                    </Label>
+                    <MultipleSelector
+                      key={`viewers-${viewerOptions.length}`}
+                      value={selectedViewerOptions}
+                      onChange={(selected) => {
+                        setFormData(prev => ({ ...prev, viewer_ids: selected.map(o => o.value) }));
+                      }}
+                      defaultOptions={viewerOptions}
+                      options={viewerOptions}
+                      placeholder="Add users..."
+                      emptyIndicator={
+                        <p className="text-center text-xs text-muted-foreground py-1">
+                          No users available
+                        </p>
+                      }
+                      className="min-h-[32px]"
+                    />
+                  </div>
+                )}
 
                 {/* Description */}
                 <div className="space-y-1">

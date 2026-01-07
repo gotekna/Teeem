@@ -170,19 +170,16 @@ export function EmailSearchFilters({
         <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
           <PopoverTrigger asChild>
             <Button
-              variant={hasActiveFilters ? "default" : "outline"}
-              size="sm"
-              className="h-8 gap-1.5"
+              variant={hasActiveFilters ? "default" : "ghost"}
+              size="icon"
+              className="h-8 w-8 shrink-0 relative"
+              title="Filters"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Filters</span>
+              <SlidersHorizontal className="h-4 w-4" />
               {activeFilterCount > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-background text-foreground"
-                >
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] text-primary-foreground flex items-center justify-center">
                   {activeFilterCount}
-                </Badge>
+                </span>
               )}
             </Button>
           </PopoverTrigger>
@@ -395,10 +392,6 @@ export function EmailSearchFilters({
           </PopoverContent>
         </Popover>
 
-        {/* Search button */}
-        <Button size="sm" className="h-8" onClick={onSearch}>
-          Search
-        </Button>
       </div>
 
       {/* Active filter badges */}

@@ -18,6 +18,7 @@ import {
   CheckCircle,
   Pause,
   AlertTriangle,
+  Eye,
   Lock,
   ChevronDown,
   ChevronRight,
@@ -25,6 +26,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getTaskRowColorClass, getTaskColorClasses } from '../TaskColorSettings';
 
 const statusColors: Record<string, string> = {
   not_started: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
@@ -154,7 +156,7 @@ export function ListView() {
                 className={cn(
                   'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30 cursor-pointer',
                   selectedTaskIds.has(task.id) && 'bg-primary/5',
-                  task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/20',
+                  getTaskRowColorClass(task),
                   isExpanded && 'bg-muted/50'
                 )}
               >
@@ -181,6 +183,12 @@ export function ListView() {
                   )}
                   {task.locked && (
                     <Lock className="h-3 w-3 text-orange-500 shrink-0" />
+                  )}
+                  {task.is_following && (
+                    <Badge variant="outline" className={cn("h-4 px-1 text-[10px] gap-0.5 shrink-0", getTaskColorClasses('following').text)}>
+                      <Eye className="h-2.5 w-2.5" />
+                      Following
+                    </Badge>
                   )}
                 </div>
 

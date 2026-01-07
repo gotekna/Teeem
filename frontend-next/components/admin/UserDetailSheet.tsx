@@ -14,7 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Phone, Shield, Calendar, Clock } from "lucide-react";
+import { User, Mail, Phone, Shield, Calendar, Clock, Sun, Moon, Link2, Briefcase } from "lucide-react";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { format } from "date-fns";
 
 interface Role {
@@ -30,11 +38,15 @@ interface UserData {
   role: string;
   role_ids?: Array<{ id: number; display_value: string; name: string }>;
   mobile_phone?: string;
+  job_title?: string;
+  contact_id?: number | null;
+  contact?: { id: number; name: string } | null;
   last_login_at?: string;
   created_at?: string;
   status?: string;
   presence_status?: string;
   integrations?: string[];
+  preferred_theme?: string;
   [key: string]: unknown;
 }
 
@@ -45,9 +57,17 @@ interface UserDetailSheetProps {
   onSave: () => void;
 }
 
+interface ContactOption {
+  id: number;
+  display_name?: string;
+  first_name?: string;
+  last_name?: string;
+}
+
 export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailSheetProps) {
   const [editData, setEditData] = useState<Partial<UserData>>({});
   const [roles, setRoles] = useState<Role[]>([]);
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -68,6 +88,23 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
     }
   }, [isOpen]);
 
+  // Load contacts for linking
+  useEffect(() => {
+    const loadContacts = async () => {
+      try {
+        const response = await api.get<{ records: ContactOption[] }>("/api/v1/foundations/contacts/records?per_page=1000");
+        if (response?.records) {
+          setContacts(response.records);
+        }
+      } catch (err) {
+        console.error("Failed to load contacts:", err);
+      }
+    };
+    if (isOpen) {
+      loadContacts();
+    }
+  }, [isOpen]);
+
   // Initialize edit data when user changes
   useEffect(() => {
     if (user) {
@@ -75,8 +112,11 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         name: user.name,
         email: user.email,
         mobile_phone: user.mobile_phone || "",
+        job_title: user.job_title || "",
+        contact_id: user.contact_id || null,
         // SSoT: Always ensure role_ids is an array to prevent .map errors
         role_ids: Array.isArray(user.role_ids) ? user.role_ids : [],
+        preferred_theme: user.preferred_theme || "light",
       });
     }
   }, [user]);
@@ -98,7 +138,10 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             name: editData.name,
             email: editData.email,
             mobile_phone: editData.mobile_phone,
+            job_title: editData.job_title,
+            contact_id: editData.contact_id,
             role_ids: roleIds,
+            preferred_theme: editData.preferred_theme,
           },
         }
       );
@@ -213,6 +256,53 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             />
           </div>
 
+          {/* Job Title */}
+          <div className="space-y-2">
+            <Label htmlFor="job_title" className="flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-muted-foreground" />
+              Job Title
+            </Label>
+            <Input
+              id="job_title"
+              value={editData.job_title || ""}
+              onChange={(e) => setEditData({ ...editData, job_title: e.target.value })}
+              placeholder="e.g. Sales, Project Manager"
+            />
+            <p className="text-xs text-muted-foreground">
+              Used in email signature. Leave blank to hide from signature.
+            </p>
+          </div>
+
+          {/* Linked Contact */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Link2 className="h-4 w-4 text-muted-foreground" />
+              Linked Contact
+            </Label>
+            <ComboboxDropdown
+              items={contacts.map((c) => ({
+                id: String(c.id),
+                label: c.display_name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || `Contact #${c.id}`
+              })).filter((c) => c.label)}
+              selectedItem={editData.contact_id ? {
+                id: String(editData.contact_id),
+                label: (() => {
+                  const contact = contacts.find((c) => c.id === editData.contact_id);
+                  return contact?.display_name || `${contact?.first_name || ""} ${contact?.last_name || ""}`.trim() || "";
+                })()
+              } : undefined}
+              onSelect={(item) => setEditData({ ...editData, contact_id: item ? Number(item.id) : null })}
+              placeholder="Select contact..."
+              searchPlaceholder="Search contacts..."
+              emptyResults={<p className="text-center text-sm text-muted-foreground py-2">No contacts found</p>}
+              clearable={true}
+              onClear={() => setEditData({ ...editData, contact_id: null })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Link to a contact record. Mobile phone will sync bidirectionally.
+            </p>
+          </div>
+
           {/* Roles - Multi-select */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
@@ -239,6 +329,49 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             />
             <p className="text-xs text-muted-foreground">
               Users can have multiple roles. Roles determine permissions and access levels.
+            </p>
+          </div>
+
+          {/* Theme Preference */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              {editData.preferred_theme === "dark" ? (
+                <Moon className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Sun className="h-4 w-4 text-muted-foreground" />
+              )}
+              Theme Preference
+            </Label>
+            <Select
+              value={editData.preferred_theme || "light"}
+              onValueChange={(value) => setEditData({ ...editData, preferred_theme: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select theme" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">
+                  <div className="flex items-center gap-2">
+                    <Sun className="h-4 w-4" />
+                    Light
+                  </div>
+                </SelectItem>
+                <SelectItem value="dark">
+                  <div className="flex items-center gap-2">
+                    <Moon className="h-4 w-4" />
+                    Dark
+                  </div>
+                </SelectItem>
+                <SelectItem value="system">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">💻</span>
+                    System
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Theme applied when user logs in.
             </p>
           </div>
 

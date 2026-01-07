@@ -6,10 +6,12 @@ class EmailRuleService
   end
 
   # Apply rules to a single email (called during sync)
+  # SSoT: Works for both IMAP and MS365 emails - uses for_email scope
   # @param email [EmailWarehouse] The email to apply rules to
   # @return [Boolean] Whether any rule matched
   def apply_rules(email)
-    rules = EmailRule.active.by_priority.for_account(email.imap_credential_id)
+    # SSoT: for_email scope handles both IMAP and MS365 credentials
+    rules = EmailRule.active.by_priority.for_email(email)
 
     rules.each do |rule|
       if rule.matches?(email)
@@ -22,19 +24,27 @@ class EmailRuleService
   end
 
   # Apply rules to multiple emails (retroactive)
-  # @param credential_id [Integer, nil] Optional credential ID to filter emails
+  # SSoT: Supports both IMAP (credential_id) and MS365 (microsoft_credential_id)
+  # @param credential_id [Integer, nil] IMAP credential ID to filter emails
+  # @param microsoft_credential_id [Integer, nil] MS365 credential ID to filter emails
   # @param rule_id [Integer, nil] Optional rule ID to apply specific rule
   # @return [Hash] Results of the operation
-  def apply_rules_to_existing(credential_id: nil, rule_id: nil)
+  def apply_rules_to_existing(credential_id: nil, microsoft_credential_id: nil, rule_id: nil)
     results = { matched: 0, processed: 0, errors: 0 }
 
     emails = user.email_warehouse
     emails = emails.where(imap_credential_id: credential_id) if credential_id
+    emails = emails.where(microsoft_credential_id: microsoft_credential_id) if microsoft_credential_id
 
     rules = if rule_id
               EmailRule.where(id: rule_id, user: user).active
-            else
+            elsif credential_id
               EmailRule.active.by_priority.for_account(credential_id)
+            elsif microsoft_credential_id
+              EmailRule.active.by_priority.for_ms365_account(microsoft_credential_id)
+            else
+              # Apply all global rules (nil credentials)
+              EmailRule.active.by_priority.where(imap_credential_id: nil, microsoft_credential_id: nil)
             end
 
     return results if rules.empty?

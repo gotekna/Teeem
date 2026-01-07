@@ -62,6 +62,7 @@ class EmailWarehouse < ApplicationRecord
 
   # Callbacks - Real-time sync via ActionCable
   after_create_commit :broadcast_new_email
+  after_create_commit :inherit_job_from_thread
   after_destroy_commit :broadcast_email_deleted
 
   # Scopes
@@ -100,6 +101,17 @@ class EmailWarehouse < ApplicationRecord
   scope :from_imap, -> { where(source_type: "imap") }
   scope :for_imap_credential, ->(credential_id) { where(imap_credential_id: credential_id) }
 
+  # SSoT: Folder name filtering (case-insensitive)
+  # ALWAYS use this scope instead of .where(folder_name: x) to handle provider variations
+  # Gmail uses INBOX, Outlook uses Inbox, others may use inbox - this handles all cases
+  # Match folder by name - supports both full path (e.g., "Inbox/Investments") and folder name only
+  # This allows matching emails synced before full path support was added
+  scope :in_folder, ->(name) {
+    # Extract just the folder name (last part of path) for matching legacy emails
+    folder_name_only = name.to_s.split("/").last
+    where("LOWER(folder_name) = LOWER(?) OR LOWER(folder_name) = LOWER(?)", name, folder_name_only)
+  }
+
   # Full-text search scope
   scope :search_text, ->(query) {
     where("searchable @@ plainto_tsquery('english', ?)", query)
@@ -107,16 +119,16 @@ class EmailWarehouse < ApplicationRecord
 
   # Search by email address (from, to, or cc)
   # Can accept a single email string or an array of emails
-  # Performance: Uses PostgreSQL array operators instead of UNNEST subqueries
-  # Impact: 10x faster for multi-email searches
+  # SSoT: All emails are stored lowercase (normalize_email_addresses callback)
+  # Performance: Uses fast array overlap (&&) since data is normalized
   scope :involving_email, ->(emails) {
     emails = Array(emails).compact.map(&:downcase)
     return none if emails.empty?
 
-    # Use array overlap operator (&&) for to_emails and cc_emails
-    # This is much faster than UNNEST subqueries as it uses GIN indexes
+    # Simple matching - all emails stored lowercase via before_save callback
+    # Uses array overlap (&&) for fast GIN-indexed matching on to_emails/cc_emails
     where(
-      "LOWER(from_email) = ANY(ARRAY[?]::text[]) OR " \
+      "from_email = ANY(ARRAY[?]::text[]) OR " \
       "to_emails && ARRAY[?]::text[] OR " \
       "cc_emails && ARRAY[?]::text[]",
       emails, emails, emails
@@ -124,6 +136,7 @@ class EmailWarehouse < ApplicationRecord
   }
 
   # Callbacks
+  before_save :normalize_email_addresses  # SSoT: All emails stored lowercase
   before_save :update_searchable_vector
   after_save :update_thread_latest_flags, if: :saved_change_to_conversation_id?
 
@@ -299,7 +312,8 @@ class EmailWarehouse < ApplicationRecord
     # Skip matching if email is classified as irrelevant (marketing, spam, transactional)
     return matches if classified_as_irrelevant?
 
-    # 1. HIGHEST PRIORITY: Match by explicit job ID in subject (fast, single query)
+    # 1. EXPLICIT JOB ID IN SUBJECT - Always wins (user deliberately put it there)
+    # e.g., forwarding old email with "id:32" should go to Job #32, not inherited job
     if subject.present?
       job_ids = extract_explicit_job_ids
       if job_ids.any?
@@ -311,10 +325,36 @@ class EmailWarehouse < ApplicationRecord
             reason: "Explicit job ID #{job.id} found in subject"
           }
         end
+        # Return early - explicit ID is definitive
+        return matches if matches.any?
       end
     end
 
-    # 2. SQL-based address matching using trigram similarity (if table exists)
+    # 2. THREAD INHERITANCE: If another email in this conversation is assigned to a job, inherit it
+    # Only applies when no explicit job ID in subject (e.g., repeat client like Pam with multiple jobs)
+    if conversation_id.present?
+      thread_job = EmailWarehouse
+        .where(conversation_id: conversation_id)
+        .where.not(job_id: nil)
+        .where.not(id: id)
+        .order(matched_at: :desc)
+        .limit(1)
+        .pick(:job_id)
+
+      if thread_job.present?
+        job = Job.find_by(id: thread_job)
+        if job
+          return [{
+            job: job,
+            match_type: "thread_inheritance",
+            confidence: 1.0,
+            reason: "Another email in this conversation is assigned to this job"
+          }]
+        end
+      end
+    end
+
+    # 3. SQL-based address matching using trigram similarity (if table exists)
     # This replaces the slow Job.find_each loop with indexed SQL queries
     if subject.present? && subject.length >= 10 && JobAddressSearch.table_exists?
       matches.concat(find_jobs_via_address_search)
@@ -341,14 +381,21 @@ class EmailWarehouse < ApplicationRecord
   # Replaces the slow Job.find_each loop
   def find_jobs_via_address_search
     matches = []
-    subject_lower = subject.downcase
+    return matches if subject.blank?
+
+    subject_lower = subject.to_s.downcase.strip
+    # Guard: pg_trgm similarity requires non-empty string
+    return matches if subject_lower.blank? || subject_lower.length < 3
+
+    # Sanitize for SQL - escape quotes and use connection quoting
+    sanitized_subject = ActiveRecord::Base.connection.quote(subject_lower)
 
     # Query job_address_searches with trigram similarity
     # Uses GIN index for fast fuzzy matching
     address_matches = JobAddressSearch
       .where("search_term % ?", subject_lower)
       .where(term_type: %w[full_address street_name title])
-      .select("job_address_searches.*, similarity(search_term, ?) as match_score", subject_lower)
+      .select(Arel.sql("job_address_searches.*, similarity(search_term, #{sanitized_subject}) as match_score"))
       .order("match_score DESC")
       .includes(:job)
       .limit(10)
@@ -405,26 +452,69 @@ class EmailWarehouse < ApplicationRecord
   public
 
   # Check if email mentions job-specific context (used for filtering false positives)
+  # Checks both subject AND body for job address/name mentions
   def email_mentions_job_context?(job)
     return false if job.nil?
 
-    # Check subject for job ID
-    return true if subject&.include?(job.id.to_s)
+    # Combine subject and body for searching
+    searchable_text = "#{subject} #{body_text}".downcase
 
-    # Check subject for job name/address
-    return true if job.name.present? && subject&.downcase&.include?(job.name.downcase)
+    # Check for job ID
+    return true if searchable_text.include?(job.id.to_s)
 
-    # Check for street name match
+    # Check for job name/address
+    return true if job.name.present? && searchable_text.include?(job.name.downcase)
+
+    # Check for street name match (handles partial addresses)
     if job.name.present?
       street_match = job.name.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl)/i)
       if street_match
         street_name = street_match[1].downcase
-        return true if subject&.downcase&.include?(street_name)
+        return true if searchable_text.include?(street_name)
       end
+    end
+
+    # Check against job's indexed search terms (includes suburbs, variations)
+    job.job_address_searches.each do |search|
+      return true if searchable_text.include?(search.search_term)
     end
 
     # No job-specific context found
     false
+  end
+
+  # Find ALL jobs this email might belong to (scans body for addresses)
+  # Returns array of { job:, match_type:, confidence:, reason: }
+  def find_potential_job_matches
+    matches = []
+
+    # Get all job address search terms and find matches in email content
+    searchable_text = "#{subject} #{body_text}".downcase
+    return matches if searchable_text.blank?
+
+    # Find jobs via address search terms in body
+    JobAddressSearch.where(term_type: %w[full_address street_name]).find_each do |search|
+      next unless searchable_text.include?(search.search_term)
+
+      confidence = case search.term_type
+      when 'full_address' then 0.85
+      when 'street_name' then 0.7
+      else 0.5
+      end
+
+      matches << {
+        job: search.job,
+        match_type: "body_#{search.term_type}_match",
+        confidence: confidence,
+        reason: "Email body contains '#{search.search_term}'"
+      }
+    end
+
+    # Deduplicate by job ID, keeping highest confidence
+    matches
+      .group_by { |m| m[:job].id }
+      .map { |_job_id, job_matches| job_matches.max_by { |m| m[:confidence] } }
+      .sort_by { |m| -m[:confidence] }
   end
 
   # Auto-assign to best matching job if confidence is high enough
@@ -664,6 +754,15 @@ class EmailWarehouse < ApplicationRecord
 
   private
 
+  # SSoT: Normalize all email addresses to lowercase before saving
+  # This ensures case-insensitive matching works with simple equality checks
+  # FRC: Fix at source (storage) not at query time (LOWER() in every query)
+  def normalize_email_addresses
+    self.from_email = from_email&.downcase
+    self.to_emails = to_emails&.map(&:downcase) if to_emails.present?
+    self.cc_emails = cc_emails&.map(&:downcase) if cc_emails.present?
+  end
+
   def update_searchable_vector
     # Build searchable text from various fields
     searchable_text = [
@@ -697,6 +796,54 @@ class EmailWarehouse < ApplicationRecord
     EmailChannel.broadcast_new_email(ssot_owner, self)
   rescue StandardError => e
     Rails.logger.error "Failed to broadcast new email: #{e.message}"
+  end
+
+  # Auto-assign to job if another email in this conversation thread is already assigned
+  # This ensures email threads stay together on the same job (e.g., Pam builds multiple jobs,
+  # once user assigns one email from a thread to Job #46, all future replies auto-assign)
+  # EXCEPTION: If email has explicit job ID in subject (e.g., "id:32"), that wins
+  def inherit_job_from_thread
+    return if job_id.present?  # Already assigned
+    return if conversation_id.blank?  # No thread to inherit from
+
+    # Check for explicit job ID in subject first - that always wins
+    if subject.present?
+      explicit_ids = subject.scan(JOB_ID_PATTERN).flatten.compact.map(&:to_i).select(&:positive?)
+      if explicit_ids.any?
+        job = Job.find_by(id: explicit_ids.first)
+        if job
+          update_columns(
+            job_id: job.id,
+            match_type: "explicit_job_id",
+            match_confidence: 1.0,
+            matched_at: Time.current
+          )
+          Rails.logger.info "[EmailWarehouse] Auto-assigned email #{id} to job #{job.id} via explicit ID in subject"
+          return
+        end
+      end
+    end
+
+    # Find job from another email in the same thread
+    thread_job_id = EmailWarehouse
+      .where(conversation_id: conversation_id)
+      .where.not(job_id: nil)
+      .where.not(id: id)
+      .limit(1)
+      .pick(:job_id)
+
+    return unless thread_job_id
+
+    update_columns(
+      job_id: thread_job_id,
+      match_type: "thread_inheritance",
+      match_confidence: 1.0,
+      matched_at: Time.current
+    )
+
+    Rails.logger.info "[EmailWarehouse] Auto-assigned email #{id} to job #{thread_job_id} via thread inheritance"
+  rescue StandardError => e
+    Rails.logger.error "[EmailWarehouse] Failed to inherit job from thread: #{e.message}"
   end
 
   # Broadcast email deletion to the owner via ActionCable

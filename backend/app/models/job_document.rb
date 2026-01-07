@@ -7,6 +7,14 @@ class JobDocument < ApplicationRecord
   belongs_to :company, class_name: "CorporateCompany", foreign_key: "company_id", optional: true
   belongs_to :user_validated_by, class_name: "User", optional: true
 
+  # Version chain associations (Draft/Signed versioning)
+  belongs_to :parent_document, class_name: "JobDocument", optional: true
+  has_many :child_versions, class_name: "JobDocument", foreign_key: :parent_document_id, dependent: :nullify
+  belongs_to :signed_by, class_name: "User", optional: true
+
+  # Version status constants
+  VERSION_STATUSES = %w[draft signed superseded].freeze
+
   # Active Storage for file upload (for migrated documents)
   has_one_attached :file
 
@@ -83,6 +91,7 @@ class JobDocument < ApplicationRecord
   validates :file_name, presence: true
   validates :sync_status, inclusion: { in: SYNC_STATUSES }
   validates :ai_verification_status, inclusion: { in: AI_VERIFICATION_STATUSES }, allow_blank: true
+  validates :version_status, inclusion: { in: VERSION_STATUSES }
 
   # Scopes
   scope :cad_files, -> { where(file_type: %w[revit_project revit_family autocad autocad_export design_web]) }
@@ -108,6 +117,14 @@ class JobDocument < ApplicationRecord
   scope :migration_failed, -> { where(migration_status: 'failed') }
   scope :needs_migration, -> { where(migration_status: [nil, 'failed']) }
   scope :on_provider, ->(provider) { where(storage_provider: provider) }
+
+  # Version scopes (Draft/Signed versioning)
+  scope :drafts, -> { where(version_status: 'draft') }
+  scope :signed, -> { where(version_status: 'signed') }
+  scope :superseded, -> { where(version_status: 'superseded') }
+  scope :latest_versions, -> { where(version_status: %w[draft signed]) }
+  scope :root_documents, -> { where(parent_document_id: nil) }
+  scope :versionable, -> { joins(:document_type).where(document_types: { supports_versioning: true }) }
 
   # Callbacks
   before_save :set_file_extension
@@ -222,6 +239,83 @@ class JobDocument < ApplicationRecord
     if provider == 'sharepoint'
       self.sharepoint_item_id = item_id
     end
+  end
+
+  # Version status helpers
+  def draft?
+    version_status == 'draft'
+  end
+
+  def signed?
+    version_status == 'signed'
+  end
+
+  def superseded?
+    version_status == 'superseded'
+  end
+
+  # Check if this document has a signed version (only applies to drafts)
+  def has_signed_version?
+    return false unless draft?
+    child_versions.signed.exists?
+  end
+
+  # Get the latest version in this version chain
+  def latest_version
+    # If this is a child version, go to the root first
+    root = root_document
+
+    # Look for signed version first, then latest draft
+    root.child_versions.signed.order(created_at: :desc).first ||
+      root.child_versions.drafts.order(created_at: :desc).first ||
+      root
+  end
+
+  # Get the root document in this version chain
+  def root_document
+    parent_document || self
+  end
+
+  # Get all versions in this version chain (including self)
+  def all_versions
+    root = root_document
+    [root] + root.child_versions.order(version_number: :asc).to_a
+  end
+
+  # Check if this document's type supports versioning
+  def versionable?
+    document_type&.versionable? || false
+  end
+
+  # Create a signed version of this draft document
+  # Returns the new signed document
+  def create_signed_version!(file_params, signed_by_user:)
+    raise ArgumentError, "Document type does not support versioning" unless versionable?
+    raise ArgumentError, "Only draft documents can have signed versions" unless draft?
+
+    # Mark this draft as superseded
+    update!(version_status: 'superseded')
+
+    # Create the signed version
+    signed_version = self.class.create!(
+      job: job,
+      document_type: document_type,
+      parent_document: root_document,
+      version_status: 'signed',
+      version_number: all_versions.count + 1,
+      signed_at: Time.current,
+      signed_by: signed_by_user,
+      file_name: file_params[:file_name],
+      file_extension: file_params[:file_extension],
+      file_size: file_params[:file_size],
+      sharepoint_item_id: file_params[:sharepoint_item_id],
+      folder_path: folder_path,
+      sync_status: 'synced',
+      contact: contact,
+      company: company
+    )
+
+    signed_version
   end
 
   private

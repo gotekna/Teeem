@@ -21,6 +21,10 @@ class PricebookItem < ApplicationRecord
   before_save :update_price_timestamp, if: :will_save_change_to_current_price?
   after_update :track_price_change, if: :should_track_price_change?
 
+  # SSoT: Update contact's cached supplier flag when pricebook item changes
+  after_commit :refresh_supplier_cached_flag, on: [:create, :destroy]
+  after_commit :refresh_supplier_cached_flag_on_supplier_change, on: :update, if: :saved_change_to_supplier_id?
+
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :needs_pricing, -> { where(needs_pricing_review: true) }
@@ -379,5 +383,30 @@ class PricebookItem < ApplicationRecord
 
   def update_price_timestamp
     self.price_last_updated_at = Time.current if current_price.present?
+  end
+
+  # SSoT: Refresh contact's is_supplier_cached flag
+  def refresh_supplier_cached_flag
+    return unless supplier_id.present?
+    supplier&.refresh_supplier_flag!
+  rescue StandardError => e
+    Rails.logger.error("PricebookItem##{id}: Failed to refresh supplier flag - #{e.message}")
+  end
+
+  # SSoT: Handle supplier_id change - refresh both old and new supplier
+  def refresh_supplier_cached_flag_on_supplier_change
+    old_supplier_id, new_supplier_id = saved_change_to_supplier_id
+
+    # Refresh old supplier (may no longer be a supplier)
+    if old_supplier_id.present?
+      Contact.find_by(id: old_supplier_id)&.refresh_supplier_flag!
+    end
+
+    # Refresh new supplier
+    if new_supplier_id.present?
+      Contact.find_by(id: new_supplier_id)&.refresh_supplier_flag!
+    end
+  rescue StandardError => e
+    Rails.logger.error("PricebookItem##{id}: Failed to refresh supplier flag on change - #{e.message}")
   end
 end

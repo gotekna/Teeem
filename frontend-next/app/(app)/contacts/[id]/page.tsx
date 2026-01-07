@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -73,6 +75,7 @@ import {
   ContactDirectorshipsTab,
   ContactCasesTab,
   ContactEmailsTab,
+  ContactActivityTab,
 } from "./components";
 import type {
   Contact,
@@ -372,6 +375,7 @@ export default function ContactDetailPage() {
       const emails: ContactEmail[] = [];
       if (contact.email) {
         emails.push({
+          _tempId: `legacy-email-${Date.now()}`, // Required for click-to-edit to work
           email: contact.email,
           is_primary: true,
           label: null,
@@ -385,6 +389,7 @@ export default function ContactDetailPage() {
       const phones: ContactPhone[] = [];
       if (contact.mobile_phone) {
         phones.push({
+          _tempId: `legacy-mobile-${Date.now()}`, // Required for click-to-edit to work
           phone_number: contact.mobile_phone,
           phone_type: 'mobile',
           is_primary: true,
@@ -394,6 +399,7 @@ export default function ContactDetailPage() {
       }
       if (contact.office_phone) {
         phones.push({
+          _tempId: `legacy-office-${Date.now()}`, // Required for click-to-edit to work
           phone_number: contact.office_phone,
           phone_type: 'office',
           is_primary: !contact.mobile_phone, // Primary only if no mobile
@@ -1549,6 +1555,8 @@ export default function ContactDetailPage() {
       setHasChanges(false);
       // Signal that contacts list needs refresh when navigating back
       sessionStorage.setItem('contacts_needs_refresh', 'true');
+      // Clear Xero sync contacts cache so changes show when returning to that view
+      clearCachedRecords("xero-sync-contacts");
       loadContact();
       // Increment refresh key to force tab data reload (directorships, shareholdings, etc.)
       setRefreshKey(prev => prev + 1);
@@ -1788,10 +1796,50 @@ export default function ContactDetailPage() {
   // Get appropriate sub-tab based on active main tab (now from path segments)
   const activeFinancialSubTab = activeTab === "financial" ? (pathSegments.subtab || "bank") : "bank";
 
+  // SSoT: Show skeleton layout during loading to prevent flash/CLS
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Spinner />
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <BackButton fallbackHref="/contacts" />
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-9" />
+          </div>
+        </div>
+        {/* Tabs skeleton */}
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-28" />
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-20" />
+        </div>
+        {/* Content skeleton */}
+        <div className="grid grid-cols-2 gap-6">
+          <Card>
+            <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><Skeleton className="h-5 w-28" /></CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -1870,6 +1918,10 @@ export default function ContactDetailPage() {
             <TabsTrigger value="pricebook">{tabConfigMap.pricebook?.display_name || "Price Book"}</TabsTrigger>
           )}
           <TabsTrigger value="portal">{tabConfigMap.portal?.display_name || "Portal Access"}</TabsTrigger>
+          <TabsTrigger value="activity">
+            {(() => { const Icon = getIcon(tabConfigMap.activity?.icon_name || "History"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+            {tabConfigMap.activity?.display_name || "Activity"}
+          </TabsTrigger>
           {directorships.length > 0 && (
             <TabsTrigger value="directorships">
               {(() => { const Icon = getIcon(tabConfigMap.directorships?.icon_name || "users"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
@@ -2031,6 +2083,11 @@ export default function ContactDetailPage() {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Activity Tab - Shows change history and audit log */}
+        <TabsContent value="activity" className="mt-6">
+          <ContactActivityTab contactId={contact.id} />
         </TabsContent>
 
         {/* Directorships Tab */}

@@ -111,7 +111,8 @@ module Api
           :notes,
           :role_in_relationship,
           :context,
-          metadata: {}
+          metadata: {},
+          role_ids: []  # Multi-role support - array of ContactType IDs
         )
       end
 
@@ -136,6 +137,9 @@ module Api
           is_active: relationship.is_active,
           notes: relationship.notes,
           role_in_relationship: relationship.role_in_relationship,
+          role_ids: relationship.role_ids || [],
+          role_names: relationship.role_names,
+          roles: relationship.roles_with_details,
           context: relationship.context,
           created_at: relationship.created_at,
           updated_at: relationship.updated_at,

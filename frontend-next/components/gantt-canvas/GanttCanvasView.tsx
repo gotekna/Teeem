@@ -11,18 +11,20 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { GanttCanvas } from "@/lib/gantt/engine/GanttCanvas";
+import { GanttCanvas, getAustralianHolidays } from "@/lib/gantt/engine/GanttCanvas";
 import {
   convertRowsToTasks,
-  convertToDependencies,
   countWorkingDays,
+  addWorkingDays,
   type SmScheduleMaster,
   type GanttTask,
+  type GanttDependency,
   type TaskClickEvent,
   type TaskDragEvent,
   type SuccessorInfo,
 } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
+import { useAssignableRoles } from "@/hooks/useAssignableRoles";
 import { cn } from "@/lib/utils";
 import { formatDateForAPI } from "@/lib/timezone-utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -99,6 +101,7 @@ import {
 import { initCompanySettings, getTodayInCompanyTimezone } from "@/lib/stores/company-settings-store";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import type { PhotoItem } from "@/components/ui/photo-gallery";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 
 // ============================================================================
 // Types
@@ -117,8 +120,8 @@ interface GanttCanvasViewProps {
   jobId?: number;
   /** Static tasks - bypasses API, used for demos */
   staticTasks?: GanttTask[];
-  /** Static dependencies - used with staticTasks */
-  staticDependencies?: Array<{ fromId: string; toId: string; type?: string }>;
+  /** Static dependencies - used with staticTasks (from API's gantt_data.dependencies) */
+  staticDependencies?: Array<{ id?: string; fromId: string; toId: string; type?: string; lag?: number }>;
   /** Show toolbar */
   showToolbar?: boolean;
   /** Templates for selector dropdown */
@@ -139,6 +142,8 @@ interface GanttCanvasViewProps {
   viewSlug?: string;
   /** Callback to clear the view filter */
   onViewClear?: () => void;
+  /** Callback when data changes (dependencies saved, etc.) - for static mode refresh */
+  onDataChange?: () => void;
 }
 
 interface ApiResponse {
@@ -156,27 +161,21 @@ interface ColumnConfig {
   align?: 'left' | 'center' | 'right';
 }
 
-// SSoT: Roles are fetched from /api/v1/sm_settings/assignable_roles
-// This is just a fallback in case the API call fails
-const DEFAULT_ASSIGNABLE_ROLES = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'site', label: 'Site' },
-  { value: 'supervisor', label: 'Supervisor' },
-  { value: 'builder', label: 'Builder' },
-  { value: 'estimator', label: 'Estimator' },
-];
+// SSoT: Assignable roles fetched via useAssignableRoles hook
+// (Backend SSoT: Role.for_select)
 
 /** Default column configuration - matches preferred layout */
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'name', label: 'Name', width: 242, visible: true, align: 'left' },
-  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 28, visible: true, align: 'center' },
-  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 28, visible: true, align: 'center' },
-  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 28, visible: true, align: 'center' },
-  { id: 'complete', label: 'Done', shortLabel: '✓', width: 28, visible: true, align: 'center' },
+  { id: 'started', label: 'Started', shortLabel: '▶', width: 24, visible: true, align: 'center' },
+  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 24, visible: true, align: 'center' },
+  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 24, visible: true, align: 'center' },
+  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 24, visible: true, align: 'center' },
+  { id: 'complete', label: 'Done', shortLabel: '✓', width: 24, visible: true, align: 'center' },
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
   { id: 'duration', label: 'Duration', shortLabel: 'Days', width: 50, visible: true, align: 'center' },
   { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
+  { id: 'poNumber', label: 'PO #', width: 70, visible: true, align: 'left' },
   { id: 'role', label: 'Role', width: 90, visible: true, align: 'left' },
   { id: 'startDate', label: 'Start Date', shortLabel: 'Start', width: 80, visible: false, align: 'left' },
   { id: 'endDate', label: 'End Date', shortLabel: 'End', width: 80, visible: false, align: 'left' },
@@ -204,6 +203,24 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
     isDragging,
   } = useSortable({ id: column.id });
 
+  // Get background color for checkbox columns to indicate Gantt bar color
+  const getHeaderBgColor = () => {
+    switch (column.id) {
+      case 'started':
+        return 'rgba(16, 185, 129, 0.25)'; // emerald-500 green - matches task bar
+      case 'hold':
+        return 'rgba(212, 165, 116, 0.3)'; // tan/beige - matches task bar
+      case 'confirm':
+        return 'rgba(249, 115, 22, 0.25)'; // orange-500 - matches task bar
+      case 'supplierConfirm':
+        return 'rgba(168, 85, 247, 0.2)'; // purple - matches task bar
+      case 'complete':
+        return 'rgba(31, 41, 55, 0.3)'; // dark gray - matches task bar
+      default:
+        return undefined;
+    }
+  };
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -213,6 +230,7 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
     height: '100%',
     touchAction: 'none',
     cursor: isDragging ? 'grabbing' : 'grab',
+    backgroundColor: getHeaderBgColor(),
   };
 
   return (
@@ -270,6 +288,7 @@ export function GanttCanvasView({
   onTaskDrag,
   viewSlug,
   onViewClear,
+  onDataChange,
 }: GanttCanvasViewProps) {
   // Refs
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -292,20 +311,22 @@ export function GanttCanvasView({
   const [loading, setLoading] = React.useState(!isStaticMode);
   const [error, setError] = React.useState<string | null>(null);
   const [rows, setRows] = React.useState<SmScheduleMaster[]>([]);
-  const [showSidebar, setShowSidebar] = React.useState(true);
+  const [showSidebar, setShowSidebar] = React.useState(false); // Start collapsed by default
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
-  const [showDependencies, setShowDependencies] = React.useState(true);
+  const [showDependencies, setShowDependencies] = React.useState(false); // Off by default
+  // SSoT: Dependencies from backend gantt_data endpoint (for template mode)
+  const [templateDependencies, setTemplateDependencies] = React.useState<GanttDependency[]>([]);
 
   // Photo panel state (only available when jobId is provided)
-  const [showPhotoPanel, setShowPhotoPanel] = React.useState(false);
+  const [showPhotoPanel, setShowPhotoPanel] = React.useState(false); // Off by default
   const [jobPhotos, setJobPhotos] = React.useState<PhotoItem[]>([]);
   const [loadingPhotos, setLoadingPhotos] = React.useState(false);
   const [lightboxOpen, setLightboxOpen] = React.useState(false);
   const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
-  // Collapsed headers state - stores row IDs of collapsed header rows
-  const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<number>>(new Set());
+  // Collapsed headers state - stores task IDs of collapsed header rows
+  const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<string>>(new Set());
 
   // Selected task ID - synced between grid and Gantt
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
@@ -316,6 +337,12 @@ export function GanttCanvasView({
 
   // Filter to show only grouped tasks (headers + their children)
   const [showOnlyGrouped, setShowOnlyGrouped] = React.useState(false);
+
+  // Name search filter
+  const [nameSearch, setNameSearch] = React.useState('');
+
+  // Scroll position for sticky header calculation
+  const [sidebarScrollY, setSidebarScrollY] = React.useState(0);
 
   // Confirm/Supplier Confirm dialog state
   const [confirmDialog, setConfirmDialog] = React.useState<{
@@ -331,6 +358,42 @@ export function GanttCanvasView({
     isChecking: true,
     affectedSuccessors: []
   });
+
+  // Dependency creation popup state (shows Start/Finish buttons when dragging over target)
+  const [depPopup, setDepPopup] = React.useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    sourceTask: GanttTask | null;
+    targetTask: GanttTask | null;
+    sourceEdge: 'start' | 'end' | null;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    sourceTask: null,
+    targetTask: null,
+    sourceEdge: null
+  });
+
+  // Global mouseup listener to hide dependency popup when mouse is released anywhere
+  // This ensures the popup doesn't stay visible if user releases outside the buttons
+  React.useEffect(() => {
+    if (!depPopup.visible) return;
+
+    const hidePopup = () => {
+      // Small delay to allow button handlers to fire first
+      setTimeout(() => {
+        setDepPopup(prev => ({ ...prev, visible: false }));
+        if (ganttRef.current) {
+          ganttRef.current.cancelDependencyDrag();
+        }
+      }, 100);
+    };
+
+    window.addEventListener('mouseup', hidePopup);
+    return () => window.removeEventListener('mouseup', hidePopup);
+  }, [depPopup.visible]);
 
   // Cascade dialog state for task moves
   const [cascadeDialog, setCascadeDialog] = React.useState<{
@@ -363,29 +426,11 @@ export function GanttCanvasView({
     manualStartDate: string | null;
   }>>(new Map());
 
-  // SSoT: Assignable roles fetched from backend
-  const [assignableRoles, setAssignableRoles] = React.useState(DEFAULT_ASSIGNABLE_ROLES);
-
-  // Fetch assignable roles from API (SSoT)
-  React.useEffect(() => {
-    const fetchRoles = async () => {
-      try {
-        const response = await api.get<{ success: boolean; assignable_roles: Array<{ value: string; label: string }> }>(
-          '/api/v1/sm_settings/assignable_roles'
-        );
-        if (response?.assignable_roles) {
-          setAssignableRoles(response.assignable_roles);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch assignable roles, using defaults:', err);
-        // Keep using DEFAULT_ASSIGNABLE_ROLES
-      }
-    };
-    fetchRoles();
-  }, []);
+  // SSoT: Assignable roles fetched via hook (backend SSoT: Role.for_select)
+  const { roles: assignableRoles } = useAssignableRoles();
 
   // Toggle header collapse state
-  const toggleHeaderCollapse = React.useCallback((headerId: number) => {
+  const toggleHeaderCollapse = React.useCallback((headerId: string) => {
     setCollapsedHeaders(prev => {
       const next = new Set(prev);
       if (next.has(headerId)) {
@@ -397,11 +442,24 @@ export function GanttCanvasView({
     });
   }, []);
 
-  // Collapse all headers
+  // Collapse all headers (works with both rows and tasks)
   const collapseAllHeaders = React.useCallback(() => {
-    const allHeaderIds = rows.filter(r => r.header_gantt === 'Header').map(r => r.id);
+    const allHeaderIds: string[] = [];
+    // From rows (template mode)
+    for (const row of rows) {
+      if (row.header_gantt === 'Header') {
+        allHeaderIds.push(String(row.id));
+      }
+    }
+    // From tasks.rowData (static mode)
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        allHeaderIds.push(task.id);
+      }
+    }
     setCollapsedHeaders(new Set(allHeaderIds));
-  }, [rows]);
+  }, [rows, tasks]);
 
   // Expand all headers
   const expandAllHeaders = React.useCallback(() => {
@@ -410,44 +468,361 @@ export function GanttCanvasView({
 
   // Auto-collapse all headers when "header" view is active
   React.useEffect(() => {
-    if (viewSlug === 'header' && rows.length > 0) {
-      const allHeaderIds = rows.filter(r => r.header_gantt === 'Header').map(r => r.id);
+    const hasData = rows.length > 0 || tasks.length > 0;
+    if (viewSlug === 'header' && hasData) {
+      const allHeaderIds: string[] = [];
+      // From rows (template mode)
+      for (const row of rows) {
+        if (row.header_gantt === 'Header') {
+          allHeaderIds.push(String(row.id));
+        }
+      }
+      // From tasks.rowData (static mode)
+      for (const task of tasks) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (rowData?.header_gantt === 'Header') {
+          allHeaderIds.push(task.id);
+        }
+      }
       setCollapsedHeaders(new Set(allHeaderIds));
     }
-  }, [viewSlug, rows]);
+  }, [viewSlug, rows, tasks]);
 
-  // Get set of header IDs for quick lookup
+  // Map task_number -> task.id for headers (children reference headers by task_number, not id)
+  // Works with both rows (template mode) and tasks (static mode via rowData)
+  // Use Number() to ensure consistent numeric types (API may return strings)
+  const headerTaskNumberToId = React.useMemo(() => {
+    const map = new Map<number, string>();
+    // First try rows (template mode)
+    for (const row of rows) {
+      if (row.header_gantt === 'Header') {
+        map.set(Number(row.task_number), String(row.id));
+      }
+    }
+    // Then try tasks.rowData (static mode) - rowData contains header_gantt
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        map.set(Number(rowData.task_number), task.id);
+      }
+    }
+    return map;
+  }, [rows, tasks]);
+
+  // Get set of header task IDs for quick lookup
   const headerIds = React.useMemo(() => {
-    return new Set(rows.filter(r => r.header_gantt === 'Header').map(r => r.id));
-  }, [rows]);
+    const ids = new Set<string>();
+    // From rows (template mode)
+    for (const row of rows) {
+      if (row.header_gantt === 'Header') {
+        ids.add(String(row.id));
+      }
+    }
+    // From tasks.rowData (static mode)
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        ids.add(task.id);
+      }
+    }
+    return ids;
+  }, [rows, tasks]);
+
+  // Helper to extract parent header task.id from header_gantt field
+  // header_gantt contains task_number reference, we convert to task.id for consistency
+  const getParentHeaderId = React.useCallback((task: GanttTask): string | null => {
+    const rowData = task.rowData as SmScheduleMaster | undefined;
+    if (!rowData) return null;
+
+    const headerGantt = rowData.header_gantt;
+    if (headerGantt === 'Header' || headerGantt === null || headerGantt === undefined) {
+      return null;
+    }
+    // Get the task_number from header_gantt
+    let parentTaskNumber: number | null = null;
+    if (typeof headerGantt === 'number') {
+      parentTaskNumber = headerGantt;
+    } else if (typeof headerGantt === 'object' && headerGantt?.id) {
+      parentTaskNumber = headerGantt.id;
+    } else if (typeof headerGantt === 'string') {
+      // Handle string number (e.g., "1407")
+      const parsed = parseInt(headerGantt, 10);
+      if (!isNaN(parsed)) {
+        parentTaskNumber = parsed;
+      }
+    }
+    // Convert task_number to task.id using the map
+    if (parentTaskNumber !== null) {
+      return headerTaskNumberToId.get(parentTaskNumber) ?? null;
+    }
+    return null;
+  }, [headerTaskNumberToId]);
 
   // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
+  // Two-pass filtering: first determine visible non-headers, then filter headers based on visible children
   const visibleTasks = React.useMemo(() => {
-    return tasks.filter(task => {
-      const row = rows.find(r => String(r.id) === task.id);
-      if (!row) return true;
+    // Build header task_number -> task.id mapping from BOTH rows and tasks to ensure completeness
+    const headerTaskNumToTaskId = new Map<number, string>();
+    // First from rows (SSoT)
+    for (const row of rows) {
+      if (row.header_gantt === 'Header') {
+        headerTaskNumToTaskId.set(Number(row.task_number), String(row.id));
+      }
+    }
+    // Also from tasks (in case IDs differ)
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (rowData?.header_gantt === 'Header') {
+        headerTaskNumToTaskId.set(Number(rowData.task_number), task.id);
+      }
+    }
 
-      // If showOnlyGrouped is enabled OR viewSlug is 'header', only show headers
-      if (showOnlyGrouped || viewSlug === 'header') {
-        const isHeader = row.header_gantt === 'Header';
-        if (!isHeader) {
-          return false;
+    // Helper to get parent header task ID from a child task
+    const getParentId = (task: GanttTask): string | null => {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (!rowData) return null;
+      const hg = rowData.header_gantt;
+      if (hg === 'Header' || hg === null || hg === undefined) return null;
+
+      let parentTaskNum: number | null = null;
+      if (typeof hg === 'number') {
+        parentTaskNum = hg;
+      } else if (typeof hg === 'object' && hg?.id) {
+        parentTaskNum = hg.id;
+      } else if (typeof hg === 'string') {
+        const parsed = parseInt(hg, 10);
+        if (!isNaN(parsed)) parentTaskNum = parsed;
+      }
+
+      if (parentTaskNum !== null) {
+        return headerTaskNumToTaskId.get(parentTaskNum) ?? null;
+      }
+      return null;
+    };
+
+    // Helper to check if a non-header task passes filters (excluding collapse check for now)
+    const taskPassesFilters = (task: GanttTask): boolean => {
+      // Name search filter
+      if (nameSearch && !task.name.toLowerCase().includes(nameSearch.toLowerCase())) {
+        return false;
+      }
+
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      const isHeader = rowData?.header_gantt === 'Header';
+      const parentHeaderId = getParentId(task);
+
+      // If showOnlyGrouped is enabled, only show headers (handled separately)
+      if (showOnlyGrouped && !isHeader) {
+        return false;
+      }
+
+      // In header view: show headers + children of headers only
+      if (viewSlug === 'header') {
+        if (!isHeader && !parentHeaderId) {
+          return false; // Hide ungrouped tasks in header view
         }
       }
 
       return true;
+    };
+
+    // First pass: Build a set of header task IDs that have at least one visible child
+    const headersWithVisibleChildren = new Set<string>();
+
+    for (const task of tasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      const isHeader = rowData?.header_gantt === 'Header';
+
+      if (!isHeader && taskPassesFilters(task)) {
+        const parentHeaderId = getParentId(task);
+        if (parentHeaderId) {
+          // This child passes filters - mark its parent as having visible children
+          headersWithVisibleChildren.add(parentHeaderId);
+        }
+      }
+    }
+
+    // Second pass: Filter tasks
+    const filteredTasks = tasks.filter(task => {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      const isHeader = rowData?.header_gantt === 'Header';
+      const parentHeaderId = getParentId(task);
+
+      // For headers: hide if they have no visible children
+      if (isHeader) {
+        // Check if this header has any visible children
+        if (!headersWithVisibleChildren.has(task.id)) {
+          return false; // Hide header with no visible children
+        }
+        return true; // Header has visible children, show it
+      }
+
+      // For non-headers: apply all filters including collapse check
+      if (!taskPassesFilters(task)) {
+        return false;
+      }
+
+      // If this task has a parent header that is collapsed, hide it
+      if (parentHeaderId && collapsedHeaders.has(parentHeaderId)) {
+        return false;
+      }
+
+      return true;
     });
-  }, [tasks, rows, showOnlyGrouped, viewSlug]);
 
-  // Check if a row is a header (header_gantt === 'Header')
-  const isHeaderRow = React.useCallback((row: SmScheduleMaster | undefined) => {
-    return row?.header_gantt === 'Header';
+    // SSoT: Hierarchical sort - headers followed by their children, all sorted by startDate
+    // This runs at render time, using the current task.startDate values
+    const isHeader = (task: GanttTask): boolean => {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      // SSoT: Check both header_gantt and allow_header for header detection
+      return rowData?.header_gantt === 'Header' || rowData?.allow_header === true;
+    };
+
+    const getParentTaskNumber = (task: GanttTask): number | null => {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (!rowData) return null;
+      // SSoT: If this IS a header, it doesn't have a parent
+      if (rowData.header_gantt === 'Header' || rowData.allow_header === true) return null;
+      const hg = rowData.header_gantt;
+      if (hg === null || hg === undefined) return null;
+      if (typeof hg === 'number') return hg;
+      if (typeof hg === 'object' && hg?.id) return hg.id;
+      if (typeof hg === 'string') {
+        const parsed = parseInt(hg, 10);
+        return isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    };
+
+    // Build header task_number set and map
+    const headerTaskNumSet = new Set<number>();
+    const headerByTaskNum = new Map<number, GanttTask>();
+    for (const task of filteredTasks) {
+      const rowData = task.rowData as SmScheduleMaster | undefined;
+      if (isHeader(task) && rowData?.task_number) {
+        const taskNum = Number(rowData.task_number);
+        headerTaskNumSet.add(taskNum);
+        headerByTaskNum.set(taskNum, task);
+      }
+    }
+
+    // Group children by parent header task_number
+    const childrenByHeader = new Map<number, GanttTask[]>();
+    const processed = new Set<string>();
+
+    for (const task of filteredTasks) {
+      if (isHeader(task)) continue;
+      const parentNum = getParentTaskNumber(task);
+      if (parentNum !== null && headerTaskNumSet.has(parentNum)) {
+        if (!childrenByHeader.has(parentNum)) childrenByHeader.set(parentNum, []);
+        childrenByHeader.get(parentNum)!.push(task);
+      }
+    }
+
+    // Sort children within each header by startDate
+    for (const children of childrenByHeader.values()) {
+      children.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+    }
+
+    // Collect standalone tasks (no parent or parent not in filtered set)
+    const standaloneTasks = filteredTasks.filter(t =>
+      !isHeader(t) && (getParentTaskNumber(t) === null || !headerTaskNumSet.has(getParentTaskNumber(t)!))
+    );
+
+    // Build sortable blocks: [header + children] or [standalone]
+    type Block = { startDate: Date; items: GanttTask[] };
+    const blocks: Block[] = [];
+
+    // Header blocks - position by earliest child's startDate
+    for (const [taskNum, header] of headerByTaskNum) {
+      const children = childrenByHeader.get(taskNum) || [];
+      const blockStart = children.length > 0
+        ? new Date(Math.min(...children.map(c => c.startDate.getTime())))
+        : header.startDate;
+      blocks.push({ startDate: blockStart, items: [header, ...children] });
+      processed.add(header.id);
+      children.forEach(c => processed.add(c.id));
+    }
+
+    // Standalone blocks
+    for (const task of standaloneTasks) {
+      if (!processed.has(task.id)) {
+        blocks.push({ startDate: task.startDate, items: [task] });
+      }
+    }
+
+    // Sort blocks by startDate
+    blocks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+    // Flatten to final sorted list
+    return blocks.flatMap(b => b.items);
+  }, [tasks, rows, collapsedHeaders, showOnlyGrouped, viewSlug, nameSearch]);
+
+  // Check if a task is a header (SSoT: check both header_gantt and allow_header)
+  const isHeaderTask = React.useCallback((task: GanttTask | undefined) => {
+    const rowData = task?.rowData as SmScheduleMaster | undefined;
+    return rowData?.header_gantt === 'Header' || rowData?.allow_header === true;
   }, []);
 
-  // Get child count for a header (hierarchy removed - returns 0)
-  const getChildCount = React.useCallback((_headerId: number) => {
-    return 0;
-  }, []);
+  // Get child count for a header task (uses header_gantt to find children)
+  const getChildCount = React.useCallback((headerTaskId: string) => {
+    const children = tasks.filter(t => getParentHeaderId(t) === headerTaskId);
+    return children.length;
+  }, [tasks, getParentHeaderId]);
+
+  // Get the header ID for the selected group (when clicking header or child, highlight entire group)
+  const selectedGroupHeaderId = React.useMemo(() => {
+    if (!selectedTaskId) return null;
+
+    const selectedTask = tasks.find(t => t.id === selectedTaskId);
+    if (!selectedTask) return null;
+
+    // If selected task IS a header, use its ID
+    if (isHeaderTask(selectedTask)) {
+      return selectedTask.id;
+    }
+
+    // If selected task has a parent header, use parent's ID
+    const parentId = getParentHeaderId(selectedTask);
+    return parentId;
+  }, [selectedTaskId, tasks, isHeaderTask, getParentHeaderId]);
+
+  // Check if a task is in the selected group (header or child of selected header)
+  const isInSelectedGroup = React.useCallback((task: GanttTask): boolean => {
+    if (!selectedGroupHeaderId) return false;
+
+    // Is this the header itself?
+    if (task.id === selectedGroupHeaderId) return true;
+
+    // Is this a child of the selected header?
+    const parentId = getParentHeaderId(task);
+    return parentId === selectedGroupHeaderId;
+  }, [selectedGroupHeaderId, getParentHeaderId]);
+
+  // Calculate sticky header - show selected group's header when it's scrolled out of view
+  const stickyHeader = React.useMemo(() => {
+    // Only show sticky header when a group is selected
+    if (!selectedGroupHeaderId) return null;
+
+    const ROW_HEIGHT = 28;
+
+    // Find the selected header in visibleTasks
+    const headerTask = visibleTasks.find(t => t.id === selectedGroupHeaderId);
+    if (!headerTask) return null;
+
+    // Check if header is scrolled out of view
+    const headerIndex = visibleTasks.findIndex(t => t.id === selectedGroupHeaderId);
+    if (headerIndex < 0) return null;
+
+    const headerTop = headerIndex * ROW_HEIGHT;
+    if (headerTop >= sidebarScrollY) {
+      // Header is still visible, no sticky needed
+      return null;
+    }
+
+    // Header is scrolled out, show sticky
+    return headerTask;
+  }, [sidebarScrollY, visibleTasks, selectedGroupHeaderId]);
 
   // Fullscreen state - use external if provided, otherwise internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
@@ -585,22 +960,26 @@ export function GanttCanvasView({
   const [depEditorSuccessorLinks, setDepEditorSuccessorLinks] = React.useState<PredecessorLink[]>([]);
 
   // Task items for combobox (memoized)
+  // Use visual row index (1-based) for row number lookup
+  // Label shows just task name (row # is in separate column)
   const taskComboItems = React.useMemo((): ComboboxItem[] => {
     return tasks
       .filter(t => t.id !== depEditorTask?.id)
       .map(t => {
-        const rowNum = tasks.findIndex(task => task.id === t.id) + 1;
+        // Use visual row index (1-based) for lookup
+        const visualRowIndex = tasks.findIndex(task => task.id === t.id) + 1;
         return {
           id: t.id,
-          label: `${rowNum}. ${t.name}`,
+          label: t.name, // Just task name - row # shown in separate column
+          visualRowIndex, // Store for lookup by row number
         };
       });
   }, [tasks, depEditorTask]);
 
   // Permanent columns that cannot be hidden (always show in collapsed mode)
-  // These are the essential status columns: Name + Hold, Confirm, Supplier Confirm, Complete
+  // These are the essential status columns: Name + Started, Hold, Confirm, Supplier Confirm, Complete
   // Order matters - this is the order they appear in collapsed mode
-  const PERMANENT_COLUMN_IDS = ['name', 'hold', 'confirm', 'supplierConfirm', 'complete'];
+  const PERMANENT_COLUMN_IDS = ['name', 'started', 'hold', 'confirm', 'supplierConfirm', 'complete'];
 
   // Get visible columns (always includes permanent columns, name always first)
   // When sidebar is "hidden", only show permanent columns (Name + status checkboxes)
@@ -615,11 +994,12 @@ export function GanttCanvasView({
     if (!showSidebar) {
       // Use fixed widths in collapsed mode to ensure all columns fit
       const collapsedWidths: Record<string, number> = {
-        name: 150,           // Narrower name to fit other columns
-        hold: 28,
-        confirm: 28,
-        supplierConfirm: 28,
-        complete: 28,
+        name: 200,           // Wider name column when collapsed for better readability
+        started: 24,
+        hold: 24,
+        confirm: 24,
+        supplierConfirm: 24,
+        complete: 24,
       };
       return PERMANENT_COLUMN_IDS.map(id => {
         const col = columns.find(c => c.id === id) || DEFAULT_COLUMNS.find(c => c.id === id);
@@ -724,46 +1104,107 @@ export function GanttCanvasView({
   }, [resizingColumn, resizeStartX, resizeStartWidth]);
 
   // Open dependency editor for a task
+  // SSoT: Derive predecessors/successors from dependencies array (already rewired around invisible tasks)
+  // NOT from task.rowData.predecessor_ids (raw JSONB, may reference filtered-out invisible tasks)
   const openDepEditor = React.useCallback((task: GanttTask) => {
     setDepEditorTask(task);
-    // Use full predecessor data from rowData if available (has type and lag)
-    // Otherwise fall back to just IDs with defaults
-    // NOTE: pred.id is task_number, need to convert to row.id for matching task.id
-    const apiPredecessors = task.rowData?.predecessor_ids || [];
-    const links: PredecessorLink[] = apiPredecessors.map(pred => {
-      // Find the task by task_number to get its row.id
-      const predecessorTask = tasks.find(t => t.rowData?.task_number === pred.id);
-      return {
-        predecessorId: predecessorTask?.id || String(pred.id), // Use task.id (row.id), fallback to task_number if not found
-        type: (pred.type || 'FS') as DependencyType,
-        lag: pred.lag || 0,
-      };
-    });
-    setDepEditorLinks(links);
 
-    // Also populate successor links - tasks that have this task as a predecessor
-    const currentTaskNum = task.rowData?.task_number;
-    const successorLinks: PredecessorLink[] = [];
-    tasks.forEach(t => {
-      if (t.id === task.id) return; // Skip self
-      const predIds = t.rowData?.predecessor_ids;
-      if (!predIds || !Array.isArray(predIds)) return;
-      const predInfo = predIds.find((p: any) => {
-        const predId = p?.id || p;
-        return predId === currentTaskNum || String(predId) === String(task.id);
-      });
-      if (predInfo) {
-        successorLinks.push({
-          predecessorId: t.id, // This is actually the successor task ID
-          type: (predInfo.type || 'FS') as DependencyType,
-          lag: predInfo.lag || 0,
-        });
-      }
-    });
+    // SSoT: Use dependencies array (staticDependencies for job schedule, templateDependencies for templates)
+    // This is already properly rewired around invisible tasks by backend GanttDataService
+    const currentDeps = isStaticMode ? (staticDependencies || []) : templateDependencies;
+
+    // Find predecessors: dependencies where this task is the target (toId)
+    const predecessorLinks: PredecessorLink[] = currentDeps
+      .filter(d => d.toId === task.id)
+      .map(d => ({
+        predecessorId: d.fromId, // Already row.id format from backend
+        type: (d.type || 'FS') as DependencyType,
+        lag: d.lag || 0,
+      }));
+    setDepEditorLinks(predecessorLinks);
+
+    // Find successors: dependencies where this task is the source (fromId)
+    const successorLinks: PredecessorLink[] = currentDeps
+      .filter(d => d.fromId === task.id)
+      .map(d => ({
+        predecessorId: d.toId, // Successor task ID (row.id format)
+        type: (d.type || 'FS') as DependencyType,
+        lag: d.lag || 0,
+      }));
     setDepEditorSuccessorLinks(successorLinks);
 
     setDepEditorOpen(true);
-  }, [tasks]);
+  }, [isStaticMode, staticDependencies, templateDependencies]);
+
+  // Open dependency editor with a new predecessor already added (from drag-drop)
+  const openDepEditorWithNewPredecessor = React.useCallback((
+    targetTask: GanttTask,
+    sourceTask: GanttTask,
+    depType: 'FS' | 'FF' | 'SS' | 'SF'
+  ) => {
+    setDepEditorTask(targetTask);
+
+    // Load existing predecessors
+    const currentDeps = isStaticMode ? (staticDependencies || []) : templateDependencies;
+    const existingPredecessors: PredecessorLink[] = currentDeps
+      .filter(d => d.toId === targetTask.id)
+      .map(d => ({
+        predecessorId: d.fromId,
+        type: (d.type || 'FS') as DependencyType,
+        lag: d.lag || 0,
+      }));
+
+    // Add the new predecessor (source task)
+    const newPredecessor: PredecessorLink = {
+      predecessorId: sourceTask.id,
+      type: depType,
+      lag: 0,
+    };
+
+    // Check if this predecessor already exists
+    const alreadyExists = existingPredecessors.some(p => p.predecessorId === sourceTask.id);
+    if (!alreadyExists) {
+      setDepEditorLinks([...existingPredecessors, newPredecessor]);
+    } else {
+      setDepEditorLinks(existingPredecessors);
+    }
+
+    // Load existing successors
+    const existingSuccessors: PredecessorLink[] = currentDeps
+      .filter(d => d.fromId === targetTask.id)
+      .map(d => ({
+        predecessorId: d.toId,
+        type: (d.type || 'FS') as DependencyType,
+        lag: d.lag || 0,
+      }));
+    setDepEditorSuccessorLinks(existingSuccessors);
+
+    setDepEditorOpen(true);
+  }, [isStaticMode, staticDependencies, templateDependencies]);
+
+  // Handle dependency popup button click (Start or Finish)
+  const handleDepPopupClick = React.useCallback((targetEdge: 'start' | 'end') => {
+    if (!depPopup.sourceTask || !depPopup.targetTask || !depPopup.sourceEdge) return;
+
+    // Determine dependency type from source edge + target edge
+    let depType: 'FS' | 'FF' | 'SS' | 'SF';
+    if (depPopup.sourceEdge === 'end') {
+      depType = targetEdge === 'start' ? 'FS' : 'FF';
+    } else {
+      depType = targetEdge === 'start' ? 'SS' : 'SF';
+    }
+
+    // Hide the popup
+    setDepPopup(prev => ({ ...prev, visible: false }));
+
+    // Cancel the canvas drag state
+    if (ganttRef.current) {
+      ganttRef.current.cancelDependencyDrag();
+    }
+
+    // Open the dependency editor with the new predecessor pre-filled
+    openDepEditorWithNewPredecessor(depPopup.targetTask, depPopup.sourceTask, depType);
+  }, [depPopup.sourceTask, depPopup.targetTask, depPopup.sourceEdge, openDepEditorWithNewPredecessor]);
 
   // Add a new predecessor link
   const addPredecessorLink = React.useCallback(() => {
@@ -797,16 +1238,17 @@ export function GanttCanvasView({
   // Check for circular dependencies
   // Returns true if adding these predecessors to taskId would create a cycle
   const hasCircularDependency = React.useCallback((taskId: string, newPredecessorIds: string[]): boolean => {
+    // SSoT: Derive predecessors from dependencies (templateDependencies or staticDependencies)
+    const currentDeps = isStaticMode ? (staticDependencies || []) : templateDependencies;
+    const getPredecessorIds = (id: string): string[] => currentDeps.filter(d => d.toId === id).map(d => d.fromId);
+
     // Helper: Check if targetId is an ancestor of currentId
     const isAncestor = (targetId: string, currentId: string, visited: Set<string>): boolean => {
       if (currentId === targetId) return true; // Found the target in ancestor chain
       if (visited.has(currentId)) return false; // Already checked this branch
       visited.add(currentId);
 
-      const currentTask = tasks.find(t => t.id === currentId);
-      if (!currentTask) return false;
-
-      for (const predId of currentTask.predecessorIds || []) {
+      for (const predId of getPredecessorIds(currentId)) {
         if (isAncestor(targetId, predId, visited)) {
           return true;
         }
@@ -823,7 +1265,7 @@ export function GanttCanvasView({
       }
     }
     return false;
-  }, [tasks]);
+  }, [templateDependencies, staticDependencies, isStaticMode]);
 
   // Load data from API (only when not using static mode)
   // NOTE: Defined early because saveDependencies, handleTaskResize and handleDurationSave depend on it
@@ -837,16 +1279,24 @@ export function GanttCanvasView({
       }
       setError(null);
 
-      const response = await api.get<ApiResponse>(
-        `/api/v1/sm_schedule_master_templates/${templateId}/rows`
-      );
+      // Fetch both rows (for editing) and gantt_data (for dependencies) in parallel
+      const [rowsResponse, ganttResponse] = await Promise.all([
+        api.get<ApiResponse>(`/api/v1/sm_schedule_master_templates/${templateId}/rows`),
+        api.get<{ success: boolean; gantt_data: { tasks: unknown[]; dependencies: GanttDependency[] } }>(
+          `/api/v1/sm_schedule_master_templates/${templateId}/gantt_data`
+        ),
+      ]);
 
-      if (response.success && response.rows) {
+      if (rowsResponse.success && rowsResponse.rows) {
         // Backend returns rows sorted by sequence_order
-        // Scheduling is calculated client-side from predecessor_ids
-        setRows(response.rows);
+        setRows(rowsResponse.rows);
       } else {
         setError("Failed to load template rows");
+      }
+
+      // SSoT: Use dependencies from gantt_data endpoint (backend is SSoT for task_number -> row.id conversion)
+      if (ganttResponse.success && ganttResponse.gantt_data?.dependencies) {
+        setTemplateDependencies(ganttResponse.gantt_data.dependencies);
       }
     } catch (err) {
       console.error("Error loading Gantt data:", err);
@@ -925,11 +1375,18 @@ export function GanttCanvasView({
 
   // Save dependencies
   const saveDependencies = React.useCallback(async () => {
-    if (!depEditorTask || !templateId) return;
+    console.log('[saveDependencies] Called', { depEditorTask: depEditorTask?.id, templateId, jobId, isStaticMode });
+
+    // Support both template mode (templateId) and static mode (jobId for sm_tasks)
+    if (!depEditorTask || (!templateId && !jobId)) {
+      console.log('[saveDependencies] Early return - missing depEditorTask or mode', { depEditorTask: !!depEditorTask, templateId, jobId });
+      return;
+    }
 
     // Filter out empty links
     const validLinks = depEditorLinks.filter(l => l.predecessorId);
     const predecessorIds = validLinks.map(l => l.predecessorId);
+    console.log('[saveDependencies] Links', { validLinks, predecessorIds, depEditorLinks });
 
     // Check for circular dependencies
     if (hasCircularDependency(depEditorTask.id, predecessorIds)) {
@@ -966,24 +1423,43 @@ export function GanttCanvasView({
       const isLocked = depEditorTask.rowData?.supplier_confirm === true;
       const isFullyLocked = isLocked && depEditorTask.rowData?.confirm === true;
 
+      // Helper function to save a task's predecessor_ids
+      // Uses different API endpoints for template mode vs static (job) mode
+      // NOTE: dependency_broken only exists on SmScheduleMaster (templates), not SmTask
+      const saveTaskPredecessors = async (taskId: string, data: { predecessor_ids: unknown; dependency_broken?: boolean; confirm?: boolean }) => {
+        console.log('[saveTaskPredecessors] Saving', { taskId, data, templateId, jobId });
+        if (templateId) {
+          // Template mode: save to template row (includes dependency_broken)
+          console.log('[saveTaskPredecessors] Template mode - patching template row');
+          await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${taskId}`, {
+            row: data
+          });
+        } else if (jobId) {
+          // Static mode: save to sm_task (no dependency_broken field)
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { dependency_broken, ...smTaskData } = data;
+          console.log('[saveTaskPredecessors] Static mode - patching sm_task', { url: `/api/v1/sm_tasks/${taskId}`, smTaskData });
+          const result = await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+            sm_task: smTaskData
+          });
+          console.log('[saveTaskPredecessors] API response', result);
+        }
+      };
+
       if (isFullyLocked && predecessorData.length > 0) {
-        // Task is fully locked - remove dependencies and mark as broken
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${depEditorTask.id}`, {
-          row: {
-            predecessor_ids: [],
-            dependency_broken: true
-          }
+        // Task is fully locked - remove dependencies and mark as broken (template mode only)
+        await saveTaskPredecessors(depEditorTask.id, {
+          predecessor_ids: [],
+          dependency_broken: true
         });
       } else {
         // Normal case - save the dependencies
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${depEditorTask.id}`, {
-          row: {
-            predecessor_ids: predecessorData,
-            // Clear dependency_broken if we're setting dependencies
-            dependency_broken: false,
-            // Set confirm if task is locked and can't follow dependencies
-            ...(isLocked && predecessorData.length > 0 && { confirm: true })
-          }
+        await saveTaskPredecessors(depEditorTask.id, {
+          predecessor_ids: predecessorData,
+          // Clear dependency_broken if we're setting dependencies (template mode only)
+          dependency_broken: false,
+          // Set confirm if task is locked and can't follow dependencies
+          ...(isLocked && predecessorData.length > 0 && { confirm: true })
         });
       }
 
@@ -1024,9 +1500,7 @@ export function GanttCanvasView({
           const predId = p?.id || p;
           return predId !== currentTaskNum && String(predId) !== String(depEditorTask.id);
         });
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
-          row: { predecessor_ids: newPreds }
-        });
+        await saveTaskPredecessors(successorId, { predecessor_ids: newPreds });
       }
 
       // Add this task to added successors' predecessor_ids
@@ -1040,9 +1514,7 @@ export function GanttCanvasView({
           type: succLink?.type || 'FS',
           lag: succLink?.lag || 0
         }];
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
-          row: { predecessor_ids: newPreds }
-        });
+        await saveTaskPredecessors(successorId, { predecessor_ids: newPreds });
       }
 
       // Update modified successors' predecessor_ids (type/lag might have changed)
@@ -1062,9 +1534,7 @@ export function GanttCanvasView({
           }
           return p;
         });
-        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
-          row: { predecessor_ids: newPreds }
-        });
+        await saveTaskPredecessors(successorId, { predecessor_ids: newPreds });
       }
 
       // Build display string for local state update (matches backend format: "2FS+3, 5SS")
@@ -1102,8 +1572,15 @@ export function GanttCanvasView({
 
       setDepEditorOpen(false);
 
-      // Silent reload to recalculate all dependent task dates (refresh Gantt with new lag values)
-      await loadData(true);
+      // Reload to recalculate all dependent task dates (refresh Gantt with new lag values)
+      if (isStaticMode && onDataChange) {
+        // Static mode: notify parent to refetch data
+        console.log('[saveDependencies] Calling onDataChange to refresh');
+        onDataChange();
+      } else {
+        // Template mode: reload via API
+        await loadData(true);
+      }
     } catch (err: unknown) {
       console.error('Failed to save dependencies:', err);
 
@@ -1120,7 +1597,7 @@ export function GanttCanvasView({
         description: errorMessage,
       });
     }
-  }, [depEditorTask, depEditorLinks, depEditorSuccessorLinks, templateId, tasks, toast, loadData, hasCircularDependency]);
+  }, [depEditorTask, depEditorLinks, depEditorSuccessorLinks, templateId, jobId, tasks, toast, loadData, hasCircularDependency, isStaticMode, onDataChange]);
 
   // Theme
   const { resolvedTheme } = useTheme();
@@ -1287,75 +1764,31 @@ export function GanttCanvasView({
     }
   }, [rows, toast]);
 
-  // Handle dependency create - save new dependency to API
-  const handleDependencyCreate = React.useCallback(async (
+  // Refs for stable callback (avoid infinite loop from dependency changes)
+  const visibleTasksRef = React.useRef(visibleTasks);
+  const openDepEditorRef = React.useRef(openDepEditorWithNewPredecessor);
+  React.useEffect(() => { visibleTasksRef.current = visibleTasks; }, [visibleTasks]);
+  React.useEffect(() => { openDepEditorRef.current = openDepEditorWithNewPredecessor; }, [openDepEditorWithNewPredecessor]);
+
+  // Handle dependency create - open dialog to confirm/edit before saving
+  const handleDependencyCreate = React.useCallback((
     fromTaskId: string,
     toTaskId: string,
     type: 'FS' | 'SS' | 'FF' | 'SF'
   ) => {
-    // Skip API save in static mode
-    if (isStaticMode || !templateId) return;
+    // Find the source and target tasks from visible tasks (use ref for stability)
+    const tasks = visibleTasksRef.current;
+    const sourceTask = tasks.find(t => t.id === fromTaskId);
+    const targetTask = tasks.find(t => t.id === toTaskId);
 
-    try {
-      // Find the source task to get its task_number
-      const fromRow = rows.find(r => String(r.id) === fromTaskId);
-      // Find the target task to get its current predecessor_ids
-      const toRow = rows.find(r => String(r.id) === toTaskId);
-
-      if (!fromRow || !toRow) {
-        console.error('Could not find tasks for dependency:', { fromTaskId, toTaskId });
-        return;
-      }
-
-      // Build new predecessor entry using task_number
-      const newPredecessor = {
-        id: fromRow.task_number,
-        type: type,
-        lag: 0
-      };
-
-      // Get current predecessors or empty array
-      const currentPredecessors = toRow.predecessor_ids || [];
-
-      // Check if this dependency already exists
-      const alreadyExists = currentPredecessors.some(p => p.id === fromRow.task_number);
-      if (alreadyExists) {
-        return; // Silently skip duplicate dependencies
-      }
-
-      // Add new predecessor
-      const updatedPredecessors = [...currentPredecessors, newPredecessor];
-
-      // Save to API
-      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${toTaskId}`, {
-        row: {
-          predecessor_ids: updatedPredecessors
-        }
-      });
-
-      // Update local state
-      setRows(prev => prev.map(r =>
-        String(r.id) === toTaskId
-          ? { ...r, predecessor_ids: updatedPredecessors }
-          : r
-      ));
-
-      // Silent reload to recalculate dates
-      await loadData(true);
-    } catch (err: any) {
-      console.error('Failed to save dependency:', err);
-      // Show user-friendly toast for errors
-      toast({
-        variant: "destructive",
-        title: "Dependency not saved",
-        description: err?.message?.includes('circular')
-          ? 'Cannot create dependency: This would create a circular reference.'
-          : 'Failed to save dependency. Please try again.',
-      });
-      // Reload to remove the invalid dependency from canvas (API rejected it)
-      await loadData(true);
+    if (!sourceTask || !targetTask) {
+      console.error('Could not find tasks for dependency:', { fromTaskId, toTaskId });
+      return;
     }
-  }, [templateId, isStaticMode, rows, loadData, toast]);
+
+    // Open the dependency editor dialog with the new predecessor pre-filled
+    openDepEditorRef.current(targetTask, sourceTask, type);
+  }, []); // Empty deps - uses refs for stability
 
   // Handle task resize - update duration and cascade dependencies
   const handleTaskResize = React.useCallback(async (task: GanttTask, newStartDate: Date, newEndDate: Date) => {
@@ -1831,23 +2264,203 @@ export function GanttCanvasView({
     let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
 
     if (isStaticMode && staticTasks) {
-      // Static mode - use provided data directly
-      taskList = staticTasks;
+      // Static mode - clone tasks so we can recalculate dates
+      taskList = staticTasks.map(t => ({ ...t }));
+
       dependencies = (staticDependencies || []).map((d, i) => ({
-        id: `dep-${i}`,
+        id: d.id || `dep-${i}`,
         fromId: d.fromId,
         toId: d.toId,
         type: (d.type || "FS") as "FS" | "SS" | "FF" | "SF",
-        lag: 0,
+        lag: d.lag || 0,
       }));
+
+      // STEP 1: Recalculate ALL task dates based on dependencies
+      // This ensures proper positioning when headers have dependencies that affect children
+      // Sort by sequence order to process in correct order
+      const sortedTasks = [...taskList].sort((a, b) => {
+        const seqA = (a.rowData as SmScheduleMaster | undefined)?.sequence_order ?? 0;
+        const seqB = (b.rowData as SmScheduleMaster | undefined)?.sequence_order ?? 0;
+        return seqA - seqB;
+      });
+
+      // Build task date map (keyed by task_number) - will be updated as we process
+      const taskDateMap = new Map<number, { start: Date; end: Date }>();
+
+      // First pass: Process non-header tasks (calculate dates from dependencies)
+      for (const task of sortedTasks) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (!rowData || rowData.header_gantt === 'Header') continue;
+
+        // Check if task is locked (should keep backend date)
+        const isLocked = rowData.confirm || rowData.supplier_confirm ||
+                         rowData.finance_approved || rowData.is_completed;
+
+        if ((rowData.hold || isLocked) && rowData.hold_date) {
+          // Locked/held tasks keep their position
+          // Already have correct dates from backend
+        } else if (rowData.predecessor_ids && rowData.predecessor_ids.length > 0) {
+          // Recalculate based on dependencies
+          let latestRequiredStart = task.startDate;
+
+          for (const pred of rowData.predecessor_ids) {
+            const predDates = taskDateMap.get(pred.id);
+            if (!predDates) continue;
+
+            const predType = pred.type || 'FS';
+            const lag = pred.lag || 0;
+            let requiredStart: Date;
+
+            if (predType === 'FS') {
+              requiredStart = addWorkingDays(predDates.end, 1 + lag);
+            } else if (predType === 'SS') {
+              requiredStart = addWorkingDays(predDates.start, lag);
+            } else {
+              requiredStart = addWorkingDays(predDates.end, 1 + lag);
+            }
+
+            if (requiredStart > latestRequiredStart) {
+              latestRequiredStart = requiredStart;
+            }
+          }
+
+          // Update task dates if needed
+          if (latestRequiredStart > task.startDate) {
+            const offsetMs = latestRequiredStart.getTime() - task.startDate.getTime();
+            task.startDate = new Date(latestRequiredStart);
+            task.endDate = new Date(task.endDate.getTime() + offsetMs);
+          }
+        }
+
+        // Update map with this task's dates
+        if (rowData.task_number) {
+          taskDateMap.set(Number(rowData.task_number), { start: task.startDate, end: task.endDate });
+        }
+      }
+
+      // STEP 2: Build header -> children map
+      const headerTaskNumberToTask = new Map<number, GanttTask>();
+      for (const task of taskList) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (rowData?.header_gantt === 'Header') {
+          headerTaskNumberToTask.set(Number(rowData.task_number), task);
+        }
+      }
+
+      const headerChildrenMap = new Map<string, GanttTask[]>();
+      for (const task of taskList) {
+        const rowData = task.rowData as SmScheduleMaster | undefined;
+        if (!rowData || rowData.header_gantt === 'Header') continue;
+
+        let parentTaskNumber: number | null = null;
+        const hg = rowData.header_gantt;
+        if (typeof hg === 'number') {
+          parentTaskNumber = hg;
+        } else if (typeof hg === 'object' && hg?.id) {
+          parentTaskNumber = hg.id;
+        } else if (typeof hg === 'string') {
+          const parsed = parseInt(hg, 10);
+          if (!isNaN(parsed)) parentTaskNumber = parsed;
+        }
+
+        if (parentTaskNumber !== null) {
+          const headerTask = headerTaskNumberToTask.get(parentTaskNumber);
+          if (headerTask) {
+            if (!headerChildrenMap.has(headerTask.id)) {
+              headerChildrenMap.set(headerTask.id, []);
+            }
+            headerChildrenMap.get(headerTask.id)!.push(task);
+          }
+        }
+      }
+
+      // Update header dates to span children (and respect header dependencies)
+      // Process in sequence order so earlier headers update taskDateMap before later ones
+      const sortedHeaderIds = [...headerChildrenMap.keys()].sort((a, b) => {
+        const taskA = taskList.find(t => t.id === a);
+        const taskB = taskList.find(t => t.id === b);
+        const seqA = (taskA?.rowData as SmScheduleMaster | undefined)?.sequence_order ?? 0;
+        const seqB = (taskB?.rowData as SmScheduleMaster | undefined)?.sequence_order ?? 0;
+        return seqA - seqB;
+      });
+
+      for (const headerId of sortedHeaderIds) {
+        const children = headerChildrenMap.get(headerId);
+        if (!children || children.length === 0) continue;
+        const headerTask = taskList.find(t => t.id === headerId);
+        if (!headerTask) continue;
+        const headerRowData = headerTask.rowData as SmScheduleMaster | undefined;
+
+        // Find current min start from children
+        let minStart = children[0].startDate;
+        let maxEnd = children[0].endDate;
+        for (const child of children) {
+          if (child.startDate < minStart) minStart = child.startDate;
+          if (child.endDate > maxEnd) maxEnd = child.endDate;
+        }
+
+        // Check if header has dependencies - if so, calculate required start and shift children
+        if (headerRowData?.predecessor_ids && headerRowData.predecessor_ids.length > 0) {
+          let latestRequiredStart: Date | null = null;
+
+          for (const pred of headerRowData.predecessor_ids) {
+            const predDates = taskDateMap.get(pred.id);
+            if (!predDates) continue;
+
+            const predType = pred.type || 'FS';
+            const lagDays = pred.lag || 0;
+            let requiredStart: Date;
+
+            if (predType === 'FS') {
+              requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
+            } else if (predType === 'SS') {
+              requiredStart = addWorkingDays(predDates.start, lagDays);
+            } else {
+              requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
+            }
+
+            if (!latestRequiredStart || requiredStart > latestRequiredStart) {
+              latestRequiredStart = requiredStart;
+            }
+          }
+
+          // If header needs to start later due to dependencies, shift all children
+          if (latestRequiredStart && latestRequiredStart > minStart) {
+            const offsetMs = latestRequiredStart.getTime() - minStart.getTime();
+            for (const child of children) {
+              child.startDate = new Date(child.startDate.getTime() + offsetMs);
+              child.endDate = new Date(child.endDate.getTime() + offsetMs);
+              // Also update taskDateMap for shifted children
+              const childRowData = child.rowData as SmScheduleMaster | undefined;
+              if (childRowData?.task_number) {
+                taskDateMap.set(Number(childRowData.task_number), { start: child.startDate, end: child.endDate });
+              }
+            }
+            minStart = new Date(latestRequiredStart);
+            maxEnd = new Date(maxEnd.getTime() + offsetMs);
+          }
+        }
+
+        headerTask.startDate = new Date(minStart);
+        headerTask.endDate = new Date(maxEnd);
+
+        // Update taskDateMap so subsequent headers depending on this one use correct dates
+        if (headerRowData?.task_number) {
+          taskDateMap.set(Number(headerRowData.task_number), { start: headerTask.startDate, end: headerTask.endDate });
+        }
+      }
+
+      // Note: Hierarchical sorting by startDate is done in visibleTasks useMemo
+      // This ensures sorting uses the current task.startDate values at render time
     } else {
-      // API mode - convert rows to tasks
+      // Template mode - convert rows to tasks, use SSoT dependencies from gantt_data endpoint
       // Use company timezone for consistent date handling
       const today = getTodayInCompanyTimezone();
       const projectStartDate = new Date(today);
       // First task starts today
       taskList = convertRowsToTasks(rows, projectStartDate);
-      dependencies = convertToDependencies(rows);
+      // SSoT: Use dependencies from gantt_data endpoint (backend handles task_number -> row.id conversion)
+      dependencies = templateDependencies;
     }
 
     // Store tasks for sidebar
@@ -1887,6 +2500,14 @@ export function GanttCanvasView({
     // Register dependency create handler to save new dependencies
     gantt.onDependencyCreateHandler(handleDependencyCreate);
 
+    // Register dependency popup handlers (for Start/Finish selection UI)
+    gantt.onDependencyPopupShowHandler((sourceTask, targetTask, sourceEdge, x, y) => {
+      setDepPopup({ visible: true, x, y, sourceTask, targetTask, sourceEdge });
+    });
+    gantt.onDependencyPopupHideHandler(() => {
+      setDepPopup(prev => ({ ...prev, visible: false }));
+    });
+
     // Register scroll sync callback
     gantt.onScrollHandler((scrollX, scrollY) => {
       if (sidebarRef.current) {
@@ -1906,12 +2527,64 @@ export function GanttCanvasView({
     // Store reference
     ganttRef.current = gantt;
 
+    // Set selected group header ID immediately after canvas creation
+    // (same pattern as holidays - ensures new canvas gets current value)
+    if (selectedGroupHeaderId) {
+      gantt.setSelectedGroupHeaderId(selectedGroupHeaderId);
+    }
+
+    // Set selected task immediately after canvas creation
+    // (ensures new canvas gets current selection when recreated)
+    if (selectedTaskId) {
+      console.log('[Gantt Init] Setting initial selection:', selectedTaskId);
+      gantt.selectTasks([selectedTaskId]);
+    }
+
+    // Load holidays immediately after canvas creation
+    (async () => {
+      try {
+        const currentYear = new Date().getFullYear();
+        const response = await api.get<{ dates: string[] }>(
+          `/api/v1/public_holidays/dates?year_start=${currentYear}&year_end=${currentYear + 2}&region=QLD`
+        );
+
+        if (response.dates && response.dates.length > 0) {
+          const holidays = response.dates.map(dateStr => {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            return {
+              date: new Date(year, month - 1, day),
+              name: 'Public Holiday',
+              type: 'public' as const,
+            };
+          });
+          console.log('[Gantt] Adding holidays from API (inline):', holidays.length, 'holidays');
+          gantt.addHolidays(holidays);
+        } else {
+          const fallbackHolidays = [
+            ...getAustralianHolidays(currentYear),
+            ...getAustralianHolidays(currentYear + 1),
+          ];
+          console.log('[Gantt] Using fallback holidays (inline):', fallbackHolidays.length, 'holidays');
+          gantt.addHolidays(fallbackHolidays);
+        }
+      } catch (err) {
+        console.error('Failed to load holidays (inline), using fallback:', err);
+        const currentYear = new Date().getFullYear();
+        const fallbackHolidays = [
+          ...getAustralianHolidays(currentYear),
+          ...getAustralianHolidays(currentYear + 1),
+        ];
+        console.log('[Gantt] Using error fallback holidays (inline):', fallbackHolidays.length, 'holidays');
+        gantt.addHolidays(fallbackHolidays);
+      }
+    })();
+
     // Cleanup
     return () => {
       gantt.destroy();
       ganttRef.current = null;
     };
-  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition, handleDependencyCreate]);
+  }, [rows, staticTasks, staticDependencies, templateDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition, handleDependencyCreate]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {
@@ -1927,7 +2600,21 @@ export function GanttCanvasView({
     }
   }, [visibleTasks]);
 
-  // Load holidays from API and add to canvas
+  // Sync selected group header ID to canvas for header highlighting
+  React.useEffect(() => {
+    if (ganttRef.current) {
+      ganttRef.current.setSelectedGroupHeaderId(selectedGroupHeaderId);
+    }
+  }, [selectedGroupHeaderId]);
+
+  // Note: The static tasks update effect was removed because the main useEffect
+  // already handles this correctly - it recreates the canvas with fresh data
+  // when staticTasks changes.
+
+  // Note: Holiday loading moved inline to main useEffect (after canvas creation)
+  // to ensure holidays persist even when canvas is recreated
+  /*
+  // OLD: Load holidays from API and add to canvas
   React.useEffect(() => {
     if (!ganttRef.current) return;
 
@@ -1976,6 +2663,7 @@ export function GanttCanvasView({
               type: 'public' as const,
             };
           });
+          console.log('[Gantt] Adding holidays from API:', holidays.length, 'holidays');
           ganttRef.current?.addHolidays(holidays);
         } else {
           // Fallback to hardcoded holidays
@@ -1984,6 +2672,7 @@ export function GanttCanvasView({
             ...getAustralianHolidays(currentYear),
             ...getAustralianHolidays(currentYear + 1),
           ];
+          console.log('[Gantt] Using fallback holidays:', fallbackHolidays.length, 'holidays');
           ganttRef.current?.addHolidays(fallbackHolidays);
         }
       } catch (err) {
@@ -1994,12 +2683,15 @@ export function GanttCanvasView({
           ...getAustralianHolidays(currentYear),
           ...getAustralianHolidays(currentYear + 1),
         ];
+        console.log('[Gantt] Using error fallback holidays:', fallbackHolidays.length, 'holidays');
         ganttRef.current?.addHolidays(fallbackHolidays);
       }
     };
 
+    console.log('[Gantt] loadHolidays called, ganttRef.current:', !!ganttRef.current);
     loadHolidays();
   }, [rows, staticTasks]); // Re-run when data changes (after canvas is created)
+  */
 
   // Trigger resize when fullscreen changes
   React.useEffect(() => {
@@ -2062,6 +2754,8 @@ export function GanttCanvasView({
         if (scrollY !== lastScrollY) {
           lastScrollY = scrollY;
           sidebarRef.current.scrollTop = scrollY;
+          // Track scroll position for sticky header
+          setSidebarScrollY(scrollY);
         }
       }
       animationFrameId = requestAnimationFrame(syncScroll);
@@ -2170,12 +2864,27 @@ export function GanttCanvasView({
     );
   }
 
+  console.log('[GanttCanvasView] 🎨 Rendering component', {
+    isStaticMode,
+    staticTasksCount: staticTasks?.length || 0,
+    rowsCount: rows.length,
+    taskCount: isStaticMode ? (staticTasks?.length || 0) : rows.length,
+    showToolbar,
+    showSidebar,
+    isFullscreen,
+    className
+  });
+
   // Main Gantt content (used both inline and in fullscreen dialog)
   const ganttContent = (
-    <div className={cn("flex flex-col h-full", isFullscreen ? "fixed inset-0 z-50 bg-background" : "", className)}>
-      {/* Toolbar */}
+    <div className={cn(
+      "flex flex-col h-full",
+      isFullscreen ? "fixed inset-0 z-50 bg-background" : "",
+      className
+    )}>
+      {/* Toolbar - STICKY */}
       {showToolbar && (
-        <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 shrink-0">
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={handleZoomOut} title="Zoom Out">
               <ZoomOut className="h-4 w-4" />
@@ -2324,31 +3033,38 @@ export function GanttCanvasView({
                 <div className="grid gap-2 text-sm">
                   {/* Checkbox-based colors in priority order */}
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#1f2937' }} />
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(31, 41, 55, 0.3)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">Done checked</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#a855f7' }} />
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(168, 85, 247, 0.2)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">S✓ (Supplier Confirm) checked</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#22c55e' }} />
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(249, 115, 22, 0.25)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-muted-foreground">✓ (Confirm) checked</span>
+                      <span className="text-muted-foreground">✓ (Confirm) checked - orange</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#D4A574' }} />
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(212, 165, 116, 0.3)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">Hold checked (tan)</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(16, 185, 129, 0.25)' }} />
+                    <div className="flex items-center gap-1.5">
+                      <Check className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">▶ Started checked - green</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2357,19 +3073,31 @@ export function GanttCanvasView({
                   </div>
                 </div>
                 <div className="border-t pt-2 mt-2">
-                  <h4 className="font-medium text-sm mb-2">Other Indicators</h4>
+                  <h4 className="font-medium text-sm mb-2">Background Shading</h4>
                   <div className="grid gap-2 text-sm">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-3 rounded" style={{ backgroundColor: '#ef4444' }} />
-                      <span className="text-muted-foreground">Today marker</span>
+                      <span className="text-muted-foreground">Today marker (red line)</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-3 rounded opacity-50" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }} />
-                      <span className="text-muted-foreground">Weekend</span>
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }} />
+                      <span className="text-muted-foreground">Weekend (light gray)</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-3 rounded" style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca' }} />
-                      <span className="text-muted-foreground">Holiday</span>
+                      <span className="text-muted-foreground">Holiday (light pink)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#fef3c7', border: '1px solid #fde68a' }} />
+                      <span className="text-muted-foreground">Group row (amber)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#f59e0b', opacity: 0.15, border: '1px solid #d97706' }} />
+                      <span className="text-muted-foreground">Weekend on group (darker amber)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#f59e0b', opacity: 0.25, border: '1px solid #d97706' }} />
+                      <span className="text-muted-foreground">Holiday on group (darkest amber)</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div
@@ -2528,9 +3256,9 @@ export function GanttCanvasView({
 
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Sidebar Table - always shows Name column, toggles other columns */}
-        <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 280, maxWidth: showSidebar ? 600 : 300 }}>
-            {/* Sidebar Header - Draggable Columns */}
+        {/* Sidebar Table - scrollable container */}
+        <div className="flex flex-col bg-background overflow-y-auto" style={{ width: 'auto', minWidth: showSidebar ? 200 : 310, maxWidth: showSidebar ? 600 : 330 }}>
+            {/* Sidebar Header - STICKY */}
             <DndContext
               sensors={columnDragSensors}
               collisionDetection={closestCenter}
@@ -2541,25 +3269,85 @@ export function GanttCanvasView({
                 strategy={horizontalListSortingStrategy}
               >
                 <div
-                  className="flex items-center border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
-                  style={{ height: 50, minHeight: 50 }}
+                  className="flex items-stretch border-b bg-muted px-2 text-xs font-medium text-muted-foreground sticky top-0 z-20"
+                  style={{ height: 49.5, minHeight: 49.5 }}
                 >
                   {visibleColumns.map((col) => (
-                    <SortableColumnHeader
-                      key={col.id}
-                      column={col}
-                      resizingColumn={resizingColumn}
-                      onResizeStart={handleResizeStart}
-                    />
+                    col.id === 'name' ? (
+                      // Name column with search input stacked below label
+                      <div
+                        key={col.id}
+                        className="flex flex-col justify-center px-1 relative group"
+                        style={{ width: col.width, minWidth: col.width, flexShrink: 0 }}
+                      >
+                        <span className="truncate mb-1">{col.label}</span>
+                        <Input
+                          type="text"
+                          placeholder="Search..."
+                          value={nameSearch}
+                          onChange={(e) => setNameSearch(e.target.value)}
+                          className="h-5 text-xs px-2 bg-background"
+                        />
+                      </div>
+                    ) : (
+                      <SortableColumnHeader
+                        key={col.id}
+                        column={col}
+                        resizingColumn={resizingColumn}
+                        onResizeStart={handleResizeStart}
+                      />
+                    )
                   ))}
                 </div>
               </SortableContext>
             </DndContext>
 
-            {/* Sidebar Rows */}
+            {/* Sticky Header - shows parent header when scrolled past it */}
+            {stickyHeader && (
+              <div
+                className="absolute left-0 right-0 z-10 flex items-center border-b text-xs px-2 cursor-pointer bg-amber-200 dark:bg-amber-900/40 border-l-4 border-l-amber-500 shadow-sm"
+                style={{ height: 28, top: 50 }}
+                onClick={() => {
+                  setSelectedTaskId(stickyHeader.id);
+                  onTaskClick?.(stickyHeader);
+                  // Scroll to show the header
+                  if (ganttRef.current) {
+                    ganttRef.current.scrollToTaskHorizontalOnly(stickyHeader.id, true);
+                  }
+                }}
+              >
+                {visibleColumns.map(col => {
+                  // Remove padding from checkbox columns to save space
+                  const isCheckboxCol = ['started', 'hold', 'confirm', 'supplierConfirm', 'complete'].includes(col.id);
+                  return (
+                    <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className={`truncate ${isCheckboxCol ? 'flex justify-center items-center' : 'px-1'}`}>
+                      {col.id === 'name' ? (
+                      <div className="truncate px-2 flex items-center font-bold" title={stickyHeader.name}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleHeaderCollapse(stickyHeader.id);
+                          }}
+                          className="mr-1 hover:bg-muted rounded p-0.5 flex-shrink-0"
+                        >
+                          <ExpandChevron expanded={!collapsedHeaders.has(stickyHeader.id)} size={12} />
+                        </button>
+                        <span className="text-amber-700 dark:text-amber-300">{stickyHeader.name}</span>
+                        <span className="text-muted-foreground text-[10px] ml-2">
+                          ({getChildCount(stickyHeader.id)})
+                        </span>
+                      </div>
+                    ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Sidebar Rows Container */}
             <div
               ref={sidebarRef}
-              className="flex-1 overflow-hidden"
+              className=""
               style={{ overflowY: 'hidden' }}
             >
               <div style={{ height: visibleTasks.length * 28 }}>
@@ -2569,9 +3357,9 @@ export function GanttCanvasView({
                   const endStr = task.endDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
                   // Use working days to match backend duration_days semantics
                   const duration = countWorkingDays(task.startDate, task.endDate);
-                  const isHeader = isHeaderRow(row);
-                  const childCount = isHeader && row ? getChildCount(row.id) : 0;
-                  const isCollapsed = row ? collapsedHeaders.has(row.id) : false;
+                  const isHeader = isHeaderTask(task);
+                  const childCount = isHeader ? getChildCount(task.id) : 0;
+                  const isCollapsed = collapsedHeaders.has(task.id);
 
                   // Render cell content based on column id
                   const renderCell = (col: ColumnConfig) => {
@@ -2583,15 +3371,11 @@ export function GanttCanvasView({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (row) toggleHeaderCollapse(row.id);
+                                  toggleHeaderCollapse(task.id);
                                 }}
                                 className="mr-1 hover:bg-muted rounded p-0.5 flex-shrink-0"
                               >
-                                {isCollapsed ? (
-                                  <ChevronRight className="h-3 w-3" />
-                                ) : (
-                                  <ChevronDown className="h-3 w-3" />
-                                )}
+                                <ExpandChevron expanded={!isCollapsed} size={12} />
                               </button>
                             ) : (
                               <span className="text-muted-foreground mr-1">{index + 1}.</span>
@@ -2658,6 +3442,10 @@ export function GanttCanvasView({
                       case 'status':
                         return <div className="truncate px-1 text-muted-foreground">{task.status || '-'}</div>;
                       case 'confirm':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
                         const isConfirmed = row?.confirm === true;
                         return (
                           <div className="flex justify-center">
@@ -2674,6 +3462,10 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'supplierConfirm':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
                         const isSupplierConfirmed = row?.supplier_confirm === true;
                         return (
                           <div className="flex justify-center">
@@ -2693,6 +3485,12 @@ export function GanttCanvasView({
                         return (
                           <div className="truncate px-1 text-muted-foreground" title={task.supplierName || ''}>
                             {task.supplierName || '-'}
+                          </div>
+                        );
+                      case 'poNumber':
+                        return (
+                          <div className="truncate px-1 text-muted-foreground" title={task.purchaseOrderNumber || ''}>
+                            {task.purchaseOrderNumber || '-'}
                           </div>
                         );
                       case 'role':
@@ -2725,7 +3523,8 @@ export function GanttCanvasView({
                           ? predecessorIds.map((pred: { id: number; type?: string; lag?: number }) => {
                               // Find the predecessor task by task_number in FULL rows list
                               // Note: rows is SmScheduleMaster[] so use t.task_number directly
-                              const predRowIndex = rows.findIndex(t => t.task_number === pred.id);
+                              // Use string comparison to handle type mismatches
+                              const predRowIndex = rows.findIndex(t => String(t.task_number) === String(pred.id));
                               // Get stable row number (1-based index in FULL task list)
                               const stableRowNum = predRowIndex >= 0 ? predRowIndex + 1 : pred.id;
                               const depType = pred.type || 'FS';
@@ -2750,7 +3549,32 @@ export function GanttCanvasView({
                             {hasDeps ? depDisplay : '-'}
                           </button>
                         );
+                      case 'started':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
+                        const isStarted = row?.started === true;
+                        return (
+                          <div className="flex justify-center">
+                            <input
+                              type="checkbox"
+                              checked={isStarted}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                // TODO: Add started toggle handler
+                                console.log('Started checkbox toggled:', !isStarted, 'for task:', task.id);
+                              }}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              title={isStarted ? 'Task started - click to mark not started' : 'Click to mark task as started'}
+                            />
+                          </div>
+                        );
                       case 'hold':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
                         const isHeld = row?.hold === true;
                         return (
                           <div className="flex justify-center">
@@ -2772,6 +3596,10 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'complete':
+                        // Don't show checkbox for header rows
+                        if (isHeader) {
+                          return <div className="flex justify-center"></div>;
+                        }
                         const isComplete = row?.is_completed === true;
                         return (
                           <div className="flex justify-center">
@@ -2793,35 +3621,93 @@ export function GanttCanvasView({
                   };
 
                   const isSelected = selectedTaskId === task.id;
+                  const inSelectedGroup = isInSelectedGroup(task);
 
                   return (
                     <div
                       key={task.id}
                       className={cn(
-                        "flex items-center border-b text-xs hover:bg-muted/30 px-2 cursor-pointer",
+                        "flex items-center border-b text-xs hover:bg-gray-100 dark:hover:bg-gray-700 px-2 cursor-pointer",
                         isSelected
-                          ? "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-inset ring-blue-500"
-                          : isHeader
-                            ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
-                            : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
+                          ? "bg-blue-600 dark:bg-blue-600"
+                          : inSelectedGroup
+                            ? isHeader
+                              ? "bg-amber-200 dark:bg-amber-900/30 border-l-4 border-l-amber-500"
+                              : "bg-amber-100 dark:bg-amber-900/20 border-l-2 border-l-amber-400"
+                            : isHeader
+                              ? "bg-blue-50/60 dark:bg-blue-900/15 border-l-4 border-l-blue-200 dark:border-l-blue-800"
+                              : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
                       )}
                       style={{ height: 28 }}
                       onClick={() => {
                         // Select the task and scroll Gantt horizontally to show the bar
-                        // The sidebar row is already visible since user clicked it
                         setSelectedTaskId(task.id);
-                        // Scroll horizontally to the task bar, but keep Y position unchanged
-                        // This shows the task bar in view without moving sidebar rows
+                        // Update canvas selection to show blue highlight
+                        if (ganttRef.current) {
+                          console.log('[Sidebar Click] Selecting task on canvas:', task.id);
+                          ganttRef.current.selectTasks([task.id]);
+                          console.log('[Sidebar Click] Canvas selection updated');
+                        } else {
+                          console.log('[Sidebar Click] ganttRef.current is null!');
+                        }
+                        // Call external onTaskClick handler (for PO button etc)
+                        onTaskClick?.(task);
+                        // Scroll horizontally to the task bar
                         if (ganttRef.current) {
                           ganttRef.current.scrollToTaskHorizontalOnly(task.id, true);
                         }
+
+                        // If this task belongs to a group, scroll vertically to show header at top
+                        const ROW_HEIGHT = 28;
+                        let headerToShow: string | null = null;
+
+                        if (isHeader) {
+                          // Clicked on a header - scroll to show it at top
+                          headerToShow = task.id;
+                        } else {
+                          // Clicked on a child - find and scroll to its header
+                          const parentId = getParentHeaderId(task);
+                          if (parentId) {
+                            headerToShow = parentId;
+                          }
+                        }
+
+                        if (headerToShow && ganttRef.current) {
+                          // Find header's index in visibleTasks
+                          const headerIndex = visibleTasks.findIndex(t => t.id === headerToShow);
+                          if (headerIndex >= 0) {
+                            // Scroll to put header at top
+                            const targetScrollY = headerIndex * ROW_HEIGHT;
+                            ganttRef.current.scrollToY(targetScrollY);
+                          }
+                        }
+                      }}
+                      onMouseEnter={() => {
+                        // Sync hover state with canvas
+                        if (ganttRef.current) {
+                          ganttRef.current.setHoveredTask(task.id);
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        // Clear hover state on canvas
+                        if (ganttRef.current) {
+                          ganttRef.current.setHoveredTask(null);
+                        }
+                      }}
+                      onDoubleClick={() => {
+                        // Open detail drawer on double-click
+                        onTaskDoubleClick?.(task);
                       }}
                     >
-                      {visibleColumns.map(col => (
-                        <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="truncate px-1">
-                          {renderCell(col)}
-                        </div>
-                      ))}
+                      {visibleColumns.map(col => {
+                        // Remove padding from checkbox columns to save space
+                        const isCheckboxCol = ['started', 'hold', 'confirm', 'supplierConfirm', 'complete'].includes(col.id);
+                        return (
+                          <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0, height: 28 }} className={`flex items-center ${isCheckboxCol ? 'justify-center' : 'px-1'}`}>
+                            {renderCell(col)}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
@@ -2829,12 +3715,53 @@ export function GanttCanvasView({
             </div>
         </div>
 
-        {/* Canvas Container */}
+        {/* Canvas Container - The actual Gantt rendering area */}
         <div
           ref={containerRef}
-          className="flex-1 min-h-0 bg-background"
+          className="flex-1 min-h-0 bg-background outline-none"
           style={{ position: "relative" }}
+          tabIndex={0}
+          onMouseEnter={(e) => e.currentTarget.focus()}
         />
+
+        {/* Dependency Creation Popup - shows Start/Finish buttons when dragging over target */}
+        {/* Uses onMouseUp so user can DROP onto buttons while dragging (not click after release) */}
+        {/* stopPropagation prevents canvas from cancelling drag when releasing on popup */}
+        {depPopup.visible && depPopup.targetTask && (
+          <div
+            className="fixed z-50 bg-popover border rounded-lg shadow-lg p-2 flex gap-2"
+            style={{
+              left: depPopup.x,
+              top: depPopup.y,
+              transform: 'translate(-50%, 8px)',
+              pointerEvents: 'auto',
+            }}
+            onMouseUp={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {/* Highlight Start when dragging from left (start), Finish when dragging from right (end) */}
+            <Button
+              size="sm"
+              variant={depPopup.sourceEdge === 'start' ? 'default' : 'outline'}
+              className="h-8 px-4 text-sm font-medium"
+              style={{ pointerEvents: 'auto' }}
+              onMouseUp={() => handleDepPopupClick('start')}
+              onClick={() => handleDepPopupClick('start')}
+            >
+              Start
+            </Button>
+            <Button
+              size="sm"
+              variant={depPopup.sourceEdge === 'end' ? 'default' : 'outline'}
+              className="h-8 px-4 text-sm font-medium"
+              style={{ pointerEvents: 'auto' }}
+              onMouseUp={() => handleDepPopupClick('end')}
+              onClick={() => handleDepPopupClick('end')}
+            >
+              Finish
+            </Button>
+          </div>
+        )}
 
         {/* Photo Panel - Right Side (only when jobId is provided) */}
         {showPhotoPanel && jobId && (
@@ -3033,14 +3960,16 @@ export function GanttCanvasView({
               {/* Predecessor rows */}
               <div className="space-y-2">
                 {depEditorLinks.map((link, index) => {
+                  // SSoT: IDs are now consistent (all row.id strings from dependencies array)
                   const predecessorTask = tasks.find(t => t.id === link.predecessorId);
+                  // Use visual row index (1-based) - what users see in the Gantt
                   const predecessorRowNum = predecessorTask
                     ? tasks.findIndex(t => t.id === link.predecessorId) + 1
                     : '';
 
                   return (
                     <div key={index} className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center">
-                      {/* Row # input */}
+                      {/* Row # input - lookup by visual row index */}
                       <Input
                         type="number"
                         min={1}
@@ -3048,11 +3977,10 @@ export function GanttCanvasView({
                         value={predecessorRowNum}
                         onChange={(e) => {
                           const rowNum = parseInt(e.target.value, 10);
-                          if (rowNum >= 1 && rowNum <= tasks.length) {
-                            const task = tasks[rowNum - 1];
-                            if (task && task.id !== depEditorTask?.id) {
-                              updatePredecessorLink(index, { predecessorId: task.id });
-                            }
+                          // Find task by visual row index (1-based)
+                          const task = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                          if (task && task.id !== depEditorTask?.id) {
+                            updatePredecessorLink(index, { predecessorId: task.id });
                           } else if (!e.target.value) {
                             updatePredecessorLink(index, { predecessorId: '' });
                           }
@@ -3105,7 +4033,7 @@ export function GanttCanvasView({
                   );
                 })}
 
-                {/* Empty row to add new predecessor */}
+                {/* Empty row to add new predecessor - lookup by visual row index */}
                 <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
                   <Input
                     type="number"
@@ -3114,23 +4042,21 @@ export function GanttCanvasView({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
-                        if (rowNum >= 1 && rowNum <= tasks.length) {
-                          const task = tasks[rowNum - 1];
-                          if (task && task.id !== depEditorTask?.id) {
-                            setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                            (e.target as HTMLInputElement).value = '';
-                          }
+                        // Find task by visual row index (1-based)
+                        const task = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                        if (task && task.id !== depEditorTask?.id && !depEditorLinks.some(l => l.predecessorId === task.id)) {
+                          setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                          (e.target as HTMLInputElement).value = '';
                         }
                       }
                     }}
                     onBlur={(e) => {
                       const rowNum = parseInt(e.target.value, 10);
-                      if (rowNum >= 1 && rowNum <= tasks.length) {
-                        const task = tasks[rowNum - 1];
-                        if (task && task.id !== depEditorTask?.id) {
-                          setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                          e.target.value = '';
-                        }
+                      // Find task by visual row index (1-based)
+                      const task = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                      if (task && task.id !== depEditorTask?.id && !depEditorLinks.some(l => l.predecessorId === task.id)) {
+                        setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                        e.target.value = '';
                       }
                     }}
                     className="h-8 text-center"
@@ -3174,14 +4100,16 @@ export function GanttCanvasView({
               {/* Successor rows */}
               <div className="space-y-2">
                 {depEditorSuccessorLinks.map((link, index) => {
+                  // SSoT: IDs are now consistent (all row.id strings from dependencies array)
                   const successorTask = tasks.find(t => t.id === link.predecessorId);
+                  // Use visual row index (1-based) - what users see in the Gantt
                   const successorRowNum = successorTask
                     ? tasks.findIndex(t => t.id === link.predecessorId) + 1
                     : '';
 
                   return (
                     <div key={index} className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center">
-                      {/* Row # input */}
+                      {/* Row # input - lookup by visual row index */}
                       <Input
                         type="number"
                         min={1}
@@ -3189,11 +4117,10 @@ export function GanttCanvasView({
                         value={successorRowNum}
                         onChange={(e) => {
                           const rowNum = parseInt(e.target.value, 10);
-                          if (rowNum >= 1 && rowNum <= tasks.length) {
-                            const task = tasks[rowNum - 1];
-                            if (task && task.id !== depEditorTask?.id) {
-                              updateSuccessorLink(index, { predecessorId: task.id });
-                            }
+                          // Find task by visual row index (1-based)
+                          const task = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                          if (task && task.id !== depEditorTask?.id) {
+                            updateSuccessorLink(index, { predecessorId: task.id });
                           } else if (!e.target.value) {
                             updateSuccessorLink(index, { predecessorId: '' });
                           }
@@ -3246,7 +4173,7 @@ export function GanttCanvasView({
                   );
                 })}
 
-                {/* Empty row to add new successor */}
+                {/* Empty row to add new successor - lookup by visual row index */}
                 <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
                   <Input
                     type="number"
@@ -3255,23 +4182,21 @@ export function GanttCanvasView({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
-                        if (rowNum >= 1 && rowNum <= tasks.length) {
-                          const task = tasks[rowNum - 1];
-                          if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
-                            setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                            (e.target as HTMLInputElement).value = '';
-                          }
+                        // Find task by visual row index (1-based)
+                        const task = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                        if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
+                          setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                          (e.target as HTMLInputElement).value = '';
                         }
                       }
                     }}
                     onBlur={(e) => {
                       const rowNum = parseInt(e.target.value, 10);
-                      if (rowNum >= 1 && rowNum <= tasks.length) {
-                        const task = tasks[rowNum - 1];
-                        if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
-                          setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                          e.target.value = '';
-                        }
+                      // Find task by visual row index (1-based)
+                      const task = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                      if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
+                        setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                        e.target.value = '';
                       }
                     }}
                     className="h-8 text-center"

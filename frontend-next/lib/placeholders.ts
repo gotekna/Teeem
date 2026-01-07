@@ -268,10 +268,40 @@ export const JOB_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Project name",
   },
   {
-    code: "{CertType}",
-    example: "Occupancy",
+    code: "{BA}",
+    example: "BA",
+    longCode: "{BuildingApproval}",
+    longExample: "Building Approval",
     color: "orange",
-    description: "Certificate type",
+    description: "Building Approval certificate",
+  },
+  {
+    code: "{FIA}",
+    example: "FIA",
+    longCode: "{FinalInspectionCertificate}",
+    longExample: "Final Inspection Certificate",
+    color: "orange",
+    description: "Final Inspection Certificate",
+  },
+  {
+    code: "{Occ}",
+    example: "Occ",
+    longCode: "{CertificateOfOccupancy}",
+    longExample: "Certificate of Occupancy",
+    color: "orange",
+    description: "Certificate of Occupancy",
+  },
+  {
+    code: "{FormNumber}",
+    example: "Form 15",
+    color: "orange",
+    description: "Form number based on dwelling type (configurable mapping)",
+  },
+  {
+    code: "{DwellingType}",
+    example: "Class 1A",
+    color: "orange",
+    description: "Dwelling type classification (e.g., Class 1A, Class 2)",
   },
   {
     code: "{Consultant}",
@@ -350,14 +380,8 @@ export const PLAN_PLACEHOLDERS: PlaceholderToken[] = [
 // =============================================================================
 
 export const DOCUMENT_PLACEHOLDERS: PlaceholderToken[] = [
-  {
-    code: "{DocTypeCode}",
-    example: "ASIC",
-    longCode: "{DocTypeName}",
-    longExample: "ASIC Documents",
-    color: "blue",
-    description: "Document type code/name",
-  },
+  // NOTE: {DocTypeCode} and {DocTypeName} are added DYNAMICALLY in the document type editor
+  // based on the current document type being edited. Do NOT add them here to avoid duplicates.
   {
     code: "{Description}",
     example: "Example",

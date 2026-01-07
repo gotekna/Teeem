@@ -3,7 +3,8 @@ class KnownParty < ApplicationRecord
 
   validates :name, presence: true
   validates :email, uniqueness: { allow_blank: true }
-  validates :default_alignment, inclusion: { in: %w[friendly neutral opposing], allow_blank: true }
+  # SSoT: CaseContact::ALIGNMENT_VALUES is the single source of truth for alignment values
+  validates :default_alignment, inclusion: { in: CaseContact::ALIGNMENT_VALUES, allow_blank: true }
 
   scope :by_email, ->(email) { where("LOWER(email) = LOWER(?)", email) if email.present? }
   scope :by_name, ->(name) { where("LOWER(name) = LOWER(?)", name) if name.present? }
@@ -79,7 +80,24 @@ class KnownParty < ApplicationRecord
     updates = {}
     updates[:email] = email if email.present? && contact.email.blank?
     updates[:mobile_phone] = phone if phone.present? && contact.mobile_phone.blank?
-    updates[:company_name_or_trust] = organisation if organisation.present? && contact.company_name_or_trust.blank?
+
+    # SSoT: Link to company via primary_company_id (creates relationship via callback)
+    # Don't just set company_name_or_trust text - that bypasses the relationship system
+    if organisation.present? && contact.primary_company_id.blank? && contact.entity_type == "person"
+      # Try to find the company contact by name
+      company = Contact.where(entity_type: %w[company trust])
+                       .where("LOWER(company_name_or_trust) = LOWER(?) OR LOWER(display_name) = LOWER(?)",
+                              organisation, organisation)
+                       .first
+      if company
+        # Set primary_company_id - callback will create employee_of relationship
+        updates[:primary_company_id] = company.id
+      else
+        # Company doesn't exist yet - store as text for now (legacy fallback)
+        # TODO: Consider creating the company contact automatically
+        updates[:company_name_or_trust] = organisation if contact.company_name_or_trust.blank?
+      end
+    end
 
     contact.update(updates) if updates.present?
   end

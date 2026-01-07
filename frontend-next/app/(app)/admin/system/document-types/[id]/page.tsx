@@ -78,9 +78,12 @@ const FILE_EXTENSION_OPTIONS = [
 // Note: DocType placeholder is added dynamically based on current document type
 const getBasePlaceholders = (scope: string): PlaceholderToken[] => {
   if (scope === "job") {
-    return [...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS];
+    return [...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
+  } else if (scope === "contacts" || scope === "people") {
+    // SSoT: "contacts" is canonical, "people" is legacy
+    return [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
   } else if (scope === "both") {
-    return [...COMPANY_PLACEHOLDERS, ...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS];
+    return [...COMPANY_PLACEHOLDERS, ...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
   }
   // Default: company scope
   return [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
@@ -117,11 +120,15 @@ interface DocumentType {
   documents_count?: number;
   created_at?: string;
   updated_at?: string;
+  supports_versioning?: boolean;
+  form_number_mapping?: Record<string, string>; // Dwelling type -> Form number mapping
+  generates_certificate?: boolean; // Auto-generate certificate on task completion
+  certificate_template?: string; // Template to use (e.g., "form_43")
 }
 
 export default function DocumentTypeDetailPage() {
-  // Use full-height layout mode - container provides h-full
-  useSetLayoutMode("full-height");
+  // Use fullscreen layout mode - hides sidebar for focused editing
+  useSetLayoutMode("fullscreen");
 
   const router = useRouter();
   const params = useParams();
@@ -156,6 +163,7 @@ export default function DocumentTypeDetailPage() {
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
+  const [dwellingTypes, setDwellingTypes] = React.useState<Array<{ value: string; description: string; displayLabel: string }>>([]);
 
   // SSoT: Naming format change confirmation dialog state
   const [renameConfirmDialog, setRenameConfirmDialog] = React.useState<{
@@ -163,6 +171,9 @@ export default function DocumentTypeDetailPage() {
     oldFormat: string;
     newFormat: string;
     affectedCount: number;
+    preview?: Array<{ id: number; current_name: string; proposed_name: string; job_code?: string; company_code?: string }>;
+    showPreview?: boolean;
+    loadingPreview?: boolean;
   } | null>(null);
   const [renaming, setRenaming] = React.useState(false);
 
@@ -285,6 +296,21 @@ export default function DocumentTypeDetailPage() {
       }
     };
     fetchAllDocumentTypes();
+  }, []);
+
+  // Fetch dwelling types from API (SSoT: Jobs foundation column)
+  React.useEffect(() => {
+    const fetchDwellingTypes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: Array<{ value: string; description: string; displayLabel: string }> }>("/api/v1/document_types/dwelling_types");
+        if (response.success && Array.isArray(response.data)) {
+          setDwellingTypes(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dwelling types:", error);
+      }
+    };
+    fetchDwellingTypes();
   }, []);
 
   // Get default file name template based on scope
@@ -535,6 +561,23 @@ export default function DocumentTypeDetailPage() {
       toast({
         title: "Error",
         description: "Name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate: If {FormNumber} is used in templates, require at least one form number mapping
+    const usesFormNumber =
+      documentType.file_name?.includes("{FormNumber}") ||
+      documentType.display_name?.includes("{FormNumber}");
+    const hasFormNumberMappings =
+      documentType.form_number_mapping &&
+      Object.keys(documentType.form_number_mapping).length > 0;
+
+    if (usesFormNumber && !hasFormNumberMappings) {
+      toast({
+        title: "Error",
+        description: "You must add at least one Form Number Mapping when using {FormNumber} in templates",
         variant: "destructive",
       });
       return;
@@ -869,7 +912,13 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{EX\}/g, "EX 15/12/25");
     preview = preview.replace(/\{Expiry\}/g, "Expiry 15 December 2025");
-    preview = preview.replace(/\{CertType\}/g, useFullDescription ? "Certificate of Occupancy" : "Occupancy");
+    // Certificate type placeholders (static text)
+    preview = preview.replace(/\{BA\}/g, "BA");
+    preview = preview.replace(/\{BuildingApproval\}/g, "Building Approval");
+    preview = preview.replace(/\{FIA\}/g, "FIA");
+    preview = preview.replace(/\{FinalInspectionCertificate\}/g, "Final Inspection Certificate");
+    preview = preview.replace(/\{Occ\}/g, "Occ");
+    preview = preview.replace(/\{CertificateOfOccupancy\}/g, "Certificate of Occupancy");
     preview = preview.replace(/\{Consultant\}/g, useFullDescription ? "ABC Engineering" : "ABC Eng");
     preview = preview.replace(/\{Number\}/g, "01");
     preview = preview.replace(/\{Description\}/g, "Example");
@@ -1071,6 +1120,45 @@ export default function DocumentTypeDetailPage() {
     }
   };
 
+  // Fetch preview of documents that will be renamed
+  const handleShowPreview = async () => {
+    if (!documentType?.id || !renameConfirmDialog) return;
+
+    setRenameConfirmDialog(prev => prev ? { ...prev, loadingPreview: true } : null);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          total_affected: number;
+          preview: Array<{ id: number; current_name: string; proposed_name: string; job_code?: string; company_code?: string }>;
+        };
+      }>("/api/v1/document_standardization/preview", {
+        params: {
+          document_type_id: documentType.id,
+          scope: documentType.scope === "job" ? "job" : "corporate",
+          limit: 50,
+        },
+      });
+
+      if (response?.success) {
+        setRenameConfirmDialog(prev => prev ? {
+          ...prev,
+          preview: response.data.preview,
+          showPreview: true,
+          loadingPreview: false,
+        } : null);
+      }
+    } catch (error) {
+      console.error("Failed to load preview:", error);
+      setRenameConfirmDialog(prev => prev ? { ...prev, loadingPreview: false } : null);
+      toast({
+        title: "Preview failed",
+        description: "Failed to load preview. Check console for details.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Add blank text token
   const addBlankText = (field: "file_name" | "display_name") => {
     if (!documentType) return;
@@ -1096,9 +1184,9 @@ export default function DocumentTypeDetailPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col px-6 pt-8">
       {/* Header - Fixed at top */}
-      <div className="flex items-start justify-between p-2 shrink-0">
+      <div className="flex items-start justify-between pb-4 shrink-0">
         <div className="flex items-start gap-4">
           <BackButton fallbackHref="/admin/system/document-types" />
           {/* Previous/Next navigation - filtered by scope (hidden for new) */}
@@ -1177,118 +1265,323 @@ export default function DocumentTypeDetailPage() {
         </div>
       </div>
 
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto space-y-6 p-2">
+      {/* 3-Column Layout - All info visible without collapsing */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-3 gap-4 h-full">
 
-      {/* Basic Info */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
-          onClick={() => setBasicInfoExpanded(!basicInfoExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Basic Information</CardTitle>
-            {basicInfoExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {basicInfoExpanded && (
-          <CardContent className="space-y-4 pt-2">
-          <div className="grid grid-cols-2 gap-4">
+          {/* ========== COLUMN 1: Basic Info ========== */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">Basic Information</h3>
+
             <div className="space-y-2">
-              <Label htmlFor="name">Document Type Name *</Label>
+              <Label htmlFor="name">Name *</Label>
               <Input
                 id="name"
                 value={documentType.name}
                 onChange={(e) => updateField("name", e.target.value)}
                 placeholder="Company Tax Return"
               />
-              <p className="text-xs text-muted-foreground">
-                How this document type appears in dropdowns and lists
-              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="abbreviation">Code / Abbreviation</Label>
-              <Input
-                id="abbreviation"
-                value={documentType.abbreviation || ""}
-                onChange={(e) => updateField("abbreviation", e.target.value.toUpperCase())}
-                placeholder="CTR"
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Short code for quick identification
-              </p>
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={documentType.description || ""}
-              onChange={(e) => updateField("description", e.target.value)}
-              placeholder="Brief description of this document type..."
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="scope">Scope</Label>
-              <Select
-                value={documentType.scope || "company"}
-                onValueChange={(value) => updateField("scope", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="abbreviation">Code</Label>
+                <Input
+                  id="abbreviation"
+                  value={documentType.abbreviation || ""}
+                  onChange={(e) => updateField("abbreviation", e.target.value.toUpperCase())}
+                  placeholder="CTR"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scope">Scope</Label>
+                <Select
+                  value={documentType.scope || "company"}
+                  onValueChange={(value) => updateField("scope", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
                   {SCOPE_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <div>
-                        <div className="font-medium">{opt.label}</div>
-                        <div className="text-xs text-muted-foreground">{opt.description}</div>
-                      </div>
-                    </SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                {SCOPE_OPTIONS.find(o => o.value === documentType.scope)?.description}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={documentType.description || ""}
+                onChange={(e) => updateField("description", e.target.value)}
+                placeholder="Brief description..."
+                rows={2}
+                className="text-sm"
+              />
+            </div>
+
+            {/* Tab View - Primary Tab */}
+            <div className="space-y-2">
+              <Label>Primary Tab</Label>
+              {(() => {
+                const selectedId = documentType.entity_tab_ids?.[0];
+                const findTabName = (items: any[]): string | null => {
+                  for (const item of items) {
+                    if (item.id === selectedId) return item.name;
+                    if (item.children?.length) {
+                      const found = findTabName(item.children);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+                return (
+                  <Select
+                    value={selectedId?.toString() || ""}
+                    onValueChange={(value) => {
+                      const newId = parseInt(value);
+                      const otherIds = (documentType.entity_tab_ids || []).slice(1);
+                      updateField("entity_tab_ids", [newId, ...otherIds]);
+                    }}
+                  >
+                    <SelectTrigger className="text-sm">
+                      <SelectValue placeholder="Select primary tab">
+                        {selectedId ? findTabName(folderHierarchy) || `Tab ${selectedId}` : "Select..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {folderHierarchy.filter(p => p.id).flatMap(parent => [
+                        <SelectItem key={parent.id} value={parent.id!.toString()}>{parent.name}</SelectItem>,
+                        ...(parent.children || []).filter((c: any) => c.id).map((child: any) => (
+                          <SelectItem key={child.id} value={child.id.toString()} className="pl-6">↳ {child.name}</SelectItem>
+                        ))
+                      ])}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
+            </div>
+
+            {/* Secondary Tabs - Show document in multiple tabs */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Also show in (optional)</Label>
+              {(() => {
+                const primaryId = documentType.entity_tab_ids?.[0];
+                const secondaryIds = (documentType.entity_tab_ids || []).slice(1);
+
+                const findTabName = (items: any[], id: number): string | null => {
+                  for (const item of items) {
+                    if (item.id === id) return item.name;
+                    if (item.children?.length) {
+                      const found = findTabName(item.children, id);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+
+                const addSecondaryTab = (tabId: number) => {
+                  if (!secondaryIds.includes(tabId) && tabId !== primaryId) {
+                    updateField("entity_tab_ids", [primaryId, ...secondaryIds, tabId].filter(Boolean));
+                  }
+                };
+
+                const removeSecondaryTab = (tabId: number) => {
+                  updateField("entity_tab_ids", [primaryId, ...secondaryIds.filter(id => id !== tabId)].filter(Boolean));
+                };
+
+                return (
+                  <div className="space-y-2">
+                    {/* Display selected secondary tabs */}
+                    {secondaryIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {secondaryIds.map((tabId) => (
+                          <Badge key={tabId} variant="secondary" className="text-xs">
+                            {findTabName(folderHierarchy, tabId) || `Tab ${tabId}`}
+                            <button onClick={() => removeSecondaryTab(tabId)} className="ml-1 hover:text-destructive">
+                              <X className="h-2 w-2" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    {/* Add secondary tab dropdown */}
+                    <Select
+                      value=""
+                      onValueChange={(value) => addSecondaryTab(parseInt(value))}
+                    >
+                      <SelectTrigger className="text-sm h-8">
+                        <SelectValue placeholder="+ Add tab..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {folderHierarchy.filter(p => p.id).flatMap(parent => {
+                          const items = [];
+                          // Only show if not already selected
+                          if (parent.id !== primaryId && !secondaryIds.includes(parent.id!)) {
+                            items.push(
+                              <SelectItem key={parent.id} value={parent.id!.toString()}>{parent.name}</SelectItem>
+                            );
+                          }
+                          // Add children
+                          (parent.children || []).filter((c: any) => c.id && c.id !== primaryId && !secondaryIds.includes(c.id)).forEach((child: any) => {
+                            items.push(
+                              <SelectItem key={child.id} value={child.id.toString()} className="pl-6">↳ {child.name}</SelectItem>
+                            );
+                          });
+                          return items;
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Document stored once, visible in multiple tabs
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* File Extensions - Compact */}
+            <div className="space-y-2">
+              <Label>File Extensions</Label>
+              <div className="flex flex-wrap gap-1 min-h-[32px] p-2 border rounded-md bg-muted/20">
+                {(documentType.file_extensions || []).length === 0 ? (
+                  <span className="text-xs text-muted-foreground">All allowed</span>
+                ) : (
+                  documentType.file_extensions?.map((ext) => (
+                    <Badge key={ext} variant="secondary" className="font-mono text-xs">
+                      {ext}
+                      <button onClick={() => removeFileExtension(ext)} className="ml-1 hover:text-destructive">
+                        <X className="h-2 w-2" />
+                      </button>
+                    </Badge>
+                  ))
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {[".pdf", ".doc", ".docx", ".xls", ".xlsx"].map(ext => (
+                  <Button
+                    key={ext}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => addFileExtension(ext)}
+                    disabled={(documentType.file_extensions || []).includes(ext)}
+                    className="h-6 px-2 text-xs font-mono"
+                  >
+                    +{ext}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Compliance - Compact */}
+            <div className="space-y-2">
+              <Label>Compliance</Label>
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="requires_filing"
+                    checked={documentType.requires_filing || false}
+                    onCheckedChange={(checked) => updateField("requires_filing", checked)}
+                  />
+                  <Label htmlFor="requires_filing" className="text-xs cursor-pointer">Requires Filing</Label>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="retention" className="text-xs">Retain:</Label>
+                  <Input
+                    id="retention"
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={documentType.retention_years || ""}
+                    onChange={(e) => updateField("retention_years", parseInt(e.target.value) || null)}
+                    placeholder="7"
+                    className="w-14 h-7 text-xs"
+                  />
+                  <span className="text-xs text-muted-foreground">yrs</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Versioning - Draft/Signed Support */}
+            <div className="space-y-2">
+              <Label>Versioning</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="supports_versioning"
+                  checked={documentType.supports_versioning || false}
+                  onCheckedChange={(checked) => updateField("supports_versioning", checked)}
+                />
+                <Label htmlFor="supports_versioning" className="text-xs cursor-pointer">
+                  Supports Draft/Signed versions
+                </Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Enable to track Draft and Signed versions of the same document
               </p>
             </div>
-          </div>
-          </CardContent>
-        )}
-      </Card>
 
-      {/* File Naming */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
-          onClick={() => setNamingOrgExpanded(!namingOrgExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">File Naming</CardTitle>
-            {namingOrgExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
+            {/* Certificate Generation */}
+            <div className="space-y-2">
+              <Label>Certificate Generation</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  id="generates_certificate"
+                  checked={documentType.generates_certificate || false}
+                  onCheckedChange={(checked) => {
+                    updateField("generates_certificate", checked);
+                    // Auto-set default template when enabling
+                    if (checked && !documentType.certificate_template) {
+                      updateField("certificate_template", "form_43");
+                    }
+                  }}
+                />
+                <Label htmlFor="generates_certificate" className="text-xs cursor-pointer">
+                  Auto-generate certificate on task completion
+                </Label>
+              </div>
+              {documentType.generates_certificate && (
+                <div className="mt-2">
+                  <Label className="text-xs text-muted-foreground">Certificate Template</Label>
+                  <Select
+                    value={documentType.certificate_template || "form_43"}
+                    onValueChange={(value) => updateField("certificate_template", value)}
+                  >
+                    <SelectTrigger className="h-7 text-xs mt-1">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="form_43">Form 43 - Aspect Certificate (QBCC Licensee)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground">
+                Auto-generate signed PDF certificate when task completes (uses job supervisor's signature)
+              </p>
+            </div>
+
+            {/* System Info - Compact */}
+            <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
+              <div className="flex justify-between">
+                <span>ID: {documentType.id}</span>
+                <span>{documentType.documents_count || 0} docs</span>
+              </div>
+            </div>
           </div>
-        </CardHeader>
-        {namingOrgExpanded && (
-          <CardContent className="space-y-4 pt-2">
-          <div className="flex gap-4">
-            {/* Left side - File Name and Display Name */}
-            <div className="flex-1 space-y-4">
-              {/* Preview Data - Compact inline bar */}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4 p-2 bg-muted/30 rounded-md border">
-                <span className="font-medium shrink-0">Preview with:</span>
+          {/* End Column 1 */}
+
+          {/* ========== COLUMN 2: File Naming ========== */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">File Naming</h3>
+
+            {/* Preview Data - Compact */}
+            <div className="flex items-center gap-2 text-xs p-2 bg-muted/30 rounded-md border">
+              <span className="font-medium shrink-0">Preview:</span>
                 <Select
                   value={previewCompanyId?.toString() || "default"}
                   onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
@@ -1674,15 +1967,99 @@ export default function DocumentTypeDetailPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               {displayNameSameAsFileName
-                ? "Display Name will automatically match File Name. Uncheck to customize separately."
-                : "Override the document type name for specific display contexts. Drag to reorder, X to remove."}
+                ? "Display Name matches File Name automatically"
+                : "Drag placeholders to customize"}
             </p>
           </div>
-            </div>
-            {/* End left side */}
 
-            {/* Right side - Available Placeholders */}
-            <div className="w-[17rem] shrink-0 self-start sticky top-4">
+          {/* Form Number Mapping - for {FormNumber} placeholder */}
+          <div className="space-y-2 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Form Number Mapping</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => {
+                  const mapping = { ...(documentType.form_number_mapping || {}) };
+                  // Find first unused dwelling type from SSoT
+                  const allTypes = dwellingTypes.map(dt => dt.value);
+                  const unusedType = allTypes.find(t => !mapping[t]) || "default";
+                  mapping[unusedType] = "Form XX";
+                  updateField("form_number_mapping", mapping);
+                }}
+              >
+                + Add
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Map dwelling types to form numbers. Use {"{FormNumber}"} in templates.
+            </p>
+            {Object.keys(documentType.form_number_mapping || {}).length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-2">
+                No mappings configured. Click "+ Add" to add a dwelling type → form number mapping.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {Object.entries(documentType.form_number_mapping || {}).map(([dwellingType, formNumber], idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Select
+                      value={dwellingType}
+                      onValueChange={(newDwellingType) => {
+                        const mapping = { ...(documentType.form_number_mapping || {}) };
+                        const newValue = mapping[dwellingType];
+                        delete mapping[dwellingType];
+                        mapping[newDwellingType] = newValue;
+                        updateField("form_number_mapping", mapping);
+                      }}
+                    >
+                      <SelectTrigger className="h-7 text-xs flex-1">
+                        <SelectValue placeholder="Select dwelling type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dwellingTypes.map((dt) => (
+                          <SelectItem key={dt.value} value={dt.value}>
+                            {dt.displayLabel}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="default">Default (fallback for unmatched)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs text-muted-foreground">→</span>
+                    <Input
+                      value={formNumber}
+                      onChange={(e) => {
+                        const mapping = { ...(documentType.form_number_mapping || {}) };
+                        mapping[dwellingType] = e.target.value;
+                        updateField("form_number_mapping", mapping);
+                      }}
+                      className="h-7 text-xs w-24"
+                      placeholder="Form 15"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        const mapping = { ...(documentType.form_number_mapping || {}) };
+                        delete mapping[dwellingType];
+                        updateField("form_number_mapping", mapping);
+                      }}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          </div>
+          {/* End Column 2 */}
+
+          {/* ========== COLUMN 3: Placeholders ========== */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground border-b pb-2">Placeholders</h3>
+            <div className="sticky top-0">
               <div className="space-y-1.5 p-2 bg-muted/30 rounded-lg border max-h-[600px] overflow-y-auto">
                 <div className="flex items-center gap-2 mb-1">
                   <Label className="text-[10px] font-semibold text-muted-foreground shrink-0">
@@ -1806,359 +2183,10 @@ export default function DocumentTypeDetailPage() {
               </div>
             </div>
           </div>
-        </CardContent>
-        )}
-      </Card>
+          {/* End Column 3 */}
 
-      {/* Tab View */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
-          onClick={() => setFilingOrgExpanded(!filingOrgExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Tab View</CardTitle>
-            {filingOrgExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {filingOrgExpanded && (
-          <CardContent className="space-y-4 pt-2">
-            {/* Primary Tab */}
-            <div className="space-y-2">
-              <Label>Primary Tab</Label>
-              {/* Show full parent path if selected tab has parents */}
-              {(() => {
-                const selectedId = documentType.entity_tab_ids?.[0];
-                if (!selectedId) return null;
-
-                // Recursively find the path to the selected tab
-                const findPath = (items: any[], path: string[] = []): string[] | null => {
-                  for (const item of items) {
-                    const currentPath = item.name ? [...path, item.name] : path;
-                    if (item.id === selectedId) {
-                      // Found it - return path WITHOUT the selected item itself
-                      return path.length > 0 ? path : null;
-                    }
-                    if (item.children?.length) {
-                      const found = findPath(item.children, currentPath);
-                      if (found) return found;
-                    }
-                  }
-                  return null;
-                };
-
-                const parentPath = findPath(folderHierarchy);
-                if (!parentPath || parentPath.length === 0) return null;
-
-                return (
-                  <p className="text-sm text-muted-foreground font-medium">
-                    {parentPath.join(" / ")}
-                  </p>
-                );
-              })()}
-              <Select
-                value={(documentType.entity_tab_ids?.[0] || "").toString()}
-                onValueChange={(value) => {
-                  const newId = parseInt(value);
-                  const currentIds = documentType.entity_tab_ids || [];
-                  updateField("entity_tab_ids", [newId, ...currentIds.slice(1)]);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tab..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {(() => {
-                    // Render all levels of hierarchy recursively with proper indentation
-                    const renderItems = (items: any[], depth: number = 0): React.ReactNode[] => {
-                      const result: React.ReactNode[] = [];
-                      for (const item of items) {
-                        // Create proper indentation: spaces + └ for children
-                        const spaces = "\u00A0\u00A0\u00A0\u00A0".repeat(depth); // 4 non-breaking spaces per level
-                        const prefix = depth === 0 ? "" : `${spaces}└ `;
-
-                        if (item.id) {
-                          // Selectable item
-                          result.push(
-                            <SelectItem key={item.id} value={item.id.toString()}>
-                              {prefix}{item.name}
-                            </SelectItem>
-                          );
-                        } else if (item.name) {
-                          // Non-selectable header (e.g., "Xero" wrapper)
-                          result.push(
-                            <div key={item.tab_key || item.name} className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                              {prefix}{item.name}
-                            </div>
-                          );
-                        }
-
-                        if (item.children?.length) {
-                          result.push(...renderItems(item.children, depth + 1));
-                        }
-                      }
-                      return result;
-                    };
-                    return renderItems(folderHierarchy);
-                  })()}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Also Display On - multi-select for view-only display on other tabs */}
-            <div className="space-y-2">
-              <Label>Also Display On</Label>
-              <p className="text-xs text-muted-foreground mb-1">View-only: show in additional tabs</p>
-              <MultipleSelector
-                placeholder="Select additional tabs..."
-                options={(() => {
-                  const opts: Array<{ value: string; label: string }> = [];
-                  const primaryId = documentType.entity_tab_ids?.[0];
-
-                  // Recursively collect all tabs at all depths with proper indentation
-                  const collectTabs = (items: any[], depth: number = 0) => {
-                    for (const item of items) {
-                      if (item.id && item.id !== primaryId) {
-                        // Create proper indentation: spaces + └ for children
-                        const spaces = "\u00A0\u00A0\u00A0\u00A0".repeat(depth); // 4 non-breaking spaces per level
-                        const prefix = depth === 0 ? "" : `${spaces}└ `;
-                        opts.push({ value: item.id.toString(), label: `${prefix}${item.name}` });
-                      }
-                      if (item.children?.length) {
-                        collectTabs(item.children, depth + 1);
-                      }
-                    }
-                  };
-                  collectTabs(folderHierarchy);
-                  return opts;
-                })()}
-                value={(documentType.entity_tab_ids || []).slice(1).map(tabId => {
-                  // Recursive search to find tab name at any depth
-                  const findTabName = (items: any[]): string | null => {
-                    for (const item of items) {
-                      if (item.id === tabId) return item.name;
-                      if (item.children?.length) {
-                        const found = findTabName(item.children);
-                        if (found) return found;
-                      }
-                    }
-                    return null;
-                  };
-                  const label = findTabName(folderHierarchy) || `Tab ${tabId}`;
-                  return { value: tabId.toString(), label };
-                })}
-                onChange={(options) => {
-                  const primaryId = documentType.entity_tab_ids?.[0];
-                  const additionalIds = options.map(o => parseInt(o.value));
-                  updateField("entity_tab_ids", primaryId ? [primaryId, ...additionalIds] : additionalIds);
-                }}
-              />
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* File Extensions */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => setFileExtensionsExpanded(!fileExtensionsExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle>Allowed File Extensions</CardTitle>
-            {fileExtensionsExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {fileExtensionsExpanded && (
-          <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Current Extensions</Label>
-            <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border rounded-md">
-              {(documentType.file_extensions || []).length === 0 ? (
-                <span className="text-sm text-muted-foreground">No extensions specified (all allowed)</span>
-              ) : (
-                documentType.file_extensions?.map((ext) => (
-                  <Badge key={ext} variant="secondary" className="font-mono">
-                    {ext}
-                    <button
-                      onClick={() => removeFileExtension(ext)}
-                      className="ml-2 hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Add Extensions</Label>
-            <div className="flex flex-wrap gap-2">
-              {FILE_EXTENSION_OPTIONS.map(ext => (
-                <Button
-                  key={ext}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addFileExtension(ext)}
-                  disabled={(documentType.file_extensions || []).includes(ext)}
-                  className="font-mono text-xs"
-                >
-                  {ext}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="custom-extension">Or Add Custom Extension</Label>
-            <div className="flex gap-2">
-              <Input
-                id="custom-extension"
-                value={newExtension}
-                onChange={(e) => setNewExtension(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addFileExtension(newExtension);
-                  }
-                }}
-                placeholder=".pdf or pdf"
-                className="font-mono text-sm"
-              />
-              <Button
-                type="button"
-                onClick={() => addFileExtension(newExtension)}
-                disabled={!newExtension.trim()}
-              >
-                Add
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Press Enter or click Add. Dot prefix optional.
-            </p>
-          </div>
-        </CardContent>
-        )}
-      </Card>
-
-      {/* Compliance */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => setComplianceExpanded(!complianceExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle>Compliance & Retention</CardTitle>
-            {complianceExpanded ? (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-        </CardHeader>
-        {complianceExpanded && (
-          <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="space-y-1">
-              <Label htmlFor="requires_filing" className="text-base font-medium">
-                Requires Filing with Authorities
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                Must be submitted to ASIC, ATO, or other regulatory bodies
-              </p>
-            </div>
-            <Switch
-              id="requires_filing"
-              checked={documentType.requires_filing || false}
-              onCheckedChange={(checked) => updateField("requires_filing", checked)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="retention_years">Retention Period (Years)</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                id="retention_years"
-                type="number"
-                min="0"
-                max="99"
-                value={documentType.retention_years || ""}
-                onChange={(e) => updateField("retention_years", parseInt(e.target.value) || null)}
-                placeholder="7"
-                className="w-32"
-              />
-              <span className="text-sm text-muted-foreground">
-                years (leave empty for indefinite)
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              How long to keep before archiving/deleting. Common: 7 years for tax, 5 for general records.
-            </p>
-          </div>
-        </CardContent>
-        )}
-      </Card>
-
-      {/* Metadata */}
-      <Card className="bg-muted/30">
-        <CardHeader>
-          <CardTitle className="text-base">System Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="font-medium text-muted-foreground">Document Type ID:</span>
-              <span className="ml-2 font-mono">{documentType.id}</span>
-            </div>
-            <div>
-              <span className="font-medium text-muted-foreground">Documents Count:</span>
-              <span className="ml-2">{documentType.documents_count || 0}</span>
-            </div>
-            <div>
-              <span className="font-medium text-muted-foreground">Created:</span>
-              <span className="ml-2">
-                {documentType.created_at ? new Date(documentType.created_at).toLocaleString() : "—"}
-              </span>
-            </div>
-            <div>
-              <span className="font-medium text-muted-foreground">Last Updated:</span>
-              <span className="ml-2">
-                {documentType.updated_at ? new Date(documentType.updated_at).toLocaleString() : "—"}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Save reminder at bottom */}
-      <div className="flex justify-end gap-2 pb-8">
-        <Button variant="outline" onClick={() => router.push("/admin/system/document-types")}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={saving} size="lg">
-          {saving ? (
-            <>
-              <Spinner size={16} className="mr-2" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save All Changes
-            </>
-          )}
-        </Button>
-      </div>
+        </div>
+        {/* End 3-column grid */}
       </div>
       {/* End scroll area */}
 
@@ -2167,38 +2195,74 @@ export default function DocumentTypeDetailPage() {
         open={renameConfirmDialog?.open || false}
         onOpenChange={(open) => !open && setRenameConfirmDialog(null)}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={cn("sm:max-w-md", renameConfirmDialog?.showPreview && "sm:max-w-2xl")}>
           <DialogHeader>
             <DialogTitle>Rename Existing Documents?</DialogTitle>
-            <DialogDescription className="space-y-3 pt-2">
-              <p>
-                The file naming format has been changed. There are{" "}
-                <span className="font-semibold text-foreground">
-                  {renameConfirmDialog?.affectedCount || 0}
-                </span>{" "}
-                existing documents that don&apos;t match the new format.
-              </p>
-              {renameConfirmDialog?.oldFormat && (
-                <div className="text-xs space-y-1">
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">Old:</span>
-                    <code className="font-mono bg-muted px-1 rounded">
-                      {renameConfirmDialog.oldFormat}
-                    </code>
+            <DialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3 pt-2">
+                <p>
+                  The file naming format has been changed. There are{" "}
+                  <span className="font-semibold text-foreground">
+                    {renameConfirmDialog?.affectedCount || 0}
+                  </span>{" "}
+                  existing documents that don&apos;t match the new format.
+                </p>
+                {renameConfirmDialog?.oldFormat && (
+                  <div className="text-xs space-y-1">
+                    <div className="flex gap-2">
+                      <span className="text-muted-foreground">Old:</span>
+                      <code className="font-mono bg-muted px-1 rounded">
+                        {renameConfirmDialog.oldFormat}
+                      </code>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-muted-foreground">New:</span>
+                      <code className="font-mono bg-muted px-1 rounded">
+                        {renameConfirmDialog?.newFormat}
+                      </code>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">New:</span>
-                    <code className="font-mono bg-muted px-1 rounded">
-                      {renameConfirmDialog?.newFormat}
-                    </code>
-                  </div>
-                </div>
-              )}
-              <p className="text-sm">
-                Would you like to rename them in SharePoint to match the new naming convention?
-              </p>
+                )}
+                <p className="text-sm">
+                  Would you like to rename them in SharePoint to match the new naming convention?
+                </p>
+              </div>
             </DialogDescription>
           </DialogHeader>
+
+          {/* Preview list */}
+          {renameConfirmDialog?.showPreview && renameConfirmDialog.preview && (
+            <div className="max-h-64 overflow-y-auto border rounded-md">
+              <table className="w-full text-xs">
+                <thead className="bg-muted sticky top-0">
+                  <tr>
+                    <th className="text-left p-2 font-medium">Current Name</th>
+                    <th className="text-left p-2 font-medium">→</th>
+                    <th className="text-left p-2 font-medium">New Name</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {renameConfirmDialog.preview.map((doc) => (
+                    <tr key={doc.id} className="border-t">
+                      <td className="p-2 font-mono text-muted-foreground truncate max-w-[200px]" title={doc.current_name}>
+                        {doc.current_name}
+                      </td>
+                      <td className="p-2 text-muted-foreground">→</td>
+                      <td className="p-2 font-mono text-green-600 dark:text-green-400 truncate max-w-[200px]" title={doc.proposed_name}>
+                        {doc.proposed_name}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {(renameConfirmDialog.affectedCount || 0) > 50 && (
+                <div className="p-2 text-xs text-muted-foreground text-center border-t bg-muted/50">
+                  Showing 50 of {renameConfirmDialog.affectedCount} documents
+                </div>
+              )}
+            </div>
+          )}
+
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
@@ -2207,6 +2271,22 @@ export default function DocumentTypeDetailPage() {
             >
               Skip for Now
             </Button>
+            {!renameConfirmDialog?.showPreview && (
+              <Button
+                variant="outline"
+                onClick={handleShowPreview}
+                disabled={renaming || renameConfirmDialog?.loadingPreview}
+              >
+                {renameConfirmDialog?.loadingPreview ? (
+                  <>
+                    <Spinner size={16} className="mr-2" />
+                    Loading...
+                  </>
+                ) : (
+                  "Show"
+                )}
+              </Button>
+            )}
             <Button
               variant="default"
               onClick={handleBatchRename}

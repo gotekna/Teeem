@@ -1,8 +1,34 @@
 # frozen_string_literal: true
 
+# LEGACY: This migration task was for the initial migration from old ScheduleTemplate
+# to SmScheduleMasterTemplate. It references deprecated models (SmScheduleMasterTemplateRow)
+# and deprecated fields (documentation_category_ids).
+#
+# Current system uses:
+# - SmScheduleMasterTemplate: Template definitions
+# - SmScheduleMaster: Task definitions (replaced SmScheduleMasterTemplateRow)
+# - DocumentType + SmScheduleMasterDocumentType: Document type linking
+
 namespace :sm do
-  desc "Migrate ScheduleTemplate data to SmScheduleMasterTemplate (SSoT consolidation)"
+  desc "LEGACY: Migrate ScheduleTemplate data to SmScheduleMasterTemplate (SSoT consolidation)"
   task migrate_templates: :environment do
+    puts "=" * 60
+    puts "LEGACY MIGRATION TASK"
+    puts "=" * 60
+    puts ""
+    puts "This is a one-time migration task that has already been run."
+    puts "It references deprecated models and fields."
+    puts ""
+    puts "Current system uses:"
+    puts "  - SmScheduleMasterTemplate: Template definitions"
+    puts "  - SmScheduleMaster: Task definitions (rows)"
+    puts "  - DocumentType + SmScheduleMasterDocumentType: Document type linking"
+    puts ""
+    puts "Exiting. No action taken."
+  end
+
+  desc "ORIGINAL: Migrate ScheduleTemplate data to SmScheduleMasterTemplate"
+  task migrate_templates_original: :environment do
     puts "=" * 60
     puts "SM Template Migration"
     puts "=" * 60

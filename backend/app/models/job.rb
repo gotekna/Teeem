@@ -110,7 +110,8 @@ class Job < ApplicationRecord
 
   # Validations
   validates :name, presence: true
-  validates :site_supervisor_name, presence: true, unless: -> { imported_from_xero? || enquiry_status? }
+  # SSoT: Supervisor is now stored via job_contacts (role: "supervisor"), not site_supervisor_name column
+  # The column is kept for legacy compatibility but validation removed
   validates :suburb, presence: true, if: :has_address_components?
   validates :state, presence: true, if: :has_address_components?
   validates :postcode, length: { is: 4 }, allow_blank: true, if: -> { postcode.present? }
@@ -121,11 +122,21 @@ class Job < ApplicationRecord
 
   # Check if job is in Enquiry status (relaxed validations for leads/proposals)
   def enquiry_status?
-    return job_status.name == "Enquiry" if job_status.present?
-    return false if job_status_id.blank?
+    # If association is loaded, use it directly
+    if job_status.present?
+      return job_status.name == "Enquiry"
+    end
 
     # During creation, association may not be loaded yet - look up by ID
-    JobStatus.find_by(id: job_status_id)&.name == "Enquiry"
+    if job_status_id.blank?
+      Rails.logger.info "[Job#enquiry_status?] job_status_id is blank, returning false"
+      return false
+    end
+
+    status = JobStatus.find_by(id: job_status_id)
+    is_enquiry = status&.name == "Enquiry"
+    Rails.logger.info "[Job#enquiry_status?] job_status_id=#{job_status_id}, status_name=#{status&.name}, is_enquiry=#{is_enquiry}"
+    is_enquiry
   end
 
   # Callbacks
@@ -133,12 +144,11 @@ class Job < ApplicationRecord
   before_validation :auto_generate_name, if: :should_generate_name?
   before_validation :ensure_name_present
   before_validation :auto_generate_council, if: :should_generate_council?
-  after_create :create_documentation_tabs_from_categories
-  after_create :queue_onedrive_folder_creation
   after_create :log_job_created
   after_create :create_claim_stages_from_template
   after_create :apply_schedule_template_from_job_type
   after_commit :sync_xero_tracking_option, on: :create
+  after_commit :scan_warehouse_for_matching_emails, on: :create
   before_update :track_status_and_stage_changes
   after_update :log_status_and_stage_changes
   # Performance: Maintain JobAddressSearch for fast email matching
@@ -210,12 +220,33 @@ class Job < ApplicationRecord
     calculate_profit_percentage
   end
 
+  # Get the supervisor User record (for certificate signing)
+  # Returns the User associated with the job contact with role "supervisor"
+  def supervisor_user
+    job_contacts.find_by(role: "supervisor")&.user
+  end
+
   # Site supervisor info for prepopulating POs
+  # SSoT: Derives from job_contacts with role "supervisor", falls back to legacy columns
   def site_supervisor_info
-    {
-      name: site_supervisor_name,
-      phone: site_supervisor_phone
-    }
+    supervisor_contact = job_contacts.find_by(role: "supervisor")
+    if supervisor_contact&.user.present?
+      user = supervisor_contact.user
+      {
+        name: user.name,
+        email: user.email,
+        phone: user.mobile_phone,
+        display_name: user.name
+      }
+    else
+      # Legacy fallback for old jobs that have data in columns
+      {
+        name: site_supervisor_name,
+        email: nil,
+        phone: site_supervisor_phone,
+        display_name: site_supervisor_name
+      }
+    end
   end
 
   # Check if SharePoint folders have not been requested yet
@@ -706,5 +737,13 @@ class Job < ApplicationRecord
     job_address_searches.destroy_all if JobAddressSearch.table_exists?
   rescue StandardError => e
     Rails.logger.error "Failed to clear address search terms for job ##{id}: #{e.message}"
+  end
+
+  # Email Matching: Scan warehouse for unassigned emails that match this job
+  # Called after job is created to link existing emails
+  def scan_warehouse_for_matching_emails
+    EmailJobMatcherJob.perform_later(id, trigger: :job_created)
+  rescue StandardError => e
+    Rails.logger.error "Failed to queue email scan for job ##{id}: #{e.message}"
   end
 end

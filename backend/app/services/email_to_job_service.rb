@@ -138,18 +138,19 @@ class EmailToJobService
     end
 
     # Create job
+    # SSoT: Supervisor is stored via job_contacts (role: "supervisor"), not legacy columns
     job = Job.create!(
       title: user_edits["job_title"] || job_data["job_title"] || "Job from #{@email.from_email}",
       job_type_id: job_type_id,
       job_status_id: job_status_id,
       job_stage_id: job_stage_id,
-      site_supervisor_name: @user.name,
-      site_supervisor_email: @user.email,
-      site_supervisor_phone: @user.mobile_phone,
       # SSoT: Use contract_price as THE ONE
       contract_price: user_edits["contract_value"] || job_data["contract_value"]&.to_f,
       **location_data
     )
+
+    # SSoT: Create supervisor as job_contact instead of legacy columns
+    job.job_contacts.create!(user: @user, role: "supervisor")
 
     # Link customer to job
     # If they're a sales agent, link as external_sales instead of client
@@ -249,12 +250,13 @@ class EmailToJobService
     rescue JSON::ParserError => e
       # AI returned invalid JSON - create low confidence response
       Rails.logger.error "Claude returned invalid JSON: #{e.message}"
+
+      # Try to extract customer from subject (e.g., "Quote for Bronwyn Jarvis")
+      customer_data = extract_customer_from_subject_fallback
+
       data = {
         "job_title" => @email.subject,
-        "customer" => {
-          "name" => @email.from_name || extract_name_from_email(@email.from_email),
-          "email" => @email.from_email
-        },
+        "customer" => customer_data,
         "confidence_score" => 0.1,
         "error" => "AI returned invalid response",
         "missing_info" => [ "all fields - AI extraction failed" ],
@@ -263,6 +265,37 @@ class EmailToJobService
       add_sales_people_info(data)
       data
     end
+  end
+
+  # When AI fails, try to extract customer name from email subject
+  # Don't use internal senders as customers
+  def extract_customer_from_subject_fallback
+    internal_domains = %w[@tekna.com.au @teeem.au @teeem.com]
+    sender_is_internal = internal_domains.any? { |d| @email.from_email&.downcase&.include?(d) }
+
+    # Try to extract name from subject patterns like "Quote for [Name]" or "... for [Name]"
+    subject = @email.subject || ""
+
+    # Pattern: "for [Name]" at end of subject
+    if subject =~ /\bfor\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*(?:\[.*\])?\s*$/i
+      return { "name" => $1.strip, "email" => nil }
+    end
+
+    # Pattern: "[Name] - Quote" or "[Name] Quote Request"
+    if subject =~ /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*[-:]/
+      return { "name" => $1.strip, "email" => nil }
+    end
+
+    # If sender is internal, don't use them as customer - leave blank
+    if sender_is_internal
+      return { "name" => nil, "email" => nil }
+    end
+
+    # Last resort: use sender (only if external)
+    {
+      "name" => @email.from_name || extract_name_from_email(@email.from_email),
+      "email" => @email.from_email
+    }
   end
 
   def build_extraction_prompt
@@ -385,27 +418,96 @@ class EmailToJobService
     json_match = response_text.match(/\{.*\}/m)
 
     if json_match
-      JSON.parse(json_match[0])
+      json_text = json_match[0]
+
+      # FRC: Claude sometimes includes unescaped newlines/control chars inside string values
+      # This causes JSON.parse to fail with "invalid ASCII control character in string"
+      # Fix by replacing control characters (except \n which we'll handle) with spaces
+      # within string values only
+      sanitized = sanitize_json_control_chars(json_text)
+
+      JSON.parse(sanitized)
     else
       # No JSON found
       raise JSON::ParserError, "No JSON object found in response"
     end
   end
 
+  # Sanitize control characters in JSON strings that break JSON.parse
+  # Replaces unescaped control characters (tabs, newlines inside strings) with proper escapes
+  def sanitize_json_control_chars(json_text)
+    # Replace literal tabs with escaped tabs
+    result = json_text.gsub(/\t/, '\\t')
+
+    # The main issue: newlines inside string values need to be escaped
+    # We need to find strings and escape their internal newlines
+    # Strategy: Replace actual newlines with escaped \n when inside a JSON string
+
+    # Track if we're inside a string
+    in_string = false
+    escaped = false
+    output = ""
+
+    result.each_char do |char|
+      if escaped
+        # Previous char was backslash, this char is escaped
+        output += char
+        escaped = false
+      elsif char == '\\'
+        output += char
+        escaped = true
+      elsif char == '"'
+        in_string = !in_string
+        output += char
+      elsif in_string && char == "\n"
+        # Unescaped newline inside string - escape it
+        output += "\\n"
+      elsif in_string && char == "\r"
+        # Unescaped carriage return - escape it
+        output += "\\r"
+      elsif in_string && char.ord < 32 && char != "\n" && char != "\r"
+        # Other control characters - replace with space
+        output += " "
+      else
+        output += char
+      end
+    end
+
+    output
+  end
+
   def find_or_create_customer(customer_data)
     return nil unless customer_data.is_a?(Hash)
 
     email = customer_data["email"]
+    name = customer_data["name"]
+
+    # Priority 1: Find by email (exact match)
+    if email.present?
+      contact = Contact.find_by("LOWER(email) = ?", email.downcase)
+      return contact if contact
+    end
+
+    # Priority 2: Find by name (fuzzy match) - IMPORTANT for matching existing clients
+    if name.present?
+      # Try exact name match first
+      contact = Contact.find_by("LOWER(display_name) = ?", name.downcase)
+      return contact if contact
+
+      # Try partial name match (e.g., "Bronwyn Jarvis" matches "Bronwyn Jarvis - BMD")
+      contact = Contact.where("LOWER(display_name) LIKE ?", "%#{name.downcase}%").first
+      if contact
+        Rails.logger.info "[EmailToJobService] Found existing contact by name match: #{contact.display_name}"
+        return contact
+      end
+    end
+
+    # No existing contact found - create new one if we have email
     return nil unless email.present?
 
-    # Try to find existing contact by email
-    contact = Contact.find_by(email: email)
-    return contact if contact
-
-    # Create new contact
     Contact.create!(
       email: email,
-      display_name: customer_data["name"],
+      display_name: name,
       mobile_phone: normalize_phone(customer_data["phone"]),
       company_name_or_trust: customer_data["company"],
       entity_type: customer_data["entity_type"] || "person",
@@ -414,7 +516,7 @@ class EmailToJobService
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create customer: #{e.message}"
     # Try to find by email again in case of race condition
-    Contact.find_by(email: email)
+    Contact.find_by(email: email) if email.present?
   end
 
   def normalize_phone(phone)
@@ -585,6 +687,39 @@ class EmailToJobService
 
   # Add sales people detection to extracted data
   def add_sales_people_info(extracted_data)
+    # Customer: Check if AI-extracted customer already exists in contacts
+    customer_data = extracted_data["customer"]
+    if customer_data.is_a?(Hash)
+      customer_email = customer_data["email"]
+      customer_name = customer_data["name"]
+      customer_contact = nil
+
+      # Try to find existing contact by email first
+      if customer_email.present?
+        customer_contact = Contact.find_by("LOWER(email) = ?", customer_email.downcase)
+      end
+
+      # If no email match, try searching by name
+      if customer_contact.nil? && customer_name.present?
+        # Exact match first
+        customer_contact = Contact.find_by("LOWER(display_name) = ?", customer_name.downcase)
+
+        # Fuzzy match if no exact match
+        if customer_contact.nil?
+          customer_contact = Contact.where("LOWER(display_name) LIKE ?", "%#{customer_name.downcase}%").first
+        end
+      end
+
+      # Add matching info to customer data
+      extracted_data["customer"]["contact_exists"] = customer_contact.present?
+      extracted_data["customer"]["contact_id"] = customer_contact&.id
+      extracted_data["customer"]["needs_contact_creation"] = customer_contact.nil?
+
+      if customer_contact
+        Rails.logger.info "[EmailToJobService] Found existing customer: #{customer_contact.display_name} (ID: #{customer_contact.id})"
+      end
+    end
+
     # Internal sales: The user who synced/forwarded the email (Jake, Robert, etc.)
     internal_sales_user = @user
     internal_sales_contact = Contact.find_by(email: internal_sales_user.email)

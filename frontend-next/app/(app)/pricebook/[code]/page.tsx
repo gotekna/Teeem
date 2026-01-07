@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -591,10 +592,36 @@ export default function PriceBookItemDetailPage() {
     return colorClasses[color] || colorClasses.gray;
   };
 
+  // SSoT: Show skeleton layout during loading to prevent flash/CLS
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Spinner />
+      <div className="min-h-screen p-6 space-y-6">
+        {/* Header skeleton */}
+        <div className="flex items-center gap-4">
+          <BackButton fallbackHref="/pricebook" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </div>
+        {/* Content skeleton */}
+        <div className="grid grid-cols-3 gap-6">
+          <Card className="col-span-2">
+            <CardHeader><Skeleton className="h-5 w-24" /></CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-2/3" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><Skeleton className="h-5 w-20" /></CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-4 w-32" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

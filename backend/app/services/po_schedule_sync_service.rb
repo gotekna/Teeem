@@ -91,7 +91,8 @@ class PoScheduleSyncService
     return [] unless purchase_order.sm_task_id.present?
     task = purchase_order.sm_task
     return [] unless task
-    [task.tap { |t| t.association(:predecessors).load; t.association(:supplier).load rescue nil }]
+    # SSoT: predecessors is now a method (not association) using predecessor_ids jsonb
+    [task.tap { |t| t.association(:supplier).load rescue nil }]
   end
 
   # Current PO state for comparison

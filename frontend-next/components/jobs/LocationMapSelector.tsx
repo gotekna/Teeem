@@ -29,6 +29,7 @@ const Marker = dynamic(
 interface LocationMapSelectorProps {
   latitude?: number | null;
   longitude?: number | null;
+  initialSearchAddress?: string;
   onLocationChange?: (data: {
     location?: string;
     latitude?: number;
@@ -62,14 +63,17 @@ interface AddressSuggestion {
 export function LocationMapSelector({
   latitude,
   longitude,
+  initialSearchAddress,
   onLocationChange,
 }: LocationMapSelectorProps) {
   const [mapPosition, setMapPosition] = useState<[number, number]>([-27.4698, 153.0251]); // Brisbane default
-  const [searchAddress, setSearchAddress] = useState("");
+  const [searchAddress, setSearchAddress] = useState(initialSearchAddress || "");
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
+  const shouldAutoSelectRef = useRef(!!initialSearchAddress);
+  const skipNextSearchRef = useRef(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize leaflet icon fix on client side only
@@ -118,6 +122,12 @@ export function LocationMapSelector({
   }, [searchAddress]);
 
   const searchForAddress = async (query: string) => {
+    // Skip search if we just selected an address (prevents re-triggering dropdown)
+    if (skipNextSearchRef.current) {
+      skipNextSearchRef.current = false;
+      return;
+    }
+
     setSearching(true);
     try {
       const data = await api.get<{ suggestions: AddressSuggestion[] }>(
@@ -125,8 +135,15 @@ export function LocationMapSelector({
       );
       const suggestions = data?.suggestions || [];
 
-      setAddressSuggestions(suggestions);
-      setShowSuggestions(suggestions.length > 0);
+      // If shouldAutoSelect is true (initial load from proposal), auto-select first result
+      if (shouldAutoSelectRef.current && suggestions.length > 0) {
+        shouldAutoSelectRef.current = false;
+        skipNextSearchRef.current = true; // Skip the search that will be triggered by setSearchAddress
+        handleAddressSelect(suggestions[0]);
+      } else {
+        setAddressSuggestions(suggestions);
+        setShowSuggestions(suggestions.length > 0);
+      }
     } catch (err) {
       console.error("Address search failed:", err);
       setAddressSuggestions([]);
@@ -142,8 +159,10 @@ export function LocationMapSelector({
     const addr = suggestion.address || {};
 
     setMapPosition(newPosition);
+    skipNextSearchRef.current = true; // Skip re-search when address changes
     setSearchAddress(suggestion.placeName);
     setShowSuggestions(false);
+    setAddressSuggestions([]); // Clear suggestions
 
     // Notify parent component with all address components
     if (onLocationChange) {
@@ -216,6 +235,7 @@ export function LocationMapSelector({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <Marker position={mapPosition} />
+          <MapRecenter position={mapPosition} />
           <MapClickHandler
             onMapClick={(pos) => {
               setMapPosition(pos);
@@ -246,6 +266,26 @@ export function LocationMapSelector({
       )}
     </div>
   );
+}
+
+// Component to recenter map when position changes
+function MapRecenter({ position }: { position: [number, number] }) {
+  const MapRecenterInner = dynamic(
+    () =>
+      Promise.all([import("react-leaflet"), import("react")]).then(([mod, React]) => {
+        const { useMap } = mod;
+        return function Recenter({ pos }: { pos: [number, number] }) {
+          const map = useMap();
+          React.useEffect(() => {
+            map.setView(pos, map.getZoom());
+          }, [map, pos]);
+          return null;
+        };
+      }),
+    { ssr: false }
+  );
+
+  return <MapRecenterInner pos={position} />;
 }
 
 // Component to handle map clicks

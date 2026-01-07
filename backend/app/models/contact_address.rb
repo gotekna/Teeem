@@ -3,6 +3,8 @@ class ContactAddress < ApplicationRecord
 
   ADDRESS_TYPES = %w[STREET POBOX DELIVERY].freeze
 
+  # Explicit presence validation (also enforced by belongs_to in Rails 5+)
+  validates :contact_id, presence: true
   validates :address_type, inclusion: { in: ADDRESS_TYPES }, allow_nil: true
 
   # If this is set as primary, unset all other primary addresses for this contact

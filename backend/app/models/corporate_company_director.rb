@@ -27,6 +27,10 @@ class CorporateCompanyDirector < ApplicationRecord
   after_update :create_resignation_activity, if: :saved_change_to_resignation_date?
   after_update :update_ssot_director_membership, if: :saved_change_to_is_current?
 
+  # SSoT: Update contact's cached director flag when directorship changes
+  after_commit :refresh_contact_director_flag, on: [:create, :destroy]
+  after_commit :refresh_contact_director_flag, on: :update, if: :saved_change_to_is_current?
+
   # Instance methods
   def active_duration
     start_date = appointment_date || created_at.to_date
@@ -142,5 +146,13 @@ class CorporateCompanyDirector < ApplicationRecord
     Rails.logger.error("CorporateCompanyDirector##{id}: SSoT contact relationship sync failed - #{e.message}")
   ensure
     Thread.current[:syncing_director_relationship] = false
+  end
+
+  # SSoT: Refresh contact's is_director_cached flag
+  def refresh_contact_director_flag
+    return unless contact_id.present?
+    contact&.refresh_director_flag!
+  rescue StandardError => e
+    Rails.logger.error("CorporateCompanyDirector##{id}: Failed to refresh contact director flag - #{e.message}")
   end
 end

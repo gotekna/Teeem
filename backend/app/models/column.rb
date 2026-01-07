@@ -60,6 +60,9 @@ class Column < ApplicationRecord
       bank_account
       postcode
       tfn
+      time
+      uuid
+      array_of_integers
     ]
   }
 
@@ -111,7 +114,10 @@ class Column < ApplicationRecord
     "bsb" => :string,  # Bank State Branch
     "bank_account" => :string,  # Bank Account Number
     "postcode" => :string,  # Australian Postcode (4 digits)
-    "tfn" => :string  # Tax File Number
+    "tfn" => :string,  # Tax File Number
+    "time" => :time,  # Time of day (HH:MM:SS)
+    "uuid" => :uuid,  # Universally Unique Identifier
+    "array_of_integers" => :integer  # INTEGER[] array
   }.freeze
 
   # Map column types to SQL types with proper limits
@@ -139,7 +145,7 @@ class Column < ApplicationRecord
     "action_buttons" => "VARCHAR(255)",
     "boolean" => "BOOLEAN",
     "choice" => "VARCHAR(50)",
-    "lookup" => "VARCHAR(255)",
+    "lookup" => "INTEGER",  # Lookups store IDs (foreign keys to other foundations)
     "multiple_lookups" => "TEXT",
     "user" => "INTEGER",
     "computed" => "VIRTUAL/COMPUTED",
@@ -151,7 +157,10 @@ class Column < ApplicationRecord
     "bsb" => "VARCHAR(7)",
     "bank_account" => "VARCHAR(9)",
     "postcode" => "VARCHAR(4)",
-    "tfn" => "VARCHAR(11)"
+    "tfn" => "VARCHAR(11)",
+    "time" => "TIME",
+    "uuid" => "UUID",
+    "array_of_integers" => "INTEGER[]"
   }.freeze
 
   def db_type
@@ -435,5 +444,17 @@ class Column < ApplicationRecord
     end
 
     Rails.logger.info "[Column] Removed column '#{column_name}' from #{views.count} saved views for foundation #{foundation_id}"
+  end
+
+  # ============================================
+  # SSoT: Display Value Resolution
+  # ============================================
+  # Use this method instead of directly accessing lookup_display_column
+  # This delegates to DisplayValueResolver which has the canonical fallback chain
+  #
+  # @param record [ActiveRecord::Base] The lookup record to display
+  # @return [String] The display value
+  def display_value_for(record)
+    DisplayValueResolver.resolve_lookup(record, self)
   end
 end

@@ -94,26 +94,37 @@ class Api::V1::ChatMessagesController < ApplicationController
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
 
-    if params[:job_id].present?
-      @messages = ChatMessage.for_job(params[:job_id]).includes(:user).recent(100)
+    # Get the most recent 100 messages, then sort chronologically (oldest first, newest last)
+    # This matches standard chat UI where newest messages appear at the bottom
+    base_query = if params[:job_id].present?
+      ChatMessage.for_job(params[:job_id])
     elsif params[:contact_id].present?
-      @messages = ChatMessage.for_contact(params[:contact_id]).includes(:user).recent(100)
+      ChatMessage.for_contact(params[:contact_id])
     elsif params[:case_id].present?
-      @messages = ChatMessage.for_case(params[:case_id]).includes(:user).recent(100)
+      ChatMessage.for_case(params[:case_id])
     elsif params[:project_id].present?
-      @messages = ChatMessage.for_project(params[:project_id]).includes(:user).recent(100)
+      ChatMessage.for_project(params[:project_id])
     elsif params[:user_id].present?
       # Direct messages between current user and specified user
-      @messages = ChatMessage.between_users(current_user.id, params[:user_id]).includes(:user).recent(100)
+      ChatMessage.between_users(current_user.id, params[:user_id])
     elsif params[:channel].present?
-      @messages = ChatMessage.in_channel(params[:channel]).includes(:user).recent(100)
+      ChatMessage.in_channel(params[:channel])
     else
-      @messages = ChatMessage.general.includes(:user).recent(100)
+      ChatMessage.general
     end
 
+    # Get most recent 100, then reverse to chronological order (oldest first)
+    @messages = base_query
+      .includes(:user)
+      .with_attached_file
+      .reorder(created_at: :desc)  # Get newest first
+      .limit(100)
+      .to_a  # Convert to array
+      .reverse  # Flip to oldest first (chronological)
+
     messages_with_files = @messages.map do |msg|
-      json = msg.as_json(include: { user: {} }, methods: :formatted_timestamp)
-      if msg.sharepoint_file_id.present?
+      json = msg.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
+      if msg.file.attached? || msg.sharepoint_file_id.present?
         json[:has_file] = true
         json[:sharepoint_file_id] = msg.sharepoint_file_id
         json[:file_name] = msg.file_name
@@ -137,7 +148,7 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     if @message.save
       # SharePoint upload happens via after_commit callback
-      response_data = @message.as_json(include: { user: {} }, methods: :formatted_timestamp)
+      response_data = @message.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
       if @message.file.attached?
         # File is being uploaded to SharePoint async
         response_data[:has_file] = true
@@ -168,7 +179,7 @@ class Api::V1::ChatMessagesController < ApplicationController
     count = ChatMessage.where("created_at > ?", last_read)
                       .where(recipient_user_id: current_user.id)
                       .count
-    render json: { count: count }
+    render json: { unread_count: count }
   end
 
   # POST /api/v1/chat_messages/mark_as_read

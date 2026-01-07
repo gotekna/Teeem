@@ -47,6 +47,9 @@ import {
   Pencil,
   Trash2,
   Mail,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -70,6 +73,7 @@ interface User {
   // For UserDetailSheet
   mobile_phone?: string;
   role_ids?: Array<{ id: number; display_value: string; name: string }>;
+  preferred_theme?: string;
   [key: string]: unknown;
 }
 
@@ -208,6 +212,7 @@ function UsersManagementTab() {
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Theme</TableHead>
               <TableHead>Integrations</TableHead>
               <TableHead>Last Login</TableHead>
               <TableHead>Last Email Sync</TableHead>
@@ -257,6 +262,18 @@ function UsersManagementTab() {
                     {user.presence_status === 'online' ? 'Online' :
                      user.status === "active" ? "Active" : "Pending"}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    {user.preferred_theme === 'dark' ? (
+                      <Moon className="h-4 w-4" />
+                    ) : user.preferred_theme === 'system' ? (
+                      <Monitor className="h-4 w-4" />
+                    ) : (
+                      <Sun className="h-4 w-4" />
+                    )}
+                    <span className="text-xs capitalize">{user.preferred_theme || 'light'}</span>
+                  </div>
                 </TableCell>
                 <TableCell>
                   {(user.integrations_count ?? 0) > 0 ? (

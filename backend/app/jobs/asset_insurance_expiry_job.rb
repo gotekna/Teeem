@@ -76,9 +76,9 @@ class AssetInsuranceExpiryJob < ApplicationJob
     end
 
     # Create notification for company admins
-    # SSoT: Use user_roles join table to find admins/managers
+    # SSoT: Use user_roles join table to find admins (manager role doesn't exist)
     if defined?(Notification)
-      company.users.joins(:roles).where(roles: { name: %w[admin manager] }).distinct.each do |user|
+      company.users.joins(:roles).where(roles: { name: 'admin' }).distinct.each do |user|
         Notification.create(
           user: user,
           notification_type: "asset_insurance_expiry",

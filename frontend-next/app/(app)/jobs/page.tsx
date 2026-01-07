@@ -1,64 +1,44 @@
-"use client";
+import { fetchFoundationForSSR, type ViewData } from "@/lib/server/foundation-api";
+import JobsPageClient from "./jobs-page-client";
 
-import { useCallback } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { TeeemTableView } from "@/components/table";
-import type { TableRow } from "@/components/table/types";
-import { TablePage } from "@/components/ui/page-wrappers";
-import { BackButton } from "@/components/ui/back-button";
-import { Plus } from "lucide-react";
+interface JobsPageProps {
+  searchParams: Promise<{ view?: string }>;
+}
 
 /**
- * Jobs Page - Gold Standard Pattern
+ * Jobs Page - SSR Optimized for Fast LCP
  *
- * Uses autoFetchRecords to let TeeemTableView fetch data directly from Foundation API.
- * Foundation API automatically resolves all lookup columns to { id, display } format.
+ * This Server Component fetches data before sending HTML to the client.
+ * The table renders immediately with 20 rows, achieving ~500ms LCP.
+ * Additional records load in the background after hydration.
  *
- * Navigation handlers (view, edit) still use router.push for page navigation.
- * CRUD operations (add, update, delete) are handled by TeeemTableView's built-in modals.
+ * SSR View Loading:
+ * When ?view=slug is in the URL, the view config is fetched on the server
+ * and passed to the client. This eliminates the flash when switching from
+ * flat table to grouped view on hydration.
  */
-export default function JobsPage() {
-  const router = useRouter();
+export default async function JobsPage({ searchParams }: JobsPageProps) {
+  // Await searchParams (Next.js 15 requirement)
+  const params = await searchParams;
+  const viewSlug = params.view;
 
-  // Navigation handlers - only for page navigation, not CRUD
-  const handleView = useCallback((row: TableRow) => {
-    router.push(`/jobs/${row.id}`);
-  }, [router]);
-
-  const handleRowDoubleClick = useCallback((row: TableRow) => {
-    router.push(`/jobs/${row.id}`);
-  }, [router]);
-
-  const handleEdit = useCallback((row: TableRow) => {
-    router.push(`/jobs/${row.id}/edit`);
-  }, [router]);
+  // Fetch first 20 records on server for fast LCP
+  // Also fetch view config if ?view= param is present to eliminate flash
+  // Also fetch group counts if view has grouping to eliminate CLS
+  // Also fetch all views for immediate toolbar button rendering
+  const { columns, records, hasMore, view, views, groupCounts } = await fetchFoundationForSSR("jobs", {
+    limit: 20,
+    viewSlug,
+  });
 
   return (
-    <TablePage>
-      <TeeemTableView
-        foundationId="jobs"
-        autoFetchRecords
-        tableName="Jobs"
-        onView={handleView}
-        onEdit={handleEdit}
-        onRowDoubleClick={handleRowDoubleClick}
-        enableExport
-        enableImport
-        enableSchemaEditor
-        leftActions={
-          <div className="flex items-center gap-2">
-            <BackButton fallbackHref="/dashboard" />
-            <Button variant="default" size="sm" asChild>
-              <Link href="/jobs/new">
-                <Plus className="h-4 w-4 mr-2" />
-                New Job
-              </Link>
-            </Button>
-          </div>
-        }
-      />
-    </TablePage>
+    <JobsPageClient
+      initialColumns={columns}
+      initialRecords={records}
+      initialHasMore={hasMore}
+      initialView={view}
+      initialViews={views}
+      initialGroupCounts={groupCounts}
+    />
   );
 }

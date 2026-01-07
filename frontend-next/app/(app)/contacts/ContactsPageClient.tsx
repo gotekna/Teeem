@@ -756,6 +756,22 @@ export default function ContactsPageClient({
     }
   }, [router]);
 
+  // Handle bulk merge from toolbar - connects TeeemTableView's Merge button to our custom modal
+  const handleBulkMerge = useCallback((ids: (number | string)[]) => {
+    // Find the contact records for the selected IDs
+    const selectedContacts = records.filter(r =>
+      ids.map(id => String(id)).includes(String(r.id))
+    ) as unknown as Contact[];
+
+    console.log('[ContactsPageClient] handleBulkMerge - selected IDs:', ids);
+    console.log('[ContactsPageClient] handleBulkMerge - found contacts:', selectedContacts.length);
+
+    if (selectedContacts.length >= 2) {
+      setSelectedForMerge(selectedContacts);
+      setMergeModalOpen(true);
+    }
+  }, [records]);
+
   // Show error if initial load failed
   if (initialError) {
     return (
@@ -805,6 +821,7 @@ export default function ContactsPageClient({
             onRowUpdate={handleRowUpdate}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
+            onBulkMerge={handleBulkMerge}
             onXeroTransfer={handleXeroTransfer}
             leftActions={leftActions}
             onViewChange={handleViewChange}

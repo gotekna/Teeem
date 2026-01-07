@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { useUrlState } from "@/hooks/useUrlState";
+import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +38,7 @@ import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/col
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
 // SSoT: Use slug for Foundation lookup - numeric IDs differ per environment
-const DOCUMENT_TYPES_FOUNDATION_SLUG = "document-types";
+const DOCUMENT_TYPES_FOUNDATION_SLUG = "document_types";
 
 // SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
@@ -234,12 +233,14 @@ function TabsDisplayCell({
 
 export function DocumentTypesTab() {
   const router = useRouter();
+  const pathname = usePathname();
 
-  // SSoT: URL state managed by useUrlState hook
-  const [urlState, setUrlState] = useUrlState({
-    scope: null as string | null,  // null = "all"
-  });
-  const scopeFilter = (urlState.scope as "company" | "job" | "contacts" | "all") || "all";
+  // Read scope from URL path for proper back button support
+  // e.g. /admin/system/entity-config/document_types/job -> "job"
+  const pathParts = pathname.split("/");
+  const lastPart = pathParts[pathParts.length - 1];
+  const validScopes = ["company", "job", "contacts"];
+  const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" : "all";
 
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -267,10 +268,15 @@ export function DocumentTypesTab() {
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
 
-  // Handle scope tab change
+  // Handle scope tab change - update URL for back button support
   const handleScopeChange = React.useCallback((value: string) => {
-    setUrlState({ scope: value === "all" ? null : value });
-  }, [setUrlState]);
+    const basePath = "/admin/system/entity-config/document_types";
+    if (value === "all") {
+      router.push(basePath, { scroll: false });
+    } else {
+      router.push(`${basePath}/${value}`, { scroll: false });
+    }
+  }, [router]);
 
   React.useEffect(() => {
     fetchColumns();
@@ -438,6 +444,23 @@ export function DocumentTypesTab() {
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
+    // Make NAME column a clickable link to full-screen editor
+    if (columnKey === "name") {
+      const value = entry.name;
+      if (!value) return <span className="text-muted-foreground">-</span>;
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push(`/admin/system/document-types/${entry.id}`);
+          }}
+          className="text-left text-primary hover:underline font-medium"
+          title="Click to open full editor"
+        >
+          {value}
+        </button>
+      );
+    }
     if (columnKey === "scope") {
       const value = entry.scope || "company";
       return (
@@ -650,7 +673,7 @@ export function DocumentTypesTab() {
           enableSchemaEditor={true}
           customCellRenderer={customCellRenderer}
           onColumnUpdate={fetchColumns}
-          initialGroupByColumn="folder"
+          initialGroupByColumn="primary_tab"
           leftActions={
             <Button onClick={() => router.push(`/admin/system/document-types/new${scopeFilter !== "all" ? `?scope=${scopeFilter}` : ""}`)}>
               <Plus className="h-4 w-4 mr-2" />

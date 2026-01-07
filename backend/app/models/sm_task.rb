@@ -13,6 +13,9 @@ class SmTask < ApplicationRecord
 
   self.table_name = "sm_tasks"
 
+  # ActiveStorage attachments (for email attachments, uploads, etc.)
+  has_many_attached :files
+
   # Status enum
   enum :status, {
     not_started: "not_started",
@@ -72,11 +75,69 @@ class SmTask < ApplicationRecord
   # Recurring task support
   belongs_to :recurring_task_definition, class_name: "SmRecurringTaskDefinition", optional: true
 
-  # Dependencies (separate table per Rule 9.25)
-  has_many :predecessor_dependencies, class_name: "SmDependency", foreign_key: :successor_task_id, dependent: :destroy
-  has_many :successor_dependencies, class_name: "SmDependency", foreign_key: :predecessor_task_id, dependent: :destroy
-  has_many :predecessors, through: :predecessor_dependencies, source: :predecessor_task
-  has_many :successors, through: :successor_dependencies, source: :successor_task
+  # Workflow triggers
+  belongs_to :start_workflow, class_name: "BpmnProcess", optional: true
+  belongs_to :complete_workflow, class_name: "BpmnProcess", optional: true
+
+  # Document types for GET task spawning on completion
+  has_many :sm_task_document_types, dependent: :destroy
+  has_many :document_types, through: :sm_task_document_types
+
+  # SSoT: predecessor_ids jsonb column (synced from SmScheduleMaster)
+  # Format: [{id: task_number, lag: 0, type: "FS"}, ...]
+  # NOTE: We explicitly define predecessor_ids reader/writer to use the jsonb column
+  # because Rails would otherwise generate these for has_many associations
+  def predecessor_ids
+    read_attribute(:predecessor_ids) || []
+  end
+
+  def predecessor_ids=(value)
+    write_attribute(:predecessor_ids, value || [])
+  end
+
+  # Get predecessor task_numbers from jsonb
+  def predecessor_task_numbers_array
+    predecessor_ids.map { |p| (p["id"] || p[:id]).to_i }.compact
+  end
+
+  # Get actual predecessor SmTask records (looks up by task_number on same job)
+  def predecessors
+    return SmTask.none if predecessor_ids.empty? || job_id.nil?
+    task_numbers = predecessor_task_numbers_array
+    return SmTask.none if task_numbers.empty?
+    SmTask.where(job_id: job_id, task_number: task_numbers)
+  end
+
+  # Get actual successor SmTask records (tasks that have this task in their predecessor_ids)
+  def successors
+    return SmTask.none if job_id.nil?
+    SmTask.where(job_id: job_id)
+          .where("predecessor_ids @> ?", [{ id: task_number }].to_json)
+  end
+
+  # Format predecessors as "2FS+3, 5SS" etc (matching SmScheduleMaster format)
+  def predecessor_display
+    return "None" if predecessor_ids.empty?
+    predecessor_ids.map { |pred| format_predecessor(pred) }.compact.join(", ")
+  end
+
+  private
+
+  def format_predecessor(pred_data)
+    return nil unless pred_data.is_a?(Hash)
+
+    task_id = pred_data["id"] || pred_data[:id]
+    return nil unless task_id
+
+    dep_type = pred_data["type"] || pred_data[:type] || "FS"
+    lag = pred_data["lag"] || pred_data[:lag] || 0
+
+    result = "#{task_id}#{dep_type}"
+    result += "+#{lag}" if lag.to_i > 0
+    result
+  end
+
+  public
 
   # Logs
   has_many :rollover_logs, class_name: "SmRolloverLog", foreign_key: :task_id, dependent: :destroy
@@ -104,6 +165,24 @@ class SmTask < ApplicationRecord
   has_many :task_followers, dependent: :destroy
   has_many :followers, through: :task_followers, source: :user
 
+  # Task Viewers (for private task access control)
+  has_many :task_viewers, dependent: :destroy
+  has_many :viewers, through: :task_viewers, source: :user
+
+  # Task Contacts (email participants, assigned contacts/users)
+  # Links both internal Users and external Contacts to tasks
+  has_many :task_contacts, dependent: :destroy
+  has_many :contacts, through: :task_contacts
+  has_many :contact_users, through: :task_contacts, source: :user
+
+  # Action Items (checkable items within a task)
+  has_many :action_items, class_name: "TaskActionItem", dependent: :destroy
+  # Reverse link for delegated questions (this task was created from a question)
+  has_one :source_action_item, class_name: "TaskActionItem", foreign_key: :delegated_task_id
+
+  # Activity Logs (history of changes)
+  has_many :activity_logs, class_name: "TaskActivityLog", dependent: :destroy
+
   # SaaS Customer association (for tickets and customer-linked tasks)
   belongs_to :saas_customer, class_name: "Contact", optional: true
 
@@ -118,6 +197,65 @@ class SmTask < ApplicationRecord
 
   def followed_by?(user)
     task_followers.exists?(user: user)
+  end
+
+  # Task Contact helper methods
+  # Add a contact or user to the task
+  def add_contact(contact_or_user, role:, added_by: nil, is_sender: false, notes: nil)
+    attrs = { role: role, added_by: added_by, is_sender: is_sender, notes: notes }
+
+    if contact_or_user.is_a?(User)
+      task_contacts.find_or_create_by!(user: contact_or_user, role: role) do |tc|
+        tc.assign_attributes(attrs)
+      end
+    elsif contact_or_user.is_a?(Contact)
+      task_contacts.find_or_create_by!(contact: contact_or_user, role: role) do |tc|
+        tc.assign_attributes(attrs)
+      end
+    else
+      raise ArgumentError, "Expected User or Contact, got #{contact_or_user.class}"
+    end
+  end
+
+  # Get the sender (person who created task via email)
+  def sender_contact
+    task_contacts.senders.first
+  end
+
+  # Get all internal users linked to this task
+  def internal_contacts
+    task_contacts.internal.includes(:user)
+  end
+
+  # Get all external contacts linked to this task
+  def external_contacts
+    task_contacts.external.includes(:contact)
+  end
+
+  # Check if a user can view this task (for permission checks)
+  def visible_to?(user)
+    return true if user&.admin?
+    return true unless is_private  # Non-private tasks visible to all
+    # Private task - only owner, assigned user, or followers can see
+    return true if created_by_id == user&.id
+    return true if assigned_user_id == user&.id
+    followed_by?(user)
+  end
+
+  # Check if user can manage (add action items, etc.) this task
+  # Simple rule: if you can see it, you can edit it
+  def manageable_by?(user)
+    visible_to?(user)
+  end
+
+  # Get the user who last assigned this task to someone
+  # Returns nil if no assignment history exists
+  def last_assigner
+    activity_logs
+      .where(activity_type: 'assignment_changed')
+      .order(created_at: :desc)
+      .first
+      &.user
   end
 
   # Validations
@@ -139,16 +277,62 @@ class SmTask < ApplicationRecord
   scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
   scope :past_due, -> { where("start_date < ?", Date.current).active }
   scope :for_role, ->(role) { where(assigned_role: role) }
-  # Show tasks assigned directly to user OR assigned to user's roles
+
+  # Show tasks the user can work on based on role assignment rules:
+  # 1. Direct assignment (assigned_user_id = user)
+  # 2. Job-specific roles: user is in Internal Team for that job+role (via JobContact)
+  # 3. Department roles: all users with role see all tasks (not job-specific)
+  # 4. Fallback: job-specific role with no one assigned on that job
+  #
+  # SSoT: User roles come from user_roles join table (user.roles), NOT user.assigned_roles
+  # SmTask.assigned_role is an integer (Role.id)
   scope :for_user_roles, ->(user) {
     return none unless user.present?
 
-    conditions = []
-    conditions << where(assigned_user_id: user.id) if user.id.present?
-    conditions << where(assigned_role: user.assigned_roles) if user.assigned_roles.present?
+    # SSoT: Get role IDs directly from user_roles join table
+    user_role_ids = user.roles.pluck(:id)
+    user_role_names = user.roles.pluck(:name)
+    return where(assigned_user_id: user.id) if user_role_ids.empty?
 
-    return none if conditions.empty?
-    conditions.reduce(:or)
+    # Build role name → ID lookup
+    role_id_map = user.roles.pluck(:name, :id).to_h
+
+    # 1. Direct assignment
+    direct = where(assigned_user_id: user.id)
+
+    # 2. Job-specific roles (user is in Internal Team for that job+role)
+    job_assignments = JobContact.where(user_id: user.id, role: JobContact::INTERNAL_ROLES)
+    job_conditions = job_assignments.map do |jc|
+      role_id = role_id_map[jc.role]
+      next nil unless role_id
+      where(construction_id: jc.job_id, assigned_role: role_id, assigned_user_id: nil)
+    end.compact
+    job_specific = job_conditions.any? ? job_conditions.reduce(:or) : none
+
+    # 3. Department roles (all users with role see all tasks globally)
+    dept_role_names = user_role_names - JobContact::INTERNAL_ROLES
+    dept_role_ids = dept_role_names.map { |name| role_id_map[name] }.compact
+    department = dept_role_ids.any? ? where(assigned_role: dept_role_ids, assigned_user_id: nil) : none
+
+    # 4. Fallback for job-specific roles: tasks where role is INTERNAL but
+    #    no JobContact exists for that job+role, and user has that role globally
+    internal_user_roles = user_role_names & JobContact::INTERNAL_ROLES
+    if internal_user_roles.any?
+      # Find tasks with internal roles that have no JobContact assignment
+      fallback_conditions = internal_user_roles.map do |role_name|
+        role_id = role_id_map[role_name]
+        next nil unless role_id
+        # Jobs where someone IS assigned to this role
+        assigned_job_ids = JobContact.where(role: role_name).where.not(user_id: nil).pluck(:job_id)
+        # Tasks for this role on jobs where NO ONE is assigned
+        where(assigned_role: role_id, assigned_user_id: nil).where.not(construction_id: assigned_job_ids)
+      end.compact
+      fallback = fallback_conditions.any? ? fallback_conditions.reduce(:or) : none
+    else
+      fallback = none
+    end
+
+    direct.or(job_specific).or(department).or(fallback)
   }
   scope :recurring, -> { where(source_type: 'recurring') }
   scope :manual, -> { where(source_type: 'manual') }
@@ -174,10 +358,36 @@ class SmTask < ApplicationRecord
   scope :by_ticket_priority, ->(priority) { tickets.where(ticket_priority: priority) }
   scope :by_ticket_category, ->(category) { tickets.where(ticket_category: category) }
 
+  # ============================================
+  # Privacy & Visibility Scopes
+  # ============================================
+  # User can see tasks that are:
+  # 1. Not private (is_private = false or nil)
+  # 2. Private AND created by them (owner)
+  # 3. Private AND they are a follower
+  # 4. Assigned to them directly
+  scope :visible_to, ->(user) {
+    return all if user&.admin?
+    return none if user.nil?
+
+    where(is_private: [false, nil])
+      .or(where(is_private: true, created_by_id: user.id))
+      .or(where(is_private: true, id: TaskFollower.where(user_id: user.id).select(:sm_task_id)))
+      .or(where(assigned_user_id: user.id))
+  }
+
   # Callbacks
   before_validation :set_task_number, on: :create
+  before_validation :snap_start_date_to_working_day, if: -> { start_date_changed? }
+  before_validation :snap_end_date_to_working_day, if: -> { end_date_changed? && !start_date_changed? && !duration_days_changed? }
   before_validation :calculate_end_date, if: -> { start_date_changed? || duration_days_changed? }
   before_save :clear_spawn_tasks_if_not_po
+
+  # Activity logging callbacks
+  after_create :log_task_created
+  after_update :log_task_changes
+  # Delegation completion callback
+  after_update :handle_delegation_completion, if: -> { saved_change_to_status? && status_completed? && is_delegated_question? }
 
   # Lock hierarchy check (Rule 9.22)
   # Priority: supplier_confirm > confirm > started > completed > hold
@@ -336,22 +546,53 @@ class SmTask < ApplicationRecord
     is_hold_task? && status_not_started?
   end
 
-  # Get active dependencies
+  # Dependency accessors - now based on predecessor_ids jsonb column
+  # Returns array of OpenStruct objects for backwards compatibility with old table-based code
   def active_predecessor_dependencies
-    predecessor_dependencies.where(active: true)
+    return [] if predecessor_ids.empty? || job_id.nil?
+
+    predecessor_ids.map do |pred_data|
+      task_number = pred_data["id"] || pred_data[:id]
+      predecessor_task = SmTask.find_by(job_id: job_id, task_number: task_number)
+      next unless predecessor_task
+
+      OpenStruct.new(
+        # Backwards compat: generate synthetic ID from task IDs
+        id: "#{predecessor_task.id}_#{self.id}",
+        predecessor_task_id: predecessor_task.id,
+        successor_task_id: self.id,
+        predecessor_task: predecessor_task,
+        successor_task: self,
+        dependency_type: pred_data["type"] || pred_data[:type] || "FS",
+        lag_days: pred_data["lag"] || pred_data[:lag] || 0,
+        active: true
+      )
+    end.compact
   end
 
   def active_successor_dependencies
-    successor_dependencies.where(active: true)
-  end
+    return [] if job_id.nil?
 
-  # Documentation categories helper
-  def documentation_categories
-    return [] if documentation_category_ids.blank?
-    ConstructionDocumentationTab.where(
-      construction_id: construction_id,
-      id: documentation_category_ids
-    )
+    # Find all tasks on this job that have this task in their predecessor_ids
+    SmTask.where(job_id: job_id)
+          .where("predecessor_ids @> ?", [{ id: task_number }].to_json)
+          .map do |successor_task|
+      # Find this task's entry in successor's predecessor_ids
+      pred_data = successor_task.predecessor_ids.find { |p| (p["id"] || p[:id]).to_i == task_number }
+      next unless pred_data
+
+      OpenStruct.new(
+        # Backwards compat: generate synthetic ID from task IDs
+        id: "#{self.id}_#{successor_task.id}",
+        predecessor_task_id: self.id,
+        successor_task_id: successor_task.id,
+        predecessor_task: self,
+        successor_task: successor_task,
+        dependency_type: pred_data["type"] || pred_data[:type] || "FS",
+        lag_days: pred_data["lag"] || pred_data[:lag] || 0,
+        active: true
+      )
+    end.compact
   end
 
   # SSoT: PO-Task link is via PurchaseOrder.sm_task_id
@@ -404,8 +645,41 @@ class SmTask < ApplicationRecord
     end
   end
 
+  # Snap start_date to the next working day if it falls on a weekend or holiday
+  def snap_start_date_to_working_day
+    return unless start_date.present?
+
+    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    snapped = calendar.next_working_day(start_date)
+
+    if snapped != start_date
+      Rails.logger.info "[SmTask] Snapped start_date from #{start_date} to #{snapped} (holiday/weekend)"
+      self.start_date = snapped
+    end
+  end
+
+  # Snap end_date to the next working day if set directly (e.g., resize)
+  def snap_end_date_to_working_day
+    return unless end_date.present?
+
+    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    snapped = calendar.next_working_day(end_date)
+
+    if snapped != end_date
+      Rails.logger.info "[SmTask] Snapped end_date from #{end_date} to #{snapped} (holiday/weekend)"
+      self.end_date = snapped
+      # Recalculate duration based on snapped dates
+      self.duration_days = calendar.working_days_between(start_date, snapped)
+    end
+  end
+
   def calculate_end_date
     return unless start_date.present? && duration_days.present?
+    # For 0-duration tasks (milestones), end_date = start_date
+    if duration_days == 0
+      self.end_date = start_date
+      return
+    end
     # Use WorkingDaysCalculator to respect working days (M-F by default)
     calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
     self.end_date = calendar.add_working_days(start_date, duration_days - 1)
@@ -421,4 +695,153 @@ class SmTask < ApplicationRecord
   # NOTE: sync_supplier_from_po removed as part of SSoT cleanup
   # SSoT: PO-Task link is now via PurchaseOrder.sm_task_id only
   # Supplier sync happens via PurchaseOrder model when sm_task_id is set
+
+  # ============================================
+  # Activity Logging Methods
+  # ============================================
+
+  def log_task_created
+    TaskActivityLog.log_created(self, created_by)
+  rescue => e
+    Rails.logger.error("[SmTask] Failed to log task creation: #{e.message}")
+  end
+
+  def log_task_changes
+    # Log assignment changes
+    if saved_change_to_assigned_user_id?
+      old_id, new_id = saved_change_to_assigned_user_id
+      old_user = old_id ? User.find_by(id: old_id) : nil
+      new_user = new_id ? User.find_by(id: new_id) : nil
+      TaskActivityLog.log_assignment_change(self, updated_by, old_user, new_user)
+    end
+
+    # Log status changes
+    if saved_change_to_status?
+      old_status, new_status = saved_change_to_status
+      TaskActivityLog.log_status_change(self, updated_by, old_status, new_status)
+    end
+
+    # Log privacy changes
+    if saved_change_to_is_private?
+      old_private, new_private = saved_change_to_is_private
+      TaskActivityLog.log_privacy_change(self, updated_by, old_private, new_private)
+    end
+
+    # Log hold changes
+    if saved_change_to_hold?
+      old_hold, new_hold = saved_change_to_hold
+      TaskActivityLog.log_hold_change(self, updated_by, old_hold, new_hold)
+    end
+
+    # Log confirm changes
+    if saved_change_to_confirm?
+      old_confirm, new_confirm = saved_change_to_confirm
+      TaskActivityLog.log_confirm_change(self, updated_by, 'confirm', old_confirm, new_confirm)
+    end
+
+    # Log supplier confirm changes
+    if saved_change_to_supplier_confirm?
+      old_confirm, new_confirm = saved_change_to_supplier_confirm
+      TaskActivityLog.log_confirm_change(self, updated_by, 'supplier_confirm', old_confirm, new_confirm)
+    end
+  rescue => e
+    Rails.logger.error("[SmTask] Failed to log task changes: #{e.message}")
+  end
+
+  # Handle completion of a delegated question task
+  # Copies the answer (description) and attachments back to the source action item
+  def handle_delegation_completion
+    return unless is_delegated_question?
+    return unless source_action_item.present?
+
+    Rails.logger.info("[SmTask] Completing delegation for task #{id}, copying to action item #{source_action_item.id}")
+
+    # Copy the description as the answer
+    source_action_item.complete_delegation!(description, assigned_user)
+
+    # Optionally: Auto-delete the sub-task after copying (or just leave as completed)
+    # destroy! # Uncomment to auto-delete
+  rescue => e
+    Rails.logger.error("[SmTask] Failed to handle delegation completion: #{e.message}")
+  end
+
+  # ============================================
+  # Email Keywords - Auto-matching for email attachments
+  # ============================================
+
+  # Extract keywords from an email subject for auto-matching
+  # Called when first email is attached to populate email_keywords
+  def self.extract_keywords_from_subject(subject)
+    return "" if subject.blank?
+
+    # Common stop words to filter out
+    stop_words = %w[
+      re fw fwd the a an and or but in on at to for of with from by
+      is are was were be been being have has had do does did
+      will would could should may might must shall can
+      this that these those it its
+      hello hi dear thanks thank regards kind best
+      please see attached find below
+    ]
+
+    # Extract meaningful words (3+ chars, not stop words)
+    words = subject
+      .gsub(/[^\w\s-]/, ' ')  # Keep hyphens (D-U-N-S)
+      .split(/\s+/)
+      .map(&:strip)
+      .reject(&:blank?)
+      .select { |w| w.length >= 3 }
+      .reject { |w| stop_words.include?(w.downcase) }
+      .reject { |w| w.match?(/^\d+$/) }  # Skip pure numbers
+      .uniq
+
+    # Also preserve hyphenated terms as-is (e.g., "D-U-N-S")
+    hyphenated = subject.scan(/\b[\w]+-[\w-]+\b/).uniq
+
+    (words + hyphenated).uniq.join(", ")
+  end
+
+  # Add keywords from an email subject (merges with existing)
+  def add_keywords_from_email(email)
+    return unless email.respond_to?(:subject)
+
+    new_keywords = self.class.extract_keywords_from_subject(email.subject)
+    return if new_keywords.blank?
+
+    existing = (email_keywords || "").split(",").map(&:strip).reject(&:blank?)
+    new_list = new_keywords.split(",").map(&:strip).reject(&:blank?)
+
+    merged = (existing + new_list).uniq.join(", ")
+    update_column(:email_keywords, merged) if merged != email_keywords
+  end
+
+  # Check if an email matches this task's keywords
+  def matches_email_keywords?(email)
+    return false if email_keywords.blank?
+    return false unless email.respond_to?(:subject)
+
+    keywords = email_keywords.split(",").map(&:strip).map(&:downcase).reject(&:blank?)
+    return false if keywords.empty?
+
+    subject_lower = email.subject&.downcase || ""
+    body_lower = email.body_text&.downcase || ""
+
+    keywords.any? do |keyword|
+      subject_lower.include?(keyword) || body_lower.include?(keyword)
+    end
+  end
+
+  # Get tasks that match an email's content by keywords
+  def self.tasks_matching_email(email, scope: SmTask.all)
+    return [] if email.blank?
+
+    subject_lower = email.subject&.downcase || ""
+    body_lower = email.body_text&.downcase || ""
+    search_text = "#{subject_lower} #{body_lower}"
+
+    scope.where.not(email_keywords: [nil, ""]).select do |task|
+      keywords = task.email_keywords.split(",").map(&:strip).map(&:downcase).reject(&:blank?)
+      keywords.any? { |kw| search_text.include?(kw) }
+    end
+  end
 end

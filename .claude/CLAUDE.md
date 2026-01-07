@@ -32,6 +32,79 @@ Heroku:   [vXXX] - [deployed/skipped]
 - ❌ DON'T rush, skip planning, make assumptions, or take shortcuts
 - ✅ DO understand fully, explore thoroughly, ask questions, implement RIGHT solution
 
+## 🔴 CRITICAL: Bug Fixing - Find Root Cause (FRC)
+
+**Before fixing ANY bug, STOP and ask: "WHY does this bug exist?"**
+
+### The FRC Process
+
+1. **STOP** - Don't touch the code yet
+2. **INVESTIGATE** - Use git blame, read the original code, understand intent
+3. **ASK WHY** - Apply the "5 Whys" technique
+4. **FIND THE GAP** - What's missing? Test? Validation? Type safety? Design?
+5. **FIX THE ROOT** - Fix the cause, not just the symptom
+6. **PREVENT** - Add guardrails so this class of bug can't happen again
+
+### The 5 Whys Example
+
+```
+Bug: validateResult.rolled_over throws "possibly null"
+
+Why 1: validateResult could be null
+Why 2: api.post() returns T | null
+Why 3: The API might fail or return empty
+Why 4: No null check before accessing properties
+Why 5: TypeScript caught it, but we should handle API failures gracefully
+
+Root Cause: Missing error handling pattern for API responses
+Fix: Add null check AND consider if all api.post() calls need this pattern
+```
+
+### Investigation Checklist
+
+| Question | Action |
+|----------|--------|
+| When was this code written? | `git blame <file>` |
+| What was the original intent? | Read surrounding code, comments, PR |
+| Is this a one-off or pattern? | Search for similar code |
+| What guardrail is missing? | Type? Test? Validation? |
+| Where else might this exist? | `grep` for similar patterns |
+
+### Red Flags → Go Deeper
+
+- "Just add a null check" → Why is it null? Should it be?
+- "Just add a try/catch" → What error? Why does it throw?
+- "Just add a condition" → Why wasn't it there? Design gap?
+- "Just rename/move" → Why was it wrong? Naming convention missing?
+
+### After Fixing
+
+- ✅ Bug is fixed
+- ✅ Root cause is understood and documented (in commit message)
+- ✅ Similar bugs elsewhere are identified and fixed
+- ✅ Guardrail added to prevent recurrence (test, type, validation)
+
+**Mantra:** "A bug is a gift - it reveals a weakness in the system. Don't waste it on a bandaid."
+
+### Code Comments Policy
+
+**Don't proactively add comments.** But when you see existing comments that are:
+- Outdated or incorrect
+- Missing context for non-obvious code
+- Warning about race conditions, edge cases, or "DO NOT SIMPLIFY" patterns
+
+**Update them.** Future Claude sessions read comments to understand intent.
+
+For race condition fixes or non-obvious code, use this pattern:
+```typescript
+// ⚠️ DO NOT SIMPLIFY - [Brief reason] ([date])
+// ════════════════════════════════════════════
+// Why: [Explain the non-obvious reason]
+// ❌ WRONG: [What looks right but breaks]
+// ✅ CORRECT: [What we do and why]
+// ════════════════════════════════════════════
+```
+
 ## 🔴 CRITICAL: Quality Triggers
 
 | Keyword | What Claude Missed | Action |
@@ -39,6 +112,7 @@ Heroku:   [vXXX] - [deployed/skipped]
 | `ssot` | Duplicate logic exists | Find both, flag to user, ask which is SSoT |
 | `ultra` | Lazy thinking | Present 3 approaches, question assumptions, simplify |
 | `gold` | Wrong component/bad UI | Check THE ONE table, TeeemTableView, Tailwind, dark mode |
+| `frc` | Bandaid bug fix | Stop, investigate root cause, fix the gap not the symptom |
 
 **Before ANY code change:**
 1. **SSoT Check** - Is this defined elsewhere? Search first.
@@ -120,6 +194,28 @@ clearCachedRecords(foundationId);  // BEFORE triggerAutoRefresh()
 
 **Rule:** Clear cache BEFORE refresh to ensure fresh data. Stale cache = stale UI.
 
+## 🔴 SSoT - Display Value Resolution
+
+**SSoT:** `DisplayValueResolver` service (backend/app/services/display_value_resolver.rb)
+
+| Need | SSoT | NOT This |
+|------|------|----------|
+| Lookup display value | `DisplayValueResolver.resolve_lookup(record, column)` | `record.send(column.lookup_display_column)` |
+| Batch lookup values | `DisplayValueResolver.resolve_lookup_batch(records, column)` | Manual iteration with direct access |
+| Column convenience | `column.display_value_for(record)` | Direct `lookup_display_column` access |
+
+**Fallback Chain (SSoT):**
+```
+lookup_display_column → display_name → name → title → subject → "#{class} ##{id}"
+```
+
+**Frontend:**
+- Groups API returns `display_values_map` for ALL grouping columns
+- Frontend uses server values (SSoT) with local fallback for edge cases
+- Key format: `"column_name:id"` (e.g., `"job_status_id:1"`) to avoid ID collisions
+
+**Rule:** NEVER access `lookup_display_column` directly. Always use DisplayValueResolver.
+
 ## 🔴 CRITICAL: Ultrathink Design Philosophy
 
 **Take a deep breath. We're not here to write code. We're here to make a dent in the universe.**
@@ -200,6 +296,22 @@ return (
 
 **Local:** Frontend port 3000, Backend port 3001
 
+## 🔴 Production Frontend (Vercel)
+
+| Environment | URL | Notes |
+|-------------|-----|-------|
+| Production | `https://teeemlive.vercel.app` | SSoT production URL (3 e's in teeem) |
+| Backend API | `https://teeemlive-ce8e2660a615.herokuapp.com` | Heroku |
+
+**Chrome DevTools MCP Access:**
+- Vercel team member `robert-8688` has been granted access
+- This allows Claude to use Chrome DevTools MCP for browser testing on production
+- If access expires, re-approve in Vercel Team Settings → Members
+
+**Login Credentials (for automated testing):**
+- Email: `robert@tekna.com.au`
+- Password: `Wisdom50-50`
+
 ## 🔴 Microsoft 365 (SSoT: MicrosoftCredential)
 
 ```ruby
@@ -235,6 +347,23 @@ CorporateCompanySetting.sharepoint_full_path(:jobs)  # SSoT
 { "success": true, "data": { ... } }
 { "success": false, "error": "Error message" }
 ```
+
+## 🔴 API Key Convention
+
+**Backend returns camelCase, frontend expects camelCase.**
+
+| Layer | Convention | Example |
+|-------|-----------|---------|
+| Ruby hash keys | Symbols (`:fromId`) | `{ fromId: row.id.to_s }` |
+| JSON response | camelCase | `"fromId": "123"` |
+| TypeScript types | camelCase | `fromId: string` |
+
+**Before writing TypeScript types for API responses:**
+1. Check the backend controller/service for actual key names
+2. Use Zod schemas for runtime validation of critical APIs
+3. Never assume snake_case - verify the source
+
+**SSoT for API validation:** `lib/api/schemas/` (Zod schemas)
 
 ## 🔴 Timezone
 

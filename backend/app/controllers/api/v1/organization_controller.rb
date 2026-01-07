@@ -50,7 +50,38 @@ module Api
           if credential&.status == "connected"
             # Get email stats for this org
             emails = EmailWarehouse.for_microsoft_credential(credential.id)
+            total_count = emails.count
             total_size = emails.sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+            linked_to_job = emails.where.not(job_id: nil).count
+            size_by_job = emails.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+
+            # Per-mailbox (per-person) stats
+            per_mailbox_stats = emails
+              .where.not(mailbox_owner_email: [ nil, "" ])
+              .group(:mailbox_owner_email)
+              .select("mailbox_owner_email, COUNT(*) as email_count, MAX(last_synced_at) as last_sync, MAX(received_at) as last_email_received")
+              .order("email_count DESC")
+              .map do |row|
+                {
+                  mailbox: row.mailbox_owner_email,
+                  email_count: row.email_count,
+                  last_sync: row.last_sync,
+                  last_email_received: row.last_email_received
+                }
+              end
+
+            # AI Classification breakdown (same as data_stats)
+            classification_counts = emails.group("email_classification->>'email_type'").count
+            spam_count = classification_counts["spam"] || 0
+            marketing_count = classification_counts["marketing"] || 0
+            transactional_count = classification_counts["transactional"] || 0
+            business_count = classification_counts["business"] || 0
+            unclassified_count = classification_counts[nil] || 0
+            classified_count = total_count - unclassified_count
+
+            # SSoT migration progress
+            with_direction = emails.where.not(direction: nil).count
+            with_body_preview = emails.where("body_preview IS NOT NULL AND body_preview != ''").count
 
             {
               name: org_name,
@@ -62,10 +93,30 @@ module Api
               admin_consent_granted_at: credential.admin_consent_granted_at,
               admin_consent_granted_by: credential.admin_consent_granted_by,
               stats: {
-                emails: emails.count,
+                emails: total_count,
                 email_storage_bytes: total_size,
-                linked_to_job: emails.where.not(job_id: nil).count,
-                last_email_received: emails.maximum(:received_at)
+                linked_to_job: linked_to_job,
+                size_by_job: size_by_job,
+                junk_emails: spam_count,
+                unprocessed: unclassified_count,
+                last_email_received: emails.maximum(:received_at),
+                last_sync: emails.maximum(:last_synced_at),
+                per_mailbox: per_mailbox_stats,
+                ai_classification: {
+                  spam: spam_count,
+                  marketing: marketing_count,
+                  transactional: transactional_count,
+                  business: business_count,
+                  unclassified: unclassified_count,
+                  classified_count: classified_count,
+                  classification_rate: total_count > 0 ? ((classified_count.to_f / total_count) * 100).round(1) : 0
+                },
+                ssot_migration: {
+                  with_direction: with_direction,
+                  with_body_preview: with_body_preview,
+                  direction_rate: total_count > 0 ? ((with_direction.to_f / total_count) * 100).round(1) : 0,
+                  body_preview_rate: total_count > 0 ? ((with_body_preview.to_f / total_count) * 100).round(1) : 0
+                }
               }
             }
           else
@@ -78,7 +129,27 @@ module Api
                 emails: 0,
                 email_storage_bytes: 0,
                 linked_to_job: 0,
-                last_email_received: nil
+                size_by_job: 0,
+                junk_emails: 0,
+                unprocessed: 0,
+                last_email_received: nil,
+                last_sync: nil,
+                per_mailbox: [],
+                ai_classification: {
+                  spam: 0,
+                  marketing: 0,
+                  transactional: 0,
+                  business: 0,
+                  unclassified: 0,
+                  classified_count: 0,
+                  classification_rate: 0
+                },
+                ssot_migration: {
+                  with_direction: 0,
+                  with_body_preview: 0,
+                  direction_rate: 0,
+                  body_preview_rate: 0
+                }
               }
             }
           end

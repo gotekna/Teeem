@@ -260,6 +260,8 @@ export default function CaseDetailPage() {
   const [emails, setEmails] = React.useState<CaseEmail[]>([]);
   const [loadingEmails, setLoadingEmails] = React.useState(false);
 
+  // Email detail dialog state
+
   // Contacts for relationships tab (shared with entities tab)
   const [contacts, setContacts] = React.useState<{
     id: number;
@@ -1236,6 +1238,7 @@ export default function CaseDetailPage() {
         )}
 
         {activeTab === "emails" && (
+          <>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Emails ({emails.length})</CardTitle>
@@ -1258,7 +1261,13 @@ export default function CaseDetailPage() {
               ) : (
                 <div className="divide-y">
                   {emails.map((email) => (
-                    <div key={email.id} className="py-3 flex items-start justify-between gap-4">
+                    <div
+                      key={email.id}
+                      className="py-3 flex items-start justify-between gap-4 cursor-pointer hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors"
+                      onDoubleClick={() => {
+                        window.open(`/email?id=${email.email_warehouse_id}`, '_blank');
+                      }}
+                    >
                       <div className="flex items-start gap-3">
                         <div className="p-2 bg-purple-100 rounded text-purple-600">
                           <Mail className="h-4 w-4" />
@@ -1299,6 +1308,8 @@ export default function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          </>
         )}
 
         {activeTab === "qa" && (

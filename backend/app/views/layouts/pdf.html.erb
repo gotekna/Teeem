@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #000;
+      background: #fff;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 15mm;
+      margin: 0 auto;
+    }
+    h1, h2, h3, h4 {
+      margin-bottom: 0.5em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1em;
+    }
+    th, td {
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .bordered-table th,
+    .bordered-table td {
+      border: 1px solid #000;
+    }
+    .bordered-table th {
+      background: #f0f0f0;
+      font-weight: bold;
+    }
+    .signature-box {
+      display: inline-block;
+      border-bottom: 1px solid #000;
+      min-width: 200px;
+      min-height: 60px;
+      padding: 5px;
+    }
+    .signature-img {
+      max-height: 50px;
+      max-width: 180px;
+    }
+    .checkbox {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 1px solid #000;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    .checkbox.checked::after {
+      content: "X";
+      display: block;
+      text-align: center;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    .section {
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ccc;
+    }
+    .section:last-child {
+      border-bottom: none;
+    }
+    .form-title {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .form-subtitle {
+      text-align: center;
+      font-size: 11pt;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    .header-logo {
+      text-align: right;
+      margin-bottom: 10px;
+    }
+    .field-label {
+      font-weight: bold;
+      font-size: 10pt;
+      margin-bottom: 3px;
+    }
+    .field-value {
+      padding: 3px 0;
+      min-height: 1.2em;
+    }
+    .small-text {
+      font-size: 9pt;
+      color: #666;
+    }
+    @media print {
+      body { -webkit-print-color-adjust: exact; }
+      .page { page-break-after: always; }
+    }
+  </style>
+</head>
+<body>
+  <%= yield %>
+</body>
+</html>

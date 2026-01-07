@@ -247,31 +247,32 @@ class SmTaskImportService
   def create_dependencies_from_rows(rows)
     return if @row_predecessors.blank?
 
+    # SSoT: Build predecessor_ids jsonb for each task
     @row_predecessors.each do |task_number, predecessors_value|
       next if predecessors_value.blank?
       task = @task_number_to_task[task_number]
       next unless task
 
       parsed_predecessors = parse_predecessors(predecessors_value)
+      predecessor_ids = []
 
       parsed_predecessors.each do |pred_data|
         predecessor_task = @task_number_to_task[pred_data[:id]]
         next unless predecessor_task
 
-        dependency = SmDependency.new(
-          predecessor_task_id: predecessor_task.id,
-          successor_task_id: task.id,
-          dependency_type: pred_data[:type] || "FS",
-          lag_days: pred_data[:lag] || 0,
-          active: true,
-          created_by_id: user&.id
-        )
+        predecessor_ids << {
+          "id" => predecessor_task.task_number,
+          "type" => pred_data[:type] || "FS",
+          "lag" => pred_data[:lag] || 0
+        }
+      end
 
-        if dependency.save
-          @created_dependencies << dependency
-        else
-          @errors << "Dependency #{predecessor_task.task_number} → #{task.task_number}: #{dependency.errors.full_messages.join(', ')}"
-        end
+      if predecessor_ids.any?
+        task.update!(predecessor_ids: predecessor_ids)
+        @created_dependencies << {
+          task_id: task.id,
+          predecessor_ids: predecessor_ids
+        }
       end
     end
   end

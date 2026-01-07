@@ -43,6 +43,7 @@ import {
   ChevronRight,
   Building2,
   X,
+  Users,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -219,7 +220,32 @@ interface MicrosoftOrgStats {
     emails: number;
     email_storage_bytes: number;
     linked_to_job: number;
+    size_by_job: number;
+    junk_emails: number;
+    unprocessed: number;
     last_email_received?: string;
+    last_sync?: string;
+    per_mailbox: Array<{
+      mailbox: string;
+      email_count: number;
+      last_sync: string | null;
+      last_email_received: string | null;
+    }>;
+    ai_classification: {
+      spam: number;
+      marketing: number;
+      transactional: number;
+      business: number;
+      unclassified: number;
+      classified_count: number;
+      classification_rate: number;
+    };
+    ssot_migration: {
+      with_direction: number;
+      with_body_preview: number;
+      direction_rate: number;
+      body_preview_rate: number;
+    };
   };
 }
 
@@ -239,10 +265,17 @@ export function DataWarehouseTab() {
   const activeTab = subtabFromUrl || "overview";
 
   const handleTabChange = useCallback((tabId: string) => {
-    const companyPath = companyId ? `/company/${companyId}` : "";
-    const url = tabId === "overview"
-      ? `/admin/system/data-warehouse${companyPath}`
-      : `/admin/system/data-warehouse/${tabId}${companyPath}`;
+    // Use query params for subtabs (not path segments) since DataWarehouseTab
+    // is rendered at /data-warehouse, not within /admin/system/[...slug] route
+    const params = new URLSearchParams();
+    if (tabId !== "overview") {
+      params.set("subtab", tabId);
+    }
+    if (companyId) {
+      params.set("company_id", companyId);
+    }
+    const queryString = params.toString();
+    const url = `/data-warehouse${queryString ? `?${queryString}` : ""}`;
     router.push(url, { scroll: false });
   }, [router, companyId]);
 
@@ -284,7 +317,7 @@ export function DataWarehouseTab() {
   }, [companyId]);
 
   const clearCompanyFilter = () => {
-    router.push("/admin/system/data-warehouse");
+    router.push("/data-warehouse");
   };
 
   const loadStats = async () => {
@@ -921,6 +954,131 @@ export function DataWarehouseTab() {
                       {org.admin_consent_granted_by && (
                         <p>Admin consent by: {org.admin_consent_granted_by}</p>
                       )}
+                    </div>
+
+                    {/* Per-Person Email Stats */}
+                    {org.stats.per_mailbox?.length > 0 && (
+                      <div className="pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Emails by Person ({org.stats.per_mailbox.length})
+                        </h4>
+                        <div className="border rounded-lg overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Mailbox</TableHead>
+                                <TableHead className="text-right">Emails</TableHead>
+                                <TableHead className="text-right">Last Email</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {org.stats.per_mailbox.map((mb) => (
+                                <TableRow key={mb.mailbox}>
+                                  <TableCell className="font-medium">{mb.mailbox}</TableCell>
+                                  <TableCell className="text-right">{mb.email_count.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {mb.last_email_received ? format(new Date(mb.last_email_received), "PPp") : "Never"}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI Classification (same as Overview) */}
+                    <div className="pt-4 border-t">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Mail className="h-4 w-4" />
+                        AI Classification
+                      </h4>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-muted-foreground">Classification Rate</span>
+                        <span className="text-xs font-medium">{org.stats.ai_classification?.classification_rate || 0}%</span>
+                      </div>
+                      <Progress
+                        value={org.stats.ai_classification?.classification_rate || 0}
+                        className="h-1.5 mb-3"
+                      />
+                      <div className="grid grid-cols-5 gap-2">
+                        <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                          <p className="text-sm font-bold text-red-600">{(org.stats.ai_classification?.spam || 0).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Spam</p>
+                        </div>
+                        <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                          <p className="text-sm font-bold text-orange-600">{(org.stats.ai_classification?.marketing || 0).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Marketing</p>
+                        </div>
+                        <div className="text-center p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <p className="text-sm font-bold text-blue-600">{(org.stats.ai_classification?.transactional || 0).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Transactional</p>
+                        </div>
+                        <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                          <p className="text-sm font-bold text-green-600">{(org.stats.ai_classification?.business || 0).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Business</p>
+                        </div>
+                        <div className="text-center p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                          <p className="text-sm font-bold text-gray-600">{(org.stats.ai_classification?.unclassified || 0).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Unclassified</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SSoT Migration Progress (same as Overview) */}
+                    <div className="pt-4 border-t">
+                      <h4 className="text-sm font-medium mb-3">SSoT Migration Progress</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">Direction Field</span>
+                            <span className="text-xs font-medium">{org.stats.ssot_migration?.direction_rate || 0}%</span>
+                          </div>
+                          <Progress value={org.stats.ssot_migration?.direction_rate || 0} className="h-1.5" />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {(org.stats.ssot_migration?.with_direction || 0).toLocaleString()} of {org.stats.emails.toLocaleString()}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">Body Preview</span>
+                            <span className="text-xs font-medium">{org.stats.ssot_migration?.body_preview_rate || 0}%</span>
+                          </div>
+                          <Progress value={org.stats.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {(org.stats.ssot_migration?.with_body_preview || 0).toLocaleString()} of {org.stats.emails.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Email Storage Breakdown */}
+                    <div className="pt-4 border-t">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <HardDrive className="h-4 w-4" />
+                        Email Storage
+                      </h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center p-3 bg-muted/50 rounded-lg">
+                          <p className="text-xl font-bold text-purple-600">{org.stats.emails.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Total Emails</p>
+                          <p className="text-xs text-muted-foreground mt-1">{formatBytes(org.stats.email_storage_bytes)}</p>
+                        </div>
+                        <div className="text-center p-3 bg-muted/50 rounded-lg">
+                          <p className="text-xl font-bold text-green-600">{org.stats.linked_to_job.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Linked to Jobs</p>
+                          <p className="text-xs text-muted-foreground mt-1">{formatBytes(org.stats.size_by_job)}</p>
+                        </div>
+                        <div className="text-center p-3 bg-muted/50 rounded-lg">
+                          <p className="text-xl font-bold text-red-600">{org.stats.junk_emails.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Spam</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Unclassified: {org.stats.unprocessed.toLocaleString()}</span>
+                        <span>Last Sync: {org.stats.last_sync ? format(new Date(org.stats.last_sync), "PPp") : "Never"}</span>
+                      </div>
                     </div>
                   </div>
                 ) : (

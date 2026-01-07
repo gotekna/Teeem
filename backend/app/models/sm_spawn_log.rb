@@ -5,7 +5,7 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.4
 #
 class SmSpawnLog < ApplicationRecord
-  SPAWN_TYPES = %w[photo scan office inspection_retry].freeze
+  SPAWN_TYPES = %w[photo scan office inspection_retry document_get].freeze
   SPAWN_TRIGGERS = %w[parent_complete inspection_fail].freeze
 
   belongs_to :parent_task, class_name: "SmTask"

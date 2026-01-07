@@ -187,12 +187,16 @@ class PricebookImportService
   def find_or_create_supplier(supplier_name)
     return nil unless @options[:create_suppliers]
 
-    supplier = Contact.find_or_create_by(display_name: supplier_name.strip) do |c|
-      c.entity_type = "company" # Default to company for suppliers
+    # SSoT: Use entity_type in find condition to leverage unique partial index
+    # DB index idx_contacts_unique_company_name prevents duplicates for active companies
+    supplier = Contact.find_or_create_by(display_name: supplier_name.strip, entity_type: "company") do |c|
       c.is_active = true
     end
     @stats[:suppliers_created] += 1 if supplier.previously_new_record?
     supplier
+  rescue ActiveRecord::RecordNotUnique
+    # DB constraint caught a duplicate (concurrent import created it)
+    Contact.find_by(display_name: supplier_name.strip, entity_type: "company", is_active: true)
   end
 
   def parse_price(price_str)

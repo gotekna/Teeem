@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { LeadForm } from "@/components/leads/lead-form";
 import { GenerateContractModal } from "@/components/contracts/generate-contract-modal";
@@ -137,10 +138,51 @@ export default function LeadDetailPage() {
     });
   };
 
+  // SSoT: Show skeleton layout during loading to prevent flash/CLS
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Spinner />
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-4">
+            <BackButton fallbackHref="/leads" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+              <Skeleton className="h-4 w-24" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-20" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </div>
+        {/* Tabs skeleton */}
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-20" />
+          <Skeleton className="h-9 w-28" />
+        </div>
+        {/* Content skeleton */}
+        <div className="grid grid-cols-3 gap-6">
+          <Card className="col-span-2">
+            <CardHeader><Skeleton className="h-5 w-24" /></CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><Skeleton className="h-5 w-20" /></CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-4 w-32" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

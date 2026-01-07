@@ -39,6 +39,7 @@ class DocumentType < ApplicationRecord
   end
 
   # Sync entity_tab_ids with the database
+  # SSoT: Also updates primary_tab column to match first EntityTab
   def sync_entity_tab_ids(ids)
     existing_ids = entity_tab_document_types.pluck(:entity_tab_id)
 
@@ -48,6 +49,15 @@ class DocumentType < ApplicationRecord
     # Add new assignments
     (ids - existing_ids).each do |tab_id|
       entity_tab_document_types.create(entity_tab_id: tab_id)
+    end
+
+    # SSoT: Update primary_tab column to match first EntityTab
+    primary_tab_id = ids.first
+    if primary_tab_id.present?
+      primary_entity_tab = EntityTab.find_by(id: primary_tab_id)
+      update_column(:primary_tab, primary_entity_tab&.display_name)
+    else
+      update_column(:primary_tab, nil)
     end
   end
 
@@ -80,6 +90,49 @@ class DocumentType < ApplicationRecord
   # SSoT: "contacts" is the canonical scope, "people" is legacy - include both for backwards compatibility
   scope :for_contacts, -> { where(scope: %w[contacts people]) }
   scope :requiring_filing, -> { where(requires_filing: true) }
+  scope :supporting_versioning, -> { where(supports_versioning: true) }
+
+  # Check if this document type supports Draft/Signed versioning
+  def versionable?
+    supports_versioning == true
+  end
+
+  # Check if this document type auto-generates certificates on task completion
+  def generates_certificate?
+    generates_certificate == true
+  end
+
+  # Human-readable name for certificate template
+  def certificate_template_display
+    case certificate_template
+    when "form_43"
+      "Form 43 - Aspect Certificate"
+    when "form_16"
+      "Form 16 - Final Inspection Certificate"
+    else
+      certificate_template&.titleize || "Certificate"
+    end
+  end
+
+  # Resolve form number based on dwelling type using the configured mapping
+  # Returns the mapped value, or first mapping as fallback if dwelling type not found
+  # Example mapping: { "Class 1A" => "Form 15", "Class 10" => "Form 21" }
+  def resolve_form_number(dwelling_type)
+    return "" if form_number_mapping.blank?
+
+    # If no dwelling type provided, return first mapping as default
+    return form_number_mapping.values.first || "" if dwelling_type.blank?
+
+    # Try exact match first
+    form_number_mapping[dwelling_type] ||
+      # Try case-insensitive match
+      form_number_mapping.find { |k, _| k.downcase == dwelling_type.downcase }&.last ||
+      # Return default if configured
+      form_number_mapping["default"] ||
+      # Fallback to first mapping in the list
+      form_number_mapping.values.first ||
+      ""
+  end
 
   # Default aliases for common document types - maps alternative names to canonical names
   # These are used as fallback when database aliases aren't set
@@ -300,6 +353,11 @@ class DocumentType < ApplicationRecord
     format.gsub!("{JobTitle}", job_title)
     format.gsub!("{CertType}", description.presence || "Cert")
     format.gsub!("{Consultant}", description.presence || "Consultant")
+
+    # Form number based on dwelling type mapping
+    form_number = resolve_form_number(job.dwelling_type)
+    format.gsub!("{FormNumber}", form_number)
+    format.gsub!("{DwellingType}", job.dwelling_type.presence || "")
     format.gsub!("{Number}", number.to_s.rjust(2, "0"))
     format.gsub!("{Category}", category.presence || "General")
 

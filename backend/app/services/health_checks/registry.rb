@@ -20,7 +20,9 @@ module HealthChecks
       'jobs' => JobsCheck,
       'pricebook-items' => PricebookCheck,
       'corporate_companies' => CompaniesCheck,
-      'company_documents' => DocumentsCheck
+      'company_documents' => DocumentsCheck,
+      'sm-schedule-master' => SmScheduleMastersCheck,
+      'sm-tasks' => SmScheduleMastersCheck  # Uses same health checks as schedule master
     }.freeze
 
     # Map table names to check services
@@ -30,7 +32,8 @@ module HealthChecks
       "pricebook" => PricebookCheck,
       "pricebook_items" => PricebookCheck,
       "companies" => CompaniesCheck,
-      "company_documents" => DocumentsCheck
+      "company_documents" => DocumentsCheck,
+      "sm_schedule_masters" => SmScheduleMastersCheck
     }.freeze
 
     # All available check services
@@ -40,7 +43,8 @@ module HealthChecks
       JobsCheck,
       CompaniesCheck,
       DocumentsCheck,
-      ConsolidationCheck
+      ConsolidationCheck,
+      SmScheduleMastersCheck
     ].freeze
 
     # Map check types to frontend route slugs
@@ -50,7 +54,8 @@ module HealthChecks
       "jobs" => "jobs",
       "companies" => "corporate",
       "company_documents" => "documents",
-      "consolidation" => nil # No direct route for consolidation checks
+      "consolidation" => nil, # No direct route for consolidation checks
+      "sm_schedule_masters" => "schedule-master"
     }.freeze
 
     class << self

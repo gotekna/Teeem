@@ -85,21 +85,35 @@ entries = [
     title: "Role-Based Access Control",
     entry_type: "feature",
     difficulty: "intermediate",
-    summary: "Permission system using hardcoded roles and model-based permission methods.",
+    summary: "Permission system using database-driven roles (SSoT: Role model) and model-based permission methods.",
     code_example: <<~'CODE',
+      # SSoT: Roles come from the database, not hardcoded constants
+      # app/models/role.rb
+      class Role < ApplicationRecord
+        scope :active, -> { where(active: true) }
+        scope :with_god_view, -> { where(god_view_access: true) }
+        scope :with_payment_approval, -> { where(can_approve_payments: true) }
+
+        def self.for_select
+          active.ordered.pluck(:name, :display_name).map { |name, display| { value: name, label: display } }
+        end
+      end
+
       # app/models/user.rb
-      ROLES = %w[user admin product_owner estimator supervisor builder].freeze
+      # SSoT: Roles via user_roles join table
+      has_many :user_roles, dependent: :destroy
+      has_many :roles, through: :user_roles
+
+      def god_view?
+        roles.with_god_view.exists?
+      end
 
       def admin?
-        role == 'admin'
+        role_names.include?('admin')
       end
 
       def can_create_templates?
         admin? || product_owner?
-      end
-
-      def can_edit_schedule?
-        admin? || product_owner? || estimator?
       end
 
       # Controller usage:

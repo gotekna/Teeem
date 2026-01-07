@@ -197,15 +197,20 @@ class TableBuilder
   def column_options(column)
     options = {}
 
-    # String/text length
-    if column.db_type == :string && column.max_length
-      options[:limit] = column.max_length
+    # Get the SQL type from SSoT (Column::COLUMN_SQL_TYPE_MAP)
+    sql_type = column.effective_sql_type
+
+    # String/text length - parse from SQL type or use column override
+    if column.db_type == :string
+      limit = parse_varchar_limit(sql_type) || column.max_length
+      options[:limit] = limit if limit
     end
 
-    # Decimal precision
+    # Decimal precision/scale - parse from SQL type (SSoT)
     if column.db_type == :decimal
-      options[:precision] = 15
-      options[:scale] = 2
+      precision, scale = parse_numeric_precision(sql_type)
+      options[:precision] = precision || 10
+      options[:scale] = scale || 2
     end
 
     # Default value
@@ -215,5 +220,21 @@ class TableBuilder
     options[:null] = !column.required
 
     options
+  end
+
+  # Parse VARCHAR(N) to extract the limit
+  # e.g., "VARCHAR(255)" => 255, "VARCHAR(20)" => 20
+  def parse_varchar_limit(sql_type)
+    return nil unless sql_type
+    match = sql_type.match(/VARCHAR\((\d+)\)/i)
+    match ? match[1].to_i : nil
+  end
+
+  # Parse NUMERIC(P,S) to extract precision and scale
+  # e.g., "NUMERIC(10,2)" => [10, 2], "NUMERIC(5,2)" => [5, 2]
+  def parse_numeric_precision(sql_type)
+    return [10, 2] unless sql_type
+    match = sql_type.match(/NUMERIC\((\d+),(\d+)\)/i)
+    match ? [match[1].to_i, match[2].to_i] : [10, 2]
   end
 end

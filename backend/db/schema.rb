@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_07_050448) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1210,6 +1210,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.integer "type_version_applied", default: 0
     t.datetime "last_compliance_check"
     t.string "lookup_foundation_slug"
+    t.jsonb "choice_descriptions", default: {}
     t.index ["column_type_definition_id"], name: "index_columns_on_column_type_definition_id"
     t.index ["foundation_id", "column_name"], name: "index_columns_on_foundation_id_and_column_name", unique: true
     t.index ["foundation_id"], name: "index_columns_on_foundation_id"
@@ -1330,7 +1331,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.string "reviewed_by"
     t.string "xero_contact_status", default: "active"
     t.datetime "last_verified_at"
-    t.index ["contact_id", "source", "tenant_id"], name: "idx_contact_external_links_unique", unique: true
+    t.string "external_name"
+    t.index ["contact_id", "source", "created_at"], name: "idx_cel_contact_source_created"
     t.index ["contact_id"], name: "index_contact_external_links_on_contact_id"
     t.index ["last_verified_at"], name: "index_contact_external_links_on_last_verified_at"
     t.index ["needs_review"], name: "idx_contact_external_links_needs_review", where: "(needs_review = true)"
@@ -1432,10 +1434,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.boolean "is_active", default: true
     t.jsonb "metadata", default: {}
     t.integer "display_order", default: 0
+    t.integer "role_ids", default: [], array: true
     t.index ["is_active"], name: "index_contact_relationships_on_is_active"
     t.index ["related_contact_id", "display_order"], name: "index_contact_relationships_on_company_and_order"
     t.index ["related_contact_id"], name: "index_contact_relationships_on_related_contact_id"
     t.index ["relationship_type"], name: "index_contact_relationships_on_relationship_type"
+    t.index ["role_ids"], name: "index_contact_relationships_on_role_ids", using: :gin
     t.index ["source_contact_id", "related_contact_id", "relationship_type"], name: "index_contact_relationships_unique_by_type", unique: true
     t.index ["source_contact_id"], name: "index_contact_relationships_on_source_contact_id"
   end
@@ -1472,12 +1476,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.string "bank_bsb"
     t.string "bank_account_number"
     t.string "bank_account_name"
-    t.string "default_purchase_account"
+    t.integer "default_purchase_account"
     t.integer "bill_due_day"
     t.string "bill_due_type"
     t.string "xero_contact_number"
     t.string "xero_account_number"
-    t.string "default_sales_account"
+    t.integer "default_sales_account"
     t.decimal "default_discount", precision: 5, scale: 2
     t.integer "sales_due_day"
     t.string "sales_due_type"
@@ -1545,14 +1549,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.decimal "total_network_fees", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_commissions_earned", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_commissions_paid", precision: 12, scale: 2, default: "0.0"
+    t.string "direct_line"
+    t.boolean "is_customer_cached", default: false, null: false
+    t.boolean "is_supplier_cached", default: false, null: false
+    t.boolean "is_director_cached", default: false, null: false
     t.index "lower((email)::text)", name: "idx_contacts_lower_email"
+    t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
+    t.index ["display_name"], name: "idx_contacts_display_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["email"], name: "index_contacts_on_email"
+    t.index ["entity_type", "display_name"], name: "idx_contacts_entity_type_display_name"
+    t.index ["entity_type", "is_active"], name: "idx_contacts_entity_type_active"
+    t.index ["entity_type"], name: "index_contacts_on_entity_type"
     t.index ["is_active"], name: "index_contacts_on_is_active"
+    t.index ["is_customer_cached"], name: "index_contacts_on_is_customer_cached"
+    t.index ["is_director_cached"], name: "index_contacts_on_is_director_cached"
+    t.index ["is_family_member"], name: "index_contacts_on_is_family_member"
+    t.index ["is_potential_director"], name: "index_contacts_on_is_potential_director"
     t.index ["is_saas_customer"], name: "index_contacts_on_is_saas_customer"
+    t.index ["is_supplier_cached"], name: "index_contacts_on_is_supplier_cached"
+    t.index ["is_team_contact", "is_active"], name: "idx_contacts_team_contact_active"
     t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
@@ -2256,6 +2275,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.string "scope", default: "company"
     t.string "file_extensions", default: [], array: true
     t.string "target_folder"
+    t.boolean "skip_rename", default: false, null: false
+    t.boolean "supports_versioning", default: false, null: false
+    t.jsonb "form_number_mapping", default: {}
+    t.boolean "generates_certificate", default: false
+    t.string "certificate_template"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
@@ -2264,6 +2288,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["name", "scope"], name: "index_document_types_on_name_and_scope", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
     t.index ["scope"], name: "index_document_types_on_scope"
+    t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
   end
 
   create_table "document_verification_feedbacks", force: :cascade do |t|
@@ -2500,7 +2525,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["user_id"], name: "index_email_drafts_on_user_id"
   end
 
-  create_table "email_job_proposals", id: :bigint, default: nil, force: :cascade do |t|
+  create_table "email_folder_preferences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "account_id", null: false
+    t.string "folder_id", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "account_id", "folder_id"], name: "idx_email_folder_prefs_unique", unique: true
+    t.index ["user_id", "account_id", "position"], name: "idx_email_folder_prefs_order"
+    t.index ["user_id"], name: "index_email_folder_preferences_on_user_id"
+  end
+
+  create_table "email_job_proposals", force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.bigint "created_by_user_id", null: false
     t.bigint "job_id"
@@ -2542,7 +2579,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["user_id"], name: "index_email_labels_on_user_id"
   end
 
-  create_table "email_recipients", id: :bigint, default: nil, force: :cascade do |t|
+  create_table "email_recipients", force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.bigint "user_id"
     t.bigint "contact_id"
@@ -2567,8 +2604,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.datetime "last_matched_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "microsoft_credential_id"
+    t.string "mailbox_email"
     t.index ["imap_credential_id", "is_active"], name: "index_email_rules_on_imap_credential_id_and_is_active"
     t.index ["imap_credential_id"], name: "index_email_rules_on_imap_credential_id"
+    t.index ["microsoft_credential_id"], name: "index_email_rules_on_microsoft_credential_id"
     t.index ["user_id", "priority"], name: "index_email_rules_on_user_id_and_priority"
     t.index ["user_id"], name: "index_email_rules_on_user_id"
   end
@@ -2589,7 +2629,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["user_id"], name: "index_email_snoozes_on_user_id"
   end
 
-  create_table "email_sync_statuses", id: :bigint, default: nil, force: :cascade do |t|
+  create_table "email_sync_statuses", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "status", default: "pending"
     t.datetime "last_sync_at"
@@ -2647,7 +2687,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["user_id"], name: "index_email_user_states_on_user_id"
   end
 
-  create_table "email_warehouse", force: :cascade do |t|
+  create_table "email_warehouses", force: :cascade do |t|
     t.string "internet_message_id", null: false
     t.string "outlook_id"
     t.string "conversation_id"
@@ -2701,15 +2741,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.bigint "imap_credential_id"
     t.string "labels", default: [], array: true
     t.bigint "uid"
+    t.string "direction"
+    t.integer "dismissed_from_job_ids", default: [], array: true
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
+    t.index ["direction"], name: "index_email_warehouses_on_direction"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
     t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
     t.index ["job_id", "received_at"], name: "idx_email_warehouse_job_received", order: { received_at: :desc }
-    t.index ["labels"], name: "index_email_warehouse_on_labels", using: :gin
+    t.index ["labels"], name: "index_email_warehouses_on_labels", using: :gin
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
     t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
     t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
@@ -2775,6 +2818,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.boolean "is_photo_category", default: false, null: false
     t.string "display_mode", default: "both", null: false
     t.boolean "hidden_by_default", default: false, null: false
+    t.string "sharepoint_folder_id"
+    t.boolean "is_cad_category"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"
@@ -2783,6 +2828,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["scope", "tab_group"], name: "index_entity_tabs_on_scope_and_tab_group"
     t.index ["scope", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
     t.index ["scope"], name: "index_entity_tabs_on_scope"
+    t.index ["sharepoint_folder_id"], name: "index_entity_tabs_on_sharepoint_folder_id"
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
@@ -3129,15 +3175,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   end
 
   create_table "gl_accounts", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.bigint "corporate_company_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
     t.string "external_account_id"
     t.datetime "external_synced_at"
-    t.string "code", null: false
-    t.string "name", null: false
+    t.string "code", default: "", null: false
+    t.string "name", default: "", null: false
     t.string "description"
-    t.string "account_type", null: false
+    t.string "account_type", default: "asset", null: false
     t.string "account_class"
     t.string "system_account"
     t.string "tax_type"
@@ -3148,13 +3196,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.bigint "parent_account_id"
     t.integer "display_order"
     t.string "currency_code", default: "AUD"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
     t.index ["account_class"], name: "index_gl_accounts_on_account_class"
     t.index ["account_type"], name: "index_gl_accounts_on_account_type"
     t.index ["active"], name: "index_gl_accounts_on_active"
     t.index ["corporate_company_id", "external_provider", "external_tenant_id", "code"], name: "idx_gl_accounts_unique_code", unique: true
-    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "external_account_id"], name: "idx_gl_accounts_unique_external", unique: true, where: "(external_account_id IS NOT NULL)"
     t.index ["corporate_company_id"], name: "index_gl_accounts_on_corporate_company_id"
     t.index ["is_bank_account"], name: "index_gl_accounts_on_is_bank_account"
     t.index ["parent_account_id"], name: "index_gl_accounts_on_parent_account_id"
@@ -4239,12 +4284,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.jsonb "tracking_data", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "recurring_invoice_id"
+    t.integer "recurring_sequence"
     t.string "payment_url"
     t.string "payment_token"
     t.datetime "payment_token_expires_at"
     t.bigint "department_id"
-    t.bigint "recurring_invoice_id"
-    t.integer "recurring_sequence"
     t.index ["approved_by_id"], name: "index_gl_invoices_on_approved_by_id"
     t.index ["contact_id", "invoice_type"], name: "idx_gl_inv_contact_type"
     t.index ["contact_id"], name: "index_gl_invoices_on_contact_id"
@@ -5357,7 +5402,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.text "file_upload"
     t.boolean "boolean"
     t.string "choice", limit: 50
-    t.string "lookup", limit: 255
+    t.integer "lookup"
     t.text "multiple_lookups"
     t.integer "user"
     t.string "computed", limit: 255
@@ -5437,6 +5482,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.datetime "updated_at", null: false
     t.text "email_signature"
     t.text "email_aliases", default: [], array: true
+    t.integer "shared_with_user_ids", default: [], array: true
+    t.integer "nav_position", default: 0
     t.index ["is_active"], name: "index_imap_credentials_on_is_active"
     t.index ["user_id", "email_address"], name: "index_imap_credentials_on_user_id_and_email_address", unique: true
     t.index ["user_id"], name: "index_imap_credentials_on_user_id"
@@ -5811,11 +5858,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.text "migration_error"
     t.string "source_provider"
     t.string "source_item_id"
+    t.bigint "parent_document_id"
+    t.string "version_status", default: "draft", null: false
+    t.integer "version_number", default: 1, null: false
+    t.datetime "signed_at"
+    t.bigint "signed_by_id"
     t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
     t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
     t.index ["company_id"], name: "index_job_documents_on_company_id"
     t.index ["contact_id"], name: "index_job_documents_on_contact_id"
     t.index ["content_hash"], name: "index_job_documents_on_content_hash"
+    t.index ["document_type_id", "version_status"], name: "index_job_documents_on_document_type_id_and_version_status"
     t.index ["document_type_id"], name: "index_job_documents_on_document_type_id"
     t.index ["external_id"], name: "index_job_documents_on_external_id"
     t.index ["file_type"], name: "index_job_documents_on_file_type"
@@ -5825,14 +5878,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["job_id"], name: "index_job_documents_on_job_id"
     t.index ["legacy_corporate_document_id"], name: "index_job_documents_on_legacy_corporate_document_id"
     t.index ["migration_status"], name: "index_job_documents_on_migration_status"
+    t.index ["parent_document_id"], name: "index_job_documents_on_parent_document_id"
     t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
     t.index ["rename_status"], name: "index_job_documents_on_rename_status"
     t.index ["sharepoint_drive_id"], name: "index_job_documents_on_sharepoint_drive_id"
     t.index ["sharepoint_item_id"], name: "index_job_documents_on_sharepoint_item_id", unique: true
+    t.index ["signed_by_id"], name: "index_job_documents_on_signed_by_id"
     t.index ["storage_provider", "storage_item_id"], name: "index_job_documents_on_storage_provider_and_storage_item_id"
     t.index ["storage_provider"], name: "index_job_documents_on_storage_provider"
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
     t.index ["version_id"], name: "index_job_documents_on_version_id"
+    t.index ["version_status"], name: "index_job_documents_on_version_status"
   end
 
   create_table "job_people", force: :cascade do |t|
@@ -5870,7 +5926,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["is_on_issue"], name: "index_job_plan_revisions_on_is_on_issue"
     t.index ["issued_by_id"], name: "index_job_plan_revisions_on_issued_by_id"
     t.index ["job_plan_id", "revision"], name: "index_job_plan_revisions_on_job_plan_id_and_revision", unique: true
-    t.index ["job_plan_id"], name: "idx_on_issue_revisions", where: "(is_on_issue = true)"
     t.index ["job_plan_id"], name: "index_job_plan_revisions_on_job_plan_id"
     t.index ["thumbnail_file_id"], name: "index_job_plan_revisions_on_thumbnail_file_id"
   end
@@ -5906,8 +5961,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.boolean "is_combined_pdf", default: false, null: false
     t.integer "revisions_count", default: 0, null: false
     t.index ["current_revision_id"], name: "index_job_plans_on_current_revision_id"
-    t.index ["job_id", "id"], name: "idx_job_plans_job_pagination"
-    t.index ["job_id", "job_plan_tab_id", "id"], name: "idx_job_plans_tab_pagination"
     t.index ["job_id", "plan_type_id", "variant_suffix"], name: "idx_job_plans_unique_per_job", unique: true
     t.index ["job_id"], name: "index_job_plans_on_job_id"
     t.index ["job_plan_tab_id"], name: "index_job_plans_on_job_plan_tab_id"
@@ -5972,17 +6025,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["position"], name: "index_job_stages_on_position"
   end
 
-  create_table "job_status", force: :cascade do |t|
-    t.string "name", null: false
-    t.integer "position", default: 0
-    t.boolean "is_active", default: true
-    t.string "color"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_job_status_on_is_active"
-    t.index ["position"], name: "index_job_status_on_position"
-  end
-
   create_table "job_status_stages", force: :cascade do |t|
     t.bigint "job_type_id", null: false
     t.bigint "job_status_id", null: false
@@ -5996,6 +6038,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["job_type_id", "job_status_id", "job_stage_id"], name: "index_job_status_stages_on_type_status_stage", unique: true
     t.index ["job_type_id"], name: "index_job_status_stages_on_job_type_id"
     t.index ["position"], name: "index_job_status_stages_on_position"
+  end
+
+  create_table "job_statuses", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_job_statuses_on_is_active"
+    t.index ["position"], name: "index_job_statuses_on_position"
   end
 
   create_table "job_tabs", force: :cascade do |t|
@@ -6113,8 +6166,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.decimal "site_longitude", precision: 10, scale: 7
     t.integer "plans_count", default: 0, null: false
     t.integer "on_issue_plans_count", default: 0, null: false
-    t.bigint "sm_template_version_id"
     t.datetime "template_applied_at"
+    t.string "sharepoint_folder_id"
+    t.string "level"
+    t.string "dwelling_type"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6126,8 +6181,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["postcode"], name: "index_jobs_on_postcode"
     t.index ["searchable"], name: "idx_jobs_searchable_gin", using: :gin
+    t.index ["sharepoint_folder_id"], name: "index_jobs_on_sharepoint_folder_id"
     t.index ["sharepoint_folder_status"], name: "index_jobs_on_sharepoint_folder_status"
-    t.index ["sm_template_version_id"], name: "idx_jobs_template_version"
     t.index ["suburb"], name: "index_jobs_on_suburb"
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
   end
@@ -6410,6 +6465,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.datetime "updated_at", null: false
     t.bigint "organization_id", null: false
     t.integer "lock_version", default: 0, null: false
+    t.boolean "is_primary", default: false, null: false
     t.index ["connected_by_id"], name: "index_microsoft_credentials_on_connected_by_id"
     t.index ["credential_type", "is_active"], name: "idx_ms_creds_type_active"
     t.index ["name", "is_active"], name: "idx_ms_creds_name_unique_active", unique: true, where: "((is_active = true) AND (name IS NOT NULL))"
@@ -6493,6 +6549,104 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["document_type"], name: "index_ndis_addendums_on_document_type"
+  end
+
+  create_table "notebook_activities", force: :cascade do |t|
+    t.bigint "notebook_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "page_id"
+    t.bigint "section_id"
+    t.string "activity_type", null: false
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_notebook_activities_on_activity_type"
+    t.index ["created_at"], name: "index_notebook_activities_on_created_at"
+    t.index ["notebook_id"], name: "index_notebook_activities_on_notebook_id"
+    t.index ["page_id"], name: "index_notebook_activities_on_page_id"
+    t.index ["section_id"], name: "index_notebook_activities_on_section_id"
+    t.index ["user_id"], name: "index_notebook_activities_on_user_id"
+  end
+
+  create_table "notebook_page_attachments", force: :cascade do |t|
+    t.bigint "page_id", null: false
+    t.bigint "uploaded_by_id"
+    t.string "file_name", null: false
+    t.string "content_type"
+    t.string "storage_key", null: false
+    t.integer "file_size"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["page_id"], name: "index_notebook_page_attachments_on_page_id"
+    t.index ["storage_key"], name: "index_notebook_page_attachments_on_storage_key", unique: true
+    t.index ["uploaded_by_id"], name: "index_notebook_page_attachments_on_uploaded_by_id"
+  end
+
+  create_table "notebook_pages", force: :cascade do |t|
+    t.bigint "section_id", null: false
+    t.string "title", default: "Untitled", null: false
+    t.text "content"
+    t.jsonb "content_metadata", default: {}
+    t.integer "position", default: 0, null: false
+    t.bigint "created_by_id"
+    t.bigint "last_edited_by_id"
+    t.boolean "is_pinned", default: false, null: false
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_notebook_pages_on_archived_at"
+    t.index ["created_by_id"], name: "index_notebook_pages_on_created_by_id"
+    t.index ["is_pinned"], name: "index_notebook_pages_on_is_pinned"
+    t.index ["last_edited_by_id"], name: "index_notebook_pages_on_last_edited_by_id"
+    t.index ["section_id", "position"], name: "index_notebook_pages_on_section_id_and_position"
+    t.index ["section_id"], name: "index_notebook_pages_on_section_id"
+  end
+
+  create_table "notebook_sections", force: :cascade do |t|
+    t.bigint "notebook_id", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.string "color"
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_notebook_sections_on_archived_at"
+    t.index ["notebook_id", "position"], name: "index_notebook_sections_on_notebook_id_and_position"
+    t.index ["notebook_id"], name: "index_notebook_sections_on_notebook_id"
+  end
+
+  create_table "notebook_shares", force: :cascade do |t|
+    t.bigint "notebook_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "granted_by_id"
+    t.string "permission", default: "view", null: false
+    t.datetime "expires_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["expires_at"], name: "index_notebook_shares_on_expires_at"
+    t.index ["granted_by_id"], name: "index_notebook_shares_on_granted_by_id"
+    t.index ["notebook_id", "user_id"], name: "index_notebook_shares_on_notebook_id_and_user_id", unique: true
+    t.index ["notebook_id"], name: "index_notebook_shares_on_notebook_id"
+    t.index ["permission"], name: "index_notebook_shares_on_permission"
+    t.index ["user_id"], name: "index_notebook_shares_on_user_id"
+  end
+
+  create_table "notebooks", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "icon_name"
+    t.string "color"
+    t.bigint "owner_id", null: false
+    t.string "notable_type"
+    t.bigint "notable_id"
+    t.boolean "is_default", default: false, null: false
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_notebooks_on_archived_at"
+    t.index ["name"], name: "index_notebooks_on_name"
+    t.index ["notable_type", "notable_id"], name: "index_notebooks_on_notable_type_and_notable_id"
+    t.index ["owner_id"], name: "index_notebooks_on_owner_id"
   end
 
   create_table "notifications", force: :cascade do |t|
@@ -7092,12 +7246,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.string "user_name"
     t.index ["changed_by_user_id"], name: "index_price_histories_on_changed_by_user_id"
     t.index ["created_at"], name: "index_price_histories_on_created_at"
-    t.index ["pricebook_item_id", "supplier_id", "new_price", "created_at"], name: "index_price_histories_on_unique_combination", unique: true, comment: "Prevents duplicate price history entries from race conditions"
+    t.index ["pricebook_item_id", "supplier_id", "new_price", "created_at"], name: "index_price_histories_on_unique_combination", unique: true
     t.index ["pricebook_item_id"], name: "index_price_histories_on_pricebook_item_id"
     t.index ["supplier_id"], name: "index_price_histories_on_supplier_id"
   end
 
-  create_table "pricebook", force: :cascade do |t|
+  create_table "pricebook_categories", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "display_name"
+    t.string "color", default: "#6B7280"
+    t.string "icon"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_pricebook_categories_on_is_active"
+    t.index ["name"], name: "index_pricebook_categories_on_name", unique: true
+    t.index ["position"], name: "index_pricebook_categories_on_position"
+  end
+
+  create_table "pricebooks", force: :cascade do |t|
     t.string "item_code", null: false
     t.string "item_name", null: false
     t.string "category"
@@ -7135,34 +7303,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.integer "lead_time_days"
     t.integer "call_time_days"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
-    t.index ["category"], name: "index_pricebook_on_category"
-    t.index ["category_id"], name: "index_pricebook_on_category_id"
-    t.index ["colour"], name: "index_pricebook_on_colour"
-    t.index ["default_supplier_id"], name: "index_pricebook_on_default_supplier_id"
-    t.index ["image_fetch_status"], name: "index_pricebook_on_image_fetch_status"
-    t.index ["image_file_id"], name: "index_pricebook_on_image_file_id"
-    t.index ["is_active"], name: "index_pricebook_on_is_active"
-    t.index ["item_code"], name: "index_pricebook_on_item_code", unique: true
-    t.index ["needs_pricing_review"], name: "index_pricebook_on_needs_pricing_review"
-    t.index ["price_last_updated_at"], name: "index_pricebook_on_price_last_updated_at"
-    t.index ["qr_code_file_id"], name: "index_pricebook_on_qr_code_file_id"
+    t.index ["category"], name: "index_pricebooks_on_category"
+    t.index ["category_id"], name: "index_pricebooks_on_category_id"
+    t.index ["colour"], name: "index_pricebooks_on_colour"
+    t.index ["default_supplier_id"], name: "index_pricebooks_on_default_supplier_id"
+    t.index ["image_fetch_status"], name: "index_pricebooks_on_image_fetch_status"
+    t.index ["image_file_id"], name: "index_pricebooks_on_image_file_id"
+    t.index ["is_active"], name: "index_pricebooks_on_is_active"
+    t.index ["item_code"], name: "index_pricebooks_on_item_code", unique: true
+    t.index ["needs_pricing_review"], name: "index_pricebooks_on_needs_pricing_review"
+    t.index ["price_last_updated_at"], name: "index_pricebooks_on_price_last_updated_at"
+    t.index ["qr_code_file_id"], name: "index_pricebooks_on_qr_code_file_id"
     t.index ["searchable_text"], name: "idx_pricebook_search", using: :gin
-    t.index ["spec_file_id"], name: "index_pricebook_on_spec_file_id"
-    t.index ["supplier_id"], name: "index_pricebook_on_supplier_id"
-  end
-
-  create_table "pricebook_categories", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "display_name"
-    t.string "color", default: "#6B7280"
-    t.string "icon"
-    t.integer "position", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_pricebook_categories_on_is_active"
-    t.index ["name"], name: "index_pricebook_categories_on_name", unique: true
-    t.index ["position"], name: "index_pricebook_categories_on_position"
+    t.index ["spec_file_id"], name: "index_pricebooks_on_spec_file_id"
+    t.index ["supplier_id"], name: "index_pricebooks_on_supplier_id"
   end
 
   create_table "profit_loss_reports", force: :cascade do |t|
@@ -7589,6 +7743,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.integer "position", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "god_view_access", default: false, null: false
+    t.boolean "can_approve_payments", default: false, null: false
     t.index ["name"], name: "index_roles_on_name", unique: true
     t.index ["position"], name: "index_roles_on_position"
   end
@@ -7678,6 +7834,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["transfer_date"], name: "index_share_transfers_on_transfer_date"
   end
 
+  create_table "signature_usages", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "document_type_id"
+    t.bigint "job_id"
+    t.bigint "job_document_id"
+    t.datetime "signed_at", null: false
+    t.string "certificate_type"
+    t.string "document_name"
+    t.string "purpose"
+    t.string "ip_address"
+    t.string "user_agent"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["certificate_type"], name: "index_signature_usages_on_certificate_type"
+    t.index ["document_type_id"], name: "index_signature_usages_on_document_type_id"
+    t.index ["job_document_id"], name: "index_signature_usages_on_job_document_id"
+    t.index ["job_id"], name: "index_signature_usages_on_job_id"
+    t.index ["signed_at"], name: "index_signature_usages_on_signed_at"
+    t.index ["user_id", "signed_at"], name: "index_signature_usages_on_user_id_and_signed_at"
+    t.index ["user_id"], name: "index_signature_usages_on_user_id"
+  end
+
   create_table "site_presence_sessions", force: :cascade do |t|
     t.bigint "worker_profile_id", null: false
     t.bigint "job_id", null: false
@@ -7733,6 +7911,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["worker_profile_id", "checkin_at"], name: "idx_on_worker_profile_id_checkin_at_2de5a18268"
     t.index ["worker_profile_id", "session_status"], name: "idx_site_presence_worker_status"
     t.index ["worker_profile_id"], name: "index_site_presence_sessions_on_worker_profile_id"
+  end
+
+  create_table "sm_activities", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "user_id"
+    t.bigint "resource_id"
+    t.bigint "sm_task_id"
+    t.bigint "construction_id"
+    t.string "activity_type", null: false
+    t.string "trackable_type"
+    t.bigint "trackable_id"
+    t.text "metadata"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_sm_activities_on_activity_type"
+    t.index ["construction_id"], name: "index_sm_activities_on_construction_id"
+    t.index ["created_at"], name: "index_sm_activities_on_created_at"
+    t.index ["job_id"], name: "index_sm_activities_on_job_id"
+    t.index ["resource_id"], name: "index_sm_activities_on_resource_id"
+    t.index ["sm_task_id"], name: "index_sm_activities_on_sm_task_id"
+    t.index ["trackable_type", "trackable_id"], name: "index_sm_activities_on_trackable"
+    t.index ["user_id"], name: "index_sm_activities_on_user_id"
   end
 
   create_table "sm_comment_mentions", force: :cascade do |t|
@@ -7931,17 +8131,44 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["task_id"], name: "index_sm_rollover_logs_on_task_id"
   end
 
-  create_table "sm_schedule_master", force: :cascade do |t|
+  create_table "sm_schedule_master_document_types", force: :cascade do |t|
+    t.bigint "sm_schedule_master_id", null: false
+    t.bigint "document_type_id", null: false
+    t.integer "lag_days", default: 0
+    t.string "assigned_role"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type_id"], name: "index_sm_schedule_master_document_types_on_document_type_id"
+    t.index ["sm_schedule_master_id", "document_type_id"], name: "idx_sm_master_doc_type_unique", unique: true
+    t.index ["sm_schedule_master_id"], name: "idx_on_sm_schedule_master_id_ece8c53030"
+  end
+
+  create_table "sm_schedule_master_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "copied_from_id"
+    t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
+    t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
+    t.index ["is_active"], name: "index_sm_schedule_master_templates_on_is_active"
+    t.index ["is_default"], name: "index_sm_schedule_master_templates_on_is_default"
+    t.index ["updated_by_id"], name: "index_sm_schedule_master_templates_on_updated_by_id"
+  end
+
+  create_table "sm_schedule_masters", force: :cascade do |t|
     t.integer "task_number", null: false
     t.string "name", null: false
     t.text "description"
     t.decimal "sequence_order", precision: 10, scale: 2, null: false
     t.integer "duration_days", default: 1, null: false
     t.jsonb "predecessor_ids", default: []
-    t.string "trade"
-    t.string "stage"
-    t.string "assigned_role"
-    t.integer "documentation_category_ids", default: [], array: true
+    t.integer "trade"
+    t.integer "stage"
     t.jsonb "linked_task_ids", default: []
     t.boolean "pass_fail_enabled", default: false
     t.bigint "checklist_id"
@@ -7962,10 +8189,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "linked_po_task_id"
-    t.string "cost_centre"
+    t.integer "cost_centre"
     t.boolean "supplier_confirm", default: false
-    t.string "header_gantt"
+    t.integer "header_gantt"
     t.jsonb "sm_template_ids", default: []
     t.boolean "hold"
     t.date "hold_date"
@@ -7974,68 +8200,41 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.jsonb "predecessor_ids_backup"
     t.date "previous_manual_start_date"
     t.boolean "dependency_broken", default: false
-    t.bigint "po_supplier_id"
-    t.jsonb "po_line_items", default: []
     t.datetime "confirmed_at"
     t.datetime "supplier_confirmed_at"
     t.datetime "hold_at"
+    t.bigint "po_supplier_id"
+    t.jsonb "po_line_items", default: []
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
     t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
     t.boolean "allow_header", default: false, null: false
-    t.bigint "sm_schedule_master_version_id"
-    t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
-    t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"
-    t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"
-    t.index ["created_by_id"], name: "index_sm_schedule_master_on_created_by_id"
-    t.index ["dependency_broken"], name: "index_sm_schedule_master_on_dependency_broken", where: "(dependency_broken = true)"
-    t.index ["header_gantt"], name: "index_sm_schedule_master_on_header_gantt"
-    t.index ["hold"], name: "index_sm_schedule_master_on_hold", where: "(hold = true)"
-    t.index ["is_active"], name: "index_sm_schedule_master_on_is_active"
-    t.index ["linked_po_task_id"], name: "index_sm_schedule_master_on_linked_po_task_id"
-    t.index ["po_supplier_id"], name: "index_sm_schedule_master_on_po_supplier_id"
+    t.integer "assigned_role"
+    t.boolean "started", default: false
+    t.boolean "start_workflow_enabled", default: false
+    t.bigint "start_workflow_id"
+    t.boolean "complete_workflow_enabled", default: false
+    t.bigint "complete_workflow_id"
+    t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
+    t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
+    t.index ["confirm"], name: "index_sm_schedule_masters_on_confirm", where: "(confirm = true)"
+    t.index ["cost_centre"], name: "index_sm_schedule_masters_on_cost_centre"
+    t.index ["created_by_id"], name: "index_sm_schedule_masters_on_created_by_id"
+    t.index ["dependency_broken"], name: "index_sm_schedule_masters_on_dependency_broken", where: "(dependency_broken = true)"
+    t.index ["header_gantt"], name: "index_sm_schedule_masters_on_header_gantt"
+    t.index ["hold"], name: "index_sm_schedule_masters_on_hold", where: "(hold = true)"
+    t.index ["is_active"], name: "index_sm_schedule_masters_on_is_active"
+    t.index ["po_supplier_id"], name: "index_sm_schedule_masters_on_po_supplier_id"
     t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
-    t.index ["sm_schedule_master_version_id"], name: "idx_sm_rows_version"
-    t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids", using: :gin
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
-    t.index ["stage"], name: "index_sm_schedule_master_on_stage"
-    t.index ["supplier_confirm"], name: "index_sm_schedule_master_on_supplier_confirm", where: "(supplier_confirm = true)"
-    t.index ["task_number"], name: "index_sm_schedule_master_on_task_number"
-    t.index ["trade"], name: "index_sm_schedule_master_on_trade"
-    t.index ["updated_by_id"], name: "index_sm_schedule_master_on_updated_by_id"
-  end
-
-  create_table "sm_schedule_master_templates", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.boolean "is_default", default: false
-    t.boolean "is_active", default: true
-    t.bigint "created_by_id"
-    t.bigint "updated_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "copied_from_id"
-    t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
-    t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
-    t.index ["is_active"], name: "index_sm_schedule_master_templates_on_is_active"
-    t.index ["is_default"], name: "index_sm_schedule_master_templates_on_is_default"
-    t.index ["updated_by_id"], name: "index_sm_schedule_master_templates_on_updated_by_id"
-  end
-
-  create_table "sm_schedule_master_versions", force: :cascade do |t|
-    t.bigint "sm_schedule_master_template_id", null: false
-    t.integer "version_number", null: false
-    t.string "status", default: "draft", null: false
-    t.datetime "published_at"
-    t.bigint "published_by_id"
-    t.text "change_summary"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["published_by_id"], name: "index_sm_schedule_master_versions_on_published_by_id"
-    t.index ["sm_schedule_master_template_id", "status"], name: "idx_sm_versions_template_status"
-    t.index ["sm_schedule_master_template_id", "version_number"], name: "idx_sm_versions_template_number", unique: true
-    t.index ["sm_schedule_master_template_id"], name: "idx_sm_versions_template"
+    t.index ["stage"], name: "index_sm_schedule_masters_on_stage"
+    t.index ["start_workflow_id"], name: "index_sm_schedule_masters_on_start_workflow_id"
+    t.index ["started"], name: "index_sm_schedule_masters_on_started", where: "(started = true)"
+    t.index ["supplier_confirm"], name: "index_sm_schedule_masters_on_supplier_confirm", where: "(supplier_confirm = true)"
+    t.index ["task_number"], name: "index_sm_schedule_masters_on_task_number"
+    t.index ["trade"], name: "index_sm_schedule_masters_on_trade"
+    t.index ["updated_by_id"], name: "index_sm_schedule_masters_on_updated_by_id"
   end
 
   create_table "sm_settings", force: :cascade do |t|
@@ -8069,6 +8268,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["spawned_task_id"], name: "index_sm_spawn_logs_on_spawned_task_id"
   end
 
+  create_table "sm_stages", id: :serial, force: :cascade do |t|
+    t.string "name", limit: 255, null: false
+    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
+    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
+    t.integer "created_by"
+    t.integer "updated_by"
+  end
+
   create_table "sm_task_attachments", force: :cascade do |t|
     t.bigint "sm_task_id", null: false
     t.string "attachable_type", null: false
@@ -8082,6 +8289,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
     t.index ["sm_task_id", "attachable_type", "attachable_id"], name: "idx_sm_task_attachments_unique", unique: true
     t.index ["sm_task_id"], name: "index_sm_task_attachments_on_sm_task_id"
+  end
+
+  create_table "sm_task_document_types", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "document_type_id", null: false
+    t.integer "lag_days", default: 0
+    t.string "assigned_role"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type_id"], name: "index_sm_task_document_types_on_document_type_id"
+    t.index ["sm_task_id", "document_type_id"], name: "idx_sm_task_doc_type_unique", unique: true
+    t.index ["sm_task_id"], name: "index_sm_task_document_types_on_sm_task_id"
   end
 
   create_table "sm_task_photos", force: :cascade do |t|
@@ -8154,9 +8373,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.text "hold_release_reason"
     t.bigint "assigned_user_id"
     t.bigint "supplier_id"
-    t.string "trade", limit: 100
-    t.string "stage", limit: 100
-    t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
     t.boolean "pass_fail_enabled", default: false
     t.bigint "checklist_id"
@@ -8173,13 +8389,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "sm_schedule_master_id"
+    t.boolean "spawn_order_task", default: false
+    t.boolean "spawn_call_task", default: false
+    t.boolean "is_photo_task", default: false, null: false
     t.bigint "recurring_task_definition_id"
     t.integer "recurring_sequence"
     t.string "source_type", default: "manual"
-    t.boolean "spawn_order_task", default: false
-    t.boolean "spawn_call_task", default: false
-    t.string "assigned_role"
-    t.boolean "is_photo_task", default: false, null: false
     t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
     t.date "required_by"
@@ -8194,21 +8409,51 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.datetime "sla_first_response_at"
     t.boolean "customer_visible", default: true
     t.boolean "submitted_via_portal", default: false
-    t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
+    t.integer "trade"
+    t.integer "stage"
+    t.integer "assigned_role"
+    t.jsonb "predecessor_ids", default: []
+    t.string "header_gantt"
+    t.boolean "create_po_on_job_start", default: false
+    t.boolean "has_subtasks", default: false
+    t.integer "subtask_count"
+    t.string "subtask_names", default: "{}"
+    t.string "tags", default: "{}"
+    t.string "color"
+    t.boolean "is_active", default: true
+    t.integer "linked_po_task_id"
+    t.integer "cost_centre"
+    t.boolean "completed", default: false
+    t.date "previous_manual_start_date"
+    t.datetime "confirmed_at"
+    t.integer "po_supplier_id"
+    t.jsonb "po_line_items", default: "[]"
+    t.boolean "allow_header", default: false, null: false
+    t.boolean "is_private", default: false
+    t.boolean "started", default: false
+    t.boolean "start_workflow_enabled", default: false
+    t.bigint "start_workflow_id"
+    t.boolean "complete_workflow_enabled", default: false
+    t.bigint "complete_workflow_id"
+    t.boolean "start_workflow_fired", default: false
+    t.text "email_keywords"
+    t.boolean "is_delegated_question", default: false, null: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
+    t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"
     t.index ["created_by_id"], name: "index_sm_tasks_on_created_by_id"
     t.index ["hold_reason_id"], name: "index_sm_tasks_on_hold_reason_id"
     t.index ["hold_released_by_id"], name: "index_sm_tasks_on_hold_released_by_id"
     t.index ["hold_started_by_id"], name: "index_sm_tasks_on_hold_started_by_id"
     t.index ["is_hold_task"], name: "index_sm_tasks_on_is_hold_task", where: "(is_hold_task = true)"
+    t.index ["is_private"], name: "index_sm_tasks_on_is_private"
     t.index ["is_ticket"], name: "index_sm_tasks_on_is_ticket"
     t.index ["job_id", "status", "start_date"], name: "idx_tasks_job_status_start"
     t.index ["job_id", "status"], name: "idx_tasks_job_status"
-    t.index ["job_id", "task_number"], name: "index_sm_tasks_on_job_id_and_task_number", unique: true
     t.index ["job_id"], name: "index_sm_tasks_on_job_id"
     t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
+    t.index ["predecessor_ids"], name: "index_sm_tasks_on_predecessor_ids_gin", using: :gin
     t.index ["recurring_task_definition_id"], name: "index_sm_tasks_on_recurring_task_definition_id"
     t.index ["required_by"], name: "index_sm_tasks_on_required_by"
     t.index ["saas_customer_id"], name: "index_sm_tasks_on_saas_customer_id"
@@ -8218,11 +8463,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["sm_schedule_master_id"], name: "index_sm_tasks_on_sm_schedule_master_id"
     t.index ["source_type"], name: "index_sm_tasks_on_source_type"
     t.index ["start_date"], name: "index_sm_tasks_on_start_date"
+    t.index ["start_workflow_id"], name: "index_sm_tasks_on_start_workflow_id"
     t.index ["status"], name: "index_sm_tasks_on_status"
     t.index ["supplier_confirmed_by_id"], name: "index_sm_tasks_on_supplier_confirmed_by_id"
     t.index ["supplier_id"], name: "index_sm_tasks_on_supplier_id"
     t.index ["ticket_priority"], name: "index_sm_tasks_on_ticket_priority"
-    t.index ["trade"], name: "index_sm_tasks_on_trade"
     t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
   end
 
@@ -8251,6 +8496,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["task_id", "entry_date", "approved_at"], name: "idx_sm_time_entries_task_date_approved"
     t.index ["task_id", "resource_id", "entry_date"], name: "idx_sm_time_entries_task_resource_date"
     t.index ["task_id"], name: "index_sm_time_entries_on_task_id"
+  end
+
+  create_table "sm_trades", id: :serial, force: :cascade do |t|
+    t.string "name", limit: 255, null: false
+    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
+    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
+    t.integer "created_by"
+    t.integer "updated_by"
   end
 
   create_table "sm_voice_notes", force: :cascade do |t|
@@ -8632,6 +8885,63 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
+  create_table "task_action_items", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.string "text", null: false
+    t.boolean "checked", default: false
+    t.integer "position", default: 0
+    t.bigint "checked_by_id"
+    t.datetime "checked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "item_type", default: "action", null: false
+    t.text "response"
+    t.bigint "responded_by_id"
+    t.datetime "responded_at"
+    t.bigint "delegated_task_id"
+    t.index ["checked_by_id"], name: "index_task_action_items_on_checked_by_id"
+    t.index ["delegated_task_id"], name: "index_task_action_items_on_delegated_task_id"
+    t.index ["responded_by_id"], name: "index_task_action_items_on_responded_by_id"
+    t.index ["sm_task_id", "position"], name: "index_task_action_items_on_sm_task_id_and_position"
+    t.index ["sm_task_id"], name: "index_task_action_items_on_sm_task_id"
+  end
+
+  create_table "task_activity_logs", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "user_id"
+    t.string "activity_type", null: false
+    t.string "field_name"
+    t.text "old_value"
+    t.text "new_value"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_task_activity_logs_on_activity_type"
+    t.index ["sm_task_id", "created_at"], name: "index_task_activity_logs_on_sm_task_id_and_created_at"
+    t.index ["sm_task_id"], name: "index_task_activity_logs_on_sm_task_id"
+    t.index ["user_id"], name: "index_task_activity_logs_on_user_id"
+  end
+
+  create_table "task_contacts", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "contact_id"
+    t.bigint "user_id"
+    t.string "role", limit: 50, null: false
+    t.boolean "is_sender", default: false
+    t.text "notes"
+    t.bigint "added_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["added_by_id"], name: "index_task_contacts_on_added_by_id"
+    t.index ["contact_id"], name: "index_task_contacts_on_contact_id"
+    t.index ["role"], name: "index_task_contacts_on_role"
+    t.index ["sm_task_id", "contact_id", "role"], name: "idx_task_contacts_task_contact_role", unique: true, where: "(contact_id IS NOT NULL)"
+    t.index ["sm_task_id", "is_sender"], name: "idx_task_contacts_sender", where: "(is_sender = true)"
+    t.index ["sm_task_id", "user_id", "role"], name: "idx_task_contacts_task_user_role", unique: true, where: "(user_id IS NOT NULL)"
+    t.index ["sm_task_id"], name: "index_task_contacts_on_sm_task_id"
+    t.index ["user_id"], name: "index_task_contacts_on_user_id"
+  end
+
   create_table "task_followers", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "sm_task_id", null: false
@@ -8642,7 +8952,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.index ["user_id", "sm_task_id"], name: "index_task_followers_on_user_id_and_sm_task_id", unique: true
   end
 
-  create_table "trinity", force: :cascade do |t|
+  create_table "task_viewers", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "sm_task_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sm_task_id"], name: "index_task_viewers_on_sm_task_id"
+    t.index ["user_id", "sm_task_id"], name: "index_task_viewers_on_user_id_and_sm_task_id", unique: true
+    t.index ["user_id"], name: "index_task_viewers_on_user_id"
+  end
+
+  create_table "trinities", force: :cascade do |t|
     t.integer "chapter_number", null: false
     t.string "chapter_name", null: false
     t.string "component"
@@ -8678,19 +8998,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.string "updated_by"
     t.boolean "exclude_from_export", default: false, null: false
     t.text "dense_index"
-    t.index ["category", "chapter_number"], name: "index_trinity_on_category_and_chapter_number"
-    t.index ["category"], name: "index_trinity_on_category"
-    t.index ["chapter_number", "entry_type"], name: "index_trinity_on_chapter_number_and_entry_type"
-    t.index ["chapter_number", "section_number"], name: "index_trinity_on_chapter_number_and_section_number"
-    t.index ["chapter_number", "status"], name: "index_trinity_on_chapter_number_and_status"
-    t.index ["chapter_number"], name: "index_trinity_on_chapter_number"
-    t.index ["dense_index"], name: "index_trinity_on_dense_index"
-    t.index ["entry_type"], name: "index_trinity_on_entry_type"
-    t.index ["exclude_from_export"], name: "index_trinity_on_exclude_from_export"
-    t.index ["search_text"], name: "index_trinity_on_search_text", opclass: :gin_trgm_ops, using: :gin
-    t.index ["section_number"], name: "index_trinity_on_section_number"
-    t.index ["severity"], name: "index_trinity_on_severity"
-    t.index ["status"], name: "index_trinity_on_status"
+    t.index ["category", "chapter_number"], name: "index_trinities_on_category_and_chapter_number"
+    t.index ["category"], name: "index_trinities_on_category"
+    t.index ["chapter_number", "entry_type"], name: "index_trinities_on_chapter_number_and_entry_type"
+    t.index ["chapter_number", "section_number"], name: "index_trinities_on_chapter_number_and_section_number"
+    t.index ["chapter_number", "status"], name: "index_trinities_on_chapter_number_and_status"
+    t.index ["chapter_number"], name: "index_trinities_on_chapter_number"
+    t.index ["dense_index"], name: "index_trinities_on_dense_index"
+    t.index ["entry_type"], name: "index_trinities_on_entry_type"
+    t.index ["exclude_from_export"], name: "index_trinities_on_exclude_from_export"
+    t.index ["search_text"], name: "index_trinities_on_search_text", opclass: :gin_trgm_ops, using: :gin
+    t.index ["section_number"], name: "index_trinities_on_section_number"
+    t.index ["severity"], name: "index_trinities_on_severity"
+    t.index ["status"], name: "index_trinities_on_status"
   end
 
   create_table "unreal_measurements", force: :cascade do |t|
@@ -8829,7 +9149,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["role_id"], name: "index_user_roles_on_role_id"
-    t.index ["user_id", "role_id"], name: "index_user_roles_on_user_id_and_role_id", unique: true
     t.index ["user_id"], name: "index_user_roles_on_user_id"
   end
 
@@ -8850,17 +9169,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
     t.datetime "oauth_expires_at"
     t.boolean "wphs_appointee", default: false, null: false
     t.boolean "preload_price_books", default: false, null: false
-    t.jsonb "assigned_roles", default: []
     t.bigint "user_group_id"
     t.datetime "last_seen_at"
     t.boolean "can_view_confidential_fields", default: false, null: false
+    t.jsonb "email_nav_positions", default: {}
+    t.string "preferred_theme", default: "light"
+    t.bigint "contact_id"
+    t.string "job_title"
+    t.string "qbcc_licence_number"
+    t.string "qbcc_licence_class"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
+    t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", force: :cascade do |t|
+  create_table "versions", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -9683,15 +10009,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "email_drafts", "imap_credentials"
   add_foreign_key "email_drafts", "organizations"
   add_foreign_key "email_drafts", "users"
+  add_foreign_key "email_folder_preferences", "users"
   add_foreign_key "email_label_assignments", "email_labels"
-  add_foreign_key "email_label_assignments", "email_warehouse"
+  add_foreign_key "email_label_assignments", "email_warehouses"
   add_foreign_key "email_labels", "users"
   add_foreign_key "email_rules", "imap_credentials"
+  add_foreign_key "email_rules", "microsoft_credentials", on_delete: :cascade
   add_foreign_key "email_rules", "users"
-  add_foreign_key "email_snoozes", "email_warehouse"
+  add_foreign_key "email_snoozes", "email_warehouses"
   add_foreign_key "email_snoozes", "users"
   add_foreign_key "email_templates", "users"
-  add_foreign_key "email_user_states", "email_warehouse"
+  add_foreign_key "email_user_states", "email_warehouses"
   add_foreign_key "email_user_states", "users"
   add_foreign_key "entity_tab_document_types", "document_types"
   add_foreign_key "entity_tab_document_types", "entity_tabs"
@@ -9844,7 +10172,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "cogs_account_id"
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "income_account_id"
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "inventory_account_id"
-  add_foreign_key "gl_inventory_items", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "gl_inventory_items", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "gl_inventory_transactions", "gl_inventory_items", column: "inventory_item_id"
   add_foreign_key "gl_inventory_transactions", "users"
   add_foreign_key "gl_invoice_lines", "gl_accounts"
@@ -9909,7 +10237,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "gl_progress_claims", "users", column: "created_by_id"
   add_foreign_key "gl_provider_credentials", "corporate_companies"
   add_foreign_key "gl_quote_lines", "gl_quotes", column: "quote_id"
-  add_foreign_key "gl_quote_lines", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "gl_quote_lines", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "gl_quote_versions", "gl_quotes", column: "quote_id"
   add_foreign_key "gl_quote_versions", "users", column: "created_by_id"
   add_foreign_key "gl_quotes", "contacts"
@@ -9999,7 +10327,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "job_claims", "contacts"
   add_foreign_key "job_claims", "jobs"
   add_foreign_key "job_colour_selections", "jobs"
-  add_foreign_key "job_colour_selections", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "job_colour_selections", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_contacts", "users"
@@ -10010,8 +10338,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_documents", "document_types"
   add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
+  add_foreign_key "job_documents", "job_documents", column: "parent_document_id"
   add_foreign_key "job_documents", "jobs"
   add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
+  add_foreign_key "job_documents", "users", column: "signed_by_id"
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"
   add_foreign_key "job_plan_revisions", "job_plans"
@@ -10030,18 +10360,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "job_recipes", "recipes"
   add_foreign_key "job_recipes", "users", column: "applied_by_id"
   add_foreign_key "job_specifications", "jobs"
-  add_foreign_key "job_specifications", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "job_specifications", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "job_status_stages", "job_stages"
-  add_foreign_key "job_status_stages", "job_status"
+  add_foreign_key "job_status_stages", "job_statuses"
   add_foreign_key "job_status_stages", "job_types"
-  add_foreign_key "job_type_statuses", "job_status"
+  add_foreign_key "job_type_statuses", "job_statuses"
   add_foreign_key "job_type_statuses", "job_types"
   add_foreign_key "job_types", "sm_schedule_master_templates"
   add_foreign_key "jobs", "cost_centres", on_delete: :nullify
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
-  add_foreign_key "jobs", "job_status", on_delete: :nullify
+  add_foreign_key "jobs", "job_statuses", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
-  add_foreign_key "jobs", "sm_schedule_master_versions", column: "sm_template_version_id"
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
   add_foreign_key "known_parties", "contacts"
   add_foreign_key "kudos_events", "purchase_orders"
@@ -10072,6 +10401,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
   add_foreign_key "navigation_items", "navigation_groups", name: "navigation_items_navigation_group_id_fkey"
   add_foreign_key "navigation_items", "navigation_items", column: "parent_id", name: "fk_navigation_items_parent"
+  add_foreign_key "notebook_activities", "notebook_pages", column: "page_id"
+  add_foreign_key "notebook_activities", "notebook_sections", column: "section_id"
+  add_foreign_key "notebook_activities", "notebooks"
+  add_foreign_key "notebook_activities", "users"
+  add_foreign_key "notebook_page_attachments", "notebook_pages", column: "page_id"
+  add_foreign_key "notebook_page_attachments", "users", column: "uploaded_by_id"
+  add_foreign_key "notebook_pages", "notebook_sections", column: "section_id"
+  add_foreign_key "notebook_pages", "users", column: "created_by_id"
+  add_foreign_key "notebook_pages", "users", column: "last_edited_by_id"
+  add_foreign_key "notebook_sections", "notebooks"
+  add_foreign_key "notebook_shares", "notebooks"
+  add_foreign_key "notebook_shares", "users"
+  add_foreign_key "notebook_shares", "users", column: "granted_by_id"
+  add_foreign_key "notebooks", "users", column: "owner_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
   add_foreign_key "organization_microsoft_app_credentials", "organizations"
@@ -10112,17 +10455,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
-  add_foreign_key "price_histories", "pricebook", column: "pricebook_item_id"
-  add_foreign_key "pricebook", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
-  add_foreign_key "pricebook", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
-  add_foreign_key "pricebook", "pricebook_categories", column: "category_id"
+  add_foreign_key "price_histories", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "pricebooks", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
+  add_foreign_key "pricebooks", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
+  add_foreign_key "pricebooks", "pricebook_categories", column: "category_id"
   add_foreign_key "profit_loss_reports", "corporate_companies", column: "company_id"
   add_foreign_key "profit_loss_reports", "document_types"
   add_foreign_key "projects", "jobs"
   add_foreign_key "projects", "users", column: "project_manager_id"
   add_foreign_key "purchase_order_documents", "document_tasks"
   add_foreign_key "purchase_order_documents", "purchase_orders"
-  add_foreign_key "purchase_order_line_items", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "purchase_order_line_items", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "purchase_order_line_items", "purchase_orders"
   add_foreign_key "purchase_orders", "bill_inboxes", column: "last_bill_inbox_id"
   add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
@@ -10140,7 +10483,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "recipe_categories", "recipe_categories", column: "parent_id"
-  add_foreign_key "recipe_items", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "recipe_items", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "recipe_items", "recipes"
   add_foreign_key "recipe_versions", "recipes"
   add_foreign_key "recipe_versions", "users", column: "created_by_id"
@@ -10159,6 +10502,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
+  add_foreign_key "signature_usages", "document_types"
+  add_foreign_key "signature_usages", "job_documents"
+  add_foreign_key "signature_usages", "jobs"
+  add_foreign_key "signature_usages", "users"
   add_foreign_key "site_presence_sessions", "cost_centres"
   add_foreign_key "site_presence_sessions", "jobs"
   add_foreign_key "site_presence_sessions", "sm_task_photos", column: "checkin_photo_id", on_delete: :nullify
@@ -10166,6 +10513,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "site_presence_sessions", "sm_tasks"
   add_foreign_key "site_presence_sessions", "users", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "site_presence_sessions", "worker_profiles"
+  add_foreign_key "sm_activities", "jobs"
+  add_foreign_key "sm_activities", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_activities", "sm_tasks", on_delete: :nullify
+  add_foreign_key "sm_activities", "users"
   add_foreign_key "sm_comment_mentions", "sm_comments"
   add_foreign_key "sm_comment_mentions", "sm_resources", column: "resource_id"
   add_foreign_key "sm_comment_mentions", "users"
@@ -10192,31 +10543,36 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
-  add_foreign_key "sm_schedule_master", "sm_schedule_master", column: "spawn_scan_task_id", on_delete: :nullify
-  add_foreign_key "sm_schedule_master", "sm_schedule_master_versions"
-  add_foreign_key "sm_schedule_master", "supervisor_checklist_templates", column: "checklist_id"
-  add_foreign_key "sm_schedule_master", "users", column: "created_by_id"
-  add_foreign_key "sm_schedule_master", "users", column: "updated_by_id"
+  add_foreign_key "sm_schedule_master_document_types", "document_types"
+  add_foreign_key "sm_schedule_master_document_types", "sm_schedule_masters"
   add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"
-  add_foreign_key "sm_schedule_master_versions", "sm_schedule_master_templates"
-  add_foreign_key "sm_schedule_master_versions", "users", column: "published_by_id"
+  add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "complete_workflow_id"
+  add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "start_workflow_id"
+  add_foreign_key "sm_schedule_masters", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
+  add_foreign_key "sm_schedule_masters", "supervisor_checklist_templates", column: "checklist_id"
+  add_foreign_key "sm_schedule_masters", "users", column: "created_by_id"
+  add_foreign_key "sm_schedule_masters", "users", column: "updated_by_id"
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
   add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
   add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "sm_task_document_types", "document_types"
+  add_foreign_key "sm_task_document_types", "sm_tasks"
   add_foreign_key "sm_task_photos", "jobs", on_delete: :cascade
   add_foreign_key "sm_task_photos", "sm_resources", column: "resource_id", on_delete: :nullify
   add_foreign_key "sm_task_photos", "sm_tasks", on_delete: :cascade
   add_foreign_key "sm_task_photos", "users", column: "uploaded_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "bpmn_processes", column: "complete_workflow_id"
+  add_foreign_key "sm_tasks", "bpmn_processes", column: "start_workflow_id"
   add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_recurring_task_definitions", column: "recurring_task_definition_id"
-  add_foreign_key "sm_tasks", "sm_schedule_master"
-  add_foreign_key "sm_tasks", "sm_schedule_master", column: "spawn_scan_task_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_schedule_masters"
+  add_foreign_key "sm_tasks", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "assigned_user_id", on_delete: :nullify
@@ -10253,12 +10609,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
   add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "task_action_items", "sm_tasks"
+  add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
+  add_foreign_key "task_action_items", "users", column: "checked_by_id"
+  add_foreign_key "task_action_items", "users", column: "responded_by_id"
+  add_foreign_key "task_activity_logs", "sm_tasks"
+  add_foreign_key "task_activity_logs", "users"
+  add_foreign_key "task_contacts", "contacts", on_delete: :cascade
+  add_foreign_key "task_contacts", "sm_tasks", on_delete: :cascade
+  add_foreign_key "task_contacts", "users", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "task_contacts", "users", on_delete: :cascade
   add_foreign_key "task_followers", "sm_tasks", on_delete: :cascade
   add_foreign_key "task_followers", "users", on_delete: :cascade
+  add_foreign_key "task_viewers", "sm_tasks"
+  add_foreign_key "task_viewers", "users"
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"
-  add_foreign_key "unreal_measurements", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "unreal_measurements", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
@@ -10273,6 +10641,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_30_001029) do
   add_foreign_key "user_permissions", "users"
   add_foreign_key "user_roles", "roles"
   add_foreign_key "user_roles", "users"
+  add_foreign_key "users", "contacts"
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"
   add_foreign_key "warehouse_bank_transactions", "contacts"

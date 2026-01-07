@@ -11,6 +11,7 @@
  */
 
 import type { GanttConfig, GanttTask, GanttDependency, GanttBaseline, ContextMenuItem } from './GanttCanvas';
+import type { SmScheduleMaster } from '../types';
 import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
@@ -68,9 +69,9 @@ export class Renderer {
   }
 
   /**
-   * Draw grid lines, weekend shading, and holiday shading
+   * Draw weekend and holiday shading (called BEFORE selections)
    */
-  drawGrid(width: number, height: number, totalRows: number, calendar?: WorkingDaysCalendar): void {
+  drawWeekendsAndHolidays(width: number, height: number, calendar?: WorkingDaysCalendar): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
 
@@ -78,7 +79,7 @@ export class Renderer {
     const startDayOffset = Math.floor(state.scrollX / dayWidth);
     const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
 
-    // Draw vertical grid lines (days) and non-working day shading
+    // Draw non-working day shading (body only - header handled in drawTimeScale)
     for (let i = startDayOffset; i <= endDayOffset; i++) {
       const x = i * dayWidth - state.scrollX;
       const currentDate = new Date(state.startDate);
@@ -87,69 +88,168 @@ export class Renderer {
       // Use calendar if available, otherwise fall back to simple weekend check
       if (calendar) {
         if (calendar.isHoliday(currentDate)) {
-          // Holiday shading (slightly different color from weekends)
-          // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
-          this.ctx.fillStyle = this.config.darkMode ? '#2d1f1f' : TAILWIND_COLORS.red[50]; // Reddish tint
+          // Holiday shading - light pink/red tint (body only)
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(239, 68, 68, 0.1)' : TAILWIND_COLORS.red[50];
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         } else if (calendar.isWeekend(currentDate)) {
-          // Weekend shading
-          this.ctx.fillStyle = this.config.colors.weekendBackground;
+          // Weekend shading - light gray (body only)
+          this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[50];
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         }
       } else {
-        // Fallback: simple weekend check
+        // Fallback: simple weekend check (body only)
         const dayOfWeek = currentDate.getDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) {
-          this.ctx.fillStyle = this.config.colors.weekendBackground;
+          this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[100];
           this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
         }
       }
-
-      // Grid line
-      this.ctx.strokeStyle = this.config.colors.gridLines;
-      this.ctx.lineWidth = 0.5;
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, this.config.headerHeight);
-      this.ctx.lineTo(x, height);
-      this.ctx.stroke();
     }
+  }
 
-    // Draw horizontal grid lines (rows)
-    for (let i = 0; i <= totalRows; i++) {
+  /**
+   * Draw weekend/holiday overlays on amber group rows (called AFTER amber backgrounds)
+   */
+  drawAmberRowWeekendsAndHolidays(
+    tasks: GanttTask[],
+    width: number,
+    selectedGroupHeaderId: string | null,
+    calendar?: WorkingDaysCalendar
+  ): void {
+    if (!calendar || !selectedGroupHeaderId) return;
+
+    const dayWidth = this.viewport.getDayWidth();
+    const state = this.viewport.getState();
+    const { rowHeight, headerHeight } = this.config;
+
+    // Find the selected header task
+    const selectedHeaderTask = tasks.find(t => t.id === selectedGroupHeaderId);
+    const selectedHeaderTaskNumber = selectedHeaderTask?.rowData?.task_number;
+
+    // Helper to check if task is in selected group (same logic as drawTaskBars)
+    const isTaskInSelectedGroup = (task: GanttTask): boolean => {
+      if (!selectedGroupHeaderId) return false;
+
+      // Check if task IS the selected header - MUST be first check
+      if (task.id === selectedGroupHeaderId) {
+        return true;  // Selected header is always in its own group
+      }
+
+      // Now check if it's a child of the selected header
+      if (selectedHeaderTaskNumber === undefined) {
+        return false;
+      }
+
+      const taskHeaderGantt = task.rowData?.header_gantt;
+
+      // Skip if no header_gantt or if it's a different header
+      if (!taskHeaderGantt || taskHeaderGantt === 'Header') {
+        return false;
+      }
+
+      // Handle different types: object with id, string, or number
+      const headerGanttValue = typeof taskHeaderGantt === 'object' && 'id' in taskHeaderGantt
+        ? taskHeaderGantt.id
+        : taskHeaderGantt;
+
+      // Compare as strings to handle type mismatches
+      return String(headerGanttValue) === String(selectedHeaderTaskNumber);
+    };
+
+    // Calculate visible days
+    const startDayOffset = Math.floor(state.scrollX / dayWidth);
+    const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
+
+    // For each task in selected group, draw weekend/holiday overlay
+    tasks.forEach((task, index) => {
+      const inGroup = isTaskInSelectedGroup(task);
+      if (!inGroup) return;
+
+      const y = this.viewport.rowToY(index);
+
+      // Draw weekend/holiday overlay for this row
+      for (let i = startDayOffset; i <= endDayOffset; i++) {
+        const x = i * dayWidth - state.scrollX;
+        const currentDate = new Date(state.startDate);
+        currentDate.setDate(currentDate.getDate() + i);
+
+        if (calendar.isHoliday(currentDate)) {
+          // Darker amber for holidays
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(180, 83, 9, 0.4)' : 'rgba(180, 83, 9, 0.25)';
+          this.ctx.fillRect(x, y, dayWidth, rowHeight);
+        } else if (calendar.isWeekend(currentDate)) {
+          // Slightly darker amber for weekends
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(180, 83, 9, 0.25)' : 'rgba(180, 83, 9, 0.15)';
+          this.ctx.fillRect(x, y, dayWidth, rowHeight);
+        }
+      }
+    });
+  }
+
+  /**
+   * Draw horizontal grid lines (called AFTER selections so lines show on top)
+   */
+  drawHorizontalGridLines(width: number, height: number, totalRows: number): void {
+    // Draw horizontal grid lines (rows) - match table border-b styling
+    // Start at i=1 because border-b puts borders at BOTTOM of each row
+    for (let i = 1; i <= totalRows; i++) {
       const y = this.viewport.rowToY(i);
       if (y < this.config.headerHeight || y > height) continue;
 
-      this.ctx.strokeStyle = this.config.colors.gridLines;
-      this.ctx.lineWidth = 0.5;
+      // Match table border styling - darker gray, 0.25px thin but visible
+      this.ctx.strokeStyle = '#9ca3af'; // gray-400 for darker visibility at thin width
+      this.ctx.lineWidth = 0.25;
       this.ctx.beginPath();
-      this.ctx.moveTo(0, y);
-      this.ctx.lineTo(width, y);
+      // Align to exact pixel for crisp rendering
+      const alignedY = Math.floor(y) + 0.5;
+      this.ctx.moveTo(0, alignedY);
+      this.ctx.lineTo(width, alignedY);
       this.ctx.stroke();
     }
   }
 
   /**
-   * Draw time scale header
+   * Draw time scale header (sticky - always at top)
    */
-  drawTimeScale(width: number): void {
+  drawTimeScale(width: number, calendar?: WorkingDaysCalendar): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
+    const headerY = 0; // Sticky header: always at top (y=0)
 
     // Draw header background
     this.ctx.fillStyle = this.config.colors.headerBackground;
-    this.ctx.fillRect(0, 0, width, this.config.headerHeight);
+    this.ctx.fillRect(0, headerY, width, this.config.headerHeight);
+
+    // Calculate visible days for weekend/holiday shading
+    const startDayOffset = Math.floor(state.scrollX / dayWidth);
+    const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
+
+    // Draw weekend/holiday shading in header AFTER background, BEFORE text
+    if (calendar) {
+      for (let i = startDayOffset; i <= endDayOffset; i++) {
+        const currentDate = new Date(state.startDate);
+        currentDate.setDate(currentDate.getDate() + i);
+        const x = (i * dayWidth) - state.scrollX;
+
+        if (calendar.isHoliday(currentDate)) {
+          // Holiday shading in header
+          this.ctx.fillStyle = this.config.darkMode ? 'rgba(239, 68, 68, 0.1)' : TAILWIND_COLORS.red[50];
+          this.ctx.fillRect(x, headerY, dayWidth, this.config.headerHeight);
+        } else if (calendar.isWeekend(currentDate)) {
+          // Weekend shading in header
+          this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : TAILWIND_COLORS.gray[50];
+          this.ctx.fillRect(x, headerY, dayWidth, this.config.headerHeight);
+        }
+      }
+    }
 
     // Draw header bottom border
     this.ctx.strokeStyle = this.config.colors.gridLines;
     this.ctx.lineWidth = 1;
     this.ctx.beginPath();
-    this.ctx.moveTo(0, this.config.headerHeight);
-    this.ctx.lineTo(width, this.config.headerHeight);
+    this.ctx.moveTo(0, headerY + this.config.headerHeight);
+    this.ctx.lineTo(width, headerY + this.config.headerHeight);
     this.ctx.stroke();
-
-    // Calculate visible days
-    const startDayOffset = Math.floor(state.scrollX / dayWidth);
-    const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
 
     // Determine what level of detail to show based on zoom
     const showDays = dayWidth >= 20;
@@ -157,15 +257,15 @@ export class Renderer {
 
     if (showMonthsOnly) {
       // Only show months
-      this.drawMonthHeaders(width, startDayOffset, endDayOffset);
+      this.drawMonthHeaders(width, startDayOffset, endDayOffset, headerY);
     } else {
       // Show both months and days
-      this.drawMonthHeaders(width, startDayOffset, endDayOffset);
-      this.drawDayHeaders(width, startDayOffset, endDayOffset);
+      this.drawMonthHeaders(width, startDayOffset, endDayOffset, headerY);
+      this.drawDayHeaders(width, startDayOffset, endDayOffset, headerY);
     }
   }
 
-  private drawMonthHeaders(width: number, startDayOffset: number, endDayOffset: number): void {
+  private drawMonthHeaders(width: number, startDayOffset: number, endDayOffset: number, headerY: number): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
 
@@ -193,15 +293,15 @@ export class Renderer {
             this.ctx.font = 'bold 12px Inter, system-ui, sans-serif';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(monthLabel, monthStartX + monthWidth / 2, 15);
+            this.ctx.fillText(monthLabel, monthStartX + monthWidth / 2, headerY + 15);
           }
 
           // Draw month separator
           this.ctx.strokeStyle = this.config.colors.gridLines;
           this.ctx.lineWidth = 1;
           this.ctx.beginPath();
-          this.ctx.moveTo(x, 0);
-          this.ctx.lineTo(x, this.config.headerHeight / 2);
+          this.ctx.moveTo(x, headerY);
+          this.ctx.lineTo(x, headerY + this.config.headerHeight / 2);
           this.ctx.stroke();
         }
 
@@ -212,7 +312,7 @@ export class Renderer {
     }
   }
 
-  private drawDayHeaders(width: number, startDayOffset: number, endDayOffset: number): void {
+  private drawDayHeaders(width: number, startDayOffset: number, endDayOffset: number, headerY: number): void {
     const dayWidth = this.viewport.getDayWidth();
     const state = this.viewport.getState();
 
@@ -231,13 +331,13 @@ export class Renderer {
         this.ctx.font = '11px Inter, system-ui, sans-serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(dayLabel, x + dayWidth / 2, this.config.headerHeight - 15);
+        this.ctx.fillText(dayLabel, x + dayWidth / 2, headerY + this.config.headerHeight - 15);
       }
     }
   }
 
   /**
-   * Draw today marker
+   * Draw today marker (starts at header bottom)
    */
   drawTodayMarker(height: number): void {
     // Get today in company timezone (from /api/v1/company_settings)
@@ -247,7 +347,7 @@ export class Renderer {
 
     if (x < 0 || x > 10000) return; // Off screen
 
-    // Draw line
+    // Draw line from header bottom to canvas bottom
     this.ctx.strokeStyle = this.config.colors.todayMarker;
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
@@ -255,7 +355,7 @@ export class Renderer {
     this.ctx.lineTo(x, height);
     this.ctx.stroke();
 
-    // Draw triangle marker at top
+    // Draw triangle marker at header bottom
     this.ctx.fillStyle = this.config.colors.todayMarker;
     this.ctx.beginPath();
     this.ctx.moveTo(x, this.config.headerHeight);
@@ -264,7 +364,7 @@ export class Renderer {
     this.ctx.closePath();
     this.ctx.fill();
 
-    // Draw "Today" label
+    // Draw "Today" label at header bottom
     this.ctx.fillStyle = this.config.colors.todayMarker;
     this.ctx.font = 'bold 10px Inter, system-ui, sans-serif';
     this.ctx.textAlign = 'center';
@@ -282,10 +382,43 @@ export class Renderer {
     hoveredTaskId: string | null,
     hoveredEdge?: 'left' | 'right' | null,
     canvasHeight?: number,
-    criticalTaskIds?: Set<string>
+    criticalTaskIds?: Set<string>,
+    selectedGroupHeaderId?: string | null
   ): void {
     const { taskBarHeight, taskBarPadding, rowHeight, headerHeight } = this.config;
     const state = this.viewport.getState();
+
+    // Find the selected header task's task_number for group membership checking
+    const selectedHeaderTask = selectedGroupHeaderId
+      ? tasks.find(t => t.id === selectedGroupHeaderId)
+      : null;
+    const selectedHeaderTaskNumber = selectedHeaderTask?.rowData?.task_number;
+
+    // Helper function to check if a task belongs to the selected group
+    const isTaskInSelectedGroup = (task: GanttTask): boolean => {
+      if (!selectedGroupHeaderId) return false;
+
+      // Check if task IS the header
+      if (task.id === selectedGroupHeaderId) {
+        return true;
+      }
+
+      // Check if task is a child of the selected header
+      if (selectedHeaderTaskNumber === undefined) {
+        return false;
+      }
+
+      const taskHeaderGantt = task.rowData?.header_gantt;
+      if (!taskHeaderGantt || taskHeaderGantt === 'Header') return false;
+
+      // Handle different types: object with id, string, or number
+      const headerGanttValue = typeof taskHeaderGantt === 'object' && 'id' in taskHeaderGantt
+        ? taskHeaderGantt.id
+        : taskHeaderGantt;
+
+      // Compare as strings to handle type mismatches
+      return String(headerGanttValue) === String(selectedHeaderTaskNumber);
+    };
 
     // Calculate visible row range for virtual scrolling
     const visibleHeight = canvasHeight ?? 800;
@@ -309,45 +442,76 @@ export class Renderer {
       const y = this.viewport.rowToY(index);
       const startX = this.viewport.dateToX(task.startDate);
       const endX = this.viewport.dateToX(task.endDate);
+
       // For single-day tasks (same start/end date), fill the full day width
       // For multi-day tasks, use the actual span
       const dayWidth = this.viewport.getDayWidth();
       const calculatedWidth = endX - startX;
       const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth; // Add 1 day to include end date
 
+      // Check if this is a header/summary task for row background
+      // SSoT: Check both header_gantt === 'Header' (templates) and allow_header (schedule page)
+      const isHeaderRow = task.rowData?.header_gantt === 'Header' || task.rowData?.allow_header === true;
+
       // Horizontal virtual scrolling: skip if task is entirely outside visible X range
       if (endX < visibleStartX || startX > visibleEndX) {
-        // Still draw row highlight for selected/hovered even if bar not visible
+        // Still draw row highlight for header/selected/hovered even if bar not visible
         const isSelected = selectedTaskIds.has(task.id);
+        const isInSelectedGroup = isTaskInSelectedGroup(task);
+
+        // Draw amber background for all rows in selected group (use darker for headers, lighter for children)
+        if (isInSelectedGroup) {
+          if (isHeaderRow) {
+            this.ctx.fillStyle = this.config.colors.headerRowBackground; // amber-200 (darker)
+          } else {
+            this.ctx.fillStyle = this.config.colors.childRowBackground;  // amber-100 (lighter)
+          }
+          this.ctx.fillRect(0, y, 100000, rowHeight);
+        }
+        // Non-selected headers: no background (bold text only)
+
+        // Then draw selection/hover on top (ONLY for the clicked row)
         if (isSelected) {
           this.ctx.fillStyle = this.config.colors.selectedRow;
-          this.ctx.fillRect(0, y, 10000, rowHeight);
+          this.ctx.fillRect(0, y, 100000, rowHeight);
         } else if (task.id === hoveredTaskId) {
           this.ctx.fillStyle = this.config.colors.hoverRow;
-          this.ctx.fillRect(0, y, 10000, rowHeight);
+          this.ctx.fillRect(0, y, 100000, rowHeight);
         }
         continue;
       }
 
       const isSelected = selectedTaskIds.has(task.id);
+      const isInSelectedGroup = isTaskInSelectedGroup(task);
 
-      // Row background for selection/hover
+      // Row background: Amber for ALL rows in selected group (header + children)
+      // SSoT: Draw amber FIRST for entire group, then selection overlay on top for clicked row
+      if (isInSelectedGroup) {
+        // Selected group: use darker amber for headers, lighter for children (matches sidebar)
+        if (isHeaderRow) {
+          this.ctx.fillStyle = this.config.colors.headerRowBackground; // amber-200 (darker)
+        } else {
+          this.ctx.fillStyle = this.config.colors.childRowBackground;  // amber-100 (lighter)
+        }
+        this.ctx.fillRect(0, y, 100000, rowHeight);
+      }
+      // Non-selected headers: no background (bold text only)
+
+      // Then draw selection/hover on top (ONLY for the clicked row)
       if (isSelected) {
         this.ctx.fillStyle = this.config.colors.selectedRow;
-        this.ctx.fillRect(0, y, 10000, rowHeight);
-      } else if (task.id === hoveredTaskId) {
+        this.ctx.fillRect(0, y, 100000, rowHeight);
+      } else if (!isSelected && task.id === hoveredTaskId) {
         this.ctx.fillStyle = this.config.colors.hoverRow;
-        this.ctx.fillRect(0, y, 10000, rowHeight);
+        this.ctx.fillRect(0, y, 100000, rowHeight);
       }
 
       // Calculate task bar position
       const barY = y + taskBarPadding;
       const barHeight = taskBarHeight;
 
-      // Check if this is a header/summary task (MS Project style)
-      const isHeader = task.rowData?.category === 'Header';
-
-      if (isHeader) {
+      // isHeaderRow already checked above for row background
+      if (isHeaderRow) {
         // MS Project style summary bar: thin black bar with downward triangles at ends
         const summaryBarHeight = 6;
         const summaryY = barY + (barHeight - summaryBarHeight) / 2;
@@ -635,6 +799,25 @@ export class Renderer {
       if (task.id === hoveredTaskId) {
         this.drawConnectorDots(startX, startX + taskWidth, barY, barHeight);
       }
+
+      // Draw supplier name and PO # to the right of the task bar (only for PO-required tasks)
+      if (task.poRequired) {
+        const rightLabelX = startX + taskWidth + 8;
+        const supplierText = task.supplierName || 'No Supplier Selected';
+        const poText = task.purchaseOrderNumber || '';
+        const rightLabel = poText ? `${supplierText} | ${poText}` : supplierText;
+
+        this.ctx.fillStyle = this.config.darkMode
+          ? 'rgba(156, 163, 175, 0.9)'  // gray-400 with opacity
+          : 'rgba(107, 114, 128, 0.9)'; // gray-500 with opacity
+        this.ctx.font = '10px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(rightLabel, rightLabelX, barY + barHeight / 2);
+      }
+
+      // Draw workflow indicators (play icon at start, document icon at end)
+      this.drawWorkflowIndicators(task, startX, startX + taskWidth, barY, barHeight);
     }
   }
 
@@ -734,8 +917,8 @@ export class Renderer {
   }
 
   /**
-   * Draw connector chevrons for dependency creation
-   * Chevrons point outward from bar edges, leaving bar area free for dragging
+   * Draw connector chevron for dependency creation
+   * Left chevron = drag from start (SS or SF), Right chevron = drag from end (FS or FF)
    */
   private drawConnectorDots(startX: number, endX: number, barY: number, barHeight: number): void {
     const chevronWidth = 8;  // How wide the chevron opens
@@ -751,6 +934,7 @@ export class Renderer {
     this.ctx.lineJoin = 'round';
 
     // Start connector (left side) - chevron pointing LEFT (outward)
+    // Drag from here to create SS or SF dependencies
     const leftX = startX - offset;
     this.ctx.beginPath();
     this.ctx.moveTo(leftX, centerY - chevronHeight / 2);
@@ -759,6 +943,7 @@ export class Renderer {
     this.ctx.stroke();
 
     // End connector (right side) - chevron pointing RIGHT (outward)
+    // Drag from here to create FS or FF dependencies
     const rightX = endX + offset;
     this.ctx.beginPath();
     this.ctx.moveTo(rightX, centerY - chevronHeight / 2);
@@ -827,7 +1012,7 @@ export class Renderer {
   /**
    * Draw drag preview overlay
    */
-  drawDragPreview(task: GanttTask, newDate: Date, rowIndex: number): void {
+  drawDragPreview(task: GanttTask, newDate: Date, rowIndex: number, predecessorCount: number = 0): void {
     const { taskBarHeight, taskBarPadding } = this.config;
     const dayWidth = this.viewport.getDayWidth();
 
@@ -895,9 +1080,9 @@ export class Renderer {
     lines.push(`📆 Was: ${originalDateStr}`);
     lines.push(`⏱️ Duration: ${durationDays}d`);
 
-    // Show predecessor warning if moving too early
-    if (task.predecessorIds && task.predecessorIds.length > 0) {
-      lines.push(`⬅️ Predecessors: ${task.predecessorIds.length}`);
+    // Show predecessor warning if moving too early (SSoT: count passed as parameter)
+    if (predecessorCount > 0) {
+      lines.push(`⬅️ Predecessors: ${predecessorCount}`);
     }
 
     const tooltipX = newStartX + taskWidth / 2;
@@ -1194,26 +1379,26 @@ export class Renderer {
         const to = taskMap.get(dep.toId);
         if (!from || !to) return;
 
-      // Virtual scrolling: skip if both tasks are outside visible range
-      if (!shouldRenderDep(from.index, to.index)) return;
+        // Virtual scrolling: skip if both tasks are outside visible range
+        if (!shouldRenderDep(from.index, to.index)) return;
 
-      const { fromX, toX } = this.getDependencyEndpoints(dep, from.task, to.task);
-      const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
-      const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
+        const { fromX, toX } = this.getDependencyEndpoints(dep, from.task, to.task);
+        const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
+        const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
 
-      // Check if this is a broken dependency
-      const isBroken = brokenDepIds?.has(dep.id);
-      if (isBroken) {
-        this.drawBrokenDependencyLine(fromX, fromY, toX, toY, dep.type);
-      } else {
-        // Check if this dependency is on the critical path
-        const isCritical = criticalDependencyIds?.has(dep.id);
-        if (isCritical) {
-          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, STATUS_COLORS.danger, tasks, from.index, to.index);
+        // Check if this is a broken dependency
+        const isBroken = brokenDepIds?.has(dep.id);
+        if (isBroken) {
+          this.drawBrokenDependencyLine(fromX, fromY, toX, toY, dep.type);
         } else {
-          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false, undefined, tasks, from.index, to.index);
+          // Check if this dependency is on the critical path
+          const isCritical = criticalDependencyIds?.has(dep.id);
+          if (isCritical) {
+            this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, STATUS_COLORS.danger, tasks, from.index, to.index);
+          } else {
+            this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false, undefined, tasks, from.index, to.index);
+          }
         }
-      }
       });
     } // End of hideNonHighlighted check
 
@@ -1337,28 +1522,34 @@ export class Renderer {
   private getTaskColor(task: GanttTask): string {
     const { taskBar } = this.config.colors;
 
-    // Priority order: Complete > Supplier Confirm > Confirm > Hold
+    // Priority order: Complete > Supplier Confirm > Confirm > Hold > Started > Default
 
     // 1. Dark gray for completed tasks (beats all)
     if (task.rowData?.is_completed) {
-      return TAILWIND_COLORS.gray[800]; // Dark gray / near black
+      return '#1f2937'; // gray-800 - Dark gray for done/complete
     }
 
-    // 2. Purple for supplier confirmed tasks (beats confirm and hold)
+    // 2. Purple for supplier confirmed tasks (beats confirm, hold, and started)
     if (task.rowData?.supplier_confirm) {
-      return TAILWIND_COLORS.violet[500]; // Purple - supplier confirmed
+      return '#a855f7'; // purple-500 - Purple for supplier confirm
     }
 
-    // 3. Green for confirmed tasks (beats hold)
+    // 3. Orange for confirmed tasks (beats hold and started)
     if (task.rowData?.confirm) {
-      return STATUS_COLORS.success; // Green - supervisor confirmed
+      return '#f97316'; // orange-500 - Orange for supervisor confirm
     }
 
-    // 4. Light brown for manually positioned (held) tasks
+    // 4. Tan for manually positioned (held) tasks (beats started)
     if (task.rowData?.hold) {
-      return '#D4A574'; // Light brown / tan - custom brand color for hold status
+      return '#D4A574'; // Tan - custom brand color for hold status
     }
 
+    // 5. Green for started tasks (beats default)
+    if (task.rowData?.started) {
+      return '#10b981'; // emerald-500 - Green for started tasks
+    }
+
+    // 6. Default gray for not started
     switch (task.status) {
       case 'completed':
         return taskBar.completed;
@@ -1369,7 +1560,7 @@ export class Renderer {
       case 'at-risk':
         return taskBar.atRisk;
       default:
-        return taskBar.notStarted;
+        return TAILWIND_COLORS.gray[400]; // Default gray for not started
     }
   }
 
@@ -1391,6 +1582,107 @@ export class Renderer {
     this.ctx.stroke();
   }
 
+  /**
+   * Draw workflow indicators on task bars:
+   * - Play icon (▶) at start for start_workflow_enabled
+   * - Document icon (📄) at end for complete_workflow_enabled or linked document_types
+   */
+  private drawWorkflowIndicators(
+    task: GanttTask,
+    startX: number,
+    endX: number,
+    barY: number,
+    barHeight: number
+  ): { startIndicatorWidth: number; endIndicatorWidth: number } {
+    const result = { startIndicatorWidth: 0, endIndicatorWidth: 0 };
+
+    // Access rowData for workflow fields (SmScheduleMaster)
+    const rowData = task.rowData as SmScheduleMaster | undefined;
+    if (!rowData) return result;
+
+    const centerY = barY + barHeight / 2;
+    const iconSize = 10;
+    const iconPadding = 6;
+
+    // Check for start workflow
+    const hasStartWorkflow = rowData.start_workflow_enabled && rowData.start_workflow_id;
+
+    // Check for complete workflow or document types
+    const hasCompleteWorkflow = rowData.complete_workflow_enabled && rowData.complete_workflow_id;
+    const hasDocumentTypes = rowData.document_types && rowData.document_types.length > 0;
+    const hasEndIndicator = hasCompleteWorkflow || hasDocumentTypes;
+
+    // Draw start workflow indicator (play icon ▶) to the left of task bar
+    if (hasStartWorkflow) {
+      const playX = startX - iconPadding - iconSize;
+      const playY = centerY;
+
+      // Draw play triangle (pointing right)
+      // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+      this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.emerald[500] : TAILWIND_COLORS.emerald[600];
+      this.ctx.beginPath();
+      this.ctx.moveTo(playX, playY - iconSize / 2);
+      this.ctx.lineTo(playX + iconSize, playY);
+      this.ctx.lineTo(playX, playY + iconSize / 2);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      result.startIndicatorWidth = iconSize + iconPadding;
+    }
+
+    // Draw end indicator (document/flag icon) to the right after task bar
+    if (hasEndIndicator) {
+      const docX = endX + iconPadding;
+      const docY = centerY - iconSize / 2;
+
+      // Draw document icon (simple rectangle with folded corner)
+      // SSoT: Uses TAILWIND_COLORS from @/lib/constants/color-constants
+      const docColor = hasCompleteWorkflow
+        ? (this.config.darkMode ? TAILWIND_COLORS.amber[400] : TAILWIND_COLORS.amber[600])
+        : (this.config.darkMode ? TAILWIND_COLORS.cyan[400] : TAILWIND_COLORS.cyan[500]);
+
+      this.ctx.fillStyle = docColor;
+
+      // Document body
+      this.ctx.beginPath();
+      this.ctx.moveTo(docX, docY);
+      this.ctx.lineTo(docX + iconSize - 3, docY);
+      this.ctx.lineTo(docX + iconSize, docY + 3);
+      this.ctx.lineTo(docX + iconSize, docY + iconSize);
+      this.ctx.lineTo(docX, docY + iconSize);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Folded corner
+      this.ctx.fillStyle = this.config.darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)';
+      this.ctx.beginPath();
+      this.ctx.moveTo(docX + iconSize - 3, docY);
+      this.ctx.lineTo(docX + iconSize - 3, docY + 3);
+      this.ctx.lineTo(docX + iconSize, docY + 3);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Add count badge if multiple document types
+      if (hasDocumentTypes && rowData.document_types!.length > 1) {
+        const count = rowData.document_types!.length;
+        const badgeX = docX + iconSize + 2;
+        const badgeY = centerY;
+
+        this.ctx.font = 'bold 8px Inter, system-ui, sans-serif';
+        this.ctx.fillStyle = docColor;
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(`×${count}`, badgeX, badgeY);
+
+        result.endIndicatorWidth = iconSize + iconPadding + 16; // Extra space for count
+      } else {
+        result.endIndicatorWidth = iconSize + iconPadding;
+      }
+    }
+
+    return result;
+  }
+
   private drawDependencyLine(
     fromX: number,
     fromY: number,
@@ -1403,8 +1695,10 @@ export class Renderer {
     fromIndex?: number,
     toIndex?: number
   ): void {
-    const color = highlighted && highlightColor ? highlightColor : TAILWIND_COLORS.gray[500];
-    const lineWidth = highlighted ? 3 : 1.5;
+    // In dark mode, use much lighter gray for better visibility (was gray[400], now gray[200])
+    const defaultColor = this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[500];
+    const color = highlighted && highlightColor ? highlightColor : defaultColor;
+    const lineWidth = highlighted ? 4 : 3; // Increased for better visibility
 
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = lineWidth;

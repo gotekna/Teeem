@@ -55,8 +55,11 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   # config.action_mailer.raise_delivery_errors = false
 
-  # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  # Set host to be used by links generated in mailer templates and Active Storage URLs.
+  config.action_mailer.default_url_options = { host: ENV.fetch("HOST", "teeemlive-ce8e2660a615.herokuapp.com"), protocol: "https" }
+
+  # Active Storage URL host
+  Rails.application.routes.default_url_options = { host: ENV.fetch("HOST", "teeemlive-ce8e2660a615.herokuapp.com"), protocol: "https" }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via rails credentials:edit.
   # config.action_mailer.smtp_settings = {

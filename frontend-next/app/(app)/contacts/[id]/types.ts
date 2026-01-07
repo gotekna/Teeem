@@ -18,6 +18,7 @@ export interface ContactGroup {
 
 export interface ContactEmail {
   id?: number;
+  _tempId?: string; // For new/synthetic emails before saved to backend
   email: string;
   is_primary: boolean;
   label: string | null;
@@ -27,6 +28,7 @@ export interface ContactEmail {
 
 export interface ContactPhone {
   id?: number;
+  _tempId?: string; // For new/synthetic phones before saved to backend
   phone_number: string;
   phone_type: 'mobile' | 'office' | 'fax' | 'home';
   is_primary: boolean;
@@ -270,6 +272,10 @@ export interface ContactRelationship {
   relationship_type_label?: string;
   direction?: 'outgoing' | 'incoming';
   role_in_relationship?: string | null;
+  // Multi-role support - SSoT for relationship roles
+  role_ids?: number[];
+  role_names?: string[];
+  roles?: Array<{ id: number; name: string }>;
   ownership_percentage?: number | null;
   context?: string | null;
   start_date?: string | null;
@@ -323,6 +329,7 @@ export interface Contact {
   email: string | null;
   mobile_phone: string | null;
   office_phone: string | null;
+  direct_line: string | null;
   website: string | null;
   abn: string | null;
   acn: string | null;

@@ -2,55 +2,49 @@
 
 # EmailChannel - Real-time email updates via WebSocket
 #
-# Broadcasts email events to subscribed users:
-# - new_email: When a new email is synced
-# - email_state_changed: When user state changes (read, starred, pinned, etc.)
-# - email_deleted: When an email is deleted
+# Subscribed by frontend when user opens email page
+# Broadcasts events for:
+# - new_email: Single new email synced
+# - new_emails: Multiple emails synced (batch)
+# - email_state_changed: Read/starred/pinned state changed
+# - email_deleted: Email was deleted
+# - sync_started: Sync process started
+# - sync_completed: Sync process finished
 #
-# Usage from frontend:
-#   const cable = createConsumer(WS_URL);
-#   cable.subscriptions.create("EmailChannel", {
-#     received(data) { ... }
-#   });
-#
-# Usage from backend:
+# Usage (from backend):
 #   EmailChannel.broadcast_new_email(user, email)
-#   EmailChannel.broadcast_state_change(user, email_id, changes)
+#   EmailChannel.broadcast_state_changed(user, email_id, changes)
 #
 class EmailChannel < ApplicationCable::Channel
   def subscribed
+    # Stream for the current user only
     stream_for current_user
+    Rails.logger.info "[EmailChannel] User #{current_user.id} subscribed"
   end
 
   def unsubscribed
-    # Cleanup when user disconnects
+    Rails.logger.info "[EmailChannel] User #{current_user.id} unsubscribed"
   end
 
   # Broadcast a new email to a user
-  def self.broadcast_new_email(user, email_warehouse)
-    return unless user && email_warehouse
-
+  def self.broadcast_new_email(user, email)
     broadcast_to(user, {
       type: "new_email",
-      email: serialize_email(email_warehouse)
+      email: email
     })
   end
 
-  # Broadcast multiple new emails (batch sync)
-  def self.broadcast_new_emails(user, email_warehouses)
-    return unless user && email_warehouses.any?
-
+  # Broadcast multiple new emails to a user
+  def self.broadcast_new_emails(user, emails, count)
     broadcast_to(user, {
       type: "new_emails",
-      emails: email_warehouses.map { |e| serialize_email(e) },
-      count: email_warehouses.size
+      emails: emails,
+      count: count
     })
   end
 
-  # Broadcast state change for an email
-  def self.broadcast_state_change(user, email_id, changes)
-    return unless user && email_id
-
+  # Broadcast email state change to a user
+  def self.broadcast_state_changed(user, email_id, changes)
     broadcast_to(user, {
       type: "email_state_changed",
       email_id: email_id,
@@ -58,20 +52,16 @@ class EmailChannel < ApplicationCable::Channel
     })
   end
 
-  # Broadcast email deleted
-  def self.broadcast_email_deleted(user, email_id)
-    return unless user && email_id
-
+  # Broadcast email deletion to a user
+  def self.broadcast_deleted(user, email_id)
     broadcast_to(user, {
       type: "email_deleted",
       email_id: email_id
     })
   end
 
-  # Broadcast sync started (for UI feedback)
+  # Broadcast sync started to a user
   def self.broadcast_sync_started(user, sync_type: "incremental")
-    return unless user
-
     broadcast_to(user, {
       type: "sync_started",
       sync_type: sync_type,
@@ -79,38 +69,16 @@ class EmailChannel < ApplicationCable::Channel
     })
   end
 
-  # Broadcast sync completed
-  def self.broadcast_sync_completed(user, stats = {})
-    return unless user
-
+  # Broadcast sync completed to a user
+  def self.broadcast_sync_completed(user, new_count:, updated_count:, duration_seconds:)
     broadcast_to(user, {
       type: "sync_completed",
       stats: {
-        new_count: stats[:new_count] || 0,
-        updated_count: stats[:updated_count] || 0,
-        duration_seconds: stats[:duration_seconds] || 0
+        new_count: new_count,
+        updated_count: updated_count,
+        duration_seconds: duration_seconds
       },
       completed_at: Time.current.iso8601
     })
-  end
-
-  private
-
-  def self.serialize_email(email)
-    {
-      id: email.id,
-      internet_message_id: email.internet_message_id,
-      subject: email.subject,
-      from_email: email.from_email,
-      from_name: email.from_name,
-      to_emails: email.to_emails,
-      received_at: email.received_at&.iso8601,
-      snippet: email.snippet,
-      body_preview: email.body_preview,
-      has_attachments: email.has_attachments,
-      attachment_count: email.attachment_count,
-      conversation_id: email.conversation_id,
-      is_latest_in_thread: email.is_latest_in_thread
-    }
   end
 end

@@ -2,13 +2,22 @@
 
 # SmRolloverJob - Daily task rollover for SM Gantt
 #
-# This job runs daily at midnight and:
-# 1. Finds all past-due tasks (not_started, start_date < today)
-# 2. Rolls them forward to today's date
-# 3. If task was supplier_confirmed → demotes to confirm, notifies user
-# 4. If task was confirmed → notifies user of move
-# 5. Cascades date changes to successor tasks (same confirm rules apply)
-# 6. Creates audit log entries and activity notifications
+# This job runs daily at midnight and handles two scenarios:
+#
+# 1. NOT STARTED tasks past their start date:
+#    - Moves start_date to next working day
+#    - Recalculates end_date based on duration
+#    - Clears supplier_confirm if set (demotes to confirm)
+#    - Cascades to successor tasks
+#
+# 2. STARTED tasks past their end date:
+#    - Extends end_date to next working day
+#    - Does NOT change start_date (task already in progress)
+#    - Cascades to successor tasks
+#
+# Working Days:
+# - All dates are adjusted to working days (Mon-Fri by default)
+# - Weekends and holidays are skipped
 #
 # Confirm Logic:
 # - supplier_confirm + moved → clears supplier_confirm, keeps confirm, notifies "re-confirm with supplier"
@@ -38,22 +47,17 @@ class SmRolloverJob < ApplicationJob
     today = @settings.today
     Rails.logger.info "[SmRolloverJob] Starting rollover batch #{@batch_id} for date #{today}"
 
-    # Find tasks to roll over
-    tasks = find_past_due_tasks(today)
-
-    if tasks.empty?
-      Rails.logger.info "[SmRolloverJob] No past-due tasks found"
-      return { success: true, rolled_over: 0, cascaded: 0 }
-    end
-
-    Rails.logger.info "[SmRolloverJob] Found #{tasks.count} past-due tasks"
-
     rolled_over = 0
+    extended = 0
     cascaded = 0
     dependencies_broken = 0
 
-    tasks.find_each do |task|
-      result = rollover_task(task, today)
+    # 1. Handle NOT STARTED tasks past their start date
+    not_started_tasks = find_past_due_not_started_tasks(today)
+    Rails.logger.info "[SmRolloverJob] Found #{not_started_tasks.count} past-due not_started tasks"
+
+    not_started_tasks.find_each do |task|
+      result = rollover_not_started_task(task, today)
       if result[:success]
         rolled_over += 1
         cascaded += result[:cascaded_count]
@@ -61,12 +65,25 @@ class SmRolloverJob < ApplicationJob
       end
     end
 
-    Rails.logger.info "[SmRolloverJob] Completed. Rolled over: #{rolled_over}, Cascaded: #{cascaded}, Dependencies broken: #{dependencies_broken}"
+    # 2. Handle STARTED tasks past their end date
+    started_tasks = find_overdue_started_tasks(today)
+    Rails.logger.info "[SmRolloverJob] Found #{started_tasks.count} overdue started tasks"
+
+    started_tasks.find_each do |task|
+      result = extend_started_task(task, today)
+      if result[:success]
+        extended += 1
+        cascaded += result[:cascaded_count]
+      end
+    end
+
+    Rails.logger.info "[SmRolloverJob] Completed. Rolled over: #{rolled_over}, Extended: #{extended}, Cascaded: #{cascaded}"
 
     {
       success: true,
       batch_id: @batch_id,
       rolled_over: rolled_over,
+      extended: extended,
       cascaded: cascaded,
       dependencies_broken: dependencies_broken
     }
@@ -78,29 +95,62 @@ class SmRolloverJob < ApplicationJob
 
   private
 
-  def find_past_due_tasks(today)
+  # Find NOT STARTED tasks that need to be rolled forward
+  # This includes:
+  # 1. Tasks past their start date (start_date < today)
+  # 2. Tasks scheduled for today if today is a non-working day (holiday/weekend)
+  def find_past_due_not_started_tasks(today)
+    # If today is not a working day, also include tasks scheduled for today
+    if @calendar.working_day?(today)
+      # Normal day - only get tasks that are past due
+      date_condition = "start_date < ?"
+      date_value = today
+    else
+      # Holiday/weekend - get tasks scheduled for today OR past due
+      date_condition = "start_date <= ?"
+      date_value = today
+    end
+
     scope = SmTask.where(status: "not_started")
-                  .where("start_date < ?", today)
+                  .where(date_condition, date_value)
                   .where(is_hold_task: false)  # Don't roll over hold tasks
                   .includes(:job)
                   .order(:job_id, :start_date)
 
     # Optionally filter by job
     if @options[:job_id].present?
-      scope = scope.where(construction_id: @options[:job_id])
+      scope = scope.where(job_id: @options[:job_id])
     end
 
     scope
   end
 
-  def rollover_task(task, today)
+  # Find STARTED tasks that are past their end date
+  def find_overdue_started_tasks(today)
+    scope = SmTask.where(status: "started")
+                  .where("end_date < ?", today)
+                  .where(is_hold_task: false)
+                  .includes(:job)
+                  .order(:job_id, :end_date)
+
+    # Optionally filter by job
+    if @options[:job_id].present?
+      scope = scope.where(job_id: @options[:job_id])
+    end
+
+    scope
+  end
+
+  # Rollover a NOT STARTED task - moves start and end dates forward
+  def rollover_not_started_task(task, today)
     days_past_due = (today - task.start_date).to_i
     original_start = task.start_date
     original_end = task.end_date
 
     # Calculate new dates using working days
-    new_start = today
-    new_end = @calendar.add_working_days(today, task.duration_days - 1)
+    # If today is a weekend/holiday, move to next working day
+    new_start = @calendar.next_working_day(today)
+    new_end = @calendar.add_working_days(new_start, task.duration_days - 1)
 
     # Track confirm status changes for logging
     supplier_confirm_cleared = false
@@ -161,13 +211,54 @@ class SmRolloverJob < ApplicationJob
     { success: false, error: e.message, cascaded_count: 0, dependencies_broken: 0 }
   end
 
+  # Extend a STARTED task - only extends the end date, start date stays the same
+  def extend_started_task(task, today)
+    original_end = task.end_date
+
+    # Extend end_date to next working day
+    new_end = @calendar.next_working_day(today)
+
+    # Calculate how many days we're extending
+    days_extended = (new_end - original_end).to_i
+
+    # Update the task end date only (start stays the same since task is in progress)
+    task.update!(
+      end_date: new_end,
+      updated_at: @timestamp
+    )
+
+    # Create rollover log for the extension
+    SmRolloverLog.create!(
+      task: task,
+      job: task.job,
+      rollover_batch_id: @batch_id,
+      rollover_timestamp: @timestamp,
+      old_start_date: task.start_date,  # unchanged
+      old_end_date: original_end,
+      new_start_date: task.start_date,  # unchanged
+      new_end_date: new_end,
+      confirm_status_change: "started_task_extended"
+    )
+
+    # Cascade to successors (push them forward)
+    cascaded_count = cascade_to_successors(task, days_extended)
+
+    Rails.logger.debug "[SmRolloverJob] Extended started task #{task.id} '#{task.name}' end date by #{days_extended} days"
+
+    { success: true, cascaded_count: cascaded_count }
+  rescue StandardError => e
+    Rails.logger.error "[SmRolloverJob] Failed to extend task #{task.id}: #{e.message}"
+    { success: false, error: e.message, cascaded_count: 0 }
+  end
+
   def cascade_to_successors(task, days_shifted)
     return 0 if days_shifted == 0
 
     cascaded = 0
 
     # Find successor tasks that should cascade
-    task.active_successor_dependencies.includes(:successor_task).find_each do |dep|
+    # SSoT: active_successor_dependencies returns OpenStruct array (no .includes needed)
+    task.active_successor_dependencies.each do |dep|
       successor = dep.successor_task
       next unless successor.present?
       next unless successor.status_not_started?

@@ -258,10 +258,13 @@ export const CHART_COLORS = {
     weekendBackground: TAILWIND_COLORS.gray[50],        // #f9fafb
     headerBackground: TAILWIND_COLORS.gray[100],        // #f3f4f6
     headerText: TAILWIND_COLORS.gray[700],              // #374151
-    selectedRow: BRAND_COLORS.status.info.light,        // #dbeafe - Info background
+    selectedRow: '#2563eb',                             // blue-600 - solid blue
     hoverRow: TAILWIND_COLORS.gray[100],                // #f3f4f6
     borderColor: TAILWIND_COLORS.gray[200],             // #e5e7eb
     textColor: BRAND_COLORS.text.primary,               // #1D1D1D
+    // Header row (summary task) background - amber to match sidebar
+    headerRowBackground: TAILWIND_COLORS.amber[200],    // #fde68a - more saturated amber (header)
+    childRowBackground: TAILWIND_COLORS.amber[100],     // #fef3c7 - lighter amber (children)
   },
   dark: {
     background: BRAND_COLORS.background.secondaryDark,  // #1D1D1D
@@ -270,10 +273,13 @@ export const CHART_COLORS = {
     weekendBackground: TAILWIND_COLORS.gray[900],       // #111827
     headerBackground: TAILWIND_COLORS.gray[900],        // #111827
     headerText: TAILWIND_COLORS.gray[200],              // #e5e7eb
-    selectedRow: BRAND_COLORS.status.info.dark,         // #1E3A8A - Info background
+    selectedRow: '#2563eb',                             // blue-600 - solid blue
     hoverRow: TAILWIND_COLORS.gray[700],                // #374151
     borderColor: TAILWIND_COLORS.gray[700],             // #374151
     textColor: TAILWIND_COLORS.gray[200],               // #e5e7eb
+    // Header row (summary task) background - amber to match sidebar
+    headerRowBackground: 'rgba(180, 83, 9, 0.3)',       // amber-900/30 to match dark:bg-amber-900/30 (header)
+    childRowBackground: 'rgba(180, 83, 9, 0.2)',        // amber-900/20 to match dark:bg-amber-900/20 (children)
   },
 } as const;
 

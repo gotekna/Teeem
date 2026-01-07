@@ -31,18 +31,10 @@ import {
   ChevronDown,
   ChevronRight,
   CornerDownRight,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// User roles (matching backend)
-const USER_ROLES = [
-  { value: "admin", label: "Admin" },
-  { value: "product_owner", label: "Product Owner" },
-  { value: "estimator", label: "Estimator" },
-  { value: "supervisor", label: "Supervisor" },
-  { value: "builder", label: "Builder" },
-  { value: "user", label: "User" },
-];
+import { useAssignableRoles } from "@/hooks/useAssignableRoles";
 
 interface NavigationItem {
   id: number;
@@ -60,7 +52,11 @@ interface NavigationItem {
 }
 
 export function NavigationTab() {
+  // SSoT: Fetch roles from database via Role.for_select
+  const { roles: userRoles } = useAssignableRoles();
+
   const [items, setItems] = React.useState<NavigationItem[]>([]);
+  const [emailAccounts, setEmailAccounts] = React.useState<{ id: number | string; type: string; name: string; nav_position: number; org_name?: string }[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set());
@@ -96,9 +92,35 @@ export function NavigationTab() {
     }
   }, []);
 
+  // Load email accounts
+  const loadEmailAccounts = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ email_accounts: typeof emailAccounts }>(
+        "/api/v1/navigation/email_accounts"
+      );
+      setEmailAccounts(res.email_accounts || []);
+    } catch (error) {
+      console.error("Failed to load email accounts:", error);
+    }
+  }, []);
+
   React.useEffect(() => {
     loadNavigation();
-  }, [loadNavigation]);
+    loadEmailAccounts();
+  }, [loadNavigation, loadEmailAccounts]);
+
+  // Reorder email accounts
+  const handleReorderEmailAccounts = async (newAccounts: typeof emailAccounts) => {
+    setEmailAccounts(newAccounts);
+    try {
+      await api.post("/api/v1/navigation/reorder_email_accounts", {
+        accounts: newAccounts.map((a, i) => ({ id: a.id, type: a.type, position: i })),
+      });
+    } catch (error) {
+      console.error("Failed to reorder email accounts:", error);
+      loadEmailAccounts();
+    }
+  };
 
   // Get top-level items (no parent)
   const topLevelItems = React.useMemo(() => {
@@ -301,7 +323,10 @@ export function NavigationTab() {
   const renderItem = (item: NavigationItem, index: number, total: number, depth = 0) => {
     const Icon = getIcon(item.icon);
     const children = getChildren(item.id);
-    const hasChildren = children.length > 0;
+    // For Email item, include email accounts as "virtual children"
+    const isEmailItem = item.href === "/email";
+    const emailAccountCount = isEmailItem ? emailAccounts.length : 0;
+    const hasChildren = children.length > 0 || emailAccountCount > 0;
     const isExpanded = expandedItems.has(item.id);
     // Level 0 and 1 can have children (creates level 1 and 2)
     // Level 2 (grandchildren) cannot have children
@@ -385,7 +410,7 @@ export function NavigationTab() {
             )}
             {hasChildren && (
               <Badge variant="outline" className="text-[10px] py-0 px-1">
-                {children.length} children
+                {children.length + emailAccountCount} children
               </Badge>
             )}
           </div>
@@ -393,16 +418,48 @@ export function NavigationTab() {
 
         {/* Children (expanded) - supports 2 levels of nesting */}
         {canExpand && hasChildren && isExpanded && (
-          <div className="mt-1">
-            <SortableList
-              items={children}
-              onReorder={(newOrder) => handleReorderChildren(item.id, newOrder)}
-              className="space-y-1"
-            >
-              {children.map((child, childIndex) =>
-                renderItem(child, childIndex, children.length, depth + 1)
-              )}
-            </SortableList>
+          <div className="mt-1 space-y-1">
+            {/* Regular nav item children */}
+            {children.length > 0 && (
+              <SortableList
+                items={children}
+                onReorder={(newOrder) => handleReorderChildren(item.id, newOrder)}
+                className="space-y-1"
+              >
+                {children.map((child, childIndex) =>
+                  renderItem(child, childIndex, children.length, depth + 1)
+                )}
+              </SortableList>
+            )}
+            {/* Email accounts (virtual children for Email item) */}
+            {isEmailItem && emailAccounts.length > 0 && (
+              <SortableList
+                items={emailAccounts.map((a) => ({ ...a, id: String(a.id) }))}
+                onReorder={handleReorderEmailAccounts}
+                className="space-y-1 ml-6"
+              >
+                {emailAccounts.map((account, idx) => (
+                  <SortableItem
+                    key={`${account.type}_${account.id}`}
+                    id={String(account.id)}
+                    position={idx + 1}
+                    maxPosition={emailAccounts.length}
+                    variant="card"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{account.name}</span>
+                      <Badge variant="outline" className="text-[10px] py-0 px-1">
+                        {account.type.toUpperCase()}
+                      </Badge>
+                      {account.org_name && (
+                        <span className="text-xs text-muted-foreground">({account.org_name})</span>
+                      )}
+                    </div>
+                  </SortableItem>
+                ))}
+              </SortableList>
+            )}
           </div>
         )}
       </div>
@@ -461,6 +518,8 @@ export function NavigationTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Email accounts are now shown as children under the Email nav item */}
 
       {/* New Item Dialog */}
       <Dialog open={showNewItem} onOpenChange={setShowNewItem}>
@@ -581,7 +640,7 @@ export function NavigationTab() {
                           {hasRoleRestrictions ? (
                             // Show only the inherited roles as solid badges
                             parentRoles.map((roleValue) => {
-                              const role = USER_ROLES.find((r) => r.value === roleValue);
+                              const role = userRoles.find((r) => r.value === roleValue);
                               return (
                                 <Badge
                                   key={roleValue}
@@ -606,7 +665,7 @@ export function NavigationTab() {
                 <>
                   <p className="text-xs text-muted-foreground">Leave empty for all roles</p>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {USER_ROLES.map((role) => {
+                    {userRoles.map((role) => {
                       const isSelected = itemForm.visible_to_roles.includes(role.value);
                       return (
                         <Badge
@@ -789,7 +848,7 @@ export function NavigationTab() {
                         {hasRoleRestrictions ? (
                           // Show only the inherited roles as solid badges
                           parentRoles.map((roleValue) => {
-                            const role = USER_ROLES.find((r) => r.value === roleValue);
+                            const role = userRoles.find((r) => r.value === roleValue);
                             return (
                               <Badge
                                 key={roleValue}
@@ -813,7 +872,7 @@ export function NavigationTab() {
                 <>
                   <p className="text-xs text-muted-foreground">Leave empty for all roles</p>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {USER_ROLES.map((role) => {
+                    {userRoles.map((role) => {
                       const isSelected = itemForm.visible_to_roles.includes(role.value);
                       return (
                         <Badge

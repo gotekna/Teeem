@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Mail,
@@ -32,12 +37,19 @@ import {
   ReplyAll,
   Forward,
   ArrowUpDown,
+  FolderPlus,
+  MoreVertical,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
@@ -54,6 +66,7 @@ import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp
 import { BulkActionBar } from "@/components/emails/BulkActionBar";
 import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
 import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
+import { EmailContextMenu } from "@/components/emails/EmailContextMenu";
 import { EmailSummary } from "@/components/emails/EmailSummary";
 import { EmailContactMatch } from "@/components/emails/EmailContactMatch";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
@@ -72,10 +85,77 @@ import { useEmailState } from "@/components/emails/EmailActions";
 import { useEmailWebSocket } from "@/hooks/useEmailWebSocket";
 import { ClassificationBadge, type EmailClassificationType } from "@/components/emails/ClassificationBadge";
 import { ReadingPaneToggle, useReadingPanePosition, type ReadingPanePosition } from "@/components/emails/ReadingPaneToggle";
+import { CreateFolderDialog } from "@/components/emails/FolderManagementDialog";
+import { FolderTree, type FolderTreeItem } from "@/components/ui/folder-tree";
 import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
 import { useToast } from "@/components/ui/use-toast";
+import { api as apiClient } from "@/lib/api";
+
+// Helper to decode HTML entities and clean up email snippets
+function decodeHtmlEntities(text: string | null | undefined): string {
+  if (!text) return "";
+
+  let decoded = text;
+
+  // Use a textarea to decode HTML entities safely
+  if (typeof document !== "undefined") {
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = text;
+    decoded = textarea.value;
+  } else {
+    // Fallback for SSR - decode common entities
+    decoded = text
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, "/");
+  }
+
+  // Strip CSS that leaked into snippets
+  // Some emails have CSS in their text/plain or snippet from poor HTML parsing
+
+  // Detect if this looks like CSS (has property:value patterns inside braces)
+  // e.g., "} h1 {color:#1b1b1b; font-family:..."
+  if (/\{[^}]*[a-z-]+\s*:[^}]*[;}]?/i.test(decoded) || /^[}\s]/.test(decoded)) {
+    // Has CSS patterns - strip aggressively
+
+    // Remove everything that looks like CSS
+    // Pattern: optional }, then selector, then { properties }
+    let prevDecoded = "";
+    while (prevDecoded !== decoded && decoded.length > 0) {
+      prevDecoded = decoded;
+
+      // Strip leading } or whitespace
+      decoded = decoded.replace(/^[}\s]+/, "");
+
+      // Strip complete CSS rules: selector { properties }
+      decoded = decoded.replace(/^[^{]*\{[^}]*\}\s*/g, "");
+    }
+
+    // If what remains still has { without }, it's truncated CSS - clear it
+    if (decoded.includes("{")) {
+      decoded = "";
+    }
+  }
+
+  // Clean up multiple spaces
+  decoded = decoded.replace(/\s+/g, " ").trim();
+
+  return decoded;
+}
 
 interface Email {
   id: number;
@@ -155,25 +235,15 @@ interface Pagination {
 
 interface EmailFolder {
   id: string;
-  name: string;
+  name: string;  // Full path for filtering (e.g., "Inbox/Investments")
+  display_name?: string;  // Display name from API (snake_case)
+  displayName?: string;  // Display name for FolderTree (camelCase)
   type: string;
   unread_count?: number;
   total_items?: number;
   depth?: number;
   parent_id?: string;
 }
-
-// Map folder type to icon
-const FOLDER_ICONS: Record<string, typeof Inbox> = {
-  inbox: Inbox,
-  sent: Send,
-  drafts: FileText,
-  archive: Archive,
-  trash: Trash2,
-  junk: Trash2,
-  important: Star,
-  folder: FileText,
-};
 
 // Memoized email list item for performance
 const EmailListItem = memo(function EmailListItem({
@@ -186,6 +256,7 @@ const EmailListItem = memo(function EmailListItem({
   onQuickAction,
   onSnooze,
   onReply,
+  onReplyAll,
   onForward,
   // Thread props
   threadCount = 0,
@@ -208,6 +279,7 @@ const EmailListItem = memo(function EmailListItem({
   onQuickAction?: () => void;
   onSnooze?: (email: Email) => void;
   onReply?: (email: Email) => void;
+  onReplyAll?: (email: Email) => void;
   onForward?: (email: Email) => void;
   // Thread props
   threadCount?: number;
@@ -224,11 +296,23 @@ const EmailListItem = memo(function EmailListItem({
   const hasThread = threadCount > 1;
 
   const content = (
+    <EmailContextMenu
+      emailId={email.id}
+      isRead={email.is_read}
+      fromEmail={email.from_email || email.from_address}
+      fromName={email.from_name || undefined}
+      subject={email.subject}
+      onReply={() => onReply?.(email)}
+      onReplyAll={() => onReplyAll?.(email)}
+      onForward={() => onForward?.(email)}
+      onSnooze={() => onSnooze?.(email)}
+      onAction={onQuickAction}
+    >
     <div data-email-id={email.id}>
       {/* Main email row */}
       <div
         className={cn(
-          "group px-3 py-2.5 cursor-pointer border-l-2",
+          "group px-0.5 py-1.5 cursor-pointer border-l-2",
           isSelected
             ? "bg-primary/10 border-l-primary"
             : isChecked
@@ -238,9 +322,9 @@ const EmailListItem = memo(function EmailListItem({
         )}
         onClick={(e) => onClick(email, e)}
       >
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-0.5">
           {/* Thread expand/collapse chevron OR checkbox */}
-          <div className="shrink-0 pt-0.5 w-4 flex items-center justify-center">
+          <div className="shrink-0 pt-0.5 w-3.5 flex items-center justify-center">
             {hasThread && !hasSelections ? (
               <button
                 onClick={(e) => {
@@ -277,7 +361,7 @@ const EmailListItem = memo(function EmailListItem({
             )}
           </div>
 
-          <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0 flex items-start gap-0.5">
             {/* Unread indicator dot */}
             {!email.is_read && (
               <div className="shrink-0 pt-1.5">
@@ -287,7 +371,7 @@ const EmailListItem = memo(function EmailListItem({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className={cn(
-                  "text-sm truncate",
+                  "text-sm truncate flex-1 min-w-0",
                   !email.is_read ? "font-bold text-foreground" : "font-normal text-muted-foreground"
                 )}>
                   {email.from_name || email.from_email || email.from_address}
@@ -303,15 +387,25 @@ const EmailListItem = memo(function EmailListItem({
                 />
                 {/* Thread count badge */}
                 <ThreadCountBadge count={threadCount} isExpanded={isExpanded} />
+                {/* Timestamp - inline with sender */}
+                <span className={cn(
+                  "text-[10px] whitespace-nowrap shrink-0 group-hover:hidden",
+                  !email.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
+                )}>
+                  {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+                </span>
               </div>
               <p className={cn(
                 "text-sm truncate",
-                !email.is_read ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
+                !email.is_read ? "font-bold text-foreground" : "font-normal text-muted-foreground"
               )}>
                 {email.subject || "(No subject)"}
               </p>
-              <p className="text-xs text-muted-foreground truncate mt-0.5">
-                {email.snippet || email.body_preview}
+              <p className={cn(
+                "text-xs truncate mt-0.5",
+                !email.is_read ? "font-semibold text-muted-foreground" : "font-normal text-muted-foreground/70"
+              )}>
+                {decodeHtmlEntities(email.snippet || email.body_preview)}
               </p>
             </div>
             {/* Quick actions on hover */}
@@ -324,9 +418,6 @@ const EmailListItem = memo(function EmailListItem({
               onForward={() => onForward?.(email)}
               className="shrink-0"
             />
-            <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 group-hover:hidden">
-              {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
-            </div>
           </div>
         </div>
       </div>
@@ -351,7 +442,7 @@ const EmailListItem = memo(function EmailListItem({
                     <div className="flex items-center gap-1.5">
                       <span className={cn(
                         "text-xs truncate",
-                        !threadEmail.is_read ? "font-semibold" : "font-medium"
+                        !threadEmail.is_read ? "font-bold text-foreground" : "font-medium text-muted-foreground"
                       )}>
                         {threadEmail.from_name || threadEmail.from_email || threadEmail.from_address}
                       </span>
@@ -359,11 +450,17 @@ const EmailListItem = memo(function EmailListItem({
                         <Paperclip className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {threadEmail.snippet || threadEmail.body_preview}
+                    <p className={cn(
+                      "text-xs truncate",
+                      !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground/70"
+                    )}>
+                      {decodeHtmlEntities(threadEmail.snippet || threadEmail.body_preview)}
                     </p>
                   </div>
-                  <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                  <div className={cn(
+                    "text-[10px] whitespace-nowrap shrink-0",
+                    !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
+                  )}>
                     {format(new Date(threadEmail.received_at), "MMM d, h:mm a")}
                   </div>
                 </div>
@@ -372,6 +469,7 @@ const EmailListItem = memo(function EmailListItem({
         </div>
       )}
     </div>
+    </EmailContextMenu>
   );
 
   // Wrap with DraggableEmail if drag is enabled and we have account info
@@ -391,53 +489,6 @@ const EmailListItem = memo(function EmailListItem({
   return content;
 });
 
-// Memoized folder button component for performance
-const FolderButton = memo(function FolderButton({
-  folder,
-  accountId,
-  isSelected,
-  onSelect,
-  enableDrop = false,
-}: {
-  folder: EmailFolder;
-  accountId: string;
-  isSelected: boolean;
-  onSelect: (accountId: string, folder: EmailFolder) => void;
-  enableDrop?: boolean;
-}) {
-  const Icon = FOLDER_ICONS[folder.type] || FOLDER_ICONS.folder;
-  const depth = folder.depth || 0;
-
-  const buttonContent = (
-    <button
-      onClick={() => onSelect(accountId, folder)}
-      className={cn(
-        "w-full flex items-center gap-2 py-1.5 text-sm hover:bg-muted/50 rounded-sm",
-        isSelected && "bg-primary/10 text-primary font-medium"
-      )}
-      style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: '12px' }}
-    >
-      <Icon className="h-4 w-4 shrink-0" />
-      <span className="flex-1 text-left truncate">{folder.name}</span>
-      {folder.unread_count !== undefined && folder.unread_count > 0 && (
-        <Badge variant="secondary" className="text-xs px-1.5 py-0.5 min-w-[20px] text-center shrink-0">
-          {folder.unread_count}
-        </Badge>
-      )}
-    </button>
-  );
-
-  if (enableDrop) {
-    return (
-      <DroppableFolder folderId={folder.id} folderName={folder.name}>
-        {buttonContent}
-      </DroppableFolder>
-    );
-  }
-
-  return buttonContent;
-});
-
 export default function EmailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -447,6 +498,7 @@ export default function EmailPage() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [accountFolders, setAccountFolders] = useState<Record<string, EmailFolder[]>>({});
+  const [folderOrder, setFolderOrder] = useState<Record<string, string[]>>({});
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -471,20 +523,24 @@ export default function EmailPage() {
   };
   const cachedState = getCachedEmailState();
 
-  const [selectedAccount, setSelectedAccount] = useState<string>(cachedState?.accountId || "");
+  // "all" = combined view from all accounts, "" = select mailbox, otherwise = specific account id
+  const [selectedAccount, setSelectedAccount] = useState<string>(cachedState?.accountId || "all");
   const [selectedFolder, setSelectedFolder] = useState<string>(cachedState?.folderName || "Inbox");
-  const [selectedFolderId, setSelectedFolderId] = useState<string>(cachedState?.folderId || "INBOX");
+  const [selectedFolderId, setSelectedFolderId] = useState<string>(cachedState?.folderId || "ALL_INBOX");
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(
     cachedState?.accountId ? new Set([cachedState.accountId]) : new Set()
   );
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [popoutEmail, setPopoutEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Split Inbox State - default to folders (Inbox) for faster loading
   const [viewMode, setViewMode] = useState<"split" | "folders">(cachedState?.viewMode || "folders");
-  const splitInbox = useSplitInbox({ accountId: selectedAccount });
+  // Only fetch split inbox data when in split view mode (performance optimization)
+  const splitInbox = useSplitInbox({ accountId: selectedAccount, enabled: viewMode === "split" });
 
   // Keyboard Shortcuts
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
@@ -753,12 +809,6 @@ export default function EmailPage() {
   const toURLParams = emailFilters.toURLParams;
 
   const fetchEmails = useCallback(async (page = 1) => {
-    if (!selectedAccount) {
-      setEmails([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     try {
       // Start with filters from hook
@@ -767,25 +817,27 @@ export default function EmailPage() {
       params.set("per_page", "50");
       params.set("my_emails", "true");
 
-      // Filter by specific account
-      if (selectedAccount === "outlook") {
-        params.append("source_type", "outlook");
-      } else if (selectedAccount.startsWith("ms365_")) {
-        // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
-        const parts = selectedAccount.split("_");
-        params.append("microsoft_credential_id", parts[1]);
-      } else {
-        params.append("imap_credential_id", selectedAccount);
+      // Filter by specific account (skip filtering if "all" for combined view)
+      if (selectedAccount && selectedAccount !== "all") {
+        if (selectedAccount === "outlook") {
+          params.append("source_type", "outlook");
+        } else if (selectedAccount.startsWith("ms365_")) {
+          // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
+          const parts = selectedAccount.split("_");
+          params.append("microsoft_credential_id", parts[1]);
+        } else {
+          params.append("imap_credential_id", selectedAccount);
+        }
       }
 
-      // Filter by folder if one is selected
-      if (selectedFolderId) {
-        params.append("folder_id", selectedFolderId);
+      // Filter by folder name (warehouse stores human-readable names like "Inbox", not MS365 IDs)
+      // For "All Inbox", just filter by Inbox folder name across all accounts
+      if (selectedFolder) {
+        params.append("folder_name", selectedFolder);
       }
 
-      const response = await api.get<{ emails: Email[]; pagination: Pagination }>(
-        `/api/v1/email_warehouse?${params.toString()}`
-      );
+      const url = `/api/v1/email_warehouse?${params.toString()}`;
+      const response = await api.get<{ emails: Email[]; pagination: Pagination }>(url);
 
       setEmails(response.emails || []);
       setPagination(response.pagination);
@@ -794,9 +846,9 @@ export default function EmailPage() {
     } finally {
       setLoading(false);
     }
-  }, [toURLParams, selectedAccount, selectedFolderId]);
+  }, [toURLParams, selectedAccount, selectedFolder]);
 
-  const fetchFolders = async (accountId: string, account?: EmailAccount) => {
+  const fetchFolders = async (accountId: string, account?: EmailAccount, forceSelectInbox = false) => {
     if (accountFolders[accountId] || loadingFolders.has(accountId)) {
       return; // Already loaded or loading
     }
@@ -810,45 +862,87 @@ export default function EmailPage() {
     }
 
     setLoadingFolders(prev => new Set(prev).add(accountId));
-    try {
-      // Build URL with mailbox_email for ms365 accounts
-      let url = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
-      if (acct?.type === "ms365" && acct?.email_address) {
-        url += `&mailbox_email=${encodeURIComponent(acct.email_address)}`;
-      }
 
-      const response = await api.get<{ success: boolean; data: EmailFolder[] }>(url);
-      if (response.success && response.data) {
-        setAccountFolders(prev => ({
-          ...prev,
-          [accountId]: response.data
-        }));
+    // Build URL with mailbox_email for ms365 accounts
+    let foldersUrl = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
+    if (acct?.type === "ms365" && acct?.email_address) {
+      foldersUrl += `&mailbox_email=${encodeURIComponent(acct.email_address)}`;
+    }
 
-        // Auto-select inbox folder if this is the selected account and no folder is selected
-        // (Don't override cached folder selection)
-        if (accountId === selectedAccount && !selectedFolderId) {
-          const inboxFolder = response.data.find(f => f.type === "inbox");
-          if (inboxFolder) {
-            setSelectedFolder(inboxFolder.name);
-            setSelectedFolderId(inboxFolder.id);
-          }
-        }
+    // Fetch folders and folder_order in PARALLEL for speed
+    const [foldersResult, orderResult] = await Promise.allSettled([
+      api.get<{ success: boolean; data: EmailFolder[] }>(foldersUrl),
+      api.get<{ success: boolean; data: { folder_ids: string[] } }>(
+        `/api/v1/imap_credentials/folder_order?account_id=${accountId}`
+      ),
+    ]);
+
+    // Process folders result
+    if (foldersResult.status === "fulfilled" && foldersResult.value.success && foldersResult.value.data) {
+      const folders = foldersResult.value.data.map(f => ({
+        ...f,
+        displayName: f.display_name || f.name,
+      }));
+      setAccountFolders(prev => ({
+        ...prev,
+        [accountId]: folders
+      }));
+
+      // Auto-select inbox folder when:
+      // - forceSelectInbox is true (user just clicked this mailbox), OR
+      // - The folder ID doesn't match any folder in this account
+      const inboxFolder = foldersResult.value.data.find(f => f.type === "inbox");
+      const currentFolderExists = foldersResult.value.data.some(f => f.id === selectedFolderId);
+
+      if (inboxFolder && (forceSelectInbox || !currentFolderExists)) {
+        setSelectedFolder(inboxFolder.name);
+        setSelectedFolderId(inboxFolder.id);
       }
-    } catch (error) {
-      console.error("Failed to fetch folders:", error);
+    } else {
       // Set empty array to prevent retry loops
       setAccountFolders(prev => ({
         ...prev,
         [accountId]: []
       }));
-    } finally {
-      setLoadingFolders(prev => {
-        const next = new Set(prev);
-        next.delete(accountId);
-        return next;
-      });
     }
+
+    // Process folder order result
+    if (orderResult.status === "fulfilled" && orderResult.value.success && orderResult.value.data?.folder_ids?.length > 0) {
+      setFolderOrder(prev => ({
+        ...prev,
+        [accountId]: orderResult.value.data.folder_ids
+      }));
+    }
+
+    setLoadingFolders(prev => {
+      const next = new Set(prev);
+      next.delete(accountId);
+      return next;
+    });
   };
+
+  // Save folder order to backend (called when user drags to reorder)
+  const saveFolderOrder = useCallback(async (accountId: string, folderIds: string[]) => {
+    // Update local state immediately for optimistic UI
+    setFolderOrder(prev => ({
+      ...prev,
+      [accountId]: folderIds
+    }));
+
+    // Save to backend
+    try {
+      await api.post("/api/v1/imap_credentials/save_folder_order", {
+        account_id: accountId,
+        folder_ids: folderIds
+      });
+    } catch (error) {
+      console.error("Failed to save folder order:", error);
+      // Revert on error? For now just log - user can try again
+    }
+  }, []);
+
+  // Track if initial account load is complete (to handle cache vs URL param)
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
 
   const fetchAccounts = async () => {
     try {
@@ -858,28 +952,32 @@ export default function EmailPage() {
       const activeAccounts = (response.data || []).filter(a => a.is_active);
       setAccounts(activeAccounts);
 
-      // Check if URL has account param, otherwise use default
-      if (activeAccounts.length > 0) {
-        let accountToSelect: EmailAccount | undefined;
+      // Determine which account to show based on URL param
+      let targetAccountId = "all";
 
+      if (activeAccounts.length > 0) {
         if (accountParam) {
           // Find account matching URL param
-          accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
+          const accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
+          if (accountToSelect) {
+            targetAccountId = String(accountToSelect.id);
+            // Reset folder to Inbox when loading specific account from URL
+            setSelectedFolder("Inbox");
+            setSelectedFolderId("");
+            setExpandedAccounts(new Set([targetAccountId]));
+            // Fetch folders for selected account (pass account for ms365 type)
+            fetchFolders(targetAccountId, accountToSelect, true);
+          }
         }
-
-        if (!accountToSelect) {
-          // Fall back to default or first account
-          accountToSelect = activeAccounts.find(a => a.is_default) || activeAccounts[0];
-        }
-
-        const accountId = String(accountToSelect.id);
-        setSelectedAccount(accountId);
-        setExpandedAccounts(new Set([accountId]));
-        // Fetch folders for selected account (pass account for ms365 type)
-        fetchFolders(accountId, accountToSelect);
       }
+
+      // Always set the account and mark as loaded
+      // This triggers fetchEmails via the useEffect below
+      setSelectedAccount(targetAccountId);
+      setAccountsLoaded(true);
     } catch (error) {
       console.error("Failed to fetch accounts:", error);
+      setAccountsLoaded(true); // Mark loaded even on error to prevent infinite loops
     }
   };
 
@@ -894,17 +992,24 @@ export default function EmailPage() {
       if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
         const accountId = String(matchingAccount.id);
         setSelectedAccount(accountId);
+        // Immediately set folder to Inbox when switching accounts via URL
+        setSelectedFolder("Inbox");
+        setSelectedFolderId("");
         setExpandedAccounts(new Set([accountId]));
-        fetchFolders(accountId, matchingAccount);
+        fetchFolders(accountId, matchingAccount, true);
       }
+    } else if (!accountParam && accounts.length > 0 && selectedAccount !== "all") {
+      // No account param but we have a specific account selected - switch to All Inbox
+      setSelectedAccount("all");
     }
   }, [accountParam, accounts]);
 
   useEffect(() => {
-    if (selectedAccount) {
+    // Fetch emails when account changes OR when accounts finish loading
+    if (accountsLoaded) {
       fetchEmails();
     }
-  }, [selectedAccount, fetchEmails]);
+  }, [selectedAccount, fetchEmails, accountsLoaded]);
 
   // Cache email state for instant loading on next visit
   useEffect(() => {
@@ -994,14 +1099,38 @@ export default function EmailPage() {
     }
   };
 
-  const handleEmailClick = useCallback(async (email: Email) => {
+  const handleEmailClick = useCallback(async (email: Email, openPopout = false) => {
     if (!email || !email.id) {
       console.error("Invalid email object:", email);
       return;
     }
 
     // Set selected email immediately so UI updates
-    setSelectedEmail(email);
+    if (openPopout) {
+      setPopoutEmail(email);
+    } else {
+      setSelectedEmail(email);
+    }
+
+    // Mark as read if unread
+    if (!email.is_read) {
+      try {
+        await apiClient.post(`/api/v1/email_user_states/for_email/${email.id}/toggle_read`);
+        // Update email in list to show as read
+        setEmails(prev => prev.map(e =>
+          e.id === email.id ? { ...e, is_read: true } : e
+        ));
+        // Update the email object itself
+        email.is_read = true;
+        if (openPopout) {
+          setPopoutEmail({ ...email, is_read: true });
+        } else {
+          setSelectedEmail({ ...email, is_read: true });
+        }
+      } catch (error) {
+        console.error("Failed to mark email as read:", error);
+      }
+    }
 
     // Fetch full email content if not loaded
     if (!email.body_html && !email.body_text) {
@@ -1010,7 +1139,13 @@ export default function EmailPage() {
         // Handle both wrapped and unwrapped response formats
         const fullEmail = (response as { email?: Email }).email || response as Email;
         if (fullEmail && fullEmail.id) {
-          setSelectedEmail(fullEmail);
+          // Keep is_read as true since we just marked it
+          fullEmail.is_read = true;
+          if (openPopout) {
+            setPopoutEmail(fullEmail);
+          } else {
+            setSelectedEmail(fullEmail);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch email:", error);
@@ -1028,9 +1163,16 @@ export default function EmailPage() {
       return;
     }
 
-    // Normal click - open email (clear selection if clicking to view)
+    // Double-click to open in pop-out
+    if (event.detail === 2) {
+      setLastClickedEmailId(email.id);
+      handleEmailClick(email, true);
+      return;
+    }
+
+    // Normal click - open email in reading pane
     setLastClickedEmailId(email.id);
-    handleEmailClick(email);
+    handleEmailClick(email, false);
   }, [lastClickedEmailId, selection, currentEmails, handleEmailClick]);
 
   // Handle checkbox change for multi-select
@@ -1133,6 +1275,7 @@ To: ${email.to_emails?.join(", ") || ""}
   }, [selectedAccount]);
 
   const getSelectedAccountName = () => {
+    if (selectedAccount === "all") return "All Accounts";
     const account = accounts.find(a => String(a.id) === selectedAccount);
     if (!account) return "Select mailbox";
     if (account.type === "ms365") {
@@ -1152,31 +1295,156 @@ To: ${email.to_emails?.join(", ") || ""}
 
   return (
     <EmailDragDropProvider onMoveComplete={handleDragDropMove}>
-    <div className="flex h-full -mx-4 -mt-4">
+    <ResizablePanelGroup
+      orientation="horizontal"
+      className="h-full -mx-4 -mt-4"
+    >
       {/* Left Sidebar - Mailboxes & Folders */}
-      <div className="w-64 border-r bg-muted/30 flex flex-col shrink-0">
-        <div className="p-3 border-b">
-          <Button className="w-full" onClick={handleCompose}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Email
+      <ResizablePanel
+        id="email-sidebar"
+        defaultSize="220px"
+        minSize="150px"
+        maxSize="400px"
+        className="bg-muted/30 flex flex-col"
+      >
+        <div className="p-2 border-b flex items-center gap-1">
+          <Button className="flex-1" size="sm" onClick={handleCompose}>
+            <Plus className="h-4 w-4 mr-1" />
+            New
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={viewMode === "split" ? handleSplitSync : handleSync}
+            disabled={syncing || wsIsSyncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
+            title="Sync"
+          >
+            <RefreshCw className={cn("h-4 w-4", (syncing || wsIsSyncing || splitInbox.loading) && "animate-spin")} />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setShowShortcutsHelp(true)}>
+                <Keyboard className="h-4 w-4 mr-2" />
+                Keyboard shortcuts
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  Sort by
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {THREAD_SORT_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onClick={() => threads.setSortOption(option.value)}
+                      className={threads.sortOption === option.value ? "bg-muted" : ""}
+                    >
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Reading pane
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("right")}
+                    className={readingPanePosition === "right" ? "bg-muted" : ""}
+                  >
+                    Right
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("bottom")}
+                    className={readingPanePosition === "bottom" ? "bg-muted" : ""}
+                  >
+                    Bottom
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("off")}
+                    className={readingPanePosition === "off" ? "bg-muted" : ""}
+                  >
+                    Off
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/email/rules")}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Email Rules
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/email/settings")}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
-          {!selectedAccount ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Select a mailbox</p>
-              <p className="text-xs mt-1">Choose from Email in the sidebar</p>
-            </div>
-          ) : (
+          {/* All Inbox - Combined view from all accounts */}
+          <button
+            onClick={() => {
+              setSelectedAccount("all");
+              setSelectedFolder("Inbox");
+              setSelectedFolderId("ALL_INBOX");
+            }}
+            className={cn(
+              "w-full flex items-center gap-2 px-1 py-1.5 text-sm hover:bg-muted/50 rounded-sm font-medium",
+              selectedAccount === "all" && "bg-primary/10 text-primary"
+            )}
+          >
+            <Inbox className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">All Inbox</span>
+          </button>
+
+          <div className="border-b my-2" />
+
+          {/* Mailbox list - always show */}
+          <div className="px-1 mb-2">
+            <div className="text-xs text-muted-foreground px-0.5 py-1 font-medium">Mailboxes</div>
+            {accounts.map((account) => (
+              <button
+                key={account.id}
+                onClick={() => {
+                  const accountId = String(account.id);
+                  setSelectedAccount(accountId);
+                  // Immediately set folder to Inbox when switching accounts
+                  // (don't wait for fetchFolders to complete - fixes race condition)
+                  setSelectedFolder("Inbox");
+                  setSelectedFolderId("");  // Clear old folder ID
+                  setExpandedAccounts(new Set([accountId]));
+                  fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",
+                  selectedAccount === String(account.id) && "bg-primary/10 text-primary font-medium"
+                )}
+              >
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1 text-left truncate text-xs">
+                  {account.email_address || account.name}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {selectedAccount && selectedAccount !== "all" ? (
             (() => {
               const account = accounts.find(a => String(a.id) === selectedAccount);
               if (!account) return null;
               return (
                 <div className="mb-1">
                   {/* Account Header */}
-                  <div className="px-3 py-2 text-sm font-medium flex items-center gap-2">
+                  <div className="px-1 py-1.5 text-sm font-medium flex items-center gap-2">
                     <Mail className="h-4 w-4 shrink-0" />
                     <span className="truncate">
                       {account.email_address || account.name}
@@ -1199,153 +1467,93 @@ To: ${email.to_emails?.join(", ") || ""}
                         No folders found
                       </div>
                     ) : (
-                      (accountFolders[selectedAccount] || []).map((folder) => (
-                        <FolderButton
-                          key={folder.id}
-                          folder={folder}
-                          accountId={selectedAccount}
-                          isSelected={selectedFolderId === folder.id}
-                          onSelect={selectAccountFolder}
-                          enableDrop={true}
-                        />
-                      ))
+                      <FolderTree
+                        items={accountFolders[selectedAccount] || []}
+                        selectedId={selectedFolderId || undefined}
+                        onSelect={(item: FolderTreeItem) => {
+                          // Convert FolderTreeItem back to EmailFolder format
+                          const folder: EmailFolder = {
+                            id: item.id,
+                            name: item.name,
+                            type: item.type,
+                            unread_count: item.unreadCount,
+                            total_items: item.totalItems,
+                            depth: item.depth,
+                            parent_id: item.parentId,
+                          };
+                          selectAccountFolder(selectedAccount, folder);
+                        }}
+                        persistKey={`email-folders-${selectedAccount}`}
+                        enableReorder={true}
+                        customOrder={folderOrder[selectedAccount]}
+                        onReorder={(ids) => saveFolderOrder(selectedAccount, ids)}
+                        renderWrapper={(item, children) => (
+                          <DroppableFolder folderId={item.id} folderName={item.name}>
+                            {children}
+                          </DroppableFolder>
+                        )}
+                      />
+                    )}
+                    {/* Create Folder button - only for IMAP accounts */}
+                    {account.type === "imap" && (
+                      <button
+                        onClick={() => setCreateFolderOpen(true)}
+                        className="w-full flex items-center gap-2 px-1 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-sm mt-1"
+                      >
+                        <FolderPlus className="h-3.5 w-3.5" />
+                        <span>Create Folder</span>
+                      </button>
                     )}
                   </div>
                 </div>
               );
             })()
-          )}
+          ) : null}
         </div>
+      </ResizablePanel>
 
-        {/* Rules & Settings Links */}
-        <div className="p-3 border-t space-y-1">
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => router.push("/email/rules")}
-          >
-            <Settings2 className="h-4 w-4 mr-2" />
-            Email Rules
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => router.push("/email/settings")}
-          >
-            <Settings2 className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
-        </div>
-      </div>
+      <ResizableHandle withHandle />
 
       {/* Main Content Area - List + Reading Pane */}
-      <div className={cn(
-        "flex-1 flex min-w-0",
-        readingPanePosition === "bottom" ? "flex-col" : "flex-row"
-      )}>
+      <ResizablePanel id="email-content" minSize="400px" className="flex min-w-0">
+        <ResizablePanelGroup
+          orientation={readingPanePosition === "bottom" ? "vertical" : "horizontal"}
+          className="flex-1"
+        >
         {/* Email List */}
-        <div className={cn(
-          "flex flex-col border-r",
-          readingPanePosition === "off" ? "flex-1" :
-          readingPanePosition === "bottom" ? "h-1/2 shrink-0" : "w-[400px] shrink-0"
-        )}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-background">
-          <div className="flex items-center gap-2 min-w-0">
-            <ViewModeToggle mode={viewMode} onModeChange={setViewMode} />
-            {viewMode === "folders" && (
-              <>
-                <span className="font-medium truncate text-sm">
-                  {getSelectedAccountName()}
-                </span>
-                {selectedFolder && (
-                  <Badge variant="secondary" className="text-xs shrink-0">
-                    {selectedFolder}
-                  </Badge>
-                )}
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs text-muted-foreground mr-1">
-              {viewMode === "split"
-                ? splitInbox.counts[splitInbox.selectedCategory] || 0
-                : pagination.total}
-            </span>
-            {/* WebSocket connection status */}
-            <div
-              className={cn(
-                "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs",
-                isConnected
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-muted-foreground"
-              )}
-              title={isConnected ? "Real-time updates active" : "Connecting..."}
-            >
-              {isConnected ? (
-                <Wifi className="h-3 w-3" />
-              ) : (
-                <WifiOff className="h-3 w-3" />
-              )}
-              {wsIsSyncing && (
-                <span className="text-[10px]">syncing</span>
-              )}
+        <ResizablePanel
+          id="email-list"
+          defaultSize="350px"
+          minSize="250px"
+          maxSize={readingPanePosition === "off" ? undefined : "600px"}
+          className="flex flex-col border-r min-w-0 overflow-hidden"
+        >
+        {/* Header - View toggle and search */}
+        <div className="flex items-center gap-2 px-2 py-1.5 border-b shrink-0 bg-background">
+          <ViewModeToggle mode={viewMode} onModeChange={setViewMode} />
+
+          {/* Search - Only in folder mode */}
+          {viewMode === "folders" && (
+            <div className="flex-1 min-w-0">
+              <EmailSearchFilters
+                filters={emailFilters.filters}
+                setFilter={emailFilters.setFilter}
+                setSearch={emailFilters.setSearch}
+                clearFilters={emailFilters.clearFilters}
+                hasActiveFilters={emailFilters.hasActiveFilters}
+                activeFilterCount={emailFilters.activeFilterCount}
+                activeFilterLabels={emailFilters.getActiveFilterLabels()}
+                onSearch={() => fetchEmails(1)}
+              />
             </div>
-            {/* New email count badge */}
-            {newEmailCount > 0 && (
-              <Badge variant="default" className="text-xs px-1.5 py-0 h-5 bg-blue-500">
-                +{newEmailCount}
-              </Badge>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setShowShortcutsHelp(true)}
-              title="Keyboard shortcuts (?)"
-            >
-              <Keyboard className="h-3.5 w-3.5" />
-            </Button>
-            {/* Thread sort dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title={`Thread sort: ${THREAD_SORT_OPTIONS.find(o => o.value === threads.sortOption)?.label}`}
-                >
-                  <ArrowUpDown className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {THREAD_SORT_OPTIONS.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onClick={() => threads.setSortOption(option.value)}
-                    className={threads.sortOption === option.value ? "bg-muted" : ""}
-                  >
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={viewMode === "split" ? handleSplitSync : handleSync}
-              disabled={syncing || wsIsSyncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
-              title={viewMode === "split" ? "Sync all accounts" : "Sync account"}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", (syncing || wsIsSyncing || splitInbox.loading) && "animate-spin")} />
-            </Button>
-            {/* Reading pane position toggle */}
-            <ReadingPaneToggle
-              position={readingPanePosition}
-              onPositionChange={setReadingPanePosition}
-            />
-          </div>
+          )}
+
+          {/* New email indicator */}
+          {newEmailCount > 0 && (
+            <Badge variant="default" className="text-xs px-1.5 py-0 h-5 bg-blue-500 shrink-0">
+              +{newEmailCount}
+            </Badge>
+          )}
         </div>
 
         {/* Split Inbox Tabs */}
@@ -1358,7 +1566,6 @@ To: ${email.to_emails?.join(", ") || ""}
               unreadCounts={splitInbox.unreadCounts}
               loading={splitInbox.loading}
             />
-            {/* Stale/Offline Indicator */}
             <StaleIndicator
               isStale={splitInbox.isStale ?? false}
               lastFetched={splitInbox.lastFetched ?? null}
@@ -1366,22 +1573,6 @@ To: ${email.to_emails?.join(", ") || ""}
               isRefreshing={splitInbox.isFetching ?? syncing}
               onRefresh={handleSplitSync}
               className="mt-2"
-            />
-          </div>
-        )}
-
-        {/* Search with filters - Only in folder mode */}
-        {viewMode === "folders" && (
-          <div className="px-3 py-2 border-b shrink-0">
-            <EmailSearchFilters
-              filters={emailFilters.filters}
-              setFilter={emailFilters.setFilter}
-              setSearch={emailFilters.setSearch}
-              clearFilters={emailFilters.clearFilters}
-              hasActiveFilters={emailFilters.hasActiveFilters}
-              activeFilterCount={emailFilters.activeFilterCount}
-              activeFilterLabels={emailFilters.getActiveFilterLabels()}
-              onSearch={() => fetchEmails(1)}
             />
           </div>
         )}
@@ -1448,6 +1639,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     onQuickAction={() => fetchEmails()}
                     onSnooze={handleSnoozeEmail}
                     onReply={handleReply}
+                    onReplyAll={handleReplyAll}
                     onForward={handleForward}
                     threadCount={(email as Email).thread_count || 0}
                     isExpanded={threads.isExpanded((email as Email).conversation_id || '')}
@@ -1460,12 +1652,7 @@ To: ${email.to_emails?.join(", ") || ""}
             )
           ) : (
             // Folder View
-            !selectedAccount ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Mail className="h-8 w-8 mb-2 opacity-50" />
-                <p className="text-sm">Select a mailbox</p>
-              </div>
-            ) : loading ? (
+            loading ? (
               <div className="flex items-center justify-center py-12">
                 <Spinner />
               </div>
@@ -1488,6 +1675,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     onQuickAction={() => fetchEmails()}
                     onSnooze={handleSnoozeEmail}
                     onReply={handleReply}
+                    onReplyAll={handleReplyAll}
                     onForward={handleForward}
                     threadCount={email.thread_count || 0}
                     isExpanded={threads.isExpanded(email.conversation_id || '')}
@@ -1534,74 +1722,95 @@ To: ${email.to_emails?.join(", ") || ""}
             </div>
           </div>
         )}
-      </div>
+      </ResizablePanel>
 
       {/* Reading Pane - Hidden when position is "off" */}
       {readingPanePosition !== "off" && (
-      <div className={cn(
-        "flex flex-col min-w-0 bg-background",
-        readingPanePosition === "bottom" ? "h-1/2 border-t" : "flex-1"
-      )}>
+        <>
+        <ResizableHandle withHandle />
+        <ResizablePanel
+          id="reading-pane"
+          minSize="300px"
+          className="flex flex-col min-w-0 overflow-hidden bg-background"
+        >
         {selectedEmail ? (
           <>
-            {/* Email Header */}
-            <div className="px-6 py-4 border-b shrink-0">
-              <h1 className="text-xl font-semibold mb-3">
+            {/* Outlook-style Toolbar Header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReply(selectedEmail)}
+              >
+                <Reply className="h-4 w-4 mr-2" />
+                Reply
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReplyAll(selectedEmail)}
+              >
+                <ReplyAll className="h-4 w-4 mr-2" />
+                Reply All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleForward(selectedEmail)}
+              >
+                <Forward className="h-4 w-4 mr-2" />
+                Forward
+              </Button>
+
+              {/* Contact Matching - right aligned */}
+              <div className="ml-auto">
+                <EmailContactMatch
+                  emailId={selectedEmail.id}
+                  primaryContact={selectedEmail.primary_contact}
+                  contacts={selectedEmail.contacts || []}
+                  onContactsChanged={() => handleEmailClick(selectedEmail)}
+                />
+              </div>
+            </div>
+
+            {/* Subject Line */}
+            <div className="px-4 py-3 border-b shrink-0">
+              <h1 className="text-lg font-semibold">
                 {selectedEmail.subject || "(No subject)"}
               </h1>
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-medium text-primary">
-                      {(selectedEmail.from_name || selectedEmail.from_email || "?")[0].toUpperCase()}
+              <p className="text-sm text-muted-foreground mt-1">
+                {format(new Date(selectedEmail.received_at), "PPpp")}
+              </p>
+            </div>
+
+            {/* From / To - Outlook inline style */}
+            <div className="px-4 py-2 border-b space-y-1 shrink-0">
+              <div className="flex items-center text-sm">
+                <span className="text-muted-foreground w-12 flex-shrink-0">From</span>
+                <span className="font-medium">
+                  {selectedEmail.from_name || selectedEmail.from_email || selectedEmail.from_address}
+                  {selectedEmail.from_name && selectedEmail.from_email && (
+                    <span className="font-normal text-muted-foreground ml-1">
+                      &lt;{selectedEmail.from_email}&gt;
                     </span>
-                  </div>
-                  <div>
-                    <p className="font-medium">
-                      {selectedEmail.from_name || selectedEmail.from_email || selectedEmail.from_address}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedEmail.from_email || selectedEmail.from_address}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      To: {(selectedEmail.to_addresses || selectedEmail.to_emails)?.join(", ")}
-                    </p>
-                    {/* Contact Matching */}
-                    <div className="mt-2">
-                      <EmailContactMatch
-                        emailId={selectedEmail.id}
-                        primaryContact={selectedEmail.primary_contact}
-                        contacts={selectedEmail.contacts || []}
-                        onContactsChanged={() => handleEmailClick(selectedEmail)}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm text-muted-foreground">
-                    {format(new Date(selectedEmail.received_at), "PPpp")}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 justify-end">
-                    <Button size="sm" variant="outline" onClick={() => handleForward(selectedEmail)}>
-                      <Forward className="h-4 w-4 mr-1" />
-                      Forward
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleReplyAll(selectedEmail)}>
-                      <ReplyAll className="h-4 w-4 mr-1" />
-                      Reply All
-                    </Button>
-                    <Button size="sm" onClick={() => handleReply(selectedEmail)}>
-                      <Reply className="h-4 w-4 mr-1" />
-                      Reply
-                    </Button>
-                  </div>
-                </div>
+                  )}
+                </span>
               </div>
+              <div className="flex items-center text-sm">
+                <span className="text-muted-foreground w-12 flex-shrink-0">To</span>
+                <span>{(selectedEmail.to_addresses || selectedEmail.to_emails)?.join(", ")}</span>
+              </div>
+              {selectedEmail.cc_emails && selectedEmail.cc_emails.length > 0 && (
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">Cc</span>
+                  <span>{selectedEmail.cc_emails.join(", ")}</span>
+                </div>
+              )}
             </div>
 
             {/* Attachments */}
             {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
-              <div className="px-6 py-3 border-b shrink-0">
+              <div className="px-4 py-2 border-b bg-muted/30 shrink-0">
                 <div className="flex flex-wrap gap-2">
                   {selectedEmail.attachments.map((att) => (
                     <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
@@ -1620,7 +1829,7 @@ To: ${email.to_emails?.join(", ") || ""}
             />
 
             {/* Email Body */}
-            <div className="flex-1 overflow-auto px-6 py-4">
+            <div className="flex-1 overflow-auto px-4 py-4">
               {selectedEmail.body_html ? (
                 <div
                   className="prose prose-sm dark:prose-invert max-w-none"
@@ -1628,7 +1837,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 />
               ) : (
                 <pre className="whitespace-pre-wrap text-sm font-sans">
-                  {selectedEmail.body_text || selectedEmail.snippet}
+                  {decodeHtmlEntities(selectedEmail.body_text || selectedEmail.snippet)}
                 </pre>
               )}
             </div>
@@ -1640,10 +1849,13 @@ To: ${email.to_emails?.join(", ") || ""}
             <p className="text-sm mt-1">Choose an email from the list to view its contents</p>
           </div>
         )}
-      </div>
+      </ResizablePanel>
+      </>
       )}
 
-      </div>{/* End Main Content Area wrapper */}
+      </ResizablePanelGroup>
+      </ResizablePanel>
+    </ResizablePanelGroup>
 
       {/* Compose Modal */}
       <ComposeEmailModal
@@ -1660,12 +1872,138 @@ To: ${email.to_emails?.join(", ") || ""}
         }}
       />
 
+      {/* Create Folder Dialog - for IMAP accounts */}
+      <CreateFolderDialog
+        open={createFolderOpen}
+        onOpenChange={setCreateFolderOpen}
+        accountId={selectedAccount}
+        onFolderCreated={() => {
+          // Refresh folders for the current account
+          const account = accounts.find(a => String(a.id) === selectedAccount);
+          if (account) {
+            setAccountFolders(prev => ({ ...prev, [selectedAccount]: [] }));
+            fetchFolders(selectedAccount, account);
+          }
+        }}
+      />
+
       {/* Keyboard Shortcuts Help Modal */}
       <KeyboardShortcutsHelp
         open={showShortcutsHelp}
         onOpenChange={setShowShortcutsHelp}
       />
-    </div>
+
+      {/* Email Pop-out Dialog */}
+      <Dialog open={!!popoutEmail} onOpenChange={(open) => !open && setPopoutEmail(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby="email-popout-description">
+          {popoutEmail && (
+            <>
+              <DialogHeader className="shrink-0">
+                <DialogTitle className="text-lg font-semibold pr-8">
+                  {popoutEmail.subject || "(No subject)"}
+                </DialogTitle>
+                <DialogDescription id="email-popout-description" className="sr-only">
+                  Email from {popoutEmail.from_name || popoutEmail.from_email || popoutEmail.from_address}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* From / To */}
+              <div className="space-y-1 py-2 border-b shrink-0">
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">From</span>
+                  <span className="font-medium">
+                    {popoutEmail.from_name || popoutEmail.from_email || popoutEmail.from_address}
+                    {popoutEmail.from_name && popoutEmail.from_email && (
+                      <span className="font-normal text-muted-foreground ml-1">
+                        &lt;{popoutEmail.from_email}&gt;
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">To</span>
+                  <span>{(popoutEmail.to_addresses || popoutEmail.to_emails)?.join(", ")}</span>
+                </div>
+                {popoutEmail.cc_emails && popoutEmail.cc_emails.length > 0 && (
+                  <div className="flex items-center text-sm">
+                    <span className="text-muted-foreground w-12 flex-shrink-0">Cc</span>
+                    <span>{popoutEmail.cc_emails.join(", ")}</span>
+                  </div>
+                )}
+                <div className="flex items-center text-sm">
+                  <span className="text-muted-foreground w-12 flex-shrink-0">Date</span>
+                  <span>{format(new Date(popoutEmail.received_at), "PPpp")}</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 py-2 border-b shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleReply(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <Reply className="h-4 w-4 mr-2" />
+                  Reply
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleReplyAll(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <ReplyAll className="h-4 w-4 mr-2" />
+                  Reply All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleForward(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <Forward className="h-4 w-4 mr-2" />
+                  Forward
+                </Button>
+              </div>
+
+              {/* Attachments */}
+              {popoutEmail.attachments && popoutEmail.attachments.length > 0 && (
+                <div className="py-2 border-b bg-muted/30 shrink-0">
+                  <div className="flex flex-wrap gap-2">
+                    {popoutEmail.attachments.map((att) => (
+                      <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
+                        <Paperclip className="h-3 w-3" />
+                        {att.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Email Body */}
+              <div className="flex-1 overflow-auto py-4">
+                {popoutEmail.body_html ? (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: popoutEmail.body_html }}
+                  />
+                ) : (
+                  <pre className="whitespace-pre-wrap text-sm font-sans">
+                    {decodeHtmlEntities(popoutEmail.body_text || popoutEmail.snippet)}
+                  </pre>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </EmailDragDropProvider>
   );
 }

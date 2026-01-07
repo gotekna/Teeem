@@ -2,7 +2,7 @@ module Api
   module V1
     class FoundationsController < ApplicationController
       skip_before_action :authorize_request, only: [ :table_ids ]
-      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :schema, :groups ]
+      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :fix_health, :schema, :groups ]
 
       # GET /api/v1/foundations
       # Performance: Use include_counts=true to include record counts (adds 141 COUNT queries)
@@ -156,6 +156,37 @@ module Api
         )
       end
 
+      # POST /api/v1/foundations/:id/fix_health
+      # Apply auto-fix for health check issues
+      # Params: fix_type - the type of fix to apply (e.g., "clean_headers")
+      def fix_health
+        fix_type = params[:fix_type]
+
+        result = case fix_type
+        when "clean_headers"
+          if @foundation.slug == "sm-schedule-master"
+            HealthChecks::SmScheduleMastersCheck.fix_dirty_headers!
+          else
+            { error: "clean_headers fix not supported for this foundation" }
+          end
+        else
+          { error: "Unknown fix_type: #{fix_type}" }
+        end
+
+        if result[:error]
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        else
+          # Clear cache after fix
+          HealthCheckCache.where(foundation_id: @foundation.id).destroy_all
+
+          render json: {
+            success: true,
+            fixed: result[:fixed] || 0,
+            message: "Fixed #{result[:fixed] || 0} records"
+          }
+        end
+      end
+
       # GET /api/v1/foundations/:id/schema
       # Returns the column schema for a foundation
       def schema
@@ -175,15 +206,15 @@ module Api
               is_title: col.is_title,
               required: col.required,
               position: col.position,
-              visible: col.visible,
-              editable: col.editable,
+              visible: true,   # Columns don't have visibility control yet
+              editable: true,  # Columns don't have editability control yet
               lookup_foundation_id: col.lookup_foundation_id,
               lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
               lookup_display_column: col.lookup_display_column,
-              lookup_multiple: col.lookup_multiple,
-              formula: col.formula,
-              formula_output_type: col.formula_output_type,
-              choices: col.choices,
+              lookup_multiple: col.is_multiple,  # Database column is is_multiple
+              formula: nil,  # Not implemented yet
+              formula_output_type: nil,  # Not implemented yet
+              choices: col.available_choices,  # Database column is available_choices
               validation_regex: col.effective_validation_regex
             }
 
@@ -214,7 +245,18 @@ module Api
       #   filters: optional cascade filters (JSON string)
       # Returns accurate counts directly from SQL GROUP BY (not limited by pagination)
       def groups
-        group_by_column = params[:group_by]
+        # Support multiple formats:
+        #   ?group_by=col (single)
+        #   ?group_by=col1,col2 (comma-separated)
+        #   ?group_by[]=col1&group_by[]=col2 (array)
+        group_by_columns = if params[:group_by].is_a?(Array)
+          params[:group_by].compact
+        elsif params[:group_by].is_a?(String) && params[:group_by].include?(",")
+          params[:group_by].split(",").map(&:strip).compact
+        else
+          [params[:group_by]].compact
+        end
+        group_by_column = group_by_columns.first  # Primary column for grouping (backward compatible)
 
         # Validate group_by parameter
         if group_by_column.blank?
@@ -224,12 +266,13 @@ module Api
           }, status: :bad_request
         end
 
-        # Validate that column exists
+        # Validate that all columns exist
         valid_columns = @foundation.columns.pluck(:column_name)
-        unless valid_columns.include?(group_by_column)
+        invalid_columns = group_by_columns - valid_columns
+        if invalid_columns.any?
           return render json: {
             success: false,
-            error: "Invalid column: #{group_by_column}"
+            error: "Invalid column(s): #{invalid_columns.join(', ')}"
           }, status: :bad_request
         end
 
@@ -281,11 +324,54 @@ module Api
                             end
                   end
 
+                  # Convert percentage values (0-100) to decimal (0-1) for percentage columns
+                  # Users think in percentages (e.g., "< 99%") but data is stored as decimal
+                  # SSoT: Columns storing percentages as decimals (0-1)
+                  percentage_columns = %w[match_confidence pdf_sync_percent]
+                  if percentage_columns.include?(column) && value.present?
+                    numeric_value = value.to_f
+                    # Only convert if value looks like a percentage (> 1)
+                    # This allows both "99" (percentage) and "0.99" (decimal) to work
+                    if numeric_value > 1
+                      value = numeric_value / 100.0
+                    end
+                  end
+
+                  # Resolve lookup display values to IDs
+                  # If filtering a lookup column with a string value (display name), find the corresponding ID
+                  # This handles saved views or filters that store display values instead of IDs
+                  if col_def&.column_type == "lookup" && col_def&.lookup_foundation.present? && value.is_a?(String) && !value.match?(/\A\d+\z/)
+                    lookup_model = col_def.lookup_foundation.dynamic_model
+                    display_col = col_def.lookup_display_column || "name"
+
+                    # Try to find the lookup record by display value (case-insensitive)
+                    if lookup_model.column_names.include?(display_col)
+                      # Real database column - search directly
+                      lookup_record = lookup_model.find_by("LOWER(#{display_col}) = ?", value.downcase)
+                      value = lookup_record&.id
+                    else
+                      # Computed column (e.g., full_name) - need to iterate
+                      lookup_record = lookup_model.all.find { |r| r.respond_to?(display_col) && r.send(display_col)&.downcase == value.downcase }
+                      value = lookup_record&.id
+                    end
+
+                    # Skip this filter if we couldn't resolve the display value to an ID
+                    next if value.nil?
+                  end
+
                   case operator
                   when "=", "equals"
                     query = query.where(column => value)
                   when "!=", "not_equals"
                     query = query.where.not(column => value)
+                  when ">"
+                    query = query.where("#{conn.quote_column_name(column)} > ?", value)
+                  when "<"
+                    query = query.where("#{conn.quote_column_name(column)} < ?", value)
+                  when ">="
+                    query = query.where("#{conn.quote_column_name(column)} >= ?", value)
+                  when "<="
+                    query = query.where("#{conn.quote_column_name(column)} <= ?", value)
                   when "contains"
                     query = query.where("#{conn.quote_column_name(column)} ILIKE ?", "%#{value}%")
                   when "starts_with"
@@ -299,13 +385,29 @@ module Api
                   when "is_not_empty"
                     query = query.where("#{conn.quote_column_name(column)} IS NOT NULL AND #{conn.quote_column_name(column)} != ''")
                   when "array_contains"
-                    # Handle array columns (e.g., sm_template_ids which is integer[])
-                    # PostgreSQL: value = ANY(column)
-                    # This works for integer[] columns where we check if a single value is in the array
-                    query = query.where("? = ANY(#{conn.quote_column_name(column)})", value.to_i)
+                    # Handle array columns - detect JSONB vs native PostgreSQL array
+                    # JSONB: column @> '[value]'::jsonb
+                    # PostgreSQL array: value = ANY(column)
+                    col_type = model.columns_hash[column]&.type
+                    quoted_col = conn.quote_column_name(column)
+                    if col_type == :jsonb
+                      # JSONB array containment check
+                      query = query.where("#{quoted_col} @> ?::jsonb", [value.to_i].to_json)
+                    else
+                      # Native PostgreSQL array (integer[], text[], etc.)
+                      query = query.where("? = ANY(#{quoted_col})", value.to_i)
+                    end
                   when "array_not_contains"
-                    # Inverse: NOT (value = ANY(column)) or column IS NULL
-                    query = query.where("NOT (? = ANY(#{conn.quote_column_name(column)})) OR #{conn.quote_column_name(column)} IS NULL", value.to_i)
+                    # Inverse of array_contains - detect JSONB vs native PostgreSQL array
+                    col_type = model.columns_hash[column]&.type
+                    quoted_col = conn.quote_column_name(column)
+                    if col_type == :jsonb
+                      # JSONB: NOT contains OR null
+                      query = query.where("NOT (#{quoted_col} @> ?::jsonb) OR #{quoted_col} IS NULL", [value.to_i].to_json)
+                    else
+                      # Native PostgreSQL array
+                      query = query.where("NOT (? = ANY(#{quoted_col})) OR #{quoted_col} IS NULL", value.to_i)
+                    end
                   end
                 end
               end
@@ -323,27 +425,37 @@ module Api
             .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
             .order(Arel.sql("COUNT(*) DESC"))
 
-          # Check if group_by column is a lookup - need to resolve display values
-          group_column = @foundation.columns.find_by(column_name: group_by_column)
-          is_lookup = group_column&.column_type == "lookup" && group_column&.lookup_foundation.present?
+          # SSoT: Build display_values_map for ALL grouping columns using DisplayValueResolver
+          # This provides display values for nested group levels (not just the primary)
+          display_values_map = {}
+          group_by_columns.each do |col_name|
+            col_def = @foundation.columns.find_by(column_name: col_name)
+            next unless col_def&.column_type == "lookup" && col_def&.lookup_foundation.present?
 
-          # Pre-fetch lookup values if this is a lookup column (avoid N+1)
-          lookup_cache = {}
-          if is_lookup
-            lookup_ids = groups_result.map(&:group_key).compact.map(&:to_i).uniq
-            if lookup_ids.any?
-              lookup_model = group_column.lookup_foundation.dynamic_model
-              display_col = group_column.lookup_display_column || "name"
-              lookup_cache = lookup_model.where(id: lookup_ids).pluck(:id, display_col.to_sym).to_h
+            # Collect unique IDs from all records (for nested levels, we need to query the data)
+            if col_name == group_by_column
+              # Primary grouping column - IDs come from groups_result
+              lookup_ids = groups_result.map(&:group_key).compact.map(&:to_i).uniq
+            else
+              # Nested grouping column - need to get IDs from the actual data
+              lookup_ids = query.distinct.pluck(col_name).compact.map(&:to_i).uniq
             end
+
+            next if lookup_ids.empty?
+
+            # Use DisplayValueResolver SSoT for batch resolution
+            lookup_model = col_def.lookup_foundation.dynamic_model
+            records = lookup_model.where(id: lookup_ids)
+            display_values_map[col_name] = DisplayValueResolver.resolve_lookup_batch(records, col_def)
           end
 
-          # Transform results (resolve lookup display values)
+          # Transform results (resolve lookup display values for primary column)
+          # Use display_values_map for consistency with nested levels
           groups = groups_result.map do |row|
             display_value = if row.group_key.nil?
               "(Empty)"
-            elsif is_lookup && lookup_cache[row.group_key.to_i]
-              lookup_cache[row.group_key.to_i]
+            elsif display_values_map.dig(group_by_column, row.group_key.to_i)
+              display_values_map.dig(group_by_column, row.group_key.to_i)
             else
               row.group_key.to_s
             end
@@ -355,6 +467,58 @@ module Api
             }
           end
 
+          # SSoT: Company/Role View Special Handling
+          # When grouping contacts by employer (primary_company_id), companies should:
+          # 1. Create their OWN group (keyed by their ID) - not be grouped by their employer
+          # 2. Be excluded from the "(Empty)" group - they're not "unassigned employees"
+          # 3. Count includes BOTH primary_company_id AND contact_relationships (employee_of)
+          #
+          # This makes companies appear as group headers with their employees underneath,
+          # even if the company has no employees (shows as empty group).
+          if model.table_name == "contacts" && group_by_column == "primary_company_id"
+            # SSoT: Rebuild groups using employees_count (includes relationship-based employees)
+            # The GROUP BY on primary_company_id misses employees linked via contact_relationships
+            # Natural/Human sort: "2Code" < "7 Eleven" < "12 Tulum" (not "12" < "14" < "2" < "7")
+            all_companies = query.where(entity_type: %w[company trust sole_trader]).to_a.sort_by do |company|
+              # Natural/Human sort: Split name into chunks (digits vs non-digits)
+              # Pad numbers with zeros so they sort correctly as strings: "2" -> "00000002" < "00000012"
+              # This avoids mixed-type array comparison errors (Integer <=> String = nil)
+              (company.display_name || "").scan(/\d+|\D+/).map { |chunk| chunk.match?(/\d+/) ? chunk.rjust(10, "0") : chunk.downcase }
+            end
+
+            # Build company groups from actual company records (not GROUP BY results)
+            groups = all_companies.map do |company|
+              {
+                key: company.id,
+                count: company.employees_count || 0,
+                display_value: company.display_name || "Company ##{company.id}",
+                is_company_group: true
+              }
+            end
+
+            # Add to display_values_map for consistency
+            display_values_map[group_by_column] ||= {}
+            all_companies.each do |company|
+              display_values_map[group_by_column][company.id] = company.display_name || "Company ##{company.id}"
+            end
+
+            # Keep the "(Empty)" group for people without any employer
+            # Count people with no primary_company_id AND no employee_of relationships
+            people_without_employer = query
+              .where(entity_type: [nil, "person"])
+              .where(primary_company_id: nil)
+              .where.not(id: ContactRelationship.where(relationship_type: "employee_of").select(:source_contact_id))
+              .count
+
+            if people_without_employer > 0
+              groups << {
+                key: nil,
+                count: people_without_employer,
+                display_value: "(Empty)"
+              }
+            end
+          end
+
           # Get total records in query (for verification)
           total_records = groups.sum { |g| g[:count] }
 
@@ -364,6 +528,8 @@ module Api
             total_groups: groups.length,
             total_records: total_records,
             group_by_column: group_by_column,
+            group_by_columns: group_by_columns,  # NEW: All requested columns
+            display_values_map: display_values_map,  # NEW: SSoT display values for all columns
             foundation_id: @foundation.id
           }
         rescue => e

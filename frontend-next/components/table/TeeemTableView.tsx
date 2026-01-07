@@ -44,6 +44,7 @@ import React, {
   useState,
   useMemo,
   useEffect,
+  useLayoutEffect,
   useRef,
   useCallback,
   memo,
@@ -112,11 +113,12 @@ import {
   Pin,
   Expand,
   Minimize2,
+  Building2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { clearCachedRecords } from "@/lib/records-cache";
+import { getCachedRecords, setCachedRecords, clearCachedRecords } from "@/lib/records-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
@@ -240,6 +242,7 @@ import { RowEditingCell } from "./core/cell-components/RowEditingCell";
 import { HighlightedText } from "./components/HighlightedText";
 import { EmptyState, getEmptyStateVariant } from "./components/EmptyState";
 import { TableSkeleton } from "./components/TableSkeleton";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 
 // Column renderer registry (Phase 4 refactoring)
 import { renderCell as renderCellWithRegistry } from "./core/column-renderer/ColumnRenderer";
@@ -299,6 +302,8 @@ import {
   type SearchMode as DataSearchMode,
 } from "./utils/table-data-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
+import { fetchColumnsForFoundation, getCachedColumns, invalidateColumnsCache } from "./utils/columns-cache";
+import { buildHierarchyRows, filterCollapsedRows, isHeaderRow, type HierarchyRow } from "@/lib/table/hierarchy-utils";
 
 // Jotai atoms for centralized state management (SSoT)
 import { useAtom, useSetAtom, useAtomValue } from 'jotai';
@@ -369,6 +374,8 @@ import {
   exportFormatAtom,
   // Global views manager
   showGlobalViewsManagerAtom,
+  // Fullscreen mode
+  tableFullscreenAtom,
 } from '@/lib/table-atoms';
 
 // View state atoms (keep separate for now - already in use)
@@ -396,6 +403,11 @@ import {
 import { useFilterState } from './core/state/useFilterState';
 import { selectDefaultView } from '@/lib/view-loading-utils';
 
+// ULTRA: Foundation-scoped view state (URL-driven architecture)
+// Single hook provides all view state with SSR support and foundation isolation
+import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
+import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
+
 // Helper functions and constants now imported from ./utils/table-utils:
 // - SYSTEM_GENERATED_TYPES, SYSTEM_COLUMN_BG
 // - isSystemGeneratedColumn, getCellTooltip
@@ -407,6 +419,39 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 // - CascadeFilterItem -> core/filtering/CascadeFilterItem.tsx
 // - VirtualizedGroupTable, VirtualizedFlatTable -> core/virtualization/
 // - DEFAULT_COLUMNS, FILTER_OPERATOR_LABELS -> utils/table-utils.ts
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Natural/Human sorting comparison
+ * Sorts strings with embedded numbers naturally: "2Code" < "7 Eleven" < "12 Tulum"
+ * Instead of alphabetically: "12 Tulum" < "2Code" < "7 Eleven"
+ */
+function naturalCompare(a: string, b: string): number {
+  const aChunks = a.match(/\d+|\D+/g) || [];
+  const bChunks = b.match(/\d+|\D+/g) || [];
+  const maxLen = Math.max(aChunks.length, bChunks.length);
+
+  for (let i = 0; i < maxLen; i++) {
+    const aChunk = aChunks[i] || '';
+    const bChunk = bChunks[i] || '';
+
+    const aIsNum = /^\d+$/.test(aChunk);
+    const bIsNum = /^\d+$/.test(bChunk);
+
+    if (aIsNum && bIsNum) {
+      const diff = parseInt(aChunk, 10) - parseInt(bChunk, 10);
+      if (diff !== 0) return diff;
+    } else {
+      const diff = aChunk.toLowerCase().localeCompare(bChunk.toLowerCase());
+      if (diff !== 0) return diff;
+    }
+  }
+
+  return 0;
+}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -457,10 +502,14 @@ export default function TeeemTableView({
   preloadedViews = null,
   disableSavedViews = false,
   defaultViewId,
+  defaultViewSlug,
+  viewSlug, // New: View slug from URL path (e.g., "live" from /jobs/view/live)
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
   onLoadViewReady,
   inheritViewsFrom,
+  groupByRelationship,
+  relationshipDisplayFields = ["name", "role", "phone", "email"],
   onServerSearch,
   serverSearchLoading = false,
   searchMode: propSearchMode,
@@ -484,6 +533,17 @@ export default function TeeemTableView({
   stats,
   category,
   showHeader = true,
+  // SSR Props - Server-side rendered initial data for fast LCP
+  initialColumns,
+  initialRecords,
+  initialTotalCount,
+  initialHasMore,
+  // SSR View - Pre-fetched view configuration to eliminate flash on grouped views
+  initialView,
+  // SSR Group Counts - Pre-fetched group counts to eliminate CLS on grouped views
+  initialGroupCounts,
+  // Parent-triggered refresh signal (use instead of key={refreshKey} to avoid full remount)
+  refreshTrigger,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -511,18 +571,81 @@ export default function TeeemTableView({
   // - Auto-fetch records
   const shouldAutoEnable = !!effectiveFoundationId;
 
+  // SSoT: Embedded context detection - tables with initialFilters are in subtab/filtered view context
+  // These tables should NOT interact with URL (read or write) because:
+  // 1. URL views are from parent page or other tabs (would pollute this table's filter context)
+  // 2. initialFilters defines the authoritative filter context for this table instance
+  // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read)
+  const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0);
+
+  // URL-driven view navigation (new architecture)
+  // Uses path-based URLs: /jobs/view/live instead of query params
+  // Only active when foundationId is a string slug (not numeric)
+  const foundationSlug = typeof effectiveFoundationId === 'string' ? effectiveFoundationId : null;
+  const { setViewSlug: navigateToView } = useViewFromPath({
+    foundationSlug: foundationSlug || 'default',
+  });
+
+  // Foundation key for foundation-scoped atoms (prevents state pollution between pages)
+  // SSoT: This key isolates Jobs state from Contacts state, etc.
+  const foundationKey = String(effectiveFoundationId || 'default');
+
+  // ==========================================================================
+  // ULTRA: Foundation-scoped view state (single hook replaces multiple atoms)
+  // ==========================================================================
+  // This hook provides:
+  // - groupByColumns, groupViewMode, activeViewId (SSR-aware, no flash)
+  // - Convenience setters (setGroupByColumns, setGroupViewMode, etc.)
+  // - Foundation isolation (Jobs state doesn't pollute Contacts)
+  // - Automatic SSR hydration (correct values on first render)
+  const {
+    groupByColumns: ultraGroupByColumns,
+    groupViewMode: ultraGroupViewMode,
+    activeViewId: ultraActiveViewId,
+    collapsedGroups: ultraCollapsedGroups,
+    setGroupByColumns: ultraSetGroupByColumns,
+    setGroupViewMode: ultraSetGroupViewMode,
+    setActiveViewId: ultraSetActiveViewId,
+    setCollapsedGroups: ultraSetCollapsedGroups,
+    resetState: ultraResetState,
+  } = useFoundationViewState(foundationKey, {
+    initialView: initialView || undefined,
+    views: preloadedViews || undefined,
+    viewSlug: viewSlug || undefined,
+    foundationSlug: foundationSlug || foundationKey,
+  });
+
   const effectiveEnableImport = enableImport || shouldAutoEnable;
   const effectiveEnableExport = enableExport || shouldAutoEnable;
   const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
 
+  // Refs for state setters that are defined later - enables optimistic UI in callbacks
+  const pendingDeleteIdsRef = React.useRef<{
+    set: React.Dispatch<React.SetStateAction<Set<string | number>>>;
+  } | null>(null);
+  const selectedRowsRef = React.useRef<{
+    set: React.Dispatch<React.SetStateAction<Set<string | number>>>;
+  } | null>(null);
+  const autoFetchedRecordsRef = React.useRef<{
+    set: React.Dispatch<React.SetStateAction<TableRowType[]>>;
+  } | null>(null);
+
   // Auto-enabled bulk delete when effectiveFoundationId is available
   // Pages don't need to wire this up manually - it just works
   const defaultBulkDelete = useCallback(async (ids: (number | string)[]) => {
-    if (!effectiveFoundationId) return;
+    if (!effectiveFoundationId || ids.length === 0) return;
 
     // Confirmation dialog
     const confirmed = window.confirm(`Delete ${ids.length} record${ids.length === 1 ? '' : 's'}? This action cannot be undone.`);
     if (!confirmed) return;
+
+    // Optimistic UI: Immediately hide the rows and clear selection
+    pendingDeleteIdsRef.current?.set(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+    selectedRowsRef.current?.set(new Set<string | number>());
 
     try {
       const response = await api.post<{ success: boolean; deleted_count: number; errors: { id: number; errors: string[] }[] }>(`/api/v1/foundations/${effectiveFoundationId}/records/bulk_delete`, {
@@ -536,17 +659,31 @@ export default function TeeemTableView({
         description: `Successfully deleted ${deletedCount} record${deletedCount === 1 ? '' : 's'}.`,
       });
 
-      // Refresh data
+      // For autoFetch mode, remove from local state (server already deleted)
+      if (autoFetchRecords && effectiveFoundationId) {
+        autoFetchedRecordsRef.current?.set(prev => {
+          const deletedIdStrings = new Set(ids.map(id => String(id)));
+          return prev.filter(r => !deletedIdStrings.has(String(r.id)));
+        });
+      }
+
+      // Refresh data to ensure sync with server
       onRefresh?.();
     } catch (err) {
       console.error("Failed to bulk delete:", err);
+      // Rollback optimistic UI on error
+      pendingDeleteIdsRef.current?.set(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
       toast({
         title: "Delete failed",
         description: err instanceof Error ? err.message : "Failed to delete records. Please try again.",
         variant: "destructive",
       });
     }
-  }, [effectiveFoundationId, onRefresh, toast]);
+  }, [effectiveFoundationId, onRefresh, toast, autoFetchRecords]);
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 
@@ -607,7 +744,9 @@ export default function TeeemTableView({
   // When effectiveFoundationId is set, columns MUST come from Foundation API
   // This makes it IMPOSSIBLE to be out of sync with Foundation schema
   // ============================================================================
-  const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(null);
+  // CLS FIX: Initialize from SSR data immediately (not via useEffect)
+  // Without this, first render uses null → useEffect sets columns → re-render = CLS
+  const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(initialColumns || null);
   const [columnsLoading, setColumnsLoading] = useState(false);
   // Store resolved Foundation info (numeric ID and slug) for consistent display
   const [resolvedFoundation, setResolvedFoundation] = useState<{ id: number; slug: string } | null>(null);
@@ -617,8 +756,10 @@ export default function TeeemTableView({
   // When foundationIdNumeric is set AND entries prop is empty/not provided,
   // TeeemTableView manages its own data fetching with cursor-based pagination
   // ============================================================================
-  const [autoFetchedRecords, setAutoFetchedRecords] = useState<TableRowType[]>([]);
-  const [hasMore, setHasMore] = useState(true);
+  // SSR: Initialize with server-provided records to prevent hydration mismatch
+  // This eliminates CLS by ensuring client state matches SSR-rendered content
+  const [autoFetchedRecords, setAutoFetchedRecords] = useState<TableRowType[]>(initialRecords || []);
+  const [hasMore, setHasMore] = useState(initialHasMore ?? true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   // Auto-refresh key: increment to trigger re-fetch when using autoFetchRecords
@@ -636,90 +777,129 @@ export default function TeeemTableView({
     }
   }, [useAutoFetch]);
 
-  // Auto-fetch columns when effectiveFoundationId is set
+  // Parent-triggered refresh via refreshTrigger prop
+  // This allows parents to request a refresh without unmounting the component (avoiding SSR data loss)
+  // Use this INSTEAD OF key={refreshKey} pattern
+  const prevRefreshTriggerRef = useRef(refreshTrigger);
   useEffect(() => {
+    // Only trigger on changes after initial mount (not on initial render)
+    if (prevRefreshTriggerRef.current !== undefined &&
+        refreshTrigger !== undefined &&
+        refreshTrigger !== prevRefreshTriggerRef.current) {
+      triggerAutoRefresh();
+    }
+    prevRefreshTriggerRef.current = refreshTrigger;
+  }, [refreshTrigger, triggerAutoRefresh]);
+
+  // CACHE RESTORATION: Check if we have cached records with more data than SSR
+  // This enables instant restoration of scroll position when navigating back
+  // Only runs once on mount to avoid overwriting fresh data
+  const hasCacheRestoredRef = useRef(false);
+  useEffect(() => {
+    if (hasCacheRestoredRef.current) return;
+    if (!useAutoFetch || !effectiveFoundationId) return;
+
+    const cached = getCachedRecords(effectiveFoundationId);
+    if (cached && cached.records.length > (initialRecords?.length || 0)) {
+      // Cache has more records (user had scrolled/loaded more before)
+      // Restore from cache for better UX
+      console.log(`[RecordsCache] Restoring ${cached.records.length} records from cache (SSR had ${initialRecords?.length || 0})`);
+      setAutoFetchedRecords(cached.records as TableRowType[]);
+      setHasMore(cached.hasMore);
+      hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
+    }
+    hasCacheRestoredRef.current = true;
+  }, [useAutoFetch, effectiveFoundationId, initialRecords?.length]);
+
+  // Auto-fetch columns when effectiveFoundationId is set
+  // ULTRA: Uses module-level cache for instant loading on repeat visits
+  useEffect(() => {
+    // SSR: Skip client fetch if server provided columns
+    if (initialColumns && initialColumns.length > 0) {
+      setFoundationColumns(initialColumns);
+      setColumnsLoading(false);
+      return;
+    }
+
     if (!effectiveFoundationId) {
       setFoundationColumns(null);
       setResolvedFoundation(null);
       return;
     }
 
+    // ULTRA: Check cache first for instant loading
+    const cached = getCachedColumns(effectiveFoundationId);
+    if (cached) {
+      setFoundationColumns(cached.columns);
+      setResolvedFoundation(cached.foundationInfo);
+      setColumnsLoading(false);
+      return;
+    }
+
     const fetchColumns = async () => {
       setColumnsLoading(true);
       try {
-        const response = await api.get<{ foundation: { id: number; slug: string; columns: ApiColumn[] } }>(
-          `/api/v1/foundations/${effectiveFoundationId}`
-        );
-        // Store resolved Foundation info for consistent Table ID display
-        if (response?.foundation?.id && response?.foundation?.slug) {
-          setResolvedFoundation({ id: response.foundation.id, slug: response.foundation.slug });
-        }
-        const dbColumns = response?.foundation?.columns || [];
-        const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, effectiveFoundationId);
-        setFoundationColumns(teeemColumns);
+        // ULTRA: Use cached fetch (handles deduplication)
+        const result = await fetchColumnsForFoundation(effectiveFoundationId);
 
-        // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
-        // In development: throw error to force fix
-        // In production: log to console and use Foundation columns (SSoT)
-        if (columns && columns.length > 0 && teeemColumns.length > 0) {
-          const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
-          const foundationKeys = teeemColumns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
+        if (result) {
+          setFoundationColumns(result.columns);
+          setResolvedFoundation(result.foundationInfo);
 
-          if (propKeys.length !== foundationKeys.length) {
-            const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
-            const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
+          // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
+          if (columns && columns.length > 0 && result.columns.length > 0) {
+            const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
+            const foundationKeys = result.columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
 
-            const errorMessage =
-              `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
-              `but Foundation ${effectiveFoundationId} has ${foundationKeys.length} columns.\n` +
-              `In PROPS but not Foundation: ${inPropsNotFoundation.join(', ') || 'none'}\n` +
-              `In FOUNDATION but not Props: ${inFoundationNotProps.join(', ') || 'none'}\n` +
-              `FIX: Remove the columns prop - TeeemTableView auto-fetches from Foundation API (SSoT)`;
+            if (propKeys.length !== foundationKeys.length) {
+              const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
+              const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
 
-            if (process.env.NODE_ENV === 'development') {
-              // In dev mode, throw error to force immediate fix
-              throw new Error(errorMessage);
-            } else {
-              // In production, log warning and continue with Foundation columns
-              console.error(errorMessage);
+              const errorMessage =
+                `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
+                `but Foundation ${effectiveFoundationId} has ${foundationKeys.length} columns.\n` +
+                `In PROPS but not Foundation: ${inPropsNotFoundation.join(', ') || 'none'}\n` +
+                `In FOUNDATION but not Props: ${inFoundationNotProps.join(', ') || 'none'}\n` +
+                `FIX: Remove the columns prop - TeeemTableView auto-fetches from Foundation API (SSoT)`;
+
+              if (process.env.NODE_ENV === 'development') {
+                throw new Error(errorMessage);
+              } else {
+                console.error(errorMessage);
+              }
             }
           }
+        } else {
+          // Fetch failed - clean up stale caches
+          invalidateColumnsCache(effectiveFoundationId);
+
+          // Clean up localStorage views cache
+          try {
+            const viewsCacheKey = 'teeem_views_cache';
+            const viewsCache = localStorage.getItem(viewsCacheKey);
+            if (viewsCache) {
+              const parsed = JSON.parse(viewsCache);
+              if (parsed[effectiveFoundationId]) {
+                delete parsed[effectiveFoundationId];
+                localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
+              }
+            }
+          } catch {
+            // Ignore cache cleanup errors
+          }
+
+          // Clean up sessionStorage table state
+          try {
+            const sessionKey = `teeem-table-state-v1-${effectiveFoundationId}`;
+            sessionStorage.removeItem(sessionKey);
+          } catch {
+            // Ignore cache cleanup errors
+          }
+
+          setFoundationColumns(null);
         }
       } catch (error) {
         console.error(`[TeeemTableView] Failed to fetch columns for Foundation ${effectiveFoundationId}:`, error);
-
-        // If 404 (foundation deleted), clean up stale cache entries
-        const apiError = error as { status?: number };
-        if (apiError?.status === 404) {
-          console.warn(`[TeeemTableView] Foundation ${effectiveFoundationId} not found - cleaning up stale cache`);
-
-          // Clean up localStorage views cache
-          if (effectiveFoundationId !== null) {
-            try {
-              const viewsCacheKey = 'teeem_views_cache';
-              const viewsCache = localStorage.getItem(viewsCacheKey);
-              if (viewsCache) {
-                const parsed = JSON.parse(viewsCache);
-                if (parsed[effectiveFoundationId]) {
-                  delete parsed[effectiveFoundationId];
-                  localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
-                }
-              }
-            } catch {
-              // Ignore cache cleanup errors
-            }
-
-            // Clean up sessionStorage table state
-            try {
-              const sessionKey = `teeem-table-state-v1-${effectiveFoundationId}`;
-              sessionStorage.removeItem(sessionKey);
-            } catch {
-              // Ignore cache cleanup errors
-            }
-          }
-        }
-
-        // Fall back to props if fetch fails
         setFoundationColumns(null);
       } finally {
         setColumnsLoading(false);
@@ -727,11 +907,19 @@ export default function TeeemTableView({
     };
 
     fetchColumns();
-  }, [effectiveFoundationId, columns]);
+  }, [effectiveFoundationId, columns, initialColumns]);
 
   // Ref to hold current search value for use in auto-fetch refresh effect
   // Initialized empty, updated by effect after search atom is declared
   const searchRef = useRef<string>('');
+
+  // Ref to hold current cascade filters for use in search handler (prevents stale closure)
+  // This ensures search always uses the LATEST filter state even if React hasn't re-rendered yet
+  const cascadeFiltersRef = useRef<CascadeFilter[]>([]);
+
+  // SSR: Track if initial records have been applied (one-time only)
+  // Prevents re-application on prop changes that would wipe load-more data
+  const hasAppliedInitialRecordsRef = useRef(false);
 
   // ULTRA Solution: Filter state managed by sourced atoms
   // Must be declared before autoFetch effects that depend on baseFilters
@@ -755,35 +943,141 @@ export default function TeeemTableView({
   // Defensive: ensure cascadeFilters is always an array for .map/.length calls
   const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
 
+  // Keep cascadeFiltersRef in sync for use in search handler (prevents stale closure)
+  // CRITICAL: useLayoutEffect ensures ref is updated BEFORE any user interaction
+  // (useEffect runs after paint, which creates a race condition where user could type before ref updates)
+  useLayoutEffect(() => {
+    cascadeFiltersRef.current = cascadeFilters;
+  }, [cascadeFilters]);
+
   // Auto-fetch records when foundationIdNumeric is set AND entries not provided
   // ULTRA Solution: Create stable filter key for dependency tracking
   // Only include base filters in the key since user filters change frequently
   const baseFiltersKey = useMemo(() => JSON.stringify(baseFilters), [baseFilters]);
 
+  // ULTRA FIX: Create stable key for ALL filters (not just base) to trigger client-side filtering
+  // This ensures filteredAndSortedEntries recalculates when any filter changes (view, quick, user)
+  // Without this, the useMemo dependency on cascadeFilters array reference may not detect content changes
+  const allFiltersKey = useMemo(
+    () => JSON.stringify((cascadeFilters || []).map(f => ({ c: f.column, o: f.operator, v: f.value }))),
+    [cascadeFilters]
+  );
+
   // Also re-fetch when autoFetchRefreshKey changes (triggered after updates/deletes)
   // CRITICAL: Include filters in API call - backend needs to know about base filters
   useEffect(() => {
-    if (!useAutoFetch) return;
+    // SSR: Mark initial records as applied (state was already initialized with them)
+    // - Use ref to prevent re-fetch on mount when we already have SSR data
+    // - Check for persisted search (URL, prop, session) which should trigger a fresh fetch
+    // - Only consider this on initial load (autoFetchRefreshKey === 0)
+    if (!hasAppliedInitialRecordsRef.current && initialRecords && initialRecords.length > 0 && autoFetchRefreshKey === 0) {
+      // Check for any persisted search that should take precedence over SSR data
+      const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
+      const sessionSearchParam = cachedState?.search;
+      const hasPersistedSearch = urlSearchParam || initialSearch || sessionSearchParam || searchRef.current;
 
-    // ULTRA Solution: Wait for base filters to be set if initialFilters is provided
-    // This prevents the race condition where we fetch without filters, then re-fetch with filters
-    if (initialFilters && initialFilters.length > 0 && baseFilters.length === 0) {
+      if (!hasPersistedSearch) {
+        // SSR data is already in state (initialized in useState), just mark as applied
+        hasAppliedInitialRecordsRef.current = true;
+        // CACHE: Save SSR data to cache (if cache is empty or has fewer records)
+        // This ensures SSR data is available on back navigation
+        if (effectiveFoundationId) {
+          const cached = getCachedRecords(effectiveFoundationId);
+          if (!cached || cached.records.length < initialRecords.length) {
+            setCachedRecords(effectiveFoundationId, initialRecords as Record<string, unknown>[], null, initialHasMore ?? true);
+          }
+        }
+        return;
+      }
+      // Mark as applied even if we skipped (search will fetch its own data)
+      hasAppliedInitialRecordsRef.current = true;
+      // CRITICAL: Return early - let the search initialization effect handle fetching
+      // Without this, we proceed to fetchInitialRecords() which checks searchRef.current
+      // But searchRef.current is still empty (sync effect hasn't run yet), so it fetches
+      // unfiltered data and overwrites search results
       return;
     }
 
+    if (!useAutoFetch) return;
+
+    // ULTRA Solution: Wait for base filters to be set if in embedded context
+    // SSoT: isEmbeddedContext defined at component top
+    // This prevents the race condition where we fetch without filters, then re-fetch with filters
+    if (isEmbeddedContext && baseFilters.length === 0) {
+      return;
+    }
+
+    // ULTRA Solution: Wait for initial view to load before fetching (prevents flash of wrong data)
+    // Skip waiting if: no foundation, views disabled, or views already loaded
+    // This prevents the race where we fetch → show wrong data → view loads → re-fetch → show correct data
+    if (effectiveFoundationId && !disableSavedViews && !initialViewLoadedRef.current) {
+      return; // Will re-run when initialViewLoadedRef.current becomes true via safeFilters change
+    }
+
     const fetchInitialRecords = async () => {
+      console.log('[TeeemTableView] fetchInitialRecords called:', {
+        hasMore,
+        recordCount: autoFetchedRecords.length,
+        search: searchRef.current,
+        autoFetchRefreshKey,
+      });
+
+      // ⚠️ DO NOT SIMPLIFY - Race Condition Fix (2026-01-07)
+      // ════════════════════════════════════════════════════════════════════════
+      // Why we check URL param directly instead of just searchRef.current:
+      //
+      // On mount, two effects race:
+      //   1. This fetch effect - checks if search is active
+      //   2. Search init effect - reads URL param, sets searchRef via atom
+      //
+      // Problem: searchRef is updated via useEffect (ASYNC), but this effect
+      // runs BEFORE that update propagates. So searchRef.current is empty
+      // even when URL has ?search=xyz.
+      //
+      // Solution: Check URL param DIRECTLY (sync) - it's always available.
+      //
+      // ❌ WRONG (race condition):
+      //    if (searchRef.current) return;
+      //
+      // ✅ CORRECT (sync check):
+      //    const urlSearch = searchParams.get('search');
+      //    if (urlSearch || searchRef.current) return;
+      //
+      // If you remove the urlSearchParam check, search from URL will break -
+      // initial fetch will overwrite search results with unfiltered data.
+      // ════════════════════════════════════════════════════════════════════════
+      const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
+      const hasPersistedSearch = urlSearchParam || initialSearch || searchRef.current;
+      if (hasPersistedSearch) {
+        console.log('[TeeemTableView] Skipping fetch - search pending:', { urlSearchParam, initialSearch, ref: searchRef.current });
+        return;
+      }
+
+      // ULTRA FIX: Skip API call if all records already loaded (hasMore === false)
+      // When all records are in memory, view filters can be applied client-side instantly
+      // via filteredAndSortedEntries - no need for network roundtrip
+      // This makes view switching instant when all records are loaded
+      if (!hasMore && autoFetchedRecords.length > 0) {
+        console.log('[TeeemTableView] All records loaded, applying filters client-side');
+        return; // Client-side filtering in filteredAndSortedEntries handles this
+      }
+
+      // ULTRA FIX: Skip refetch if SSR data was already applied on initial load
+      // This prevents double-fetch when filter initialization triggers effect re-run
+      if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0 && autoFetchRefreshKey === 0) {
+        console.log('[TeeemTableView] SSR data already applied, skipping duplicate initial fetch');
+        return;
+      }
+
+      console.log('[TeeemTableView] Proceeding with API fetch');
+
       setIsLoadingMore(true);
       try {
-        // SSoT FIX: Include search term in refresh to maintain filter state
-        // Use ref to get current search value (avoids stale closure since search not in deps)
-        const currentSearch = searchRef.current;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { limit: 100 };
-        if (currentSearch) {
-          params.search = currentSearch;
-        }
-        // ULTRA Solution: Include base filters in API call
-        // These are immutable filters from initialFilters prop (e.g., template filter)
+        // ULTRA FIX: Only include BASE filters in API call (not view/cascade filters)
+        // This enables instant view switching - data loads once, views filter client-side
+        // View filters are applied by filteredAndSortedEntries via applyFilters()
         if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,
@@ -795,8 +1089,13 @@ export default function TeeemTableView({
           `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params }
         );
-        setAutoFetchedRecords(response.records || []);
+        const newRecords = response.records || [];
+        setAutoFetchedRecords(newRecords);
         setHasMore(response.has_more ?? true);
+        // CACHE: Save records for instant restoration on back navigation
+        if (newRecords.length > 0) {
+          setCachedRecords(effectiveFoundationId, newRecords as Record<string, unknown>[], null, response.has_more ?? true);
+        }
       } catch (error) {
         console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
       } finally {
@@ -805,14 +1104,27 @@ export default function TeeemTableView({
     };
 
     fetchInitialRecords();
+    // SSR props (initialRecords, initialHasMore) intentionally excluded from deps
+    // They're applied one-time via hasAppliedInitialRecordsRef, not on prop changes
+    // ULTRA FIX: safeFilters (view filters) REMOVED from deps - enables instant view switching
+    // View filters are now applied client-side by filteredAndSortedEntries
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey]);
 
   // Auto-load more records in background after initial render
   // ULTRA Solution: Include base filters to ensure consistent data loading
+  // IMPORTANT: Skip load-more when there's an active search - search results are complete
   useEffect(() => {
+    // Skip load-more when:
+    // 1. Not in auto-fetch mode
+    // 2. No more records to load
+    // 3. Already loading
+    // 4. No records yet (initial state)
+    // NOTE: Background loading continues even during search - client-side filtering shows matches as they load
     if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0) return;
 
     const timer = setTimeout(async () => {
+      // Re-check conditions inside timeout (state may have changed)
       if (!hasMore || isLoadingMore) return;
 
       const lastRecord = autoFetchedRecords[autoFetchedRecords.length - 1];
@@ -822,7 +1134,8 @@ export default function TeeemTableView({
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { cursor, limit: 100 };
-        // ULTRA Solution: Include base filters in load-more to maintain filter consistency
+        // ULTRA FIX: Only include BASE filters in load-more (not view/cascade filters)
+        // This enables instant view switching - all data loads regardless of current view
         if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,
@@ -834,8 +1147,20 @@ export default function TeeemTableView({
           `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params }
         );
-        setAutoFetchedRecords(prev => [...prev, ...(response.records || [])]);
-        setHasMore(response.has_more ?? false);
+
+        // Deduplicate records by ID to prevent duplicate rows
+        const newHasMore = response.has_more ?? false;
+        setAutoFetchedRecords(prev => {
+          const existingIds = new Set(prev.map(r => r.id));
+          const newRecords = (response.records || []).filter(r => !existingIds.has(r.id));
+          const mergedRecords = [...prev, ...newRecords];
+          // CACHE: Update cache with merged records for back navigation
+          if (effectiveFoundationId) {
+            setCachedRecords(effectiveFoundationId, mergedRecords as Record<string, unknown>[], null, newHasMore);
+          }
+          return mergedRecords;
+        });
+        setHasMore(newHasMore);
       } catch (error) {
         console.error(`[TeeemTableView] Failed to load more records:`, error);
       } finally {
@@ -844,22 +1169,37 @@ export default function TeeemTableView({
     }, 2000); // Wait 2 seconds before auto-loading more
 
     return () => clearTimeout(timer);
+    // ULTRA FIX: safeFilters removed from deps - view filters are client-side only
   }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId, baseFilters]);
 
   // Server-side search for auto-fetch mode
   // Supports all search modes: contains (default), exact, starts_with, fuzzy, regex
+  // IMPORTANT: Include cascade filters (e.g., entity_type=person for grouped views)
   const handleAutoFetchSearch = useCallback(async (searchTerm: string, mode?: SearchMode) => {
     if (!useAutoFetch) return;
 
     setIsSearching(true);
     try {
-      const params: Record<string, string | number> = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const params: Record<string, any> = {
         search: searchTerm,
         limit: 100,
       };
       // Pass search mode to backend if specified (backend defaults to 'contains')
       if (mode) {
         params.search_mode = mode;
+      }
+      // Include cascade filters in search (e.g., entity_type=person for By Company view)
+      // Combine base filters (immutable) with cascade filters (view + user filters)
+      // CRITICAL: Use cascadeFiltersRef.current to get LATEST filters (prevents stale closure)
+      const currentFilters = cascadeFiltersRef.current;
+      const allFilters = [...baseFilters, ...currentFilters];
+      if (allFilters.length > 0) {
+        params.filters = JSON.stringify(allFilters.map(f => ({
+          column: f.column,
+          operator: f.operator,
+          value: f.value,
+        })));
       }
       const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
         `/api/v1/foundations/${effectiveFoundationId}/records`,
@@ -872,7 +1212,7 @@ export default function TeeemTableView({
     } finally {
       setIsSearching(false);
     }
-  }, [useAutoFetch, effectiveFoundationId]);
+  }, [useAutoFetch, effectiveFoundationId, baseFilters]); // cascadeFilters removed - using ref
 
   // Use Foundation columns when available (SSoT), otherwise fall back to props
   // Merge with extraColumns if provided (for dynamic/computed columns like company presence)
@@ -1021,7 +1361,10 @@ export default function TeeemTableView({
   }, [search, setSearchAtom, onSearchChange, cacheSearch, persistSearchToUrl, router]);
 
   // Keep searchRef in sync for use in auto-fetch refresh effect (defined before search atom)
-  searchRef.current = search;
+  // CRITICAL: Use useEffect instead of render body to ensure other effects see the updated value
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
 
   // Initialize search from URL, prop, session storage, or persisted atom on mount
   // Priority: URL param > initialSearch prop > session storage > atom value (from SPA navigation)
@@ -1134,30 +1477,72 @@ export default function TeeemTableView({
     });
   }, [entries, effectiveEntries, setSelectedRows]);
 
-  // CRITICAL FIX: Clear view/user filters when foundation changes to prevent cross-table pollution
-  // Since filter atoms are GLOBAL, filters from one foundation would otherwise affect all tables.
+  // CRITICAL FIX: Clear ALL view state when foundation changes to prevent cross-table pollution
+  // Since atoms are GLOBAL, state from one foundation would otherwise affect all tables.
   // This must run BEFORE loading views for the new foundation.
+  // ALSO clear on initial mount (prevFoundationRef.current === null) to prevent stale state
+  // from previous navigation sessions from affecting this table.
+  //
+  // FRC FIX: With foundation-scoped atoms, state is automatically isolated per foundation.
+  // Jobs atoms are completely separate from Contacts atoms, so no pollution is possible.
+  // This reset logic now just handles SSR initialView application.
   const prevFoundationRef = useRef<string | number | null>(null);
-  useEffect(() => {
-    if (effectiveFoundationId && prevFoundationRef.current !== null && prevFoundationRef.current !== effectiveFoundationId) {
-      // Foundation changed - clear all non-base filters to start fresh
-      setViewFilters([]);
-      clearAllUserFilters();
+  // Note: resetters now use foundation-scoped atoms via the setters defined later
+  // (setGroupByColumns, setActiveViewId, setCollapsedGroups, setGroupViewMode)
+
+  // FRC FIX: With foundation-scoped atoms, cross-page pollution is IMPOSSIBLE.
+  // Each foundation has its own isolated state - Jobs atoms are separate from Contacts atoms.
+  // We only need to track foundation changes for filter clearing and initialView application.
+  useLayoutEffect(() => {
+    if (effectiveFoundationId) {
+      const isInitialMount = prevFoundationRef.current === null;
+      const isFoundationChange = prevFoundationRef.current !== null && prevFoundationRef.current !== effectiveFoundationId;
+
+      if (isInitialMount || isFoundationChange) {
+        // Clear user filters - this is still needed for filter atoms (not yet foundation-scoped)
+        console.log('[Foundation Change] Clearing filters for:', effectiveFoundationId,
+          isInitialMount ? '(initial mount)' : `(from ${prevFoundationRef.current})`);
+        clearAllUserFilters();
+
+        // Apply filters from initialView (CRITICAL: This is what makes LIVE filter work)
+        if (initialView) {
+          console.log('[Foundation Change] Applying SSR initialView filters:', {
+            filterCount: initialView.filters?.cascadeFilters?.length || 0,
+          });
+
+          if (initialView.filters?.cascadeFilters?.length) {
+            setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
+          } else {
+            setViewFilters([]);
+          }
+          if (initialView.filters?.filterGroups?.length) {
+            setFilterGroups(initialView.filters.filterGroups);
+          } else {
+            setFilterGroups([{ id: "default", logic: "AND" }]);
+          }
+        } else {
+          // No initialView - ensure filters are clear
+          setViewFilters([]);
+          setFilterGroups([{ id: "default", logic: "AND" }]);
+        }
+
+      }
     }
     prevFoundationRef.current = effectiveFoundationId;
-  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters]);
+  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters, setFilterGroups, initialView]);
 
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
   // Also clear view filters to prevent pollution from other tables with initialFilters
+  // SSoT: isEmbeddedContext defined at component top
   const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters]);
   useEffect(() => {
-    if (initialFilters && initialFilters.length > 0) {
+    if (isEmbeddedContext) {
       // Clear view filters first to prevent pollution from other tables
       // Base filters are the defining context for this table instance
       setViewFilters([]);
-      setBaseFilters(initialFilters);
+      setBaseFilters(initialFilters!);  // Safe - isEmbeddedContext guarantees initialFilters exists
     }
-  }, [initialFiltersKey, setBaseFilters, setViewFilters]); // Only re-run when initialFilters changes (JSON stringified)
+  }, [initialFiltersKey, setBaseFilters, setViewFilters, isEmbeddedContext]); // Only re-run when initialFilters changes (JSON stringified)
 
   // Backward compatibility alias
   const setCascadeFilters = setUserFilters;
@@ -1166,9 +1551,117 @@ export default function TeeemTableView({
 
   // View collection state managed by atoms
   const [savedViews, setSavedViews] = useAtom(foundationViewsAtom);
-  const [activeViewId, setActiveViewId] = useAtom(activeViewIdAtom);
+  // ULTRA: activeViewId from foundation-scoped hook (SSR-aware, no init effect needed)
+  const activeViewId = ultraActiveViewId;
+  const setActiveViewId = ultraSetActiveViewId;
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
-  const initialViewLoadedRef = useRef(false); // Prevent re-loading views after initial load
+  // SSR: Mark as loaded if we have initialView to prevent client-side reload
+  const initialViewLoadedRef = useRef(!!initialView); // Prevent re-loading views after initial load
+
+  // ULTRA: SSR activeViewId init removed - hook handles this automatically
+
+  // SSR FLASH FIX: Initialize view filters from initialView immediately
+  // This ensures the view's filters are applied on first render (eliminates wrong data flash)
+  // Track foundationId to handle navigation between foundations
+  const ssrFiltersInitializedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (ssrFiltersInitializedRef.current === foundationId) return;
+    if (initialView?.filters?.cascadeFilters?.length) {
+      ssrFiltersInitializedRef.current = foundationId;
+      console.log('[SSR] Applying initialView filters:', initialView.filters.cascadeFilters.length, 'filters');
+      setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
+      // Also set filter groups and inter-group logic if present
+      if (initialView.filters.filterGroups?.length) {
+        setFilterGroups(initialView.filters.filterGroups);
+      }
+      if (initialView.filters.interGroupLogic) {
+        setInterGroupLogic(initialView.filters.interGroupLogic);
+      }
+    }
+  }, [initialView, setViewFilters, setFilterGroups, setInterGroupLogic, foundationId]);
+
+  // SSR COLUMN CONFIG: Apply column order/visibility from initialView immediately
+  // This ensures the view's column layout renders correctly on first paint (SSoT)
+  // Track foundationId to handle navigation between foundations
+  const ssrColumnsInitializedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (ssrColumnsInitializedRef.current === foundationId) return;
+    if (initialView?.columns) {
+      const { order, visible, widths } = initialView.columns;
+      if (order?.length || (visible && Object.keys(visible).length)) {
+        ssrColumnsInitializedRef.current = foundationId;
+        console.log('[SSR] Applying initialView columns:', {
+          order: order?.length || 0,
+          visible: visible ? Object.keys(visible).length : 0,
+          widths: widths ? Object.keys(widths).length : 0
+        });
+        if (order?.length) {
+          setColumnOrder(order);
+        }
+        if (visible && Object.keys(visible).length) {
+          setVisibleColumns(visible);
+        }
+        if (widths && Object.keys(widths).length) {
+          setColumnWidths(widths);
+        }
+      }
+    }
+  }, [initialView, setColumnOrder, setVisibleColumns, setColumnWidths, foundationId]);
+
+  // SSR FIX: Initialize savedViews from preloadedViews immediately
+  // This eliminates the flash where view buttons don't show until API call completes
+  // Also handles navigation between foundations - replaces stale views from wrong foundation
+  const preloadedViewsInitializedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!preloadedViews || preloadedViews.length === 0) return;
+    // Check if we already initialized for THIS foundation
+    if (preloadedViewsInitializedRef.current === foundationId) return;
+    // Check if savedViews are from a DIFFERENT foundation (stale from navigation)
+    // Use effectiveFoundationId which resolves to numeric ID or slug
+    const savedViewsAreStale = savedViews.length > 0 && savedViews[0]?.foundation_id !== effectiveFoundationId;
+    const shouldInitialize = savedViews.length === 0 || savedViewsAreStale;
+    if (shouldInitialize) {
+      preloadedViewsInitializedRef.current = foundationId;
+      console.log('[SSR] Initializing savedViews from preloadedViews:', preloadedViews.length, 'views', savedViewsAreStale ? '(replacing stale views)' : '');
+      // Map preloaded views to SavedView format
+      // Handle both ViewData (from SSR) and SavedView (from client) formats
+      // SSR ViewData uses nested format: columns.visible, columns.order, columns.widths
+      // Client SavedView uses flat format: visibleColumns, columnOrder, columnWidths
+      const mappedViews: SavedView[] = preloadedViews.map((v) => {
+        // Type assertion to handle both SSR (snake_case) and client (camelCase) formats
+        const viewAny = v as typeof v & {
+          columns?: { visible?: Record<string, boolean>; order?: string[]; widths?: Record<string, number> };
+          group_by_columns?: string[];  // SSR snake_case
+          group_by_column?: string;     // SSR snake_case
+        };
+
+        return {
+          id: v.id ?? 0,
+          name: v.name ?? 'Untitled',
+          slug: v.slug || '',
+          is_global: v.is_global || false,
+          isDefault: v.isDefault || false,
+          foundation_id: v.foundation_id || 0,
+          // Handle both array filters (SavedView) and object filters (ViewData from SSR)
+          filters: Array.isArray(v.filters) ? v.filters : [],
+          // FRC Fix: Handle both SSR (columns.visible) and client (visibleColumns) formats
+          visibleColumns: v.visibleColumns || viewAny.columns?.visible || {},
+          columnOrder: v.columnOrder || viewAny.columns?.order || [],
+          columnWidths: v.columnWidths || viewAny.columns?.widths || {},
+          sortColumns: v.sortColumns || [],
+          // FRC Fix: Handle both SSR (group_by_columns) and client (groupByColumns) formats
+          groupByColumns: v.groupByColumns || viewAny.group_by_columns || (v.groupByColumn || viewAny.group_by_column ? [v.groupByColumn || viewAny.group_by_column!] : []),
+          groupByColumn: v.groupByColumn || viewAny.group_by_column,
+          display_order: v.display_order || 0,
+          view_type: v.view_type as SavedView['view_type'],
+          view_display_type: v.view_display_type as SavedView['view_display_type'],
+        };
+      });
+      setSavedViews(mappedViews);
+      // Also mark as loaded to prevent duplicate API call
+      initialViewLoadedRef.current = true;
+    }
+  }, [preloadedViews, savedViews, setSavedViews, foundationId, effectiveFoundationId]);
 
   // Row rendering limit for performance (render rows initially, load more on demand)
   // SSoT: Uses TABLE_ROW_LIMIT from pagination-constants.ts
@@ -1177,35 +1670,44 @@ export default function TeeemTableView({
   const [rowLimit, setRowLimit] = useAtom(rowLimitAtom);
   const [showAllRows, setShowAllRows] = useAtom(showAllRowsAtom);
 
-  // Group by state managed by atoms (SSoT)
-  const [groupByColumns, setGroupByColumns] = useAtom(currentGroupByColumnsAtom);
-  // Derive groupByColumn from atom - NOT a separate state (SSoT compliance)
-  const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : (initialGroupByColumn || null);
-  // Collapsed groups managed by atom (persists with saved views)
-  const [collapsedGroups, setCollapsedGroups] = useAtom(collapsedGroupsAtom);
+  // ==========================================================================
+  // ULTRA: All grouping state from foundation-scoped hook
+  // ==========================================================================
+  // The hook provides SSR-aware values (no flash) and foundation isolation.
+  // No effectiveGroupByColumns/groupViewMode memos needed.
+  // No SSR init effects needed. No reset useLayoutEffect needed.
+  const groupByColumns = ultraGroupByColumns;
+  const setGroupByColumns = ultraSetGroupByColumns;
+  const groupViewMode = ultraGroupViewMode;
+  const setGroupViewMode = ultraSetGroupViewMode;
+  const collapsedGroups = ultraCollapsedGroups;
+  const setCollapsedGroups = ultraSetCollapsedGroups;
+
   // Keep ref in sync for use in toggleSelectAll callback
   collapsedGroupsRef.current = collapsedGroups;
-  // groupViewMode managed by atom (SSoT)
-  const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
 
-  // Initialize groupByColumns from initialGroupByColumn prop on mount
-  // Only runs once and only if atom is empty (doesn't override saved views)
-  const initialGroupByRef = useRef(false);
-  useEffect(() => {
-    if (!initialGroupByRef.current && initialGroupByColumn && groupByColumns.length === 0) {
-      initialGroupByRef.current = true;
-      setGroupByColumns([initialGroupByColumn]);
-    }
-  }, [initialGroupByColumn, groupByColumns.length, setGroupByColumns]);
+  // Derive groupByColumn from groupByColumns - NOT a separate state (SSoT compliance)
+  const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : null;
+
+  // ULTRA: No effectiveGroupByColumns memo needed - hook returns SSR-aware values
+  // ULTRA: No groupViewMode memo needed - hook returns SSR-aware values
+  // ULTRA: No grouping reset useLayoutEffect needed - hook handles foundation changes
+  // ULTRA: No SSR init effect for groupByColumns/groupViewMode needed - hook handles this
+
+  // Collapsed hierarchy headers (for "Header Hierarchy" display mode)
+  const [collapsedHierarchyHeaders, setCollapsedHierarchyHeaders] = useState<Set<number>>(new Set());
 
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
   // effectiveColumns comes from Foundation API which only has database columns
+  // SSR FIX: Also check initialColumns as fallback (effectiveColumns set via useEffect, not available on first render)
   const validGroupByColumnForApi = useMemo(() => {
     if (!groupByColumn) return null;
-    // Check if the column exists in effectiveColumns (Foundation columns = database columns)
+    // SSR FIX: Use effectiveColumns if available, otherwise fall back to initialColumns for first render
+    const columnsToCheck = effectiveColumns || initialColumns;
+    // Check if the column exists in columns (Foundation columns = database columns)
     // Ignore system columns like 'select' and 'actions' which are UI-only
-    const isValidDbColumn = effectiveColumns?.some(
+    const isValidDbColumn = columnsToCheck?.some(
       (col) => col.key === groupByColumn && col.key !== 'select' && col.key !== 'actions'
     );
     if (!isValidDbColumn) {
@@ -1214,22 +1716,45 @@ export default function TeeemTableView({
       return null;
     }
     return groupByColumn;
-  }, [groupByColumn, effectiveColumns]);
+  }, [groupByColumn, effectiveColumns, initialColumns]);
 
   // Server-side group counts for accurate totals (not limited by pagination)
   // This fetches GROUP BY counts from the database for the current groupByColumn
   // IMPORTANT: Pass safeFilters so group counts respect saved views and cascade filters
   // Use validGroupByColumnForApi to prevent API errors from computed columns
+
+  // Debug: Log why groups API might not be called
+  console.log('[TeeemTableView] Groups API params:', {
+    effectiveFoundationId,
+    groupByColumn,
+    validGroupByColumnForApi,
+    groupByColumnsLength: groupByColumns.length, // ULTRA: Hook provides SSR-aware values
+    enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
+  });
+
+  // SSR: Convert initialGroupCounts to hook's expected format
+  const ssrGroupCountsData = useMemo(() => {
+    if (!initialGroupCounts) return undefined;
+    return {
+      groups: initialGroupCounts.groups,
+      totalRecords: initialGroupCounts.totalRecords,
+      displayValuesMap: initialGroupCounts.displayValuesMap,
+    };
+  }, [initialGroupCounts]);
+
   const {
     groups: serverGroupCounts,
     totalRecords: serverTotalRecords,
+    displayValuesMap: serverDisplayValuesMap,  // SSoT: Server provides display values for ALL grouping columns
     loading: groupCountsLoading,
     hasFetched: groupCountsHasFetched,
   } = useGroupCounts(
     effectiveFoundationId,
     validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
-    groupByColumns.length > 0 && !!validGroupByColumnForApi // enabled when grouping is active AND column is valid
+    groupByColumns.length > 0 && !!validGroupByColumnForApi, // ULTRA: Hook provides SSR-aware values
+    groupByColumns, // ULTRA: Hook provides SSR-aware values on first render
+    ssrGroupCountsData // SSR: Pre-fetched group counts to eliminate CLS
   );
 
   // Build a map of group key -> server count for quick lookup
@@ -1242,18 +1767,42 @@ export default function TeeemTableView({
     return map;
   }, [serverGroupCounts]);
 
-  // Build a map of group key -> display value for lookup columns
-  // The server's /groups endpoint returns displayValue for lookup columns (e.g., "SITE COSTS" instead of "621")
+  // SSoT: Build display map from server's display_values_map for ALL grouping columns
+  // Format: { "job_status_id": { 1: "Enquiry" }, "job_type_id": { 1: "House" } }
+  // Convert to Map<string, string> with key format "column_name:id"
   const serverDisplayMap = useMemo(() => {
     const map = new Map<string, string>();
-    for (const group of serverGroupCounts) {
-      const key = group.key === null ? "(Empty)" : String(group.key);
-      // Use displayValue from server if available, otherwise fall back to key
-      const display = group.displayValue || key;
-      map.set(key, display);
+
+    // Add display values from server's display_values_map (SSoT for ALL columns)
+    if (serverDisplayValuesMap) {
+      for (const [colName, idMap] of Object.entries(serverDisplayValuesMap)) {
+        for (const [id, display] of Object.entries(idMap)) {
+          map.set(`${colName}:${id}`, display);
+        }
+      }
     }
+
+    // Also add display values from serverGroupCounts for first column (backward compat)
+    const serverCol = groupByColumns[0];
+    for (const group of serverGroupCounts) {
+      const idKey = group.key === null ? "(Empty)" : String(group.key);
+      const display = group.displayValue || idKey;
+      if (serverCol) {
+        // Only add if not already present from display_values_map
+        const key = `${serverCol}:${idKey}`;
+        if (!map.has(key)) {
+          map.set(key, display);
+        }
+      }
+      // Also store without prefix for backward compatibility
+      if (!map.has(idKey)) {
+        map.set(idKey, display);
+      }
+    }
+
+    console.log('[TeeemTableView] serverDisplayMap from SSoT:', map.size, 'entries', Object.keys(serverDisplayValuesMap || {}));
     return map;
-  }, [serverGroupCounts]);
+  }, [serverGroupCounts, groupByColumns, serverDisplayValuesMap]);
 
   // Lazy loading state for groups - fetch all records when expanding
   // Tracks which groups are currently being loaded from server
@@ -1268,6 +1817,47 @@ export default function TeeemTableView({
     setLazyLoadedGroups(new Map());
     setGroupLoadingState(new Set());
   }, [groupByColumn, filtersKey, search]);
+
+  // FALLBACK ONLY: Extract display values from loaded records for columns NOT covered by server
+  // With SSoT fix, server now provides display_values_map for ALL grouping columns
+  // This is kept as fallback for edge cases (e.g., text columns, computed columns)
+  // Key format: "column_name:id" to avoid collisions between different lookup columns
+  const lookupDisplayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (groupByColumns.length === 0) return map;
+
+    // Extract display values from all loaded entries for all grouping columns
+    const allEntries = [...entries, ...Array.from(lazyLoadedGroups.values()).flat()];
+    for (const entry of allEntries) {
+      for (const col of groupByColumns) {
+        const value = entry[col];
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          const obj = value as Record<string, unknown>;
+          if (obj.id !== undefined) {
+            const idKey = String(obj.id);
+            // Use display value from object (display > display_value > name > id)
+            const display = String(obj.display || obj.display_value || obj.name || obj.id);
+            // Store with column prefix to avoid collisions between different lookup columns
+            const columnKey = `${col}:${idKey}`;
+            if (!map.has(columnKey)) {
+              map.set(columnKey, display);
+            }
+          }
+        }
+      }
+    }
+    return map;
+  }, [entries, groupByColumns, lazyLoadedGroups]);
+
+  // SSoT: Combined display map - server values are authoritative, fallback to loaded data
+  const combinedDisplayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    // Add lookup values from loaded data first (fallback)
+    lookupDisplayMap.forEach((value, key) => map.set(key, value));
+    // Override with server values (SSoT - authoritative for ALL lookup columns)
+    serverDisplayMap.forEach((value, key) => map.set(key, value));
+    return map;
+  }, [serverDisplayMap, lookupDisplayMap]);
 
   // Display options managed by atoms
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
@@ -1302,6 +1892,14 @@ export default function TeeemTableView({
 
   // Optimistic delete IDs - for instant UI feedback after merge
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string | number>>(new Set());
+
+  // Wire up refs for optimistic UI in early-defined callbacks (defaultBulkDelete)
+  // These refs enable callbacks defined before state to access setters
+  React.useEffect(() => {
+    pendingDeleteIdsRef.current = { set: setPendingDeleteIds };
+    selectedRowsRef.current = { set: setSelectedRows };
+    autoFetchedRecordsRef.current = { set: setAutoFetchedRecords };
+  }, [setPendingDeleteIds, setSelectedRows, setAutoFetchedRecords]);
 
   // Filter panel state managed by atom (SSoT)
   const [filterPanelOpen, setFilterPanelOpen] = useAtom(filterPanelOpenAtom);
@@ -1367,12 +1965,16 @@ export default function TeeemTableView({
       setShowDeleteConfirmModal(false);
       setRecordToDelete(null);
 
-      // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+      // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
       // SSoT: records-cache.ts
       clearCachedRecords(effectiveFoundationId);
 
-      // Refresh data - both internal (autoFetch) and external (parent callback)
-      triggerAutoRefresh();
+      // OPTIMISTIC UPDATE: Remove deleted row from local state
+      if (useAutoFetch) {
+        setAutoFetchedRecords(prev => prev.filter(r => r.id !== recordToDelete.id));
+      }
+
+      // For non-autoFetch mode: call parent's onRefresh callback
       onRefresh?.();
     } catch (err) {
       console.error("Failed to delete record:", err);
@@ -1384,13 +1986,20 @@ export default function TeeemTableView({
     } finally {
       setIsDeleting(false);
     }
-  }, [effectiveFoundationId, recordToDelete, onRefresh, toast, triggerAutoRefresh]);
+  }, [effectiveFoundationId, recordToDelete, onRefresh, toast, useAutoFetch]);
 
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
 
   // Fullscreen state (SSoT for table fullscreen - used via enableFullscreen prop)
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreen, setIsFullscreenLocal] = useState(false);
+  const setGlobalFullscreen = useSetAtom(tableFullscreenAtom);
+
+  // Wrapper to sync local and global fullscreen state
+  const setIsFullscreen = useCallback((value: boolean) => {
+    setIsFullscreenLocal(value);
+    setGlobalFullscreen(value);
+  }, [setGlobalFullscreen]);
 
   // Exit fullscreen on Escape key
   useEffect(() => {
@@ -1404,7 +2013,12 @@ export default function TeeemTableView({
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [isFullscreen]);
+  }, [isFullscreen, setIsFullscreen]);
+
+  // Clean up global fullscreen on unmount
+  useEffect(() => {
+    return () => setGlobalFullscreen(false);
+  }, [setGlobalFullscreen]);
 
   // Drag-to-select state is now managed by useTableDragSelect hook
 
@@ -1593,11 +2207,19 @@ export default function TeeemTableView({
       if (mode) {
         setCurrentSearchMode(mode);
       }
+
+      // ULTRA FIX: If all records loaded, search client-side only
+      // Just update search atom - filteredAndSortedEntries handles filtering
+      if (!hasMore && autoFetchedRecords.length > 0) {
+        console.log('[TeeemTableView] All records loaded, searching client-side');
+        return; // Skip API call
+      }
+
       if (effectiveOnServerSearch) {
         effectiveOnServerSearch(value, mode);
       }
     },
-    [effectiveOnServerSearch]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length]
   );
 
   const handleSearchAllChange = useCallback(
@@ -1909,28 +2531,34 @@ export default function TeeemTableView({
     }
   }, [onBulkMerge, enableMerge, effectiveFoundationId]);
 
-  // Called when merge completes successfully - optimistically hides merged rows
+  // Called when merge completes successfully - refreshes the table to show updated data
   const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
-    // Optimistically hide deleted rows immediately (no full refresh needed!)
-    // This keeps the table open and preserves group expansion state
-    setPendingDeleteIds(new Set(deletedIds));
-
     // Clear selections
     setMergeSelectedIds([]);
     setSelectedRows(new Set<string | number>());
 
-    // 🔴 CRITICAL: Clear cache so next refresh gets fresh data
-    // Even though we don't refresh now, the cache should be invalidated
+    // 🔴 CRITICAL: Clear cache so refresh gets fresh data
     // SSoT: records-cache.ts
     if (effectiveFoundationId) {
       clearCachedRecords(effectiveFoundationId);
     }
 
-    // NOTE: We intentionally do NOT call onRefresh() here anymore.
-    // The optimistic hide via pendingDeleteIds provides instant feedback.
-    // A full refresh would reset grouped views, scroll position, and cause flicker.
-    // Data will naturally sync on the next user-triggered refresh or navigation.
-  }, [effectiveFoundationId]);
+    // Trigger refresh to show updated data
+    // For autoFetch mode, increment the refresh key to re-fetch
+    if (useAutoFetch) {
+      // If there's an active search, re-trigger search to refresh results
+      const currentSearch = searchRef.current;
+      if (currentSearch) {
+        // Re-run search with current term to get fresh results
+        handleAutoFetchSearch(currentSearch);
+      } else {
+        // No search - increment refresh key to trigger normal fetch
+        setAutoFetchRefreshKey(prev => prev + 1);
+      }
+    }
+    // Also call onRefresh for non-autoFetch tables
+    onRefresh?.();
+  }, [effectiveFoundationId, useAutoFetch, onRefresh, handleAutoFetchSearch]);
 
   // Group handlers
   // Lazy load all records for a group when expanding (server-side grouping)
@@ -2023,7 +2651,27 @@ export default function TeeemTableView({
               } else if (typeof aVal === "number" && typeof bVal === "number") {
                 comparison = aVal - bVal;
               } else {
-                comparison = aDisplay.localeCompare(bDisplay);
+                // Natural/Human sorting: "2Code" < "7 Eleven" < "12 Tulum"
+                // Split into chunks: digits vs non-digits, compare numerically/alphabetically
+                const aChunks = aDisplay.match(/\d+|\D+/g) || [];
+                const bChunks = bDisplay.match(/\d+|\D+/g) || [];
+                const maxLen = Math.max(aChunks.length, bChunks.length);
+
+                for (let i = 0; i < maxLen; i++) {
+                  const aChunk = aChunks[i] || '';
+                  const bChunk = bChunks[i] || '';
+
+                  const aIsNum = /^\d+$/.test(aChunk);
+                  const bIsNum = /^\d+$/.test(bChunk);
+
+                  if (aIsNum && bIsNum) {
+                    comparison = parseInt(aChunk, 10) - parseInt(bChunk, 10);
+                  } else {
+                    comparison = aChunk.toLowerCase().localeCompare(bChunk.toLowerCase());
+                  }
+
+                  if (comparison !== 0) break;
+                }
               }
 
               if (comparison !== 0) {
@@ -2184,6 +2832,52 @@ export default function TeeemTableView({
     setValidationErrors({});
   }, []);
 
+  // Handler for row double-click - uses parent handler if provided, else starts inline editing
+  const handleRowDoubleClick = useCallback((row: TableRowType) => {
+    if (editingRowIds.has(row.id)) return; // Already editing
+    if (onRowDoubleClick) {
+      onRowDoubleClick(row);
+    } else {
+      startEditing(row);
+    }
+  }, [editingRowIds, onRowDoubleClick, startEditing]);
+
+  // Default handler for health issue click - opens row for editing
+  const handleHealthIssueClick = useCallback(async (item: { id: number | string; display?: string }, _check: unknown) => {
+    // Find the row in effectiveEntries first (fastest path)
+    let row = effectiveEntries.find(e => e.id === item.id);
+
+    // If row not in current view (filtered out), fetch it from API
+    if (!row && effectiveFoundationId) {
+      try {
+        const response = await api.get<{ record: TableRowType }>(
+          `/api/v1/foundations/${effectiveFoundationId}/records/${item.id}`
+        );
+        if (response?.record) {
+          row = response.record;
+        }
+      } catch (error) {
+        console.warn("Failed to fetch row for editing:", error);
+      }
+    }
+
+    if (row) {
+      // If onRowDoubleClick is provided (parent wants to handle it), use that
+      if (onRowDoubleClick) {
+        onRowDoubleClick(row);
+      } else {
+        // Otherwise start inline editing
+        startEditing(row);
+      }
+    } else {
+      // Row really not found - show toast
+      toast({
+        title: "Row not found",
+        description: `Could not load row "${item.display || item.id}" for editing.`,
+      });
+    }
+  }, [effectiveEntries, effectiveFoundationId, onRowDoubleClick, startEditing, toast]);
+
   // Validate a cell and update validation errors state
   const handleCellBlur = useCallback((rowId: number | string, columnKey: string, value: unknown, columnType?: string) => {
     // Use imported validateCell from CellValidation.tsx (SSoT)
@@ -2289,30 +2983,48 @@ export default function TeeemTableView({
           });
         }
 
-        // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+        // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
         // SSoT: records-cache.ts
         if (effectiveFoundationId) {
           clearCachedRecords(effectiveFoundationId);
         }
 
-        // Only refresh once after all updates
-        // For autoFetch mode: trigger internal refresh
-        // For manual mode: call parent's onRefresh callback
-        triggerAutoRefresh();
+        // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
+        // This gives instant feedback without a full table reload
+        if (useAutoFetch) {
+          setAutoFetchedRecords(prev => prev.map(record => {
+            const update = rowsToUpdate.find(r => r.rowId === record.id);
+            if (update) {
+              return { ...record, ...update.changes };
+            }
+            return record;
+          }));
+        }
+
+        // For non-autoFetch mode: call parent's onRefresh callback
+        // Parent is responsible for updating their own state
         onRefresh?.();
       } else {
-        // Fallback: call onRowUpdate for each field (triggers refresh per field - slow)
+        // Fallback: call onRowUpdate for each field
         for (const { rowId, changes } of rowsToUpdate) {
           for (const [key, value] of Object.entries(changes)) {
             await onRowUpdate(rowId, key, value);
           }
         }
-        // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+        // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
         if (effectiveFoundationId) {
           clearCachedRecords(effectiveFoundationId);
         }
-        // After all updates via onRowUpdate, trigger internal refresh for autoFetch mode
-        triggerAutoRefresh();
+        // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
+        if (useAutoFetch) {
+          setAutoFetchedRecords(prev => prev.map(record => {
+            const update = rowsToUpdate.find(r => r.rowId === record.id);
+            if (update) {
+              return { ...record, ...update.changes };
+            }
+            return record;
+          }));
+        }
       }
 
       setEditingRowIds(new Set());
@@ -2331,7 +3043,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, triggerAutoRefresh, COLUMNS, setValidationErrors]);
+  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, useAutoFetch, COLUMNS, setValidationErrors]);
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {
@@ -2474,15 +3186,24 @@ export default function TeeemTableView({
       setBulkUpdateValue("");
       setSelectedRows(new Set<string | number>());
 
-      // 🔴 CRITICAL: Clear cache BEFORE refresh to ensure fresh data
+      // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
       // SSoT: records-cache.ts
       if (effectiveFoundationId) {
         clearCachedRecords(effectiveFoundationId);
       }
 
-      console.log('[Bulk Update] Calling refresh...');
-      // Refresh data - both internal (autoFetch) and external (parent callback)
-      triggerAutoRefresh();
+      console.log('[Bulk Update] Applying optimistic update...');
+      // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
+      if (useAutoFetch) {
+        setAutoFetchedRecords(prev => prev.map(record => {
+          if (ids.includes(record.id as number)) {
+            return { ...record, [bulkUpdateColumn]: valueToSend };
+          }
+          return record;
+        }));
+      }
+
+      // For non-autoFetch mode: call parent's onRefresh callback
       onRefresh?.();
       console.log('[Bulk Update] Complete!');
     } catch (error) {
@@ -2496,7 +3217,7 @@ export default function TeeemTableView({
       setBulkUpdateSaving(false);
       console.log('[Bulk Update] Saving state reset');
     }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS, triggerAutoRefresh]);
+  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS, useAutoFetch]);
 
   // Fetch lookup options when bulk update column changes to a lookup column
   useEffect(() => {
@@ -2536,38 +3257,78 @@ export default function TeeemTableView({
 
   // Load view state helper - applies saved view configuration to current state
   // skipUrlUpdate: set to true when loading from URL to avoid redundant URL updates that can cause loops
+  // isUserAction: set to true when user explicitly clicks to change view (for URL updates in embedded context)
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
-    (view: SavedView, skipUrlUpdate = false) => {
+    (view: SavedView, skipUrlUpdate = false, isUserAction = false) => {
       // Apply view state atomically via Jotai atom
-      // This replaces 100+ lines of individual setters with a single atomic update
-      // groupByColumns and collapsedGroups are now managed by atoms (SSoT)
+      // This handles filters, columns, and other non-grouped state
       applyView(view);
+
+      // FOUNDATION-SCOPED STATE: Set grouping state to foundation-scoped atoms
+      // This ensures Jobs grouping doesn't pollute Contacts and vice versa
+      // SSoT: Foundation-scoped atoms from lib/view-state/atoms.ts
+      setActiveViewId(view.id);
+
+      // Set groupBy columns
+      if (view.groupByColumns && view.groupByColumns.length > 0) {
+        setGroupByColumns(view.groupByColumns);
+      } else if (view.groupByColumn) {
+        setGroupByColumns([view.groupByColumn]);
+      } else {
+        setGroupByColumns([]);
+      }
+
+      // Set group view mode based on view_display_type
+      // "grouped" = panel mode (Company/Role search), otherwise inline
+      if (view.view_display_type === 'grouped') {
+        setGroupViewMode('panel');
+        // If no groupByColumn is set, default to "primary_company_id" for contacts
+        if (!view.groupByColumns?.length && !view.groupByColumn) {
+          setGroupByColumns(['primary_company_id']);
+        }
+      } else {
+        setGroupViewMode('inline');
+      }
+
+      // Restore collapsed groups from view or reset to empty (all expanded)
+      const viewWithCollapsed = view as SavedView & { collapsedGroups?: string[] | Set<string> };
+      if (viewWithCollapsed.collapsedGroups) {
+        const groups = viewWithCollapsed.collapsedGroups;
+        setCollapsedGroups(groups instanceof Set ? groups : new Set(groups));
+      } else {
+        setCollapsedGroups(new Set());
+      }
 
       // Hide filter editor when loading a saved view
       setShowFilters(false);
 
-      // URL update with slug (preferred) or numeric ID (fallback)
-      // Using slug for: portability across environments, human-readable URLs
-      if (view.id && !skipUrlUpdate) {
-        // SSoT: Read current URL params from window.location to avoid stale closure
-        const currentParams = new URLSearchParams(window.location.search);
-        const currentUrlView = currentParams.get('view');
-        // Prefer slug if available, fall back to numeric ID for backwards compatibility
-        const newViewIdentifier = view.slug || String(view.id);
-        if (currentUrlView !== newViewIdentifier) {
-          currentParams.set('view', newViewIdentifier);
-          const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
-          router.replace(newUrl, { scroll: false });
-        }
+      // URL handling based on context:
+      // - Embedded context: Parent owns URL, only notify on user actions
+      // - Standalone context: Navigate using path-based URLs (/jobs/view/live)
+      // SSoT: isEmbeddedContext defined at component top
+      // IMPORTANT: Only update URL on explicit user action to prevent conflicts with
+      // other URL state management (e.g., useUrlState, tabs). Initial view load should
+      // NOT modify the URL - only user-initiated view changes should update it.
+      if (view.id && !skipUrlUpdate && !isEmbeddedContext && isUserAction && foundationSlug) {
+        const newViewSlug = view.slug || null;
+        // Use path-based navigation: /jobs/view/live
+        navigateToView(newViewSlug);
       }
 
       // Handle apiParams for server-side filtering
       if (view.filters && onViewApiParamsChange) {
         onViewApiParamsChange(null);
       }
+
+      // Notify parent of view change ONLY for user actions
+      // This prevents URL auto-update on initial page load (confusing UX)
+      // Parent uses onViewChange to update path-based URL for embedded tables
+      if (isUserAction) {
+        onViewChange?.(view);
+      }
     },
-    [applyView, onViewApiParamsChange, router]
+    [applyView, onViewApiParamsChange, onViewChange, isEmbeddedContext, foundationSlug, navigateToView, setActiveViewId, setGroupByColumns, setGroupViewMode, setCollapsedGroups]
   );
 
   // Load saved views (simplified using atoms)
@@ -2609,27 +3370,25 @@ export default function TeeemTableView({
         const filteredViews = result.views || [];
 
         // Auto-apply default view using consolidated utility
-        // Read URL param here (not as effect dependency) to avoid re-triggering on URL changes
-        const urlViewParam = searchParams.get('view');
+        // SSoT: isEmbeddedContext defined at component top - embedded tables don't read from URL
+        // For embedded context: use defaultViewSlug prop (parent owns URL)
+        // For standalone: read from URL query param
+        const urlViewParam = isEmbeddedContext ? null : searchParams.get('view');
 
-        // CRITICAL FIX: Tables with initialFilters are "embedded" contexts (subtabs, filtered views)
-        // They should NOT apply URL views because:
-        // 1. URL views are from parent page or other tabs (would pollute this table's filter context)
-        // 2. initialFilters defines the authoritative filter context for this table instance
-        // This prevents cross-table pollution when multiple TeeemTableView instances share the page
-        const skipUrlViewForEmbeddedContext = initialFilters && initialFilters.length > 0;
+        // For embedded context, use defaultViewSlug from parent (path-based URL)
+        const slugToMatch = isEmbeddedContext ? defaultViewSlug : urlViewParam;
 
-        // Support both slug (new) and numeric ID (legacy) in URL
+        // Support both slug (new) and numeric ID (legacy)
         // Try to find view by slug first, then by numeric ID for backwards compatibility
         let urlMatchedView: (typeof filteredViews)[0] | undefined;
-        if (urlViewParam && !skipUrlViewForEmbeddedContext) {
+        if (slugToMatch) {
           // First try slug match (non-numeric strings)
-          if (!/^\d+$/.test(urlViewParam)) {
-            urlMatchedView = filteredViews.find(v => v.slug === urlViewParam);
+          if (!/^\d+$/.test(slugToMatch)) {
+            urlMatchedView = filteredViews.find(v => v.slug === slugToMatch);
           }
           // Fall back to numeric ID match (backwards compatibility)
           if (!urlMatchedView) {
-            const numericId = parseInt(urlViewParam, 10);
+            const numericId = parseInt(slugToMatch, 10);
             if (!isNaN(numericId)) {
               urlMatchedView = filteredViews.find(v => v.id === numericId);
             }
@@ -2649,16 +3408,43 @@ export default function TeeemTableView({
         });
 
         if (defaultView) {
-          // Skip URL update if loading from URL view that exists for this foundation
-          const skipUrlUpdate = !!urlViewExistsForFoundation;
-          loadViewState(defaultView, skipUrlUpdate);
-          initialViewLoadedRef.current = true;
+          // SSoT: If initialView was provided via SSR, DON'T call loadViewState again
+          // The SSR initialView already set up grouping, filters, columns - don't overwrite!
+          // loadViewState should ONLY be called when user clicks a view button
+          const ssrAlreadyAppliedView = !!initialView;
+
+          if (!ssrAlreadyAppliedView) {
+            // No SSR view - apply default view now
+            const skipUrlUpdate = !!urlViewExistsForFoundation;
+            loadViewState(defaultView, skipUrlUpdate);
+          }
+
+          // NOTE: initialViewLoadedRef + fetch trigger handled in finally block (SSoT)
+
+          // For embedded context: notify parent on initial load so URL can sync
+          // Only if no view was already in the URL (don't override explicit URL)
+          // This ensures /jobs/46/schedule → /jobs/46/schedule/po-tasks-only
+          if (isEmbeddedContext && !slugToMatch && onViewChange) {
+            onViewChange(defaultView);
+          }
         }
       } catch (error) {
         console.error("Error loading saved views:", error);
       } finally {
         // Reset loading flag to allow future loads (e.g., on foundation change)
         viewsLoadingRef.current = false;
+
+        // SSoT: Mark views as loaded and trigger fetch effect (if needed)
+        // This is the ONLY place that triggers fetch after views load
+        const wasAlreadyLoaded = initialViewLoadedRef.current;
+        initialViewLoadedRef.current = true;
+
+        // Trigger fetch effect IF:
+        // 1. Views weren't already loaded (first time)
+        // 2. SSR data wasn't already applied (prevents double-fetch)
+        if (!wasAlreadyLoaded && !hasAppliedInitialRecordsRef.current) {
+          setAutoFetchRefreshKey(prev => prev + 1);
+        }
       }
     };
 
@@ -2760,46 +3546,31 @@ export default function TeeemTableView({
   // Filter and sort entries using extracted utility functions
   // IMPORTANT: Use effectiveEntries (not raw entries) to support auto-fetch mode
   const filteredAndSortedEntries = useMemo(() => {
+    // Debug: Log filtering state on each recalculation
+    console.log('[TeeemTableView] Filtering entries:', {
+      effectiveEntriesCount: effectiveEntries.length,
+      safeFiltersCount: safeFilters.length,
+      filterDetails: safeFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
+    });
     let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
+    // Use String() for comparison to handle type mismatches (IDs may be string or number)
     if (pendingDeleteIds.size > 0) {
-      result = result.filter((entry) => !pendingDeleteIds.has(entry.id as string | number));
+      const pendingDeleteStrings = new Set([...pendingDeleteIds].map(id => String(id)));
+      result = result.filter((entry) => !pendingDeleteStrings.has(String(entry.id)));
     }
 
     // Apply search filter (client-side)
-    // ONLY filter client-side when there's NO server search - SSoT: backend handles filtering
-    // When effectiveOnServerSearch exists, server already filtered with SQL ILIKE
+    // Filter client-side when:
+    // 1. No server search handler exists, OR
+    // 2. All records are loaded (so we skip server call and filter locally)
     const hasServerSearch = !!effectiveOnServerSearch;
+    const allRecordsLoaded = !hasMore && effectiveEntries.length > 0;
+    const shouldApplyClientSearch = !hasServerSearch || allRecordsLoaded;
 
-    // DEBUG: Log search state
-    if (search) {
-      console.log('[TeeemTableView Search Debug]', {
-        search,
-        hasServerSearch,
-        effectiveOnServerSearch: !!effectiveOnServerSearch,
-        searchAllColumns,
-        searchableColumnsKeys: Object.keys(searchableColumns),
-        resultCount: result.length,
-        columnsCount: COLUMNS.length,
-        firstEntry: result[0] ? Object.keys(result[0]).slice(0, 5) : 'no entries'
-      });
-    }
-
-    if (search && !hasServerSearch) {
-      // DEBUG: Check first entry's name field
-      if (result.length > 0) {
-        const firstEntry = result[0];
-        console.log('[TeeemTableView Search] First entry fields:', {
-          name: firstEntry.name,
-          id: firstEntry.id,
-          allKeys: Object.keys(firstEntry).slice(0, 10),
-          nameInSearchable: searchableColumns['name'],
-          columnsWithName: COLUMNS.filter(c => c.key === 'name').map(c => ({ key: c.key, label: c.label }))
-        });
-      }
-
-      // Use extracted utility function for search
+    if (search && shouldApplyClientSearch) {
+      // Use extracted utility function for client-side search
       result = applySearch(result, {
         search,
         searchMode: currentSearchMode as DataSearchMode,
@@ -2807,21 +3578,22 @@ export default function TeeemTableView({
         searchableColumns,
         searchAllColumns,
       });
-
-      // DEBUG: Log after filtering
-      console.log('[TeeemTableView Search Result]', {
-        filteredCount: result.length,
-        search
-      });
     }
 
     // Apply cascade filters (skip if server search is active - SSoT: backend handles filtering)
-    // When server search is active (onServerSearch exists AND search term present),
+    // When server search is active (effectiveOnServerSearch exists AND search term present),
     // the backend applies both filters + search in a single SQL query
-    const skipClientFilters = onServerSearch && search;
+    // IMPORTANT: Use effectiveOnServerSearch (not onServerSearch prop) to handle auto-fetch mode
+    const skipClientFilters = effectiveOnServerSearch && search;
     if (safeFilters.length > 0 && !skipClientFilters) {
       // Use extracted utility function for filters
+      const beforeCount = result.length;
       result = applyFilters(result, safeFilters, filterGroups, interGroupLogic);
+      console.log('[TeeemTableView] After applying filters:', {
+        beforeCount,
+        afterCount: result.length,
+        filtered: beforeCount - result.length,
+      });
     }
 
     // Apply sorting using extracted utility function
@@ -2839,11 +3611,12 @@ export default function TeeemTableView({
     onServerSearch,
     effectiveOnServerSearch,
     COLUMNS,
-    cascadeFilters,
+    allFiltersKey,  // Use stable key to detect filter content changes, not just reference
     filterGroups,
     interGroupLogic,
     sortColumns,
     pendingDeleteIds,
+    hasMore,  // ULTRA FIX: Needed to detect when all records loaded for client-side search
   ]);
 
   // Keep ref in sync with filteredAndSortedEntries for use in callbacks
@@ -2930,10 +3703,11 @@ export default function TeeemTableView({
   // Group entries hierarchically if grouping is enabled (supports nested group columns)
   // Groups are sorted by customOrder if available for the group column
   // Uses buildGroupedEntries utility function from table-data-utils.ts
+  // ULTRA: groupByColumns from hook is SSR-aware - no effectiveGroupByColumns memo needed
   const groupedEntries = useMemo(() => {
     return buildGroupedEntries(
       filteredAndSortedEntries,
-      groupByColumns,
+      groupByColumns, // ULTRA: Hook provides SSR-aware values
       sortColumns,
       serverGroupCounts,
       search
@@ -3720,7 +4494,23 @@ export default function TeeemTableView({
     const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
     const result: React.ReactNode[] = [];
 
-    Object.entries(groups).forEach(([groupKey, group]) => {
+    // Sort groups alphabetically by display name
+    // "(Empty)" group always goes last (SSoT: all null/undefined values use "(Empty)")
+    const isEmptyGroup = (key: string) => key === "(Empty)";
+    const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
+
+    // Collect all group keys to filter companies from "No Employees Assigned" group
+    const groupKeysAtRoot = new Set(Object.keys(groups));
+
+    const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
+      if (isEmptyGroup(keyA)) return 1;
+      if (isEmptyGroup(keyB)) return -1;
+      const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
+      const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
+      return naturalCompare(displayA, displayB);
+    });
+
+    sortedGroupEntries.forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
       // Use server count for first-level groups (accurate total), UNLESS there's an active search
@@ -3739,101 +4529,107 @@ export default function TeeemTableView({
       // Don't show if all data is already loaded via main Load All button
       const hasPartialData = !allDataLoaded && serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
-      // Group header
+      // Check if we're currently loading this group's data
+      const isLoadingGroup = depth === 0 && groupLoadingState.has(groupKey);
+      // Use lazy-loaded records if available, otherwise use current records
+      let effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
+        ? lazyLoadedGroups.get(groupKey) || group.rows
+        : group.rows;
+
+      // Filter rows for "No Employees Assigned" group - only exclude group headers (companies WITH employees)
+      // Companies WITHOUT employees should appear in this group
+      if (isEmptyGroup(groupKey) && isGroupingByCompany) {
+        effectiveRows = effectiveRows.filter(r => {
+          const isGroupHeader = groupKeysAtRoot.has(String(r.id));
+          return !isGroupHeader;
+        });
+      }
+
+      // Render entire group (header + content) as a single unit
       result.push(
-        <div
-          key={`nav-${fullKey}`}
-          className="cursor-pointer hover:opacity-80 py-2 px-4 border rounded-md mb-2"
-          style={{
-            paddingLeft: `${16 + depth * 24}px`,
-            backgroundColor: `rgba(242, 241, 239, ${Math.max(0.15, 0.95 - depth * 0.30)})` // Brand secondary #F2F1EF: dramatic contrast between levels
-          }}
-          onClick={() => toggleGroupCollapse(fullKey)}
-        >
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            {isLoadingThisGroup ? (
-              <Spinner size={16} className="shrink-0" />
-            ) : isCollapsed ? (
-              <ChevronRight className="h-4 w-4 shrink-0" />
-            ) : (
-              <ChevronDown className="h-4 w-4 shrink-0" />
-            )}
-            <span className="font-bold text-[13px]">
-              {serverDisplayMap.get(groupKey) || groupKey}
-            </span>
-            <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
-              ({rowCount})
-              {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
-              {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
-            </span>
-            {hasPartialData && !isLoadingThisGroup && (
-              <button
-                type="button"
-                className="text-xs text-primary hover:text-primary/80 underline ml-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  loadGroupRecords(groupKey);
-                }}
-              >
-                Load All
-              </button>
-            )}
+        <div key={`group-${fullKey}`} className="group-container">
+          {/* Group header */}
+          <div
+            className="cursor-pointer hover:opacity-80 py-2 px-4 border rounded-md"
+            style={{
+              paddingLeft: `${16 + depth * 24}px`,
+              backgroundColor: `rgba(242, 241, 239, ${Math.max(0.15, 0.95 - depth * 0.30)})` // Brand secondary #F2F1EF: dramatic contrast between levels
+            }}
+            onClick={() => toggleGroupCollapse(fullKey)}
+          >
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              {isLoadingThisGroup ? (
+                <Spinner size={16} className="shrink-0" />
+              ) : (
+                <ExpandChevron expanded={!isCollapsed} size={16} />
+              )}
+              <span className="font-bold text-[13px]">
+                {isEmptyGroup(groupKey) && (currentColKey?.includes('company') || currentColKey?.includes('employer'))
+                  ? "No Employees Assigned"
+                  : combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
+              </span>
+              <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
+                ({rowCount})
+                {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
+                {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
+              </span>
+              {hasPartialData && !isLoadingThisGroup && (
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:text-primary/80 underline ml-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    loadGroupRecords(groupKey);
+                  }}
+                >
+                  Load All
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Group content (only when expanded) */}
+          {!isCollapsed && (
+            <div className="mt-1">
+              {isLoadingGroup ? (
+                <div
+                  className="flex items-center justify-center py-8 text-muted-foreground"
+                  style={{ marginLeft: `${16 + depth * 24}px` }}
+                >
+                  <Spinner size={20} className="mr-2" />
+                  <span>Loading {serverCount ? serverCount.toLocaleString() : ''} records...</span>
+                </div>
+              ) : hasSubgroups ? (
+                <div className="space-y-4 mt-2">
+                  {renderGroupNavigation(group.subgroups as typeof groups, depth + 1, fullKey)}
+                </div>
+              ) : (
+                <VirtualizedGroupTable
+                  fullKey={fullKey}
+                  depth={depth}
+                  rows={effectiveRows}
+                  selectedRows={selectedRows}
+                  visibleColumnsInOrder={visibleColumnsInOrder}
+                  columnWidths={columnWidths}
+                  rowIdToGlobalIndex={rowIdToGlobalIndex}
+                  getStickyColumnStyles={getStickyColumnStyles}
+                  isSystemGeneratedColumn={isSystemGeneratedColumn}
+                  SYSTEM_COLUMN_BG={SYSTEM_COLUMN_BG}
+                  getToggleCallback={getToggleCallback}
+                  handleSelectMouseDown={handleSelectMouseDown}
+                  handleRowMouseEnter={handleRowMouseEnter}
+                  isRowInDragRange={isRowInDragRange}
+                  onRowClick={onRowClick}
+                  onRowDoubleClick={onRowDoubleClick}
+                  renderCellValue={renderCellValue}
+                  renderTableHeader={renderTableHeader}
+                  isEditMode={isEditMode}
+                />
+              )}
+            </div>
+          )}
         </div>
       );
-
-      // If not collapsed, render content
-      if (!isCollapsed) {
-        // Check if we're currently loading this group's data
-        const isLoadingGroup = depth === 0 && groupLoadingState.has(groupKey);
-        // Use lazy-loaded records if available, otherwise use current records
-        const effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
-          ? lazyLoadedGroups.get(groupKey) || group.rows
-          : group.rows;
-
-        if (isLoadingGroup) {
-          // Show loading indicator while fetching group records
-          result.push(
-            <div
-              key={`loading-${fullKey}`}
-              className="flex items-center justify-center py-8 text-muted-foreground"
-              style={{ marginLeft: `${16 + depth * 24}px` }}
-            >
-              <Spinner size={20} className="mr-2" />
-              <span>Loading {serverCount ? serverCount.toLocaleString() : ''} records...</span>
-            </div>
-          );
-        } else if (hasSubgroups) {
-          // Render subgroups recursively
-          result.push(...renderGroupNavigation(group.subgroups as typeof groups, depth + 1, fullKey));
-        } else {
-          // Render data table for this group's rows with virtualization
-          result.push(
-            <VirtualizedGroupTable
-              key={`data-${fullKey}`}
-              fullKey={fullKey}
-              depth={depth}
-              rows={effectiveRows}
-              selectedRows={selectedRows}
-              visibleColumnsInOrder={visibleColumnsInOrder}
-              columnWidths={columnWidths}
-              rowIdToGlobalIndex={rowIdToGlobalIndex}
-              getStickyColumnStyles={getStickyColumnStyles}
-              isSystemGeneratedColumn={isSystemGeneratedColumn}
-              SYSTEM_COLUMN_BG={SYSTEM_COLUMN_BG}
-              getToggleCallback={getToggleCallback}
-              handleSelectMouseDown={handleSelectMouseDown}
-              handleRowMouseEnter={handleRowMouseEnter}
-              isRowInDragRange={isRowInDragRange}
-              onRowClick={onRowClick}
-              onRowDoubleClick={onRowDoubleClick}
-              renderCellValue={renderCellValue}
-              renderTableHeader={renderTableHeader}
-              isEditMode={isEditMode}
-            />
-          );
-        }
-      }
     });
 
     return result;
@@ -3907,7 +4703,7 @@ export default function TeeemTableView({
             onRowClick(row);
           }
         }}
-        onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
+        onDoubleClick={() => handleRowDoubleClick(row)}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
@@ -3925,13 +4721,18 @@ export default function TeeemTableView({
                   textAlign: 'center',
                   verticalAlign: 'middle',
                 }),
+                ...(column.column_type === 'boolean' && {
+                  textAlign: 'center',
+                  verticalAlign: 'middle',
+                }),
                 ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                   backgroundColor: SYSTEM_COLUMN_BG,
                 }),
               }}
               className={cn(
                 column.key === "select" && "!border-r-0 !p-0 !h-full",
-                column.key === "actions" && "!border-l-0"
+                column.key === "actions" && "!border-l-0",
+                column.column_type === "boolean" && "!px-1"
               )}
               onClick={(e) => {
                 if (column.key === "select") {
@@ -3971,13 +4772,30 @@ export default function TeeemTableView({
   const renderInlineGroupRows = (
     groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
     depth: number = 0,
-    parentKey: string = ""
+    parentKey: string = "",
+    allGroupKeys?: Set<string> // Track all group keys to filter companies from "(Empty)"
   ): React.ReactNode[] => {
     const currentColKey = groupByColumns[depth];
     const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
     const result: React.ReactNode[] = [];
 
-    Object.entries(groups).forEach(([groupKey, group]) => {
+    // Collect all group keys at depth 0 to filter companies from "(Empty)"
+    const groupKeysAtRoot = allGroupKeys || new Set(Object.keys(groups));
+
+    // Sort groups alphabetically by display name
+    // "(Empty)" group always goes last (SSoT: all null/undefined values use "(Empty)")
+    const isEmptyGroup = (key: string) => key === "(Empty)";
+    const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
+      if (isEmptyGroup(keyA)) return 1;
+      if (isEmptyGroup(keyB)) return -1;
+      // Get display values for proper alphabetical sort
+      // Try prefixed key first (e.g., "primary_company_id:123"), then unprefixed, then raw key
+      const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
+      const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
+      return naturalCompare(displayA, displayB);
+    });
+
+    sortedGroupEntries.forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
       // Use server count for first-level groups (accurate total), UNLESS there's an active search
@@ -3994,6 +4812,9 @@ export default function TeeemTableView({
       // Show indicator if we only have partial data loaded (and not fully loaded yet)
       // Don't show if all data is already loaded via main Load All button
       const hasPartialData = !allDataLoaded && serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
+
+      // Company/Role view enhancement: Check if grouping by company-related column
+      const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
 
       // Add group header row - STICKY cell so it stays visible while scrolling within group
       // Calculate top position: column header height (28px) + previous group headers
@@ -4029,13 +4850,13 @@ export default function TeeemTableView({
             <div className="flex items-center gap-2 whitespace-nowrap">
               {isLoadingThisGroup ? (
                 <Spinner size={16} className="shrink-0" />
-              ) : isCollapsed ? (
-                <ChevronRight className="h-4 w-4 shrink-0" />
               ) : (
-                <ChevronDown className="h-4 w-4 shrink-0" />
+                <ExpandChevron expanded={!isCollapsed} size={16} />
               )}
               <span className="font-bold text-[13px]">
-                {serverDisplayMap.get(groupKey) || groupKey}
+                {groupKey === "(Empty)" && isGroupingByCompany
+                  ? "No Employees Assigned"
+                  : combinedDisplayMap.get(`${currentColKey}:${groupKey}`) || combinedDisplayMap.get(groupKey) || groupKey}
               </span>
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
@@ -4080,10 +4901,121 @@ export default function TeeemTableView({
           );
         } else if (group.subgroups && Object.keys(group.subgroups).length > 0) {
           // Render subgroups recursively
-          result.push(...renderInlineGroupRows(group.subgroups as typeof groups, depth + 1, fullKey));
+          result.push(...renderInlineGroupRows(group.subgroups as typeof groups, depth + 1, fullKey, groupKeysAtRoot));
         } else {
-          // Render actual data rows
-          effectiveRows.forEach((row, rowIndex) => {
+          // Company/Role view enhancement: Show company as first row with special styling
+          // Find company record for this group (company's ID matches the groupKey)
+          // Companies have entity_type='company' and their ID should match the group key
+          const companyRow = isGroupingByCompany && !isEmptyGroup(groupKey)
+            ? effectiveRows.find(r =>
+                String(r.id) === String(groupKey) &&
+                typeof r.entity_type === 'string' &&
+                (r.entity_type === 'company' || r.entity_type === 'trust')
+              )
+            : null;
+
+          // Filter rows for rendering:
+          // - For named groups: exclude the company row (it's rendered first)
+          // - For "(Empty)" group: exclude records that appear as group headers
+          let rowsToRender = effectiveRows;
+          if (companyRow) {
+            rowsToRender = effectiveRows.filter(r => r.id !== companyRow.id);
+          } else if (isEmptyGroup(groupKey) && isGroupingByCompany) {
+            // Filter out only companies that ARE group headers (have employees)
+            // Companies WITHOUT employees should appear in "No Employees Assigned"
+            rowsToRender = effectiveRows.filter(r => {
+              const isGroupHeader = groupKeysAtRoot.has(String(r.id));
+              // Only filter out companies that have employees (are group headers elsewhere)
+              return !isGroupHeader;
+            });
+          }
+
+          // Render company row first with special styling
+          if (companyRow) {
+            const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === companyRow.id);
+            result.push(
+              <TableRow
+                key={`${fullKey}-company-${companyRow.id}`}
+                data-row-id={companyRow.id}
+                className={cn(
+                  "bg-blue-50 dark:bg-blue-950/50 border-l-4 border-l-blue-500",
+                  selectedRows.has(companyRow.id) && "!bg-blue-100 dark:!bg-blue-900/50",
+                  "hover:bg-blue-100 dark:hover:bg-blue-900/30 cursor-pointer"
+                )}
+                onClick={() => {
+                  if (!isEditMode && onRowClick) {
+                    onRowClick(companyRow);
+                  }
+                }}
+                onDoubleClick={() => handleRowDoubleClick(companyRow)}
+                onMouseEnter={() => handleRowMouseEnter(companyRow.id, globalIndex)}
+              >
+                {visibleColumnsInOrder.map((column, colIndex) => {
+                  const isSystemGen = isSystemGeneratedColumn(column);
+                  const stickyStyles = getStickyColumnStyles(column.key, false);
+                  // Show Building2 icon in first visible column (after select)
+                  const isFirstDataColumn = colIndex === 1; // 0 is select
+                  return (
+                    <TableCell
+                      key={`${column.key}-${colIndex}`}
+                      title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(companyRow[column.key]) : undefined}
+                      style={{
+                        width: columnWidths[column.key],
+                        minWidth: columnWidths[column.key],
+                        ...stickyStyles,
+                        ...(column.key === "select" && {
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }),
+                        ...(column.column_type === 'boolean' && {
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }),
+                        ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                          backgroundColor: 'rgb(239 246 255)', // blue-50 for system columns too
+                        }),
+                      }}
+                      className={cn(
+                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "actions" && "!border-l-0",
+                        isFirstDataColumn && "font-semibold",
+                        column.column_type === "boolean" && "!px-1"
+                      )}
+                      onClick={(e) => {
+                        if (column.key === "select") {
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      {column.key === "select" ? (
+                        <div
+                          data-column="select"
+                          onMouseDown={(e) => handleSelectMouseDown(companyRow.id, globalIndex, e)}
+                        >
+                          <SelectCheckbox
+                            checked={selectedRows.has(companyRow.id)}
+                            onCheckedChange={getToggleCallback(companyRow.id)}
+                          />
+                        </div>
+                      ) : column.key === "actions" ? (
+                        renderCellValue(companyRow, column)
+                      ) : (
+                        <div className="truncate flex items-center gap-1.5">
+                          {isFirstDataColumn && (
+                            <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                          )}
+                          {renderCellValue(companyRow, column)}
+                        </div>
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          }
+
+          // Render regular data rows (employees)
+          rowsToRender.forEach((row, rowIndex) => {
             const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
             result.push(
               <TableRow
@@ -4101,7 +5033,7 @@ export default function TeeemTableView({
                     onRowClick(row);
                   }
                 }}
-                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
+                onDoubleClick={() => handleRowDoubleClick(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -4119,13 +5051,18 @@ export default function TeeemTableView({
                         textAlign: 'center',
                         verticalAlign: 'middle',
                       }),
+                      ...(column.column_type === 'boolean' && {
+                        textAlign: 'center',
+                        verticalAlign: 'middle',
+                      }),
                       ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                         backgroundColor: SYSTEM_COLUMN_BG,
                       }),
                     }}
                     className={cn(
                       column.key === "select" && "!border-r-0 !p-0 !h-full",
-                      column.key === "actions" && "!border-l-0"
+                      column.key === "actions" && "!border-l-0",
+                      column.column_type === "boolean" && "!px-1"
                     )}
                     onClick={(e) => {
                       if (column.key === "select") {
@@ -4166,6 +5103,186 @@ export default function TeeemTableView({
     return result;
   };
 
+  // Render hierarchy table for "Header Hierarchy" display mode
+  // Shows cascading nested headers based on header_gantt relationships
+  const renderHierarchyTable = () => {
+    // Build hierarchy from filtered entries
+    // Need task_number, sequence_order, header_gantt, allow_header for hierarchy
+    // API may return these as numbers OR strings, so check for existence not type
+    const rowsWithHierarchyFields = filteredAndSortedEntries
+      .filter(row => row.task_number != null && row.sequence_order != null)
+      .map(row => ({
+        ...row,
+        // Ensure numeric fields are numbers (API may return strings)
+        task_number: Number(row.task_number),
+        sequence_order: Number(row.sequence_order),
+      })) as Array<{
+      id: number | string;
+      task_number: number;
+      sequence_order: number;
+      header_gantt: string | number | { id: number } | null;
+      allow_header?: boolean;
+      [key: string]: unknown;
+    }>;
+
+    if (rowsWithHierarchyFields.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+          <Layers className="h-8 w-8 mb-4 opacity-50" />
+          <p className="text-sm font-medium">No hierarchy data</p>
+          <p className="text-xs mt-1">This table doesn't have task_number or sequence_order columns</p>
+        </div>
+      );
+    }
+
+    // Build and filter hierarchy rows
+    const hierarchyRows = buildHierarchyRows(rowsWithHierarchyFields);
+    const visibleHierarchyRows = filterCollapsedRows(hierarchyRows, collapsedHierarchyHeaders);
+
+    // Toggle collapse handler
+    const toggleHierarchyCollapse = (taskNumber: number) => {
+      setCollapsedHierarchyHeaders(prev => {
+        const next = new Set(prev);
+        if (next.has(taskNumber)) {
+          next.delete(taskNumber);
+        } else {
+          next.add(taskNumber);
+        }
+        return next;
+      });
+    };
+
+    return (
+      <Table className="w-full" style={{ tableLayout: 'fixed' }}>
+        {renderTableHeader()}
+        <TableBody>
+          {visibleHierarchyRows.map((hr, index) => {
+            const row = hr.row;
+            const isSelected = selectedRows.has(row.id);
+            const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
+            const isCollapsed = collapsedHierarchyHeaders.has(row.task_number);
+
+            // Header rows get special styling
+            if (hr.isHeader) {
+              const indentPx = hr.nestingLevel * 24;
+              const bgOpacity = Math.max(0.5, 0.95 - hr.nestingLevel * 0.15);
+
+              return (
+                <TableRow
+                  key={`hierarchy-${row.id}`}
+                  className="cursor-pointer hover:opacity-80"
+                  onClick={() => toggleHierarchyCollapse(row.task_number)}
+                >
+                  {/* First cell with chevron and name */}
+                  <TableCell
+                    colSpan={2}
+                    className="py-1"
+                    style={{
+                      paddingLeft: `${16 + indentPx}px`,
+                      backgroundColor: `rgba(251, 191, 36, ${bgOpacity * 0.3})`, // amber tint
+                    }}
+                  >
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <ExpandChevron
+                        expanded={!isCollapsed}
+                        size={16}
+                      />
+                      <span className="font-semibold text-sm">
+                        {String(row.name || row.task_number)}
+                      </span>
+                      {hr.hasChildren && (
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          {hierarchyRows.filter(h => h.parentTaskNumber === row.task_number).length}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  {/* Fill remaining columns */}
+                  <TableCell
+                    colSpan={Math.max(1, visibleColumnsInOrder.length - 2)}
+                    style={{
+                      backgroundColor: `rgba(251, 191, 36, ${bgOpacity * 0.3})`,
+                    }}
+                  />
+                </TableRow>
+              );
+            }
+
+            // Regular data row with indentation
+            const indentPx = hr.nestingLevel * 24;
+
+            return (
+              <TableRow
+                key={`hierarchy-row-${row.id}`}
+                data-row-id={row.id}
+                className={cn(
+                  isSelected && "bg-blue-50 dark:bg-blue-950/30",
+                  "hover:bg-muted/50 cursor-pointer"
+                )}
+                onClick={() => {
+                  if (!isEditMode && onRowClick) {
+                    onRowClick(row);
+                  }
+                }}
+                onDoubleClick={() => handleRowDoubleClick(row)}
+                onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
+              >
+                {visibleColumnsInOrder.map((column, colIndex) => {
+                  const isFirstDataCol = colIndex === 1; // After select column
+                  const stickyStyles = getStickyColumnStyles(column.key, false);
+
+                  return (
+                    <TableCell
+                      key={`${column.key}-${colIndex}`}
+                      title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(row[column.key]) : undefined}
+                      style={{
+                        width: columnWidths[column.key],
+                        minWidth: columnWidths[column.key],
+                        ...stickyStyles,
+                        ...(isFirstDataCol && { paddingLeft: `${16 + indentPx}px` }),
+                        ...(column.key === "select" && {
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }),
+                      }}
+                      className={cn(
+                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "actions" && "!border-l-0",
+                      )}
+                      onClick={(e) => {
+                        if (column.key === "select") {
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      {column.key === "select" ? (
+                        <div
+                          className="flex items-center justify-center h-full"
+                          onMouseDown={(e) => handleSelectMouseDown(row.id, globalIndex, e)}
+                        >
+                          <SelectCheckbox
+                            checked={isSelected}
+                            onCheckedChange={getToggleCallback(row.id)}
+                          />
+                        </div>
+                      ) : column.key === "actions" ? (
+                        renderCellValue(row, column)
+                      ) : (
+                        <div className="truncate">
+                          {renderCellValue(row, column)}
+                        </div>
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  };
+
   // Render grouped table with choice of inline or panel mode
   const renderGroupedTable = () => {
     if (!groupedEntries) return null;
@@ -4197,7 +5314,7 @@ export default function TeeemTableView({
           </Table>
         ) : (
           /* Panel mode - Groups with nested data tables inside each expanded group */
-          <div className="space-y-0">
+          <div className="space-y-4">
             {renderGroupNavigation(groupedEntries)}
           </div>
         )}
@@ -4321,9 +5438,7 @@ export default function TeeemTableView({
                   }
                   setFocusedRowIndex(globalIndex);
                 }}
-                onDoubleClick={() =>
-                  !isEditMode && !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
-                }
+                onDoubleClick={() => handleRowDoubleClick(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -4341,13 +5456,18 @@ export default function TeeemTableView({
                           textAlign: 'center',
                           verticalAlign: 'middle'
                         }),
+                        ...(column.column_type === 'boolean' && {
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }),
                         ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                           backgroundColor: SYSTEM_COLUMN_BG,
                         })
                       }}
                       className={cn(
                         column.key === "select" && "!border-r-0 !p-0 !h-full",
-                        column.key === "actions" && "!border-l-0"
+                        column.key === "actions" && "!border-l-0",
+                        column.column_type === "boolean" && "!px-1"
                       )}
                       onClick={(e) => {
                         if (column.key === "select") {
@@ -4366,6 +5486,8 @@ export default function TeeemTableView({
                           />
                         </div>
                       ) : column.key === "actions" ? (
+                        renderCellValue(row, column)
+                      ) : column.column_type === "boolean" ? (
                         renderCellValue(row, column)
                       ) : (
                         <div
@@ -4414,12 +5536,10 @@ export default function TeeemTableView({
   // Get active view name
   const activeView = savedViews.find((v) => v.id === activeViewId);
 
-  // Notify parent when active view changes
-  React.useEffect(() => {
-    if (onViewChange) {
-      onViewChange(activeView || null);
-    }
-  }, [activeView, onViewChange]);
+  // NOTE: onViewChange is called from loadViewState when isUserAction=true
+  // This prevents URL auto-updates on initial page load (confusing UX)
+  // The effect that was here was removed because it fired on ANY activeView
+  // change, including initial load, causing redirect loops
 
   // ============================================================================
   // MAIN RENDER
@@ -4431,7 +5551,8 @@ export default function TeeemTableView({
       "flex flex-col h-full gap-2",
       debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative",
       // Fullscreen mode - SSoT for table fullscreen (enableFullscreen prop)
-      isFullscreen && "fixed inset-0 z-50 bg-background p-4"
+      // z-[120] to appear above breadcrumb (z-[110])
+      isFullscreen && "fixed inset-0 z-[120] bg-background p-4"
     )}>
       {/* DEBUG: Main Container Label */}
       {debugGrid && (
@@ -4452,7 +5573,7 @@ export default function TeeemTableView({
             foundationId={effectiveFoundationId}
             compact={!healthPanelOpen}
             forceShow={healthPanelOpen}
-            onIssueClick={onDataHealthIssueClick}
+            onIssueClick={onDataHealthIssueClick || handleHealthIssueClick}
             onDataChanged={onRefresh}
           />
         </div>
@@ -4662,8 +5783,13 @@ export default function TeeemTableView({
                   size="sm"
                   onClick={() => {
                     // Filter to only visible selected rows (intersection of selected + filtered)
-                    const visibleIds = new Set(filteredAndSortedEntries.map(e => e.id));
-                    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
+                    // Use String() for type-safe comparison (IDs may be string or number)
+                    const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
+                    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
+                    if (visibleSelectedIds.length === 0) {
+                      console.warn('[Delete] No visible selected rows to delete');
+                      return;
+                    }
                     effectiveBulkDelete(visibleSelectedIds);
                   }}
                 >
@@ -4709,6 +5835,23 @@ export default function TeeemTableView({
               {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
             </Button>
           )}
+
+          {/* Refresh button - clears cache and refetches fresh data */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              if (effectiveFoundationId) {
+                clearCachedRecords(effectiveFoundationId);
+              }
+              triggerAutoRefresh();
+              onRefresh?.();
+            }}
+            title="Refresh data"
+            className="h-9 w-9"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
 
           {/* More actions menu */}
           <DropdownMenu>
@@ -4971,7 +6114,7 @@ export default function TeeemTableView({
                   key={view.id}
                   variant={activeViewId === view.id ? "default" : "outline"}
                   size="sm"
-                  onClick={() => loadViewState(view)}
+                  onClick={() => loadViewState(view, false, true)}
                   title={view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
                   className={cn(
                     "shrink-0 max-w-[140px]",
@@ -5123,8 +6266,13 @@ export default function TeeemTableView({
               variant="destructive"
               size="sm"
               onClick={() => {
-                const visibleIds = new Set(filteredAndSortedEntries.map(e => e.id));
-                const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
+                // Use String() for type-safe comparison (IDs may be string or number)
+                const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
+                const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
+                if (visibleSelectedIds.length === 0) {
+                  console.warn('[Delete] No visible selected rows to delete');
+                  return;
+                }
                 effectiveBulkDelete?.(visibleSelectedIds);
               }}
             >
@@ -5170,6 +6318,7 @@ export default function TeeemTableView({
       {/* Table - scrollable container with max height so scrollbar stays visible */}
       {/* Account for: nav(64) + page header(80) + data health(60 collapsed/40vh expanded) + toolbar(50) + footer(30) */}
       {/* Keyboard navigation: Arrow keys, Enter, Space, Escape, / (search) */}
+      {/* CLS FIX: contain: layout prevents reflows from propagating */}
       <div
         ref={tableContainerRef}
         className={cn(
@@ -5177,6 +6326,7 @@ export default function TeeemTableView({
           tableHasFocus && "ring-2 ring-primary/20 ring-inset",
           debugGrid && "border-4 border-orange-500 bg-orange-50 dark:bg-orange-950/20"
         )}
+        style={{ contain: 'layout' }}
         role="region"
         aria-label={`${tableName} table with ${filteredAndSortedEntries.length} rows`}
         aria-busy={columnsLoading || serverSearchLoading || loadingMore}
@@ -5188,19 +6338,25 @@ export default function TeeemTableView({
           </div>
         )}
         {/* Show skeleton while columns are loading */}
+        {/* ULTRA FIX: Pass grouped prop AND groupCount to prevent CLS when table will render with grouping */}
+        {/* CLS FIX: Use actual group count from SSR data to match skeleton height to real content */}
         {columnsLoading ? (
           <TableSkeleton
             rowCount={10}
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
             showHeader
+            grouped={!!groupByColumn}
+            groupCount={serverGroupCounts?.length || initialGroupCounts?.groups?.length || 4}
           />
-        ) : filteredAndSortedEntries.length === 0 && loadingMore ? (
-          /* Show loading state when searching but still loading records */
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Spinner size={32} className="mb-4" />
-            <p className="text-sm font-medium">Loading records...</p>
-            <p className="text-xs mt-1">Searching through all {totalCount || 'available'} records</p>
-          </div>
+        ) : filteredAndSortedEntries.length === 0 && effectiveLoadingMore ? (
+          /* Show skeleton while initial records are loading - prevents CLS */
+          <TableSkeleton
+            rowCount={10}
+            columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
+            showHeader
+            grouped={!!groupByColumn}
+            groupCount={serverGroupCounts?.length || initialGroupCounts?.groups?.length || 4}
+          />
         ) : filteredAndSortedEntries.length === 0 && search ? (
           /* Show no results message when search is active but no matches */
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -5208,6 +6364,19 @@ export default function TeeemTableView({
             <p className="text-sm font-medium">No results found</p>
             <p className="text-xs mt-1">No records match "{search}"</p>
           </div>
+        ) : (initialView?.group_by_columns?.length || initialView?.group_by_column) && !groupedEntries ? (
+          /* CLS FIX: SSR grouped view pending - show skeleton until groupedEntries is computed
+           * This prevents flat → grouped transition which causes layout shift
+           * Check both group_by_columns (plural) and group_by_column (singular) */
+          <TableSkeleton
+            rowCount={10}
+            columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
+            showHeader
+            grouped
+            groupCount={initialGroupCounts?.groups?.length || 4}
+          />
+        ) : activeView?.view_display_type === 'hierarchy' ? (
+          renderHierarchyTable()
         ) : (
           groupedEntries ? renderGroupedTable() : renderFlatTable()
         )}
@@ -5334,13 +6503,14 @@ export default function TeeemTableView({
       />
 
       {/* Shared Merge Modal - used by all tables when enableMerge is true */}
-      {effectiveFoundationId && enableMerge !== false && (
+      {/* SSoT: Only render if parent doesn't provide onBulkMerge (custom modal) */}
+      {effectiveFoundationId && enableMerge !== false && !onBulkMerge && (
         <MergeModal
           open={showMergeModal}
           onOpenChange={setShowMergeModal}
           selectedIds={mergeSelectedIds}
           foundationId={effectiveFoundationId}
-          records={entries}
+          records={effectiveEntries}
           displayColumn={mergeDisplayColumn}
           secondaryColumns={mergeSecondaryColumns}
           entityName={tableName?.replace(/s$/, '') || "Record"}
@@ -5386,8 +6556,12 @@ export default function TeeemTableView({
           onAutoFitChange={setAutoFitColumns}
           onShowTotalsChange={setShowTotals}
           onStickyActionsChange={setStickyActions}
-          onRefresh={onRefresh}
-          rows={entries as Record<string, unknown>[]}
+          onRefresh={() => {
+            // Refresh both internal (autoFetch) and external (parent callback)
+            triggerAutoRefresh();
+            onRefresh?.();
+          }}
+          rows={filteredAndSortedEntries as Record<string, unknown>[]}
           currentColumnWidths={columnWidths}
           activeViewId={activeViewId}
         />

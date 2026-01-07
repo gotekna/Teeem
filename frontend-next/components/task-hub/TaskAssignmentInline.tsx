@@ -2,13 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { User, Users } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -116,23 +109,24 @@ export function TaskAssignmentInline({
             className={cn(compact && 'h-7 text-xs')}
           />
         ) : (
-          <Select
-            value={assignedRole || '_none'}
-            onValueChange={(v) => onAssign(undefined, v === '_none' ? undefined : v)}
+          <ComboboxDropdown
+            items={[
+              { id: '_unassigned', label: 'Unassigned' },
+              ...roles.map((r) => ({
+                id: r.value,
+                label: r.label,
+              }))
+            ]}
+            selectedItem={
+              assignedRole
+                ? { id: assignedRole, label: roles.find(r => r.value === assignedRole)?.label || assignedRole }
+                : { id: '_unassigned', label: 'Unassigned' }
+            }
+            onSelect={(item) => onAssign(undefined, item.id === '_unassigned' ? undefined : item.id)}
+            placeholder="Select role..."
             disabled={disabled}
-          >
-            <SelectTrigger className={cn(compact && 'h-7 text-xs')}>
-              <SelectValue placeholder="Select role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_none">Unassigned</SelectItem>
-              {roles.map((role) => (
-                <SelectItem key={role.value} value={role.value}>
-                  {role.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className={cn(compact && 'h-7 text-xs')}
+          />
         )}
       </div>
     </div>

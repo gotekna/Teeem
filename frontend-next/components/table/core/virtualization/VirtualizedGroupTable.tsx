@@ -3,7 +3,6 @@
 /**
  * VirtualizedGroupTable - Virtualized table for grouped views
  *
- * Extracted from TeeemTableView.tsx as part of Phase 2 refactoring.
  * Uses @tanstack/react-virtual for efficient rendering of large datasets
  * within grouped table sections.
  */
@@ -15,6 +14,8 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableHead,
+  TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import { SelectCheckbox } from "../cell-components";
@@ -42,12 +43,12 @@ export interface VirtualizedGroupTableProps {
   isEditMode: boolean;
 }
 
-// Row height constant (matches h-7 = 1.75rem = 28px)
-const ROW_HEIGHT = 28;
-// Max container height (limits visible rows before scrolling)
-const MAX_CONTAINER_HEIGHT = 500;
-// Extra rows rendered above/below viewport for smooth scrolling
-const OVERSCAN_COUNT = 5;
+// Row height constant
+const ROW_HEIGHT = 32;
+// Max container height before scrolling
+const MAX_CONTAINER_HEIGHT = 400;
+// Extra rows rendered above/below viewport
+const OVERSCAN_COUNT = 3;
 
 export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   fullKey,
@@ -67,7 +68,6 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   onRowClick,
   onRowDoubleClick,
   renderCellValue,
-  renderTableHeader,
   isEditMode,
 }: VirtualizedGroupTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -79,131 +79,204 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
     overscan: OVERSCAN_COUNT,
   });
 
+  // Calculate minimum width for a column based on header label
+  // ~8px per character + 24px padding
+  const getMinWidthForLabel = (label: string | undefined) => {
+    if (!label) return 80;
+    return Math.max(80, label.length * 8 + 24);
+  };
+
+  // Calculate total width
+  const totalWidth = visibleColumnsInOrder.reduce(
+    (sum, col) => {
+      const configuredWidth = columnWidths[col.key] || 100;
+      const minLabelWidth = getMinWidthForLabel(col.label);
+      return sum + Math.max(configuredWidth, minLabelWidth);
+    },
+    0
+  );
+
+  // Build CSS grid template with smart column widths
+  // Fixed widths for known-size columns, flexible for variable content
+  const FIXED_WIDTH_COLUMNS: Record<string, number> = {
+    select: 40,
+    actions: 80,
+    // Phone number columns - "0431 317 838" = ~12 chars
+    mobile: 120,
+    direct_line: 120,
+    office_phone: 120,
+    phone: 120,
+    // Roles - typically short like "Employee"
+    roles: 100,
+    role: 100,
+    // Company/ABN numbers
+    company_number: 140,
+    abn: 120,
+    acn: 100,
+  };
+
+  const gridTemplate = visibleColumnsInOrder
+    .map((col) => {
+      const colKey = col.key.toLowerCase();
+
+      // Check for fixed width columns (exact match or partial match)
+      const fixedWidth = FIXED_WIDTH_COLUMNS[colKey] ||
+        Object.entries(FIXED_WIDTH_COLUMNS).find(([key]) => colKey.includes(key))?.[1];
+
+      if (fixedWidth) {
+        return `${fixedWidth}px`;
+      }
+
+      // Variable content columns: flexible with minimum based on header label
+      // These columns (name, email, address, etc.) share remaining space
+      const minLabelWidth = getMinWidthForLabel(col.label);
+      const minWidth = Math.max(minLabelWidth, 100);
+      return `minmax(${minWidth}px, 1fr)`;
+    })
+    .join(" ");
+
+  // Calculate container height
+  const containerHeight = Math.min(rows.length * ROW_HEIGHT, MAX_CONTAINER_HEIGHT);
+
+  // If no rows, don't render anything (group header still shows count)
+  if (rows.length === 0) {
+    return null;
+  }
+
   return (
     <div
       key={`data-${fullKey}`}
-      className="mb-4"
+      className="mb-4 overflow-x-auto"
       style={{ marginLeft: `${(depth + 1) * 24}px`, marginRight: "16px" }}
     >
-      <Table className="w-full border-t border-b" style={{ tableLayout: "auto" }}>
-        {renderTableHeader()}
-        <TableBody>
-          <tr>
-            <td colSpan={visibleColumnsInOrder.length} style={{ padding: 0 }}>
-              <div
-                ref={parentRef}
-                style={{
-                  height: `${Math.min(rows.length * ROW_HEIGHT, MAX_CONTAINER_HEIGHT)}px`,
-                  overflow: "auto",
-                  position: "relative",
-                }}
-              >
-                <div
-                  style={{
-                    height: `${rowVirtualizer.getTotalSize()}px`,
-                    width: "100%",
-                    position: "relative",
-                  }}
-                >
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const row = rows[virtualRow.index];
-                    const rowIndex = virtualRow.index;
-                    const globalIndex = rowIdToGlobalIndex.get(row.id) ?? rowIndex;
+      {/* Header using CSS Grid */}
+      <div
+        className="grid bg-muted/50 border-t border-b text-xs font-medium"
+        style={{
+          gridTemplateColumns: gridTemplate,
+          minWidth: totalWidth,
+        }}
+      >
+        {visibleColumnsInOrder.map((column) => (
+          <div
+            key={column.key}
+            className={cn(
+              "px-2 py-2 text-left whitespace-nowrap overflow-hidden",
+              column.key === "select" && "text-center px-0"
+            )}
+          >
+            {column.key === "select" ? "" : column.label?.toUpperCase()}
+          </div>
+        ))}
+      </div>
 
-                    return (
-                      <div
-                        key={virtualRow.key}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                      >
-                        <table style={{ width: "100%", tableLayout: "auto" }}>
-                          <tbody>
-                            <TableRow
-                              data-row-id={row.id}
-                              className={cn(
-                                selectedRows.has(row.id) && "bg-muted/50",
-                                isRowInDragRange(row.id) &&
-                                  !selectedRows.has(row.id) &&
-                                  "bg-blue-100 dark:bg-blue-900/30",
-                                "hover:bg-muted/30 cursor-pointer"
-                              )}
-                              onClick={() => {
-                                console.log(
-                                  "🟣 TeeemTableView row clicked, isEditMode:",
-                                  isEditMode,
-                                  "hasOnRowClick:",
-                                  !!onRowClick
-                                );
-                                if (!isEditMode && onRowClick) {
-                                  console.log("🟣 Calling onRowClick with row:", row.id);
-                                  onRowClick(row);
-                                }
-                              }}
-                              onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
-                              onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
-                            >
-                              {visibleColumnsInOrder.map((column, colIndex) => {
-                                const stickyStyles = getStickyColumnStyles(column.key, false);
-                                const isSystemGen = isSystemGeneratedColumn(column);
-                                return (
-                                  <TableCell
-                                    key={`${column.key}-${colIndex}`}
-                                    style={{
-                                      width: columnWidths[column.key],
-                                      minWidth: columnWidths[column.key],
-                                      ...stickyStyles,
-                                      ...(isSystemGen &&
-                                        column.key !== "select" &&
-                                        column.key !== "actions" && {
-                                          backgroundColor: SYSTEM_COLUMN_BG,
-                                        }),
-                                    }}
-                                    className={cn(
-                                      column.key === "select" && "!border-r-0 !p-0 !h-full",
-                                      column.key === "actions" && "!border-l-0"
-                                    )}
-                                    onClick={(e) => {
-                                      if (column.key === "select") {
-                                        e.stopPropagation();
-                                      }
-                                    }}
-                                  >
-                                    {column.key === "select" ? (
-                                      <div
-                                        data-column="select"
-                                        onMouseDown={(e) =>
-                                          handleSelectMouseDown(row.id, globalIndex, e)
-                                        }
-                                      >
-                                        <SelectCheckbox
-                                          checked={selectedRows.has(row.id)}
-                                          onCheckedChange={getToggleCallback(row.id)}
-                                        />
-                                      </div>
-                                    ) : (
-                                      renderCellValue(row, column)
-                                    )}
-                                  </TableCell>
-                                );
-                              })}
-                            </TableRow>
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })}
-                </div>
+      {/* Virtualized rows container - vertical scroll only, horizontal handled by parent */}
+      {/* scrollbar-gutter: stable reserves space for scrollbar to prevent header/data misalignment */}
+      <div
+        ref={parentRef}
+        style={{
+          height: containerHeight,
+          overflowY: "auto",
+          overflowX: "hidden",
+          minWidth: totalWidth,
+          scrollbarGutter: "stable",
+        }}
+      >
+        <div
+          style={{
+            height: rowVirtualizer.getTotalSize(),
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            const rowIndex = virtualRow.index;
+            const globalIndex = rowIdToGlobalIndex.get(row.id) ?? rowIndex;
+
+            return (
+              <div
+                key={virtualRow.key}
+                data-row-id={row.id}
+                className={cn(
+                  "grid border-b border-border/30 text-sm",
+                  selectedRows.has(row.id) && "bg-muted/50",
+                  isRowInDragRange(row.id) &&
+                    !selectedRows.has(row.id) &&
+                    "bg-blue-100 dark:bg-blue-900/30",
+                  "hover:bg-muted/30 cursor-pointer"
+                )}
+                style={{
+                  gridTemplateColumns: gridTemplate,
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: virtualRow.size,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+                onClick={() => {
+                  if (!isEditMode && onRowClick) {
+                    onRowClick(row);
+                  }
+                }}
+                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
+                onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
+              >
+                {visibleColumnsInOrder.map((column, colIndex) => {
+                  const isSystemGen = isSystemGeneratedColumn(column);
+
+                  // Get cell value for title tooltip (shows full value on hover)
+                  const cellValue = row[column.key];
+                  const titleText = cellValue != null && typeof cellValue !== 'object'
+                    ? String(cellValue)
+                    : undefined;
+
+                  return (
+                    <div
+                      key={`${column.key}-${colIndex}`}
+                      className={cn(
+                        "flex items-center px-2 whitespace-nowrap overflow-hidden",
+                        column.key === "select" && "justify-center px-0",
+                        column.key === "actions" && "justify-end"
+                      )}
+                      style={{
+                        ...(isSystemGen &&
+                          column.key !== "select" &&
+                          column.key !== "actions" && {
+                            backgroundColor: SYSTEM_COLUMN_BG,
+                          }),
+                      }}
+                      title={titleText}
+                      onClick={(e) => {
+                        if (column.key === "select") {
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      {column.key === "select" ? (
+                        <div
+                          data-column="select"
+                          onMouseDown={(e) =>
+                            handleSelectMouseDown(row.id, globalIndex, e)
+                          }
+                        >
+                          <SelectCheckbox
+                            checked={selectedRows.has(row.id)}
+                            onCheckedChange={getToggleCallback(row.id)}
+                          />
+                        </div>
+                      ) : (
+                        renderCellValue(row, column)
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </td>
-          </tr>
-        </TableBody>
-      </Table>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 });

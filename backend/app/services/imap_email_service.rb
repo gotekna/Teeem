@@ -31,10 +31,11 @@ class ImapEmailService
       return emails if message_ids.empty?
 
       # Fetch email data in batches
+      # Use BODY.PEEK[] instead of RFC822 to avoid marking emails as read
       message_ids.each_slice(50) do |batch|
         fetch_data = imap.fetch(batch, [
           "UID",
-          "RFC822",
+          "BODY.PEEK[]",
           "ENVELOPE",
           "FLAGS",
           "INTERNALDATE"
@@ -75,10 +76,11 @@ class ImapEmailService
       max_uid = message_ids.max
 
       # Fetch email data
+      # Use BODY.PEEK[] instead of RFC822 to avoid marking emails as read
       message_ids.each_slice(50) do |batch|
         fetch_data = imap.uid_fetch(batch, [
           "UID",
-          "RFC822",
+          "BODY.PEEK[]",
           "ENVELOPE",
           "FLAGS",
           "INTERNALDATE"
@@ -136,6 +138,8 @@ class ImapEmailService
           existing = EmailWarehouse.find_by(internet_message_id: email_data[:internet_message_id])
 
           if existing
+            # Update read status from server (in case it changed)
+            existing.update!(is_read: email_data[:is_read]) if existing.is_read != email_data[:is_read]
             results[:skipped] += 1
             next
           end
@@ -411,8 +415,9 @@ class ImapEmailService
   def parse_email_message(msg, folder_name)
     return nil unless msg
 
-    # Parse the raw RFC822 message using Mail gem
-    raw = msg.attr["RFC822"]
+    # Parse the raw message using Mail gem
+    # BODY.PEEK[] returns data under "BODY[]" key (without PEEK)
+    raw = msg.attr["BODY[]"] || msg.attr["RFC822"]
     return nil unless raw
 
     mail = Mail.read_from_string(raw)
@@ -421,12 +426,18 @@ class ImapEmailService
     uid = msg.attr["UID"]
     internal_date = msg.attr["INTERNALDATE"]
 
-    # Extract message ID
+    # Extract message ID - generate fallback if missing
     message_id = mail.message_id || envelope&.message_id
-    return nil unless message_id.present?
 
     # Clean message ID (remove angle brackets if present)
-    message_id = message_id.gsub(/[<>]/, "")
+    if message_id.present?
+      message_id = message_id.gsub(/[<>]/, "")
+    else
+      # Generate a unique fallback message ID for emails without one
+      # Using UID + folder + credential ensures uniqueness within the mailbox
+      message_id = "imap-#{uid}-#{folder_name.parameterize}@#{credential.email_address.split('@').last}"
+      Rails.logger.info "[ImapEmailService] Generated fallback message_id: #{message_id}"
+    end
 
     # Extract body
     body_text = extract_text_body(mail)
@@ -464,15 +475,29 @@ class ImapEmailService
       text_part = mail.text_part
       text_part&.decoded rescue text_part&.body&.to_s
     else
-      mail.body.decoded rescue mail.body.to_s
+      # Single-part email - only return as text if it's not HTML
+      content_type = mail.content_type&.to_s&.downcase || ""
+      if content_type.include?("text/html")
+        nil  # HTML content goes to body_html, not body_text
+      else
+        mail.body.decoded rescue mail.body.to_s
+      end
     end
   end
 
   def extract_html_body(mail)
-    return nil unless mail.multipart?
-
-    html_part = mail.html_part
-    html_part&.decoded rescue html_part&.body&.to_s
+    if mail.multipart?
+      html_part = mail.html_part
+      html_part&.decoded rescue html_part&.body&.to_s
+    else
+      # Single-part email - check if it's HTML
+      content_type = mail.content_type&.to_s&.downcase || ""
+      if content_type.include?("text/html")
+        mail.body.decoded rescue mail.body.to_s
+      else
+        nil
+      end
+    end
   end
 
   def extract_attachments(mail)

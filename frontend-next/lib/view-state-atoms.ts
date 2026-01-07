@@ -29,6 +29,7 @@ import {
   filterGroupsAtom as _filterGroupsAtom,
   interGroupLogicAtom as _interGroupLogicAtom,
 } from './filter-atoms';
+import { groupViewModeAtom } from './table-atoms';
 
 // Re-export all filter atoms from the SSoT location
 export {
@@ -411,6 +412,24 @@ export const applyViewAtom = atom(
       source: 'view' as const,
       locked: false,
     }));
+
+    // For "grouped" view display type (By Company), include both people AND companies
+    // People are grouped by their primary_company; companies appear as standalone entries
+    // This allows searching for companies even if they have 0 employees linked
+    // FRC: view_display_type indicates HOW data is shown (table/grouped)
+    //      view_type indicates if it's custom/default - wrong field was checked before
+    // NOTE: No entity_type filter needed - show all entity types in grouped view
+    // Companies with employees will have those employees grouped under them
+    // Companies with 0 employees will still appear in search results
+
+    console.log('[applyViewAtom] Setting view filters:', {
+      viewName: view.name,
+      viewId: view.id,
+      filterCount: sourcedFilters.length,
+      filters: sourcedFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
+      filterGroups: filterGroups.length,
+      interGroupLogic,
+    });
     set(_viewFiltersAtom, sourcedFilters);
     set(_filterGroupsAtom, filterGroups);
     set(_interGroupLogicAtom, interGroupLogic);
@@ -443,6 +462,49 @@ export const applyViewAtom = atom(
       set(currentGroupByColumnsAtom, view.groupByColumn ? [view.groupByColumn] : []);
     } else {
       set(currentGroupByColumnsAtom, []);
+    }
+
+    // Grouped view type (Company/Role search mode)
+    // When view_display_type is "grouped", enable panel mode for relationship grouping
+    // FRC: view_display_type indicates HOW data is shown (table/grouped)
+    //      view_type indicates if it's custom/default - wrong field was checked before
+    if (view.view_display_type === 'grouped') {
+      set(groupViewModeAtom, 'panel');
+      // If no groupByColumn is set, default to "primary_company_id" for contacts
+      if (!view.groupByColumns?.length && !view.groupByColumn) {
+        set(currentGroupByColumnsAtom, ['primary_company_id']);
+      }
+      // If no column order/visibility is set for grouped view, use a sensible default for contacts
+      // This puts display name, role, and contact info columns first for better readability
+      if (!view.columnOrder || view.columnOrder.length === 0) {
+        const defaultGroupedColumnOrder = [
+          'select',
+          'display_name',  // Full name (first + last)
+          'roles',
+          'mobile_phone',
+          'email',
+          'office_phone',
+          'address',
+          'actions'
+        ];
+        set(currentColumnOrderAtom, defaultGroupedColumnOrder);
+
+        // Also set these columns as visible
+        const defaultVisibleColumns: Record<string, boolean> = {
+          'select': true,
+          'display_name': true,
+          'roles': true,
+          'mobile_phone': true,
+          'email': true,
+          'office_phone': true,
+          'address': true,
+          'actions': true,
+        };
+        set(currentVisibleColumnsAtom, defaultVisibleColumns);
+      }
+    } else {
+      // Reset to inline mode for table/relational views
+      set(groupViewModeAtom, 'inline');
     }
 
     // Display options - check both direct property and columns object (API format varies)
@@ -666,7 +728,9 @@ export const loadFoundationViewsAtom = atom(
 
           return {
             ...view,
+            isDefault: (view as any).is_default, // Map backend is_default to frontend isDefault
             view_type: (view as any).view_display_type || "table", // Map backend field to frontend field
+            view_display_type: (view as any).view_display_type, // Preserve for applyViewAtom panel mode check
             filters: ensureFilterIds(rawFilters),
             filterGroups: Array.isArray(view.filters) ? [{ id: "default", logic: "AND" as const }] : (view.filters?.filterGroups || [{ id: "default", logic: "AND" as const }]),
             interGroupLogic: Array.isArray(view.filters) ? "OR" as const : (view.filters?.interGroupLogic || "OR" as const),

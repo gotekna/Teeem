@@ -221,14 +221,12 @@ module Api
       end
 
       # GET /api/v1/sm_settings/assignable_roles
-      # SSoT: Returns User::ASSIGNABLE_ROLES for task assignment dropdowns
+      # SSoT: Returns active roles from Role model for task assignment dropdowns
       # Frontend should fetch this instead of hardcoding roles
       def assignable_roles
         render json: {
           success: true,
-          assignable_roles: User::ASSIGNABLE_ROLES.map do |role|
-            { value: role, label: role.titleize }
-          end
+          assignable_roles: Role.for_select
         }
       end
 

@@ -42,7 +42,8 @@ export type {
 
 // Utility exports
 export {
+  isHeaderRow,  // SSoT: Use this for ALL header detection
   convertRowToTask,
   convertRowsToTasks,
-  convertToDependencies,
+  // SSoT: convertToDependencies removed - backend GanttDataService is SSoT for dependency conversion
 } from "./types";

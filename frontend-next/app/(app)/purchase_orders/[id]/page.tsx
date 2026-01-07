@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -798,10 +799,47 @@ export default function PurchaseOrderDetailPage() {
 
   const { subtotal, gst, total } = calculateTotals();
 
+  // SSoT: Show skeleton layout during loading to prevent flash/CLS
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner />
+      <div className="space-y-6 pb-12">
+        {/* Header skeleton */}
+        <div className="flex items-start gap-4">
+          <BackButton fallbackHref="/purchase_orders" className="mt-1" />
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-6 w-64" />
+            </div>
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-24" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-20" />
+          </div>
+        </div>
+        {/* Table skeleton */}
+        <Card>
+          <CardContent className="p-0">
+            <div className="border-b p-3 flex gap-4">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-48 flex-1" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="border-b p-3 flex gap-4">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-8 w-48 flex-1" />
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-8 w-24" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     );
   }

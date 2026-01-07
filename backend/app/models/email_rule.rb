@@ -1,13 +1,30 @@
 class EmailRule < ApplicationRecord
   belongs_to :user
   belongs_to :imap_credential, optional: true
+  belongs_to :microsoft_credential, optional: true
 
   validates :name, presence: true
   validates :conditions, presence: true
 
   scope :active, -> { where(is_active: true) }
   scope :by_priority, -> { order(priority: :desc, created_at: :asc) }
+  # SSoT: Find rules that apply to an email based on its source
+  # Rules with nil credential IDs apply to ALL accounts
   scope :for_account, ->(cred_id) { where(imap_credential_id: [nil, cred_id]) }
+  scope :for_ms365_account, ->(ms_cred_id, mailbox_email = nil) {
+    rules = where(microsoft_credential_id: [nil, ms_cred_id])
+    rules = rules.where(mailbox_email: [nil, mailbox_email]) if mailbox_email
+    rules
+  }
+  scope :for_email, ->(email) {
+    if email.imap_credential_id.present?
+      for_account(email.imap_credential_id)
+    elsif email.microsoft_credential_id.present?
+      for_ms365_account(email.microsoft_credential_id, email.mailbox_owner_email)
+    else
+      where(imap_credential_id: nil, microsoft_credential_id: nil)  # Global rules only
+    end
+  }
 
   # Condition types
   CONDITION_TYPES = %w[
@@ -100,10 +117,26 @@ class EmailRule < ApplicationRecord
   def move_to_folder(email, folder_name)
     email.update!(folder_name: folder_name)
 
-    # Also move on IMAP server if possible
-    if email.imap_credential.present?
+    # Also move on server if possible
+    if email.imap_credential.present? && email.uid.present?
+      # IMAP: Move via IMAP protocol
       service = ImapEmailService.new(email.imap_credential)
-      service.move_email(email.uid, folder_name) if email.uid.present?
+      service.move_email(email.uid, folder_name)
+    elsif email.microsoft_credential.present? && email.outlook_id.present?
+      # MS365: Move via Graph API
+      begin
+        client = MicrosoftAppGraphClient.new(email.microsoft_credential)
+        # Find folder ID by name
+        folders = client.get_user_mail_folders(email.mailbox_owner_email)
+        target_folder = folders.find { |f| f[:name].downcase == folder_name.downcase }
+        if target_folder
+          client.move_user_email(email.mailbox_owner_email, email.outlook_id, target_folder[:id])
+        else
+          Rails.logger.warn "[EmailRule] Folder '#{folder_name}' not found for MS365 move"
+        end
+      rescue => e
+        Rails.logger.error "[EmailRule] MS365 move failed: #{e.message}"
+      end
     end
   end
 

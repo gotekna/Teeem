@@ -1,10 +1,11 @@
 class Api::V1::ImapCredentialsController < ApplicationController
-  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
 
   # GET /api/v1/imap_credentials
-  # List user's IMAP accounts
+  # List user's IMAP accounts (owned + shared)
+  # SSoT: accessible_by returns owned OR shared_with_user_ids contains user
   def index
-    credentials = current_user.imap_credentials.order(created_at: :desc)
+    credentials = ImapCredential.accessible_by(current_user).order(created_at: :desc)
 
     render json: {
       success: true,
@@ -22,8 +23,23 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # POST /api/v1/imap_credentials
   # Add a new IMAP account
+  # SSoT: Email owner is the credential owner, creator gets full shared access
   def create
-    credential = current_user.imap_credentials.build(credential_params)
+    email_address = params[:imap_credential][:email_address]
+    email_owner = User.find_by(email: email_address)
+
+    if email_owner
+      # SSoT: Email owner becomes the credential owner
+      credential = email_owner.imap_credentials.build(credential_params)
+
+      # Creator (if different) gets full shared access
+      if current_user.id != email_owner.id
+        credential.shared_with_user_ids = [current_user.id]
+      end
+    else
+      # No matching user in system - creator is owner (external email account)
+      credential = current_user.imap_credentials.build(credential_params)
+    end
 
     # Apply provider preset if specified
     credential.apply_provider_preset! if credential.provider.present?
@@ -175,10 +191,11 @@ class Api::V1::ImapCredentialsController < ApplicationController
           data: folders.map { |f|
             {
               id: f[:id],
-              name: f[:name],
+              name: f[:name],  # Full path for filtering (e.g., "Inbox/Investments")
+              display_name: f[:display_name] || f[:name],  # Display name for UI
               unread_count: f[:unread_count],
               total_items: f[:total_items],
-              type: folder_type_from_name(f[:name]),
+              type: folder_type_from_name(f[:display_name] || f[:name]),  # Use display_name for type detection
               depth: f[:depth] || 0,
               parent_id: f[:parent_id]
             }
@@ -223,38 +240,60 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # GET /api/v1/imap_credentials/all_accounts
   # List ALL email accounts (IMAP + connected Microsoft 365 tenants)
+  # SSoT: Uses same ordering as navigation (email_nav_positions)
   def all_accounts
     accounts = []
+    # SSoT: Use same positions as navigation sidebar for consistent ordering
+    saved_positions = current_user.email_nav_positions || {}
+    fallback_position = 1000
 
     # Add connected Microsoft 365 organization accounts
     # These use Application permissions to access mailboxes
     # SSoT: Use MicrosoftCredential for app credentials
-    MicrosoftCredential.app_credentials.connected.order(:name).each do |org_cred|
-      # SSoT: Check sync_config.user_mailbox_access for configured access
-      # Format: { "user_id" => ["email1@org.com", "email2@org.com"] }
-      user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
-      user_emails = user_mailbox_access[current_user.id.to_s] || []
+    # SSoT: Order by is_primary DESC so primary tenancy comes first
+    ms365_credentials = MicrosoftCredential.app_credentials.connected.order(is_primary: :desc, name: :asc)
 
-      # Add each mailbox the user has been granted access to
+    ms365_credentials.each do |org_cred|
+      # SSoT: User automatically gets access to their own mailbox
+      # Plus any additional mailboxes granted via user_mailbox_access config
+      user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
+      configured_emails = user_mailbox_access[current_user.id.to_s] || []
+
+      # SSoT: Auto-include user's own email ONLY if it exists in this tenant
+      tenant_emails = org_cred.list_tenant_users.map { |u| u[:email]&.downcase }.compact
+      auto_emails = if current_user.email.present? && tenant_emails.include?(current_user.email.downcase)
+        [current_user.email]
+      else
+        []
+      end
+
+      # Combine auto + configured, remove duplicates
+      user_emails = (auto_emails + configured_emails).uniq
+
+      # Add each mailbox the user has access to
       user_emails.each_with_index do |email, index|
+        account_id = "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}"
+        # SSoT: Primary tenancy (is_primary flag) gets is_default for first mailbox
+        is_primary_account = org_cred.is_primary && index == 0
         accounts << {
-          id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+          id: account_id,
           type: "ms365",
           name: "#{org_cred.name}",
           email_address: email,
           provider: "microsoft365",
           is_active: org_cred.status == "connected",
-          is_default: index == 0 && accounts.empty?,
-          org_credential_id: org_cred.id
+          is_default: is_primary_account,
+          org_credential_id: org_cred.id,
+          position: saved_positions[account_id] || (fallback_position += 1)
         }
       end
-
-      # Note: We no longer fall back to showing all mailboxes or guessing by name.
-      # Admins must configure access in Admin > System > Email Accounts.
     end
 
-    # Add IMAP accounts
-    current_user.imap_credentials.where(is_active: true).order(created_at: :desc).each do |cred|
+    # Add IMAP accounts (owned + shared)
+    # SSoT: accessible_by returns owned OR shared_with_user_ids contains user
+    ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
+      account_id = cred.id.to_s
+      is_shared = cred.user_id != current_user.id
       accounts << {
         id: cred.id,
         type: "imap",
@@ -263,10 +302,16 @@ class Api::V1::ImapCredentialsController < ApplicationController
         provider: cred.provider,
         is_active: cred.is_active,
         is_default: false,
+        is_shared: is_shared,
+        owner_name: is_shared ? cred.user&.name : nil,
         email_signature: cred.email_signature,
-        email_aliases: cred.email_aliases || []
+        email_aliases: cred.email_aliases || [],
+        position: saved_positions[account_id] || (fallback_position += 1)
       }
     end
+
+    # Sort by position to match navigation sidebar order
+    accounts.sort_by! { |a| a[:position] }
 
     render json: {
       success: true,
@@ -487,6 +532,48 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }, status: :unprocessable_entity
   end
 
+  # PUT /api/v1/imap_credentials/:id/update_sharing
+  # Update which users have access to this credential's emails
+  def update_sharing
+    shared_user_ids = params[:shared_with_user_ids] || []
+
+    # Validate all IDs are valid user IDs
+    valid_users = User.where(id: shared_user_ids).pluck(:id)
+
+    # Don't include the owner in shared list
+    valid_users.delete(@credential.user_id)
+
+    @credential.update!(shared_with_user_ids: valid_users)
+
+    render json: {
+      success: true,
+      data: credential_json(@credential),
+      message: "Sharing updated successfully"
+    }
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to update sharing: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # GET /api/v1/imap_credentials/shareable_users
+  # List users who can be granted access to email credentials
+  def shareable_users
+    users = User.order(:name).map do |user|
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email
+      }
+    end
+
+    render json: {
+      success: true,
+      data: users
+    }
+  end
+
   # POST /api/v1/imap_credentials/:id/move_email
   # Move an email to a different folder
   def move_email
@@ -525,6 +612,53 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }, status: :unprocessable_entity
   end
 
+  # POST /api/v1/imap_credentials/save_folder_order
+  # Save user's custom folder ordering for an email account
+  # SSoT: Uses EmailFolderPreference model
+  def save_folder_order
+    account_id = params[:account_id]
+    folder_ids = params[:folder_ids]
+
+    if account_id.blank? || folder_ids.blank?
+      return render json: {
+        success: false,
+        error: "account_id and folder_ids are required"
+      }, status: :unprocessable_entity
+    end
+
+    EmailFolderPreference.save_order(current_user.id, account_id, folder_ids)
+
+    render json: {
+      success: true,
+      message: "Folder order saved"
+    }
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to save folder order: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # GET /api/v1/imap_credentials/folder_order
+  # Get user's custom folder ordering for an email account
+  def folder_order
+    account_id = params[:account_id]
+
+    if account_id.blank?
+      return render json: {
+        success: false,
+        error: "account_id is required"
+      }, status: :unprocessable_entity
+    end
+
+    folder_ids = EmailFolderPreference.ordered_folder_ids(current_user.id, account_id)
+
+    render json: {
+      success: true,
+      data: { folder_ids: folder_ids }
+    }
+  end
+
   private
 
   # DEPRECATED: Per-user Outlook credentials have been removed
@@ -538,7 +672,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   def set_credential
-    @credential = current_user.imap_credentials.find(params[:id])
+    # SSoT: Both owner and shared users have full access
+    @credential = ImapCredential.accessible_by(current_user).find(params[:id])
   end
 
   # Infer account type from credential_id format
@@ -599,7 +734,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
       last_sync_status: credential.last_sync_status,
       last_sync_error: credential.last_sync_error,
       created_at: credential.created_at,
-      email_signature: credential.email_signature
+      email_signature: credential.email_signature,
+      # Sharing fields
+      user_id: credential.user_id,
+      owner_name: credential.user&.name,
+      is_shared: credential.user_id != current_user.id,
+      shared_with_user_ids: credential.shared_with_user_ids || [],
+      shared_with_users: User.where(id: credential.shared_with_user_ids || []).map { |u| { id: u.id, name: u.name } }
     }
 
     if include_folders

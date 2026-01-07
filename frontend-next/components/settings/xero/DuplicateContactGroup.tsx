@@ -37,7 +37,11 @@ export function DuplicateContactGroup({ group }: Props) {
         targetId: selectedTargetId,
       });
 
-      toast.success(result.message || "Contacts merged successfully!");
+      if (result.already_merged) {
+        toast.info(result.message || "Already merged - refreshing list...");
+      } else {
+        toast.success(result.message || "Contacts merged successfully!");
+      }
       setShowMergeDialog(false);
     } catch (error: any) {
       toast.error(error.message || "Failed to merge contacts");

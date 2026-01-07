@@ -192,7 +192,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   };
 
   const Component = (
-    <Command loop shouldFilter={false}>
+    <Command loop shouldFilter={false} className="h-auto">
       {!searchInTrigger && (
         <CommandInput
           value={inputValue}
@@ -298,8 +298,8 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         if (!isOpen) {
           setInputValue(""); // Clear search when closing
         }
-      }} modal>
-        <PopoverTrigger asChild disabled={disabled || isLoading} className="w-full">
+      }}>
+        <PopoverTrigger asChild disabled={disabled} className="w-full">
           <div className="relative w-full">
             <input
               ref={inputRef}
@@ -308,15 +308,18 @@ export function ComboboxDropdown<T extends ComboboxItem>({
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               onFocus={() => {
-                setOpen(true);
-                setInputValue(""); // Clear to allow fresh search
+                if (!open) {
+                  setOpen(true);
+                  setInputValue(""); // Only clear when first opening
+                }
               }}
               placeholder={placeholder as string ?? "Search..."}
-              disabled={disabled || isLoading}
+              disabled={disabled}
               className={cn(
                 "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-8 text-sm shadow-sm transition-colors",
                 "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                "disabled:cursor-not-allowed disabled:opacity-50"
+                "disabled:cursor-not-allowed disabled:opacity-50",
+                className
               )}
             />
             {/* Icon: Loading > Clear > Search */}
@@ -335,6 +338,8 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
         <PopoverContent
           className="p-0 w-auto"
+          sideOffset={5}
+          align="start"
           {...popoverProps}
           style={{
             minWidth: "var(--radix-popover-trigger-width)",
@@ -351,7 +356,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild disabled={disabled} className="w-full">
         <Button
           variant="outline"
@@ -375,6 +380,8 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
       <PopoverContent
         className="p-0 w-auto"
+        sideOffset={5}
+        align="start"
         {...popoverProps}
         style={{
           minWidth: "var(--radix-popover-trigger-width)",

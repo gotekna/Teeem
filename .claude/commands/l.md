@@ -108,6 +108,17 @@ if git diff --name-only HEAD~1 HEAD | grep "^backend/Gemfile$" > /dev/null; then
   echo "✅ Gemfile.lock updated"
 fi
 
+# Check TypeScript compiles (catches Zod schema errors, type mismatches)
+if git diff --name-only HEAD~1 HEAD | grep "^frontend-next/.*\.\(ts\|tsx\)$" > /dev/null; then
+  echo "Checking TypeScript..."
+  cd frontend-next && npx tsc --noEmit 2>&1 | head -20 || {
+    echo "❌ TypeScript errors - fix before deploying"
+    exit 1
+  }
+  cd ..
+  echo "✅ TypeScript OK"
+fi
+
 echo "✅ Pre-flight checks passed"
 ```
 

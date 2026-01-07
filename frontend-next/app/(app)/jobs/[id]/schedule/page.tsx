@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { usePathBasedViews } from "@/lib/hooks/usePathBasedViews";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
@@ -17,9 +18,14 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
   Table,
   TableBody,
@@ -28,13 +34,16 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2 } from "lucide-react";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
-import type { GanttTask } from "@/lib/gantt/types";
+import { GanttUnified } from "@/components/gantt-v2";
+import type { GanttTask, GanttDependency } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { parseISO } from "date-fns";
 
 interface Job {
@@ -57,11 +66,72 @@ interface SmTask {
   progress_percentage: number;
   locked: boolean;
   dependencies?: string[];
+  // SSoT: predecessor_ids from backend (jsonb column)
+  predecessor_ids?: Array<{ id: number; type?: string; lag?: number }>;
+  // Supplier and PO fields (from ?for=gantt response)
+  supplier_id?: number | null;
+  supplier_name?: string | null;
+  purchase_order_id?: number | null;
+  po_required?: boolean;
+  purchase_order?: {
+    id: number;
+    po_number: string;
+    status: string;
+    total: number;
+    supplier_name: string | null;
+    required_date: string | null;
+  } | null;
+  // Lock status fields for dependency editor
+  confirm?: boolean;
+  supplier_confirm?: boolean;
+  // Hold status fields
+  hold?: boolean;
+  hold_date?: string | null;
+  // Header info from linked sm_schedule_master
+  // "Header" = this IS a header, number = parent header ID
+  header_gantt?: string | number | null;
+  // Editable fields for task edit sheet
+  description?: string;
+  sequence_order?: number;
+  trade?: string | number | null;
+  trade_name?: string;
+  stage?: string | number | null;
+  stage_name?: string;
+  assigned_role?: string | null;
+  cost_centre?: string | number | null;
+  cost_centre_name?: string;
+  // PO settings
+  critical_po?: boolean;
+  create_po_on_job_start?: boolean;
+  spawn_order_task?: boolean;
+  spawn_call_task?: boolean;
+  order_time_days?: number;
+  call_time_days?: number;
+  // Completion settings
+  require_photo?: boolean;
+  pass_fail_enabled?: boolean;
+  // Header settings
+  allow_header?: boolean;
+  // Link to schedule master template
+  sm_schedule_master_id?: number | null;
 }
 
 interface SmTasksResponse {
   success: boolean;
   sm_tasks: SmTask[];
+}
+
+// SSoT: Gantt data response from ?for=gantt
+// Backend GanttDataService returns { id, fromId, toId, type, lag } format
+interface GanttDataResponse {
+  success: boolean;
+  gantt_data: {
+    tasks: SmTask[];
+    dependencies: Array<{ id: string; fromId: string; toId: string; type: string; lag: number }>;
+  };
+  meta: {
+    invisible_count: number;
+  };
 }
 
 // Sync types
@@ -202,45 +272,6 @@ interface AnalyzeResult {
   };
 }
 
-// Row-level comparison for edit drawer
-interface RowComparison {
-  task: {
-    id: number;
-    task_number: number;
-    name: string;
-    description: string | null;
-    duration_days: number;
-    trade: string | null;
-    stage: string | null;
-    status: string;
-    require_photo: boolean;
-    po_required: boolean;
-    critical_po: boolean;
-    order_time_days: number | null;
-    call_time_days: number | null;
-    checklist_id: number | null;
-    sm_schedule_master_id: number | null;
-  };
-  template_row: {
-    id: number;
-    task_number: number;
-    name: string;
-    description: string | null;
-    duration_days: number;
-    trade: string | null;
-    stage: string | null;
-    require_photo: boolean;
-    po_required: boolean;
-    critical_po: boolean;
-    order_time_days: number | null;
-    call_time_days: number | null;
-    checklist_id: number | null;
-  } | null;
-  differences: Record<string, { template: unknown; task: unknown }>;
-  can_sync: boolean;
-  skip_reason: string | null;
-}
-
 function mapTaskToGanttTask(task: SmTask): GanttTask {
   const statusMap: Record<string, GanttTask["status"]> = {
     not_started: "not-started",
@@ -256,31 +287,104 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     status: statusMap[task.status] || "not-started",
     progress: task.progress_percentage || 0,
     locked: task.locked ? "manuallyPositioned" : undefined,
-    predecessorIds: task.dependencies || [],
+    // SSoT: predecessorIds removed - dependencies come from gantt_data.dependencies array
+    // Supplier and PO fields for sidebar display
+    supplierId: task.supplier_id ?? undefined,
+    supplierName: task.supplier_name ?? undefined,
+    purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
+    purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
+    poRequired: task.po_required ?? false,
+    // SSoT: rowData contains predecessor_ids and lock status for sidebar/dependency editor
+    rowData: {
+      task_number: task.task_number,
+      // Map to ApiPredecessor format - default type to 'FS' (Finish-to-Start) and lag to 0
+      predecessor_ids: (task.predecessor_ids || []).map(p => ({
+        id: p.id,
+        type: (p.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
+        lag: p.lag ?? 0,
+      })),
+      // Lock status for dependency editor
+      confirm: task.confirm ?? false,
+      supplier_confirm: task.supplier_confirm ?? false,
+    },
   };
 }
 
 export default function SchedulePage() {
   const params = useParams();
   const jobId = params.id as string;
-  const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { setMode } = useLayoutMode();
 
-  // Parse view from path: /jobs/123/schedule/setup → "setup"
-  const activeView = React.useMemo(() => {
-    const parts = pathname.replace(`/jobs/${jobId}/schedule`, "").split("/").filter(Boolean);
-    return parts[0] || "table";
-  }, [pathname, jobId]);
+  console.log('[SchedulePage] 🚀 Component render', {
+    jobId,
+    params,
+    searchParams: Object.fromEntries(searchParams.entries()),
+    timestamp: new Date().toISOString()
+  });
+
+  // Check if Gantt should auto-open from URL param
+  const shouldOpenGantt = searchParams.get('gantt') === 'true';
+
+  // Feature flag: Use Gantt V2 (new unified canvas) when ?v2=true
+  const useGanttV2 = searchParams.get('v2') === 'true';
+
+  // SSoT: Path-based view URLs for embedded tables
+  // Handles: /jobs/123/schedule/po-tasks-only → viewSlug = "po-tasks-only"
+  // Reserved: /jobs/123/schedule/gantt → isReservedPath = true, viewSlug = null
+  const { viewSlug, handleViewChange, isReservedPath } = usePathBasedViews({
+    basePath: `/jobs/${jobId}/schedule`,
+    reservedSlugs: ['gantt'], // 'gantt' is special mode, not a saved view
+  });
+
+  // Gantt mode detection: /schedule/gantt or ?gantt=true
+  const isGanttMode = isReservedPath || shouldOpenGantt;
+
+  console.log('[SchedulePage] 📊 View state', {
+    viewSlug,
+    isReservedPath,
+    shouldOpenGantt,
+    isGanttMode
+  });
 
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshKey, setRefreshKey] = React.useState(0);
 
-  // Gantt state
+  // Gantt state - fullscreen mode when opened from /schedule/gantt
+  const [ganttFullscreen, setGanttFullscreen] = React.useState(false);
   const [ganttOpen, setGanttOpen] = React.useState(false);
   const [ganttTasks, setGanttTasks] = React.useState<SmTask[]>([]);
+  // SSoT: Backend GanttDataService returns { id, fromId, toId, type, lag } format
+  const [ganttApiDeps, setGanttApiDeps] = React.useState<Array<{ id: string; fromId: string; toId: string; type: string; lag: number }>>([]);
   const [loadingGantt, setLoadingGantt] = React.useState(false);
+  const [selectedGanttTask, setSelectedGanttTask] = React.useState<GanttTask | null>(null);
+
+  console.log('[SchedulePage] 📈 Gantt state', {
+    ganttFullscreen,
+    ganttOpen,
+    ganttTasksCount: ganttTasks.length,
+    ganttDepsCount: ganttApiDeps.length,
+    loadingGantt,
+    selectedGanttTaskId: selectedGanttTask?.id
+  });
+
+  // Set fullscreen layout mode when Gantt is fullscreen
+  React.useEffect(() => {
+    console.log('[SchedulePage] 🖥️  Fullscreen effect', { ganttFullscreen });
+    if (ganttFullscreen) {
+      console.log('[SchedulePage] Setting layout mode to fullscreen');
+      setMode("fullscreen");
+    }
+    return () => {
+      if (ganttFullscreen) {
+        console.log('[SchedulePage] Cleanup: Resetting layout mode to padded');
+        setMode("padded");
+      }
+    };
+  }, [ganttFullscreen, setMode]);
 
   // Sync state
   const [showSyncDialog, setShowSyncDialog] = React.useState(false);
@@ -297,21 +401,33 @@ export default function SchedulePage() {
   const [orphansToDelete, setOrphansToDelete] = React.useState<Set<number>>(new Set());
   const [compareFilter, setCompareFilter] = React.useState<"all" | "will_create" | "will_update" | "will_skip" | "unchanged" | "unlinked">("all");
 
-  // Row edit drawer state
-  const [editDrawerOpen, setEditDrawerOpen] = React.useState(false);
-  const [selectedRow, setSelectedRow] = React.useState<Record<string, unknown> | null>(null);
-  const [rowComparison, setRowComparison] = React.useState<RowComparison | null>(null);
-  const [loadingRowComparison, setLoadingRowComparison] = React.useState(false);
-  const [syncingRow, setSyncingRow] = React.useState(false);
+  // Reset state
+  const [showResetDialog, setShowResetDialog] = React.useState(false);
+  const [resetting, setResetting] = React.useState(false);
+  const [resetPreview, setResetPreview] = React.useState<{
+    success: boolean;
+    preview: boolean;
+    current_task_count: number;
+    template_task_count: number;
+    po_links_to_preserve: number;
+    po_links_to_orphan: number;
+  } | null>(null);
+  const [templateList, setTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean }>>([]);
+  const [selectedResetTemplateId, setSelectedResetTemplateId] = React.useState<number | null>(null);
+  const [loadingTemplateList, setLoadingTemplateList] = React.useState(false);
 
   React.useEffect(() => {
+    console.log('[SchedulePage] 🔄 Fetch job effect triggered', { jobId });
     const fetchJob = async () => {
       try {
+        console.log('[SchedulePage] 📡 Fetching job data...', { jobId });
         const jobData = await api.get<Job>(`/api/v1/jobs/${jobId}`);
+        console.log('[SchedulePage] ✅ Job data received', jobData);
         setJob(jobData);
       } catch (error) {
-        console.error("Failed to fetch job:", error);
+        console.error("[SchedulePage] ❌ Failed to fetch job:", error);
       } finally {
+        console.log('[SchedulePage] 🏁 Job fetch complete, setting loading=false');
         setLoading(false);
       }
     };
@@ -325,36 +441,193 @@ export default function SchedulePage() {
     setRefreshKey(k => k + 1);
   }, []);
 
-  // Open Gantt - fetch tasks and show sheet
-  const handleOpenGantt = async () => {
+  // Handle inline row update (for Bulk Update button)
+  const handleRowUpdate = React.useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/foundations/sm-tasks/records/${rowId}`, {
+        record: { [field]: value }
+      });
+      triggerRefresh();
+    } catch (error) {
+      console.error("Failed to update task:", error);
+      throw error;
+    }
+  }, [triggerRefresh]);
+
+  // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
+  const handleOpenGantt = React.useCallback(async () => {
+    console.log('[SchedulePage] 📊 handleOpenGantt called');
     setGanttOpen(true);
     setLoadingGantt(true);
     try {
-      const tasksData = await api.get<SmTasksResponse>(`/api/v1/jobs/${jobId}/sm_tasks`);
-      setGanttTasks(tasksData.sm_tasks || []);
+      console.log('[SchedulePage] 🔄 Validating dates and running rollover...');
+      // SSoT: Validate dates first (safety net - runs rollover for this job)
+      // Uses SmRolloverJob as THE ONE source of truth for rollover logic
+      try {
+        const validateResult = await api.post<{ success: boolean; rolled_over: number; extended: number; cascaded: number }>(
+          `/api/v1/jobs/${jobId}/sm_tasks/validate_dates`
+        );
+        if (validateResult) {
+          console.log('[SchedulePage] ✅ Validation result:', validateResult);
+          const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
+          if (fixCount > 0) {
+            console.log('[SchedulePage] 📅 Tasks updated:', { fixCount });
+            toast({
+              title: "Schedule Updated",
+              description: `${fixCount} task(s) with past dates moved forward`,
+            });
+          }
+        }
+      } catch (validateError) {
+        // Don't block loading if validation fails - just log it
+        console.warn("[SchedulePage] ⚠️  Failed to validate dates:", validateError);
+      }
+
+      console.log('[SchedulePage] 📡 Fetching Gantt data...', { jobId });
+      // SSoT: Use ?for=gantt to get filtered tasks (po_required without PO = invisible)
+      const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
+      const tasks = response.gantt_data?.tasks || [];
+      const deps = response.gantt_data?.dependencies || [];
+      console.log('[SchedulePage] ✅ Gantt data received', {
+        tasksCount: tasks.length,
+        depsCount: deps.length,
+        tasks: tasks.slice(0, 3), // Log first 3 tasks
+        deps: deps.slice(0, 3)     // Log first 3 deps
+      });
+      setGanttTasks(tasks);
+      setGanttApiDeps(deps);
     } catch (error) {
-      console.error("Failed to fetch tasks for Gantt:", error);
+      console.error("[SchedulePage] ❌ Failed to fetch tasks for Gantt:", error);
       toast({ title: "Error", description: "Failed to load Gantt data", variant: "destructive" });
     } finally {
+      console.log('[SchedulePage] 🏁 handleOpenGantt complete, setting loadingGantt=false');
       setLoadingGantt(false);
     }
-  };
+  }, [jobId, toast]);
+
+  // Refetch Gantt data (called after dependency changes, task updates, etc.)
+  const refetchGanttData = React.useCallback(async () => {
+    console.log('[SchedulePage] 🔄 Refetching Gantt data...');
+    try {
+      const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
+      console.log('[SchedulePage] ✅ Gantt data refetched', {
+        tasksCount: response.gantt_data?.tasks?.length || 0,
+        depsCount: response.gantt_data?.dependencies?.length || 0
+      });
+      setGanttTasks(response.gantt_data?.tasks || []);
+      setGanttApiDeps(response.gantt_data?.dependencies || []);
+    } catch (error) {
+      console.error("[SchedulePage] ❌ Failed to refetch Gantt data:", error);
+    }
+  }, [jobId]);
+
+  // Auto-open Gantt in fullscreen when path is /schedule/gantt or ?gantt=true is in URL
+  React.useEffect(() => {
+    console.log('[SchedulePage] 🎬 Auto-open Gantt effect', {
+      isGanttMode,
+      loading,
+      hasJob: !!job,
+      ganttFullscreen
+    });
+    if (isGanttMode && !loading && job && !ganttFullscreen) {
+      console.log('[SchedulePage] 🚀 Auto-opening Gantt in fullscreen mode');
+      setGanttFullscreen(true);
+      handleOpenGantt();
+    }
+  }, [isGanttMode, loading, job, ganttFullscreen, handleOpenGantt]);
+
+  // Close fullscreen Gantt
+  const handleCloseFullscreenGantt = React.useCallback(() => {
+    setGanttFullscreen(false);
+    setGanttOpen(false);
+    // Navigate back to schedule table
+    router.push(`/jobs/${jobId}/schedule`);
+  }, [router, jobId]);
 
   // Convert tasks to Canvas Gantt format
+  // SSoT: Use actual dates from database (set by SmRolloverJob)
+  // NOT recalculated - SmTasks have their own start_date/end_date columns
   const ganttTasksFormatted = React.useMemo(() => {
-    return ganttTasks.map(mapTaskToGanttTask);
+    console.log('[SchedulePage] 🎨 Formatting Gantt tasks', {
+      ganttTasksCount: ganttTasks.length
+    });
+    if (ganttTasks.length === 0) {
+      console.log('[SchedulePage] ⚠️  No Gantt tasks to format');
+      return [];
+    }
+
+    const formatted = ganttTasks.map(task => {
+      // Parse dates from API response (format: "YYYY-MM-DD")
+      const startDate = task.start_date ? parseISO(task.start_date) : new Date();
+      const endDate = task.end_date ? parseISO(task.end_date) : startDate;
+
+      return {
+        id: String(task.id),
+        name: task.name,
+        startDate,
+        endDate,
+        progress: task.progress_percentage || 0,
+        status: task.status === 'completed' ? 'completed' as const :
+                task.status === 'started' ? 'in-progress' as const : 'not-started' as const,
+        // SSoT: Convert boolean flags to LockType for Gantt
+        locked: task.supplier_confirm ? 'supplierConfirmed' as const :
+                task.confirm ? 'manuallyPositioned' as const : undefined,
+        supplierId: task.supplier_id ?? undefined,
+        supplierName: task.supplier_name ?? undefined,
+        purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
+        purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
+        poRequired: task.po_required ?? false,
+        // SSoT: rowData for dependency editor and header info
+        rowData: {
+          id: task.id,
+          task_number: task.task_number,
+          name: task.name,
+          duration_days: task.duration_days || 1,
+          predecessor_ids: (task.predecessor_ids || []).map(p => ({
+            id: p.id,
+            type: (p.type || 'FS') as 'FS' | 'SS' | 'FF' | 'SF',
+            lag: p.lag ?? 0,
+          })),
+          confirm: task.confirm ?? false,
+          supplier_confirm: task.supplier_confirm ?? false,
+          header_gantt: task.header_gantt,
+          // SSoT: allow_header from backend GanttDataService for canvas renderer header detection
+          allow_header: task.allow_header ?? false,
+          hold: task.hold ?? false,
+          hold_date: task.hold_date,
+          supplier_id: task.supplier_id,
+          supplier_name: task.supplier_name,
+        },
+        shape: undefined, // Let Gantt decide based on duration
+      } as GanttTask;
+    });
+    console.log('[SchedulePage] ✅ Gantt tasks formatted', {
+      formattedCount: formatted.length,
+      firstTask: formatted[0]
+    });
+    return formatted;
   }, [ganttTasks]);
 
-  // Build dependencies
-  const ganttDependencies = React.useMemo(() => {
-    const deps: Array<{ fromId: string; toId: string; type?: string }> = [];
-    ganttTasks.forEach((task) => {
-      (task.dependencies || []).forEach((depId) => {
-        deps.push({ fromId: depId, toId: String(task.id), type: "FS" });
-      });
+  // Build dependencies from API data
+  // SSoT: Backend GanttDataService returns { id, fromId, toId, type, lag } format
+  // where fromId/toId are task.id values (not task_number)
+  const ganttDependencies: GanttDependency[] = React.useMemo(() => {
+    console.log('[SchedulePage] 🔗 Building dependencies', {
+      ganttApiDepsCount: ganttApiDeps.length
+    });
+    const deps: GanttDependency[] = ganttApiDeps.map(dep => ({
+      id: dep.id,
+      fromId: dep.fromId,
+      toId: dep.toId,
+      type: (dep.type || "FS") as GanttDependency['type'],
+      lag: dep.lag || 0,
+    }));
+    console.log('[SchedulePage] ✅ Dependencies built', {
+      depsCount: deps.length,
+      firstDep: deps[0]
     });
     return deps;
-  }, [ganttTasks]);
+  }, [ganttApiDeps]);
 
   // Handle task drag in Gantt
   const handleTaskDrag = async (task: GanttTask, newStartDate: Date) => {
@@ -383,8 +656,10 @@ export default function SchedulePage() {
       });
     } catch (error) {
       console.error("Failed to update task:", error);
-      const tasksData = await api.get<SmTasksResponse>(`/api/v1/jobs/${jobId}/sm_tasks`);
-      setGanttTasks(tasksData.sm_tasks || []);
+      // SSoT: Refetch with ?for=gantt to get filtered tasks
+      const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
+      setGanttTasks(response.gantt_data?.tasks || []);
+      setGanttApiDeps(response.gantt_data?.dependencies || []);
     }
   };
 
@@ -613,70 +888,297 @@ export default function SchedulePage() {
     }
   };
 
-  // Row edit drawer handlers
-  const handleRowDoubleClick = async (row: Record<string, unknown>) => {
-    setSelectedRow(row);
-    setRowComparison(null);
-    setEditDrawerOpen(true);
-
-    // Fetch comparison if task is linked to a template
-    const taskId = row.id as number;
-    const smScheduleMasterId = row.sm_schedule_master_id as number | null;
-
-    if (smScheduleMasterId) {
-      setLoadingRowComparison(true);
-      try {
-        const response = await api.get<{ success: boolean; comparison: RowComparison }>(
-          `/api/v1/sm_tasks/${taskId}/compare_to_template`
-        );
-        if (response?.comparison) {
-          setRowComparison(response.comparison);
-        }
-      } catch (err) {
-        console.error("Failed to fetch row comparison:", err);
-      } finally {
-        setLoadingRowComparison(false);
-      }
-    }
-  };
-
-  const handleSyncRow = async () => {
-    if (!selectedRow || !rowComparison?.template_row) return;
-
-    setSyncingRow(true);
+  // Fetch reset preview for a specific template
+  const fetchResetPreview = React.useCallback(async (templateId: number) => {
+    setResetPreview(null);
     try {
-      const response = await api.post<{ success: boolean; message: string; changes: Record<string, unknown> }>(
-        `/api/v1/sm_tasks/${selectedRow.id}/sync_from_template`
+      const response = await api.post<{
+        success: boolean;
+        preview: boolean;
+        current_task_count: number;
+        template_task_count: number;
+        po_links_to_preserve: number;
+        po_links_to_orphan: number;
+      }>(
+        `/api/v1/sm_schedule_master_templates/${templateId}/reset_job_tasks`,
+        { job_id: parseInt(String(jobId)), preview: true }
       );
-      if (response?.success) {
-        toast({
-          title: "Row Synced",
-          description: response.message || "Task updated from template",
-        });
-        // Refresh comparison
-        const compResponse = await api.get<{ success: boolean; comparison: RowComparison }>(
-          `/api/v1/sm_tasks/${selectedRow.id}/compare_to_template`
-        );
-        if (compResponse?.comparison) {
-          setRowComparison(compResponse.comparison);
-        }
-        triggerRefresh();
+      if (response) {
+        setResetPreview(response);
       }
     } catch (err) {
-      console.error("Failed to sync row:", err);
-      toast({ title: "Sync Failed", description: "Failed to sync task from template", variant: "destructive" });
+      console.error("Failed to get reset preview:", err);
+    }
+  }, [jobId]);
+
+  // Open reset dialog and load template list
+  const handleOpenResetDialog = async () => {
+    setResetPreview(null);
+    setSelectedResetTemplateId(null);
+    setShowResetDialog(true);
+    setLoadingTemplateList(true);
+
+    try {
+      // Load all templates
+      const response = await api.get<{
+        success: boolean;
+        sm_schedule_master_templates: Array<{ id: number; name: string; is_default: boolean }>
+      }>("/api/v1/sm_schedule_master_templates");
+
+      const templates = response.sm_schedule_master_templates || [];
+      setTemplateList(templates);
+
+      // Default to the default template or first one
+      const defaultTemplate = templates.find(t => t.is_default) || templates[0];
+      if (defaultTemplate) {
+        setSelectedResetTemplateId(defaultTemplate.id);
+        // Fetch preview for this template
+        await fetchResetPreview(defaultTemplate.id);
+      }
+    } catch (err) {
+      console.error("Failed to load templates:", err);
     } finally {
-      setSyncingRow(false);
+      setLoadingTemplateList(false);
     }
   };
 
+  // Handle template selection change
+  const handleResetTemplateChange = async (templateId: number) => {
+    setSelectedResetTemplateId(templateId);
+    await fetchResetPreview(templateId);
+  };
+
+  // Execute the reset
+  const handleReset = async () => {
+    if (!selectedResetTemplateId) {
+      toast({
+        title: "Error",
+        description: "No template selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResetting(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        tasks_deleted: number;
+        tasks_created: number;
+        po_links_preserved: number;
+        po_links_orphaned: number;
+      }>(
+        `/api/v1/sm_schedule_master_templates/${selectedResetTemplateId}/reset_job_tasks`,
+        { job_id: parseInt(String(jobId)) }
+      );
+
+      if (response?.success) {
+        toast({
+          title: "Reset Complete",
+          description: `${response.tasks_deleted} tasks deleted, ${response.tasks_created} created. ${response.po_links_preserved} PO links preserved, ${response.po_links_orphaned} POs unlinked.`,
+        });
+        setShowResetDialog(false);
+        setShowSyncDialog(false);
+        triggerRefresh();
+      } else {
+        toast({
+          title: "Reset Failed",
+          description: "Failed to reset tasks",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to reset:", err);
+      toast({
+        title: "Reset Failed",
+        description: "An error occurred while resetting tasks",
+        variant: "destructive",
+      });
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  // SSoT: Show skeleton layout during loading to prevent flash/CLS
+  // The skeleton matches the actual page structure so there's no jarring layout shift
+  console.log('[SchedulePage] 🎬 Render phase', {
+    loading,
+    ganttFullscreen,
+    ganttOpen,
+    hasJob: !!job,
+    ganttTasksFormattedLength: ganttTasksFormatted.length,
+    ganttDependenciesLength: ganttDependencies.length
+  });
+
   if (loading) {
+    console.log('[SchedulePage] 🔄 Rendering loading skeleton');
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
+      <div className="flex flex-col h-full -mt-4">
+        {/* Skeleton header - matches actual layout */}
+        <div className="flex items-center justify-between pb-1 shrink-0">
+          <div className="flex items-center gap-2">
+            <BackButton fallbackHref="/jobs" />
+            <Skeleton className="h-5 w-40" />
+            <div className="flex items-center gap-1 ml-2">
+              <Skeleton className="h-7 w-14" />
+              <Skeleton className="h-7 w-10" />
+              <Skeleton className="h-7 w-12" />
+            </div>
+          </div>
+        </div>
+        {/* Table skeleton - TeeemTableView will show its own loading but we show structure */}
+        <div className="flex-1 -mx-4">
+          <div className="h-full flex flex-col">
+            {/* Toolbar skeleton */}
+            <div className="flex items-center justify-between p-2 border-b">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-32" />
+                <Skeleton className="h-8 w-36" />
+                <Skeleton className="h-8 w-28" />
+              </div>
+              <Skeleton className="h-8 w-24" />
+            </div>
+            {/* Table header skeleton */}
+            <div className="flex items-center gap-4 p-2 border-b bg-muted/30">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            {/* Table rows skeleton */}
+            <div className="flex-1 space-y-2 p-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-8 w-16" />
+                  <Skeleton className="h-8 w-48" />
+                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-8 w-20" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
+
+  // Fullscreen Gantt View
+  if (ganttFullscreen) {
+    console.log('[SchedulePage] 📊 Rendering fullscreen Gantt view', {
+      loadingGantt,
+      ganttTasksFormattedLength: ganttTasksFormatted.length
+    });
+    return (
+    <>
+      {/* Main Container */}
+      <div className="flex flex-col h-full">
+        {/* Fullscreen Header - STICKY */}
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-background shrink-0 sticky top-0 z-40">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="h-5 w-5 text-muted-foreground" />
+            <span className="font-medium">{job?.name || "Loading..."}</span>
+            <span className="text-muted-foreground text-sm">Gantt Schedule</span>
+            {/* Quick Links - Plans, PO, Site */}
+            <div className="flex items-center gap-1 ml-2">
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/plans`, '_blank')}>
+                Plans
+              </Button>
+              <Button
+                variant={selectedGanttTask?.purchaseOrderId ? "default" : "outline"}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  console.log('PO button clicked, selectedTask:', selectedGanttTask?.id, selectedGanttTask?.purchaseOrderId);
+                  // If a task with a PO is selected, open that specific PO
+                  if (selectedGanttTask?.purchaseOrderId) {
+                    window.open(`/jobs/${jobId}/purchase-orders/${selectedGanttTask.purchaseOrderId}`, '_blank');
+                  } else {
+                    // Otherwise open all POs for this job
+                    window.open(`/jobs/${jobId}/purchase-orders`, '_blank');
+                  }
+                }}
+              >
+                PO{selectedGanttTask?.purchaseOrderNumber ? ` #${selectedGanttTask.purchaseOrderNumber}` : ''}
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
+                Site
+              </Button>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleCloseFullscreenGantt}>
+            <Minimize2 className="h-4 w-4 mr-2" />
+            Exit Fullscreen
+          </Button>
+        </div>
+        {/* Gantt View Container */}
+        <div className="flex-1 overflow-hidden min-h-0">
+          {loadingGantt ? (
+            <>
+              {console.log('[SchedulePage] ⏳ Rendering Gantt loading spinner')}
+              <div className="flex items-center justify-center h-full">
+                <Spinner />
+              </div>
+            </>
+          ) : ganttTasks.length === 0 ? (
+            <>
+              {console.log('[SchedulePage] ⚠️  Rendering "no tasks" message')}
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <BarChart3 className="h-12 w-12 mb-2" />
+                <p>No tasks found for this job</p>
+              </div>
+            </>
+          ) : (
+            <>
+              {console.log('[SchedulePage] 🎨 Rendering Gantt', {
+                useGanttV2,
+                tasksCount: ganttTasksFormatted.length,
+                depsCount: ganttDependencies.length
+              })}
+              {useGanttV2 ? (
+                <GanttUnified
+                  tasks={ganttTasksFormatted}
+                  dependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
+                  onTaskClick={(task) => {
+                    console.log('Gantt V2 task clicked:', task.id, task.name);
+                    setSelectedGanttTask(task);
+                  }}
+                  className="h-full"
+                  jobId={Number(jobId)}
+                  onDataChange={refetchGanttData}
+                />
+              ) : (
+                <GanttCanvasView
+                  staticTasks={ganttTasksFormatted}
+                  staticDependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
+                  onTaskClick={(task) => {
+                    console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
+                    setSelectedGanttTask(task);
+                  }}
+                  className="h-full"
+                  jobId={Number(jobId)}
+                  onDataChange={refetchGanttData}
+                />
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+    </>
+    );
+  }
+
+  console.log('[SchedulePage] 📋 Rendering main schedule view (table)', {
+    jobName: job?.name,
+    refreshKey
+  });
 
   return (
     <div className="flex flex-col h-full -mt-4">
@@ -710,6 +1212,8 @@ export default function SchedulePage() {
           ]}
           inheritViewsFrom="sm_schedule_master"
           tableName="Schedule Tasks"
+          defaultViewSlug={viewSlug}
+          onViewChange={handleViewChange}
           leftActions={
             <div className="flex items-center gap-2">
               <Button
@@ -731,16 +1235,16 @@ export default function SchedulePage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleOpenGantt}
+                onClick={() => router.push(`/jobs/${jobId}/schedule/gantt-v2`)}
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
-                Open Gantt
+                Open Gantt v2
               </Button>
             </div>
           }
           enableExport={true}
           onRefresh={triggerRefresh}
-          onRowDoubleClick={handleRowDoubleClick}
+          onRowUpdate={handleRowUpdate}
         />
       </div>
 
@@ -756,14 +1260,35 @@ export default function SchedulePage() {
                 <Spinner size={32} className="text-muted-foreground" />
               </div>
             ) : ganttTasks.length > 0 ? (
-              <GanttCanvasView
-                staticTasks={ganttTasksFormatted}
-                staticDependencies={ganttDependencies}
-                showToolbar={true}
-                onTaskDrag={handleTaskDrag}
-                className="h-full"
-                jobId={Number(jobId)}
-              />
+              useGanttV2 ? (
+                <GanttUnified
+                  tasks={ganttTasksFormatted}
+                  dependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
+                  onTaskClick={(task) => {
+                    console.log('Gantt V2 sheet task clicked:', task.id, task.name);
+                    setSelectedGanttTask(task);
+                  }}
+                  className="h-full"
+                  jobId={Number(jobId)}
+                  onDataChange={refetchGanttData}
+                />
+              ) : (
+                <GanttCanvasView
+                  staticTasks={ganttTasksFormatted}
+                  staticDependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
+                  onTaskClick={(task) => {
+                    console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
+                    setSelectedGanttTask(task);
+                  }}
+                  className="h-full"
+                  jobId={Number(jobId)}
+                  onDataChange={refetchGanttData}
+                />
+              )
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No tasks to display</p>
@@ -966,6 +1491,9 @@ export default function SchedulePage() {
                   )}
 
                   <DialogFooter className="shrink-0 pt-2">
+                    <Button variant="destructive" onClick={handleOpenResetDialog} className="mr-auto">
+                      <Trash2 className="h-4 w-4 mr-2" />Reset All
+                    </Button>
                     <Button variant="outline" onClick={() => setShowSyncDialog(false)}>Cancel</Button>
                     <Button variant="outline" onClick={handleSkipToCompare}>Skip Linking</Button>
                     <Button onClick={handleApplyLinksAndCompare} disabled={analyzing}>
@@ -1171,14 +1699,22 @@ export default function SchedulePage() {
                               )}
                               {comp.status === "will_update" && Object.keys(comp.differences).length > 0 && (
                                 <div className="text-xs space-y-0.5">
-                                  {Object.entries(comp.differences).slice(0, 3).map(([field, diff]) => (
-                                    <div key={field} className="flex gap-1">
-                                      <span className="font-medium">{field}:</span>
-                                      <span className="text-red-500 line-through">{String(diff.task ?? "-")}</span>
-                                      <span>→</span>
-                                      <span className="text-green-600">{String(diff.template)}</span>
-                                    </div>
-                                  ))}
+                                  {Object.entries(comp.differences).slice(0, 3).map(([field, diff]) => {
+                                    // Format values - handle objects/arrays with JSON.stringify
+                                    const formatValue = (val: unknown): string => {
+                                      if (val === null || val === undefined) return "-";
+                                      if (typeof val === "object") return JSON.stringify(val);
+                                      return String(val);
+                                    };
+                                    return (
+                                      <div key={field} className="flex gap-1">
+                                        <span className="font-medium">{field}:</span>
+                                        <span className="text-red-500 line-through truncate max-w-[100px]">{formatValue(diff.task)}</span>
+                                        <span>→</span>
+                                        <span className="text-green-600 truncate max-w-[100px]">{formatValue(diff.template)}</span>
+                                      </div>
+                                    );
+                                  })}
                                   {Object.keys(comp.differences).length > 3 && (
                                     <span className="text-muted-foreground">+{Object.keys(comp.differences).length - 3} more</span>
                                   )}
@@ -1277,150 +1813,105 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Row Edit Drawer */}
-      <Sheet open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
-        <SheetContent side="right" className="w-[500px] sm:w-[600px] overflow-y-auto">
-          <SheetHeader className="pb-4 border-b">
-            <SheetTitle className="flex items-center gap-2">
-              <span className="font-mono text-muted-foreground">#{selectedRow?.task_number as number}</span>
-              {String(selectedRow?.name || "")}
-            </SheetTitle>
-          </SheetHeader>
+      {/* Reset Confirmation Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Reset All Tasks
+            </DialogTitle>
+            <DialogDescription>
+              This will DELETE all tasks and re-sync fresh from the selected template.
+              PO links will be preserved by task number.
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="py-4 space-y-4">
-            {/* Template link status */}
-            {selectedRow && (
-              <div className="flex items-center gap-2 text-sm">
-                {selectedRow.sm_schedule_master_id ? (
-                  <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                    <Link2 className="h-3 w-3 mr-1" />
-                    Linked to Template
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Not Linked to Template
-                  </Badge>
-                )}
-              </div>
-            )}
-
-            {/* Loading comparison */}
-            {loadingRowComparison && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+          {/* Template Selector */}
+          <div className="space-y-2">
+            <Label>Select Template</Label>
+            {loadingTemplateList ? (
+              <div className="flex items-center gap-2 py-2">
                 <Spinner size={16} />
-                Loading template comparison...
+                <span className="text-sm text-muted-foreground">Loading templates...</span>
               </div>
-            )}
-
-            {/* Comparison table */}
-            {rowComparison?.template_row && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium">Template Comparison</h4>
-                  {rowComparison.can_sync ? (
-                    <Button
-                      size="sm"
-                      onClick={handleSyncRow}
-                      disabled={syncingRow || Object.keys(rowComparison.differences).length === 0}
-                    >
-                      {syncingRow ? (
-                        <><Spinner size={14} className="mr-2" />Syncing...</>
-                      ) : Object.keys(rowComparison.differences).length === 0 ? (
-                        <><Check className="h-4 w-4 mr-2" />In Sync</>
-                      ) : (
-                        <><RefreshCw className="h-4 w-4 mr-2" />Sync {Object.keys(rowComparison.differences).length} Changes</>
-                      )}
-                    </Button>
-                  ) : (
-                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                      {rowComparison.skip_reason || "Cannot sync"}
-                    </Badge>
-                  )}
-                </div>
-
-                {Object.keys(rowComparison.differences).length > 0 ? (
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <UITableRow>
-                          <TableHead className="w-[120px]">Field</TableHead>
-                          <TableHead>Current Task</TableHead>
-                          <TableHead className="w-[40px]"></TableHead>
-                          <TableHead>Template</TableHead>
-                        </UITableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {Object.entries(rowComparison.differences).map(([field, diff]) => (
-                          <UITableRow key={field}>
-                            <TableCell className="font-medium text-sm">{field}</TableCell>
-                            <TableCell className="text-sm text-red-600 dark:text-red-400">
-                              {String(diff.task ?? "-")}
-                            </TableCell>
-                            <TableCell>
-                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                            </TableCell>
-                            <TableCell className="text-sm text-green-600 dark:text-green-400">
-                              {String(diff.template ?? "-")}
-                            </TableCell>
-                          </UITableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="text-center py-4 text-sm text-muted-foreground bg-green-50 dark:bg-green-950 rounded-lg">
-                    <Check className="h-5 w-5 text-green-500 mx-auto mb-1" />
-                    Task is in sync with template
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* No template link */}
-            {selectedRow && !selectedRow.sm_schedule_master_id && !loadingRowComparison && (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
-                <p>This task is not linked to a template row.</p>
-                <p className="mt-1">Use "Sync from Master" to link tasks to templates.</p>
-              </div>
-            )}
-
-            {/* Task details summary */}
-            {selectedRow && (
-              <div className="space-y-3 pt-4 border-t">
-                <h4 className="text-sm font-medium">Task Details</h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Status:</span>
-                    <span className="ml-2 font-medium">{selectedRow.status as string}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Trade:</span>
-                    <span className="ml-2 font-medium">{(selectedRow.trade as string) || "-"}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Stage:</span>
-                    <span className="ml-2 font-medium">{(selectedRow.stage as string) || "-"}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Duration:</span>
-                    <span className="ml-2 font-medium">{selectedRow.duration_days as number} days</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">PO Required:</span>
-                    <span className="ml-2 font-medium">{selectedRow.po_required ? "Yes" : "No"}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Photo Required:</span>
-                    <span className="ml-2 font-medium">{selectedRow.require_photo ? "Yes" : "No"}</span>
-                  </div>
-                </div>
-              </div>
+            ) : (
+              <ComboboxDropdown
+                items={templateList.map(t => ({
+                  id: String(t.id),
+                  label: t.name + (t.is_default ? " (Default)" : "")
+                }))}
+                selectedItem={selectedResetTemplateId ? {
+                  id: String(selectedResetTemplateId),
+                  label: templateList.find(t => t.id === selectedResetTemplateId)?.name || ""
+                } : undefined}
+                onSelect={(item) => handleResetTemplateChange(parseInt(item.id))}
+                placeholder="Select a template..."
+              />
             )}
           </div>
-        </SheetContent>
-      </Sheet>
+
+          {!resetPreview ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner />
+              <span className="ml-2 text-sm text-muted-foreground">Loading preview...</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg border p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Current tasks:</span>
+                  <span className="font-medium">{resetPreview.current_task_count}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Template tasks:</span>
+                  <span className="font-medium">{resetPreview.template_task_count}</span>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">PO links to preserve:</span>
+                    <span className="font-medium text-green-600">{resetPreview.po_links_to_preserve}</span>
+                  </div>
+                  {resetPreview.po_links_to_orphan > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">POs to unlink:</span>
+                      <span className="font-medium text-amber-600">{resetPreview.po_links_to_orphan}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-destructive/10 rounded-lg p-3 text-sm text-destructive">
+                <strong>Warning:</strong> This action cannot be undone. All task progress, dates, and customizations will be lost.
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowResetDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReset}
+              disabled={resetting || !resetPreview}
+            >
+              {resetting ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Resetting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Reset All Tasks
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

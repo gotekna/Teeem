@@ -166,6 +166,13 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   "JobProfitTab": lazy(() => import("@/components/jobs/JobProfitTab").then(m => ({ default: m.JobProfitTab }))),
   "JobPurchaseOrdersTab": lazy(() => import("@/components/jobs/JobPurchaseOrdersTab").then(m => ({ default: m.JobPurchaseOrdersTab }))),
   "RainLogTab": lazy(() => import("@/components/jobs/RainLogTab").then(m => ({ default: m.RainLogTab }))),
+
+  // ============================================
+  // NOTEBOOK COMPONENTS - /components/notebooks/
+  // ============================================
+
+  // EntityNotesPanel - Notes tab for Jobs, Contacts, etc.
+  "EntityNotesPanel": lazy(() => import("@/components/notebooks/EntityNotesPanel").then(m => ({ default: m.EntityNotesPanel }))),
 };
 
 /**

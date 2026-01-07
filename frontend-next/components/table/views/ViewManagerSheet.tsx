@@ -203,7 +203,7 @@ export function ViewManagerSheet({
   // Edit state
   const [editName, setEditName] = React.useState("");
   const [editIsGlobal, setEditIsGlobal] = React.useState(false);
-  const [editViewType, setEditViewType] = React.useState<"table" | "relational">("table");
+  const [editViewType, setEditViewType] = React.useState<"table" | "relational" | "grouped" | "hierarchy">("table");
   const [editFilters, setEditFilters] = React.useState<CascadeFilter[]>([]);
   const [editFilterGroups, setEditFilterGroups] = React.useState<FilterGroup[]>([{ id: "default", logic: "AND" }]);
   const [editInterGroupLogic, setEditInterGroupLogic] = React.useState<"AND" | "OR">("OR");
@@ -298,6 +298,8 @@ export function ViewManagerSheet({
         })) as SavedView[];
 
         setViews(mappedViews);
+        // Also update global atom so view buttons in TeeemTableView update immediately
+        setGlobalViews(mappedViews);
 
         if (selectViewByName) {
           const newView = mappedViews.find(v => v.name === selectViewByName);
@@ -342,7 +344,7 @@ export function ViewManagerSheet({
     setEditingView(view);
     setEditName(view.name);
     setEditIsGlobal(view.is_global || false);
-    setEditViewType(view.view_type || "table");
+    setEditViewType(view.view_display_type || "table");
     setEditFilters(view.filters || []);
     setEditFilterGroups(view.filterGroups || [{ id: "default", logic: "AND" }]);
     setEditInterGroupLogic(view.interGroupLogic || "OR");
@@ -510,7 +512,7 @@ export function ViewManagerSheet({
         const savedView: SavedView = {
           id: isNewView && response.view?.id ? response.view.id : editingView.id,
           name: currentEditState.name,
-          view_type: currentEditState.viewType,
+          view_display_type: currentEditState.viewType,
           is_global: currentEditState.isGlobal,
           visibleColumns: currentEditState.visibleColumns,
           columnOrder: currentEditState.columnOrder,
@@ -536,10 +538,20 @@ export function ViewManagerSheet({
 
         // Apply the view state immediately using captured state
         // This ensures display type changes take effect immediately
-        console.log('[ViewManagerSheet] Applying saved view with columnOrder:', savedView.columnOrder);
+        console.log('[ViewManagerSheet] Applying saved view:', {
+          name: savedView.name,
+          filters: savedView.filters,
+          filterCount: Array.isArray(savedView.filters) ? savedView.filters.length : 0,
+          columnOrder: savedView.columnOrder?.length,
+        });
         onApplyView?.(savedView);
 
+        // Small delay to ensure atom updates propagate before triggering refresh
+        // This prevents a race condition where the refresh sees stale filter state
+        await new Promise(resolve => setTimeout(resolve, 10));
+
         // Trigger data refresh to apply new filters/sorting/etc
+        console.log('[ViewManagerSheet] Triggering refresh after view applied');
         onRefresh?.();
 
         onViewsChange?.();
@@ -943,6 +955,26 @@ export function ViewManagerSheet({
       }
     }
 
+    // Special handling for percentage columns - show % suffix
+    const isPercentage = columnType === 'percentage';
+
+    if (isPercentage) {
+      return (
+        <div className="relative w-[100px]">
+          <Input
+            type="number"
+            value={String(filter.value || "").replace(/%$/, "")}
+            onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
+            placeholder="e.g. 99"
+            className="h-8 pr-6"
+          />
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+            %
+          </span>
+        </div>
+      );
+    }
+
     return (
       <Input
         value={String(filter.value || "")}
@@ -1249,15 +1281,17 @@ export function ViewManagerSheet({
                           </Label>
                           <Select
                             value={editViewType}
-                            onValueChange={(value: "table" | "relational") => setEditViewType(value)}
+                            onValueChange={(value: "table" | "relational" | "grouped" | "hierarchy") => setEditViewType(value)}
                             disabled={!isEditing}
                           >
-                            <SelectTrigger id="view-type-select" className="w-[130px] h-8">
+                            <SelectTrigger id="view-type-select" className="w-[180px] h-8">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="table">Table View</SelectItem>
+                              <SelectItem value="grouped">By Company</SelectItem>
                               <SelectItem value="relational">Relational View</SelectItem>
+                              <SelectItem value="hierarchy">Header Hierarchy</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

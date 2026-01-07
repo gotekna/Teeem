@@ -307,11 +307,11 @@ export function ViewModeToggle({
 }
 
 // Hook for split inbox data - now with offline-first support
-export function useSplitInbox(options?: { accountId?: string }) {
+export function useSplitInbox(options?: { accountId?: string; enabled?: boolean }) {
   const offlineEmails = useOfflineEmails({
-    enabled: true,
-    fetchOnMount: true,
-    fetchOnFocus: true,
+    enabled: options?.enabled ?? true,  // Skip API calls when not in split mode
+    fetchOnMount: options?.enabled ?? true,
+    fetchOnFocus: options?.enabled ?? true,
     accountId: options?.accountId, // Filter by selected account
   });
 

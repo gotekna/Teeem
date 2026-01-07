@@ -66,26 +66,38 @@ class SmMsProjectService
       tasks_created << sm_task
     end
 
-    # Parse dependencies (predecessor links)
+    # Build task_id to task_number mapping for predecessor_ids
+    task_number_map = tasks_created.to_h { |t| [t.id, t.task_number] }
+
+    # Parse dependencies (predecessor links) - SSoT: Use predecessor_ids jsonb
     doc.xpath("//Task").each do |task_node|
       uid = task_node.at_xpath("UID")&.text
       sm_task_id = task_uid_map[uid]
       next unless sm_task_id
 
+      predecessor_entries = []
       task_node.xpath("PredecessorLink").each do |pred_link|
         pred_uid = pred_link.at_xpath("PredecessorUID")&.text
         pred_task_id = task_uid_map[pred_uid]
         next unless pred_task_id
 
+        pred_task_number = task_number_map[pred_task_id]
+        next unless pred_task_number
+
         link_type = pred_link.at_xpath("Type")&.text&.to_i || 1
         lag = parse_duration(pred_link.at_xpath("LinkLag")&.text) || 0
 
-        SmDependency.create!(
-          predecessor_task_id: pred_task_id,
-          successor_task_id: sm_task_id,
-          dependency_type: map_link_type(link_type),
-          lag_days: lag
-        )
+        predecessor_entries << {
+          "id" => pred_task_number,
+          "type" => map_link_type(link_type),
+          "lag" => lag
+        }
+      end
+
+      # Update successor task with predecessor_ids
+      if predecessor_entries.any?
+        sm_task = SmTask.find(sm_task_id)
+        sm_task.update!(predecessor_ids: predecessor_entries)
       end
     end
 
@@ -153,10 +165,10 @@ class SmMsProjectService
               xml.OutlineLevel task.outline_level || 1
               xml.WBS task.wbs_code if task.wbs_code.present?
 
-              # Predecessor links
-              task.predecessor_dependencies.each do |dep|
+              # Predecessor links (SSoT: using predecessor_ids jsonb)
+              task.active_predecessor_dependencies.each do |dep|
                 xml.PredecessorLink do
-                  xml.PredecessorUID dep.predecessor_task_id
+                  xml.PredecessorUID dep.predecessor_task&.id
                   xml.Type reverse_map_link_type(dep.dependency_type)
                   xml.LinkLag format_duration(dep.lag_days || 0)
                   xml.LagFormat 7
@@ -237,12 +249,13 @@ class SmMsProjectService
 
   def map_link_type(ms_type)
     # MS Project: 0=FF, 1=FS, 2=SF, 3=SS
+    # SSoT: Using short format for predecessor_ids jsonb
     case ms_type
-    when 0 then "finish_to_finish"
-    when 1 then "finish_to_start"
-    when 2 then "start_to_finish"
-    when 3 then "start_to_start"
-    else "finish_to_start"
+    when 0 then "FF"
+    when 1 then "FS"
+    when 2 then "SF"
+    when 3 then "SS"
+    else "FS"
     end
   end
 

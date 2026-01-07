@@ -154,6 +154,7 @@ class EntityTabQueryService
       hierarchy_path: compute_hierarchy_path(tab),
       document_count: doc_count,
       is_photo_category: tab.is_photo_category,
+      is_cad_category: tab.is_cad_category,
       can_delete: compute_can_delete(tab, doc_count),
       children: children_json,
       document_types: @document_types_json_by_tab[tab.id] || []

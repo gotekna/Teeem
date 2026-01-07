@@ -13,7 +13,7 @@
  * - 100,000 rows: <10ms render (same as 100!)
  */
 
-import React, { useRef, memo, useState, useEffect, useCallback, useMemo } from "react";
+import React, { useRef, memo, useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 import {
@@ -110,32 +110,8 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
 }: VirtualizedFlatTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
-  const [scrollbarWidth, setScrollbarWidth] = useState(0);
-
-  // Detect scrollbar width when body content changes
-  // Use ResizeObserver for more reliable detection
-  useEffect(() => {
-    const detectScrollbarWidth = () => {
-      if (parentRef.current) {
-        // Only compensate if there's actual scrollbar space (not overlay scrollbars)
-        const hasVerticalScroll = parentRef.current.scrollHeight > parentRef.current.clientHeight;
-        const width = hasVerticalScroll
-          ? parentRef.current.offsetWidth - parentRef.current.clientWidth
-          : 0;
-        setScrollbarWidth(width);
-      }
-    };
-
-    detectScrollbarWidth();
-
-    // Re-detect on resize
-    const observer = new ResizeObserver(detectScrollbarWidth);
-    if (parentRef.current) {
-      observer.observe(parentRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [rows.length]);
+  // Note: scrollbarWidth detection removed - was causing forced reflows
+  // and the value wasn't being used anywhere in the render
 
   // Sync horizontal scroll between body and header
   const handleBodyScroll = useCallback(() => {
@@ -177,9 +153,11 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
       </div>
 
       {/* Virtualized scrollable body - fills remaining flex space */}
+      {/* scrollbar-gutter: stable reserves space for scrollbar to prevent header/body misalignment */}
       <div
         ref={parentRef}
         className="overflow-auto flex-1 min-h-0"
+        style={{ scrollbarGutter: 'stable' }}
         onScroll={handleBodyScroll}
       >
         <div

@@ -127,16 +127,34 @@ class EasybuildContactMatcher
       }
 
       unless dry_run
-        new_contact = Contact.create!(
-          display_name: display_name,
-          first_name: first_name,
-          last_name: last_name,
-          email: email,
-          mobile_phone: mobile_phone,
-          tax_number: tax_number,
-          xero_id: xero_id,
-          contact_types: [ "supplier" ]
-        )
+        # SSoT: Check for existing contact by email/xero_id before creating
+        # (catches contacts created after initial index was built)
+        existing = nil
+        if email.present?
+          existing = Contact.find_by("LOWER(email) = ?", email.downcase.strip)
+        end
+        existing ||= Contact.find_by(xero_id: xero_id) if xero_id.present?
+
+        if existing
+          # Found existing - use it instead of creating duplicate
+          new_contact = existing
+          result[:match_type] = "late_match"
+          result[:action] = "matched"
+          @stats[:created] -= 1  # Will be incremented below, so pre-decrement
+          @stats[:matched_by_late_match] ||= 0
+          @stats[:matched_by_late_match] += 1
+        else
+          new_contact = Contact.create!(
+            display_name: display_name,
+            first_name: first_name,
+            last_name: last_name,
+            email: email,
+            mobile_phone: mobile_phone,
+            tax_number: tax_number,
+            xero_id: xero_id,
+            contact_types: [ "supplier" ]
+          )
+        end
         result[:teeem_id] = new_contact.id
         result[:teeem_name] = new_contact.display_name
       end

@@ -10,6 +10,11 @@ class ExternalInvoice < ApplicationRecord
   # PDFs are only "eligible" when invoice has a contact AND is not draft
   after_save :update_pdf_eligibility_on_state_change
 
+  # SSoT: Update contact's cached supplier flag when bill changes
+  # Only bills (ACCPAY) affect is_supplier_cached
+  after_commit :refresh_supplier_cached_flag, on: [:create, :destroy], if: :bill?
+  after_commit :refresh_supplier_cached_flag_on_contact_change, on: :update, if: :should_refresh_supplier_flag?
+
   # Sources
   SOURCES = %w[xero myob quickbooks].freeze
 
@@ -319,5 +324,35 @@ class ExternalInvoice < ApplicationRecord
       )
       Rails.logger.info("[PDF_ELIGIBILITY] Invoice #{id} became ineligible (#{reason}), orphaned #{corporate_company_documents.where(source: 'xero').count} PDFs")
     end
+  end
+
+  # SSoT: Check if supplier flag should be refreshed on update
+  def should_refresh_supplier_flag?
+    bill? && saved_change_to_contact_id?
+  end
+
+  # SSoT: Refresh contact's is_supplier_cached flag
+  def refresh_supplier_cached_flag
+    return unless contact_id.present?
+    contact&.refresh_supplier_flag!
+  rescue StandardError => e
+    Rails.logger.error("ExternalInvoice##{id}: Failed to refresh supplier flag - #{e.message}")
+  end
+
+  # SSoT: Handle contact_id change - refresh both old and new contact
+  def refresh_supplier_cached_flag_on_contact_change
+    old_contact_id, new_contact_id = saved_change_to_contact_id
+
+    # Refresh old contact (may no longer be a supplier)
+    if old_contact_id.present?
+      Contact.find_by(id: old_contact_id)&.refresh_supplier_flag!
+    end
+
+    # Refresh new contact
+    if new_contact_id.present?
+      Contact.find_by(id: new_contact_id)&.refresh_supplier_flag!
+    end
+  rescue StandardError => e
+    Rails.logger.error("ExternalInvoice##{id}: Failed to refresh supplier flag on change - #{e.message}")
   end
 end

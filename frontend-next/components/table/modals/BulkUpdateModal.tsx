@@ -169,66 +169,46 @@ export function BulkUpdateModal({
                   );
                 }
 
-                // For single lookup columns, use the lookupOptions if available
+                // For single lookup columns, use ComboboxDropdown with search
                 if (isLookup) {
                   const options = lookupOptions[bulkUpdateColumn] || [];
                   const isLoading = lookupLoading[bulkUpdateColumn];
+                  const selectedOption = options.find(o => String(o.id) === bulkUpdateValue);
 
                   return (
-                    <Select
-                      value={bulkUpdateValue}
-                      onValueChange={setBulkUpdateValue}
-                    >
-                      <SelectTrigger className="w-full">
-                        {isLoading ? (
-                          <span className="text-muted-foreground">Loading...</span>
-                        ) : (
-                          <SelectValue placeholder="Select value..." />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {options.length === 0 && !isLoading && (
-                          <SelectItem value="__no_options__" disabled>
-                            No options available
-                          </SelectItem>
-                        )}
-                        {options.map((option) => (
-                          <SelectItem key={option.id} value={String(option.id)}>
-                            {option.display}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <ComboboxDropdown
+                      items={options.map(o => ({ id: String(o.id), label: o.display }))}
+                      selectedItem={selectedOption ? { id: String(selectedOption.id), label: selectedOption.display } : undefined}
+                      onSelect={(item) => setBulkUpdateValue(item.id)}
+                      placeholder="Search values..."
+                      searchPlaceholder="Type to search..."
+                      isLoading={isLoading}
+                      clearable
+                      onClear={() => setBulkUpdateValue("")}
+                      emptyResults="No options available"
+                    />
                   );
                 }
 
                 if (hasChoices || isChoice) {
-                  // Dropdown for choice columns with predefined options
+                  // Searchable dropdown for choice columns with predefined options
                   const options = selectedCol?.choices || [];
+                  const selectedOption = options.find(o => o === bulkUpdateValue);
+
                   return (
-                    <Select
-                      value={bulkUpdateValue}
-                      onValueChange={setBulkUpdateValue}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select value..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {options.length === 0 && (
-                          <SelectItem value="__no_options__" disabled>
-                            No options available
-                          </SelectItem>
-                        )}
-                        {options.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <ComboboxDropdown
+                      items={options.map(o => ({ id: o, label: o }))}
+                      selectedItem={selectedOption ? { id: selectedOption, label: selectedOption } : undefined}
+                      onSelect={(item) => setBulkUpdateValue(item.id)}
+                      placeholder="Search options..."
+                      searchPlaceholder="Type to search..."
+                      clearable
+                      onClear={() => setBulkUpdateValue("")}
+                      emptyResults="No options available"
+                    />
                   );
                 } else if (selectedCol?.column_type === 'boolean') {
-                  // Dropdown for boolean
+                  // Dropdown for boolean (only 2 options, no search needed)
                   return (
                     <Select
                       value={bulkUpdateValue}
@@ -244,7 +224,77 @@ export function BulkUpdateModal({
                     </Select>
                   );
                 } else {
-                  // Text input for other columns
+                  // Column-type-specific inputs
+                  const colType = selectedCol?.column_type || '';
+
+                  // Number types - use number input
+                  const isNumberType = ['number', 'integer', 'decimal', 'currency', 'percentage', 'percent', 'rating', 'duration'].includes(colType);
+                  if (isNumberType) {
+                    return (
+                      <Input
+                        type="number"
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        placeholder={colType === 'currency' ? 'Enter amount...' : 'Enter number...'}
+                        className="w-full"
+                        step={colType === 'integer' || colType === 'rating' ? '1' : 'any'}
+                      />
+                    );
+                  }
+
+                  // Date types - use date input
+                  const isDateType = ['date', 'datetime'].includes(colType);
+                  if (isDateType) {
+                    return (
+                      <Input
+                        type={colType === 'datetime' ? 'datetime-local' : 'date'}
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        className="w-full"
+                      />
+                    );
+                  }
+
+                  // Email - use email input
+                  if (colType === 'email') {
+                    return (
+                      <Input
+                        type="email"
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        placeholder="Enter email address..."
+                        className="w-full"
+                      />
+                    );
+                  }
+
+                  // Phone - use tel input
+                  if (colType === 'phone') {
+                    return (
+                      <Input
+                        type="tel"
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        placeholder="Enter phone number..."
+                        className="w-full"
+                      />
+                    );
+                  }
+
+                  // URL - use url input
+                  if (colType === 'url') {
+                    return (
+                      <Input
+                        type="url"
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        placeholder="Enter URL..."
+                        className="w-full"
+                      />
+                    );
+                  }
+
+                  // Default: text input
                   return (
                     <Input
                       value={bulkUpdateValue}

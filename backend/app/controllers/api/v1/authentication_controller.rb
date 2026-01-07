@@ -186,7 +186,8 @@ module Api
             name: @current_user.name,
             role_names: @current_user.role_names,  # SSoT: Return role names array
             permissions: @current_user.permissions,
-            preload_price_books: @current_user.preload_price_books
+            preload_price_books: @current_user.preload_price_books,
+            preferred_theme: @current_user.preferred_theme
           }
         }
       end

@@ -5,12 +5,9 @@
  * Trail resets when:
  * - User clicks sidebar navigation (new flow)
  * - Page refreshes (session storage)
- *
- * @see /Users/robertharder/.claude/plans/peaceful-zooming-island.md
  */
 
 import { atom } from 'jotai';
-import { atomWithStorage } from 'jotai/utils';
 
 /**
  * Single item in the breadcrumb trail
@@ -41,22 +38,6 @@ export const MAX_TRAIL_LENGTH = 10;
  * Starts empty, builds as user navigates
  */
 export const breadcrumbTrailAtom = atom<BreadcrumbItem[]>([]);
-
-/**
- * Pin preference - persisted to localStorage
- * When pinned, breadcrumb bar is always visible
- * When unpinned, shows on hover only
- */
-export const breadcrumbPinnedAtom = atomWithStorage<boolean>(
-  'teeem-breadcrumb-pinned',
-  false
-);
-
-/**
- * Current visibility state (for hover behavior)
- * Ephemeral - not persisted
- */
-export const breadcrumbVisibleAtom = atom<boolean>(false);
 
 /**
  * Helper to generate unique breadcrumb item IDs

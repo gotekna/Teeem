@@ -9,11 +9,11 @@ function Skeleton({
   return (
     <div
       className={cn(
-        "relative overflow-hidden",
-        "bg-gradient-to-r from-transparent via-primary/10 to-transparent dark:via-primary/10",
-        "bg-[length:200%_100%]",
-        "rounded-none",
-        animate && "animate-shimmer",
+        "relative overflow-hidden rounded-md",
+        // Base color - visible muted background
+        "bg-muted",
+        // Shimmer overlay effect
+        animate && "before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:animate-shimmer before:bg-[length:200%_100%]",
         className,
       )}
       {...props}

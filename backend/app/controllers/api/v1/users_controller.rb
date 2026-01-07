@@ -29,10 +29,11 @@ class Api::V1::UsersController < ApplicationController
 
     # Merge regular user params with admin-only params if user is admin
     update_params = user_params
-    if current_user&.admin? && (params[:user][:role] || params[:user][:assigned_roles] || params[:user][:role_ids])
+    admin_fields_present = params[:user][:role] || params[:user][:role_ids] || params[:user].key?(:contact_id)
+    if current_user&.admin? && admin_fields_present
       update_params = update_params.merge(admin_user_params)
-    elsif params[:user][:role] || params[:user][:assigned_roles] || params[:user][:role_ids]
-      # Non-admin trying to change role - reject request
+    elsif admin_fields_present
+      # Non-admin trying to change admin fields - reject request
       return render json: {
         success: false,
         error: "Thanks for helping, can you contact an administrator for assistance"
@@ -111,15 +112,19 @@ class Api::V1::UsersController < ApplicationController
 
   # Regular user params that anyone can edit
   def user_params
-    params.require(:user).permit(:name, :email, :mobile_phone)
+    params.require(:user).permit(
+      :name, :email, :mobile_phone, :job_title, :preferred_theme,
+      :qbcc_licence_number, :qbcc_licence_class, :signature
+    )
   end
 
-  # Admin-only params (role, role_ids, and assigned_roles)
+  # Admin-only params (role, role_ids, contact_id)
   # Only administrators should be able to modify these fields
+  # SSoT: Roles via user_roles join table (role_ids), not assigned_roles column
   # Brakeman warning can be ignored: authorization check in update() prevents
   # non-admin users from accessing these params (returns 403 Forbidden)
   def admin_user_params
-    params.require(:user).permit(:role, assigned_roles: [], role_ids: [])
+    params.require(:user).permit(:role, :contact_id, role_ids: [])
   end
 
   # Returns user data with presence status and integration info
@@ -150,7 +155,13 @@ class Api::V1::UsersController < ApplicationController
       last_email_sync_at: user.email_sync_status&.last_sync_at,
       # Multi-role support - format for multiple_lookups column type
       role_ids: safe_roles.map { |r| { id: r.id, display_value: r.display_name, name: r.name } },
-      role_names: user.role_names
+      role_names: user.role_names,
+      # Digital signature for certificates
+      signature_attached: user.signature.attached?,
+      signature_url: user.signature.attached? ? url_for(user.signature) : nil,
+      qbcc_licence_number: user.qbcc_licence_number,
+      qbcc_licence_class: user.qbcc_licence_class,
+      can_sign_certificates: user.can_sign_certificates?
     )
   end
 end

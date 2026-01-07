@@ -326,6 +326,23 @@ email_reminders:
   schedule: every 1 minute
 
 # ============================================
+# EMAIL TO JOB / EMAIL TO TASK
+# ============================================
+# Process emails sent to newjob@tekna.com.au and create job proposals
+# Runs every 5 minutes for responsive job creation
+process_new_job_emails:
+  class: ProcessNewJobEmailsJob
+  queue: default
+  schedule: every 5 minutes
+
+# Process emails sent to newtask@tekna.com.au and create tasks
+# Runs every 5 minutes for responsive task creation
+process_new_task_emails:
+  class: ProcessNewTaskEmailsJob
+  queue: default
+  schedule: every 5 minutes
+
+# ============================================
 # FOUNDATION SYSTEM HEALTH
 # ============================================
 
@@ -379,6 +396,16 @@ sm_recurring_task_generation:
   class: SmRecurringTaskGenerationJob
   queue: default
   schedule: at 6:30am every day
+
+# Send notifications for overdue tasks
+# Runs at 8am Brisbane time (after work starts, before standup)
+# - Finds tasks with end_date < today that aren't completed
+# - Only sends ONE notification per task (won't spam daily)
+# - Notifies assigned user
+task_overdue_notifications:
+  class: TaskOverdueNotificationJob
+  queue: default
+  schedule: at 8am every day
 
 # Nightly rollover of past-due tasks
 # Runs at midnight Brisbane time to:

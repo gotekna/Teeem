@@ -11,6 +11,7 @@ class Contact < ApplicationRecord
   # default_scope { where(deleted: [ false, nil ]) }
 
   # Associations
+  has_one :user, dependent: :nullify  # Linked user for data sync
   has_many :contact_activities, dependent: :destroy
   has_many :sms_messages, dependent: :destroy
 
@@ -52,7 +53,16 @@ class Contact < ApplicationRecord
            foreign_key: :related_contact_id, dependent: :destroy
   has_many :related_contacts, through: :outgoing_relationships, source: :related_contact
 
-  # Primary company relationship (person works for company)
+  # ============================================
+  # DEPRECATED: primary_company_id (Legacy Field)
+  # ============================================
+  # SSoT: Use ContactRelationship with relationship_type="employee_of" instead
+  # This column is kept for backwards compatibility but is scheduled for removal.
+  # Changes to primary_company_id are automatically synced to ContactRelationship via callbacks.
+  # For new code, use:
+  #   - employers method (reads from relationships)
+  #   - outgoing_relationships.where(relationship_type: "employee_of")
+  # See: lib/tasks/ensure_contact_relationships.rake for audit/backfill tools
   belongs_to :primary_company, class_name: "Contact", optional: true, counter_cache: :employees_count
   has_many :employees, class_name: "Contact", foreign_key: :primary_company_id, dependent: :nullify
 
@@ -259,12 +269,21 @@ class Contact < ApplicationRecord
   validates :entity_type, presence: { message: "must be selected" },
                           inclusion: { in: ENTITY_TYPES, allow_nil: true }
 
+  # SSoT: Unique company display_name (prevents duplicates from concurrent syncs)
+  # DB-enforced via partial unique index: idx_contacts_unique_company_name
+  validates :display_name, uniqueness: {
+    case_sensitive: false,
+    conditions: -> { where(is_active: true, entity_type: "company") },
+    message: "already exists for another company"
+  }, if: -> { entity_type == "company" && is_active? }
+
   # Entity-type specific name validations
   validate :validate_name_fields_for_entity_type
   validate :validate_name_casing          # Block ALL CAPS and lowercase names
   validate :validate_no_email_as_name     # Block email addresses used as names
   validate :validate_team_contact_company # Team contacts must have a company
   validate :validate_primary_company       # Prevent self-reference and ensure company type
+  validate :validate_employee_role_company # Employee role requires company link (FRC: dual SSoT systems)
 
   # Team/supplier configuration validations
   validates :team_size, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
@@ -274,6 +293,7 @@ class Contact < ApplicationRecord
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
   before_validation :auto_fix_website_url, prepend: true  # Auto-fix website URLs without protocol (MUST run before column type validation)
   before_validation :normalize_entity_type      # Convert "Person" → "person", "Sole Trader" → "sole_trader"
+  before_validation :migrate_name_on_entity_type_change  # Migrate names when entity type changes
   before_validation :auto_fix_name_casing       # Auto-fix ALL CAPS and lowercase names
   before_save :generate_display_name
   before_save :sync_company_name_or_trust
@@ -291,10 +311,15 @@ class Contact < ApplicationRecord
   # If invoice.contact_name matches contact.display_name exactly, link them
   after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
 
+  # SSoT: Sync mobile_phone to linked user when contact is updated
+  after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
+
   # Scopes
   scope :with_email, -> { where.not(email: [ nil, "" ]) }
   scope :with_phone, -> { where.not(mobile_phone: [ nil, "" ]).or(where.not(office_phone: [ nil, "" ])) }
-  scope :with_role, ->(role) { where("? = ANY(roles)", role) }
+  # Note: roles is TEXT storing JSON array like '["Employee"]', so use LIKE pattern
+  # The pattern matches the role surrounded by quotes to avoid partial matches
+  scope :with_role, ->(role) { where("roles LIKE ?", "%\"#{role}\"%") }
   scope :employees, -> { with_role("Employee") }
   scope :directors, -> { with_role("Director") }
   scope :sales, -> { with_role("sales") }
@@ -410,15 +435,13 @@ class Contact < ApplicationRecord
     has_role?("land_agent")
   end
 
+  # SSoT: Use cached columns for performance (updated via callbacks on related models)
   def is_customer?
-    jobs.exists? || job_contacts.exists?
+    is_customer_cached
   end
 
   def is_supplier?
-    purchase_orders.exists? ||
-    pricebook_items.exists? ||
-    price_histories.exists? ||
-    external_invoices.bills.exists?
+    is_supplier_cached
   end
 
   # Calculate task duration from PO amount based on team capacity
@@ -455,8 +478,53 @@ class Contact < ApplicationRecord
   end
 
   # Family/Director helpers
+  # SSoT: Use cached column for performance (updated via callbacks on CorporateCompanyDirector)
   def is_director?
-    current_directorships.any?
+    is_director_cached
+  end
+
+  # ============================================
+  # Cached Boolean Flags (Performance Optimization)
+  # ============================================
+  # These cached columns avoid expensive EXISTS queries on every request.
+  # They're updated via callbacks on related models when data changes.
+  # SSoT: is_customer_cached, is_supplier_cached, is_director_cached
+  #
+  # Call refresh_cached_flags! when related data changes:
+  # - JobContact created/destroyed → is_customer_cached
+  # - PurchaseOrder/Pricebook/PriceHistory/ExternalInvoice(ACCPAY) created/destroyed → is_supplier_cached
+  # - CorporateCompanyDirector created/updated/destroyed → is_director_cached
+
+  # Refresh all cached flags from source data (call after related records change)
+  def refresh_cached_flags!
+    update_columns(
+      is_customer_cached: job_contacts.exists?,
+      is_supplier_cached: purchase_orders.exists? ||
+                          pricebook_items.exists? ||
+                          price_histories.exists? ||
+                          external_invoices.bills.exists?,
+      is_director_cached: current_directorships.exists?
+    )
+  end
+
+  # Refresh only customer flag (called by JobContact callbacks)
+  def refresh_customer_flag!
+    update_column(:is_customer_cached, job_contacts.exists?)
+  end
+
+  # Refresh only supplier flag (called by PO/Pricebook/PriceHistory/ExternalInvoice callbacks)
+  def refresh_supplier_flag!
+    update_column(:is_supplier_cached,
+      purchase_orders.exists? ||
+      pricebook_items.exists? ||
+      price_histories.exists? ||
+      external_invoices.bills.exists?
+    )
+  end
+
+  # Refresh only director flag (called by CorporateCompanyDirector callbacks)
+  def refresh_director_flag!
+    update_column(:is_director_cached, current_directorships.exists?)
   end
 
   def director_companies
@@ -841,11 +909,12 @@ class Contact < ApplicationRecord
 
   # Check if contact can be deleted (for Xero sync)
   def can_delete?
-    # Can't delete if has linked jobs, invoices, purchase orders, etc.
+    # Can't delete if has linked jobs, invoices, purchase orders, Xero links, etc.
     return false if jobs.any?
     return false if purchase_orders.any?
     return false if subcontractor_invoices.any?
     return false if quote_responses.any?
+    return false if external_links.xero.any?
     true
   end
 
@@ -855,6 +924,7 @@ class Contact < ApplicationRecord
     blockers << "#{purchase_orders.count} purchase orders" if purchase_orders.any?
     blockers << "#{subcontractor_invoices.count} invoices" if subcontractor_invoices.any?
     blockers << "#{quote_responses.count} quote responses" if quote_responses.any?
+    blockers << "#{external_links.xero.count} Xero links" if external_links.xero.any?
     blockers
   end
 
@@ -1057,6 +1127,17 @@ class Contact < ApplicationRecord
 
   private
 
+  # SSoT: Sync mobile_phone to linked user
+  def sync_mobile_to_user
+    return unless user.present?
+    return if user.mobile_phone == mobile_phone  # No change needed
+
+    user.update_column(:mobile_phone, mobile_phone)
+    Rails.logger.info "[Contact#sync_mobile_to_user] Synced mobile_phone '#{mobile_phone}' to User##{user.id}"
+  rescue StandardError => e
+    Rails.logger.error "[Contact#sync_mobile_to_user] Failed to sync: #{e.message}"
+  end
+
   # SSoT: Guard method for syncing primary_company_id to employee_of relationship
   def should_sync_primary_company_to_relationship?
     # Only sync for persons/sole traders (not companies/trusts)
@@ -1192,21 +1273,44 @@ class Contact < ApplicationRecord
     end
   end
 
+  # FRC: Employee role requires a company link
+  # Root cause: Two systems track employment (roles array vs ContactRelationship) - they must be linked
+  # Either primary_company_id must be set, OR an active employee_of relationship must exist
+  def validate_employee_role_company
+    return unless has_role?("Employee")
+
+    # Check if has primary_company_id
+    return if primary_company_id.present?
+
+    # Check if has active employee_of relationship (check persisted relationships only)
+    if persisted?
+      has_active_employment = outgoing_relationships
+        .where(relationship_type: "employee_of", is_active: true)
+        .exists?
+      return if has_active_employment
+    end
+
+    errors.add(:roles, "Employee role requires a primary company or active employment relationship. Either set primary_company or remove Employee from roles.")
+  end
+
   # Legacy update_xero_synced_status callback removed
   # SSoT: Use synced_to_xero? method which queries contact_external_links
 
-  # Auto-generate display_name from first_name + last_name for person contacts
-  # For company/trust, display_name is typically set directly
+  # Auto-generate display_name from first_name + middle_name + last_name for person contacts
+  # SSoT: For person/sole_trader, display_name = first_name + middle_name + last_name
+  # For company/trust, display_name is synced from company_name_or_trust
   def generate_display_name
-    # Only auto-generate for person entity type when first/last name are present
-    if entity_type == "person" && (first_name.present? || last_name.present?)
-      generated = [ first_name, last_name ].map(&:presence).compact.join(" ")
-      self.display_name = generated if generated.present? && display_name.blank?
+    # For person/sole_trader: display_name is derived from first_name + middle_name + last_name
+    if entity_type.in?(%w[person sole_trader]) && (first_name.present? || last_name.present?)
+      generated = [ first_name, middle_name, last_name ].map(&:presence).compact.join(" ")
+      # Always update display_name to match name parts for person contacts
+      # This ensures SSoT: first_name + middle_name + last_name = display_name
+      self.display_name = generated if generated.present?
     end
 
-    # Also update if display_name is explicitly blank/nil but we have name components
+    # Fallback: if display_name is blank but we have name components (any entity type)
     if display_name.blank? && (first_name.present? || last_name.present?)
-      self.display_name = [ first_name, last_name ].map(&:presence).compact.join(" ")
+      self.display_name = [ first_name, middle_name, last_name ].map(&:presence).compact.join(" ")
     end
   end
 
@@ -1275,6 +1379,44 @@ class Contact < ApplicationRecord
 
     # Convert to lowercase and replace spaces with underscores
     self.entity_type = entity_type.downcase.gsub(" ", "_")
+  end
+
+  # Migrate name fields when entity type changes
+  # company/trust → person: Move company_name_or_trust → first_name
+  # person → company/trust: Move display_name → company_name_or_trust
+  def migrate_name_on_entity_type_change
+    return unless entity_type_changed?
+    return if entity_type.blank?
+
+    old_type = entity_type_was
+    new_type = entity_type
+
+    # company/trust → person/sole_trader: Move company name to first name
+    if old_type.in?(%w[company trust]) && new_type.in?(%w[person sole_trader])
+      if first_name.blank?
+        # Use company_name_or_trust or fall back to display_name
+        name = company_name_or_trust.presence || display_name.presence
+        if name.present?
+          self.first_name = name
+          self.company_name_or_trust = nil
+          # Clear display_name so generate_display_name can rebuild from first+last
+          self.display_name = nil
+        end
+      end
+    end
+
+    # person/sole_trader → company/trust: Move display name to company name
+    if old_type.in?(%w[person sole_trader]) && new_type.in?(%w[company trust])
+      if company_name_or_trust.blank?
+        # Use existing display_name or construct from first/last name
+        name = display_name.presence || [ first_name, last_name ].compact.join(" ")
+        if name.present?
+          self.company_name_or_trust = name
+          self.first_name = nil
+          self.last_name = nil
+        end
+      end
+    end
   end
 
   private

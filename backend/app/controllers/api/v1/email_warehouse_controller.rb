@@ -10,7 +10,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Filter to only current user's emails (my_emails mode)
     # Skip this filter if microsoft_credential_id is provided (we'll filter by that instead)
     if params[:my_emails] == "true" && params[:microsoft_credential_id].blank?
-      user_imap_ids = current_user.imap_credentials.pluck(:id)
+      # SSoT: Use accessible_by scope which includes owned AND shared credentials
+      user_imap_ids = ImapCredential.accessible_by(current_user).pluck(:id)
 
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
@@ -125,15 +126,17 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     # Filter by folder name or ID (e.g., "Sent Items", "Inbox", etc.)
+    # SSoT: Use in_folder scope for case-insensitive matching (Gmail=INBOX, Outlook=Inbox, etc.)
     if params[:folder_id].present?
-      emails = emails.where(folder_name: params[:folder_id])
+      emails = emails.in_folder(params[:folder_id])
     end
     if params[:folder_name].present?
-      emails = emails.where(folder_name: params[:folder_name])
+      emails = emails.in_folder(params[:folder_name])
     end
 
     # Filter by direction (sent, received, cc, bcc)
-    if params[:direction].present?
+    # Note: direction column may not exist yet (pending migration)
+    if params[:direction].present? && EmailWarehouse.column_names.include?("direction")
       emails = emails.where(direction: params[:direction])
     end
 
@@ -182,12 +185,14 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Performance: Eager load job association and paginate
     emails = emails.includes(:job).recent_first.offset((page - 1) * per_page).limit(per_page)
 
-    # Performance: Batch load all contacts for this page to avoid N+1
+    # Performance: Batch load all contacts and user states for this page to avoid N+1
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+    all_email_ids = emails.map(&:id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
     render json: {
-      emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache) },
+      emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) },
       pagination: {
         page: page,
         per_page: per_page,
@@ -198,8 +203,35 @@ class Api::V1::EmailWarehouseController < ApplicationController
   end
 
   # GET /api/v1/email_warehouse/:id
+  # Performance: Batch load all related data for email + thread to avoid N+1
   def show
-    render json: email_json(@email, include_body: true, include_thread: true)
+    # Get conversation thread with eager loading (1 query)
+    thread_emails = if @email.conversation_id.present?
+      EmailWarehouse.where(conversation_id: @email.conversation_id)
+                    .includes(:job)
+                    .order(received_at: :asc)
+                    .to_a
+    else
+      [ @email ]
+    end
+
+    # Batch load all user states for thread (1 query)
+    email_ids = thread_emails.map(&:id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: email_ids, user_id: current_user.id)
+                                      .index_by(&:email_warehouse_id)
+
+    # Batch load all contacts for thread (1 query)
+    all_contact_ids = thread_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+    contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+
+    render json: email_json(
+      @email,
+      include_body: true,
+      include_thread: true,
+      thread_emails: thread_emails,
+      contacts_cache: contacts_cache,
+      user_states_cache: user_states_cache
+    )
   end
 
   # GET /api/v1/email_warehouse/for_job/:job_id
@@ -302,6 +334,24 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
+  # POST /api/v1/email_warehouse/:id/dismiss_suggestion
+  # Dismiss this email from showing as a suggestion for a specific job
+  def dismiss_suggestion
+    job_id = params[:job_id].to_i
+    return render json: { error: "job_id required" }, status: :bad_request if job_id.zero?
+
+    # Add job_id to dismissed list if not already there
+    dismissed_ids = @email.dismissed_from_job_ids || []
+    unless dismissed_ids.include?(job_id)
+      @email.update!(dismissed_from_job_ids: dismissed_ids + [job_id])
+    end
+
+    render json: {
+      success: true,
+      message: "Email dismissed from suggestions"
+    }
+  end
+
   # GET /api/v1/email_warehouse/sync_status
   # Get sync status - org-wide sync runs automatically every 15 minutes
   def sync_status
@@ -352,69 +402,76 @@ class Api::V1::EmailWarehouseController < ApplicationController
   # GET /api/v1/email_warehouse/unread_counts
   # Get unread email counts for the sidebar badge
   def unread_counts
-    # Get emails user has access to (same logic as index my_emails)
-    emails = EmailWarehouse.all
-    user_imap_credentials = current_user.imap_credentials
-    user_imap_ids = user_imap_credentials.pluck(:id)
+    begin
+      # Get emails user has access to (same logic as index my_emails)
+      emails = EmailWarehouse.all
+      # SSoT: Use accessible_by scope which includes owned AND shared credentials
+      user_imap_credentials = ImapCredential.accessible_by(current_user)
+      user_imap_ids = user_imap_credentials.pluck(:id)
 
-    # Build list of all email accounts user has access to
-    all_accounts = []
+      # Build list of all email accounts user has access to
+      all_accounts = []
 
-    # IMAP accounts
-    user_imap_credentials.each do |cred|
-      all_accounts << cred.email_address if cred.email_address.present?
-    end
-
-    # Get MS365 org credentials the user has mailbox access to
-    ms365_cred_ids = []
-    ms365_mailbox_emails = []
-    MicrosoftCredential.app_credentials.connected.each do |org_cred|
-      user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
-      if user_mailboxes.any?
-        ms365_cred_ids << org_cred.id
-        ms365_mailbox_emails.concat(user_mailboxes)
-        all_accounts.concat(user_mailboxes)
+      # IMAP accounts (owned + shared)
+      user_imap_credentials.each do |cred|
+        all_accounts << cred.email_address if cred.email_address.present?
       end
+
+      # Get MS365 org credentials the user has mailbox access to
+      ms365_cred_ids = []
+      ms365_mailbox_emails = []
+      MicrosoftCredential.app_credentials.connected.each do |org_cred|
+        user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
+        if user_mailboxes.any?
+          ms365_cred_ids << org_cred.id
+          ms365_mailbox_emails.concat(user_mailboxes)
+          all_accounts.concat(user_mailboxes)
+        end
+      end
+
+      conditions = []
+      bind_values = []
+
+      # IMAP accounts
+      if user_imap_ids.any?
+        conditions << "(source_type = 'imap' AND imap_credential_id IN (?))"
+        bind_values << user_imap_ids
+      end
+
+      # MS365 org mailboxes
+      if ms365_cred_ids.any?
+        conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
+        bind_values << ms365_cred_ids
+        bind_values << ms365_mailbox_emails
+      end
+
+      if conditions.any?
+        emails = emails.where(conditions.join(" OR "), *bind_values)
+      else
+        # No accounts connected
+        return render json: { total: 0, by_account: [] }
+      end
+
+      # Filter to unread only
+      unread_emails = emails.where(is_read: false)
+
+      # Get counts by mailbox/account
+      unread_by_account = unread_emails.group(:mailbox_owner_email).count
+
+      # Build result including all accounts (even with 0 unread)
+      by_account = all_accounts.uniq.map do |email|
+        { email: email, count: unread_by_account[email] || 0 }
+      end.sort_by { |a| [ -a[:count], a[:email] ] }
+
+      render json: {
+        total: unread_emails.count,
+        by_account: by_account
+      }
+    rescue StandardError => e
+      # Graceful fallback - sidebar badge should not crash the page
+      Rails.logger.error "[EmailWarehouse#unread_counts] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+      render json: { total: 0, by_account: [] }
     end
-
-    conditions = []
-    bind_values = []
-
-    # IMAP accounts
-    if user_imap_ids.any?
-      conditions << "(source_type = 'imap' AND imap_credential_id IN (?))"
-      bind_values << user_imap_ids
-    end
-
-    # MS365 org mailboxes
-    if ms365_cred_ids.any?
-      conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
-      bind_values << ms365_cred_ids
-      bind_values << ms365_mailbox_emails
-    end
-
-    if conditions.any?
-      emails = emails.where(conditions.join(" OR "), *bind_values)
-    else
-      # No accounts connected
-      return render json: { total: 0, by_account: [] }
-    end
-
-    # Filter to unread only
-    unread_emails = emails.where(is_read: false)
-
-    # Get counts by mailbox/account
-    unread_by_account = unread_emails.group(:mailbox_owner_email).count
-
-    # Build result including all accounts (even with 0 unread)
-    by_account = all_accounts.uniq.map do |email|
-      { email: email, count: unread_by_account[email] || 0 }
-    end.sort_by { |a| [ -a[:count], a[:email] ] }
-
-    render json: {
-      total: unread_emails.count,
-      by_account: by_account
-    }
   end
 
   # GET /api/v1/email_warehouse/spam
@@ -672,6 +729,89 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
+  # GET /api/v1/email_warehouse/:id/attachments/:attachment_id/download
+  # Download an attachment - tries SharePoint first (SSoT), falls back to Outlook
+  # attachment_id can be either local EmailAttachment ID or outlook_attachment_id
+  def download_attachment
+    attachment_id = params[:attachment_id]
+
+    # Try to find local EmailAttachment first
+    email_attachment = @email.email_attachments.find_by(id: attachment_id)
+    outlook_attachment_id = email_attachment&.outlook_attachment_id || attachment_id
+    filename_hint = email_attachment&.filename || email_attachment&.attachment&.filename
+    content_type_hint = email_attachment&.attachment&.content_type
+
+    # SSoT: Try SharePoint first if attachment is synced there
+    if email_attachment&.attachment&.sharepoint_file_id.present?
+      sp_config = MicrosoftCredential.teeem_sharepoint_config
+      if sp_config
+        begin
+          Rails.logger.info "[EmailWarehouse] Downloading attachment from SharePoint: #{email_attachment.attachment.sharepoint_file_id}"
+          teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
+          content = teeem_client.get_drive_item_content(
+            drive_id: sp_config[:drive_id],
+            item_id: email_attachment.attachment.sharepoint_file_id
+          )
+
+          if content.present?
+            filename = filename_hint || "attachment"
+            content_type = content_type_hint || "application/octet-stream"
+
+            return send_data(
+              content,
+              filename: filename,
+              type: content_type,
+              disposition: "attachment"
+            )
+          end
+        rescue StandardError => e
+          # SharePoint download failed - fall back to Outlook
+          Rails.logger.warn "[EmailWarehouse] SharePoint download failed, falling back to Outlook: #{e.message}"
+        end
+      end
+    end
+
+    # Fallback: Download from Outlook API
+    # SSoT: Use MicrosoftCredential - same pattern as sync_attachments!
+    credential = if @email.microsoft_credential_id.present?
+                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+                 else
+                   MicrosoftCredential.app_credentials.connected.first
+                 end
+
+    unless credential&.valid_credential?
+      return render json: { error: "No valid Microsoft credentials configured" }, status: :unprocessable_entity
+    end
+
+    # Get mailbox email
+    mailbox = @email.mailbox_owner_email
+    unless mailbox.present?
+      return render json: { error: "Mailbox information not available" }, status: :unprocessable_entity
+    end
+
+    # Fetch attachment from Microsoft Graph (Outlook)
+    Rails.logger.info "[EmailWarehouse] Downloading attachment from Outlook: #{outlook_attachment_id}"
+    client = MicrosoftAppGraphClient.new(credential)
+    attachment_data = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
+
+    if attachment_data && attachment_data[:content]
+      filename = filename_hint || attachment_data[:filename] || "attachment"
+      content_type = attachment_data[:content_type] || "application/octet-stream"
+
+      send_data(
+        attachment_data[:content],
+        filename: filename,
+        type: content_type,
+        disposition: "attachment"
+      )
+    else
+      render json: { error: "Failed to download attachment" }, status: :not_found
+    end
+  rescue StandardError => e
+    Rails.logger.error "[EmailWarehouse] Attachment download failed: #{e.message}"
+    render json: { error: "Download failed" }, status: :internal_server_error
+  end
+
   # GET /api/v1/email_warehouse/rules
   # Get email classification rules and current user's email stats
   def rules
@@ -803,10 +943,47 @@ class Api::V1::EmailWarehouseController < ApplicationController
   private
 
   def set_email
-    @email = EmailWarehouse.find(params[:id])
+    @email = EmailWarehouse.includes(:job).find(params[:id])
   end
 
-  def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil)
+  # Check if attachment is a signature/embedded image that should be hidden
+  def signature_attachment?(attachment_data)
+    filename = attachment_data["name"].to_s.downcase
+    is_inline = attachment_data["isInline"] == true
+    file_size = attachment_data["size"].to_i
+    content_type = attachment_data["contentType"].to_s.downcase
+
+    # Only filter images
+    return false unless content_type.start_with?("image/")
+
+    # Signature patterns
+    signature_patterns = [
+      /^image\d{3}\.(png|jpg|jpeg|gif)$/i,  # image001.png, image002.jpg
+      /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i, # 32-char hex filenames
+      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
+      /^cid:/i,                              # Content-ID references
+      /^outlook-signature[_-]/i,             # Outlook signature files
+    ]
+
+    # Filter if matches signature pattern (inline or not)
+    return true if signature_patterns.any? { |pattern| filename.match?(pattern) }
+
+    # Filter very small inline images (< 10KB) - likely icons
+    return true if is_inline && file_size < 10_000
+
+    false
+  end
+
+  def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil, user_states_cache: nil, thread_emails: nil)
+    # Get user's read state - check cache first, then database
+    user_state = if user_states_cache
+      user_states_cache[email.id]
+    else
+      EmailUserState.find_by(email_warehouse_id: email.id, user_id: current_user.id)
+    end
+    # Default to unread if no state exists (new emails are unread)
+    is_read = user_state&.is_read || false
+
     json = {
       id: email.id,
       subject: email.subject,
@@ -819,7 +996,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       cc_emails: email.cc_emails,
       received_at: email.received_at,
       has_attachments: email.has_attachments,
-      attachment_count: email.attachment_count,
+      # SSoT: Use stored attachment_count (updated when email is viewed or synced)
+      attachment_count: email.attachment_count.to_i,
       snippet: email.preview_body(length: 200),
       body_preview: email.preview_body(length: 200),
       job_id: email.job_id,
@@ -827,13 +1005,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
       match_type: email.match_type,
       match_confidence: email.match_confidence,
       is_latest_in_thread: email.is_latest_in_thread,
-      is_read: true,
+      is_read: is_read,
       conversation_id: email.conversation_id,
       source_type: email.source_type || "outlook",
       imap_credential_id: email.imap_credential_id,
       mailbox: email.mailbox_owner_email,
-      # Direction and importance
-      direction: email.direction,
+      # Direction and importance (direction column may not exist yet)
+      direction: email.respond_to?(:direction) ? email.direction : nil,
       importance: email.importance,
       # Classification
       email_classification: email.email_classification,
@@ -858,6 +1036,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
     if include_body
       json[:body_text] = email.body_text
       json[:body_html] = email.body_html
+      # Include attachments for full email view
+      json[:attachments] = build_attachments_list(email)
     end
 
     if include_thread_count
@@ -870,7 +1050,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     if include_thread && email.conversation_id.present?
-      json[:thread] = email.conversation_thread.map { |e| email_json(e) }
+      # Performance: Use pre-fetched thread_emails if provided to avoid N+1
+      thread = thread_emails || email.conversation_thread
+      json[:thread] = thread.map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) }
     end
 
     if include_suggestions && email.job_id.nil?
@@ -888,12 +1070,81 @@ class Api::V1::EmailWarehouseController < ApplicationController
     json
   end
 
+  # Build attachments list - use synced records or fetch from MS365
+  def build_attachments_list(email)
+    # First try local email_attachments (already synced to SharePoint)
+    synced = email.email_attachments.includes(:attachment)
+    if synced.any?
+      return synced.map do |ea|
+        {
+          id: ea.id,
+          name: ea.filename || ea.attachment&.filename || "Unknown",
+          content_type: ea.attachment&.content_type,
+          size: ea.attachment&.file_size,
+          outlook_attachment_id: ea.outlook_attachment_id
+        }
+      end
+    end
+
+    # If no synced attachments but email has attachments, fetch from MS365
+    return [] unless email.has_attachments && email.outlook_id.present?
+
+    begin
+      credential = if email.microsoft_credential_id.present?
+                     MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+                   else
+                     MicrosoftCredential.app_credentials.connected.first
+                   end
+
+      return [] unless credential&.valid_credential?
+
+      mailbox = email.mailbox_owner_email
+      return [] unless mailbox.present?
+
+      client = MicrosoftAppGraphClient.new(credential)
+      ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
+
+      # Filter out signature/embedded images
+      filtered = ms_attachments.reject { |att| signature_attachment?(att) }
+
+      # SSoT: Update attachment_count when we discover actual count from Outlook
+      # This ensures the count is accurate for future list views
+      if filtered.any? && email.attachment_count.to_i != filtered.size
+        email.update_column(:attachment_count, filtered.size)
+      end
+
+      filtered.map do |att|
+        {
+          id: nil,  # No local ID yet
+          name: att["name"] || "attachment",
+          content_type: att["contentType"],
+          size: att["size"],
+          outlook_attachment_id: att["id"]
+        }
+      end
+    rescue StandardError => e
+      Rails.logger.warn "[EmailWarehouse] Failed to fetch attachments from MS365: #{e.message}"
+      []
+    end
+  end
+
   def suggestion_json(suggestion)
-    {
+    json = {
       email: email_json(suggestion[:email]),
       confidence: suggestion[:confidence],
       reason: suggestion[:reason]
     }
+
+    # Include suggested job if email body mentions a different job
+    if suggestion[:suggested_job].present?
+      json[:suggested_job] = {
+        id: suggestion[:suggested_job].id,
+        name: suggestion[:suggested_job].name,
+        match_reason: suggestion[:suggested_job_reason]
+      }
+    end
+
+    json
   end
 
   def find_suggested_emails_for_job(job)
@@ -902,20 +1153,49 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # Get job contacts' emails
     contact_emails = job.contacts.pluck(:email).compact
 
-    # Find unassigned emails involving these contacts
+    # Find unassigned emails involving these contacts (excluding dismissed)
     contact_emails.each do |email_addr|
-      EmailWarehouse.unassigned.involving_email(email_addr).latest_in_thread.limit(10).each do |email|
+      EmailWarehouse.unassigned
+        .involving_email(email_addr)
+        .where.not("? = ANY(dismissed_from_job_ids)", job.id)
+        .latest_in_thread
+        .limit(10).each do |email|
+
+        # Check if email body mentions a DIFFERENT job's address
+        # If so, skip this suggestion - the email belongs elsewhere
+        potential_matches = email.find_potential_job_matches
+        if potential_matches.any?
+          best_match = potential_matches.first
+          # If the email clearly mentions a different job, don't suggest it here
+          if best_match[:job].id != job.id
+            # Skip - this email belongs to a different job
+            next
+          end
+        end
+
+        # Also check if email mentions THIS job's context (address, job ID)
+        # For contact-based matches, require job context to avoid noise
+        mentions_this_job = email.email_mentions_job_context?(job)
+
+        # Only suggest if email mentions this job's context
+        # OR if there are no other job matches (general correspondence)
+        next unless mentions_this_job || potential_matches.empty?
+
         suggestions << {
           email: email,
-          confidence: 0.9,
+          confidence: mentions_this_job ? 0.9 : 0.6,
           reason: "Contact email match: #{email_addr}"
         }
       end
     end
 
-    # Find emails mentioning job address
+    # Find emails mentioning job address (excluding dismissed)
     if job.title.present?
-      EmailWarehouse.unassigned.search_text(job.title).latest_in_thread.limit(10).each do |email|
+      EmailWarehouse.unassigned
+        .search_text(job.title)
+        .where.not("? = ANY(dismissed_from_job_ids)", job.id)
+        .latest_in_thread
+        .limit(10).each do |email|
         suggestions << {
           email: email,
           confidence: 0.8,
@@ -975,15 +1255,17 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = service.emails_for_category(category, page: page, per_page: per_page)
       total = service.category_counts[category] || 0
 
-      # Performance: Batch load contacts for this category
+      # Performance: Batch load contacts and user states for this category
       all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
       contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+      all_email_ids = emails.map(&:id)
+      user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
       return render json: {
         success: true,
         data: {
           category: params[:category],
-          emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache) },
+          emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) },
           pagination: {
             page: page,
             per_page: per_page,
@@ -998,10 +1280,12 @@ class Api::V1::EmailWarehouseController < ApplicationController
     overview = service.overview
     unread = service.unread_counts
 
-    # Performance: Batch load contacts for ALL categories at once
+    # Performance: Batch load contacts and user states for ALL categories at once
     all_emails = overview.values.flat_map { |cat| cat[:emails] }
     all_contact_ids = all_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+    all_email_ids = all_emails.map(&:id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
     render json: {
       success: true,
@@ -1010,22 +1294,22 @@ class Api::V1::EmailWarehouseController < ApplicationController
           vip: {
             count: overview[:vip][:count],
             unread_count: unread[:vip],
-            emails: overview[:vip][:emails].map { |e| email_json(e, contacts_cache: contacts_cache) }
+            emails: overview[:vip][:emails].map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) }
           },
           team: {
             count: overview[:team][:count],
             unread_count: unread[:team],
-            emails: overview[:team][:emails].map { |e| email_json(e, contacts_cache: contacts_cache) }
+            emails: overview[:team][:emails].map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) }
           },
           newsletters: {
             count: overview[:newsletters][:count],
             unread_count: unread[:newsletters],
-            emails: overview[:newsletters][:emails].map { |e| email_json(e, contacts_cache: contacts_cache) }
+            emails: overview[:newsletters][:emails].map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) }
           },
           other: {
             count: overview[:other][:count],
             unread_count: unread[:other],
-            emails: overview[:other][:emails].map { |e| email_json(e, contacts_cache: contacts_cache) }
+            emails: overview[:other][:emails].map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) }
           }
         },
         team_domains: CorporateCompanySetting.team_email_domains

@@ -11,41 +11,33 @@ module ApplicationCable
     private
 
     def find_verified_user
-      # Get user from session or token
-      # For session-based auth:
-      if verified_user = User.find_by(id: cookies.encrypted[:user_id])
-        verified_user
-      # For token-based auth (Authorization header):
-      elsif auth_header = request.headers["Authorization"]
-        token = auth_header.split(" ").last
-        user_id = decode_token(token)
-        User.find_by(id: user_id)
-      # For token-based auth (query parameter - iOS Safari/mobile support):
-      elsif token = request.params[:token]
-        user_id = decode_token(token)
-        User.find_by(id: user_id)
-      else
-        reject_unauthorized_connection
-      end
-    end
+      # Extract token from query string (wss://host/cable?token=xxx)
+      token = request.params[:token]
+      return reject_unauthorized_connection if token.blank?
 
-    def decode_token(token)
-      # Your JWT/token decoding logic here
-      # This should match your API authentication
-      return nil if token.blank?
+      # Decode JWT token (same secret as API authentication)
+      decoded = JWT.decode(
+        token,
+        Rails.application.secret_key_base,
+        true,
+        algorithm: "HS256"
+      )
 
-      begin
-        # If using JWT:
-        # decoded = JWT.decode(token, Rails.application.credentials.secret_key_base)[0]
-        # decoded["user_id"]
+      user_id = decoded[0]["user_id"]
+      user = User.find_by(id: user_id)
 
-        # If using simple session token:
-        session = UserSession.find_by(token: token)
-        session&.user_id
-      rescue StandardError => e
-        Rails.logger.warn "[ApplicationCable] Token lookup failed: #{e.message}"
-        nil
-      end
+      return reject_unauthorized_connection unless user
+
+      user
+    rescue JWT::ExpiredSignature
+      Rails.logger.warn("[ActionCable] JWT token expired")
+      reject_unauthorized_connection
+    rescue JWT::DecodeError => e
+      Rails.logger.warn("[ActionCable] JWT decode error: #{e.message}")
+      reject_unauthorized_connection
+    rescue StandardError => e
+      Rails.logger.error("[ActionCable] Connection error: #{e.message}")
+      reject_unauthorized_connection
     end
   end
 end

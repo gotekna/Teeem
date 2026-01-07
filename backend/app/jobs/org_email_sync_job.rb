@@ -191,11 +191,8 @@ class OrgEmailSyncJob < ApplicationJob
     subject = email_data["subject"] || ""
     has_attachments = email_data["hasAttachments"] || false
 
-    # ALWAYS FILTER: Draft emails (incomplete, no sender info)
-    if folder_name == "Drafts"
-      Rails.logger.debug "[OrgEmailSync] Skipping draft email: #{subject}"
-      return nil
-    end
+    # NOTE: Drafts are now synced (to match Office 365 exactly)
+    # They will appear with folder_name="Drafts" and can be filtered in frontend
 
     # ALWAYS FILTER: Junk/Spam emails (already classified as spam by email provider)
     if folder_name == "Junk Email"
@@ -257,6 +254,10 @@ class OrgEmailSyncJob < ApplicationJob
       body_html = nil
     end
 
+    # For drafts, use createdDateTime as fallback since they don't have receivedDateTime
+    received_at = email_data["receivedDateTime"] || email_data["createdDateTime"]
+    is_draft = email_data["isDraft"] || (folder_name == "Drafts")
+
     email.assign_attributes(
       outlook_id: email_data["id"],
       subject: email_data["subject"],
@@ -264,7 +265,7 @@ class OrgEmailSyncJob < ApplicationJob
       from_name: from_data["name"],
       to_emails: to_emails,
       cc_emails: cc_emails,
-      received_at: email_data["receivedDateTime"],
+      received_at: received_at,
       sent_at: email_data["sentDateTime"],
       has_attachments: email_data["hasAttachments"] || false,
       body_preview: email_data["bodyPreview"],
@@ -302,6 +303,12 @@ class OrgEmailSyncJob < ApplicationJob
         Rails.logger.error "[OrgEmailSync] Failed to build recipients for email #{email.id}: #{e.message}"
         # Continue even if recipient building fails - email is still saved
       end
+
+      # Apply email rules (SSoT: same pattern as IMAP sync)
+      apply_rules_to_email(email)
+
+      # Auto-attach to task if this email belongs to a task's conversation
+      auto_attach_to_task(email)
     end
 
     email
@@ -401,5 +408,140 @@ class OrgEmailSyncJob < ApplicationJob
   # Impact: Avoids repeated blacklist queries during sync
   def cached_blacklist
     @blacklist_cache ||= EmailBlacklistItem.active.pluck(:pattern_type, :pattern)
+  end
+
+  # Apply email rules to a newly synced email
+  # SSoT: Uses EmailRuleService.apply_rules which handles MS365 via for_email scope
+  def apply_rules_to_email(email)
+    # Find a user to apply rules with - use synced_by_user if available, else org admin
+    user = email.synced_by_user || find_org_admin_user
+    return unless user
+
+    service = EmailRuleService.new(user)
+    service.apply_rules(email)
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to apply rules to email #{email.id}: #{e.message}"
+    # Don't fail the sync if rules fail
+  end
+
+  # Auto-attach email to task if:
+  # 1. It belongs to a task's conversation thread (same conversation_id)
+  # 2. It matches a task's email keywords (subject/body match)
+  # Also notifies the task owner when new emails arrive
+  def auto_attach_to_task(email)
+    attached_task_ids = Set.new
+    user = email.synced_by_user || find_org_admin_user
+
+    # Method 1: Match by conversation_id (existing thread)
+    if email.conversation_id.present?
+      task_ids = SmTaskAttachment
+        .where(attachable_type: "EmailWarehouse")
+        .joins("INNER JOIN email_warehouses ON email_warehouses.id = sm_task_attachments.attachable_id")
+        .where("email_warehouses.conversation_id = ?", email.conversation_id)
+        .distinct
+        .pluck(:sm_task_id)
+
+      task_ids.each do |task_id|
+        next if attached_task_ids.include?(task_id)
+        if attach_email_to_task(email, task_id, user, "Reply in conversation thread")
+          attached_task_ids << task_id
+        end
+      end
+    end
+
+    # Method 2: Match by email_keywords (subject/body contains keywords)
+    matching_tasks = SmTask.tasks_matching_email(email)
+    matching_tasks.each do |task|
+      next if attached_task_ids.include?(task.id)
+      if attach_email_to_task(email, task.id, user, "Matched by keywords: #{task.email_keywords.truncate(50)}")
+        attached_task_ids << task.id
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to auto-attach email to task: #{e.message}"
+    # Don't fail the sync if auto-attach fails
+  end
+
+  # Helper to attach email to a task (returns true if attached, false if already attached)
+  def attach_email_to_task(email, task_id, user, notes)
+    task = SmTask.find_by(id: task_id)
+    return false unless task
+
+    # Check if email is already attached
+    already_attached = SmTaskAttachment
+      .where(sm_task_id: task_id, attachable_type: "EmailWarehouse", attachable_id: email.id)
+      .exists?
+    return false if already_attached
+
+    # Attach the new email to the task
+    SmTaskAttachment.create!(
+      sm_task: task,
+      attachable: email,
+      attachment_type: "email",
+      notes: notes,
+      added_by: user
+    )
+
+    Rails.logger.info "[OrgEmailSync] Auto-attached email #{email.id} to task ##{task.id} (#{notes})"
+
+    # Notify task owner about the new email
+    notify_task_owner_of_reply(task, email, user)
+    true
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to attach email #{email.id} to task #{task_id}: #{e.message}"
+    false
+  end
+
+  # Notify task owner, creator, and followers when a new email arrives in the conversation
+  def notify_task_owner_of_reply(task, email, user)
+    sender_email = email.from_email&.downcase
+    notified_user_ids = Set.new
+    notification_message = "#{email.from_name || email.from_email} replied: #{email.subject}"
+
+    # 1. Notify assigned user (if exists and not the sender)
+    if task.assigned_user_id.present?
+      assigned_user = User.find_by(id: task.assigned_user_id)
+      if assigned_user && assigned_user.email&.downcase != sender_email
+        create_email_reply_notification(assigned_user, task, notification_message)
+        notified_user_ids << assigned_user.id
+      end
+    end
+
+    # 2. Notify task creator (if exists, not sender, and not already notified)
+    if task.created_by_id.present? && !notified_user_ids.include?(task.created_by_id)
+      creator = User.find_by(id: task.created_by_id)
+      if creator && creator.email&.downcase != sender_email
+        create_email_reply_notification(creator, task, notification_message)
+        notified_user_ids << creator.id
+      end
+    end
+
+    # 3. Notify all followers (excluding sender and already notified users)
+    task.followers.each do |follower|
+      next if notified_user_ids.include?(follower.id)
+      next if follower.email&.downcase == sender_email
+
+      create_email_reply_notification(follower, task, notification_message)
+      notified_user_ids << follower.id
+    end
+
+    Rails.logger.info "[OrgEmailSync] Notified #{notified_user_ids.size} users of new email on task ##{task.id}"
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to notify task users: #{e.message}"
+  end
+
+  def create_email_reply_notification(user, task, message)
+    Notification.create!(
+      user: user,
+      notification_type: "task_email_reply",
+      notifiable: task,
+      title: "New reply on task '#{task.name.truncate(50)}'",
+      message: message
+    )
+  end
+
+  # Find an admin user for applying rules when no specific user is matched
+  def find_org_admin_user
+    @org_admin_user ||= User.where(role: "admin").first
   end
 end

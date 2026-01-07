@@ -20,7 +20,7 @@ import {
   MoreHorizontal,
   Paperclip,
   Image as ImageIcon,
-  File,
+  File as FileIcon,
   Check,
   CheckCheck,
   Briefcase,
@@ -31,6 +31,8 @@ import {
   Building2,
   UserCircle,
   FolderOpen,
+  Copy,
+  Maximize2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -78,7 +80,10 @@ export default function ChatPage() {
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [pastedImage, setPastedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Save to entity functionality
   const [constructions, setConstructions] = useState<Construction[]>([]);
@@ -137,10 +142,18 @@ export default function ChatPage() {
       const apiParams: Record<string, string | number> = {};
 
       // Handle DM format: "dm-34-45" or "dm-new-45"
+      // Format is dm-{smallerId}-{largerId}, need to find the OTHER user's ID
       if (typeof conversationId === "string" && conversationId.startsWith("dm-")) {
         const parts = conversationId.split("-");
-        const userId = parts[parts.length - 1];
-        apiParams.user_id = userId;
+        if (parts[1] === "new") {
+          // New conversation: "dm-new-36" → recipient is 36
+          apiParams.user_id = parts[2];
+        } else {
+          // Existing conversation: "dm-34-36" → find the ID that's NOT current user
+          const userId1 = parseInt(parts[1], 10);
+          const userId2 = parseInt(parts[2], 10);
+          apiParams.user_id = userId1 === user.id ? userId2 : userId1;
+        }
       }
       // Handle numeric conversation ID
       else if (typeof conversationId === "number") {
@@ -158,6 +171,11 @@ export default function ChatPage() {
         content: string;
         created_at: string;
         user?: { name?: string };
+        message_type?: "text" | "image" | "file";
+        file_url?: string | null;
+        file_name?: string | null;
+        sharepoint_file_id?: string | null;
+        has_file?: boolean;
       }
 
       const response = await api.get<ApiMessage[]>("/api/v1/chat_messages", { params: apiParams });
@@ -170,9 +188,10 @@ export default function ChatPage() {
         sender_name: msg.user?.name || "Unknown",
         sender_avatar: null,
         content: msg.content,
-        message_type: "text" as const,
-        file_url: null,
-        file_name: null,
+        message_type: msg.message_type || "text",
+        file_url: msg.file_url || null,
+        file_name: msg.file_name || null,
+        sharepoint_file_id: msg.sharepoint_file_id || null,
         created_at: msg.created_at,
         read_by: [msg.user_id],
         is_own: msg.user_id === user.id,
@@ -214,8 +233,22 @@ export default function ChatPage() {
       }
     }
 
+    // Mark conversation as read when viewed
+    async function markAsRead() {
+      try {
+        await api.post("/api/v1/chat_messages/mark_as_read", {});
+        // Update local unread count to 0 for this conversation
+        setConversations(prev => prev.map(c =>
+          c.id === conversationId ? { ...c, unread_count: 0 } : c
+        ));
+      } catch (error) {
+        console.error("Failed to mark as read:", error);
+      }
+    }
+
     // Initial fetch with loading spinner
     fetchMessages();
+    markAsRead();
 
     // Poll for new messages every 10 seconds (silent updates, avoid rate limiting)
     const pollInterval = setInterval(() => {
@@ -342,6 +375,68 @@ export default function ChatPage() {
     setImagePreview(null);
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPastedImage(file);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setImagePreview(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = ""; // Reset for re-selection
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPastedImage(file);
+      // For non-image files, just set a placeholder preview indicator
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setImagePreview(ev.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setImagePreview(null); // No preview for non-image files
+      }
+    }
+    e.target.value = "";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setPastedImage(file);
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setImagePreview(ev.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setImagePreview(null);
+      }
+    }
+  };
+
   const handleScreenCapture = async () => {
     try {
       // Request screen capture from browser
@@ -374,7 +469,7 @@ export default function ChatPage() {
       // Convert canvas to blob
       canvas.toBlob((blob) => {
         if (blob) {
-          const file = new (File as any)([blob], `screenshot-${Date.now()}.png`, {
+          const file = new File([blob], `screenshot-${Date.now()}.png`, {
             type: "image/png",
           });
           setPastedImage(file);
@@ -808,7 +903,7 @@ export default function ChatPage() {
                 ) : (
                   <ScrollArea className="h-full pr-2">
                     <div className="space-y-3">
-                      {[...messages].reverse().map((message) => (
+                      {messages.map((message) => (
                         <MessageBubble
                           key={message.id}
                           message={message}
@@ -885,6 +980,21 @@ export default function ChatPage() {
               {/* Message Input */}
               <div className="p-2 border-t shrink-0">
                 {/* Image Preview */}
+                {/* Hidden file inputs */}
+                <input
+                  type="file"
+                  ref={imageInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageSelect}
+                />
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                {/* Image preview */}
                 {imagePreview && (
                   <div className="mb-2 relative inline-block">
                     <img
@@ -902,7 +1012,30 @@ export default function ChatPage() {
                     </Button>
                   </div>
                 )}
-                <div className="flex items-center gap-1 w-full">
+                {/* Non-image file preview */}
+                {pastedImage && !imagePreview && (
+                  <div className="mb-2 relative inline-flex items-center gap-2 bg-secondary rounded-lg px-3 py-2">
+                    <FileIcon className="h-4 w-4 shrink-0" />
+                    <span className="text-sm truncate max-w-[200px]">{pastedImage.name}</span>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-5 w-5 rounded-full ml-1"
+                      onClick={clearImagePreview}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                <div
+                  className={cn(
+                    "flex items-center gap-1 w-full rounded-md transition-all",
+                    isDragging && "ring-2 ring-primary bg-primary/5"
+                  )}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Attach file">
@@ -914,25 +1047,16 @@ export default function ChatPage() {
                         <Monitor className="h-4 w-4 mr-2" />
                         Capture Screen/Window
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
                         <ImageIcon className="h-4 w-4 mr-2" />
                         Upload Image
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <File className="h-4 w-4 mr-2" />
+                      <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                        <FileIcon className="h-4 w-4 mr-2" />
                         Upload File
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={handleScreenCapture}
-                    title="Capture screen or window"
-                  >
-                    <Monitor className="h-4 w-4" />
-                  </Button>
                   <Input
                     placeholder="Type a message or paste a screenshot..."
                     value={newMessage}
@@ -1058,24 +1182,106 @@ function MessageBubble({
           >
             {message.message_type === "image" ? (
               <div>
-                {message.file_url && (
-                  <img
-                    src={message.file_url}
-                    alt={message.file_name || "Shared image"}
-                    className="max-w-full max-h-96 object-contain"
-                  />
-                )}
+                {message.file_url ? (
+                  // Check if it's actually an image or a PDF/document
+                  message.file_name?.toLowerCase().endsWith('.pdf') ? (
+                    <a
+                      href={message.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-3 py-2 hover:underline"
+                    >
+                      <FileIcon className="h-4 w-4 shrink-0" />
+                      <span className="text-sm break-words">{message.file_name}</span>
+                    </a>
+                  ) : (
+                    <div className="relative group">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <img
+                            src={message.file_url}
+                            alt={message.file_name || "Shared image"}
+                            className="max-w-full max-h-96 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                          />
+                        </DialogTrigger>
+                        <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden">
+                          <DialogHeader className="sr-only">
+                            <DialogTitle>Image Preview</DialogTitle>
+                            <DialogDescription>Full size image preview</DialogDescription>
+                          </DialogHeader>
+                          <img
+                            src={message.file_url}
+                            alt={message.file_name || "Shared image"}
+                            className="w-full h-full object-contain"
+                          />
+                        </DialogContent>
+                      </Dialog>
+                      {/* Action buttons overlay */}
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const response = await fetch(message.file_url!);
+                              const blob = await response.blob();
+                              await navigator.clipboard.write([
+                                new ClipboardItem({ [blob.type]: blob })
+                              ]);
+                            } catch {
+                              // Fallback: copy URL to clipboard
+                              await navigator.clipboard.writeText(message.file_url!);
+                            }
+                          }}
+                          className="p-1.5 bg-black/60 hover:bg-black/80 rounded text-white"
+                          title="Copy image"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <button
+                              className="p-1.5 bg-black/60 hover:bg-black/80 rounded text-white"
+                              title="Expand image"
+                            >
+                              <Maximize2 className="h-4 w-4" />
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 overflow-hidden">
+                            <DialogHeader className="sr-only">
+                              <DialogTitle>Image Preview</DialogTitle>
+                              <DialogDescription>Full size image preview</DialogDescription>
+                            </DialogHeader>
+                            <img
+                              src={message.file_url}
+                              alt={message.file_name || "Shared image"}
+                              className="w-full h-full object-contain"
+                            />
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </div>
+                  )
+                ) : message.file_name ? (
+                  // Fallback when file_url is not available yet (uploading to SharePoint)
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <FileIcon className="h-4 w-4 shrink-0" />
+                    <span className="text-sm break-words">{message.file_name}</span>
+                    {!message.sharepoint_file_id && (
+                      <span className="text-xs text-muted-foreground">(uploading...)</span>
+                    )}
+                  </div>
+                ) : null}
                 {message.content && message.content !== "[Image]" && (
-                  <p className="text-sm px-3 py-2 break-words">{message.content}</p>
+                  <p className="text-sm px-3 py-2 break-words whitespace-pre-wrap">{message.content}</p>
                 )}
               </div>
             ) : message.message_type === "file" ? (
               <div className="flex items-center gap-2">
-                <File className="h-4 w-4 shrink-0" />
+                <FileIcon className="h-4 w-4 shrink-0" />
                 <span className="text-sm break-words">{message.file_name}</span>
               </div>
             ) : (
-              <p className="text-sm break-words">{message.content}</p>
+              <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
             )}
           </div>
           <div

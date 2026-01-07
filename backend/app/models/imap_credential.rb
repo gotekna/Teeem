@@ -3,6 +3,9 @@ class ImapCredential < ApplicationRecord
   has_many :email_warehouse, dependent: :nullify
   has_many :email_rules, dependent: :destroy
 
+  # SSoT: Ownership is determined at creation time by controller
+  # Email owner becomes user_id, creator (if different) is added to shared_with_user_ids
+
   # Encrypt password at rest
   encrypts :encrypted_password
 
@@ -143,4 +146,32 @@ class ImapCredential < ApplicationRecord
   def display_name
     name.presence || email_address
   end
+
+  # Check if a user can access this credential's emails
+  # SSoT: Owner always has access, plus anyone in shared_with_user_ids
+  def accessible_by?(check_user)
+    return false unless check_user
+    user_id == check_user.id || shared_with_user_ids&.include?(check_user.id)
+  end
+
+  # Grant access to a user
+  def grant_access_to!(other_user)
+    return if other_user.id == user_id # Owner already has access
+    self.shared_with_user_ids ||= []
+    self.shared_with_user_ids << other_user.id unless shared_with_user_ids.include?(other_user.id)
+    save!
+  end
+
+  # Revoke access from a user
+  def revoke_access_from!(other_user)
+    return unless shared_with_user_ids&.include?(other_user.id)
+    self.shared_with_user_ids.delete(other_user.id)
+    save!
+  end
+
+  # Get all credential IDs accessible to a user (owns or shared with)
+  def self.accessible_by(user)
+    where(user_id: user.id).or(where("? = ANY(shared_with_user_ids)", user.id))
+  end
+
 end

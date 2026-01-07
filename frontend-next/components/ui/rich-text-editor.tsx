@@ -7,6 +7,10 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -309,14 +313,9 @@ export function RichTextEditor({
   minHeight = 200,
   onSlashCommand,
 }: RichTextEditorProps) {
-  // Memoize the slash command extension to prevent unnecessary re-renders
-  const slashCommandExtension = React.useMemo(
-    () => createSlashCommandExtension(onSlashCommand),
-    [onSlashCommand]
-  );
-
-  const editor = useEditor({
-    extensions: [
+  // Memoize all extensions to prevent tiptap duplicate extension warnings
+  const extensions = React.useMemo(
+    () => [
       StarterKit.configure({
         // Disable heading since we don't need it for emails
         heading: false,
@@ -341,9 +340,27 @@ export function RichTextEditor({
           class: "max-w-full h-auto rounded",
         },
       }),
-      slashCommandExtension,
+      // Table support for email signatures
+      Table.configure({
+        resizable: false,
+        HTMLAttributes: {
+          class: "email-signature-table",
+        },
+      }),
+      TableRow,
+      TableCell,
+      TableHeader,
+      createSlashCommandExtension(onSlashCommand),
     ],
+    // Only recreate extensions when these dependencies change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [placeholder, onSlashCommand]
+  );
+
+  const editor = useEditor({
+    extensions,
     content: value,
+    immediatelyRender: false, // Prevent SSR hydration mismatch
     editorProps: {
       attributes: {
         class: cn(
@@ -378,7 +395,7 @@ export function RichTextEditor({
       <div style={{ minHeight }} className="overflow-y-auto">
         <EditorContent
           editor={editor}
-          className="[&_.is-editor-empty]:before:content-[attr(data-placeholder)] [&_.is-editor-empty]:before:text-muted-foreground [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:pointer-events-none"
+          className="[&_.is-editor-empty]:before:content-[attr(data-placeholder)] [&_.is-editor-empty]:before:text-muted-foreground [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:pointer-events-none [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol_ol]:list-[lower-roman] [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square] [&_li]:my-1"
         />
       </div>
     </div>

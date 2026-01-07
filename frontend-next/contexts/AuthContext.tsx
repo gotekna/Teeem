@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { useTheme } from 'next-themes';
 import { api } from '@/lib/api';
 import { loadTypeDefinitions } from '@/lib/column-type-registry';
 
@@ -59,6 +60,7 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const devModeBypass = process.env.NEXT_PUBLIC_DEV_MODE_AUTH_BYPASS === 'true';
+  const { setTheme } = useTheme();
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +69,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Prevent duplicate auth checks (React StrictMode double-mount)
   const authCheckingRef = useRef(false);
+
+  // Apply user's preferred theme when they log in
+  const applyUserTheme = (userData: User) => {
+    const preferredTheme = userData.preferred_theme as string | undefined;
+    if (preferredTheme && ['light', 'dark', 'system'].includes(preferredTheme)) {
+      setTheme(preferredTheme);
+    }
+  };
 
   // Initialize token from localStorage (client-side only)
   // Also sync to cookie for server-side rendering access
@@ -115,6 +125,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const response = await api.get<AuthResponse>('/api/v1/auth/me');
       if (response.success && response.user) {
         setUser(response.user);
+        applyUserTheme(response.user);
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
       } else {
@@ -137,13 +148,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       id: 1,
       name: 'Jake Baird',
       email: 'jake@tekna.com.au',
-      permissions: ['view_jobs', 'edit_jobs', 'view_contacts', 'edit_contacts', 'view_estimates', 'edit_estimates', 'view_purchase_orders', 'edit_purchase_orders', 'admin']
+      permissions: ['view_jobs', 'edit_jobs', 'view_contacts', 'edit_contacts', 'view_estimates', 'edit_estimates', 'view_purchase_orders', 'edit_purchase_orders', 'admin'],
+      preferred_theme: 'dark' // Jake prefers dark mode
     };
 
     const mockToken = 'dev-mode-token';
     setAuthToken(mockToken);
     setToken(mockToken);
     setUser(mockUser);
+    applyUserTheme(mockUser);
     // Load column type definitions from SSoT (fires in background)
     loadTypeDefinitions();
     console.log('✅ Dev Mode: Logged in as', mockUser.name);
@@ -160,6 +173,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setAuthToken(response.token);
         setToken(response.token);
         setUser(response.user);
+        applyUserTheme(response.user);
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
         return { success: true };
@@ -195,6 +209,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setAuthToken(response.token);
         setToken(response.token);
         setUser(response.user);
+        applyUserTheme(response.user);
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
         return { success: true };
@@ -216,6 +231,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
     setToken(null);
     setUser(null);
+    // Reset theme to default so next login applies user's database preference
+    setTheme('light');
   };
 
   const refreshUser = async () => {

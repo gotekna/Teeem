@@ -7,12 +7,20 @@ module Api
       before_action :set_row, only: [ :show, :update, :destroy, :move ]
 
       # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
-      # Performance: includes po_supplier, spawn_scan_task, linked_po_task to avoid N+1
+      # SSoT: Use ?for=gantt to filter invisible tasks (po_required without supplier)
+      # Performance: includes po_supplier, spawn_scan_task to avoid N+1
       def index
         # Sort by sequence_order - dependencies drive scheduling, calculated client-side
         @rows = @template.sm_schedule_master_rows.active
-                         .includes(:po_supplier, :spawn_scan_task, :linked_po_task)
+                         .includes(:po_supplier, :spawn_scan_task)
                          .order(Arel.sql("COALESCE(sequence_order, 0) ASC"))
+
+        # Gantt mode: Filter out PO-required tasks without a supplier configured
+        # This ensures incomplete PO tasks don't clutter the Gantt view
+        # Use ?show_all_po=true to show all PO required tasks (useful for template editing)
+        if params[:for] == "gantt" && params[:show_all_po] != "true"
+          @rows = @rows.reject { |r| r.po_required && r.po_supplier_id.blank? }
+        end
 
         render json: {
           success: true,
@@ -146,7 +154,7 @@ module Api
 
         render json: {
           success: true,
-          rows: @template.sm_schedule_master_rows.active.includes(:po_supplier, :spawn_scan_task, :linked_po_task).in_sequence.map { |r| row_json(r) }
+          rows: @template.sm_schedule_master_rows.active.includes(:po_supplier, :spawn_scan_task).in_sequence.map { |r| row_json(r) }
         }
       end
 
@@ -186,20 +194,23 @@ module Api
           :spawn_order_task, :spawn_call_task, :pass_fail_enabled,
           :order_time_days, :call_time_days,
           :color,
+          # Workflow triggers
+          :start_workflow_enabled, :start_workflow_id,
+          :complete_workflow_enabled, :complete_workflow_id,
           # New Schedule Master fields
-          :linked_po_task_id,
           :supplier_confirm,
-          # Manual positioning
-          :hold, :hold_date, :dependency_broken,
+          # Manual positioning and task status
+          :hold, :hold_date, :dependency_broken, :started,
           # Header and active status
           :allow_header, :is_active,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
-          documentation_category_ids: [],
           subtask_names: [],
           tags: [],
           # PO line items with quantities
-          po_line_items: [ :pricebook_item_id, :qty ]
+          po_line_items: [ :pricebook_item_id, :qty ],
+          # Document types for GET task spawning
+          sm_schedule_master_document_types_attributes: [ :id, :document_type_id, :lag_days, :assigned_role, :_destroy ]
         )
       end
 
@@ -250,6 +261,7 @@ module Api
           trade_name: trades_map[row.trade.to_i] || row.trade,
           stage_name: stages_map[row.stage.to_i] || row.stage,
           header_gantt: header_value,
+          allow_header: row.allow_header,  # SSoT: Needed for Gantt V2 header bar rendering
           cost_centre: cost_centre_value,
           assigned_role: role_value,
           checklist_id: row.checklist_id,
@@ -272,16 +284,30 @@ module Api
           pass_fail_enabled: row.pass_fail_enabled,
           order_time_days: row.order_time_days,
           call_time_days: row.call_time_days,
-          documentation_category_ids: row.documentation_category_ids,
           linked_task_ids: row.linked_task_ids,
+          # Workflow triggers
+          start_workflow_enabled: row.start_workflow_enabled,
+          start_workflow_id: row.start_workflow_id,
+          start_workflow_name: row.start_workflow&.name,
+          complete_workflow_enabled: row.complete_workflow_enabled,
+          complete_workflow_id: row.complete_workflow_id,
+          complete_workflow_name: row.complete_workflow&.name,
+          # Document types for GET task spawning
+          document_types: row.sm_schedule_master_document_types.includes(:document_type).map { |dt|
+            {
+              id: dt.id,
+              document_type_id: dt.document_type_id,
+              document_type_name: dt.document_type&.display_name || dt.document_type&.name,
+              lag_days: dt.lag_days,
+              assigned_role: dt.assigned_role
+            }
+          },
           tags: row.tags,
           color: row.color,
           is_active: row.is_active,
           # Multi-template support
           sm_template_ids: row.sm_template_ids || [],
           # New Schedule Master fields
-          linked_po_task_id: row.linked_po_task_id,
-          linked_po_task_name: row.linked_po_task&.name,
           supplier_confirm: row.supplier_confirm,
           # Manual positioning (for held/locked dates)
           hold: row.hold,

@@ -10,6 +10,9 @@ Rails.application.routes.draw do
   get "/version", to: "health#version"
   post "/version/increment", to: "health#increment_version"
 
+  # ActionCable WebSocket endpoint
+  mount ActionCable.server => "/cable"
+
   # API routes
   namespace :api do
     namespace :v1 do
@@ -90,6 +93,7 @@ Rails.application.routes.draw do
         collection do
           get :unread_count
           post :mark_all_read
+          delete :clear_all
         end
         member do
           patch :mark_read
@@ -141,6 +145,8 @@ Rails.application.routes.draw do
       get "navigation", to: "navigation#index"
       post "navigation/reset", to: "navigation#reset"
       patch "navigation/:id/toggle_collapse", to: "navigation#toggle_collapse"
+      get "navigation/email_accounts", to: "navigation#email_accounts"
+      post "navigation/reorder_email_accounts", to: "navigation#reorder_email_accounts"
 
       # Admin: Navigation system config
       resources :navigation_groups, only: [ :index, :create, :update, :destroy ] do
@@ -935,6 +941,17 @@ Rails.application.routes.draw do
           post :bulk_delete
           get :for_select
         end
+        member do
+          get :signature_usages, to: "signature_usages#user_history"
+        end
+      end
+
+      # Digital Signature Register
+      resources :signature_usages, only: [:index] do
+        collection do
+          get :my_history
+          get :certificate_types
+        end
       end
 
       # User groups management
@@ -1066,6 +1083,7 @@ Rails.application.routes.draw do
         member do
           post :assign_to_job
           post :unassign
+          post :dismiss_suggestion
           post :mark_as_spam
           delete :delete_from_outlook
           post :move_to_folder
@@ -1073,6 +1091,7 @@ Rails.application.routes.draw do
           post :link_contact
           post :unlink_contact
           get :suggest_contacts
+          get "attachments/:attachment_id/download", action: :download_attachment
         end
       end
 
@@ -1175,7 +1194,10 @@ Rails.application.routes.draw do
           post :schedule_email
           get :scheduled_emails
           get :folders  # Fetch folders for a specific account (pass account_id param)
+          get :folder_order  # Get user's custom folder order
+          post :save_folder_order  # Save user's custom folder order
           post :sync_all  # Sync ALL user's IMAP accounts
+          get :shareable_users  # List users who can be granted access
         end
         member do
           post :sync
@@ -1183,6 +1205,7 @@ Rails.application.routes.draw do
           post :create_folder
           delete :delete_folder
           post :move_email
+          put :update_sharing  # Update who has access to this credential's emails
         end
       end
 
@@ -1257,16 +1280,13 @@ Rails.application.routes.draw do
       # Setup data management
       post "setup/pull_from_local", to: "setup#pull_from_local"
       post "setup/sync_users", to: "setup#sync_users"
+      # NOTE: sync_documentation_categories kept for backward compatibility (returns deprecation message)
       post "setup/sync_documentation_categories", to: "setup#sync_documentation_categories"
       post "setup/sync_supervisor_checklists", to: "setup#sync_supervisor_checklists"
       # NOTE: sync_folder_templates kept for backward compatibility (returns deprecation message)
 
-      # Documentation Categories (Global)
-      resources :documentation_categories do
-        collection do
-          post :reorder
-        end
-      end
+      # NOTE: Documentation Categories removed - SSoT: DocumentType with SmScheduleMasterDocumentType
+      # The documentation_categories routes have been removed. Use document_types instead.
 
       # Plan Categories and Types (Admin settings for Plans tab)
       resources :plan_categories do
@@ -1360,6 +1380,9 @@ Rails.application.routes.draw do
 
       # Agent Definitions (Chapter 20)
       resources :agent_definitions, param: :agent_id do
+        collection do
+          post :sync
+        end
         member do
           post :record_run
         end
@@ -1385,6 +1408,7 @@ Rails.application.routes.draw do
             get :gantt_data
             post :copy_from_template
             post :import
+            post :validate_dates   # Safety net: Runs rollover for this job on page load (SSoT: SmRolloverJob)
             # Template upgrade endpoints (versioned architecture)
             get :upgrade_preview   # Preview changes before upgrading to new template version
             post :upgrade          # Execute upgrade to new template version
@@ -1396,6 +1420,7 @@ Rails.application.routes.draw do
       resources :sm_tasks, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :bulk_update
+          get :user_counts
         end
         member do
           post :start
@@ -1414,25 +1439,37 @@ Rails.application.routes.draw do
           # Task attachments
           get :attachments
           post :attachments, action: :add_attachment
+          post "attachments/upload", action: :upload_attachment
           delete "attachments/:attachment_id", action: :remove_attachment
           # Task followers
           post :follow
           delete :unfollow
           get :followers
+          post :followers, action: :add_follower
+          delete "followers/:user_id", action: :remove_follower
+          # Task contacts (email participants, assigned contacts/users)
+          get :contacts
+          post :contacts, action: :add_contact
+          delete "contacts/:contact_id", action: :remove_contact
+          # Task history/activity log
+          get :history
+          # Action items (checkable items or questions)
+          post :action_items, action: :create_action_item
+          post "action_items/bulk", action: :bulk_create_action_items
+          post "action_items/:item_id/toggle", action: :toggle_action_item
+          post "action_items/:item_id/answer", action: :answer_action_item
+          post "action_items/:item_id/delegate", action: :delegate_action_item
+          patch "action_items/:item_id", action: :update_action_item
+          delete "action_items/:item_id", action: :destroy_action_item
+          # Privacy
+          patch :privacy, action: :update_privacy
           # Row-level template sync
           get :compare_to_template
           post :sync_from_template
         end
 
-        # Dependencies (nested under sm_tasks)
-        resources :dependencies, controller: "sm_dependencies", only: [ :index, :create ]
-      end
-
-      # SM Dependencies (non-nested routes)
-      resources :sm_dependencies, only: [ :show, :update, :destroy ] do
-        member do
-          post :restore
-        end
+        # Dependencies - SSoT: Now managed via predecessor_ids jsonb on SmTask
+        # REMOVED: sm_dependencies routes - dependencies stored in SmTask.predecessor_ids
       end
 
       # SM Hold Reasons (admin)
@@ -1461,6 +1498,7 @@ Rails.application.routes.draw do
         member do
           post :set_default
           post :copy_to_job
+          post :reset_job_tasks  # Nuclear reset: delete all tasks and re-sync from template
           post :duplicate
           post :sync_to_job
           get :compare_to_job
@@ -1469,6 +1507,8 @@ Rails.application.routes.draw do
           post :delete_orphans   # Delete orphan tasks (unlinked job tasks)
           post :copy             # Copy entire template (versioned)
           post :import_rows      # Import rows from another template
+          get :gantt_data        # SSoT: Gantt-formatted data with row.id dependencies
+          post :validate_dates   # SSoT: Recalculate dates to skip weekends/holidays
         end
         collection do
           get :default
@@ -1504,7 +1544,7 @@ Rails.application.routes.draw do
           post :roles, action: :add_role
           delete "roles/:role", action: :remove_role
 
-          # SSoT: User::ASSIGNABLE_ROLES for task dropdowns
+          # SSoT: Role.for_select for task dropdowns
           get :assignable_roles
         end
       end
@@ -1756,6 +1796,41 @@ Rails.application.routes.draw do
       end
 
       # ============================================
+      # Notebooks (OneNote-like note system)
+      # ============================================
+
+      resources :notebooks do
+        member do
+          post :share
+          delete :unshare
+        end
+        resources :sections, controller: "notebook_sections" do
+          member do
+            post :reorder
+          end
+          resources :pages, controller: "notebook_pages", only: [ :index, :create ]
+        end
+      end
+
+      resources :notebook_pages, only: [ :show, :update, :destroy ] do
+        member do
+          post :move
+          post :toggle_pin
+        end
+        collection do
+          get :recent
+          get :search
+        end
+        resources :attachments, controller: "notebook_page_attachments", only: [ :index, :create ]
+      end
+
+      resources :notebook_page_attachments, only: [ :show, :destroy ] do
+        member do
+          get :download
+        end
+      end
+
+      # ============================================
       # SM Gantt - Advanced Analytics
       # ============================================
 
@@ -1908,8 +1983,14 @@ Rails.application.routes.draw do
           get :sync_stats
           get :common_contacts
           get :unlinked_contacts
+          get :xero_duplicates
+          get :stale_xero_links
+          delete "stale_xero_links/:id", action: :delete_stale_link, as: :delete_stale_link
           post :link_unlinked_contact
           post :auto_match_contacts
+          post :push_contact_names
+          post :pull_contact_details
+          post :apply_xero_updates
           post :sync_all_companies
         end
         member do
@@ -2117,9 +2198,11 @@ Rails.application.routes.draw do
       post "organization_onedrive/run_migration", to: "organization_sharepoint#run_migration"
       get "organization_onedrive/job_all_files", to: "organization_sharepoint#job_all_files"
       post "organization_onedrive/sync_job_documents", to: "organization_sharepoint#sync_job_documents"
+      post "organization_onedrive/upload_signed_version", to: "organization_sharepoint#upload_signed_version"
 
       # AI document analysis endpoints
       post "organization_onedrive/analyze_job_documents", to: "organization_sharepoint#analyze_job_documents"
+      post "organization_onedrive/bulk_categorize_job_documents", to: "organization_sharepoint#bulk_categorize_job_documents"
       get "organization_onedrive/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
       post "organization_onedrive/approve_document_rename", to: "organization_sharepoint#approve_document_rename"
       post "organization_onedrive/bulk_approve_renames", to: "organization_sharepoint#bulk_approve_renames"
@@ -2168,6 +2251,7 @@ Rails.application.routes.draw do
         end
         member do
           get :health  # GET /api/v1/foundations/:id/health - Health checks for this table
+          post :fix_health  # POST /api/v1/foundations/:id/fix_health - Auto-fix health issues
           get :schema  # GET /api/v1/foundations/:id/schema - Column schema for this table
           get :groups  # GET /api/v1/foundations/:id/groups - Server-side group counts by column
         end
@@ -2545,6 +2629,7 @@ Rails.application.routes.draw do
       resources :document_types do
         collection do
           get :tabs
+          get :dwelling_types
         end
         member do
           post :duplicate

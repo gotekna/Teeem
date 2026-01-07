@@ -7,6 +7,7 @@ export { ContactFinancialTab } from "./ContactFinancialTab";
 export { ContactDirectorshipsTab } from "./ContactDirectorshipsTab";
 export { ContactCasesTab } from "./ContactCasesTab";
 export { ContactEmailsTab } from "./ContactEmailsTab";
+export { ContactActivityTab } from "./ContactActivityTab";
 
 // Re-export types for convenience
 export type {

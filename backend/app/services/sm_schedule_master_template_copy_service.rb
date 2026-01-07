@@ -5,7 +5,7 @@
 # This is a critical service that instantiates a template into actual tasks.
 # It handles:
 # - Creating SmTask records from SmScheduleMaster records
-# - Creating SmDependency records based on predecessor relationships
+# - SSoT: Copying predecessor_ids jsonb from template to tasks
 # - Calculating start/end dates based on dependencies
 # - Optionally creating Purchase Orders for tasks that require them
 #
@@ -157,35 +157,33 @@ class SmScheduleMasterTemplateCopyService
   end
 
   def create_dependencies
+    # SSoT: Copy predecessor_ids from template, remapping task_numbers to new tasks
     @row_map.values.each do |row|
       next if row.predecessor_ids.blank?
 
       successor_task = @task_number_map[row.task_number]
       next unless successor_task
 
-      row.predecessor_ids.each do |pred_data|
-        pred_task_number = (pred_data["id"] || pred_data[:id]).to_i
-        predecessor_task = @task_number_map[pred_task_number]
+      # Build transformed predecessor_ids with new task_numbers
+      new_predecessor_ids = row.predecessor_ids.map do |pred_data|
+        old_pred_task_number = (pred_data["id"] || pred_data[:id]).to_i
+        predecessor_task = @task_number_map[old_pred_task_number]
         next unless predecessor_task
 
-        dep_type = pred_data["type"] || pred_data[:type] || "FS"
-        lag_days = (pred_data["lag"] || pred_data[:lag] || 0).to_i
+        {
+          "id" => predecessor_task.task_number,
+          "type" => pred_data["type"] || pred_data[:type] || "FS",
+          "lag" => (pred_data["lag"] || pred_data[:lag] || 0).to_i
+        }
+      end.compact
 
-        dependency = SmDependency.new(
-          predecessor_task_id: predecessor_task.id,
-          successor_task_id: successor_task.id,
-          dependency_type: dep_type,
-          lag_days: lag_days,
-          active: true,
-          created_by: user
-        )
-
-        if dependency.save
-          @created_dependencies << dependency
-          Rails.logger.debug "SmScheduleMasterTemplateCopyService: Created dependency #{predecessor_task.task_number} -> #{successor_task.task_number}"
-        else
-          @errors << "Dependency #{predecessor_task.name} -> #{successor_task.name}: #{dependency.errors.full_messages.join(', ')}"
-        end
+      if new_predecessor_ids.any?
+        successor_task.update!(predecessor_ids: new_predecessor_ids)
+        @created_dependencies << {
+          task_id: successor_task.id,
+          predecessor_ids: new_predecessor_ids
+        }
+        Rails.logger.debug "SmScheduleMasterTemplateCopyService: Set predecessor_ids for task #{successor_task.task_number}"
       end
     end
   end
@@ -204,7 +202,8 @@ class SmScheduleMasterTemplateCopyService
   end
 
   def calculate_earliest_start(task)
-    predecessor_deps = SmDependency.where(successor_task_id: task.id, active: true).includes(:predecessor_task)
+    # SSoT: Using jsonb-based predecessor lookup
+    predecessor_deps = task.active_predecessor_dependencies
 
     if predecessor_deps.empty?
       return start_date
@@ -234,8 +233,9 @@ class SmScheduleMasterTemplateCopyService
   end
 
   def topological_sort(tasks)
-    # Build dependency graph
+    # Build dependency graph from predecessor_ids jsonb
     task_by_id = tasks.index_by(&:id)
+    task_by_number = tasks.index_by(&:task_number)
     in_degree = Hash.new(0)
     adjacency = Hash.new { |h, k| h[k] = [] }
 
@@ -243,11 +243,18 @@ class SmScheduleMasterTemplateCopyService
       in_degree[task.id] ||= 0
     end
 
-    SmDependency.where(successor_task_id: tasks.map(&:id), active: true).find_each do |dep|
-      next unless task_by_id[dep.predecessor_task_id] # predecessor must be in our set
+    # SSoT: Build graph from predecessor_ids jsonb on each task
+    tasks.each do |task|
+      next if task.predecessor_ids.blank?
 
-      adjacency[dep.predecessor_task_id] << dep.successor_task_id
-      in_degree[dep.successor_task_id] += 1
+      task.predecessor_ids.each do |pred_data|
+        pred_task_number = (pred_data["id"] || pred_data[:id]).to_i
+        predecessor = task_by_number[pred_task_number]
+        next unless predecessor && task_by_id[predecessor.id] # predecessor must be in our set
+
+        adjacency[predecessor.id] << task.id
+        in_degree[task.id] += 1
+      end
     end
 
     # Kahn's algorithm

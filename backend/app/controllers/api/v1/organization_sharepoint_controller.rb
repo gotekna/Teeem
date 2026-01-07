@@ -257,7 +257,8 @@ module Api
       def change_root_folder
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -364,7 +365,8 @@ module Api
       def sharepoint_sites
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -392,7 +394,8 @@ module Api
       def use_personal_drive
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -439,7 +442,8 @@ module Api
       def use_sharepoint_site
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -489,7 +493,8 @@ module Api
       def browse_folders
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -641,7 +646,8 @@ module Api
       def create_root_folder
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -692,7 +698,8 @@ module Api
       def validate_folder
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -730,7 +737,8 @@ module Api
       def create_all_job_folders
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
@@ -798,7 +806,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
@@ -914,7 +923,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -974,7 +984,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -992,18 +1003,36 @@ module Api
         begin
           client = MicrosoftGraphClient.new(credential)
 
-          # Find the job folder
-          job_folder = client.find_job_folder(job)
+          # SSoT: Use stored sharepoint_folder_id first, fall back to find_job_folder
+          job_folder_id = job.sharepoint_folder_id
+          job_folder_url = nil
 
-          unless job_folder
-            return render json: {
-              error: "Job folder not found",
-              job_folder_exists: false
-            }, status: :not_found
+          if job_folder_id.present?
+            # Use stored folder ID directly (faster, more reliable)
+            begin
+              folder_info = client.get_item(job_folder_id)
+              job_folder_url = folder_info["webUrl"]
+            rescue => e
+              Rails.logger.warn "[SharePoint] Stored folder ID invalid for job #{job.id}: #{e.message}"
+              job_folder_id = nil
+            end
+          end
+
+          # Fall back to find_job_folder if no stored ID
+          unless job_folder_id
+            job_folder = client.find_job_folder(job)
+            unless job_folder
+              return render json: {
+                error: "Job folder not found",
+                job_folder_exists: false
+              }, status: :not_found
+            end
+            job_folder_id = job_folder["id"]
+            job_folder_url = job_folder["webUrl"]
           end
 
           # Get all items in the job folder
-          job_items = client.list_folder_items(job_folder["id"])
+          job_items = client.list_folder_items(job_folder_id)
           job_folders = job_items["value"]&.select { |item| item["folder"] } || []
 
           # Find the target folders by name
@@ -1039,8 +1068,8 @@ module Api
             total_count: files_only.length,
             found_folders: found_folders,
             requested_folders: folder_names,
-            job_folder_id: job_folder["id"],
-            job_folder_web_url: job_folder["webUrl"]
+            job_folder_id: job_folder_id,
+            job_folder_web_url: job_folder_url
           }
 
           # Cache for 5 minutes
@@ -1063,7 +1092,8 @@ module Api
       def search
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1126,7 +1156,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1208,7 +1239,8 @@ module Api
       def delete_file
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { success: false, error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1257,7 +1289,8 @@ module Api
       def download_url
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1347,7 +1380,8 @@ module Api
       def preview_private_folders
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1375,7 +1409,8 @@ module Api
       def copy_files
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1520,7 +1555,8 @@ module Api
       def create_private_folders
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1547,7 +1583,8 @@ module Api
 
         Rails.logger.info "[OneDrive Corporate Sync] Starting corporate document sync"
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           Rails.logger.warn "[OneDrive Corporate Sync] No valid credential found"
           return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
@@ -1599,7 +1636,7 @@ module Api
         job = Job.find(params[:job_id])
 
         # Check if we have cached documents in the data warehouse
-        cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type).synced
+        cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
 
         if cached_docs.any?
           # Data Warehouse approach: instant results from database
@@ -1628,7 +1665,16 @@ module Api
               ai_reasoning: doc.ai_reasoning,
               rename_status: doc.rename_status,
               thumbnail_url: doc.thumbnail_url,
-              from_cache: true
+              from_cache: true,
+              # Version chain fields (Draft/Signed versioning)
+              version_status: doc.version_status,
+              version_number: doc.version_number,
+              parent_document_id: doc.parent_document_id,
+              is_versionable: doc.versionable?,
+              has_signed_version: doc.has_signed_version?,
+              signed_at: doc.signed_at&.iso8601,
+              signed_by_name: doc.signed_by&.name,
+              child_versions: doc.child_versions.map { |cv| { id: cv.id, version_status: cv.version_status, version_number: cv.version_number, file_name: cv.file_name } }
             }
           end
 
@@ -1771,6 +1817,121 @@ module Api
         render json: { error: "Job not found" }, status: :not_found
       end
 
+      # POST /api/v1/organization_onedrive/upload_signed_version
+      # Upload a signed version of an existing draft document
+      # Creates a new JobDocument record linked to the original as parent_document
+      # Params:
+      #   - parent_document_id: ID of the draft document to create signed version for
+      #   - file: The signed file to upload
+      #   - folder_path: Optional subfolder path within the job folder
+      def upload_signed_version
+        parent_doc = JobDocument.find(params[:parent_document_id])
+        job = parent_doc.job
+
+        # Validate the document type supports versioning
+        unless parent_doc.versionable?
+          return render json: {
+            success: false,
+            error: "This document type does not support Draft/Signed versioning"
+          }, status: :unprocessable_entity
+        end
+
+        # Validate the parent is a draft
+        unless parent_doc.draft?
+          return render json: {
+            success: false,
+            error: "Only draft documents can have signed versions uploaded"
+          }, status: :unprocessable_entity
+        end
+
+        credential = get_onedrive_credential
+        unless credential
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+        end
+
+        begin
+          file = params[:file]
+          unless file
+            return render json: { error: "No file provided" }, status: :bad_request
+          end
+
+          client = MicrosoftGraphClient.new(credential)
+
+          # Find the job folder
+          job_folder = client.find_job_folder(job)
+          unless job_folder
+            return render json: {
+              success: false,
+              error: "Job folder not found in SharePoint"
+            }, status: :not_found
+          end
+
+          # Determine upload folder (same as parent document)
+          folder_path = parent_doc.folder_path || ""
+
+          # Generate filename with "Signed" suffix
+          original_name = File.basename(file.original_filename, ".*")
+          extension = File.extname(file.original_filename)
+          signed_filename = "#{original_name} - Signed#{extension}"
+
+          # Upload to SharePoint
+          target_folder_id = job_folder["id"]
+          if folder_path.present?
+            # Navigate to the subfolder if needed
+            subfolder = client.find_or_create_subfolder(target_folder_id, folder_path)
+            target_folder_id = subfolder["id"] if subfolder
+          end
+
+          uploaded_file = client.upload_file(
+            folder_id: target_folder_id,
+            file_name: signed_filename,
+            content: file.read,
+            content_type: file.content_type
+          )
+
+          # Create the signed version using the model method
+          signed_version = parent_doc.create_signed_version!(
+            {
+              file_name: signed_filename,
+              file_extension: File.extname(signed_filename).delete_prefix(".").downcase,
+              file_size: uploaded_file["size"],
+              sharepoint_item_id: uploaded_file["id"],
+              web_url: uploaded_file["webUrl"]
+            },
+            signed_by_user: current_user
+          )
+
+          render json: {
+            success: true,
+            message: "Signed version uploaded successfully",
+            signed_document: {
+              id: signed_version.id,
+              file_name: signed_version.file_name,
+              version_status: signed_version.version_status,
+              version_number: signed_version.version_number,
+              signed_at: signed_version.signed_at&.iso8601,
+              signed_by_name: signed_version.signed_by&.name,
+              web_url: uploaded_file["webUrl"]
+            },
+            parent_document: {
+              id: parent_doc.id,
+              version_status: parent_doc.reload.version_status
+            }
+          }
+
+        rescue ArgumentError => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "[Upload Signed Version] Exception: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to upload signed version: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/legacy_files
       # List files from the legacy "Old House Data/00 Active" folder that match a job
       # Used for importing legacy job documents into the new job folder structure
@@ -1780,7 +1941,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1823,7 +1985,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1885,6 +2048,45 @@ module Api
         }
       rescue ActiveRecord::RecordNotFound
         render json: { error: "Job not found" }, status: :not_found
+      end
+
+      # POST /api/v1/organization_onedrive/bulk_categorize_job_documents
+      # Bulk categorize documents for a job based on folder paths matching EntityTabs
+      # Used for client onboarding to automatically assign document types
+      # Params:
+      #   - job_id: Required - Job ID to categorize
+      #   - dry_run: Optional (default: false) - If true, preview only without saving
+      #   - force: Optional (default: false) - If true, re-categorize ALL docs (fix wrong assignments)
+      # Returns:
+      #   - success, stats (total, categorized, skipped, failed, recategorized), details
+      def bulk_categorize_job_documents
+        job_id = params[:job_id]
+        dry_run = params[:dry_run].to_s == 'true'
+        force = params[:force].to_s == 'true'
+
+        unless job_id.present?
+          return render json: { error: "job_id is required" }, status: :bad_request
+        end
+
+        job = Job.find(job_id)
+
+        service = BulkDocumentCategorizationService.new(job, dry_run: dry_run, force: force, user: current_user)
+        result = service.categorize_all
+
+        render json: {
+          success: true,
+          job_id: job.id,
+          job_title: job.title,
+          dry_run: result[:dry_run],
+          stats: result[:stats],
+          details: result[:details].first(100),  # Limit for response size
+          full_details_count: result[:details].size
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: "Job not found" }, status: :not_found
+      rescue => e
+        Rails.logger.error("[BulkCategorize] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
       # GET /api/v1/organization_onedrive/documents_needing_review
@@ -1962,7 +2164,8 @@ module Api
         # Action is 'approve' - perform the rename in OneDrive
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -2029,7 +2232,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -2084,7 +2288,8 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
 
-        unless credential&.valid_credential?
+        # Use valid_access_token which auto-refreshes expired tokens
+        unless credential&.valid_access_token
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -2168,9 +2373,10 @@ module Api
         credential = begin
           cred = MicrosoftCredential.sharepoint_credential
           # Try to access an encrypted field to verify decryption works
+          # Use valid_access_token which auto-refreshes expired tokens
           if cred
             cred.access_token
-            cred if cred.valid_credential?
+            cred if cred.valid_access_token
           end
         rescue ActiveRecord::Encryption::Errors::Decryption => e
           Rails.logger.warn "[OneDrive] Decryption error loading org credential: #{e.message}"

@@ -156,10 +156,10 @@ export default function PortalInvoices() {
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      pending: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Pending" },
-      synced: { bg: "bg-blue-100", text: "text-blue-800", label: "Synced" },
-      paid: { bg: "bg-green-100", text: "text-green-800", label: "Paid" },
-      failed: { bg: "bg-red-100", text: "text-red-800", label: "Failed" },
+      pending: { bg: "bg-yellow-100 dark:bg-yellow-900/50", text: "text-yellow-800 dark:text-yellow-300", label: "Pending" },
+      synced: { bg: "bg-blue-100 dark:bg-blue-900/50", text: "text-blue-800 dark:text-blue-300", label: "Synced" },
+      paid: { bg: "bg-green-100 dark:bg-green-900/50", text: "text-green-800 dark:text-green-300", label: "Paid" },
+      failed: { bg: "bg-red-100 dark:bg-red-900/50", text: "text-red-800 dark:text-red-300", label: "Failed" },
     };
     const badge =
       badges[status as keyof typeof badges] || badges.pending;
@@ -197,8 +197,8 @@ export default function PortalInvoices() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Invoices</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Manage your invoices and track payments
           </p>
         </div>
@@ -213,18 +213,18 @@ export default function PortalInvoices() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
+        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <DocumentDuplicateIcon className="h-6 w-6 text-gray-400" />
+                <DocumentDuplicateIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                     Total Invoiced
                   </dt>
-                  <dd className="text-2xl font-semibold text-gray-900">
+                  <dd className="text-2xl font-semibold text-gray-900 dark:text-white">
                     ${invoices.summary.total_invoiced?.toLocaleString() || 0}
                   </dd>
                 </dl>
@@ -233,7 +233,7 @@ export default function PortalInvoices() {
           </div>
         </div>
 
-        <div className="bg-white overflow-hidden shadow rounded-lg">
+        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -241,10 +241,10 @@ export default function PortalInvoices() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                     Total Paid
                   </dt>
-                  <dd className="text-2xl font-semibold text-green-600">
+                  <dd className="text-2xl font-semibold text-green-600 dark:text-green-400">
                     ${invoices.summary.total_paid?.toLocaleString() || 0}
                   </dd>
                 </dl>
@@ -253,7 +253,7 @@ export default function PortalInvoices() {
           </div>
         </div>
 
-        <div className="bg-white overflow-hidden shadow rounded-lg">
+        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -261,10 +261,10 @@ export default function PortalInvoices() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                     Outstanding
                   </dt>
-                  <dd className="text-2xl font-semibold text-yellow-600">
+                  <dd className="text-2xl font-semibold text-yellow-600 dark:text-yellow-400">
                     ${invoices.summary.total_outstanding?.toLocaleString() || 0}
                   </dd>
                 </dl>
@@ -275,7 +275,7 @@ export default function PortalInvoices() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -286,8 +286,8 @@ export default function PortalInvoices() {
                 className={`
                   ${
                     isActive
-                      ? "border-indigo-500 text-indigo-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
+                      : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                   }
                   whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
                   flex items-center gap-2
@@ -300,8 +300,8 @@ export default function PortalInvoices() {
                   ml-2 py-0.5 px-2.5 rounded-full text-xs font-medium
                   ${
                     isActive
-                      ? "bg-indigo-100 text-indigo-600"
-                      : "bg-gray-100 text-gray-600"
+                      ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                   }
                 `}
                 >
@@ -315,35 +315,35 @@ export default function PortalInvoices() {
 
       {/* Invoice List */}
       {currentInvoices.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <DocumentDuplicateIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No invoices</h3>
-          <p className="mt-1 text-sm text-gray-500">
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
+          <DocumentDuplicateIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No invoices</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Get started by creating your first invoice.
           </p>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <Table className="min-w-full">
-              <TableHeader className="bg-gray-50">
+              <TableHeader className="bg-gray-50 dark:bg-gray-700">
                 <TableRow>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     PO Number
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Construction
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Amount
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Created
                   </TableHead>
-                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Paid
                   </TableHead>
                   <TableHead className="relative px-6 py-3">
@@ -351,39 +351,39 @@ export default function PortalInvoices() {
                   </TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody className="bg-white divide-y divide-gray-200">
+              <TableBody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {currentInvoices.map((invoice) => (
-                  <TableRow key={invoice.id} className="hover:bg-gray-50">
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <TableRow key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {invoice.po_number}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {invoice.construction_name}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
                       ${invoice.amount?.toLocaleString()}
                     </TableCell>
                     <TableCell className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(invoice.status)}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(invoice.created_at)}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(invoice.paid_at)}
                     </TableCell>
                     <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       {invoice.can_retry && (
                         <button
                           onClick={() => handleRetrySync(invoice.id)}
-                          className="text-indigo-600 hover:text-indigo-900 mr-3"
+                          className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-3"
                         >
                           Retry
                         </button>
                       )}
                       <Link
                         href={`/portal/invoices/${invoice.id}`}
-                        className="text-indigo-600 hover:text-indigo-900"
+                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
                       >
                         View
                       </Link>
@@ -398,14 +398,14 @@ export default function PortalInvoices() {
 
       {/* Days Outstanding Info */}
       {invoices.summary.invoices_count && invoices.summary.invoices_count > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex items-start">
             <div className="flex-shrink-0">
-              <ClockIcon className="h-5 w-5 text-blue-400" />
+              <ClockIcon className="h-5 w-5 text-blue-400 dark:text-blue-300" />
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">Payment Stats</h3>
-              <div className="mt-2 text-sm text-blue-700">
+              <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">Payment Stats</h3>
+              <div className="mt-2 text-sm text-blue-700 dark:text-blue-300">
                 <p>
                   Total invoices: {invoices.summary.invoices_count} • Paid:{" "}
                   {invoices.summary.paid_invoices_count} • Outstanding:{" "}

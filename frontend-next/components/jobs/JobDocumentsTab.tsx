@@ -152,6 +152,20 @@ interface LegacyItem {
   rename_status?: string;
   thumbnail_url?: string; // Graph API thumbnail URL (publicly accessible)
   download_url?: string; // Pre-authenticated download URL (publicly accessible, expires ~1hr)
+  // Version chain fields (Draft/Signed versioning)
+  version_status?: "draft" | "signed" | "superseded";
+  version_number?: number;
+  parent_document_id?: number | null;
+  is_versionable?: boolean;
+  has_signed_version?: boolean;
+  signed_at?: string;
+  signed_by_name?: string;
+  child_versions?: Array<{
+    id: number;
+    version_status: string;
+    version_number: number;
+    file_name: string;
+  }>;
 }
 
 interface AIStats {
@@ -208,6 +222,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [analyzingDocs, setAnalyzingDocs] = useState(false);
   const [approvingDoc, setApprovingDoc] = useState<number | null>(null);
 
+  // Bulk categorization state (for client onboarding)
+  const [bulkCategorizing, setBulkCategorizing] = useState(false);
+  const [categorizeResult, setCategorizeResult] = useState<{
+    dry_run: boolean;
+    stats: { total: number; categorized: number; skipped: number; failed: number; recategorized: number; already_correct?: number };
+    details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string; old_type?: string }>;
+  } | null>(null);
+  const [showCategorizeSummary, setShowCategorizeSummary] = useState(false);
+  const [forceRecategorize, setForceRecategorize] = useState(false);
+  const [categorizeFilter, setCategorizeFilter] = useState<"all" | "new" | "fixed" | "correct" | "skipped" | "failed">("all");
+
   // Photo upload state
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -222,6 +247,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Category photo lightbox state
   const [categoryLightboxOpen, setCategoryLightboxOpen] = useState(false);
   const [categoryLightboxIndex, setCategoryLightboxIndex] = useState(0);
+
+  // Version grouping state (Draft/Signed document versioning)
+  const [expandedVersionGroups, setExpandedVersionGroups] = useState<Set<string>>(new Set());
 
   // Delete confirmation dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -411,6 +439,81 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     return photosInFolder.map(convertToPhotoItem);
   }, [allFiles, selectedCategory, selectedSubCategory, jobId]);
 
+  // Get category documents (non-photos) by filtering allFiles by folder_path
+  const categoryDocumentItems: LegacyItem[] = useMemo(() => {
+    const activeCategory = selectedSubCategory || selectedCategory;
+    if (!activeCategory || isPhotoCategory(activeCategory)) {
+      return [];
+    }
+
+    const categoryName = activeCategory?.name?.toLowerCase() || "";
+    const folderPath = activeCategory?.folder_path?.toLowerCase() || "";
+
+    // Filter allFiles to documents (non-images) in this folder
+    return allFiles.filter((file) => {
+      if (isImageFile(file)) return false; // Skip images
+      const fileFolderPath = (file.folder_path || "").toLowerCase();
+
+      // Match by multiple strategies (same as categoryPhotoItems)
+      return (
+        (folderPath && fileFolderPath.includes(folderPath)) ||
+        (categoryName && fileFolderPath.includes(categoryName)) ||
+        (folderPath && folderPath.includes(fileFolderPath) && fileFolderPath.length > 0)
+      );
+    });
+  }, [allFiles, selectedCategory, selectedSubCategory]);
+
+  // Group documents by version chain for expandable display (Draft/Signed versioning)
+  // Returns items grouped: root documents with their child versions nested
+  const groupedAllFiles = useMemo(() => {
+    // Separate root documents (no parent) from child versions
+    const rootDocs = allFiles.filter(f => !f.parent_document_id);
+    const childVersionMap = new Map<number, LegacyItem[]>();
+
+    // Build a map of parent_document_id -> child versions
+    allFiles.forEach(f => {
+      if (f.parent_document_id && f.document_id) {
+        const children = childVersionMap.get(f.parent_document_id) || [];
+        children.push(f);
+        childVersionMap.set(f.parent_document_id, children);
+      }
+    });
+
+    // Return root docs with their child versions attached
+    return rootDocs.map(doc => ({
+      ...doc,
+      // Attach child versions from the map (if any)
+      child_versions_data: doc.document_id ? childVersionMap.get(doc.document_id) || [] : []
+    }));
+  }, [allFiles]);
+
+  // Toggle expansion of a version group
+  const toggleVersionGroup = useCallback((documentId: string) => {
+    setExpandedVersionGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(documentId)) {
+        next.delete(documentId);
+      } else {
+        next.add(documentId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Get version status badge color and label
+  const getVersionBadge = (status?: string) => {
+    switch (status) {
+      case "draft":
+        return { label: "Draft", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" };
+      case "signed":
+        return { label: "Signed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" };
+      case "superseded":
+        return { label: "Superseded", className: "bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400" };
+      default:
+        return null;
+    }
+  };
+
   // Generate photo filename based on category and current date/time
   const generatePhotoFilename = (extension: string): string => {
     const category = selectedSubCategory || selectedCategory;
@@ -586,8 +689,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (e.target) e.target.value = "";
   };
 
+  // Track if org status has been checked for this job (prevents duplicate API calls)
+  const orgStatusCheckedRef = useRef<string | null>(null);
+
   useEffect(() => {
-    checkOrganizationStatus();
+    // Only check org status once per job (not on every category/prop change)
+    if (orgStatusCheckedRef.current !== String(jobId)) {
+      orgStatusCheckedRef.current = String(jobId);
+      checkOrganizationStatus();
+    }
     loadDocumentCategories();
 
   }, [jobId, initialCategory, propCategories]);  // SSoT: Re-run when initialCategory or propCategories changes
@@ -669,11 +779,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         setFolders(folderItems);
       }
     } catch (err: unknown) {
-      const error = err as { response?: { status?: number } };
-      if (error.response?.status === 404) {
+      // Check both error.status (ApiError) and error.response?.status (legacy)
+      const error = err as { status?: number; response?: { status?: number } };
+      const status = error.status || error.response?.status;
+
+      if (status === 404) {
+        // Expected: folder doesn't exist yet - not an error to log
         setJobFolderStatus({ loading: false, exists: false, webUrl: null });
       } else {
+        // Unexpected error - log it
         console.error("Failed to check job folder status:", err);
+        setJobFolderStatus({ loading: false, exists: false, webUrl: null });
       }
     }
   };
@@ -1196,15 +1312,55 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     }
   };
 
-  // Load all files when switching to the All Files tab or when viewing photo categories
+  // Bulk categorize documents based on folder paths (for client onboarding)
+  // force=true will re-categorize ALL documents, fixing wrong assignments
+  const handleBulkCategorize = async (dryRun: boolean = false, force: boolean = false) => {
+    try {
+      setBulkCategorizing(true);
+      setCategorizeResult(null);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        dry_run: boolean;
+        stats: { total: number; categorized: number; skipped: number; failed: number; recategorized: number };
+        details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string; old_type?: string }>;
+      }>(`/api/v1/organization_onedrive/bulk_categorize_job_documents`, {
+        job_id: jobId,
+        dry_run: dryRun,
+        force: force,
+      });
+
+      if (response?.success) {
+        setCategorizeResult(response);
+        setCategorizeFilter("all");  // Reset filter when opening dialog
+        setShowCategorizeSummary(true);
+
+        const totalChanged = (response.stats.categorized || 0) + (response.stats.recategorized || 0);
+        if (!dryRun && totalChanged > 0) {
+          setMessage({ type: "success", text: `Categorized ${totalChanged} documents` });
+          // Refresh file list to show updated data
+          setTimeout(loadAllFiles, 1000);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to bulk categorize documents:", err);
+      setError("Failed to categorize documents");
+    } finally {
+      setBulkCategorizing(false);
+    }
+  };
+
+  // Load all files when viewing any document tab (tasks view) or All Files tab
+  // This provides real data for both photo galleries and document lists
   // Use a ref to prevent duplicate in-flight requests
   const loadAllFilesInFlightRef = useRef(false);
 
   useEffect(() => {
-    const activeCategory = selectedSubCategory || selectedCategory;
-    const needsPhotos = isPhotoCategory(activeCategory);
+    // Load files for: All Files tab, Document Tasks view (any category)
+    const needsFiles = viewMode === "allfiles" || viewMode === "tasks";
 
-    if (orgStatus.connected && (viewMode === "allfiles" || needsPhotos)) {
+    if (orgStatus.connected && needsFiles) {
       // Prevent duplicate requests if one is already in flight
       if (loadAllFilesInFlightRef.current) {
         return;
@@ -1446,74 +1602,71 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       />
                     )}
                   </div>
-                ) : tasks.length === 0 ? (
+                ) : loadingAllFiles ? (
+                  <div className="py-12 text-center">
+                    <Spinner size={32} className="mx-auto mb-3" />
+                    <p className="text-muted-foreground">Loading documents...</p>
+                  </div>
+                ) : categoryDocumentItems.length === 0 ? (
                   <div className="py-12 text-center">
                     <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-muted-foreground">No document tasks in this category.</p>
+                    <p className="text-muted-foreground">No documents in this folder yet.</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Upload files via SharePoint or the All Files tab
+                    </p>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Document</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead>Uploaded</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {tasks.map((task) => (
-                        <TableRow key={task.id}>
+                      {categoryDocumentItems.map((doc) => (
+                        <TableRow key={doc.id}>
                           <TableCell>
                             <div className="flex items-start gap-3">
-                              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                              <File className="h-5 w-5 text-muted-foreground mt-0.5" />
                               <div>
-                                <p className="font-medium">{task.name}</p>
-                                <p className="text-sm text-muted-foreground">{task.description}</p>
+                                <p className="font-medium">{doc.name}</p>
+                                <p className="text-sm text-muted-foreground">{doc.folder_path}</p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{getStatusBadge(task)}</TableCell>
                           <TableCell>
-                            {task.uploaded_at ? new Date(task.uploaded_at).toLocaleDateString() : "-"}
+                            {doc.ai_suggested_type_name ? (
+                              <Badge variant="secondary">{doc.ai_suggested_type_name}</Badge>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {doc.modified ? new Date(doc.modified).toLocaleDateString() : "-"}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <label className="cursor-pointer">
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleTaskUpload(task.id, file);
-                                  }}
-                                  disabled={uploading === task.id}
-                                />
-                                <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
-                                  <span>
-                                    {uploading === task.id ? (
-                                      <Spinner size={16} />
-                                    ) : (
-                                      <Upload className="h-4 w-4 mr-1" />
-                                    )}
-                                    {task.has_document ? "Replace" : "Upload"}
-                                  </span>
-                                </Button>
-                              </label>
-                              {task.has_document && (
+                              {doc.web_url && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => task.document_url && window.open(task.document_url, "_blank")}
+                                  onClick={() => window.open(doc.web_url, "_blank")}
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
                                   View
                                 </Button>
                               )}
-                              {task.has_document && !task.is_validated && (
-                                <Button variant="ghost" size="sm" onClick={() => handleValidate(task.id)}>
-                                  <ShieldCheck className="h-4 w-4 mr-1" />
-                                  Validate
+                              {doc.download_url && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => window.open(doc.download_url, "_blank")}
+                                >
+                                  <Download className="h-4 w-4 mr-1" />
+                                  Download
                                 </Button>
                               )}
                             </div>
@@ -1934,6 +2087,57 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           </div>
         )}
 
+        {/* Bulk Categorization Card (for client onboarding) */}
+        {aiStats && (
+          <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    Bulk Categorize
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    {forceRecategorize
+                      ? `Re-categorize ALL ${allFiles.length} files based on folder structure`
+                      : `Assign document types to ${aiStats.unanalyzed} uncategorized files`
+                    }
+                  </p>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={forceRecategorize}
+                      onCheckedChange={(checked) => setForceRecategorize(checked === true)}
+                    />
+                    <span className="text-orange-600 dark:text-orange-400">
+                      Force re-categorize (fix wrong assignments)
+                    </span>
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkCategorize(true, forceRecategorize)}
+                    disabled={bulkCategorizing}
+                  >
+                    {bulkCategorizing ? <Spinner className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                    Preview
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleBulkCategorize(false, forceRecategorize)}
+                    disabled={bulkCategorizing}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    {bulkCategorizing ? <Spinner className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                    {forceRecategorize ? "Re-categorize All" : "Categorize All"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Suggested Renames Section */}
         {filesWithSuggestions.length > 0 && (
           <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20">
@@ -2053,78 +2257,155 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       <TableHead>File Name</TableHead>
                       <TableHead>Folder</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead>Version</TableHead>
                       <TableHead>AI Status</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allFiles.length === 0 ? (
+                    {groupedAllFiles.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           No files found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      allFiles.map((item) => (
-                        <TableRow key={item.id} className={item.rename_status === "completed" ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
-                                {item.original_name && item.name !== item.original_name && (
-                                  <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
+                      groupedAllFiles.map((item) => {
+                        const hasChildVersions = (item as any).child_versions_data?.length > 0 || (item.child_versions?.length ?? 0) > 0;
+                        const isExpanded = expandedVersionGroups.has(item.id);
+                        const versionBadge = getVersionBadge(item.version_status);
+                        const childVersions = (item as any).child_versions_data || [];
+
+                        return (
+                          <React.Fragment key={item.id}>
+                            <TableRow className={item.rename_status === "completed" ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {/* Expand/collapse chevron for versioned documents */}
+                                  {hasChildVersions ? (
+                                    <button
+                                      onClick={() => toggleVersionGroup(item.id)}
+                                      className="p-0.5 hover:bg-muted rounded"
+                                    >
+                                      <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                                    </button>
+                                  ) : (
+                                    <div className="w-5" /> // Spacer for alignment
+                                  )}
+                                  <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                  <div className="min-w-0">
+                                    <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
+                                    {item.original_name && item.name !== item.original_name && (
+                                      <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-muted-foreground">
+                                  {item.folder_path || "-"}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                {item.ai_suggested_type_name ? (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {item.ai_suggested_type_name}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
                                 )}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-muted-foreground">
-                              {item.folder_path || "-"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {item.ai_suggested_type_name ? (
-                              <Badge variant="secondary" className="text-xs">
-                                {item.ai_suggested_type_name}
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {item.rename_status === "completed" ? (
-                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Renamed
-                              </Badge>
-                            ) : item.rename_status === "rejected" ? (
-                              <Badge variant="secondary" className="text-muted-foreground">
-                                Skipped
-                              </Badge>
-                            ) : item.ai_analyzed ? (
-                              <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                <Sparkles className="h-3 w-3 mr-1" />
-                                Pending
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {item.web_url && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => window.open(item.web_url, "_blank")}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                              </TableCell>
+                              <TableCell>
+                                {versionBadge ? (
+                                  <Badge className={versionBadge.className + " text-xs"}>
+                                    {versionBadge.label}
+                                  </Badge>
+                                ) : item.is_versionable ? (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                ) : null}
+                              </TableCell>
+                              <TableCell>
+                                {item.rename_status === "completed" ? (
+                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Renamed
+                                  </Badge>
+                                ) : item.rename_status === "rejected" ? (
+                                  <Badge variant="secondary" className="text-muted-foreground">
+                                    Skipped
+                                  </Badge>
+                                ) : item.ai_analyzed ? (
+                                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                    <Sparkles className="h-3 w-3 mr-1" />
+                                    Pending
+                                  </Badge>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {item.web_url && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => window.open(item.web_url, "_blank")}
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                            {/* Child version rows (shown when expanded) */}
+                            {isExpanded && childVersions.map((child: LegacyItem) => {
+                              const childBadge = getVersionBadge(child.version_status);
+                              return (
+                                <TableRow key={child.id} className="bg-muted/30">
+                                  <TableCell>
+                                    <div className="flex items-center gap-2 pl-7">
+                                      <div className="w-5" /> {/* Indent to align with parent */}
+                                      <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                      <div className="min-w-0">
+                                        <span className="text-sm truncate block max-w-[280px] text-muted-foreground">{child.name}</span>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-muted-foreground">
+                                      {child.folder_path || "-"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    {childBadge && (
+                                      <Badge className={childBadge.className + " text-xs"}>
+                                        {childBadge.label}
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    {child.web_url && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => window.open(child.web_url, "_blank")}
+                                      >
+                                        <ExternalLink className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -2427,6 +2708,225 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           onClick={() => setShowPhotoOptions(false)}
         />
       )}
+
+      {/* Bulk Categorization Summary Dialog */}
+      <Dialog open={showCategorizeSummary} onOpenChange={setShowCategorizeSummary}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              {categorizeResult?.dry_run ? "Categorization Preview" : "Categorization Complete"}
+            </DialogTitle>
+            <DialogDescription>
+              {categorizeResult?.dry_run
+                ? "Preview of documents that would be categorized based on folder structure"
+                : "Documents have been categorized based on folder structure"
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          {categorizeResult && (
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {/* Stats Summary - Clickable to filter */}
+              <div className="grid grid-cols-6 gap-2">
+                <Card
+                  className={`bg-muted/50 cursor-pointer transition-all hover:ring-2 hover:ring-primary/50 ${categorizeFilter === "all" ? "ring-2 ring-primary" : ""}`}
+                  onClick={() => setCategorizeFilter("all")}
+                >
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold">{categorizeResult.stats.total}</div>
+                    <div className="text-xs text-muted-foreground">Total</div>
+                  </CardContent>
+                </Card>
+                <Card
+                  className={`bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 cursor-pointer transition-all hover:ring-2 hover:ring-green-500/50 ${categorizeFilter === "new" ? "ring-2 ring-green-500" : ""}`}
+                  onClick={() => setCategorizeFilter("new")}
+                >
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-green-600">{categorizeResult.stats.categorized || 0}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {categorizeResult.dry_run ? "New" : "Categorized"}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card
+                  className={`bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800 cursor-pointer transition-all hover:ring-2 hover:ring-orange-500/50 ${categorizeFilter === "fixed" ? "ring-2 ring-orange-500" : ""}`}
+                  onClick={() => setCategorizeFilter("fixed")}
+                >
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-orange-600">{categorizeResult.stats.recategorized || 0}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {categorizeResult.dry_run ? "Fix" : "Fixed"}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card
+                  className={`bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 cursor-pointer transition-all hover:ring-2 hover:ring-blue-500/50 ${categorizeFilter === "correct" ? "ring-2 ring-blue-500" : ""}`}
+                  onClick={() => setCategorizeFilter("correct")}
+                >
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-blue-600">{categorizeResult.stats.already_correct || 0}</div>
+                    <div className="text-xs text-muted-foreground">Correct</div>
+                  </CardContent>
+                </Card>
+                <Card
+                  className={`bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800 cursor-pointer transition-all hover:ring-2 hover:ring-yellow-500/50 ${categorizeFilter === "skipped" ? "ring-2 ring-yellow-500" : ""}`}
+                  onClick={() => setCategorizeFilter("skipped")}
+                >
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-yellow-600">{categorizeResult.stats.skipped}</div>
+                    <div className="text-xs text-muted-foreground">Skipped</div>
+                  </CardContent>
+                </Card>
+                <Card
+                  className={`bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 cursor-pointer transition-all hover:ring-2 hover:ring-red-500/50 ${categorizeFilter === "failed" ? "ring-2 ring-red-500" : ""}`}
+                  onClick={() => setCategorizeFilter("failed")}
+                >
+                  <CardContent className="p-2 text-center">
+                    <div className="text-lg font-bold text-red-600">{categorizeResult.stats.failed}</div>
+                    <div className="text-xs text-muted-foreground">Failed</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sample Details */}
+              {categorizeResult.details.length > 0 && (() => {
+                // Filter results based on selected filter
+                const filteredDetails = categorizeResult.details.filter((item) => {
+                  if (categorizeFilter === "all") return true;
+                  if (categorizeFilter === "new") return item.status === "would_categorize" || item.status === "categorized";
+                  if (categorizeFilter === "fixed") return item.status === "would_recategorize" || item.status === "recategorized";
+                  if (categorizeFilter === "correct") return item.status === "already_correct";
+                  if (categorizeFilter === "skipped") return item.status === "skipped";
+                  if (categorizeFilter === "failed") return item.status === "failed";
+                  return true;
+                });
+                // Show all when filtered, limit to 100 when showing all
+                const displayLimit = categorizeFilter === "all" ? 100 : filteredDetails.length;
+                const displayDetails = filteredDetails.slice(0, displayLimit);
+
+                return (
+                <div>
+                  <h4 className="font-medium mb-2 text-sm">
+                    {categorizeFilter === "all"
+                      ? `Sample Results (${Math.min(displayDetails.length, displayLimit)} of ${categorizeResult.details.length})`
+                      : `${categorizeFilter.charAt(0).toUpperCase() + categorizeFilter.slice(1)} Results (${filteredDetails.length})`
+                    }
+                    {categorizeFilter !== "all" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-2 h-6 text-xs"
+                        onClick={() => setCategorizeFilter("all")}
+                      >
+                        Show All
+                      </Button>
+                    )}
+                  </h4>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[300px]">File</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Document Type</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {displayDetails.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-mono text-xs">
+                              <div className="truncate max-w-[280px]" title={item.file_name}>
+                                {item.file_name}
+                              </div>
+                              {item.folder_path && (
+                                <div className="text-muted-foreground truncate max-w-[280px]" title={item.folder_path}>
+                                  {item.folder_path}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  item.status.includes("categorize") || item.status.includes("recategorize")
+                                    ? "default"
+                                    : item.status === "already_correct"
+                                    ? "default"
+                                    : item.status === "skipped"
+                                    ? "secondary"
+                                    : "destructive"
+                                }
+                                className={
+                                  item.status.includes("recategorize")
+                                    ? "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+                                    : item.status === "already_correct"
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+                                    : item.status.includes("categorize")
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                                    : ""
+                                }
+                              >
+                                {item.status === "would_categorize" ? "new" :
+                                 item.status === "would_recategorize" ? "fix" :
+                                 item.status === "recategorized" ? "fixed" :
+                                 item.status === "already_correct" ? "correct" : item.status}
+                              </Badge>
+                              {item.reason && (
+                                <span className="ml-2 text-xs text-muted-foreground">({item.reason})</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {item.document_type ? (
+                                <div>
+                                  {item.old_type && (
+                                    <div className="text-xs text-red-500 line-through">{item.old_type}</div>
+                                  )}
+                                  <div className="font-medium">{item.document_type}</div>
+                                  {item.entity_tab && (
+                                    <div className="text-xs text-muted-foreground">{item.entity_tab}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+                );
+              })()}
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            {categorizeResult?.dry_run ? (
+              <>
+                <Button variant="outline" onClick={() => setShowCategorizeSummary(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowCategorizeSummary(false);
+                    handleBulkCategorize(false, forceRecategorize);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  disabled={(categorizeResult.stats.categorized || 0) + (categorizeResult.stats.recategorized || 0) === 0}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  {forceRecategorize ? "Re-categorize" : "Categorize"} {(categorizeResult.stats.categorized || 0) + (categorizeResult.stats.recategorized || 0)} Files
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setShowCategorizeSummary(false)}>
+                Done
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

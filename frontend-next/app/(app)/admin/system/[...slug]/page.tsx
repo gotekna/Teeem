@@ -39,6 +39,7 @@ import { XeroHealthTab } from "../components/XeroHealthTab";
 import { CostTab } from "../components/CostTab";
 import { UnrealEngineTab } from "../components/UnrealEngineTab";
 import { ConnectionsTab } from "../components/ConnectionsTab";
+import { AgentsTab } from "../components/AgentsTab";
 import CompanyInfoTab from "../components/CompanyInfoTab";
 
 // Company subtabs
@@ -57,8 +58,8 @@ const COMPANY_TABS = [
   { id: "doc-templates", label: "Doc Templates" },
 ];
 
-// SSoT: Tabs that need full-height table layout
-const FULL_HEIGHT_TABS = ["components", "schedule-master", "email-accounts"];
+// SSoT: Tabs that need full-height table layout (overflow-hidden)
+const FULL_HEIGHT_TABS = ["components", "schedule-master"];
 
 function PlaceholderTab({
   title,
@@ -165,7 +166,9 @@ export default function SystemAdminCatchAllPage({
   // Get CSS class for tab content
   const getContentClass = () => {
     if (FULL_HEIGHT_TABS.includes(tab)) {
-      return "h-full overflow-hidden -mx-4";
+      // SSoT: Children handle their own layout
+      // No -mx-4 here - let app layout padding apply normally
+      return "h-full";
     }
     return "overflow-auto";
   };
@@ -261,6 +264,9 @@ export default function SystemAdminCatchAllPage({
 
       case "unreal-engine":
         return <UnrealEngineTab />;
+
+      case "agents":
+        return <AgentsTab />;
 
       default:
         return (

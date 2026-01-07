@@ -1,36 +1,8 @@
 # CaseContact - links contacts to cases with relationship visualization
 class CaseContact < ApplicationRecord
-  belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
-  belongs_to :contact
-  belongs_to :added_by, class_name: "User", optional: true
-
-  validates :case_id, uniqueness: { scope: :contact_id }
-  validates :reason, presence: true
-  validates :role, inclusion: {
-    in: %w[subject witness advisor opposing_party related_party],
-    allow_blank: true
-  }
-  validates :relationship_type, inclusion: {
-    in: %w[client accountant lawyer previous_accountant advisor opposing_party witness related_party ato_officer afsa_officer inspector_general trustee director shareholder bank_manager insurer broker creditor debtor],
-    allow_blank: true
-  }
-  validates :alignment, inclusion: {
-    in: %w[friendly neutral opposing],
-    allow_blank: true
-  }
-
-  scope :primary, -> { where(is_primary: true) }
-  scope :by_role, ->(role) { where(role: role) }
-  scope :by_relationship_type, ->(type) { where(relationship_type: type) }
-  scope :by_alignment, ->(alignment) { where(alignment: alignment) }
-  scope :subjects, -> { where(role: "subject") }
-  scope :friendly, -> { where(alignment: "friendly") }
-  scope :neutral, -> { where(alignment: "neutral") }
-  scope :opposing, -> { where(alignment: "opposing") }
-  scope :with_auto_include, -> { where(include_all_emails: true) }
-
-  # Callback to trigger auto-linking when flag changes
-  after_save :trigger_auto_link_emails, if: :saved_change_to_include_all_emails?
+  # SSoT: Alignment values - which side the contact is on
+  # Used by: CaseContact, KnownParty
+  ALIGNMENT_VALUES = %w[friendly neutral opposing].freeze
 
   ROLES = {
     "subject" => "Subject of Investigation",
@@ -40,7 +12,6 @@ class CaseContact < ApplicationRecord
     "related_party" => "Related Party"
   }.freeze
 
-  # Alignment - which side the contact is on
   ALIGNMENTS = {
     "friendly" => { name: "Friendly", color: "green", icon: "user-check" },
     "neutral" => { name: "Neutral", color: "gray", icon: "user" },
@@ -69,6 +40,38 @@ class CaseContact < ApplicationRecord
     "creditor" => { name: "Creditor", color: "orange", icon: "building" },
     "debtor" => { name: "Debtor", color: "rose", icon: "user" }
   }.freeze
+
+  belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
+  belongs_to :contact
+  belongs_to :added_by, class_name: "User", optional: true
+
+  validates :case_id, uniqueness: { scope: :contact_id }
+  validates :reason, presence: true
+  validates :role, inclusion: {
+    in: %w[subject witness advisor opposing_party related_party],
+    allow_blank: true
+  }
+  validates :relationship_type, inclusion: {
+    in: %w[client accountant lawyer previous_accountant advisor opposing_party witness related_party ato_officer afsa_officer inspector_general trustee director shareholder bank_manager insurer broker creditor debtor],
+    allow_blank: true
+  }
+  validates :alignment, inclusion: {
+    in: ALIGNMENT_VALUES,
+    allow_blank: true
+  }
+
+  scope :primary, -> { where(is_primary: true) }
+  scope :by_role, ->(role) { where(role: role) }
+  scope :by_relationship_type, ->(type) { where(relationship_type: type) }
+  scope :by_alignment, ->(alignment) { where(alignment: alignment) }
+  scope :subjects, -> { where(role: "subject") }
+  scope :friendly, -> { where(alignment: "friendly") }
+  scope :neutral, -> { where(alignment: "neutral") }
+  scope :opposing, -> { where(alignment: "opposing") }
+  scope :with_auto_include, -> { where(include_all_emails: true) }
+
+  # Callback to trigger auto-linking when flag changes
+  after_save :trigger_auto_link_emails, if: :saved_change_to_include_all_emails?
 
   def formatted_role
     ROLES[role] || role&.titleize

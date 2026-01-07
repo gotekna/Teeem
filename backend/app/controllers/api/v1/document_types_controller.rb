@@ -61,7 +61,13 @@ module Api
 
       # POST /api/v1/document_types
       def create
-        @document_type = DocumentType.new(document_type_params)
+        # Handle form_number_mapping separately (arbitrary keys not supported by strong params)
+        create_params = document_type_params.to_h
+        if params[:document_type][:form_number_mapping].present?
+          create_params[:form_number_mapping] = params[:document_type][:form_number_mapping].to_unsafe_h
+        end
+
+        @document_type = DocumentType.new(create_params)
 
         if @document_type.save
           render json: {
@@ -78,7 +84,16 @@ module Api
 
       # PATCH/PUT /api/v1/document_types/:id
       def update
-        if @document_type.update(document_type_params)
+        # Handle form_number_mapping separately (arbitrary keys not supported by strong params)
+        update_params = document_type_params.to_h
+        if params[:document_type][:form_number_mapping].present?
+          update_params[:form_number_mapping] = params[:document_type][:form_number_mapping].to_unsafe_h
+        elsif params[:document_type].key?(:form_number_mapping)
+          # Allow clearing the mapping by passing empty object
+          update_params[:form_number_mapping] = {}
+        end
+
+        if @document_type.update(update_params)
           response_data = {
             success: true,
             data: serialize_document_type(@document_type)
@@ -131,10 +146,8 @@ module Api
         new_doc_type.display_name = new_name if @document_type.display_name.present?
 
         if new_doc_type.save
-          # Copy entity_tab associations
-          @document_type.entity_tab_ids.each do |tab_id|
-            new_doc_type.entity_tab_ids << tab_id
-          end
+          # Copy entity_tab associations using the setter (which calls sync_entity_tab_ids)
+          new_doc_type.sync_entity_tab_ids(@document_type.entity_tab_ids)
 
           render json: {
             success: true,
@@ -147,6 +160,31 @@ module Api
             errors: new_doc_type.errors.full_messages
           }, status: :unprocessable_entity
         end
+      end
+
+      # GET /api/v1/document_types/dwelling_types
+      # Returns the available dwelling type choices from the Jobs foundation column (SSoT)
+      def dwelling_types
+        # Find the dwelling_type column from Jobs foundation (SSoT for choices AND descriptions)
+        dwelling_column = Column.joins(:foundation)
+                                .where(foundations: { slug: 'jobs' })
+                                .where(column_name: 'dwelling_type')
+                                .first
+
+        choices = dwelling_column&.available_choices || []
+        descriptions = dwelling_column&.choice_descriptions || {}
+
+        render json: {
+          success: true,
+          data: choices.map { |c|
+            desc = descriptions[c]
+            {
+              value: c,
+              description: desc,
+              displayLabel: desc.present? ? "#{c} (#{desc})" : c  # SSoT for display format
+            }
+          }
+        }
       end
 
       private
@@ -170,10 +208,14 @@ module Api
           :abbreviation,
           :scope,
           :target_folder,
+          :supports_versioning,
+          :generates_certificate,     # Auto-generate certificate on task completion
+          :certificate_template,      # Template to use (e.g., "form_43")
           tabs: [],
           file_extensions: [],
           folder_ids: [],
-          entity_tab_ids: []  # SSoT: New EntityTab IDs
+          entity_tab_ids: [],  # SSoT: New EntityTab IDs
+          form_number_mapping: {}  # Hash: dwelling type -> form number
         )
       end
 
@@ -228,6 +270,10 @@ module Api
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           target_folder: document_type.target_folder,
+          form_number_mapping: document_type.form_number_mapping || {},
+          supports_versioning: document_type.supports_versioning,
+          generates_certificate: document_type.generates_certificate || false,
+          certificate_template: document_type.certificate_template,
           documents_count: document_type.corporate_company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at

@@ -16,16 +16,13 @@ import {
   Phone,
   Send,
   Search,
-  RefreshCw,
-  Paperclip,
-  MessageSquare,
   ChevronDown,
-  ChevronUp,
+  ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import DOMPurify from "isomorphic-dompurify";
 import { EntityChat } from "@/components/chat/EntityChat";
 import { Spinner } from "@/components/ui/spinner";
+import TeeemTableView from "@/components/table/TeeemTableView";
 
 interface Message {
   id: number;
@@ -54,6 +51,11 @@ interface Email {
 interface SuggestedEmail {
   email: Email;
   reason: string;
+  suggested_job?: {
+    id: number;
+    name: string;
+    match_reason: string;
+  };
 }
 
 interface SyncStatus {
@@ -252,20 +254,17 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
   );
 }
 
-// Email Section Component with email warehouse integration
+// Email Section Component with email warehouse integration - SSoT TeeemTableView pattern
 function EmailsSection({ jobId }: { jobId: string | number }) {
   const [emails, setEmails] = useState<Email[]>([]);
   const [suggestedEmails, setSuggestedEmails] = useState<SuggestedEmail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [showAllInThread, setShowAllInThread] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [suggestionsExpanded, setSuggestionsExpanded] = useState(false); // Collapsed by default
+
 
   useEffect(() => {
     loadEmails();
-    loadSyncStatus();
-     
   }, [jobId, showAllInThread]);
 
   const loadEmails = async () => {
@@ -291,294 +290,232 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
     }
   };
 
-  const loadSyncStatus = async () => {
+  const handleAssignSuggested = async (suggestion: SuggestedEmail, targetJobId?: number) => {
     try {
-      const response = await api.get<SyncStatus>("/api/v1/email_warehouse/sync_status");
-      setSyncStatus(response);
-    } catch (error) {
-      console.error("Failed to load sync status:", error);
-    }
-  };
-
-  const handleRefresh = async () => {
-    await loadEmails();
-    await loadSyncStatus();
-  };
-
-  const handleAssignSuggested = async (suggestion: SuggestedEmail) => {
-    try {
+      const assignToJobId = targetJobId || jobId;
       await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/assign_to_job`, {
-        job_id: jobId,
+        job_id: assignToJobId,
         assign_thread: true,
       });
       await loadEmails();
     } catch (error) {
       console.error("Failed to assign email:", error);
-      alert("Failed to assign email to this job");
+      alert("Failed to assign email to job");
     }
   };
 
-  const filteredEmails = emails.filter((email) => {
-    if (!searchTerm) return true;
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      email.subject?.toLowerCase().includes(searchLower) ||
-      email.from_email?.toLowerCase().includes(searchLower) ||
-      email.preview_body?.toLowerCase().includes(searchLower) ||
-      email.to_emails?.some((to) => to.toLowerCase().includes(searchLower))
-    );
-  });
-
-  const handleEmailClick = (email: Email) => {
-    setSelectedEmail(selectedEmail?.id === email.id ? null : email);
+  const handleDismissSuggestion = async (suggestion: SuggestedEmail) => {
+    try {
+      await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/dismiss_suggestion`, {
+        job_id: jobId,
+      });
+      await loadEmails();
+    } catch (error) {
+      console.error("Failed to dismiss suggestion:", error);
+    }
   };
 
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Spinner size={32} className="text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
+  // Handle row double-click to open email in standard email page
+  const handleRowDoubleClick = (row: { id: string | number }) => {
+    window.open(`/email?id=${row.id}`, '_blank');
+  };
 
   return (
-    <Card className="flex flex-col h-full">
-      {/* Search bar with sync/import buttons */}
-      <CardHeader className="border-b bg-muted/50 py-4">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search emails..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-        </div>
+    <div className="h-full flex flex-col">
 
-        {/* Warehouse status */}
-        {syncStatus && syncStatus.total_emails_synced > 0 && (
-          <div className="mt-2 text-xs text-muted-foreground">
-            <span>{syncStatus.total_emails_synced.toLocaleString()} emails in warehouse</span>
-            {syncStatus.last_sync_at && (
-              <span className="ml-2">
-                • Last sync: {new Date(syncStatus.last_sync_at).toLocaleString()}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Thread toggle */}
-        <div className="mt-2 flex items-center space-x-2">
-          <Checkbox
-            id="showAllInThread"
-            checked={showAllInThread}
-            onCheckedChange={(checked) => setShowAllInThread(checked === true)}
-          />
-          <label
-            htmlFor="showAllInThread"
-            className="text-sm text-muted-foreground cursor-pointer"
-          >
-            Show all emails in conversations (instead of latest only)
-          </label>
-        </div>
-      </CardHeader>
-
-      {/* Suggested emails section */}
+      {/* Suggested emails section - collapsible */}
       {suggestedEmails.length > 0 && (
-        <div className="border-b p-4 bg-yellow-50 dark:bg-yellow-900/20">
-          <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
-            Suggested Emails ({suggestedEmails.length})
-          </h4>
-          <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
-            These emails might belong to this job based on contact matches or address mentions.
-          </p>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
-            {suggestedEmails.slice(0, 5).map((suggestion) => (
+        <div className="border rounded-lg bg-yellow-50 dark:bg-yellow-900/20 mb-4 shrink-0">
+          <button
+            onClick={() => setSuggestionsExpanded(!suggestionsExpanded)}
+            className="w-full p-3 flex items-center justify-between text-left hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded-lg transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              {suggestionsExpanded ? (
+                <ChevronDown className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+              )}
+              <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Suggested Emails ({suggestedEmails.length})
+              </span>
+            </div>
+            <span className="text-xs text-yellow-600 dark:text-yellow-400">
+              {suggestionsExpanded ? "Click to collapse" : "Click to expand"}
+            </span>
+          </button>
+          {suggestionsExpanded && (
+            <div className="px-4 pb-4">
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
+                These emails might belong to this job based on contact matches or address mentions.
+              </p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+            {suggestedEmails.slice(0, 10).map((suggestion) => (
               <div
                 key={suggestion.email.id}
-                className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-yellow-200 dark:border-yellow-800"
+                className={`p-2 bg-white dark:bg-gray-800 rounded border ${
+                  suggestion.suggested_job
+                    ? "border-orange-300 dark:border-orange-700"
+                    : "border-yellow-200 dark:border-yellow-800"
+                }`}
               >
-                <div className="flex-1 min-w-0 mr-3">
-                  <p className="text-sm font-medium truncate">
-                    {suggestion.email.subject || "(No Subject)"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    From: {suggestion.email.from_email} • {suggestion.reason}
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0 mr-3">
+                    <p className="text-sm font-medium truncate">
+                      {suggestion.email.subject || "(No Subject)"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      From: {suggestion.email.from_email} • {suggestion.reason}
+                    </p>
+                    {suggestion.suggested_job && (
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        Likely belongs to: <span className="font-medium">{suggestion.suggested_job.name}</span>
+                        <span className="text-muted-foreground ml-1">({suggestion.suggested_job.match_reason})</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {suggestion.suggested_job ? (
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleAssignSuggested(suggestion, suggestion.suggested_job!.id)}
+                          className="text-xs whitespace-nowrap"
+                        >
+                          Add to {suggestion.suggested_job.name.split(" ")[0]}...
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAssignSuggested(suggestion)}
+                          className="text-xs text-muted-foreground"
+                        >
+                          Add here instead
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAssignSuggested(suggestion)}
+                        className="text-primary"
+                      >
+                        Add to Job
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDismissSuggestion(suggestion)}
+                      className="text-xs text-muted-foreground hover:text-red-500"
+                      title="Not relevant to this job"
+                    >
+                      ✕
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleAssignSuggested(suggestion)}
-                  className="text-primary"
-                >
-                  Add to Job
-                </Button>
               </div>
             ))}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Emails list */}
-      <CardContent className="flex-1 overflow-y-auto p-4">
-        {filteredEmails.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <Mail className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">
-              {searchTerm ? "No emails found" : "No emails yet"}
-            </h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              {searchTerm
-                ? "Try adjusting your search terms"
-                : 'No emails matched to this job yet. Emails with job contacts or "id:XX" in the subject will auto-match.'}
-            </p>
-          </div>
+      {/* Emails table - SSoT TeeemTableView */}
+      {/* FRC: Keep table mounted during loading to preserve fullscreen state */}
+      <div className="flex-1 min-h-0">
+        {!loading && emails.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center py-8">
+                No emails matched to this job yet. Emails with job contacts or "id:XX" in the subject will auto-match.
+              </p>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="space-y-3">
-            {filteredEmails.map((email) => (
-              <div
-                key={email.id}
-                className="bg-muted/50 rounded-lg overflow-hidden"
-              >
-                {/* Email header - always visible */}
-                <div
-                  className="p-4 cursor-pointer hover:bg-muted transition-colors"
-                  onClick={() => handleEmailClick(email)}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="font-semibold text-sm truncate">
-                          {email.display_from || email.from_email}
-                        </span>
-                        {email.has_attachments && (
-                          <div className="flex items-center text-xs text-muted-foreground">
-                            <Paperclip className="h-3 w-3 mr-1" />
-                            {email.attachment_count}
-                          </div>
-                        )}
-                        {email.thread_count && email.thread_count > 1 && (
-                          <div className="flex items-center text-xs text-primary">
-                            <MessageSquare className="h-3 w-3 mr-1" />
-                            {email.thread_count} in thread
-                          </div>
-                        )}
-                        {email.match_type === "auto" && (
-                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                            Auto-matched
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-sm font-medium truncate">
-                        {email.subject || "(No Subject)"}
-                      </div>
-                      {(!selectedEmail || selectedEmail.id !== email.id) && (
-                        <div className="text-xs text-muted-foreground truncate mt-1">
-                          {email.preview_body}
-                        </div>
-                      )}
-                    </div>
-                    <div className="ml-4 flex-shrink-0 flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {email.received_at ? new Date(email.received_at).toLocaleString() : ""}
-                      </span>
-                      {selectedEmail?.id === email.id ? (
-                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
+          <TeeemTableView
+            loadingMore={loading}
+            tableName="Job Emails"
+            disableSavedViews={true}
+            leftActions={
+              <label className="flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={showAllInThread}
+                  onChange={(e) => setShowAllInThread(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Show all in thread
+              </label>
+            }
+            columns={[
+              {
+                key: "direction",
+                label: "Direction",
+                column_type: "choice",
+                width: 80,
+                choices: ["From", "To"],
+                filterable: true,
+              },
+              {
+                key: "from_or_to",
+                label: "From/To",
+                column_type: "text",
+                width: 200,
+                filterable: true,
+              },
+              {
+                key: "subject",
+                label: "Subject",
+                column_type: "text",
+                width: 300,
+                filterable: true,
+              },
+              {
+                key: "received_at",
+                label: "Date",
+                column_type: "date_and_time",
+                width: 150,
+                sortable: true,
+              },
+              {
+                key: "attachments",
+                label: "Files",
+                column_type: "whole_number",
+                width: 70,
+                filterable: true,
+              },
+            ]}
+            entries={emails.map((email) => {
+              // Determine direction: From = we received, To = we sent
+              // Check if from_email is from our company domain
+              const isFromOurCompany = email.from_email?.toLowerCase().includes("@tekna.com.au");
+              const direction = isFromOurCompany ? "To" : "From";
 
-                  {/* Recipients preview */}
-                  <div className="text-xs text-muted-foreground flex items-center gap-2">
-                    <span>To:</span>
-                    <span className="truncate">
-                      {email.to_emails?.join(", ") || "Unknown"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Email body - expandable */}
-                {selectedEmail && selectedEmail.id === email.id && (
-                  <div className="border-t p-4 bg-background">
-                    {/* Full email details */}
-                    <div className="space-y-2 mb-4 text-sm">
-                      <div>
-                        <span className="font-semibold text-muted-foreground">From: </span>
-                        <span>{email.from_email}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-muted-foreground">To: </span>
-                        <span>{email.to_emails?.join(", ")}</span>
-                      </div>
-                      {email.cc_emails && email.cc_emails.length > 0 && (
-                        <div>
-                          <span className="font-semibold text-muted-foreground">CC: </span>
-                          <span>{email.cc_emails.join(", ")}</span>
-                        </div>
-                      )}
-                      <div>
-                        <span className="font-semibold text-muted-foreground">Subject: </span>
-                        <span>{email.subject || "(No Subject)"}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-muted-foreground">Date: </span>
-                        <span>{new Date(email.received_at).toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    {/* Email body */}
-                    <div className="border-t pt-4">
-                      {email.body_html ? (
-                        <div
-                          className="prose dark:prose-invert max-w-none text-sm"
-                          dangerouslySetInnerHTML={{
-                            __html: DOMPurify.sanitize(email.body_html, {
-                              ALLOWED_TAGS: [
-                                "p", "br", "strong", "em", "u", "a", "ul", "ol", "li",
-                                "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre",
-                                "code", "span", "div",
-                              ],
-                              ALLOWED_ATTR: ["href", "target", "rel", "class", "style"],
-                              ALLOW_DATA_ATTR: false,
-                              FORBID_TAGS: [
-                                "script", "style", "iframe", "object", "embed", "form",
-                                "input", "button",
-                              ],
-                              FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
-                            }),
-                          }}
-                        />
-                      ) : (
-                        <div className="whitespace-pre-wrap text-sm">
-                          {email.body_text}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+              return {
+                id: email.id,
+                direction,
+                // If we sent it, show recipients. If we received it, show sender
+                from_or_to: isFromOurCompany
+                  ? email.to_emails?.join(", ") || "-"
+                  : email.display_from || email.from_email,
+                subject: email.subject || "(no subject)",
+                received_at: email.received_at,
+                attachments: email.has_attachments ? (email.attachment_count || 1) : 0,
+                // Keep original fields for potential future use
+                from_email: email.from_email,
+                to_emails: email.to_emails,
+                cc_emails: email.cc_emails,
+              };
+            })}
+            viewOnly={true}
+            onRowDoubleClick={handleRowDoubleClick}
+          />
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -600,21 +537,25 @@ function SmsSection() {
 export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabProps) {
   return (
     <div className="flex flex-col h-full">
-      <Tabs defaultValue="messages" className="flex flex-col flex-1 min-h-0">
+      <Tabs defaultValue="emails" className="flex flex-col flex-1 min-h-0">
         <TabsList>
-          <TabsTrigger value="messages" className="gap-2">
-            <MessageCircle className="h-4 w-4" />
-            Internal Messages
-          </TabsTrigger>
           <TabsTrigger value="emails" className="gap-2">
             <Mail className="h-4 w-4" />
             Emails
+          </TabsTrigger>
+          <TabsTrigger value="messages" className="gap-2">
+            <MessageCircle className="h-4 w-4" />
+            Internal Messages
           </TabsTrigger>
           <TabsTrigger value="sms" className="gap-2">
             <Phone className="h-4 w-4" />
             SMS
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="emails" className="flex-1 min-h-0 mt-4">
+          <EmailsSection jobId={jobId} />
+        </TabsContent>
 
         <TabsContent value="messages" className="flex-1 min-h-0 mt-4">
           <EntityChat
@@ -624,10 +565,6 @@ export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabPr
             showOnlineUsers={true}
             className="h-full"
           />
-        </TabsContent>
-
-        <TabsContent value="emails" className="flex-1 min-h-0 mt-4">
-          <EmailsSection jobId={jobId} />
         </TabsContent>
 
         <TabsContent value="sms" className="flex-1 min-h-0 mt-4">

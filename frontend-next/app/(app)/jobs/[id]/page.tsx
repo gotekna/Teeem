@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+// useSetLayoutMode moved to layout.tsx to prevent double flash
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,8 @@ import {
   FileSignature,
   Palette,
   MoreVertical,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -50,6 +52,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { SortableList, SortableItem, DragHandle, reorderByPosition } from "@/components/ui/dnd";
 import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
@@ -71,10 +80,23 @@ import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
 import { JobScheduleTab } from "@/components/jobs/JobScheduleTab";
 import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
+import { RevitTab } from "@/components/jobs/RevitTab";
 import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
 import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
 import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { EntityTab } from "@/lib/types/entity-tabs";
+
+// =============================================================================
+// REQUEST DEDUPLICATION - Prevents duplicate API calls that cause screen flashing
+// =============================================================================
+// Module-level cache for in-flight job requests. If the same job is requested
+// while a fetch is in progress, reuse the existing promise instead of making
+// a duplicate request.
+// Cache entries expire after 30 seconds to prevent hanging on stale promises.
+// =============================================================================
+const jobRequestCache = new Map<string, { promise: Promise<Job>; timestamp: number }>();
+const REQUEST_CACHE_TTL_MS = 30000; // 30 seconds max for in-flight requests
 
 // SSoT: Job Tab Component Registry
 // Maps tab_key → component. When tabs are renamed in admin, they auto-work.
@@ -97,6 +119,8 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "rain-log": RainLogTab,
   "documents": JobDocumentsTab,
   "coms": JobCommunicationsTab,
+  "revit": RevitTab,
+  "revit-dwg": RevitTab,
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)
@@ -191,6 +215,9 @@ interface Job {
     recommendations?: string[];
     source?: string;
   };
+  // Construction details
+  level?: string;
+  dwelling_type?: string;
 }
 
 interface JobType {
@@ -641,7 +668,7 @@ function AddressDetailsCard({
 }
 
 export default function JobDetailPage() {
-  useSetLayoutMode("full-height");
+  // Layout mode is now set in layout.tsx to prevent double flash on navigation
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -710,6 +737,14 @@ export default function JobDetailPage() {
   const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
   const [linkingXero, setLinkingXero] = React.useState(false);
 
+  // Choice columns state (Level, Dwelling Type) - SSoT: loaded from Column.available_choices via API
+  const [levelChoices, setLevelChoices] = React.useState<string[]>([]);
+  const [dwellingTypeChoices, setDwellingTypeChoices] = React.useState<{ value: string; description: string; displayLabel: string }[]>([]);
+  const [editingChoices, setEditingChoices] = React.useState<{ field: 'level' | 'dwelling_type'; choices: string[] } | null>(null);
+  const [newChoiceInput, setNewChoiceInput] = React.useState('');
+  const [savingChoices, setSavingChoices] = React.useState(false);
+  const [choiceColumnIds, setChoiceColumnIds] = React.useState<{ level?: number; dwelling_type?: number }>({});
+
   // Get tab from URL - URL is SSoT for tab state (back button support)
   // Uses path-based structure: /jobs/{id}/{parent}/{child} for hierarchical tabs
   // Parse: /jobs/123/photo/site → { parent: "photo", child: "site" }
@@ -733,10 +768,11 @@ export default function JobDetailPage() {
   React.useEffect(() => {
     if (!tabFromUrl && !tabsLoading && visibleJobTabs.length > 0) {
       const defaultTab = userDefaultTab || "overview";
-      // Use replace to not add to history stack (user just opened the page)
-      router.replace(`/jobs/${jobId}/${defaultTab}`, { scroll: false });
+      // Use history.replaceState to update URL without triggering React re-render
+      // This prevents the double flash that occurred with router.replace
+      window.history.replaceState(null, "", `/jobs/${jobId}/${defaultTab}`);
     }
-  }, [tabFromUrl, tabsLoading, visibleJobTabs.length, userDefaultTab, jobId, router]);
+  }, [tabFromUrl, tabsLoading, visibleJobTabs.length, userDefaultTab, jobId]);
 
   // Helper: find first enabled child of a parent tab
   const findFirstChildTab = React.useCallback((tabKey: string): string | null => {
@@ -876,9 +912,37 @@ export default function JobDetailPage() {
 
   const loadJob = React.useCallback(async () => {
     try {
-      const data = await api.get<Job>(`/api/v1/jobs/${jobId}`);
+      // Deduplicate in-flight requests - if same job is already being fetched, reuse the promise
+      // Clear stale cache entries to prevent hanging on dead promises
+      const cacheKey = `job-${jobId}`;
+      const cached = jobRequestCache.get(cacheKey);
+      const now = Date.now();
+
+      // Check if cached promise is stale (older than TTL)
+      if (cached && now - cached.timestamp > REQUEST_CACHE_TTL_MS) {
+        console.warn(`Clearing stale job request cache for ${cacheKey}`);
+        jobRequestCache.delete(cacheKey);
+      }
+
+      let requestPromise: Promise<Job>;
+      const freshCached = jobRequestCache.get(cacheKey);
+
+      if (freshCached) {
+        requestPromise = freshCached.promise;
+      } else {
+        requestPromise = api.get<Job>(`/api/v1/jobs/${jobId}`);
+        jobRequestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
+      }
+
+      const data = await requestPromise;
+
+      // Clean up cache after request completes
+      jobRequestCache.delete(cacheKey);
+
       setJob(data);
     } catch (error) {
+      // Clean up cache on error too
+      jobRequestCache.delete(`job-${jobId}`);
       console.error("Failed to fetch job:", error);
     } finally {
       setLoading(false);
@@ -943,12 +1007,109 @@ export default function JobDetailPage() {
     }
   };
 
+  // Load choice column data from Jobs foundation schema
+  const loadChoiceColumns = React.useCallback(async () => {
+    try {
+      // Fetch schema for column IDs and level choices
+      const schemaResponse = await api.get<{
+        success: boolean;
+        columns: { id: number; name: string; column_name: string; column_type: string; choices: string[] | null }[];
+      }>('/api/v1/foundations/jobs/schema');
+
+      if (schemaResponse?.success && schemaResponse.columns) {
+        const levelCol = schemaResponse.columns.find(c => c.column_name === 'level');
+        const dwellingCol = schemaResponse.columns.find(c => c.column_name === 'dwelling_type');
+
+        if (levelCol?.choices) {
+          setLevelChoices(levelCol.choices);
+          setChoiceColumnIds(prev => ({ ...prev, level: levelCol.id }));
+        }
+        if (dwellingCol) {
+          setChoiceColumnIds(prev => ({ ...prev, dwelling_type: dwellingCol.id }));
+        }
+      }
+
+      // Fetch dwelling types with descriptions from dedicated endpoint (SSoT)
+      const dwellingResponse = await api.get<{
+        success: boolean;
+        data: { value: string; description: string; displayLabel: string }[];
+      }>('/api/v1/document_types/dwelling_types');
+
+      if (dwellingResponse?.success && dwellingResponse.data) {
+        setDwellingTypeChoices(dwellingResponse.data);
+      }
+    } catch (error) {
+      console.error("Failed to load choice columns:", error);
+    }
+  }, []);
+
+  // Save choices to the Column API
+  const saveChoices = async () => {
+    if (!editingChoices) return;
+
+    const columnId = choiceColumnIds[editingChoices.field];
+    if (!columnId) {
+      console.error("Column ID not found for field:", editingChoices.field);
+      return;
+    }
+
+    setSavingChoices(true);
+    try {
+      await api.patch(`/api/v1/columns/${columnId}`, {
+        column: { available_choices: editingChoices.choices }
+      });
+
+      // Update local state
+      if (editingChoices.field === 'level') {
+        setLevelChoices(editingChoices.choices);
+      } else {
+        // Reload dwelling types to get descriptions from SSoT API
+        const dwellingResponse = await api.get<{
+          success: boolean;
+          data: { value: string; description: string; displayLabel: string }[];
+        }>('/api/v1/document_types/dwelling_types');
+        if (dwellingResponse?.success && dwellingResponse.data) {
+          setDwellingTypeChoices(dwellingResponse.data);
+        }
+      }
+
+      setEditingChoices(null);
+      setNewChoiceInput('');
+    } catch (error) {
+      console.error("Failed to save choices:", error);
+    } finally {
+      setSavingChoices(false);
+    }
+  };
+
+  // Add a choice to the editing list
+  const addChoice = () => {
+    if (!editingChoices || !newChoiceInput.trim()) return;
+    if (editingChoices.choices.includes(newChoiceInput.trim())) return; // Prevent duplicates
+
+    setEditingChoices({
+      ...editingChoices,
+      choices: [...editingChoices.choices, newChoiceInput.trim()]
+    });
+    setNewChoiceInput('');
+  };
+
+  // Remove a choice from the editing list
+  const removeChoice = (choice: string) => {
+    if (!editingChoices) return;
+    setEditingChoices({
+      ...editingChoices,
+      choices: editingChoices.choices.filter(c => c !== choice)
+    });
+  };
+
   React.useEffect(() => {
     if (jobId) {
       loadJob();
       loadXeroTrackingOptions();
+      loadChoiceColumns();
     }
-  }, [jobId, loadJob, loadXeroTrackingOptions]);
+  }, [jobId, loadJob, loadXeroTrackingOptions, loadChoiceColumns]);
 
   // SSoT: Auto-start editing when /edit is in path (e.g., from jobs list page)
   // Also supports legacy ?edit=true query param for backward compatibility
@@ -967,6 +1128,8 @@ export default function JobDetailPage() {
         job_type_id: job.job_type?.id || job.job_type_id,
         job_status_id: job.job_status?.id || job.job_status_id,
         job_stage_id: job.job_stage?.id || job.job_stage_id,
+        level: job.level,
+        dwelling_type: job.dwelling_type,
       });
       setIsEditing(true);
       // Load dropdown data for editing
@@ -991,6 +1154,8 @@ export default function JobDetailPage() {
         job_type_id: job.job_type?.id || job.job_type_id,
         job_status_id: job.job_status?.id || job.job_status_id,
         job_stage_id: job.job_stage?.id || job.job_stage_id,
+        level: job.level,
+        dwelling_type: job.dwelling_type,
       });
       setIsEditing(true);
       // Load dropdown data only when editing
@@ -1026,10 +1191,52 @@ export default function JobDetailPage() {
     }
   };
 
+  // SSoT: Show skeleton layout during loading to prevent flash/CLS
+  // The skeleton matches the actual page structure so there's no jarring layout shift
   if (loading || tabsLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
+      <div className="h-full flex flex-col overflow-auto">
+        {/* Skeleton header */}
+        <div className="sticky top-0 z-40 bg-background">
+          <div className="px-3 pb-2">
+            {/* Row 1: Back + Title + Buttons skeleton */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4 shrink-0">
+                <BackButton fallbackHref="/jobs" className="shrink-0" />
+                <Skeleton className="h-8 w-48" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-7 w-28" />
+              </div>
+            </div>
+            {/* Row 2: Metadata skeleton */}
+            <div className="flex items-center gap-2 mt-1">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </div>
+          {/* Tabs skeleton */}
+          <div className="border-b px-3">
+            <div className="flex gap-2 py-2">
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          </div>
+        </div>
+        {/* Content skeleton */}
+        <div className="flex-1 p-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+          <Skeleton className="h-48" />
+        </div>
       </div>
     );
   }
@@ -1073,7 +1280,7 @@ export default function JobDetailPage() {
                 <span className="font-semibold">{formatCurrency(job.live_profit || 0)}</span>
                 <span className="text-muted-foreground text-xs">({safePercent(job.profit_percentage)})</span>
               </div>
-              <Button size="sm" className="h-auto py-0.5 px-2 text-sm" onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
+              <Button size="sm" className="h-auto py-0.5 px-2 text-sm" onClick={() => router.push(`/jobs/${jobId}/schedule/gantt-v2`)}>
                 Open Schedule
               </Button>
               {/* Tab Preferences Menu */}
@@ -1254,6 +1461,74 @@ export default function JobDetailPage() {
                       Auto-generated from address components
                     </p>
                   </div>
+                  {/* Level & Dwelling Type - Choice columns */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Level</Label>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit choices">
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <button
+                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
+                              onClick={() => setEditingChoices({ field: 'level', choices: [...levelChoices] })}
+                            >
+                              <Settings className="h-3 w-3 inline mr-2" />
+                              Edit Choices
+                            </button>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {isEditing ? (
+                        <ComboboxDropdown
+                          items={levelChoices.map((c) => ({ id: c, label: c }))}
+                          selectedItem={editForm.level ? { id: editForm.level, label: editForm.level } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, level: item.label })}
+                          placeholder="Select level..."
+                        />
+                      ) : (
+                        <Input value={job.level || "-"} readOnly />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Dwelling Type</Label>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Edit choices">
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <button
+                              className="w-full px-2 py-1.5 text-sm text-left hover:bg-muted rounded-sm"
+                              onClick={() => setEditingChoices({ field: 'dwelling_type', choices: dwellingTypeChoices.map(c => c.value) })}
+                            >
+                              <Settings className="h-3 w-3 inline mr-2" />
+                              Edit Choices
+                            </button>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {isEditing ? (
+                        <ComboboxDropdown
+                          items={dwellingTypeChoices.map((c) => ({
+                            id: c.value,
+                            label: c.displayLabel  // SSoT: format from API
+                          }))}
+                          selectedItem={editForm.dwelling_type ? { id: editForm.dwelling_type, label: editForm.dwelling_type } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, dwelling_type: item.id })}
+                          placeholder="Select dwelling type..."
+                        />
+                      ) : (
+                        <Input value={job.dwelling_type || "-"} readOnly />
+                      )}
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Job Type</Label>
@@ -1418,6 +1693,18 @@ export default function JobDetailPage() {
         {allDynamicTabs.map((tab) => {
           // SSoT: Use compositeKey for children to prevent collision with same-named parent tabs
           const tabValue = tab.compositeKey || tab.tab_key;
+
+          // SSoT: CAD category tabs render RevitTab for Revit/DWG/Datasmith files
+          if (tab.is_cad_category) {
+            return (
+              <TabsContent key={tabValue} value={tabValue} className="mt-4">
+                <RevitTab
+                  jobId={job.id}
+                  jobTitle={job.name}
+                />
+              </TabsContent>
+            );
+          }
 
           // Document/Photo tabs use JobDocumentsTab with initialCategory
           // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
@@ -1660,6 +1947,92 @@ export default function JobDetailPage() {
           jobTitle={job.name}
         />
       )}
+
+      {/* Edit Choices Dialog */}
+      <Dialog open={!!editingChoices} onOpenChange={(open) => !open && setEditingChoices(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Edit {editingChoices?.field === 'level' ? 'Level' : 'Dwelling Type'} Choices
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Current choices list - clickable to select */}
+            <div className="space-y-2">
+              <Label>Click to select, or add/remove choices</Label>
+              <div className="space-y-1">
+                {editingChoices?.choices.map((choice) => {
+                  const currentValue = editingChoices.field === 'level' ? editForm.level : editForm.dwelling_type;
+                  const isSelected = currentValue === choice;
+                  return (
+                    <div
+                      key={choice}
+                      className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                      onClick={() => {
+                        // Select this choice and close the dialog
+                        if (editingChoices.field === 'level') {
+                          setEditForm({ ...editForm, level: choice });
+                        } else {
+                          setEditForm({ ...editForm, dwelling_type: choice });
+                        }
+                        // Enter edit mode if not already
+                        if (!isEditing) {
+                          setIsEditing(true);
+                        }
+                        setEditingChoices(null);
+                      }}
+                    >
+                      <span className="text-sm">{choice}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-6 w-6 ${isSelected ? 'text-primary-foreground hover:text-primary-foreground/80' : 'text-destructive hover:text-destructive'}`}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Don't trigger row click
+                          removeChoice(choice);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
+                {editingChoices?.choices.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">No choices defined</p>
+                )}
+              </div>
+            </div>
+
+            {/* Add new choice */}
+            <div className="space-y-2">
+              <Label>Add New Choice</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={newChoiceInput}
+                  onChange={(e) => setNewChoiceInput(e.target.value)}
+                  placeholder="Enter new choice..."
+                  onKeyDown={(e) => e.key === 'Enter' && addChoice()}
+                />
+                <Button variant="outline" size="icon" onClick={addChoice} disabled={!newChoiceInput.trim()}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditingChoices(null)}>
+              Cancel
+            </Button>
+            <Button onClick={saveChoices} disabled={savingChoices}>
+              {savingChoices ? <Spinner className="h-4 w-4" /> : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

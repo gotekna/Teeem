@@ -510,3 +510,11 @@ a.bg-primary svg {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* ========================================
+   RADIX UI PORTAL Z-INDEX FIX
+   Ensures dropdowns appear above fullscreen overlays (z-120)
+   ======================================== */
+[data-radix-popper-content-wrapper] {
+  z-index: 150 !important;
+}

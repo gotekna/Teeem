@@ -22,7 +22,7 @@ import {
   EmailPropertyGroup,
   AddressPropertyGroup,
 } from "@/components/contact";
-import { SortableList, SortableItem, DragHandle } from "@/components/ui/dnd";
+import { SortableList, SortableItem } from "@/components/ui/dnd";
 import type {
   Contact,
   ContactEmail,
@@ -85,9 +85,11 @@ export function ContactOverviewTab({
   const [companySearchResults, setCompanySearchResults] = useState<{ id: number; name: string; entity_type: string }[]>([]);
   const [searchingCompany, setSearchingCompany] = useState(false);
   const [savingCompanyLink, setSavingCompanyLink] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<string>("");
+  const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
   const [companyRelationships, setCompanyRelationships] = useState<ContactRelationship[]>([]);
   const [availableRoles, setAvailableRoles] = useState<{ id: number; name: string }[]>([]);
+  const [editingRelationshipId, setEditingRelationshipId] = useState<number | null>(null);
+  const [editRoleIds, setEditRoleIds] = useState<number[]>([]);
 
   // Employee/person link state (for companies)
   const [showPersonSearch, setShowPersonSearch] = useState(false);
@@ -196,15 +198,17 @@ export function ContactOverviewTab({
     return () => clearTimeout(timer);
   }, [companySearchQuery, searchCompanies]);
 
-  // Add company link - always employee_of, with optional role
+  // Add company link - always employee_of, with optional roles (multi-select)
   const addCompanyLink = useCallback(async (companyId: number) => {
     setSavingCompanyLink(true);
     try {
+      // Ensure role_ids are integers (API requires whole numbers)
+      const intRoleIds = selectedRoleIds.map(id => parseInt(String(id), 10)).filter(id => !isNaN(id));
       await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
         contact_relationship: {
           related_contact_id: companyId,
           relationship_type: "employee_of", // Always employee_of
-          role_in_relationship: selectedRole || null, // Optional role from contact_types (SSoT)
+          role_ids: intRoleIds, // Multi-role support - array of ContactType IDs
         },
       });
 
@@ -219,11 +223,14 @@ export function ContactOverviewTab({
       setShowCompanySearch(false);
       setCompanySearchQuery("");
       setCompanySearchResults([]);
-      setSelectedRole("");
+      setSelectedRoleIds([]);
 
+      const roleNames = selectedRoleIds.length > 0
+        ? availableRoles.filter(r => selectedRoleIds.includes(r.id)).map(r => r.name).join(", ")
+        : "Employee";
       toast({
         title: "Company linked",
-        description: selectedRole ? `Added as ${selectedRole}` : "Added as employee",
+        description: `Added as ${roleNames}`,
       });
     } catch (err) {
       toast({
@@ -234,7 +241,49 @@ export function ContactOverviewTab({
     } finally {
       setSavingCompanyLink(false);
     }
-  }, [contact.id, selectedRole, onContactUpdate, loadRelatedEntities, toast]);
+  }, [contact.id, selectedRoleIds, availableRoles, onContactUpdate, loadRelatedEntities, toast]);
+
+  // Update roles for existing relationship
+  const updateRelationshipRoles = useCallback(async (relationshipId: number, newRoleIds: number[]) => {
+    setSavingCompanyLink(true);
+    try {
+      // Ensure role_ids are integers (API requires whole numbers)
+      const intRoleIds = newRoleIds.map(id => parseInt(String(id), 10)).filter(id => !isNaN(id));
+      await api.patch(`/api/v1/contacts/${contact.id}/relationships/${relationshipId}`, {
+        contact_relationship: {
+          role_ids: intRoleIds,
+        },
+      });
+
+      // Refresh relationships
+      await loadRelatedEntities();
+
+      setEditingRelationshipId(null);
+      setEditRoleIds([]);
+
+      toast({
+        title: "Roles updated",
+        description: "Relationship roles have been updated",
+      });
+    } catch (err) {
+      toast({
+        title: "Error updating roles",
+        description: err instanceof Error ? err.message : "Failed to update roles",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCompanyLink(false);
+    }
+  }, [contact.id, loadRelatedEntities, toast]);
+
+  // Toggle role selection (for multi-select)
+  const toggleRoleId = (roleId: number, currentIds: number[], setter: (ids: number[]) => void) => {
+    if (currentIds.includes(roleId)) {
+      setter(currentIds.filter(id => id !== roleId));
+    } else {
+      setter([...currentIds, roleId]);
+    }
+  };
 
   // Remove company relationship
   const removeCompanyLink = useCallback(async (relationshipId: number) => {
@@ -344,16 +393,99 @@ export function ContactOverviewTab({
     }
   }, [contact.id, onContactUpdate, toast]);
 
+  // Create a new person and add as employee (for companies)
+  const createAndAddPersonAsEmployee = useCallback(async () => {
+    if (!personSearchQuery.trim()) return;
+    setSavingPersonLink(true);
+    try {
+      // Parse name - assume "First Last" format
+      const nameParts = personSearchQuery.trim().split(/\s+/);
+      const firstName = nameParts[0] || personSearchQuery.trim();
+      const lastName = nameParts.slice(1).join(" ") || "";
+
+      // Create the new person contact linked to this company
+      const response = await api.post<{ contact: { id: number; display_name: string } }>("/api/v1/contacts", {
+        contact: {
+          first_name: firstName,
+          last_name: lastName,
+          display_name: personSearchQuery.trim(),
+          entity_type: "person",
+          primary_company_id: contact.id,
+        },
+      });
+
+      if (response?.contact) {
+        // Refresh contact to get updated employees list
+        const contactRes = await api.get<{ contact: Contact }>(`/api/v1/contacts/${contact.id}`);
+        onContactUpdate(contactRes.contact);
+
+        toast({
+          title: "Person created and linked",
+          description: `Created "${response.contact.display_name}" as employee`,
+        });
+      }
+
+      // Reset search state
+      setShowPersonSearch(false);
+      setPersonSearchQuery("");
+      setPersonSearchResults([]);
+    } catch (err) {
+      toast({
+        title: "Error creating person",
+        description: err instanceof Error ? err.message : "Failed to create person",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPersonLink(false);
+    }
+  }, [contact.id, personSearchQuery, onContactUpdate, toast]);
+
   // Reorder company relationships (for DnD)
   const reorderCompanyLinks = useCallback(async (newOrder: ContactRelationship[]) => {
     // Update local state immediately for responsive UI
     setCompanyRelationships(newOrder);
 
-    // The first employee_of relationship becomes primary
-    // We need to delete and recreate relationships in new order
-    // For now, just update local state - backend will sync primary_company_id
-    // TODO: Implement proper reordering API if needed
-  }, []);
+    // Call backend API to persist the order
+    try {
+      const companyIds = newOrder.map((rel) => {
+        const company = rel.related_contact || rel.other_contact;
+        return company?.id;
+      }).filter(Boolean);
+
+      await api.post(`/api/v1/contacts/relationships/${contact.id}/reorder_companies`, {
+        company_ids: companyIds,
+      });
+
+      // Refresh contact to get updated primary_company_id
+      onContactUpdate({ ...contact });
+    } catch (err) {
+      toast({
+        title: "Error reordering",
+        description: err instanceof Error ? err.message : "Failed to save order",
+        variant: "destructive",
+      });
+    }
+  }, [contact, onContactUpdate, toast]);
+
+  // Handle position change from typing a number in the badge
+  const handleCompanyPositionChange = useCallback(
+    async (currentIndex: number, newPosition: number) => {
+      // newPosition is 1-indexed from UI, convert to 0-indexed
+      const newIndex = newPosition - 1;
+      if (newIndex === currentIndex || newIndex < 0 || newIndex >= companyRelationships.length) {
+        return;
+      }
+
+      // Create new order by moving item from currentIndex to newIndex
+      const newOrder = [...companyRelationships];
+      const [movedItem] = newOrder.splice(currentIndex, 1);
+      newOrder.splice(newIndex, 0, movedItem);
+
+      // Trigger the reorder
+      await reorderCompanyLinks(newOrder);
+    },
+    [companyRelationships, reorderCompanyLinks]
+  );
 
   // Generic save function for single field updates
   const saveField = useCallback(
@@ -680,6 +812,43 @@ export function ContactOverviewTab({
                 onSave={savePhones}
               />
 
+              {/* Direct Line - dedicated field for person's direct phone number */}
+              <PropertyRow
+                label="Direct Line"
+                value={contact.direct_line}
+                onSave={(value) => saveField("direct_line", value)}
+                placeholder="Direct phone number"
+              />
+
+              {/* Company Phones - show when person has a linked company */}
+              {contact.primary_company?.contact_phones && contact.primary_company.contact_phones.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-dashed">
+                  <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    {contact.primary_company.name} Phones
+                  </div>
+                  <div className="space-y-1">
+                    {contact.primary_company.contact_phones.map((phone, idx) => (
+                      <div key={phone.id || idx} className="flex items-center gap-2 text-sm py-1">
+                        <span className="text-muted-foreground capitalize text-xs w-14">
+                          {phone.phone_type}
+                        </span>
+                        <a
+                          href={`tel:${phone.phone_number}`}
+                          className="text-foreground hover:underline"
+                        >
+                          {phone.phone_number}
+                        </a>
+                        {phone.is_primary && (
+                          <Badge variant="secondary" className="text-[9px] h-4 px-1">
+                            Primary
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Website only for companies/trusts */}
               {!isPerson && (
                 <>
@@ -748,57 +917,115 @@ export function ContactOverviewTab({
                           const companyName = company
                             ? ("display_name" in company ? company.display_name : "name" in company ? company.name : "Unknown")
                             : "Unknown";
-                          const roleLabel = rel.role_in_relationship || "Employee";
+                          // Display multiple roles from role_names array, fallback to role_in_relationship
+                          const roleLabel = rel.role_names && rel.role_names.length > 0
+                            ? rel.role_names.join(", ")
+                            : rel.role_in_relationship || "Employee";
                           const isPrimary = index === 0;
+                          const isEditing = editingRelationshipId === rel.id;
 
                           return (
                             <SortableItem
                               key={rel.id}
                               id={rel.id}
-                              className="flex items-center gap-2 py-2 px-2 -mx-2 rounded-md bg-muted/30 group"
+                              position={index + 1}
+                              editableBadge
+                              onPositionChange={(newPos) => handleCompanyPositionChange(index, newPos)}
+                              maxPosition={companyRelationships.length}
+                              className="flex flex-col gap-2 py-2 px-2 -mx-2 rounded-md bg-muted/30 group"
                             >
-                              <DragHandle className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab" />
-                              <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-green-100 dark:bg-green-900/30">
-                                <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <Link
-                                    href={`/contacts/${company?.id}`}
-                                    className="text-sm font-medium truncate hover:underline"
-                                  >
-                                    {companyName}
+                              <div className="flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-green-100 dark:bg-green-900/30">
+                                  <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <Link
+                                      href={`/contacts/${company?.id}`}
+                                      className="text-sm font-medium truncate hover:underline"
+                                    >
+                                      {companyName}
+                                    </Link>
+                                    {isPrimary && (
+                                      <Badge variant="default" className="text-[10px] h-4 px-1.5 bg-green-600">
+                                        Primary
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {!isEditing && (
+                                    <button
+                                      className="text-xs text-muted-foreground hover:text-foreground hover:underline text-left"
+                                      onClick={() => {
+                                        setEditingRelationshipId(rel.id);
+                                        setEditRoleIds(rel.role_ids || []);
+                                      }}
+                                    >
+                                      {roleLabel}
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Link href={`/contacts/${company?.id}`}>
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                                    </Button>
                                   </Link>
-                                  {isPrimary && (
-                                    <Badge variant="default" className="text-[10px] h-4 px-1.5 bg-green-600">
-                                      Primary
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {roleLabel}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Link href={`/contacts/${company?.id}`}>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={() => removeCompanyLink(rel.id)}
+                                    disabled={savingCompanyLink}
+                                  >
+                                    {savingCompanyLink ? (
+                                      <Spinner size={12} />
+                                    ) : (
+                                      <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                                    )}
                                   </Button>
-                                </Link>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={() => removeCompanyLink(rel.id)}
-                                  disabled={savingCompanyLink}
-                                >
-                                  {savingCompanyLink ? (
-                                    <Spinner size={12} />
-                                  ) : (
-                                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                                  )}
-                                </Button>
+                                </div>
                               </div>
+
+                              {/* Inline role editor */}
+                              {isEditing && (
+                                <div className="ml-10 space-y-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {availableRoles.map((role) => (
+                                      <Button
+                                        key={role.id}
+                                        variant={editRoleIds.includes(role.id) ? "default" : "outline"}
+                                        size="sm"
+                                        className="h-6 text-xs"
+                                        onClick={() => toggleRoleId(role.id, editRoleIds, setEditRoleIds)}
+                                      >
+                                        {editRoleIds.includes(role.id) && "✓ "}
+                                        {role.name}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      onClick={() => updateRelationshipRoles(rel.id, editRoleIds)}
+                                      disabled={savingCompanyLink}
+                                    >
+                                      {savingCompanyLink ? <Spinner size={12} /> : "Save"}
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      onClick={() => {
+                                        setEditingRelationshipId(null);
+                                        setEditRoleIds([]);
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
                             </SortableItem>
                           );
                         })}
@@ -808,28 +1035,26 @@ export function ContactOverviewTab({
                     {/* Add company link interface */}
                     {showCompanySearch ? (
                       <div className="space-y-3">
-                        {/* Role selector from contact_types Foundation (SSoT) */}
+                        {/* Role selector - multi-select from contact_types Foundation (SSoT) */}
                         {availableRoles.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            <Button
-                              variant={selectedRole === "" ? "default" : "outline"}
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => setSelectedRole("")}
-                            >
-                              Employee
-                            </Button>
-                            {availableRoles.map((role) => (
-                              <Button
-                                key={role.id}
-                                variant={selectedRole === role.name ? "default" : "outline"}
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => setSelectedRole(role.name)}
-                              >
-                                {role.name}
-                              </Button>
-                            ))}
+                          <div className="space-y-2">
+                            <div className="text-xs text-muted-foreground">
+                              Select roles (optional):
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {availableRoles.map((role) => (
+                                <Button
+                                  key={role.id}
+                                  variant={selectedRoleIds.includes(role.id) ? "default" : "outline"}
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => toggleRoleId(role.id, selectedRoleIds, setSelectedRoleIds)}
+                                >
+                                  {selectedRoleIds.includes(role.id) && "✓ "}
+                                  {role.name}
+                                </Button>
+                              ))}
+                            </div>
                           </div>
                         )}
 
@@ -851,7 +1076,7 @@ export function ContactOverviewTab({
                               setShowCompanySearch(false);
                               setCompanySearchQuery("");
                               setCompanySearchResults([]);
-                              setSelectedRole("");
+                              setSelectedRoleIds([]);
                             }}
                           >
                             <X className="h-3.5 w-3.5" />
@@ -991,10 +1216,42 @@ export function ContactOverviewTab({
                                   </div>
                                 </button>
                               ))}
+                              {/* Create new option at bottom of results */}
+                              <button
+                                onClick={createAndAddPersonAsEmployee}
+                                disabled={savingPersonLink}
+                                className="w-full text-left px-3 py-2 hover:bg-muted rounded-md transition-colors flex items-center gap-3 border-t border-dashed mt-1 pt-2"
+                              >
+                                <div className="h-7 w-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                  {savingPersonLink ? (
+                                    <Spinner size={12} className="text-blue-600 dark:text-blue-400" />
+                                  ) : (
+                                    <Plus className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">Create "{personSearchQuery}"</div>
+                                  <div className="text-xs text-muted-foreground">Add as new contact</div>
+                                </div>
+                              </button>
                             </div>
                           ) : personSearchQuery.length >= 2 ? (
-                            <div className="text-sm text-muted-foreground text-center py-3">
-                              No people found
+                            <div className="text-sm text-muted-foreground text-center py-3 space-y-2">
+                              <div>No people found</div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={createAndAddPersonAsEmployee}
+                                disabled={savingPersonLink}
+                                className="text-xs"
+                              >
+                                {savingPersonLink ? (
+                                  <Spinner size={12} className="mr-1" />
+                                ) : (
+                                  <Plus className="h-3 w-3 mr-1" />
+                                )}
+                                Create "{personSearchQuery}"
+                              </Button>
                             </div>
                           ) : (
                             <div className="text-xs text-muted-foreground text-center py-2">

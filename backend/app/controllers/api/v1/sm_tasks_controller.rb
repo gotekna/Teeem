@@ -3,14 +3,15 @@
 module Api
   module V1
     class SmTasksController < ApplicationController
-      before_action :set_job, only: [ :job_index, :gantt_data, :copy_from_template, :import, :upgrade_preview, :upgrade ]
+      before_action :set_job, only: [ :job_index, :gantt_data, :copy_from_template, :import, :upgrade_preview, :upgrade, :validate_dates ]
       before_action :set_job_optional, only: [ :create ]
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
-        :attachments, :add_attachment, :remove_attachment,
-        :follow, :unfollow, :followers,
+        :attachments, :add_attachment, :remove_attachment, :upload_attachment,
+        :follow, :unfollow, :followers, :add_follower, :remove_follower,
+        :history,
         :compare_to_template, :sync_from_template
       ]
 
@@ -19,9 +20,12 @@ module Api
       def index
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :predecessor_dependencies, :successor_dependencies,
+          :action_items,
           sm_task_attachments: :attachable
         )
+
+        # Privacy filter - only show tasks visible to current user
+        @tasks = @tasks.visible_to(current_user)
 
         # Apply filters
         @tasks = @tasks.where(construction_id: params[:job_id]) if params[:job_id].present?
@@ -32,6 +36,12 @@ module Api
         @tasks = @tasks.active if params[:active_only] == "true"
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
         @tasks = @tasks.for_user_roles(current_user) if params[:mine] == "true"
+        @tasks = @tasks.where(assigned_user_id: nil, assigned_role: nil) if params[:unassigned] == "true"
+        # Filter by specific user - shows all tasks they can work on (direct + role-based)
+        if params[:for_user_id].present?
+          user = User.find_by(id: params[:for_user_id])
+          @tasks = @tasks.for_user_roles(user) if user
+        end
 
         render json: {
           success: true,
@@ -45,12 +55,43 @@ module Api
         }
       end
 
+      # GET /api/v1/sm_tasks/user_counts
+      # Returns task counts per user using for_user_roles scope
+      # Each user's count = tasks they can work on (direct + job role + dept role + fallback)
+      def user_counts
+        # SSoT: Get users who have roles via user_roles join table (not assigned_roles column)
+        users_with_roles = User.joins(:user_roles).distinct
+
+        # Count tasks for each user using for_user_roles scope
+        user_counts = users_with_roles.map do |user|
+          count = SmTask.active.for_user_roles(user).count
+          { id: user.id, name: user.name, count: count } if count > 0
+        end.compact.sort_by { |u| -u[:count] }
+
+        # Unassigned = no user AND no role
+        # Note: assigned_role is an integer column, so just check for NULL
+        unassigned_count = SmTask.active
+                                 .where(assigned_user_id: nil, assigned_role: nil)
+                                 .count
+
+        # Total active tasks
+        total_count = SmTask.active.count
+
+        render json: {
+          success: true,
+          users: user_counts,
+          unassigned: unassigned_count,
+          total: total_count
+        }
+      end
+
       # GET /api/v1/jobs/:job_id/sm_tasks (nested under job)
+      # SSoT: Use ?for=gantt to get filtered tasks with dependency rewiring
       # Performance: includes sm_task_attachments to avoid N+1
+      # SSoT: sm_schedule_master needed for header_gantt lookup in GanttDataService
       def job_index
         @tasks = @job.sm_tasks.ordered.includes(
-          :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :predecessor_dependencies, :successor_dependencies,
+          :hold_reason, :purchase_order, :assigned_user, :supplier, :sm_schedule_master,
           sm_task_attachments: :attachable
         )
 
@@ -58,6 +99,12 @@ module Api
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
         @tasks = @tasks.active if params[:active_only] == "true"
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
+
+        # SSoT: Gantt mode - apply po_required filtering + dependency rewiring
+        # This consolidates the old /gantt_data endpoint into one SSoT endpoint
+        if params[:for] == "gantt"
+          return render_gantt_data(@tasks)
+        end
 
         render json: {
           success: true,
@@ -98,6 +145,25 @@ module Api
         @task.created_by = current_user
 
         if @task.save
+          # Add followers if provided
+          if params[:follower_ids].present?
+            Array(params[:follower_ids]).each do |user_id|
+              @task.task_followers.find_or_create_by(user_id: user_id) do |tf|
+                tf.followed_at = Time.current
+              end
+            end
+          end
+
+          # Add viewers if provided (for private task access)
+          if params[:viewer_ids].present?
+            Array(params[:viewer_ids]).each do |user_id|
+              @task.task_viewers.find_or_create_by(user_id: user_id)
+            end
+          end
+
+          # Create notification if task was created with an assignee
+          notify_new_task_assignment(@task)
+
           render json: {
             success: true,
             message: "Task created successfully",
@@ -234,43 +300,28 @@ module Api
       end
 
       # GET /api/v1/constructions/:job_id/sm_tasks/gantt_data
+      # DEPRECATED: Use GET /api/v1/jobs/:job_id/sm_tasks?for=gantt instead (SSoT)
       def gantt_data
         tasks = @job.sm_tasks.ordered.includes(
-          :hold_reason, :predecessor_dependencies, :successor_dependencies,
-          :supplier, purchase_order: :supplier
+          :hold_reason, :supplier, :sm_schedule_master, purchase_order: :supplier
         )
 
-        # Build visibility map for po_required logic
-        # A task is invisible if po_required=true AND no PO is linked
-        # SSoT: Check PO link via has_linked_po? (PurchaseOrder.sm_task_id)
-        invisible_task_ids = Set.new
-        task_by_id = {}
-        tasks.each do |task|
-          task_by_id[task.id] = task
-          po_required = task.po_required || false
-          has_po = task.has_linked_po?
-          invisible_task_ids.add(task.id) if po_required && !has_po
-        end
+        # SSoT: Use shared render_gantt_data helper
+        render_gantt_data(tasks)
+      end
 
-        # Rewire dependencies to skip invisible tasks
-        # If A → B → C and B is invisible, create A → C with combined lag
-        rewired_dependencies = rewire_dependencies_around_invisible(tasks, invisible_task_ids, task_by_id)
-
-        # Filter out invisible tasks from the task list
-        visible_tasks = tasks.reject { |t| invisible_task_ids.include?(t.id) }
+      # POST /api/v1/jobs/:job_id/sm_tasks/validate_dates
+      # Safety net: Runs rollover logic for this specific job on page load
+      # SSoT: Reuses SmRolloverJob logic (THE ONE rollover implementation)
+      def validate_dates
+        # SSoT: Use SmRolloverJob for this specific job
+        result = SmRolloverJob.perform_now(job_id: @job.id)
 
         render json: {
           success: true,
-          gantt_data: {
-            tasks: visible_tasks.map { |task| task_to_gantt_format(task) },
-            dependencies: rewired_dependencies
-          },
-          meta: {
-            construction_id: @job.id,
-            task_count: visible_tasks.count,
-            invisible_count: invisible_task_ids.size,
-            settings: SmSetting.instance.slice(:rollover_time, :rollover_timezone, :rollover_enabled)
-          }
+          rolled_over: result[:rolled_over] || 0,
+          extended: result[:extended] || 0,
+          cascaded: result[:cascaded] || 0
         }
       end
 
@@ -278,9 +329,17 @@ module Api
       def update
         @task.updated_by = current_user
 
+        # Track if predecessor_ids is changing (for date recalculation)
+        predecessor_ids_changing = params[:sm_task]&.key?(:predecessor_ids)
+
         if @task.update(sm_task_params)
           # Create notification if task was assigned to a new user
           notify_task_assignment(@task)
+
+          # Recalculate dates if dependencies changed and task is not locked
+          if predecessor_ids_changing && !@task.locked?
+            recalculate_task_dates_from_predecessors(@task)
+          end
 
           render json: {
             success: true,
@@ -340,6 +399,9 @@ module Api
       # POST /api/v1/sm_tasks/:id/start
       def start
         if @task.start!
+          # Fire start workflow if configured
+          SmTaskStartService.new(@task, user: current_user).start!
+
           render json: {
             success: true,
             message: "Task started",
@@ -695,6 +757,68 @@ module Api
         render json: { success: false, error: "Attachment not found" }, status: :not_found
       end
 
+      # POST /api/v1/sm_tasks/:id/attachments/upload
+      # Upload a file and attach it to the task
+      def upload_attachment
+        unless params[:file].present?
+          return render json: { success: false, error: "No file provided" }, status: :bad_request
+        end
+
+        file = params[:file]
+        filename = file.original_filename
+        content = file.read
+
+        # Determine folder path - use job folder if task has job, otherwise general tasks folder
+        if @task.job.present?
+          folder_path = "TEEEM Jobs/#{@task.job.name}/Task Attachments"
+        else
+          folder_path = "TEEEM Tasks/Task #{@task.task_number}"
+        end
+
+        # Upload to SharePoint
+        begin
+          graph_client = MicrosoftAppGraphClient.for_org(current_user.organization)
+          site_id = graph_client.default_site_id
+          drive_id = graph_client.default_drive_id
+
+          upload_result = graph_client.upload_file_content(
+            site_id,
+            drive_id,
+            folder_path,
+            filename,
+            content
+          )
+
+          # Create a CorporateCompanyDocument record
+          document = CorporateCompanyDocument.create!(
+            file_name: filename,
+            file_url: upload_result[:web_url],
+            file_size: content.bytesize,
+            mime_type: file.content_type,
+            sharepoint_item_id: upload_result[:id],
+            sharepoint_url: upload_result[:web_url],
+            user: current_user,
+            folder: "Task Attachments"
+          )
+
+          # Create the attachment link
+          attachment = @task.sm_task_attachments.create!(
+            attachable: document,
+            attachment_type: "document",
+            notes: params[:notes],
+            added_by: current_user
+          )
+
+          render json: {
+            success: true,
+            attachment: attachment_to_json(attachment)
+          }
+        rescue => e
+          Rails.logger.error "[SmTasksController#upload_attachment] Failed: #{e.message}"
+          render json: { success: false, error: "Upload failed: #{e.message}" }, status: :unprocessable_entity
+        end
+      end
+
       # ===== Task Followers =====
 
       # POST /api/v1/sm_tasks/:id/follow
@@ -737,6 +861,282 @@ module Api
             }
           },
           following: @task.followed_by?(current_user)
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/followers
+      # Add a specific user as a follower (for sharing private tasks)
+      def add_follower
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized to share this task" }, status: :forbidden
+        end
+
+        user = User.find(params[:user_id])
+        follower = @task.follow_by(user)
+
+        render json: {
+          success: true,
+          follower: {
+            id: follower.id,
+            user_id: user.id,
+            user_name: user.name,
+            followed_at: follower.followed_at
+          }
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "User not found" }, status: :not_found
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/followers/:user_id
+      # Remove a follower from the task
+      def remove_follower
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        follower = @task.task_followers.find_by(user_id: params[:user_id])
+        if follower
+          follower.destroy
+          render json: { success: true }
+        else
+          render json: { success: false, error: "Follower not found" }, status: :not_found
+        end
+      end
+
+      # ============================================
+      # Task Contacts (email participants, assigned contacts/users)
+      # ============================================
+
+      # GET /api/v1/sm_tasks/:id/contacts
+      def contacts
+        task_contacts = @task.task_contacts.includes(:contact, :user, :added_by)
+
+        render json: {
+          success: true,
+          contacts: task_contacts.map { |tc| task_contact_to_json(tc) }
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/contacts
+      # Add a contact or user to the task
+      def add_contact
+        contact_type = params[:contact_type]  # 'user' or 'contact'
+        role = params[:role] || "participant"
+
+        tc = if contact_type == "user"
+          user = User.find(params[:user_id])
+          @task.add_contact(user, role: role, added_by: current_user)
+        else
+          contact = Contact.find(params[:contact_id])
+          @task.add_contact(contact, role: role, added_by: current_user)
+        end
+
+        render json: {
+          success: true,
+          contact: task_contact_to_json(tc)
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "User or contact not found" }, status: :not_found
+      rescue ArgumentError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/contacts/:contact_id
+      def remove_contact
+        tc = @task.task_contacts.find(params[:contact_id])
+        tc.destroy
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Task contact not found" }, status: :not_found
+      end
+
+      # ============================================
+      # Task History/Activity Log
+      # ============================================
+
+      # GET /api/v1/sm_tasks/:id/history
+      def history
+        logs = @task.activity_logs.recent.includes(:user).limit(50)
+
+        render json: {
+          success: true,
+          history: logs.map { |log|
+            {
+              id: log.id,
+              activity_type: log.activity_type,
+              field_name: log.field_name,
+              old_value: log.old_value,
+              new_value: log.new_value,
+              description: log.description,
+              user_id: log.user_id,
+              user_name: log.user&.name,
+              created_at: log.created_at
+            }
+          }
+        }
+      end
+
+      # ============================================
+      # Action Items Endpoints
+      # ============================================
+
+      # POST /api/v1/sm_tasks/:id/action_items
+      def create_action_item
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        item = @task.action_items.create!(
+          text: params[:text],
+          item_type: params[:item_type] || 'action',
+          position: params[:position] || @task.action_items.maximum(:position).to_i + 1
+        )
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item)
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/bulk
+      # Create multiple action items at once (e.g., from pasted questions)
+      def bulk_create_action_items
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        items_data = params[:items] || []
+        created_items = []
+        max_position = @task.action_items.maximum(:position).to_i
+
+        items_data.each_with_index do |item_data, index|
+          item = @task.action_items.create!(
+            text: item_data[:text],
+            item_type: item_data[:item_type] || 'action',
+            position: max_position + index + 1
+          )
+          created_items << action_item_to_json(item)
+        end
+
+        render json: {
+          success: true,
+          action_items: created_items
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/toggle
+      def toggle_action_item
+        @task = SmTask.find(params[:id])
+        item = @task.action_items.find(params[:item_id])
+
+        item.toggle!(current_user)
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item)
+        }
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/action_items/:item_id
+      def destroy_action_item
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        item = @task.action_items.find(params[:item_id])
+        item.destroy
+
+        render json: { success: true }
+      end
+
+      # PATCH /api/v1/sm_tasks/:id/action_items/:item_id
+      def update_action_item
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        item = @task.action_items.find(params[:item_id])
+
+        # Build update attributes
+        update_attrs = {}
+        update_attrs[:text] = params[:text] if params.key?(:text)
+        update_attrs[:item_type] = params[:item_type] if params.key?(:item_type)
+
+        item.update!(update_attrs)
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item)
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/answer
+      # Answer a question-type action item
+      def answer_action_item
+        @task = SmTask.find(params[:id])
+        item = @task.action_items.find(params[:item_id])
+
+        unless item.question?
+          return render json: { success: false, error: "Can only answer question items" }, status: :unprocessable_entity
+        end
+
+        item.answer!(params[:response], current_user)
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item)
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/delegate
+      # Delegate a question to another user by creating a sub-task
+      def delegate_action_item
+        @task = SmTask.find(params[:id])
+        item = @task.action_items.find(params[:item_id])
+
+        user = User.find(params[:user_id])
+
+        result = item.delegate_to!(user, created_by: current_user)
+
+        if result[:success]
+          render json: {
+            success: true,
+            action_item: action_item_to_json(item.reload),
+            delegated_task: task_to_json(result[:task])
+          }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/sm_tasks/:id/privacy
+      def update_privacy
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        @task.update!(is_private: params[:is_private])
+
+        render json: {
+          success: true,
+          is_private: @task.is_private
         }
       end
 
@@ -820,6 +1220,59 @@ module Api
       end
 
       private
+
+      # Parse user counts from SQL result, ensuring valid integer IDs
+      # Handles edge cases where raw SQL might return unexpected values
+      def parse_user_counts(result)
+        result.to_a.each_with_object({}) do |row, hash|
+          raw_id = row["assigned_user_id"]
+          # Skip nil, empty strings, or non-numeric values
+          next if raw_id.nil? || raw_id.to_s.strip.empty?
+
+          begin
+            user_id = Integer(raw_id)
+            next if user_id <= 0
+            hash[user_id] = row["count"].to_i
+          rescue ArgumentError, TypeError
+            # Log unexpected value types for debugging
+            Rails.logger.warn "[user_counts] Skipped invalid user_id: #{raw_id.inspect} (#{raw_id.class})"
+          end
+        end
+      end
+
+      def parse_role_counts(result)
+        result.to_a.each_with_object({}) do |row, hash|
+          raw_id = row["assigned_role"]
+          next if raw_id.nil? || raw_id.to_s.strip.empty?
+
+          begin
+            role_id = Integer(raw_id)
+            next if role_id <= 0
+            hash[role_id] = { name: row["role_name"], count: row["count"].to_i }
+          rescue ArgumentError, TypeError
+            Rails.logger.warn "[user_counts] Skipped invalid role_id: #{raw_id.inspect} (#{raw_id.class})"
+          end
+        end
+      end
+
+      # Helper to serialize TaskContact for API response
+      def task_contact_to_json(tc)
+        {
+          id: tc.id,
+          role: tc.role,
+          is_sender: tc.is_sender,
+          notes: tc.notes,
+          created_at: tc.created_at,
+          added_by: tc.added_by&.name,
+          person_name: tc.person_name,
+          person_email: tc.person_email,
+          type: tc.user_id.present? ? "user" : "contact",
+          user_id: tc.user_id,
+          contact_id: tc.contact_id,
+          user: tc.user ? { id: tc.user.id, name: tc.user.name, email: tc.user.email } : nil,
+          contact: tc.contact ? { id: tc.contact.id, name: tc.contact.display_name, email: tc.contact.email } : nil
+        }
+      end
 
       # Helper methods for compare_to_template
       def task_comparison_json(task)
@@ -1021,10 +1474,17 @@ module Api
 
           # Other
           :searchable,
+          :is_private,
+          :email_keywords,
+
+          # Workflow triggers
+          :start_workflow_enabled, :start_workflow_id,
+          :complete_workflow_enabled, :complete_workflow_id,
 
           # Arrays
-          documentation_category_ids: [],
-          linked_task_ids: []
+          linked_task_ids: [],
+          # predecessor_ids is JSONB array of {id, type, lag} objects
+          predecessor_ids: [:id, :type, :lag]
         )
       end
 
@@ -1045,8 +1505,12 @@ module Api
               id: email.id,
               subject: email.subject,
               from_email: email.from_email,
+              from_name: email.from_name,
               received_at: email.received_at,
-              has_attachments: email.email_attachments.any?
+              has_attachments: email.email_attachments.any?,
+              conversation_id: email.conversation_id,
+              thread_count: email.thread_count,
+              body_preview: email.body_preview || email.body_text&.truncate(200)
             }
           )
         when "CorporateCompanyDocument"
@@ -1064,6 +1528,39 @@ module Api
         else
           base
         end
+      end
+
+      def action_item_to_json(item)
+        result = {
+          id: item.id,
+          text: item.text,
+          item_type: item.item_type,
+          checked: item.checked,
+          position: item.position,
+          checked_by_id: item.checked_by_id,
+          checked_by_name: item.checked_by&.name,
+          checked_at: item.checked_at,
+          response: item.response,
+          responded_by_id: item.responded_by_id,
+          responded_by_name: item.responded_by&.name,
+          responded_at: item.responded_at,
+          # Delegation info
+          delegated: item.delegated?,
+          delegated_task_id: item.delegated_task_id
+        }
+
+        # Include delegated task details if present
+        if item.delegated_task.present?
+          result[:delegated_task] = {
+            id: item.delegated_task.id,
+            name: item.delegated_task.name,
+            status: item.delegated_task.status,
+            assigned_user_id: item.delegated_task.assigned_user_id,
+            assigned_user_name: item.delegated_task.assigned_user&.name
+          }
+        end
+
+        result
       end
 
       def save_temp_file(uploaded_file)
@@ -1111,6 +1608,7 @@ module Api
         "#{base_name} #{max_number + 1}"
       end
 
+      # Notify when an existing task's assignee changes (on update)
       def notify_task_assignment(task)
         # Only notify if assigned_user_id changed and there's a new assignee
         return unless task.saved_change_to_assigned_user_id?
@@ -1133,6 +1631,84 @@ module Api
         # Don't fail the update if notification fails
       end
 
+      # Notify when a new task is created with an assignee
+      def notify_new_task_assignment(task)
+        return if task.assigned_user_id.blank?
+
+        # Don't notify if the user assigned it to themselves
+        return if task.assigned_user_id == current_user&.id
+
+        job_name = task.job&.name || "Unknown Job"
+
+        Notification.create!(
+          user_id: task.assigned_user_id,
+          notification_type: "task_assigned",
+          notifiable: task,
+          title: "New task assigned: #{task.name}",
+          message: "You've been assigned the task \"#{task.name}\" on job \"#{job_name}\"#{current_user ? " by #{current_user.name}" : ''}."
+        )
+      rescue StandardError => e
+        Rails.logger.error("Failed to create task assignment notification: #{e.message}")
+        # Don't fail the create if notification fails
+      end
+
+      # Recalculate task dates based on predecessor dependencies
+      # SSoT: Uses same logic as SmCascadeService#calculate_successor_dates
+      def recalculate_task_dates_from_predecessors(task)
+        deps = task.active_predecessor_dependencies
+        return if deps.empty?
+
+        calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+
+        # Calculate the earliest valid start based on all predecessors
+        earliest_start = deps.map do |dep|
+          predecessor = dep.predecessor_task
+          next nil unless predecessor
+
+          case dep.dependency_type
+          when "FS" # Finish-to-Start: successor starts after predecessor ends
+            calendar.add_working_days(predecessor.end_date, dep.lag_days + 1)
+          when "SS" # Start-to-Start: successor starts with/after predecessor starts
+            calendar.add_working_days(predecessor.start_date, dep.lag_days)
+          when "FF" # Finish-to-Finish: successor ends with/after predecessor ends
+            target_end = calendar.add_working_days(predecessor.end_date, dep.lag_days)
+            calendar.subtract_working_days(target_end, task.duration_days - 1)
+          when "SF" # Start-to-Finish: successor ends with/after predecessor starts
+            target_end = calendar.add_working_days(predecessor.start_date, dep.lag_days)
+            calendar.subtract_working_days(target_end, task.duration_days - 1)
+          else
+            predecessor.end_date + 1.day
+          end
+        end.compact.max
+
+        return unless earliest_start
+
+        new_end = calendar.add_working_days(earliest_start, task.duration_days - 1)
+
+        # Update task dates
+        task.update!(
+          start_date: earliest_start,
+          end_date: new_end
+        )
+
+        Rails.logger.info "[SmTasksController] Recalculated dates for task #{task.id}: #{earliest_start} - #{new_end}"
+
+        # Cascade to unlocked successors
+        cascade_unlocked_successors(task, calendar)
+      end
+
+      # Recursively cascade date changes to unlocked successor tasks
+      def cascade_unlocked_successors(task, calendar)
+        task.active_successor_dependencies.each do |dep|
+          successor = dep.successor_task
+          next unless successor
+          next if successor.locked?
+
+          # Recalculate successor's dates
+          recalculate_task_dates_from_predecessors(successor)
+        end
+      end
+
       def task_to_json_with_job(task)
         json = task_to_json(task)
         json[:job_id] = task.construction_id
@@ -1147,8 +1723,9 @@ module Api
         json[:assigned_role] = task.assigned_role
         json[:is_overdue] = task.status != "completed" && task.end_date.present? && task.end_date < Date.current
         json[:days_until_due] = task.end_date.present? ? (task.end_date - Date.current).to_i : nil
-        json[:predecessor_count] = task.predecessor_dependencies.count
-        json[:successor_count] = task.successor_dependencies.count
+        # SSoT: Using jsonb-based methods (predecessor_ids column)
+        json[:predecessor_count] = task.active_predecessor_dependencies.count
+        json[:successor_count] = task.active_successor_dependencies.count
 
         json
       end
@@ -1187,6 +1764,14 @@ module Api
           parent_task_id: task.parent_task_id,
           sequence_order: task.sequence_order,
           sm_schedule_master_id: task.sm_schedule_master_id,
+          # Workflow triggers
+          start_workflow_enabled: task.start_workflow_enabled,
+          start_workflow_id: task.start_workflow_id,
+          start_workflow_name: task.start_workflow&.name,
+          start_workflow_fired: task.start_workflow_fired,
+          complete_workflow_enabled: task.complete_workflow_enabled,
+          complete_workflow_id: task.complete_workflow_id,
+          complete_workflow_name: task.complete_workflow&.name,
           # Computed
           started_at: task.started_at,
           completed_at: task.completed_at,
@@ -1197,7 +1782,20 @@ module Api
           # Use .size instead of .count to use preloaded data (avoids N+1)
           attachments_count: task.sm_task_attachments.size,
           # Include full attachments for task detail view (uses preloaded association)
-          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) }
+          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },
+          # Privacy
+          is_private: task.is_private,
+          created_by_id: task.created_by_id,
+          created_by_name: task.created_by&.name,
+          # Last assigner (who assigned this task to current assignee)
+          last_assigner_id: task.last_assigner&.id,
+          last_assigner_name: task.last_assigner&.name,
+          # Following status (for current user)
+          is_following: task.followed_by?(current_user),
+          # Action items (checkable checklist items)
+          action_items: task.action_items.map { |item| action_item_to_json(item) },
+          # Email keywords for auto-matching
+          email_keywords: task.email_keywords
         }
 
         if include_dependencies
@@ -1255,7 +1853,9 @@ module Api
           supplier_name: task.supplier&.name,
           # po_required visibility - invisible tasks are skipped in dependencies
           po_required: po_required,
-          is_visible: is_visible
+          is_visible: is_visible,
+          # SSoT: Include predecessor_ids for frontend dependency display
+          predecessor_ids: task.predecessor_ids || []
         }
 
         # Include PO details when linked (One Entity concept)
@@ -1371,6 +1971,27 @@ module Api
         end
 
         result
+      end
+
+      # SSoT: Render gantt data with po_required filtering + dependency rewiring
+      # Used by job_index?for=gantt and gantt_data endpoints
+      # Uses GanttDataService for unified format (all dependencies use row.id, not task_number)
+      def render_gantt_data(tasks)
+        # Use GanttDataService for SSoT conversion of task_number -> row.id
+        service = GanttDataService.new(tasks, filter_invisible: true)
+        result = service.build_response
+
+        render json: {
+          success: true,
+          gantt_data: {
+            tasks: result[:tasks],
+            dependencies: result[:dependencies]
+          },
+          meta: result[:meta].merge(
+            construction_id: @job.id,
+            settings: SmSetting.instance.slice(:rollover_time, :rollover_timezone, :rollover_enabled)
+          )
+        }
       end
     end
   end

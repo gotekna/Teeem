@@ -116,17 +116,89 @@ module Api
       end
 
       # GET /api/v1/jobs/for_select
-      # Lightweight endpoint for dropdowns - returns only id and name
+      # GET /api/v1/jobs/for_select?q=search_term
+      # Lightweight endpoint for dropdowns - searchable by job name, client name, employee name,
+      # AND employees of company contacts (two levels deep)
       def for_select
+        search_term = params[:q].present? ? "%#{params[:q].downcase}%" : nil
+
         jobs = Job.joins(:job_status)
-                  .where.not(job_status: { name: ["Lost - Pre Contract", "Lost - Contract", "Archived"] })
-                  .order(created_at: :desc)
-                  .limit(500)
-                  .pluck("jobs.id", "jobs.name")
+                  .includes(job_contacts: { contact: :employees })
+                  .where.not(job_statuses: { name: ["Lost - Pre Contract", "Lost - Contract", "Archived"] })
+
+        # Server-side search if query provided
+        # Search: job name, direct contacts, AND employees of company contacts
+        if search_term
+          jobs = jobs.joins("LEFT OUTER JOIN job_contacts ON job_contacts.job_id = jobs.id")
+                     .joins("LEFT OUTER JOIN contacts ON contacts.id = job_contacts.contact_id")
+                     .joins("LEFT OUTER JOIN contacts AS company_employees ON company_employees.primary_company_id = contacts.id")
+                     .where(
+                       "LOWER(jobs.name) LIKE :q " \
+                       "OR LOWER(contacts.display_name) LIKE :q " \
+                       "OR LOWER(contacts.first_name) LIKE :q " \
+                       "OR LOWER(contacts.last_name) LIKE :q " \
+                       "OR LOWER(company_employees.display_name) LIKE :q " \
+                       "OR LOWER(company_employees.first_name) LIKE :q " \
+                       "OR LOWER(company_employees.last_name) LIKE :q",
+                       q: search_term
+                     )
+                     .distinct
+        end
+
+        jobs = jobs.order(created_at: :desc).limit(100)
 
         render json: {
           success: true,
-          jobs: jobs.map { |id, name| { id: id, name: name } }
+          jobs: jobs.map do |job|
+            client = job.job_contacts.find { |jc| jc.role == "client" }&.contact
+            employees = job.job_contacts
+                          .select { |jc| %w[coordinator estimator internal_sales site_coordinator supervisor].include?(jc.role) }
+                          .map { |jc| jc.contact&.display_name || "#{jc.contact&.first_name} #{jc.contact&.last_name}".strip }
+                          .compact
+                          .reject(&:blank?)
+
+            # Find which contact matched the search (for highlighting)
+            # Check direct contacts first, then employees of company contacts
+            matched_contact = nil
+            if search_term && params[:q].present?
+              query = params[:q].downcase
+
+              # Check direct job contacts
+              job.job_contacts.each do |jc|
+                contact = jc.contact
+                next unless contact
+                contact_name = contact.display_name.presence || "#{contact.first_name} #{contact.last_name}".strip
+                if contact_name.downcase.include?(query)
+                  matched_contact = { name: contact_name, role: jc.role }
+                  break
+                end
+
+                # Check employees of this contact (companies, trusts, etc. can have employees)
+                if contact.employees.loaded? ? contact.employees.any? : contact.employees.exists?
+                  contact.employees.each do |emp|
+                    emp_name = emp.display_name.presence || "#{emp.first_name} #{emp.last_name}".strip
+                    if emp_name.downcase.include?(query)
+                      matched_contact = {
+                        name: emp_name,
+                        role: "employee_of",
+                        company_name: contact_name
+                      }
+                      break
+                    end
+                  end
+                end
+                break if matched_contact
+              end
+            end
+
+            {
+              id: job.id,
+              name: job.name,
+              client_name: client&.display_name || "#{client&.first_name} #{client&.last_name}".strip.presence,
+              employee_names: employees,
+              matched_contact: matched_contact
+            }
+          end
         }
       end
 
@@ -246,6 +318,9 @@ module Api
 
       # POST /api/v1/jobs
       def create
+        Rails.logger.info "[JobsController#create] job_params: #{job_params.inspect}"
+        Rails.logger.info "[JobsController#create] job_status_id from params: #{job_params[:job_status_id].inspect}"
+
         @job = Job.new(job_params)
 
         if @job.save
@@ -273,6 +348,8 @@ module Api
 
           render json: response_data, status: :created
         else
+          Rails.logger.error "[JobsController#create] Validation failed: #{@job.errors.full_messages.inspect}"
+          Rails.logger.error "[JobsController#create] job_status_id was: #{@job.job_status_id.inspect}"
           render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
         end
       end
@@ -960,6 +1037,9 @@ module Api
           :postcode,
           :state,
           :council,
+          # Construction details
+          :level,
+          :dwelling_type,
           :contract_value,
           # live_profit and profit_percentage are calculated fields, not user-editable
           :stage,

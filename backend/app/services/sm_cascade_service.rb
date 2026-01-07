@@ -86,21 +86,22 @@ class SmCascadeService
       end
 
       # 3. Process tasks to break (break dependency, task stays in place)
+      # SSoT: Remove predecessor from successor's predecessor_ids jsonb
       cascade_params[:tasks_to_break]&.each do |task_id|
-        dep = SmDependency.find_by(
-          successor_task_id: task_id,
-          predecessor_task_id: task.id,
-          active: true
-        )
-
-        if dep
-          dep.update!(
-            active: false,
-            deleted_at: Time.current,
-            deleted_reason: "cascade_conflict",
-            deleted_by_id: cascade_params[:user_id]
+        successor = SmTask.find(task_id)
+        updated_preds = successor.predecessor_ids.reject do |p|
+          (p["id"] || p[:id]).to_i == task.task_number
+        end
+        if updated_preds.length != successor.predecessor_ids.length
+          successor.update!(
+            predecessor_ids: updated_preds,
+            updated_by_id: cascade_params[:user_id]
           )
-          results[:broken_dependencies] << dep
+          results[:broken_dependencies] << {
+            predecessor_task_id: task.id,
+            successor_task_id: task_id,
+            reason: "cascade_conflict"
+          }
         end
       end
 
@@ -131,20 +132,6 @@ class SmCascadeService
     results
   rescue ActiveRecord::RecordInvalid => e
     results[:errors] << e.message
-    results
-  end
-
-  # Execute cascade in rollover mode (automatic, no user confirmation)
-  def execute_rollover
-    results = {
-      updated_tasks: [],
-      deleted_dependencies: [],
-      supplier_confirms_cleared: 0
-    }
-
-    # Auto-cascade all unlocked successors
-    cascade_unlocked_successors_rollover(task, results)
-
     results
   end
 
@@ -203,28 +190,15 @@ class SmCascadeService
   end
 
   def find_cross_job_successors(date_delta)
-    # Find dependencies that cross job boundaries
-    SmDependency.where(predecessor_task_id: task.id, active: true)
-                .joins(:successor_task)
-                .where.not(sm_tasks: { construction_id: construction.id })
-                .map do |dep|
-      successor = dep.successor_task
-      {
-        id: successor.id,
-        task_number: successor.task_number,
-        name: successor.name,
-        construction_id: successor.construction_id,
-        construction_title: successor.construction.title,
-        dependency_type: dep.dependency_type,
-        lag_days: dep.lag_days,
-        locked: locked?(successor),
-        lock_type: get_lock_type(successor)
-      }
-    end
+    # SSoT: Cross-job dependencies not supported with jsonb predecessor_ids
+    # (predecessor_ids uses task_number which is job-scoped)
+    # Return empty array - cross-job dependencies would need different storage
+    []
   end
 
   def direct_successors
-    @direct_successors ||= task.active_successor_dependencies.includes(:successor_task).map do |dep|
+    # SSoT: active_successor_dependencies now returns OpenStruct array (no .includes needed)
+    @direct_successors ||= task.active_successor_dependencies.map do |dep|
       { task: dep.successor_task, dependency: dep }
     end
   end
@@ -260,7 +234,8 @@ class SmCascadeService
 
   def calculate_successor_dates(successor)
     # Get all active predecessor dependencies for this successor
-    deps = successor.active_predecessor_dependencies.includes(:predecessor_task)
+    # SSoT: active_predecessor_dependencies returns OpenStruct array (no .includes needed)
+    deps = successor.active_predecessor_dependencies
 
     # Calculate the earliest valid start based on all predecessors
     earliest_start = deps.map do |dep|
@@ -317,15 +292,16 @@ class SmCascadeService
   end
 
   def count_nested_successors(task)
-    SmDependency.where(predecessor_task_id: task.id, active: true).count
+    # SSoT: Using jsonb-based successor lookup
+    task.active_successor_dependencies.count
   end
 
   def find_nested_locked_summary(task)
     # Get immediate successors that are also locked
-    SmDependency.where(predecessor_task_id: task.id, active: true)
-                .includes(:successor_task)
-                .select { |dep| locked?(dep.successor_task) }
-                .map do |dep|
+    # SSoT: Using jsonb-based successor lookup
+    task.active_successor_dependencies
+        .select { |dep| locked?(dep.successor_task) }
+        .map do |dep|
       {
         id: dep.successor_task.id,
         name: dep.successor_task.name,
@@ -335,7 +311,8 @@ class SmCascadeService
   end
 
   def cascade_unlocked_successors(task, results, user_id)
-    task.active_successor_dependencies.includes(:successor_task).each do |dep|
+    # SSoT: active_successor_dependencies returns OpenStruct array (no .includes needed)
+    task.active_successor_dependencies.each do |dep|
       successor = dep.successor_task
       next if locked?(successor)
       next if results[:updated_tasks].include?(successor)
@@ -350,48 +327,6 @@ class SmCascadeService
 
       # Recursively cascade
       cascade_unlocked_successors(successor, results, user_id)
-    end
-  end
-
-  def cascade_unlocked_successors_rollover(task, results)
-    task.active_successor_dependencies.includes(:successor_task).each do |dep|
-      successor = dep.successor_task
-
-      if locked?(successor)
-        # Break dependency for locked successors during rollover
-        dep.update!(
-          active: false,
-          deleted_at: Time.current,
-          deleted_reason: "rollover",
-          deleted_by_rollover: true
-        )
-        results[:deleted_dependencies] << {
-          id: dep.id,
-          predecessor_id: dep.predecessor_task_id,
-          successor_id: dep.successor_task_id
-        }
-
-        # Clear supplier confirms during rollover
-        if successor.supplier_confirm?
-          successor.update!(
-            supplier_confirm: false,
-            confirm_status: "moved_after_confirm"
-          )
-          results[:supplier_confirms_cleared] += 1
-        end
-      else
-        next if results[:updated_tasks].include?(successor)
-
-        new_dates = calculate_successor_dates(successor)
-        successor.update!(
-          start_date: new_dates[:start_date],
-          end_date: new_dates[:end_date]
-        )
-        results[:updated_tasks] << successor
-
-        # Recursively cascade
-        cascade_unlocked_successors_rollover(successor, results)
-      end
     end
   end
 

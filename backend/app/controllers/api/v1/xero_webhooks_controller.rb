@@ -104,9 +104,9 @@ module Api
 
       def handle_contact_event(event_type, xero_contact_id, tenant_id)
         # Find the link for this Xero contact
-        link = ContactXeroLink.find_by(
-          xero_tenant_id: tenant_id,
-          xero_contact_id: xero_contact_id
+        link = ContactExternalLink.find_by(
+          tenant_id: tenant_id,
+          external_contact_id: xero_contact_id
         )
 
         case event_type

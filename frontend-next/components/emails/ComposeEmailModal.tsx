@@ -14,13 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor, plainTextToHtml } from "@/components/ui/rich-text-editor";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -30,12 +23,13 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  Calendar as CalendarIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { EmailContactAutocomplete } from "./EmailContactAutocomplete";
 import { useUndoSend } from "@/hooks/useUndoSend";
 import { useAutoSaveDraft, useEmailDrafts } from "@/hooks/useEmailDrafts";
+import { useAuth } from "@/contexts/AuthContext";
+import { generateEmailSignature, hasSignature } from "@/lib/email-signature";
 import {
   CONTACT_SEARCH_DEBOUNCE_MS,
   CONTACT_SEARCH_MIN_CHARS,
@@ -45,16 +39,9 @@ import {
   formatFileSize,
 } from "@/lib/email-constants";
 import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
-import { Calendar } from "@/components/ui/calendar";
-import { FileText, LayoutTemplate } from "lucide-react";
+import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
-import { format, addHours, setHours, setMinutes } from "date-fns";
+import { format, setHours, setMinutes } from "date-fns";
 
 // Use EmailContact as Contact for backwards compatibility
 type Contact = EmailContact;
@@ -114,12 +101,22 @@ export function ComposeEmailModal({
 
   // Schedule send state
   const [isScheduled, setIsScheduled] = useState(false);
+  const [sendMenuOpen, setSendMenuOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [scheduledTime, setScheduledTime] = useState("09:00");
 
   // Undo send hook
   const { queueSend } = useUndoSend();
+
+  // Get current user for signature generation
+  const { user: currentUser } = useAuth();
+
+  // Company settings for signature logo
+  const [companySettings, setCompanySettings] = useState<{ logo_dark?: string } | null>(null);
+
+  // Store signature separately (not in editor) to preserve HTML formatting
+  const [signatureHtml, setSignatureHtml] = useState<string>("");
 
   // Auto-save draft hook
   const autoSave = useAutoSaveDraft({
@@ -138,7 +135,7 @@ export function ComposeEmailModal({
     existingDraftId: draft?.id,
   });
 
-  // Search contacts by name/email
+  // Search contacts by name/email (include company info for grouping)
   const searchContacts = async (search: string) => {
     if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
       setContacts([]);
@@ -147,7 +144,7 @@ export function ComposeEmailModal({
     setContactsLoading(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
       );
       const typedResponse = response as { contacts: Contact[] };
       setContacts((typedResponse.contacts || []).filter(c => c.email));
@@ -171,13 +168,38 @@ export function ComposeEmailModal({
     return () => clearTimeout(timer);
   }, [contactSearch, ccSearch, bccSearch]);
 
-  // Get signature for account from database (as HTML)
-  const getSignatureForAccount = (account: EmailAccount | undefined): string => {
-    if (!account?.email_signature) return "";
-    // Return signature with proper separator as HTML
-    const signatureLines = account.email_signature.split("\n").join("<br>");
-    return `<br><br><p>--<br>${signatureLines}</p>`;
+  // Generate signature from current user data (SSoT: branded Tekna signature)
+  const getUserSignature = (): string => {
+    if (!currentUser) return "";
+    return generateEmailSignature(
+      {
+        name: currentUser.name,
+        email: currentUser.email,
+        mobile_phone: currentUser.mobile_phone as string | undefined,
+        job_title: currentUser.job_title as string | undefined,
+      },
+      companySettings ? { logo_dark: companySettings.logo_dark } : undefined
+    );
   };
+
+  // Fetch company settings for logo
+  useEffect(() => {
+    const fetchCompanySettings = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: { logo_dark?: string } }>(
+          "/api/v1/company_settings"
+        );
+        if (response?.data) {
+          setCompanySettings(response.data);
+        }
+      } catch (err) {
+        console.debug("Company settings unavailable for signature");
+      }
+    };
+    if (open && !companySettings) {
+      fetchCompanySettings();
+    }
+  }, [open, companySettings]);
 
   // Fetch accounts when modal opens
   useEffect(() => {
@@ -226,6 +248,7 @@ export function ComposeEmailModal({
 
       setAttachments([]);
       setError(null);
+      setSignatureHtml(""); // Reset signature (will be regenerated when account selected)
       // Reset schedule state
       setIsScheduled(false);
       setScheduledDate(undefined);
@@ -233,21 +256,20 @@ export function ComposeEmailModal({
     }
   }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft]);
 
-  // Update signature when account changes
+
+  // Generate signature when account is selected and user/company data is available
   useEffect(() => {
-    if (!formData.credential_id || accounts.length === 0) return;
+    if (!formData.credential_id || accounts.length === 0 || !currentUser) return;
 
-    const account = accounts.find((a) => String(a.id) === formData.credential_id);
-    const signature = getSignatureForAccount(account);
-
-    if (signature) {
-      // Only add signature if body doesn't already contain it (check for HTML separator)
-      setFormData((prev) => {
-        if (prev.body.includes("--<br>")) return prev;
-        return { ...prev, body: prev.body + signature };
-      });
+    // Don't add signature to body if it already has one (e.g., from draft)
+    if (hasSignature(formData.body)) {
+      setSignatureHtml(""); // Clear separate signature since it's in body
+      return;
     }
-  }, [formData.credential_id, accounts]);
+
+    const signature = getUserSignature();
+    setSignatureHtml(signature);
+  }, [formData.credential_id, accounts, currentUser, companySettings]);
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -367,6 +389,9 @@ export function ComposeEmailModal({
 
     setSending(true);
     try {
+      // Combine body with signature (signature is stored separately to preserve HTML)
+      const fullBody = signatureHtml ? formData.body + signatureHtml : formData.body;
+
       if (isScheduled) {
         // Schedule the email
         const scheduledDateTime = getScheduledDateTime()!;
@@ -378,7 +403,7 @@ export function ComposeEmailModal({
           cc: formData.cc ? [formData.cc] : [],
           bcc: formData.bcc ? [formData.bcc] : [],
           subject: formData.subject,
-          body: formData.body,
+          body: fullBody,
           reply_to_message_id: replyToMessageId,
           scheduled_for: scheduledDateTime.toISOString(),
         };
@@ -393,7 +418,7 @@ export function ComposeEmailModal({
           cc: formData.cc || undefined,
           bcc: formData.bcc || undefined,
           subject: formData.subject,
-          body: formData.body,
+          body: fullBody,
           reply_to_message_id: replyToMessageId,
           attachments: attachments,
         });
@@ -416,20 +441,149 @@ export function ComposeEmailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>Compose Email</DialogTitle>
-          <DialogDescription>
-            Send an email from your connected account.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[1400px] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col">
+        {/* Outlook-style Header with Send Button */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b bg-background">
+          {/* Send button with dropdown */}
+          <div className="relative flex">
+            <Button
+              onClick={handleSend}
+              disabled={sending || !formData.to || !formData.credential_id}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-r-none"
+            >
+              {sending ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  {isScheduled ? "Scheduling..." : "Sending..."}
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  {isScheduled ? "Schedule" : "Send"}
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              disabled={sending}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-l-none border-l border-blue-500 px-2"
+              onClick={() => setSendMenuOpen(!sendMenuOpen)}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+            {sendMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 w-40 bg-background border rounded-md shadow-lg z-50">
+                <button
+                  type="button"
+                  className="flex w-full items-center px-3 py-2 text-sm hover:bg-accent rounded-t-md"
+                  onClick={() => {
+                    setIsScheduled(false);
+                    setSendMenuOpen(false);
+                  }}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center px-3 py-2 text-sm hover:bg-accent rounded-b-md"
+                  onClick={() => {
+                    setIsScheduled(true);
+                    setSendMenuOpen(false);
+                  }}
+                >
+                  <Clock className="h-4 w-4 mr-2" />
+                  Schedule send
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* From Account - native select for reliability inside dialogs */}
+          {accounts.length > 0 && (
+            <select
+              value={formData.credential_id}
+              onChange={(e) => {
+                const account = accounts.find(a => String(a.id) === e.target.value);
+                if (account) {
+                  setFormData({
+                    ...formData,
+                    credential_id: String(account.id),
+                    from_address: account.email_address || "",
+                  });
+                }
+              }}
+              className="h-9 px-3 text-sm border rounded-md bg-background max-w-[250px]"
+            >
+              {accounts.map((account) => (
+                <option key={account.id} value={String(account.id)}>
+                  {account.email_address}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Attachments */}
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <Button type="button" variant="ghost" size="sm" asChild>
+              <span>
+                <Paperclip className="h-4 w-4" />
+              </span>
+            </Button>
+          </label>
+
+          {/* Templates */}
+          <TemplatePicker
+            open={templatePickerOpen}
+            onOpenChange={setTemplatePickerOpen}
+            onSelect={(template, applied) => {
+              setFormData((prev) => ({
+                ...prev,
+                subject: applied.subject && !prev.subject.trim() ? applied.subject : prev.subject,
+                body: prev.body.trim() ? `${prev.body}<br><br>${applied.body_html}` : applied.body_html,
+              }));
+              setTemplatePickerOpen(false);
+            }}
+            trigger={
+              <Button type="button" variant="ghost" size="sm">
+                <LayoutTemplate className="h-4 w-4" />
+              </Button>
+            }
+          />
+
+          {/* Schedule date/time picker (shown when scheduled) */}
+          {isScheduled && (
+            <div className="flex items-center gap-2 ml-auto mr-8">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <Input
+                type="date"
+                value={scheduledDate ? format(scheduledDate, "yyyy-MM-dd") : ""}
+                onChange={(e) => setScheduledDate(e.target.value ? new Date(e.target.value) : undefined)}
+                min={format(new Date(), "yyyy-MM-dd")}
+                className="w-[130px] h-8 text-xs"
+              />
+              <Input
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                className="w-[110px] h-8 text-xs"
+              />
+            </div>
+          )}
+        </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-16">
             <Spinner />
           </div>
         ) : accounts.length === 0 ? (
-          <div className="py-8 text-center">
+          <div className="py-16 text-center">
             <p className="text-muted-foreground mb-4">
               No email accounts connected. Add an account in Admin → System → Email Accounts.
             </p>
@@ -438,498 +592,131 @@ export function ComposeEmailModal({
             </Button>
           </div>
         ) : (
-          <>
-            <div className="space-y-4 py-4">
-              {/* From Account */}
-              <div className="space-y-2">
-                <Label>From</Label>
-                <div className="flex gap-2">
-                  {/* Account selector */}
-                  <Select
-                    value={formData.credential_id}
-                    onValueChange={(value) => {
-                      const account = accounts.find((a) => String(a.id) === value);
-                      setFormData({
-                        ...formData,
-                        credential_id: value,
-                        from_address: account?.email_address || "",
-                      });
-                    }}
-                  >
-                    <SelectTrigger className={selectedAccount?.email_aliases?.length ? "w-1/2" : "w-full"}>
-                      <SelectValue placeholder="Select account..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accounts.map((account) => (
-                        <SelectItem key={account.id} value={String(account.id)}>
-                          <span className="flex items-center gap-2">
-                            {account.name || account.email_address}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* From address selector (shows when account has aliases) */}
-                  {selectedAccount?.email_aliases?.length ? (
-                    <Select
-                      value={formData.from_address}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, from_address: value })
-                      }
-                    >
-                      <SelectTrigger className="w-1/2">
-                        <SelectValue placeholder="Send as..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* Main email address */}
-                        <SelectItem value={selectedAccount.email_address}>
-                          {selectedAccount.email_address}
-                        </SelectItem>
-                        {/* Aliases */}
-                        {selectedAccount.email_aliases.map((alias) => (
-                          <SelectItem key={alias} value={alias}>
-                            {alias} <span className="text-muted-foreground ml-1">(alias)</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : null}
-                </div>
-                {selectedAccount && !selectedAccount?.email_aliases?.length && (
-                  <p className="text-xs text-muted-foreground">
-                    Sending as {formData.from_address || selectedAccount.email_address}
-                  </p>
-                )}
-              </div>
-
-              {/* To */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label>To</Label>
-                    {formData.to && (
-                      <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
-                        {formData.to.split(",").filter(e => e.trim()).length}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-xs"
-                      onClick={() => setShowCcBcc(!showCcBcc)}
-                    >
-                      {showCcBcc ? (
-                        <>
-                          <ChevronUp className="h-3 w-3 mr-1" />
-                          Hide CC/BCC
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="h-3 w-3 mr-1" />
-                          Show CC/BCC
-                        </>
-                      )}
-                    </Button>
-                    {/* Show recipient counts when collapsed */}
-                    {!showCcBcc && formData.cc && (
-                      <Badge variant="secondary" className="h-5 text-xs">
-                        CC: {formData.cc.split(",").filter(e => e.trim()).length}
-                      </Badge>
-                    )}
-                    {!showCcBcc && formData.bcc && (
-                      <Badge variant="secondary" className="h-5 text-xs">
-                        BCC: {formData.bcc.split(",").filter(e => e.trim()).length}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <ComboboxDropdown
-                  items={contacts.map((c) => ({
-                    id: c.email || "",
-                    label: `${c.display_name} (${c.email})`,
-                  }))}
-                  selectedItem={
-                    formData.to
-                      ? { id: formData.to, label: formData.to }
-                      : undefined
-                  }
-                  onSelect={(item) => setFormData({ ...formData, to: item.id })}
-                  placeholder="Search contacts or type email..."
-                  searchInTrigger={true}
-                  onInputChange={setContactSearch}
-                  disableInternalFilter={true}
-                  onCreate={(value) => setFormData({ ...formData, to: value })}
-                  renderOnCreate={(value) => (
-                    <span>Use: <strong>{value}</strong></span>
-                  )}
+          <div className="flex flex-col flex-1 min-h-0">
+            {/* To Field - Outlook style */}
+            <div className="flex items-center border-b px-4 py-2">
+              <span className="text-sm text-muted-foreground w-12 flex-shrink-0">To</span>
+              <div className="flex-1 relative">
+                <EmailContactAutocomplete
+                  value={formData.to}
+                  onChange={(value) => setFormData({ ...formData, to: value })}
+                  contacts={contacts}
                   isLoading={contactsLoading}
-                  emptyResults={contactSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters to search...` : "No contacts found"}
-                  clearable={true}
-                  onClear={() => setFormData({ ...formData, to: "" })}
+                  onSearch={setContactSearch}
+                  minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                 />
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                onClick={() => setShowCcBcc(!showCcBcc)}
+              >
+                Bcc
+              </Button>
+            </div>
 
-              {/* CC/BCC */}
-              {showCcBcc && (
-                <>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label>CC</Label>
-                      {formData.cc && (
-                        <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
-                          {formData.cc.split(",").filter(e => e.trim()).length}
-                        </Badge>
-                      )}
-                    </div>
-                    <ComboboxDropdown
-                      items={contacts.map((c) => ({
-                        id: c.email || "",
-                        label: `${c.display_name} (${c.email})`,
-                      }))}
-                      selectedItem={
-                        formData.cc
-                          ? { id: formData.cc, label: formData.cc }
-                          : undefined
-                      }
-                      onSelect={(item) => {
-                        setFormData({ ...formData, cc: item.id });
-                        setCcSearch("");
-                      }}
-                      placeholder="Search contacts or type email..."
-                      searchInTrigger={true}
-                      onInputChange={setCcSearch}
-                      disableInternalFilter={true}
-                      onCreate={(value) => {
-                        setFormData({ ...formData, cc: value });
-                        setCcSearch("");
-                      }}
-                      renderOnCreate={(value) => (
-                        <span>Use: <strong>{value}</strong></span>
-                      )}
-                      isLoading={contactsLoading && ccSearch.length >= CONTACT_SEARCH_MIN_CHARS}
-                      emptyResults={ccSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters to search...` : "No contacts found"}
-                      clearable={true}
-                      onClear={() => setFormData({ ...formData, cc: "" })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label>BCC</Label>
-                      {formData.bcc && (
-                        <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
-                          {formData.bcc.split(",").filter(e => e.trim()).length}
-                        </Badge>
-                      )}
-                    </div>
-                    <ComboboxDropdown
-                      items={contacts.map((c) => ({
-                        id: c.email || "",
-                        label: `${c.display_name} (${c.email})`,
-                      }))}
-                      selectedItem={
-                        formData.bcc
-                          ? { id: formData.bcc, label: formData.bcc }
-                          : undefined
-                      }
-                      onSelect={(item) => {
-                        setFormData({ ...formData, bcc: item.id });
-                        setBccSearch("");
-                      }}
-                      placeholder="Search contacts or type email..."
-                      searchInTrigger={true}
-                      onInputChange={setBccSearch}
-                      disableInternalFilter={true}
-                      onCreate={(value) => {
-                        setFormData({ ...formData, bcc: value });
-                        setBccSearch("");
-                      }}
-                      renderOnCreate={(value) => (
-                        <span>Use: <strong>{value}</strong></span>
-                      )}
-                      isLoading={contactsLoading && bccSearch.length >= CONTACT_SEARCH_MIN_CHARS}
-                      emptyResults={bccSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters to search...` : "No contacts found"}
-                      clearable={true}
-                      onClear={() => setFormData({ ...formData, bcc: "" })}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Subject */}
-              <div className="space-y-2">
-                <Label>Subject</Label>
-                <Input
-                  placeholder="Email subject..."
-                  value={formData.subject}
-                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+            {/* Cc Field - Always visible */}
+            <div className="flex items-center border-b px-4 py-2">
+              <span className="text-sm text-muted-foreground w-12 flex-shrink-0">Cc</span>
+              <div className="flex-1 relative">
+                <EmailContactAutocomplete
+                  value={formData.cc}
+                  onChange={(value) => setFormData({ ...formData, cc: value })}
+                  contacts={contacts}
+                  isLoading={contactsLoading}
+                  onSearch={setCcSearch}
+                  minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                 />
               </div>
+            </div>
 
-              {/* Body */}
-              <div className="space-y-2">
-                <Label>Message</Label>
+            {/* Bcc Field */}
+            {showCcBcc && (
+              <div className="flex items-center border-b px-4 py-2">
+                <span className="text-sm text-muted-foreground w-12 flex-shrink-0">Bcc</span>
+                <div className="flex-1 relative">
+                  <EmailContactAutocomplete
+                    value={formData.bcc}
+                    onChange={(value) => setFormData({ ...formData, bcc: value })}
+                    contacts={contacts}
+                    isLoading={contactsLoading}
+                    onSearch={setBccSearch}
+                    minSearchChars={CONTACT_SEARCH_MIN_CHARS}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Subject - Outlook style underlined */}
+            <div className="flex items-center border-b px-4 py-2">
+              <Input
+                placeholder="Add a subject"
+                value={formData.subject}
+                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                className="border-0 shadow-none text-base px-0 h-8 focus-visible:ring-0"
+              />
+            </div>
+
+            {/* Attachments bar */}
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-4 py-2 border-b bg-muted/30">
+                {attachments.map((file, index) => (
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                  >
+                    {file.name}
+                    <span className="text-xs text-muted-foreground ml-1">
+                      ({formatFileSize(file.size)})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(index)}
+                      className="ml-1 hover:text-red-500"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Body - Large scrollable area */}
+            <div className="flex-1 overflow-y-auto min-h-0 p-4">
+              <div className="min-h-[400px]">
                 <RichTextEditor
                   value={formData.body}
                   onChange={(value) => setFormData({ ...formData, body: value })}
-                  placeholder="Type your message..."
-                  minHeight={180}
+                  placeholder="Type / to insert files and more"
+                  minHeight={400}
                   onSlashCommand={(command) => {
                     if (command === "template") {
                       setTemplatePickerOpen(true);
                     }
                   }}
                 />
-                {/* Signature Preview - only show when body doesn't already contain signature */}
-                {selectedAccount?.email_signature && !formData.body.includes("--<br>") && (
-                  <div className="mt-2 p-2 rounded-md bg-muted/50 border border-dashed">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-medium text-muted-foreground">Signature (will be appended)</span>
-                    </div>
-                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      --{"\n"}{selectedAccount.email_signature}
-                    </div>
-                  </div>
-                )}
-              </div>
 
-              {/* Templates & Attachments toolbar */}
-              <div className="flex items-center gap-2 pt-2">
-                {/* Template Picker (controlled for slash command support) */}
-                <TemplatePicker
-                  open={templatePickerOpen}
-                  onOpenChange={setTemplatePickerOpen}
-                  onSelect={(template, applied) => {
-                    // Insert template content into the editor
-                    setFormData((prev) => ({
-                      ...prev,
-                      // Only update subject if template has one and current is empty
-                      subject: applied.subject && !prev.subject.trim()
-                        ? applied.subject
-                        : prev.subject,
-                      // Append template body to existing content (or replace if empty)
-                      body: prev.body.trim()
-                        ? `${prev.body}<br><br>${applied.body_html}`
-                        : applied.body_html,
-                    }));
-                    setTemplatePickerOpen(false);
-                  }}
-                  trigger={
-                    <Button type="button" variant="outline" size="sm">
-                      <LayoutTemplate className="h-4 w-4 mr-1" />
-                      Templates
-                    </Button>
-                  }
-                />
-
-                {/* Attachments */}
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileSelect}
+                {/* Signature Preview - rendered separately to preserve HTML formatting */}
+                {signatureHtml && (
+                  <div
+                    className="mt-4 pointer-events-none"
+                    dangerouslySetInnerHTML={{ __html: signatureHtml }}
                   />
-                  <Button type="button" variant="outline" size="sm" asChild>
-                    <span>
-                      <Paperclip className="h-4 w-4 mr-1" />
-                      Add File
-                    </span>
-                  </Button>
-                </label>
-              </div>
-
-              {/* Attachments list */}
-              <div className="space-y-2">
-                {attachments.length > 0 && (
-                  <>
-                    <div className="flex flex-wrap gap-2">
-                      {attachments.map((file, index) => (
-                        <Badge
-                          key={index}
-                          variant="secondary"
-                          className="flex items-center gap-1"
-                        >
-                          {file.name}
-                          <span className="text-xs text-muted-foreground ml-1">
-                            ({formatFileSize(file.size)})
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removeAttachment(index)}
-                            className="ml-1 hover:text-red-500"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Total: {formatFileSize(attachments.reduce((sum, f) => sum + f.size, 0))} / {formatFileSize(MAX_TOTAL_ATTACHMENTS_SIZE_BYTES)}
-                    </p>
-                  </>
-                )}
-                {isScheduled && attachments.length > 0 && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    Note: Attachments are not yet supported for scheduled emails
-                  </p>
                 )}
               </div>
-
-              {/* Schedule Send */}
-              <div className="space-y-3 pt-3 border-t">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="schedule-toggle" className="font-normal cursor-pointer">
-                      Schedule send
-                    </Label>
-                  </div>
-                  <Switch
-                    id="schedule-toggle"
-                    checked={isScheduled}
-                    onCheckedChange={setIsScheduled}
-                  />
-                </div>
-
-                {isScheduled && (
-                  <div className="flex items-center gap-3 pl-6">
-                    {/* Date picker */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-[140px] justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {scheduledDate ? (
-                            format(scheduledDate, "MMM d, yyyy")
-                          ) : (
-                            <span className="text-muted-foreground">Pick date</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={scheduledDate}
-                          onSelect={setScheduledDate}
-                          disabled={(date) => date < new Date()}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-
-                    {/* Time picker */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">at</span>
-                      <Input
-                        type="time"
-                        value={scheduledTime}
-                        onChange={(e) => setScheduledTime(e.target.value)}
-                        className="w-[100px] h-8"
-                      />
-                    </div>
-
-                    {/* Preview */}
-                    {scheduledDate && (
-                      <span className="text-xs text-muted-foreground">
-                        ({format(getScheduledDateTime()!, "EEE, MMM d 'at' h:mm a")})
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Error */}
-              {error && (
-                <div className="p-3 rounded-md bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400">
-                  {error}
-                </div>
-              )}
             </div>
 
-            <DialogFooter className="gap-2">
-              {/* Close confirmation when there are unsaved changes */}
-              {showCloseConfirm ? (
-                <>
-                  <div className="flex-1 text-sm text-muted-foreground">
-                    Save this draft?
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      autoSave.discard();
-                      setShowCloseConfirm(false);
-                      onOpenChange(false);
-                    }}
-                  >
-                    Discard
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      autoSave.save();
-                      setShowCloseConfirm(false);
-                      onOpenChange(false);
-                    }}
-                  >
-                    <FileText className="h-4 w-4 mr-1" />
-                    Save draft
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowCloseConfirm(false)}
-                  >
-                    Keep editing
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      // If there's content to save, show confirmation
-                      if (autoSave.hasContent && autoSave.isDirty) {
-                        setShowCloseConfirm(true);
-                      } else {
-                        // No content or no changes, just close
-                        autoSave.discard();
-                        onOpenChange(false);
-                      }
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSend} disabled={sending}>
-                    {sending ? (
-                      <>
-                        <Spinner className="h-4 w-4 mr-2" />
-                        {isScheduled ? "Scheduling..." : "Sending..."}
-                      </>
-                    ) : isScheduled ? (
-                      <>
-                        <Clock className="h-4 w-4 mr-2" />
-                        Schedule
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Send
-                      </>
-                    )}
-                  </Button>
-                </>
-              )}
-            </DialogFooter>
-          </>
+            {/* Error */}
+            {error && (
+              <div className="px-4 py-3 bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400 border-t">
+                {error}
+              </div>
+            )}
+
+          </div>
         )}
       </DialogContent>
     </Dialog>

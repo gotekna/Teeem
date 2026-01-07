@@ -67,6 +67,9 @@ export interface HoldState {
   heldBy?: string;
 }
 
+/**
+ * Task for canvas rendering
+ */
 export interface GanttTask {
   id: string;
   name: string;
@@ -75,11 +78,17 @@ export interface GanttTask {
   progress?: number;
   status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold' | 'at-risk';
   locked?: 'supplierConfirmed' | 'started' | 'manuallyPositioned';
+  /** Predecessor task IDs (optional - used for dependency tracking) */
   predecessorIds?: string[];
   /** IDs of broken dependencies (predecessor moved/deleted but link preserved) */
   brokenPredecessorIds?: string[];
   supplierId?: number;
   supplierName?: string;
+  /** PO fields for display to the right of task bars */
+  purchaseOrderId?: number;
+  purchaseOrderNumber?: string;
+  /** Whether this task requires a PO (controls right-side label visibility) */
+  poRequired?: boolean;
   /** Task shape for visual differentiation (order/call tasks show as diamonds, photo tasks show camera icon) */
   shape?: 'task' | 'milestone' | 'order' | 'call' | 'photo';
   /** Hold state for paused tasks */
@@ -141,6 +150,10 @@ export interface GanttColors {
   headerText: string;
   selectedRow: string;
   hoverRow: string;
+  headerRowBackground: string;  // Amber background for header/summary task rows
+  childRowBackground: string;   // Lighter amber background for child rows in selected group
+  borderColor: string;
+  textColor: string;
 }
 
 export interface GanttState {
@@ -371,6 +384,10 @@ const defaultLightColors: GanttColors = {
   headerText: CHART_COLORS.light.headerText,
   selectedRow: CHART_COLORS.light.selectedRow,
   hoverRow: CHART_COLORS.light.hoverRow,
+  headerRowBackground: CHART_COLORS.light.headerRowBackground,
+  childRowBackground: CHART_COLORS.light.childRowBackground,
+  borderColor: CHART_COLORS.light.borderColor,
+  textColor: CHART_COLORS.light.textColor,
 };
 
 // SSoT: Uses CHART_COLORS and GANTT_COLORS from @/lib/constants/color-constants
@@ -392,11 +409,15 @@ const defaultDarkColors: GanttColors = {
   headerText: CHART_COLORS.dark.headerText,
   selectedRow: CHART_COLORS.dark.selectedRow,
   hoverRow: CHART_COLORS.dark.hoverRow,
+  headerRowBackground: CHART_COLORS.dark.headerRowBackground,
+  childRowBackground: CHART_COLORS.dark.childRowBackground,
+  borderColor: CHART_COLORS.dark.borderColor,
+  textColor: CHART_COLORS.dark.textColor,
 };
 
 const defaultConfig: GanttConfig = {
   rowHeight: 28,
-  headerHeight: 50,
+  headerHeight: 49.5,
   taskBarHeight: 18,
   taskBarPadding: 5,
   dayWidth: 25,  // Matches preferred zoom level
@@ -422,6 +443,7 @@ export class GanttCanvas {
   private isDirty: boolean = true;
   private containerWidth: number = 0;
   private containerHeight: number = 0;
+  private _renderCount: number = 0; // Debug: count renders for logging
 
   // Drag state
   private isDragging: boolean = false;
@@ -470,6 +492,8 @@ export class GanttCanvas {
   private dependencyFromTask: GanttTask | null = null;
   private dependencyFromEdge: 'start' | 'end' | null = null;
   private dependencyTargetTask: GanttTask | null = null;
+  private dependencyPopupVisible: boolean = false;  // Track if popup is shown - don't hide while true
+  private dependencyPopupTimer: number | null = null;  // Delay timer before showing popup
   private dependencyLineEndX: number = 0;
   private dependencyLineEndY: number = 0;
   private connectorRadius: number = 5;
@@ -500,8 +524,11 @@ export class GanttCanvas {
   private contextMenuItems: ContextMenuItem[] = [];
   private contextMenuHoveredItem: string | null = null;
 
+  // Selected group header ID (passed from React component for header highlighting)
+  private selectedGroupHeaderIdFromParent: string | null = null;
+
   // Dependency lines visibility
-  private dependenciesVisible: boolean = true;
+  private dependenciesVisible: boolean = false; // Off by default
 
   // Minimap state
   private minimapVisible: boolean = true;
@@ -544,6 +571,8 @@ export class GanttCanvas {
   private onTaskDelete?: (task: GanttTask) => void;
   private onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
   private onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
+  private onDependencyPopupShow?: (sourceTask: GanttTask, targetTask: GanttTask, sourceEdge: 'start' | 'end', x: number, y: number) => void;
+  private onDependencyPopupHide?: () => void;
   private onUndoStateChange?: (canUndo: boolean, canRedo: boolean) => void;
   private onContextMenuAction?: (actionId: string, task: GanttTask | null) => void;
   private onTaskUpdate?: (task: GanttTask) => void;
@@ -563,12 +592,26 @@ export class GanttCanvas {
   }
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
+    console.log('[GanttCanvas] 🎨 Constructor called', {
+      container,
+      containerWidth: container.offsetWidth,
+      containerHeight: container.offsetHeight,
+      options
+    });
+
     // Create canvas element
     this.canvas = document.createElement('canvas');
     this.canvas.style.display = 'block';
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
     container.appendChild(this.canvas);
+
+    console.log('[GanttCanvas] 📐 Canvas element created and appended', {
+      canvasWidth: this.canvas.width,
+      canvasHeight: this.canvas.height,
+      styleWidth: this.canvas.style.width,
+      styleHeight: this.canvas.style.height
+    });
 
     // Get 2D context
     const ctx = this.canvas.getContext('2d');
@@ -782,6 +825,13 @@ export class GanttCanvas {
    * Set the tasks to display
    */
   setTasks(tasks: GanttTask[]): void {
+    console.log('[GanttCanvas] 📋 setTasks called', {
+      tasksCount: tasks.length,
+      firstTask: tasks[0],
+      rowHeight: this.config.rowHeight,
+      contentHeight: tasks.length * this.config.rowHeight
+    });
+
     this.state.tasks = tasks;
     this.markDirty();
 
@@ -820,6 +870,15 @@ export class GanttCanvas {
   }
 
   /**
+   * Set the selected group header ID from the parent component
+   * Used for highlighting header rows when a child task is selected
+   */
+  setSelectedGroupHeaderId(headerId: string | null): void {
+    this.selectedGroupHeaderIdFromParent = headerId;
+    this.markDirty();
+  }
+
+  /**
    * Set the dependencies between tasks
    */
   setDependencies(dependencies: GanttDependency[]): void {
@@ -835,6 +894,94 @@ export class GanttCanvas {
 
     // Recalculate critical path if enabled
     this.recalculateCriticalPath();
+
+    // Auto-float unlocked tasks to respect predecessor constraints
+    // This moves tasks to their earliest valid start date
+    this.autoScheduleAll();
+
+    // Detect broken dependencies (only for LOCKED tasks that still violate constraints)
+    this.autoDetectBrokenDependencies();
+  }
+
+  /**
+   * Automatically detect and mark broken dependencies
+   * Called after tasks or dependencies are set
+   */
+  private autoDetectBrokenDependencies(): void {
+    // Clear existing broken dependency markers
+    this.state.tasks.forEach(task => {
+      task.brokenPredecessorIds = undefined;
+    });
+
+    // Run validation and mark broken dependencies
+    const broken = this.validateDependencies();
+    broken.forEach(({ taskId, brokenPredecessorId }) => {
+      const task = this.state.tasks.find(t => t.id === taskId);
+      if (task) {
+        if (!task.brokenPredecessorIds) {
+          task.brokenPredecessorIds = [];
+        }
+        if (!task.brokenPredecessorIds.includes(brokenPredecessorId)) {
+          task.brokenPredecessorIds.push(brokenPredecessorId);
+        }
+      }
+    });
+
+    if (broken.length > 0) {
+      this.markDirty();
+    }
+  }
+
+  // ============================================================================
+  // SSoT: Dependency Helpers (derive predecessor/successor info from dependencies array)
+  // These replace direct access to task.predecessorIds which is being deprecated
+  // ============================================================================
+
+  /**
+   * Get predecessor task IDs for a given task (derived from dependencies array)
+   * SSoT: Use this instead of task.predecessorIds
+   */
+  getPredecessorIds(taskId: string): string[] {
+    return this.state.dependencies
+      .filter(d => d.toId === taskId)
+      .map(d => d.fromId);
+  }
+
+  /**
+   * Get successor task IDs for a given task
+   */
+  getSuccessorIds(taskId: string): string[] {
+    return this.state.dependencies
+      .filter(d => d.fromId === taskId)
+      .map(d => d.toId);
+  }
+
+  /**
+   * Check if a task has any predecessors
+   */
+  hasPredecessors(taskId: string): boolean {
+    return this.state.dependencies.some(d => d.toId === taskId);
+  }
+
+  /**
+   * Check if a task has any successors
+   */
+  hasSuccessors(taskId: string): boolean {
+    return this.state.dependencies.some(d => d.fromId === taskId);
+  }
+
+  /**
+   * Get predecessor count for a task
+   */
+  getPredecessorCount(taskId: string): number {
+    return this.state.dependencies.filter(d => d.toId === taskId).length;
+  }
+
+  /**
+   * Get successor count for a task
+   */
+  getSuccessorCount(taskId: string): number {
+    return this.state.dependencies.filter(d => d.fromId === taskId).length;
   }
 
   /**
@@ -951,6 +1098,15 @@ export class GanttCanvas {
       this.startDependencyFlash(taskId);
     }
 
+    this.markDirty();
+  }
+
+  /**
+   * Scroll to a specific Y position (vertical only, preserves horizontal)
+   */
+  scrollToY(y: number): void {
+    const currentX = this.viewportState.scrollX;
+    this.viewport.scrollTo(currentX, Math.max(0, y));
     this.markDirty();
   }
 
@@ -1168,6 +1324,42 @@ export class GanttCanvas {
 
   onDependencyCreateHandler(handler: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void): void {
     this.onDependencyCreate = handler;
+  }
+
+  onDependencyPopupShowHandler(handler: (sourceTask: GanttTask, targetTask: GanttTask, sourceEdge: 'start' | 'end', x: number, y: number) => void): void {
+    this.onDependencyPopupShow = handler;
+  }
+
+  onDependencyPopupHideHandler(handler: () => void): void {
+    this.onDependencyPopupHide = handler;
+  }
+
+  // Public method to complete dependency creation from popup button click
+  completeDependencyFromPopup(type: 'FS' | 'FF'): void {
+    if (this.dependencyFromTask && this.dependencyTargetTask) {
+      this.onDependencyCreate?.(this.dependencyFromTask.id, this.dependencyTargetTask.id, type);
+    }
+    // Reset state
+    this.cancelDependencyDrag();
+  }
+
+  // Cancel dependency drag (hide popup, reset state)
+  cancelDependencyDrag(): void {
+    this.isCreatingDependency = false;
+    this.dependencyFromTask = null;
+    this.dependencyFromEdge = null;
+    this.dependencyTargetTask = null;
+    this.dependencyPopupVisible = false;
+    // Clear any pending popup timer
+    if (this.dependencyPopupTimer) {
+      window.clearTimeout(this.dependencyPopupTimer);
+      this.dependencyPopupTimer = null;
+    }
+    this.dependencyLineEndX = 0;
+    this.dependencyLineEndY = 0;
+    this.onDependencyPopupHide?.();
+    this.canvas.style.cursor = 'default';
+    this.markDirty();
   }
 
   onUndoStateChangeHandler(handler: (canUndo: boolean, canRedo: boolean) => void): void {
@@ -1710,11 +1902,12 @@ export class GanttCanvas {
 
     // Check predecessor constraints
     const task = this.state.tasks.find(t => t.id === taskId);
-    if (task && task.predecessorIds) {
+    const predecessorIds = this.getPredecessorIds(taskId);
+    if (task && predecessorIds.length > 0) {
       const proposed = new Date(proposedStartDate);
       proposed.setHours(0, 0, 0, 0);
 
-      for (const predId of task.predecessorIds) {
+      for (const predId of predecessorIds) {
         const predecessor = this.state.tasks.find(t => t.id === predId);
         if (!predecessor) continue;
 
@@ -2089,18 +2282,32 @@ export class GanttCanvas {
         return;
       }
 
-      // Check date constraint violations based on dependency type
+      // SSoT: Only LOCKED tasks can be "broken"
+      // Unlocked tasks should float to correct date, not be flagged as broken
+      // A task is locked if: confirm, supplier_confirm, finance_approved, or is_completed
+      const isToTaskLocked = toTask.locked ||
+        toTask.rowData?.confirm ||
+        toTask.rowData?.supplier_confirm ||
+        toTask.rowData?.finance_approved ||
+        toTask.rowData?.is_completed;
+
+      if (!isToTaskLocked) {
+        return; // Unlocked task - can float to correct date, not broken
+      }
+
+      // Check date constraint violations based on dependency type (LOCKED tasks only)
       const lag = dep.lag || 0;
       let isViolated = false;
       let reason = '';
 
       switch (dep.type) {
-        case 'FS': // Finish-to-Start: successor must start after predecessor ends
+        case 'FS': // Finish-to-Start: successor must start on or after predecessor ends
           const minStartDate = new Date(fromTask.endDate);
-          minStartDate.setDate(minStartDate.getDate() + lag + 1);
+          minStartDate.setDate(minStartDate.getDate() + lag);
           if (toTask.startDate < minStartDate) {
             isViolated = true;
-            reason = `Starts before predecessor finishes (needs +${Math.ceil((minStartDate.getTime() - toTask.startDate.getTime()) / (24*60*60*1000))} days)`;
+            const daysNeeded = Math.ceil((minStartDate.getTime() - toTask.startDate.getTime()) / (24*60*60*1000));
+            reason = `Starts ${daysNeeded} day${daysNeeded > 1 ? 's' : ''} before predecessor finishes`;
           }
           break;
 
@@ -2246,9 +2453,20 @@ export class GanttCanvas {
    */
   resize(): void {
     const parent = this.canvas.parentElement;
-    if (!parent) return;
+    if (!parent) {
+      console.warn('[GanttCanvas] ⚠️  resize() called but canvas has no parent');
+      return;
+    }
 
     const rect = parent.getBoundingClientRect();
+    console.log('[GanttCanvas] 📐 resize() called', {
+      parentWidth: rect.width,
+      parentHeight: rect.height,
+      dpr: this.dpr,
+      canvasWidth: rect.width * this.dpr,
+      canvasHeight: rect.height * this.dpr
+    });
+
     this.containerWidth = rect.width;
     this.containerHeight = rect.height;
 
@@ -2541,6 +2759,19 @@ export class GanttCanvas {
   }
 
   private render(): void {
+    // Debug log every 60 frames (~1 second at 60fps)
+    if (!this._renderCount) this._renderCount = 0;
+    this._renderCount++;
+    if (this._renderCount % 60 === 1) {
+      console.log('[GanttCanvas] 🎬 render() called', {
+        tasksCount: this.state.tasks.length,
+        containerWidth: this.containerWidth,
+        containerHeight: this.containerHeight,
+        headerHeight: this.config.headerHeight,
+        scrollY: this.viewport.getState().scrollY
+      });
+    }
+
     // Clear canvas
     this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
 
@@ -2557,13 +2788,13 @@ export class GanttCanvas {
 
     // Draw layers in order
     this.renderer.drawBackground(this.containerWidth, this.containerHeight);
-    this.renderer.drawGrid(this.containerWidth, this.containerHeight, this.state.tasks.length, this.calendar);
-    this.renderer.drawTimeScale(this.containerWidth);
-    this.renderer.drawTodayMarker(this.containerHeight);
+    // Draw weekends/holidays BEFORE selections (so they're below)
+    this.renderer.drawWeekendsAndHolidays(this.containerWidth, this.containerHeight, this.calendar);
 
     // CLIP: Prevent task bars, baselines, and dependencies from rendering in header area
     this.ctx.save();
     this.ctx.beginPath();
+    // Clip below the header (fixed position at top)
     this.ctx.rect(0, this.config.headerHeight, this.containerWidth, this.containerHeight - this.config.headerHeight);
     this.ctx.clip();
 
@@ -2572,7 +2803,16 @@ export class GanttCanvas {
       this.renderer.drawBaselines(this.state.tasks, this.baselineData, this.containerHeight);
     }
 
-    this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks);
+    // Use selected group header ID from parent component (for amber highlighting)
+    const selectedGroupHeaderId = this.selectedGroupHeaderIdFromParent;
+
+    this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks, selectedGroupHeaderId);
+
+    // Draw weekend/holiday overlays on amber rows (darker amber shades)
+    this.renderer.drawAmberRowWeekendsAndHolidays(this.state.tasks, this.containerWidth, selectedGroupHeaderId, this.calendar);
+
+    // Draw horizontal grid lines AFTER task bars so they appear on top of selections
+    this.renderer.drawHorizontalGridLines(this.containerWidth, this.containerHeight, this.state.tasks.length);
 
     // Draw dependency lines
     // When toggle is OFF, still show highlighted deps for selected task (black/yellow & black/white)
@@ -2594,7 +2834,8 @@ export class GanttCanvas {
       this.renderer.drawDragPreview(
         this.dragTask,
         this.dragCurrentDate,
-        this.state.tasks.indexOf(this.dragTask)
+        this.state.tasks.indexOf(this.dragTask),
+        this.getPredecessorCount(this.dragTask.id)  // SSoT: pass predecessor count
       );
     }
 
@@ -2623,6 +2864,12 @@ export class GanttCanvas {
     }
 
     // RESTORE: End clipping region for task area
+    this.ctx.restore();
+
+    // Draw sticky header AFTER restore (so it's always on top, unclipped)
+    this.ctx.save();
+    this.renderer.drawTimeScale(this.containerWidth, this.calendar);
+    this.renderer.drawTodayMarker(this.containerHeight);
     this.ctx.restore();
 
     // Draw selection count badge
@@ -2821,24 +3068,25 @@ export class GanttCanvas {
 
     // Handle dependency creation completion
     if (this.isCreatingDependency && this.dependencyFromTask && this.dependencyFromEdge) {
-      // Check if we dropped on a target task
+      // If popup handlers are registered, user must drop onto Start/Finish button
+      // If we get here (canvas received mouseUp), it means they released outside the popup buttons
+      if (this.onDependencyPopupShow) {
+        // User released but not on a popup button - cancel the drag
+        this.cancelDependencyDrag();
+        return;
+      }
+
+      // Fallback: Auto-determine target edge based on drop position (no popup)
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
 
       if (targetTask && targetTask.id !== this.dependencyFromTask.id) {
-        // Determine the dependency type based on which connectors were used
-        // fromEdge: 'start' or 'end' - which connector on the source task
-        // We need to determine which connector on the target we're closest to
         const targetStartX = this.viewport.dateToX(targetTask.startDate);
         const targetEndX = this.viewport.dateToX(targetTask.endDate);
         const distToStart = Math.abs(e.offsetX - targetStartX);
         const distToEnd = Math.abs(e.offsetX - targetEndX);
         const targetEdge = distToStart < distToEnd ? 'start' : 'end';
 
-        // Determine dependency type:
-        // FS = from.end -> to.start (Finish-to-Start)
-        // SS = from.start -> to.start (Start-to-Start)
-        // FF = from.end -> to.end (Finish-to-Finish)
-        // SF = from.start -> to.end (Start-to-Finish)
+        // Determine dependency type from source edge + target edge
         let depType: 'FS' | 'SS' | 'FF' | 'SF';
         if (this.dependencyFromEdge === 'end') {
           depType = targetEdge === 'start' ? 'FS' : 'FF';
@@ -2846,17 +3094,12 @@ export class GanttCanvas {
           depType = targetEdge === 'start' ? 'SS' : 'SF';
         }
 
-        // Call the handler
+        // Call handler (will open dialog)
         this.onDependencyCreate?.(this.dependencyFromTask.id, targetTask.id, depType);
       }
 
       // Reset dependency creation state
-      this.isCreatingDependency = false;
-      this.dependencyFromTask = null;
-      this.dependencyFromEdge = null;
-      this.dependencyTargetTask = null;
-      this.canvas.style.cursor = 'default';
-      this.markDirty();
+      this.cancelDependencyDrag();
       return;
     }
 
@@ -2980,8 +3223,61 @@ export class GanttCanvas {
 
       // Check if hovering over a potential target task
       const targetTask = this.hitTest(e.offsetX, e.offsetY);
-      // Store the target for highlighting (only if different from source)
-      this.dependencyTargetTask = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
+      const validTarget = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
+
+      // Show popup with a small delay (200ms) so user can drag across tasks without popup appearing on each
+      // Popup only shows after hovering over a task for the delay period
+      if (this.onDependencyPopupShow) {
+        if (validTarget) {
+          // Check if we're over a NEW target (different from current)
+          if (this.dependencyTargetTask?.id !== validTarget.id) {
+            // Clear any existing timer
+            if (this.dependencyPopupTimer) {
+              window.clearTimeout(this.dependencyPopupTimer);
+              this.dependencyPopupTimer = null;
+            }
+            // Hide popup while moving between targets
+            if (this.dependencyPopupVisible) {
+              this.dependencyPopupVisible = false;
+              this.onDependencyPopupHide?.();
+            }
+            // Start timer for new target
+            this.dependencyTargetTask = validTarget;
+            const rect = this.canvas.getBoundingClientRect();
+            const popupX = rect.left + e.offsetX;
+            const popupY = rect.top + e.offsetY;
+
+            this.dependencyPopupTimer = window.setTimeout(() => {
+              // Only show if still over the same target
+              if (this.dependencyTargetTask?.id === validTarget.id && this.dependencyFromTask) {
+                this.dependencyPopupVisible = true;
+                this.onDependencyPopupShow!(
+                  this.dependencyFromTask,
+                  validTarget,
+                  this.dependencyFromEdge!,
+                  popupX,
+                  popupY
+                );
+              }
+            }, 200); // 200ms delay before popup appears
+          }
+          // If over same target and popup already visible, keep it in place (don't move)
+          // This makes it easier to click the buttons
+        } else {
+          // Not over a valid target - clear timer and hide popup
+          if (this.dependencyPopupTimer) {
+            window.clearTimeout(this.dependencyPopupTimer);
+            this.dependencyPopupTimer = null;
+          }
+          if (this.dependencyPopupVisible) {
+            this.dependencyPopupVisible = false;
+            this.dependencyTargetTask = null;
+            this.onDependencyPopupHide?.();
+          } else {
+            this.dependencyTargetTask = null;
+          }
+        }
+      }
 
       this.markDirty();
       return;
@@ -3680,39 +3976,35 @@ export class GanttCanvas {
   }
 
   private hitTest(x: number, y: number): GanttTask | null {
-    // Convert screen coordinates to world coordinates (Day 7 Optimization)
-    const world = this.screenToWorld(x, y);
+    // First: Check extended chevron area (ALWAYS check this for hover to work on chevrons)
+    // This must run before spatial index because spatial index doesn't include chevron padding
+    const adjustedY = y - this.config.headerHeight + this.viewportState.scrollY;
+    if (adjustedY >= 0) {
+      const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
+      if (rowIndex >= 0 && rowIndex < this.state.tasks.length) {
+        const task = this.state.tasks[rowIndex];
+        const taskStartX = this.viewport.dateToX(task.startDate);
+        const taskEndX = this.viewport.dateToX(task.endDate);
+        const dayWidth = this.viewport.getDayWidth();
+        const calculatedWidth = taskEndX - taskStartX;
+        const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
+        const actualEndX = taskStartX + taskWidth;
 
-    // Use SpatialIndex for O(1) hit testing
+        // Large chevron padding to keep hover active when moving toward chevrons
+        const chevronPadding = 50;
+        if (x >= taskStartX - chevronPadding && x <= actualEndX + chevronPadding) {
+          return task;
+        }
+      }
+    }
+
+    // Fallback: Use SpatialIndex for O(1) hit testing on task bar itself
+    const world = this.screenToWorld(x, y);
     const hits = this.spatialIndex.queryPoint(world.x, world.y);
 
     if (hits.length > 0) {
       const taskId = hits[0];
       return this.state.tasks.find(t => t.id === taskId) || null;
-    }
-
-    // Fallback: Direct row-based hit test if spatial index fails
-    // This ensures hover works even if spatial index gets out of sync (e.g., after zoom)
-    const adjustedY = y - this.config.headerHeight + this.viewportState.scrollY;
-    if (adjustedY < 0) return null;
-
-    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
-    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
-
-    const task = this.state.tasks[rowIndex];
-
-    // Check if x is within task bounds (plus connector dot area)
-    const taskStartX = this.viewport.dateToX(task.startDate);
-    const taskEndX = this.viewport.dateToX(task.endDate);
-    const dayWidth = this.viewport.getDayWidth();
-    const calculatedWidth = taskEndX - taskStartX;
-    const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
-    const actualEndX = taskStartX + taskWidth;
-
-    // Extend hit area by connector dot radius (5) + some padding to include dots at edges
-    const connectorPadding = this.connectorRadius + 5;
-    if (x >= taskStartX - connectorPadding && x <= actualEndX + connectorPadding) {
-      return task;
     }
 
     return null;
@@ -3767,8 +4059,8 @@ export class GanttCanvas {
   }
 
   /**
-   * Hit test for connector dots (for dependency creation)
-   * Returns which connector was clicked (start, end) or null
+   * Hit test for connector dot (for dependency creation)
+   * Only right chevron - returns 'end' edge or null
    */
   private hitTestConnector(x: number, y: number): { task: GanttTask; edge: 'start' | 'end' } | null {
     // Only check connectors for hovered task (chevrons only visible on hover)
@@ -3794,31 +4086,33 @@ export class GanttCanvas {
     const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
     const taskEndX = taskStartX + taskWidth;
 
-    // Chevron hit areas are OUTSIDE the bar (must match Renderer.drawConnectorDots)
-    // Chevron params: offset=6, width=8, height=12
+    // Chevron hit areas - MUCH LARGER than visual chevron for easy clicking
     const chevronOffset = 6;
     const chevronWidth = 8;
-    const chevronHeight = 12;
+    const hitPaddingX = 15;  // Large horizontal padding for easy clicking
 
-    // Check if within Y range of chevrons
-    if (y < centerY - chevronHeight / 2 - 5 || y > centerY + chevronHeight / 2 + 5) {
+    // Y range covers the full task bar height
+    const barBottom = barTop + this.config.taskBarHeight;
+
+    // Check if within Y range of task bar (full bar height is clickable)
+    if (y < barTop - 5 || y > barBottom + 5) {
       return null;
     }
 
-    // Start chevron is to the LEFT of the bar (from taskStartX-offset-chevronWidth to taskStartX-offset)
-    const startChevronLeft = taskStartX - chevronOffset - chevronWidth;
-    const startChevronRight = taskStartX - chevronOffset + 4; // Small overlap for easier clicking
+    // Start chevron is to the LEFT of the bar (drag from start = SS or SF)
+    // Hit area extends from well left of chevron to overlap slightly with bar start
+    const startChevronLeft = taskStartX - chevronOffset - chevronWidth - hitPaddingX;
+    const startChevronRight = taskStartX - chevronOffset + hitPaddingX + 5;  // Extra overlap
 
-    // End chevron is to the RIGHT of the bar (from taskEndX+offset to taskEndX+offset+chevronWidth)
-    const endChevronLeft = taskEndX + chevronOffset - 4; // Small overlap for easier clicking
-    const endChevronRight = taskEndX + chevronOffset + chevronWidth;
-
-    // Check if click is in start chevron area
     if (x >= startChevronLeft && x <= startChevronRight) {
       return { task, edge: 'start' };
     }
 
-    // Check if click is in end chevron area
+    // End chevron is to the RIGHT of the bar (drag from end = FS or FF)
+    // Hit area extends from overlap with bar end to well right of chevron
+    const endChevronLeft = taskEndX + chevronOffset - hitPaddingX - 5;  // Extra overlap
+    const endChevronRight = taskEndX + chevronOffset + chevronWidth + hitPaddingX;
+
     if (x >= endChevronLeft && x <= endChevronRight) {
       return { task, edge: 'end' };
     }
@@ -4025,11 +4319,10 @@ export class GanttCanvas {
       d => d.fromId !== taskId && d.toId !== taskId
     );
 
-    // Update predecessor lists on other tasks
+    // SSoT: Dependencies array is updated above
+    // getPredecessorIds() derives from dependencies, so no need to update task.predecessorIds
+    // Keep brokenPredecessorIds cleanup for UI purposes
     this.state.tasks.forEach(t => {
-      if (t.predecessorIds) {
-        t.predecessorIds = t.predecessorIds.filter(id => id !== taskId);
-      }
       if (t.brokenPredecessorIds) {
         t.brokenPredecessorIds = t.brokenPredecessorIds.filter(id => id !== taskId);
       }
@@ -4092,8 +4385,8 @@ export class GanttCanvas {
       status: 'not-started',
       locked: undefined,
       holdState: undefined,
-      predecessorIds: undefined,
       brokenPredecessorIds: undefined,
+      // Note: Dependencies are NOT copied - new task has no predecessors (SSoT: dependencies array)
     };
 
     const originalIndex = this.state.tasks.indexOf(original);
@@ -4387,6 +4680,14 @@ export class GanttCanvas {
   }
 
   /**
+   * Set hovered task (for external hover sync)
+   */
+  setHoveredTask(taskId: string | null): void {
+    this.state.hoveredTaskId = taskId;
+    this.markDirty();
+  }
+
+  /**
    * Invert selection
    */
   invertSelection(): void {
@@ -4435,9 +4736,10 @@ export class GanttCanvas {
 
   /**
    * Find tasks with no predecessors (starting tasks)
+   * SSoT: Uses dependencies array via helper method
    */
   findStartingTasks(): GanttTask[] {
-    return this.state.tasks.filter(t => !t.predecessorIds || t.predecessorIds.length === 0);
+    return this.state.tasks.filter(t => !this.hasPredecessors(t.id));
   }
 
   /**
@@ -4840,6 +5142,9 @@ export class GanttCanvas {
     const task = this.getTask(taskId);
     if (!task || task.locked) return;
 
+    // Skip header tasks - they span their children, shouldn't be independently scheduled
+    if (task.rowData?.header_gantt === 'Header') return;
+
     const earliestStart = this.calculateEarliestStart(taskId);
     const snappedStart = this.calendar.snapToWorkingDay(earliestStart, true);
 
@@ -4855,9 +5160,10 @@ export class GanttCanvas {
     let count = 0;
 
     // Sort by dependencies (process tasks with no/fewer predecessors first)
+    // SSoT: Use helper methods to derive predecessor count from dependencies array
     const sorted = [...this.state.tasks].sort((a, b) => {
-      const aPreds = a.predecessorIds?.length || 0;
-      const bPreds = b.predecessorIds?.length || 0;
+      const aPreds = this.getPredecessorCount(a.id);
+      const bPreds = this.getPredecessorCount(b.id);
       return aPreds - bPreds;
     });
 
@@ -5046,7 +5352,8 @@ export class GanttCanvas {
       const duration = this.getTaskDuration(task.id);
       const progress = task.progress || 0;
       const status = task.status || 'not-started';
-      const preds = task.predecessorIds?.join(', ') || '-';
+      const predecessorIds = this.getPredecessorIds(task.id);  // SSoT: derive from dependencies
+      const preds = predecessorIds.length > 0 ? predecessorIds.join(', ') : '-';
 
       html += `
         <tr>
@@ -5938,7 +6245,7 @@ export class GanttCanvas {
    * Show drag tooltip
    */
   showDragTooltip(task: GanttTask, x: number, y: number, newStartDate: Date): void {
-    const predecessors = task.predecessorIds?.length || 0;
+    const predecessors = this.getPredecessorCount(task.id);
     const successors = this.getSuccessors(task.id).length;
     const duration = this.getTaskDuration(task.id);
 
@@ -10213,13 +10520,11 @@ export class GanttCanvas {
 
       this.criticalPathTaskIds.add(taskId);
 
-      // Find predecessors
-      const task = this.state.tasks.find(t => t.id === taskId);
-      if (task?.predecessorIds) {
-        task.predecessorIds.forEach(predId => {
-          if (!visited.has(predId)) queue.push(predId);
-        });
-      }
+      // Find predecessors (SSoT: derive from dependencies array)
+      const predIds = this.getPredecessorIds(taskId);
+      predIds.forEach(predId => {
+        if (!visited.has(predId)) queue.push(predId);
+      });
     }
   }
 
@@ -10594,8 +10899,8 @@ export class GanttCanvas {
       if (currentId !== taskId) chain.push(currentId);
 
       if (direction === 'predecessors') {
-        const task = this.state.tasks.find(t => t.id ===currentId);
-        if (task?.predecessorIds) queue.push(...task.predecessorIds);
+        // SSoT: Derive from dependencies array
+        queue.push(...this.getPredecessorIds(currentId));
       } else {
         const successors = this.state.dependencies
           .filter(d => d.fromId === currentId)
@@ -11831,7 +12136,7 @@ export class GanttCanvas {
   // FEATURE 126-135: DEPENDENCY CALCULATION ENGINE
   // =========================================================================
   // Note: calculateEarliestStart and getTaskDuration already exist in the class.
-  // These methods use predecessorIds (not dependencies array) per GanttTask interface.
+  // SSoT: These methods now use dependencies array via helper methods (getPredecessorIds, etc.)
 
   // =========================================================================
   // FEATURE 136: AUTO-REMOVE CIRCULAR DEPENDENCIES ON SAVE
@@ -11918,11 +12223,10 @@ export class GanttCanvas {
 
       chain.push(id);
 
-      // Use predecessorIds (GanttTask interface)
-      if (task.predecessorIds) {
-        for (const predId of task.predecessorIds) {
-          traverse(predId);
-        }
+      // SSoT: Derive predecessors from dependencies array
+      const predIds = this.getPredecessorIds(id);
+      for (const predId of predIds) {
+        traverse(predId);
       }
     };
 
@@ -11938,14 +12242,15 @@ export class GanttCanvas {
     if (visited.has(taskId)) return [];
     visited.add(taskId);
 
-    const task = this.state.tasks.find(t => t.id === taskId);
-    if (!task || !task.predecessorIds || task.predecessorIds.length === 0) {
+    // SSoT: Derive from dependencies array
+    const predIds = this.getPredecessorIds(taskId);
+    if (predIds.length === 0) {
       return [taskId];
     }
 
     let longestSubPath: string[] = [];
 
-    for (const predId of task.predecessorIds) {
+    for (const predId of predIds) {
       const subPath = this.findLongestPathByPredecessors(predId, new Set(visited));
       if (subPath.length > longestSubPath.length) {
         longestSubPath = subPath;
@@ -11983,10 +12288,11 @@ export class GanttCanvas {
       };
     }
 
-    // Check predecessor constraints using predecessorIds (GanttTask interface)
+    // Check predecessor constraints using dependencies (SSoT)
     const earliestStart = this.calculateEarliestStart(taskId);
     if (earliestStart && newStartDate < earliestStart) {
-      const blockingPredId = task.predecessorIds?.find(predId => {
+      const predecessorIds = this.getPredecessorIds(taskId);
+      const blockingPredId = predecessorIds.find(predId => {
         const pred = this.state.tasks.find(t => t.id === predId);
         return pred && pred.endDate > newStartDate;
       });
@@ -12060,7 +12366,7 @@ export class GanttCanvas {
       id: `copy-${Date.now()}`, // Generate new unique ID
       startDate: newStartDate,
       endDate: new Date(newStartDate.getTime() + duration),
-      predecessorIds: [], // Don't copy dependencies
+      // Note: Dependencies are NOT copied - new task has no predecessors
     };
 
     this.state.tasks.push(copiedTask);
@@ -12430,7 +12736,7 @@ export class GanttCanvas {
     progress: number;
     status: string;
     locked: string | undefined;
-    predecessorIds: string[];
+    predecessorIds: string[];  // Derived from dependencies (SSoT)
     rowIndex: number;
   }> {
     return this.state.tasks.map((task, index) => ({
@@ -12442,7 +12748,7 @@ export class GanttCanvas {
       progress: task.progress || 0,
       status: task.status || 'not-started',
       locked: task.locked,
-      predecessorIds: task.predecessorIds || [],
+      predecessorIds: this.getPredecessorIds(task.id),  // SSoT: derive from dependencies
       rowIndex: index,
     }));
   }
@@ -12481,9 +12787,11 @@ export class GanttCanvas {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (!task) return null;
 
-    const predecessors = (task.predecessorIds || []).map(predId => {
-      const predTask = this.state.tasks.find(t => t.id === predId);
-      return predTask ? { task: predTask, type: 'FS', lag: 0 } : null;
+    // SSoT: Get predecessors from dependencies array
+    const predecessorDeps = this.state.dependencies.filter(d => d.toId === taskId);
+    const predecessors = predecessorDeps.map(dep => {
+      const predTask = this.state.tasks.find(t => t.id === dep.fromId);
+      return predTask ? { task: predTask, type: dep.type || 'FS', lag: dep.lag || 0 } : null;
     }).filter(Boolean) as Array<{ task: GanttTask; type: string; lag: number }>;
 
     // Available tasks exclude self and tasks that would create circular deps
@@ -12494,11 +12802,25 @@ export class GanttCanvas {
     return { task, predecessors, availableTasks };
   }
 
-  // Apply dependency changes from modal
+  // Apply dependency changes from modal - SSoT: update dependencies array
   applyDependencyChanges(taskId: string, predecessorIds: string[]): void {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (task) {
-      task.predecessorIds = predecessorIds;
+      // SSoT: Update dependencies array instead of task.predecessorIds
+      // Remove existing dependencies for this task
+      this.state.dependencies = this.state.dependencies.filter(d => d.toId !== taskId);
+
+      // Add new dependencies
+      for (const predId of predecessorIds) {
+        this.state.dependencies.push({
+          id: `${predId}-${taskId}`,
+          fromId: predId,
+          toId: taskId,
+          type: 'FS',
+          lag: 0
+        });
+      }
+
       this.dependencyEditorTaskId = null;
       this.markDirty();
     }
@@ -12959,8 +13281,10 @@ export class GanttCanvas {
   }
 
   private formatPredecessorsForExport(task: GanttTask): string {
-    if (!task.predecessorIds || task.predecessorIds.length === 0) return '';
-    return task.predecessorIds.map(predId => {
+    // SSoT: Get predecessors from dependencies array
+    const predecessorIds = this.getPredecessorIds(task.id);
+    if (predecessorIds.length === 0) return '';
+    return predecessorIds.map(predId => {
       const predTask = this.state.tasks.find(t => t.id === predId);
       if (!predTask) return predId;
       const index = this.state.tasks.indexOf(predTask);
@@ -12975,13 +13299,17 @@ export class GanttCanvas {
   }> {
     const errors: Array<{ row: number; message: string }> = [];
     const importedTasks: GanttTask[] = [];
+    const pendingDependencies: Array<{ taskId: string; predecessorIds: string[] }> = [];
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       try {
-        const task = this.parseExcelRow(row, i + 1);
-        if (task) {
-          importedTasks.push(task);
+        const result = this.parseExcelRow(row, i + 1);
+        if (result) {
+          importedTasks.push(result.task);
+          if (result.predecessorIds.length > 0) {
+            pendingDependencies.push({ taskId: result.task.id, predecessorIds: result.predecessorIds });
+          }
         }
       } catch (error) {
         errors.push({
@@ -12994,12 +13322,26 @@ export class GanttCanvas {
     // Add imported tasks
     this.createStateSnapshot();
     this.state.tasks.push(...importedTasks);
+
+    // SSoT: Create dependencies after tasks are added
+    for (const { taskId, predecessorIds } of pendingDependencies) {
+      for (const predId of predecessorIds) {
+        this.state.dependencies.push({
+          id: `${predId}-${taskId}`,
+          fromId: predId,
+          toId: taskId,
+          type: 'FS',
+          lag: 0
+        });
+      }
+    }
+
     this.markDirty();
 
     return { imported: importedTasks.length, errors };
   }
 
-  private parseExcelRow(row: Record<string, unknown>, rowNumber: number): GanttTask | null {
+  private parseExcelRow(row: Record<string, unknown>, rowNumber: number): { task: GanttTask; predecessorIds: string[] } | null {
     const name = row.name || row.Name || row.task_name || row['Task Name'];
     if (!name || typeof name !== 'string') {
       throw new Error(`Row ${rowNumber}: Missing task name`);
@@ -13038,18 +13380,19 @@ export class GanttCanvas {
       endDate = new Date(startDate.getTime() + durationDays * 86400000);
     }
 
-    // Parse predecessors
+    // Parse predecessors (SSoT: dependencies will be created separately)
     const predValue = row.predecessors || row.Predecessors || row.predecessor_ids;
     const predecessorIds = this.parsePredecessorString(predValue as string);
 
-    return {
+    const task: GanttTask = {
       id: (row.id as string) || `import-${Date.now()}-${rowNumber}`,
       name: name as string,
       startDate,
       endDate,
       progress: typeof row.progress === 'number' ? row.progress : 0,
-      predecessorIds,
     };
+
+    return { task, predecessorIds };
   }
 
   private parsePredecessorString(value: unknown): string[] {
@@ -13443,12 +13786,15 @@ export class GanttCanvas {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (!task) return [];
 
+    // SSoT: Check predecessors from dependencies array
+    const hasPredecessors = this.hasPredecessors(taskId);
+
     return [
       { id: 'edit', label: 'Edit Task', icon: 'pencil' },
       { id: 'duplicate', label: 'Duplicate', icon: 'copy' },
       { id: 'divider1', type: 'divider' },
       { id: 'add-predecessor', label: 'Add Predecessor', icon: 'link' },
-      { id: 'remove-predecessors', label: 'Remove Predecessors', icon: 'unlink', disabled: !task.predecessorIds?.length },
+      { id: 'remove-predecessors', label: 'Remove Predecessors', icon: 'unlink', disabled: !hasPredecessors },
       { id: 'divider2', type: 'divider' },
       { id: 'lock', label: task.locked ? 'Unlock Task' : 'Lock Task', icon: task.locked ? 'unlock' : 'lock' },
       { id: 'divider3', type: 'divider' },
@@ -14455,11 +14801,12 @@ ${this.getAutomatedTestResults()}
   }
 
   private testDependencyCalculation(): { passed: boolean; message: string } {
-    // Find a task with dependencies
-    const taskWithDeps = this.state.tasks.find(t => t.predecessorIds && t.predecessorIds.length > 0);
+    // SSoT: Find a task with dependencies from dependencies array
+    const taskWithDeps = this.state.tasks.find(t => this.hasPredecessors(t.id));
     if (!taskWithDeps) return { passed: true, message: 'No dependencies to test' };
 
-    const predecessorId = taskWithDeps.predecessorIds![0];
+    const predecessorIds = this.getPredecessorIds(taskWithDeps.id);
+    const predecessorId = predecessorIds[0];
     const predecessor = this.state.tasks.find(t => t.id === predecessorId);
     if (!predecessor) return { passed: false, message: 'Predecessor not found' };
 

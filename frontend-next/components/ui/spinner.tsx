@@ -17,19 +17,39 @@ export const Spinner = ({
   ...props
 }: SpinnerProps) => {
   return (
-    <svg
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      viewBox="0 0 24 24"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      xmlns="http://www.w3.org/2000/svg"
-      className={cn("animate-spin stroke-muted-foreground", className)}
-      style={{ width: size, height: size, ...style }}
-      {...props}
+    <span
+      style={{
+        display: 'inline-block',
+        width: size,
+        height: size,
+        position: 'relative',
+        // Contain layout to prevent animation from causing CLS
+        contain: 'strict',
+      }}
     >
-      <path d="M12 3v3m6.366-.366-2.12 2.12M21 12h-3m.366 6.366-2.12-2.12M12 21v-3m-6.366.366 2.12-2.12M3 12h3m-.366-6.366 2.12 2.12" />
-    </svg>
+      <svg
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        viewBox="0 0 24 24"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        xmlns="http://www.w3.org/2000/svg"
+        className={cn("stroke-muted-foreground animate-spinner", className)}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: size,
+          height: size,
+          ...style
+        }}
+        // Use GPU-optimized spinner animation from Tailwind config (rotate3d)
+        // This prevents CLS by ensuring the animation runs on the compositor thread
+        {...props}
+      >
+        <path d="M12 3v3m6.366-.366-2.12 2.12M21 12h-3m.366 6.366-2.12-2.12M12 21v-3m-6.366.366 2.12-2.12M3 12h3m-.366-6.366 2.12 2.12" />
+      </svg>
+    </span>
   );
 };

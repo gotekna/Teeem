@@ -58,21 +58,16 @@ class SmHoldService
       )
 
       # 4. Create dependencies from hold task to all root tasks
+      # SSoT: Using predecessor_ids jsonb column (no more SmDependency table)
       root_tasks = construction.sm_tasks
                               .where.not(id: hold_task.id)
                               .where.not(is_hold_task: true)
-                              .left_joins(:predecessor_dependencies)
-                              .where(sm_dependencies: { id: nil })
+                              .where("predecessor_ids = '[]' OR predecessor_ids IS NULL")
 
       root_tasks.each do |root_task|
-        SmDependency.create!(
-          predecessor_task: hold_task,
-          successor_task: root_task,
-          dependency_type: "FS",
-          lag_days: 0,
-          active: true,
-          created_by: user
-        )
+        # Add hold task as predecessor
+        new_predecessor = { "id" => hold_task.task_number, "lag" => 0, "type" => "FS" }
+        root_task.update!(predecessor_ids: [new_predecessor])
       end
 
       # 5. Create hold log

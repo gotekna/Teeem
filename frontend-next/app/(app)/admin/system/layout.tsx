@@ -28,6 +28,8 @@ import {
   Settings2,
   Receipt,
   Box,
+  Bot,
+  FileSignature,
 } from "lucide-react";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
@@ -54,21 +56,21 @@ const MAIN_TABS = [
   { id: "ai-processing", label: "AI Processing", icon: Brain },
   { id: "xero-health", label: "Xero Health", icon: Activity },
   { id: "unreal-engine", label: "Unreal Engine", icon: Box },
+  { id: "agents", label: "Agents", icon: Bot },
+  { id: "signature-register", label: "Signature Register", icon: FileSignature },
 ];
 
 // Tabs that hide the header for more space
 const COMPACT_TABS = ["schedule-master"];
 
 // Full-page tabs that hide all navigation
-const FULL_PAGE_TABS = ["pdf-fields"];
+const FULL_PAGE_TABS = ["pdf-fields", "document-types"];
 
 export default function SystemAdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  useSetLayoutMode("full-height");
-
   const pathname = usePathname();
   const router = useRouter();
 
@@ -81,28 +83,36 @@ export default function SystemAdminLayout({
   const isCompactTab = COMPACT_TABS.includes(currentTab);
   const isFullPage = FULL_PAGE_TABS.includes(currentTab);
 
+  // Only set layout mode if NOT a full-page tab (those set their own mode)
+  useSetLayoutMode(isFullPage ? "fullscreen" : "full-height");
+
   const handleTabChange = (value: string) => {
     router.push(`/admin/system/${value}`);
   };
 
-  // Full-page mode for certain tabs (like PDF Fields)
+  // Full-page mode for certain tabs (like PDF Fields, Document Types)
   if (isFullPage) {
+    // Document types has its own back button in the page
+    const showMinimalHeader = currentTab !== "document-types";
+
     return (
       <div className="flex flex-col h-full -m-4 -mb-16">
-        {/* Minimal header with back button */}
-        <div className="shrink-0 px-2 py-0.5 border-b bg-background flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/admin/system/company")}
-            className="h-5 text-[10px] px-1"
-          >
-            ← Back
-          </Button>
-          <span className="text-[10px] text-muted-foreground">
-            {MAIN_TABS.find((t) => t.id === currentTab)?.label || currentTab}
-          </span>
-        </div>
+        {/* Minimal header with back button - hidden for document-types which has its own nav */}
+        {showMinimalHeader && (
+          <div className="shrink-0 px-2 py-0.5 border-b bg-background flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/admin/system/company")}
+              className="h-5 text-[10px] px-1"
+            >
+              ← Back
+            </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {MAIN_TABS.find((t) => t.id === currentTab)?.label || currentTab}
+            </span>
+          </div>
+        )}
         <div className="flex-1 overflow-hidden">{children}</div>
       </div>
     );
@@ -133,16 +143,6 @@ export default function SystemAdminLayout({
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
-                  ref={(el) => {
-                    // Auto-scroll active tab into view on mount
-                    if (isActive && el) {
-                      el.scrollIntoView({
-                        behavior: "smooth",
-                        block: "nearest",
-                        inline: "center",
-                      });
-                    }
-                  }}
                   className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 data-[state=active]:bg-background"
                 >
                   <Icon className="h-4 w-4" />
@@ -155,7 +155,8 @@ export default function SystemAdminLayout({
       )}
 
       {/* Content */}
-      <div className={`${isCompactTab ? "mt-0" : ""} flex-1 min-h-0 overflow-auto`}>
+      {/* SSoT: Compact tabs (schedule-master) handle their own overflow via TeeemTableView */}
+      <div className={`flex-1 min-h-0 ${isCompactTab ? "overflow-hidden" : "overflow-auto"}`}>
         {children}
       </div>
     </div>

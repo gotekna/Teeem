@@ -25,12 +25,12 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useAtom, useSetAtom } from "jotai";
 import {
   breadcrumbTrailAtom,
-  breadcrumbVisibleAtom,
   generateBreadcrumbId,
   MAX_TRAIL_LENGTH,
   type BreadcrumbItem,
 } from "@/lib/breadcrumb-atoms";
-import { resolveDisplayName, resolveIcon, isSameRoute, isDefaultView } from "@/lib/breadcrumb-utils";
+import { searchQueryAtom } from "@/lib/table-atoms";
+import { resolveDisplayName, resolveIcon, isSameRoute, isRelatedPath, buildBreadcrumbsFromUrl } from "@/lib/breadcrumb-utils";
 
 interface BreadcrumbContextType {
   /** Set a custom display name for the current page */
@@ -53,7 +53,7 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [trail, setTrail] = useAtom(breadcrumbTrailAtom);
-  const setVisible = useSetAtom(breadcrumbVisibleAtom);
+  const setSearchQuery = useSetAtom(searchQueryAtom);
 
   // Track previous pathname to detect changes
   const previousPathRef = useRef<string | null>(null);
@@ -89,16 +89,17 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
 
   /**
    * Listen for sidebar navigation events
-   * Resets the trail when user clicks sidebar
+   * Resets the trail and table state when user clicks sidebar
    */
   useEffect(() => {
     const handleSidebarNav = () => {
       resetTrail();
+      setSearchQuery('');  // Clear table search on sidebar navigation
     };
 
     window.addEventListener(SIDEBAR_NAVIGATION_EVENT, handleSidebarNav);
     return () => window.removeEventListener(SIDEBAR_NAVIGATION_EVENT, handleSidebarNav);
-  }, [resetTrail]);
+  }, [resetTrail, setSearchQuery]);
 
   /**
    * Track navigation changes
@@ -111,14 +112,9 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
     if (fullPath === previousPathRef.current) return;
     previousPathRef.current = fullPath;
 
-    // If resetting, add this as the first item of new trail (unless it's a default view)
+    // If resetting, add this as the first item of new trail
     if (isResettingRef.current) {
       isResettingRef.current = false;
-      // Don't add default views as the first item - they're implicit
-      if (isDefaultView(pathname)) {
-        setTrail([]);
-        return;
-      }
       const newItem: BreadcrumbItem = {
         id: generateBreadcrumbId(pathname),
         pathname,
@@ -147,13 +143,17 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
         return truncated;
       }
 
-      // Skip default views - they're implicit and clutter the breadcrumb
-      // e.g., /jobs/123/overview (overview is default), /jobs/123/schedule/setup (setup is default)
-      if (isDefaultView(pathname)) {
-        return prev;
+      // BACKLOAD: Rebuild trail from URL when stale or empty
+      // This handles: browser back button, direct links, external navigation
+      const isTrailStale = prev.length > 0 && !isRelatedPath(prev[prev.length - 1].pathname, pathname);
+      const isTrailEmpty = prev.length === 0;
+
+      if (isTrailStale || isTrailEmpty) {
+        // Trail doesn't match current location - rebuild from URL hierarchy
+        return buildBreadcrumbsFromUrl(pathname, searchParams);
       }
 
-      // New navigation - add to trail (tabs stack)
+      // Normal forward navigation - add to trail
       const newItem: BreadcrumbItem = {
         id: generateBreadcrumbId(pathname),
         pathname,

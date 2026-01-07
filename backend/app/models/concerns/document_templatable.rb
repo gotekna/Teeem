@@ -57,7 +57,12 @@
 #   {ProjectName}     - Project name
 #   {Category}        - Category name
 #   {CategoryCode}    - Category code
-#   {CertType}        - Certificate type
+#   {BA}              - Building Approval (short)
+#   {BuildingApproval} - Building Approval (long)
+#   {FIA}             - Final Inspection Certificate (short)
+#   {FinalInspectionCertificate} - Final Inspection Certificate (long)
+#   {Occ}             - Certificate of Occupancy (short)
+#   {CertificateOfOccupancy} - Certificate of Occupancy (long)
 #   {Consultant}      - Consultant name
 #   {Code}            - Generic code
 #   {Name}            - Generic name
@@ -233,8 +238,17 @@ module DocumentTemplatable
     # =============
     result.gsub!('{Category}', context[:category].to_s) if context[:category].present?
     result.gsub!('{CategoryCode}', context[:category_code].to_s) if context[:category_code].present?
-    result.gsub!('{CertType}', context[:cert_type].to_s) if context[:cert_type].present?
     result.gsub!('{Consultant}', context[:consultant].to_s) if context[:consultant].present?
+
+    # =============
+    # Certificate Type Tokens (static text placeholders)
+    # =============
+    result.gsub!('{BA}', 'BA')
+    result.gsub!('{BuildingApproval}', 'Building Approval')
+    result.gsub!('{FIA}', 'FIA')
+    result.gsub!('{FinalInspectionCertificate}', 'Final Inspection Certificate')
+    result.gsub!('{Occ}', 'Occ')
+    result.gsub!('{CertificateOfOccupancy}', 'Certificate of Occupancy')
 
     # =============
     # Generic Tokens

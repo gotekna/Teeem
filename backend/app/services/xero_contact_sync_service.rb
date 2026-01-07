@@ -496,12 +496,36 @@ class XeroContactSyncService
   end
 
   # Calculate similarity between two names (0.0 to 1.0)
+  # Handles exact matches, prefix matches, and fuzzy matches
   def calculate_name_similarity(name1, name2)
     return 1.0 if name1 == name2
 
-    # Use Levenshtein distance normalized by max length
-    distance = levenshtein_distance(name1, name2)
-    max_len = [ name1.length, name2.length ].max
+    # Normalize for comparison
+    n1 = name1.downcase.gsub(/\s+/, " ").strip
+    n2 = name2.downcase.gsub(/\s+/, " ").strip
+    return 1.0 if n1 == n2
+
+    shorter, longer = [n1, n2].sort_by(&:length)
+
+    # Prefix match: if shorter name is prefix of longer, high confidence
+    # e.g., "7 Eleven" is prefix of "7 Eleven - Service Station"
+    if longer.start_with?(shorter)
+      # Score based on how much of the longer string is matched
+      # Minimum 85% for any prefix match, up to 99% for near-complete matches
+      prefix_ratio = shorter.length.to_f / longer.length
+      return 0.85 + (prefix_ratio * 0.14)  # 85% to 99%
+    end
+
+    # Check if shorter appears anywhere in longer (substring match)
+    if longer.include?(shorter)
+      # Lower confidence than prefix, but still decent
+      prefix_ratio = shorter.length.to_f / longer.length
+      return 0.70 + (prefix_ratio * 0.15)  # 70% to 85%
+    end
+
+    # Fall back to Levenshtein distance for fuzzy matching
+    distance = levenshtein_distance(n1, n2)
+    max_len = [n1.length, n2.length].max
     return 0.0 if max_len.zero?
 
     1.0 - (distance.to_f / max_len)
@@ -587,10 +611,16 @@ class XeroContactSyncService
     updates = {}
 
     # Get field mappings from sync config
-    field_mappings = @sync_config&.field_mappings || SyncConfiguration::DEFAULT_FIELD_MAPPINGS
+    # Merge DEFAULT with database config so new fields added to DEFAULT are picked up
+    # Database config takes precedence over defaults for existing fields
+    field_mappings = SyncConfiguration::DEFAULT_FIELD_MAPPINGS.merge(@sync_config&.field_mappings || {})
 
     # Only import fields where direction is 'import' or 'bidirectional'
-    importable_fields = field_mappings.select { |_, dir| [ "import", "bidirectional" ].include?(dir) }.keys
+    # Note: field_mappings values can be either a Hash with "direction" key or a string
+    importable_fields = field_mappings.select { |_, config|
+      direction = config.is_a?(Hash) ? config["direction"] : config
+      [ "import", "bidirectional" ].include?(direction)
+    }.keys
 
     # Extract Xero contact types (Customer/Supplier) - can be both!
     # NOTE: Do NOT set roles field - "customer"/"supplier" are NOT valid TEEEM roles
@@ -601,15 +631,27 @@ class XeroContactSyncService
     xero_contact_types << "Supplier" if xero_contact["IsSupplier"] == true
     updates[:xero_contact_types] = xero_contact_types
 
-    # Determine if this is a company contact
+    # Determine if this is a company contact based on Xero data
     is_company = xero_contact_is_company?(xero_contact)
 
     # Apply field mappings
-    if importable_fields.include?("name")
+    # Note: Field mapping key is "display_name", not "name"
+    if importable_fields.include?("display_name")
       updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
-      updates[:entity_type] = is_company ? "company" : "person"
 
-      if is_company
+      # FRC: Only set entity_type if contact doesn't already have one set
+      # User's manual entity_type choice should be preserved (SSoT: user decision)
+      # This prevents Xero sync from overwriting "person" back to "company" when user corrects it
+      if teeem_contact.entity_type.blank?
+        updates[:entity_type] = is_company ? "company" : "person"
+      end
+
+      # Only update name fields if entity_type matches what we would set
+      # This prevents clearing first_name/last_name when user set entity_type to "person"
+      # but Xero thinks it's a company (because FirstName is blank in Xero)
+      effective_entity_type = teeem_contact.entity_type.presence || (is_company ? "company" : "person")
+
+      if %w[company trust].include?(effective_entity_type)
         updates[:first_name] = nil
         updates[:last_name] = nil
         updates[:company_name_or_trust] = xero_contact["Name"]
@@ -624,7 +666,8 @@ class XeroContactSyncService
       updates[:email] = xero_email if xero_email.present?
     end
 
-    if importable_fields.include?("abn")
+    # Note: Field mapping key is "tax_number", not "abn"
+    if importable_fields.include?("tax_number")
       updates[:abn] = normalize_tax_number(xero_contact["TaxNumber"]) if xero_contact["TaxNumber"].present?
     end
 
@@ -900,24 +943,62 @@ class XeroContactSyncService
       end
     end
 
-    new_contact = Contact.create!(contact_data.compact)
-    Rails.logger.info("Created TEEEM contact from Xero: #{xero_contact['Name']}")
+    # SSoT: For companies, use find_or_create_by! with DB constraint protection
+    # This prevents race conditions where concurrent syncs create duplicate contacts
+    # before the xero_link is saved. DB index idx_contacts_unique_company_name enforces uniqueness.
+    if is_company
+      new_contact = Contact.find_or_create_by!(
+        entity_type: "company",
+        display_name: contact_data[:display_name]&.strip
+      ) do |c|
+        # Only set these attributes if creating (not finding)
+        contact_data.compact.each { |k, v| c.send("#{k}=", v) if c.respond_to?("#{k}=") }
+      end
+      was_created = new_contact.previous_changes.key?("id")
+    else
+      # FRC: For persons, check for existing contact by email to prevent duplicates
+      # Multiple "John Smith" are valid, but same email = same person
+      email = contact_data[:email]&.strip&.downcase
+      existing_by_email = email.present? ? Contact.find_by("LOWER(email) = ? AND is_active = true", email) : nil
 
-    # Create the xero link
+      if existing_by_email
+        new_contact = existing_by_email
+        was_created = false
+        Rails.logger.info("[XeroSync] Found existing person by email: #{email} -> Contact ##{new_contact.id}")
+      else
+        new_contact = Contact.create!(contact_data.compact)
+        was_created = true
+      end
+    end
+
+    Rails.logger.info("#{was_created ? 'Created' : 'Found existing'} TEEEM contact from Xero: #{xero_contact['Name']}")
+
+    # Create the xero link (works for both new and existing contacts)
     create_or_update_xero_link(new_contact, xero_contact, tenant_id)
 
     # Sync contact persons from Xero
     sync_contact_persons(new_contact, xero_contact)
 
     # Log activity for new contact creation
-    ContactActivity.log_xero_sync(
-      contact: new_contact,
-      action: "created",
-      changes: {},
-      xero_data: xero_contact
-    )
+    if was_created
+      ContactActivity.log_xero_sync(
+        contact: new_contact,
+        action: "created",
+        changes: {},
+        xero_data: xero_contact
+      )
+    end
 
     new_contact
+  rescue ActiveRecord::RecordNotUnique => e
+    # DB constraint caught a duplicate (concurrent sync created it between find and create)
+    Rails.logger.warn("[XeroSync] Duplicate prevented by DB constraint, finding existing: #{contact_data[:display_name]}")
+    existing = Contact.find_by(entity_type: "company", display_name: contact_data[:display_name]&.strip, is_active: true)
+    if existing
+      create_or_update_xero_link(existing, xero_contact, tenant_id)
+      sync_contact_persons(existing, xero_contact)
+    end
+    existing
   rescue StandardError => e
     error_msg = "Failed to create TEEEM contact from Xero: #{e.message}"
     Rails.logger.error(error_msg)

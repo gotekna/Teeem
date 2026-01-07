@@ -44,6 +44,8 @@ interface HealthCheck {
   count: number;
   items?: HealthCheckItem[];
   action_path?: string;
+  auto_fixable?: boolean;
+  fix_type?: string;
 }
 
 /**
@@ -83,7 +85,7 @@ export function DataHealthWidget({
   const [error, setError] = useState<string | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [expanded, setExpanded] = useState(!compact);
-  const [expandedCheck, setExpandedCheck] = useState<number | null>(null);
+  const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
 
   // Update expanded state when compact prop changes
   useEffect(() => {
@@ -138,8 +140,8 @@ export function DataHealthWidget({
   };
 
   // Toggle check expansion
-  const toggleCheckExpansion = (checkId: number) => {
-    setExpandedCheck(expandedCheck === checkId ? null : checkId);
+  const toggleCheckExpansion = (checkKey: string) => {
+    setExpandedCheck(expandedCheck === checkKey ? null : checkKey);
   };
 
   // Handle item click
@@ -153,8 +155,11 @@ export function DataHealthWidget({
   const [fixingCheckName, setFixingCheckName] = useState<string | null>(null);
 
   // Check if a health check supports auto-fix
-  const isAutoFixable = (checkName?: string) => {
-    return checkName === "all_caps_names" || checkName === "all_lowercase_names";
+  const isAutoFixable = (check: HealthCheck) => {
+    // Backend-declared auto-fixable
+    if (check.auto_fixable) return true;
+    // Legacy contact name casing checks
+    return check.check_name === "all_caps_names" || check.check_name === "all_lowercase_names";
   };
 
   // Get fix type for auto-fix API
@@ -164,20 +169,28 @@ export function DataHealthWidget({
     return "all";
   };
 
-  // Handle auto-fix for name casing issues
+  // Handle auto-fix for health issues
   const handleAutoFix = async (check: HealthCheck) => {
     if (!check.items || check.items.length === 0) return;
-
-    const contactIds = check.items.map(item => item.id).filter(id => typeof id === "number");
-    if (contactIds.length === 0) return;
 
     setFixingCheckName(check.check_name || null);
 
     try {
-      await api.post("/api/v1/contacts/fix_name_casing", {
-        contact_ids: contactIds,
-        fix_type: getFixType(check.check_name),
-      });
+      // If check has fix_type from backend, use the foundation fix_health endpoint
+      if (check.fix_type && foundationId) {
+        await api.post(`/api/v1/foundations/${foundationId}/fix_health`, {
+          fix_type: check.fix_type,
+        });
+      } else {
+        // Legacy: contact name casing fixes
+        const contactIds = check.items.map(item => item.id).filter(id => typeof id === "number");
+        if (contactIds.length === 0) return;
+
+        await api.post("/api/v1/contacts/fix_name_casing", {
+          contact_ids: contactIds,
+          fix_type: getFixType(check.check_name),
+        });
+      }
 
       // Refresh health data after fix
       await loadHealthData();
@@ -294,20 +307,21 @@ export function DataHealthWidget({
           {/* Expanded Details */}
           <AccordionContent>
           <div className="border-t divide-y">
-            {allChecks.map((check) => {
+            {allChecks.map((check, checkIndex) => {
               const color = check.count > 0 ? getSeverityColor(check.severity) : "green";
-              const isExpanded = expandedCheck === check.id;
+              const checkKey = check.check_name || check.name || `check-${checkIndex}`;
+              const isExpanded = expandedCheck === checkKey;
               const hasItems = check.count > 0;
 
               return (
-                <div key={check.id}>
+                <div key={checkKey}>
                   {/* Check Row */}
                   <div
                     className={cn(
                       "px-4 py-3 flex items-center justify-between",
                       hasItems && "cursor-pointer hover:bg-muted/50"
                     )}
-                    onClick={() => hasItems && toggleCheckExpansion(check.id)}
+                    onClick={() => hasItems && toggleCheckExpansion(checkKey)}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {hasItems ? (
@@ -356,8 +370,8 @@ export function DataHealthWidget({
                           >
                             {check.count} {check.count === 1 ? "issue" : "issues"}
                           </span>
-                          {/* Auto-fix button for name casing checks */}
-                          {isAutoFixable(check.check_name) && (
+                          {/* Auto-fix button for fixable checks */}
+                          {isAutoFixable(check) && (
                             <Button
                               size="sm"
                               variant="outline"

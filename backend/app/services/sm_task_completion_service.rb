@@ -13,7 +13,7 @@
 class SmTaskCompletionService
   attr_reader :task, :user, :errors
 
-  SPAWN_TYPES = %w[photo scan office inspection_retry].freeze
+  SPAWN_TYPES = %w[photo scan office inspection_retry document_get].freeze
 
   def initialize(task, user: nil)
     @task = task
@@ -104,7 +104,146 @@ class SmTaskCompletionService
   end
 
   def spawn_follow_up_tasks
+    # Fire completion workflow if configured
+    fire_complete_workflow if task.complete_workflow_enabled? && task.complete_workflow_id.present?
+
+    # Spawn scan task (existing functionality)
     spawn_scan_task if task.spawn_scan_task_id.present?
+
+    # Generate certificates for document types that require auto-generation
+    generate_certificates if task.sm_task_document_types.any?
+
+    # Spawn GET tasks for linked document types
+    spawn_document_get_tasks if task.sm_task_document_types.any?
+  end
+
+  def fire_complete_workflow
+    workflow = task.complete_workflow
+    return unless workflow
+
+    Bpmn::EngineService.start_process(
+      process_id: workflow.id,
+      subject: task.job,
+      variables: {
+        task_id: task.id,
+        task_name: task.name,
+        task_number: task.task_number,
+        job_id: task.job_id,
+        job_code: task.job&.job_code,
+        completed_by_user_id: user&.id,
+        completed_at: Time.current.iso8601
+      },
+      triggered_by: "task_complete"
+    )
+
+    Rails.logger.info("[SmTaskCompletionService] Fired workflow '#{workflow.name}' for task #{task.id} (#{task.name})")
+  end
+
+  def spawn_document_get_tasks
+    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+
+    task.sm_task_document_types.includes(:document_type).each do |doc_type_link|
+      doc_type = doc_type_link.document_type
+      next unless doc_type
+
+      # Calculate start date using working days
+      lag_days = doc_type_link.lag_days || 0
+      start_date = calendar.add_working_days(task.completed_at.to_date, lag_days)
+
+      spawned = create_spawned_task(
+        name: "GET - #{doc_type.display_name || doc_type.name}",
+        description: "Collect document: #{doc_type.display_name || doc_type.name}",
+        spawn_type: "document_get",
+        duration_days: 1,
+        start_date: start_date,
+        end_date: start_date,
+        assigned_role: doc_type_link.assigned_role
+      )
+
+      log_spawn(spawned, "document_get", "parent_complete") if spawned
+    end
+  end
+
+  # Generate certificates for document types that have generates_certificate: true
+  # Creates signed PDF certificates using the job supervisor's signature
+  def generate_certificates
+    job = task.job
+    return unless job
+
+    supervisor = job.supervisor_user
+    unless supervisor&.can_sign_certificates?
+      Rails.logger.info("[SmTaskCompletionService] Skipping certificate generation - supervisor cannot sign (task #{task.id})")
+      return
+    end
+
+    task.sm_task_document_types.includes(:document_type).each do |doc_type_link|
+      doc_type = doc_type_link.document_type
+      next unless doc_type&.generates_certificate?
+      next unless doc_type.certificate_template.present?
+
+      begin
+        generate_certificate_for_document_type(job, doc_type, supervisor)
+      rescue StandardError => e
+        Rails.logger.error("[SmTaskCompletionService] Certificate generation failed for #{doc_type.name}: #{e.message}")
+        @errors << "Certificate generation failed for #{doc_type.name}: #{e.message}"
+      end
+    end
+  end
+
+  # Generate a single certificate for a document type
+  def generate_certificate_for_document_type(job, document_type, supervisor)
+    # Select the appropriate generator based on template
+    generator = case document_type.certificate_template
+                when "form_43"
+                  Form43CertificateGenerator.new(
+                    job: job,
+                    document_type: document_type,
+                    supervisor: supervisor
+                  )
+                else
+                  Rails.logger.warn("[SmTaskCompletionService] Unknown certificate template: #{document_type.certificate_template}")
+                  return
+                end
+
+    result = generator.generate
+
+    # Create JobDocument with the generated PDF
+    job_document = JobDocument.new(
+      job: job,
+      document_type: document_type,
+      file_name: result[:filename],
+      file_extension: "pdf",
+      file_size: result[:pdf_content].bytesize,
+      sharepoint_item_id: "generated_#{SecureRandom.uuid}",
+      source: "generated",
+      sync_status: "synced",
+      version_status: "signed",
+      signed_by: supervisor,
+      signed_at: result[:generated_at],
+      folder_path: document_type.target_folder || "Certificates"
+    )
+
+    # Attach the PDF content
+    job_document.file.attach(
+      io: StringIO.new(result[:pdf_content]),
+      filename: result[:filename],
+      content_type: "application/pdf"
+    )
+
+    job_document.save!
+
+    # Record signature usage in digital register
+    SignatureUsage.record!(
+      user: supervisor,
+      certificate_type: document_type.certificate_template,
+      document_name: result[:filename],
+      purpose: "#{document_type.certificate_template_display} - #{document_type.name}",
+      document_type: document_type,
+      job: job,
+      job_document: job_document
+    )
+
+    Rails.logger.info("[SmTaskCompletionService] Generated certificate: #{result[:filename]} for job #{job.id} (document #{job_document.id})")
   end
 
   def spawn_scan_task
@@ -122,8 +261,7 @@ class SmTaskCompletionService
       start_date: start_date,
       end_date: start_date + (scan_template.duration_days || 1).days,
       trade: scan_template.trade,
-      checklist_id: scan_template.checklist_id,
-      documentation_category_ids: scan_template.documentation_category_ids
+      checklist_id: scan_template.checklist_id
     )
     log_spawn(spawned, "scan", "parent_complete") if spawned
   end
