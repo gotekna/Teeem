@@ -788,7 +788,7 @@ module Api
           graph_client = MicrosoftAppGraphClient.new(credential)
 
           # Find TEEEM site dynamically (same pattern used elsewhere in codebase)
-          sites = graph_client.list_sites
+          sites = graph_client.list_sharepoint_sites(search: "TEEEM")
           teeem_site = sites.find { |s| s[:display_name]&.include?("TEEEM") || s[:name]&.include?("teeem") }
 
           unless teeem_site
