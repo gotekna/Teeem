@@ -148,8 +148,9 @@ class SmScheduleMasterTemplateCopyService
         complete_workflow_enabled: row.complete_workflow_enabled,
         complete_workflow_id: row.complete_workflow_id,
         # Start with template row start_date offset, will be calculated later
+        # For headers (duration 0), end_date = start_date to avoid validation error
         start_date: start_date,
-        end_date: @calendar.add_working_days(start_date, row.duration_days - 1),
+        end_date: row.duration_days <= 1 ? start_date : @calendar.add_working_days(start_date, row.duration_days - 1),
         # Audit
         created_by: user,
         updated_by: user
@@ -210,7 +211,8 @@ class SmScheduleMasterTemplateCopyService
       # Calculate earliest start based on predecessors
       earliest_start = calculate_earliest_start(task)
       task.start_date = earliest_start
-      task.end_date = @calendar.add_working_days(earliest_start, task.duration_days - 1)
+      # For headers (duration 0 or 1), end_date = start_date to avoid validation error
+      task.end_date = task.duration_days <= 1 ? earliest_start : @calendar.add_working_days(earliest_start, task.duration_days - 1)
       task.save!
     end
   end
