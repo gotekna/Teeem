@@ -31,7 +31,10 @@ class GanttDataService
   def initialize(records, options = {})
     @records = records
     @options = options
+    # filter_invisible (jobs): filter by has_linked_po? - task requires PO but no PO created
     @filter_invisible = options[:filter_invisible] || false
+    # filter_po_tasks (templates): filter by po_supplier_id.blank? - task requires PO but no supplier configured
+    @filter_po_tasks = options[:filter_po_tasks] || false
     # date_overrides: Hash of task_number => { start_date: Date, end_date: Date }
     # Used for templates where dates are calculated from dependencies, not stored
     # SSoT: Calculated by calculate_template_date_map using topological sort
@@ -53,7 +56,8 @@ class GanttDataService
   end
 
   def build_response
-    # Build lookup map: task_number -> row.id
+    # Build lookup map: task_number -> row.id from ALL records
+    # This ensures dependencies can reference any task, even filtered ones
     task_num_to_row_id = build_lookup_map
 
     # SSoT: Expand header dependencies to task dependencies BEFORE filtering
@@ -91,19 +95,32 @@ class GanttDataService
     @records.each_with_object({}) { |r, h| h[r.task_number] = r.id }
   end
 
-  # Filter out invisible tasks (po_required=true but no PO linked)
+  # Filter out invisible tasks based on mode:
+  # - filter_invisible (jobs): po_required=true but no PO linked (has_linked_po?)
+  # - filter_po_tasks (templates): po_required=true but no supplier configured (po_supplier_id.blank?)
   # Returns [visible_records, invisible_ids_set]
   def filter_records
-    return [@records, Set.new] unless @filter_invisible
+    return [@records, Set.new] unless @filter_invisible || @filter_po_tasks
 
     invisible_ids = Set.new
     visible_records = []
 
     @records.each do |record|
       po_required = record.po_required || false
-      has_po = record.respond_to?(:has_linked_po?) ? record.has_linked_po? : false
+      should_hide = false
 
-      if po_required && !has_po
+      if po_required
+        if @filter_po_tasks
+          # Template mode: hide if no supplier configured
+          should_hide = record.respond_to?(:po_supplier_id) && record.po_supplier_id.blank?
+        elsif @filter_invisible
+          # Job mode: hide if no PO linked
+          has_po = record.respond_to?(:has_linked_po?) ? record.has_linked_po? : false
+          should_hide = !has_po
+        end
+      end
+
+      if should_hide
         invisible_ids.add(record.id)
       else
         visible_records << record

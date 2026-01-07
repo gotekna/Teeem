@@ -867,11 +867,22 @@ export class UnifiedGanttCanvas {
   /** Update a task field */
   updateTaskField(taskId: string, field: string, value: unknown): void {
     const task = this.tasks.find((t) => t.id === taskId);
-    if (task && task.rowData) {
+    if (!task) return;
+
+    // Update rowData if exists
+    if (task.rowData) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (task.rowData as any)[field] = value;
-      this.markDirty();
     }
+
+    // For duration_days, also update the visual endDate
+    if (field === 'duration_days' && typeof value === 'number') {
+      const newEndDate = new Date(task.startDate);
+      newEndDate.setDate(newEndDate.getDate() + value - 1);
+      task.endDate = newEndDate;
+    }
+
+    this.markDirty();
   }
 
   /** Zoom in */
@@ -2298,20 +2309,12 @@ export class UnifiedGanttCanvas {
   private handleDoubleClick = (e: MouseEvent): void => {
     const x = e.offsetX;
     const y = e.offsetY;
-    console.log('[UnifiedGanttCanvas] handleDoubleClick at x:', x, 'y:', y, 'tableWidth:', this.tableWidth);
 
     // Skip header area
-    if (y < this.config.headerHeight) {
-      console.log('[UnifiedGanttCanvas] Double-click in header area, ignoring');
-      return;
-    }
+    if (y < this.config.headerHeight) return;
 
     const task = this.getTaskAtRow(y);
-    if (!task) {
-      console.log('[UnifiedGanttCanvas] No task found at row');
-      return;
-    }
-    console.log('[UnifiedGanttCanvas] Found task:', task.name);
+    if (!task) return;
 
     // Select the task first to show highlighting
     this.selectTask(task.id, { ctrl: false, shift: false });
@@ -2320,25 +2323,24 @@ export class UnifiedGanttCanvas {
     // Check if in table area
     if (x < this.tableWidth) {
       const column = this.getColumnAt(x);
-      console.log('[UnifiedGanttCanvas] Double-click in table area, column:', column?.id, 'task:', task.name);
 
       // Double-click on dependencies column → open dependency editor
       if (column?.id === 'dependencies') {
-        console.log('[UnifiedGanttCanvas] Opening dependency editor');
         this.callbacks.onDependencyClick?.(task, e);
         return;
       }
 
-      // Double-click on Days column → inline edit duration
-      if (column?.id === 'duration' || column?.field === 'duration_days') {
-        console.log('[UnifiedGanttCanvas] Opening inline duration editor');
+      // Double-click on Days column → inline edit duration (skip headers)
+      if ((column?.id === 'duration' || column?.field === 'duration_days') && !this.isHeaderTask(task)) {
         const columnX = this.getColumnStartX(column.id);
         const rowIndex = this.visibleTasks.indexOf(task);
         const cellY = this.config.headerHeight + rowIndex * this.config.rowHeight - this.scrollY;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
-        const currentValue = rowData?.duration_days ?? task.duration;
+        // Calculate duration from dates if not in rowData
+        const durationFromDates = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const currentValue = rowData?.duration_days ?? durationFromDates;
 
         this.callbacks.onCellEdit?.(task, column.id, 'duration_days', currentValue, {
           x: columnX,
@@ -3780,6 +3782,7 @@ export class UnifiedGanttCanvas {
 
     // Get first selected task for dependency highlighting
     const selectedTaskId = this.selectedTaskIds.size > 0 ? Array.from(this.selectedTaskIds)[0] : null;
+
 
     for (const dep of this.dependencies) {
       const fromIndex = taskIndexMap.get(dep.fromId);

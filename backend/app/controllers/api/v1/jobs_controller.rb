@@ -116,17 +116,57 @@ module Api
       end
 
       # GET /api/v1/jobs/for_select
-      # Lightweight endpoint for dropdowns - returns only id and name
+      # GET /api/v1/jobs/for_select?q=search_term
+      # Lightweight endpoint for dropdowns - searchable by job name, client name, or employee name
       def for_select
+        search_term = params[:q].present? ? "%#{params[:q].downcase}%" : nil
+
         jobs = Job.joins(:job_status)
-                  .where.not(job_status: { name: ["Lost - Pre Contract", "Lost - Contract", "Archived"] })
-                  .order(created_at: :desc)
-                  .limit(500)
-                  .pluck("jobs.id", "jobs.name")
+                  .includes(job_contacts: :contact)
+                  .where.not(job_statuses: { name: ["Lost - Pre Contract", "Lost - Contract", "Archived"] })
+
+        # Server-side search if query provided
+        if search_term
+          jobs = jobs.left_joins(job_contacts: :contact)
+                     .where(
+                       "LOWER(jobs.name) LIKE :q OR LOWER(contacts.display_name) LIKE :q OR LOWER(contacts.first_name) LIKE :q OR LOWER(contacts.last_name) LIKE :q",
+                       q: search_term
+                     )
+                     .distinct
+        end
+
+        jobs = jobs.order(created_at: :desc).limit(100)
 
         render json: {
           success: true,
-          jobs: jobs.map { |id, name| { id: id, name: name } }
+          jobs: jobs.map do |job|
+            client = job.job_contacts.find { |jc| jc.role == "client" }&.contact
+            employees = job.job_contacts
+                          .select { |jc| %w[coordinator estimator internal_sales site_coordinator supervisor].include?(jc.role) }
+                          .map { |jc| jc.contact&.display_name || "#{jc.contact&.first_name} #{jc.contact&.last_name}".strip }
+                          .compact
+                          .reject(&:blank?)
+
+            # Find which contact matched the search (for highlighting)
+            matched_contact = nil
+            if search_term
+              job.job_contacts.each do |jc|
+                contact_name = jc.contact&.display_name || "#{jc.contact&.first_name} #{jc.contact&.last_name}".strip
+                if contact_name.downcase.include?(params[:q].downcase)
+                  matched_contact = { name: contact_name, role: jc.role }
+                  break
+                end
+              end
+            end
+
+            {
+              id: job.id,
+              name: job.name,
+              client_name: client&.display_name || "#{client&.first_name} #{client&.last_name}".strip.presence,
+              employee_names: employees,
+              matched_contact: matched_contact
+            }
+          end
         }
       end
 

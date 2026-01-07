@@ -167,6 +167,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   // Handle input change for searchInTrigger mode
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    console.log('[ComboboxDropdown] handleInputChange:', value, 'onInputChange:', !!onInputChange);
     setInputValue(value);
     onInputChange?.(value);
     if (!open && value) {
@@ -299,20 +300,32 @@ export function ComboboxDropdown<T extends ComboboxItem>({
           setInputValue(""); // Clear search when closing
         }
       }}>
-        <PopoverTrigger asChild disabled={disabled || isLoading} className="w-full">
+        <PopoverTrigger asChild disabled={disabled} className="w-full">
           <div className="relative w-full">
             <input
               ref={inputRef}
               type="text"
               value={displayValue}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onFocus={() => {
-                setOpen(true);
-                setInputValue(""); // Clear to allow fresh search
+              onChange={(e) => {
+                console.log('[ComboboxDropdown] RAW onChange event:', e.target.value);
+                handleInputChange(e);
               }}
-              placeholder={placeholder as string ?? "Search..."}
-              disabled={disabled || isLoading}
+              onInput={(e) => {
+                console.log('[ComboboxDropdown] onInput event:', (e.target as HTMLInputElement).value);
+              }}
+              onKeyDown={(e) => {
+                console.log('[ComboboxDropdown] onKeyDown:', e.key);
+                handleKeyDown(e);
+              }}
+              onFocus={() => {
+                console.log('[ComboboxDropdown] onFocus, open was:', open);
+                if (!open) {
+                  setOpen(true);
+                  setInputValue(""); // Only clear when first opening
+                }
+              }}
+              placeholder={placeholder as string ?? "Type to search..."}
+              disabled={disabled}
               className={cn(
                 "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-8 text-sm shadow-sm transition-colors",
                 "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",

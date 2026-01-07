@@ -63,12 +63,19 @@ module Api
 
       # PATCH /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows/:id
       def update
+        Rails.logger.info "[SmScheduleMaster#update] Row ID: #{@row.id}, raw params: #{params.inspect}"
+        Rails.logger.info "[SmScheduleMaster#update] row_params: #{row_params.inspect}"
+        Rails.logger.info "[SmScheduleMaster#update] Before update - duration_days: #{@row.duration_days}"
+
         @row.updated_by = current_user
 
         # Auto-clear dependency_broken when predecessors are re-added
         clear_dependency_broken_if_needed
 
-        if @row.update(row_params)
+        result = @row.update(row_params)
+        Rails.logger.info "[SmScheduleMaster#update] After update - duration_days: #{@row.duration_days}, update result: #{result}"
+
+        if result
           # Reload to get fresh data after any updates
           @row.reload
 

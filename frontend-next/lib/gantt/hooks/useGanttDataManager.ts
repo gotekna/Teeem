@@ -333,6 +333,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const data = response.gantt_data || response;
       const rawRows = data.tasks || data.rows || [];
       const fetchedDeps = data.dependencies || [];
+      console.log('[GanttDataManager] API response - rows:', rawRows.length, 'deps:', fetchedDeps.length, 'isGanttData:', isGanttData);
+      if (fetchedDeps.length > 0) {
+        console.log('[GanttDataManager] Sample dep from API:', fetchedDeps[0]);
+      }
 
       // SSoT: Backend sorts gantt_data by (start_date, end_date, sequence_order) in GanttDataService
       // Only sort by sequence_order for Data View (rows endpoint), not Gantt view (gantt_data endpoint)
@@ -406,6 +410,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           }
         }
       }
+      console.log('[GanttDataManager] Setting dependencies:', convertedDeps.length);
       setDependencies(convertedDeps);
 
     } catch (err) {
@@ -1033,17 +1038,50 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     if (!apiConfig) return;
     console.log('[GanttDataManager] Duration changed via inline edit:', taskId, 'new duration:', newDuration);
 
+    // Optimistic update - update local state immediately (no screen flash)
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.id !== taskId) return task;
+
+      // Calculate new end date based on new duration
+      const newEndDate = new Date(task.startDate);
+      newEndDate.setDate(newEndDate.getDate() + newDuration - 1);
+
+      // Update rowData too for consistency
+      const updatedRowData = task.rowData ? { ...task.rowData, duration_days: newDuration } : undefined;
+
+      return {
+        ...task,
+        endDate: newEndDate,
+        rowData: updatedRowData,
+      };
+    }));
+
+    // Update rows state too (for consistency with rowData)
+    setRows(prevRows => prevRows.map(row => {
+      if (String(row.id) !== taskId) return row;
+      return { ...row, duration_days: newDuration };
+    }));
+
     try {
-      await api.patch(
-        apiConfig.updateUrl(taskId),
-        wrapPayload(apiConfig, { duration_days: newDuration })
-      );
+      const url = apiConfig.updateUrl(taskId);
+      const payload = wrapPayload(apiConfig, { duration_days: newDuration });
+      console.log('[GanttDataManager] Saving duration - URL:', url, 'Payload:', payload);
+
+      const result = await api.patch(url, payload) as { success: boolean; row: { duration_days: number } };
+      console.log('[GanttDataManager] Save result:', result);
+      console.log('[GanttDataManager] Response duration_days:', result?.row?.duration_days, '(expected:', newDuration, ')');
+
+      if (result?.row?.duration_days !== newDuration) {
+        console.error('[GanttDataManager] MISMATCH! Server returned different duration than what we sent!');
+      }
 
       toast({ title: 'Duration updated', description: `${newDuration} days` });
-      loadData();
+      // No loadData() - already updated optimistically
     } catch (error) {
       console.error('[GanttDataManager] Failed to save duration:', error);
       toast({ title: 'Error', description: 'Failed to update duration', variant: 'destructive' });
+      // On error, reload to restore correct state
+      loadData();
     }
   }, [apiConfig, loadData, toast]);
 

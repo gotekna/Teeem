@@ -40,18 +40,12 @@ module Api
         # This ensures the dependency chain is complete for accurate date calculations
         date_overrides = calculate_template_date_map(all_records)
 
-        # Filter out PO-required tasks without a supplier configured (unless show_all_po=true)
-        # This ensures incomplete PO tasks don't clutter the Gantt view
-        records = if params[:show_all_po] == "true"
-          puts "[gantt_data] show_all_po=true, NOT filtering"
-          all_records
-        else
-          filtered = all_records.reject { |r| r.po_required && r.po_supplier_id.blank? }
-          puts "[gantt_data] Filtered PO tasks: #{all_records.count} -> #{filtered.count}"
-          filtered
-        end
+        # SSoT: Pass ALL records to service, let service handle filtering
+        # This ensures the lookup map is complete for dependency rewiring
+        filter_po = params[:show_all_po] != "true"
+        puts "[gantt_data] filter_po_tasks: #{filter_po}"
 
-        service = GanttDataService.new(records, date_overrides: date_overrides)
+        service = GanttDataService.new(all_records, date_overrides: date_overrides, filter_po_tasks: filter_po)
         result = service.build_response
 
         render json: {

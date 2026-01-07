@@ -16,15 +16,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { api } from '@/lib/api';
-import { Lock, Plus } from "lucide-react";
+import { Check, Lock, Plus } from "lucide-react";
 import { TaskAssignmentField } from './TaskAssignmentField';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { useToast } from '@/components/ui/use-toast';
@@ -33,6 +27,9 @@ import { Spinner } from "@/components/ui/spinner";
 interface Job {
   id: number;
   name: string;
+  client_name?: string;
+  employee_names?: string[];
+  matched_contact?: { name: string; role: string };
 }
 
 interface User {
@@ -54,6 +51,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [users, setUsers] = React.useState<User[]>([]);
   const [loadingData, setLoadingData] = React.useState(true);
+  const [searchingJobs, setSearchingJobs] = React.useState(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Form state
   const [formData, setFormData] = React.useState({
@@ -120,6 +119,32 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
       setLoadingData(false);
     }
   };
+
+  // Debounced job search
+  const searchJobs = React.useCallback((query: string) => {
+    console.log('[searchJobs] Called with query:', query);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Always debounce to avoid flickering
+    searchTimeoutRef.current = setTimeout(async () => {
+      const url = query
+        ? `/api/v1/jobs/for_select?q=${encodeURIComponent(query)}`
+        : '/api/v1/jobs/for_select';
+      console.log('[searchJobs] Fetching:', url);
+      setSearchingJobs(true);
+      try {
+        const response = await api.get<{ jobs?: Job[] }>(url);
+        console.log('[searchJobs] Response:', response?.jobs?.length, 'jobs');
+        setJobs(response?.jobs || []);
+      } catch (error) {
+        console.error('Failed to search jobs:', error);
+      } finally {
+        setSearchingJobs(false);
+      }
+    }, query ? 300 : 0); // Immediate for clear, debounced for search
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -275,22 +300,56 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                 {/* Job Selection */}
                 <div className="space-y-2">
                   <Label htmlFor="job">Job</Label>
-                  <Select
-                    value={formData.job_id || '_none'}
-                    onValueChange={(value) => handleChange('job_id', value === '_none' ? '' : value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a job" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">No job</SelectItem>
-                      {jobs.map((job) => (
-                        <SelectItem key={job.id} value={String(job.id)}>
-                          {job.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ComboboxDropdown
+                    items={jobs.map((job) => ({
+                      id: String(job.id),
+                      label: job.name,
+                      client_name: job.client_name,
+                      employee_names: job.employee_names,
+                      matched_contact: job.matched_contact,
+                    } as ComboboxItem & { client_name?: string; employee_names?: string[]; matched_contact?: { name: string; role: string } }))}
+                    selectedItem={formData.job_id ? {
+                      id: formData.job_id,
+                      label: jobs.find(j => String(j.id) === formData.job_id)?.name || ''
+                    } : undefined}
+                    onSelect={(item) => handleChange('job_id', item.id)}
+                    placeholder="[V2] Search by job, client, or employee..."
+                    clearable
+                    onClear={() => handleChange('job_id', '')}
+                    emptyResults="No jobs found"
+                    isLoading={searchingJobs}
+                    onInputChange={searchJobs}
+                    disableInternalFilter
+                    renderListItem={({ isChecked, item }) => {
+                      const jobItem = item as ComboboxItem & { client_name?: string; employee_names?: string[]; matched_contact?: { name: string; role: string } };
+                      const roleLabels: Record<string, string> = {
+                        client: 'Client',
+                        coordinator: 'Coordinator',
+                        estimator: 'Estimator',
+                        internal_sales: 'Internal Sales',
+                        site_coordinator: 'Site Coordinator',
+                        supervisor: 'Supervisor',
+                      };
+                      return (
+                        <div className="flex flex-col w-full py-1">
+                          <div className="flex items-center">
+                            <Check className={`mr-2 h-4 w-4 flex-shrink-0 ${isChecked ? 'opacity-100' : 'opacity-0'}`} />
+                            <span className="font-medium">{jobItem.label}</span>
+                          </div>
+                          {jobItem.matched_contact && (
+                            <div className="ml-6 text-xs text-primary font-medium">
+                              ↳ {roleLabels[jobItem.matched_contact.role] || jobItem.matched_contact.role}: {jobItem.matched_contact.name}
+                            </div>
+                          )}
+                          {!jobItem.matched_contact && jobItem.client_name && (
+                            <div className="ml-6 text-xs text-muted-foreground">
+                              Client: {jobItem.client_name}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }}
+                  />
                 </div>
 
                 {/* Assign To (User or Role) + Follow checkbox */}
