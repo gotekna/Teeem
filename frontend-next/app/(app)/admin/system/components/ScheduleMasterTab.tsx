@@ -1101,7 +1101,7 @@ export function ScheduleMasterTab() {
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
       claim_invoice_template_id: fullRow.claim_invoice_template_id,
-      claim_trading_name_id: fullRow.claim_trading_name_id,
+      claim_trading_name_id: extractLookupId(fullRow.claim_trading_name_id) ? parseInt(extractLookupId(fullRow.claim_trading_name_id)!) : null,
       // Multi-template support
       sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
         typeof item === 'object' ? item.id : item
@@ -1208,7 +1208,7 @@ export function ScheduleMasterTab() {
       claim_percentage: fullRow.claim_percentage,
       claim_invoice_pattern: fullRow.claim_invoice_pattern,
       claim_invoice_template_id: fullRow.claim_invoice_template_id,
-      claim_trading_name_id: fullRow.claim_trading_name_id,
+      claim_trading_name_id: extractLookupId(fullRow.claim_trading_name_id) ? parseInt(extractLookupId(fullRow.claim_trading_name_id)!) : null,
       // Multi-template support
       sm_template_ids: (fullRow.sm_template_ids || []).map((item: number | { id: number }) =>
         typeof item === 'object' ? item.id : item
