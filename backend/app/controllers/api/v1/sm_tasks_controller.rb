@@ -777,7 +777,9 @@ module Api
 
         # Upload to SharePoint
         begin
-          graph_client = MicrosoftAppGraphClient.for_org(current_user.organization)
+          # Get organization - use 'tekna' as default (SSoT for org)
+          org = Organization.find_by(slug: 'tekna') || Organization.first
+          graph_client = MicrosoftAppGraphClient.for_org(org)
           site_id = graph_client.default_site_id
           drive_id = graph_client.default_drive_id
 
