@@ -51,6 +51,7 @@ import {
   ExternalLink,
   Clock,
   Users,
+  FolderOpen,
 } from "lucide-react";
 import {
   Dialog,
@@ -906,6 +907,15 @@ export default function PurchaseOrderDetailPage() {
                 >
                   <FileText className="h-4 w-4 mr-1" />
                   Plans
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push(`/jobs/${purchaseOrder.job!.id}/documents`)}
+                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                >
+                  <FolderOpen className="h-4 w-4 mr-1" />
+                  Documents
                 </Button>
               </>
             )}
