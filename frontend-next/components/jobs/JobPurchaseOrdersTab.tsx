@@ -25,6 +25,8 @@ import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
+import { TaskAssignmentField } from "@/components/task-hub/TaskAssignmentField";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Foundation table name for Purchase Orders
 const PURCHASE_ORDERS_TABLE_NAME = "purchase_orders";
@@ -55,6 +57,11 @@ interface SmTask {
   assigned_role?: string;
 }
 
+interface User {
+  id: number;
+  name: string;
+}
+
 interface JobPurchaseOrdersTabProps {
   jobId: string | number;
   jobTitle?: string;
@@ -62,13 +69,14 @@ interface JobPurchaseOrdersTabProps {
 
 export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabProps) {
   const router = useRouter();
+  const { user: currentUser } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
-
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [poTasks, setPoTasks] = useState<SmTask[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [loadingPoTasks, setLoadingPoTasks] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -78,6 +86,8 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [selectedTask, setSelectedTask] = useState<SmTask | null>(null);
   const [customTaskName, setCustomTaskName] = useState("");
+  const [assignedUserId, setAssignedUserId] = useState<string>("");
+  const [assignedRole, setAssignedRole] = useState<string>("");
 
   // Handle row click - navigate to PO detail page
   const handleRowClick = useCallback((row: TableRow) => {
@@ -140,13 +150,27 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
+  // Load users for assignment dropdown
+  const loadUsers = async () => {
+    if (users.length > 0) return;
+    try {
+      const response = await api.get<{ users?: User[] } | User[]>("/api/v1/users");
+      setUsers(Array.isArray(response) ? response : response?.users || []);
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    }
+  };
+
   const handleOpenCreateModal = async () => {
     setError(null);
     setSelectedContact(null);
     setSelectedTask(null);
     setCustomTaskName("");
+    // Default assignment to current user
+    setAssignedUserId(currentUser ? String(currentUser.id) : "");
+    setAssignedRole("");
     setShowCreateModal(true);
-    await Promise.all([loadContacts(), loadPoTasks()]);
+    await Promise.all([loadContacts(), loadPoTasks(), loadUsers()]);
   };
 
   const handleCreate = async () => {
@@ -163,6 +187,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setSaving(true);
       setError(null);
       // Link PO to sm_task_id if task selected, store name in ted_task
+      // For custom tasks, include assignment info (user or role)
       await api.post(`/api/v1/purchase_orders`, {
         purchase_order: {
           job_id: jobId,
@@ -170,6 +195,11 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
           sm_task_id: selectedTask?.id || null,
           ted_task: selectedTask?.name || customTaskName.trim(),
           status: "draft",
+          // Only pass assignment for custom tasks (not existing sm_tasks)
+          ...(customTaskName.trim() && !selectedTask && {
+            assigned_user_id: assignedUserId ? Number(assignedUserId) : null,
+            assigned_role: assignedRole || null,
+          }),
         },
       });
       setShowCreateModal(false);
@@ -355,6 +385,20 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 Use this if no PO task matches your needs
               </p>
             </div>
+
+            {/* Assign To - only show when Custom Task Name is used */}
+            {customTaskName.trim() && !selectedTask && (
+              <div className="space-y-2">
+                <Label>Assign To</Label>
+                <TaskAssignmentField
+                  users={users}
+                  assignedUserId={assignedUserId}
+                  assignedRole={assignedRole}
+                  onAssignedUserChange={setAssignedUserId}
+                  onAssignedRoleChange={setAssignedRole}
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>
