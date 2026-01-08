@@ -961,6 +961,52 @@ export const exportFormatAtom = atom<'csv' | 'excel' | 'pdf'>('csv');
 export const showGlobalViewsManagerAtom = atom<boolean>(false);
 
 // ============================================================================
+// RECORD CRUD MODAL STATE (Phase 7.1 - SSoT migration from useState)
+// ============================================================================
+
+/**
+ * Whether the email-to-contacts modal is open
+ */
+export const showEmailToContactsModalAtom = atom<boolean>(false);
+
+/**
+ * Whether the add record modal is open
+ */
+export const showAddRecordModalAtom = atom<boolean>(false);
+
+/**
+ * Whether the edit record modal is open
+ */
+export const showEditRecordModalAtom = atom<boolean>(false);
+
+/**
+ * Whether the view record modal is open
+ */
+export const showViewRecordModalAtom = atom<boolean>(false);
+
+/**
+ * Whether the delete confirmation modal is open
+ */
+export const showDeleteConfirmModalAtom = atom<boolean>(false);
+
+/**
+ * The record currently selected for modal operations (edit/view)
+ * Type includes id field for API operations
+ */
+export const selectedRecordForModalAtom = atom<{ id: string | number; [key: string]: unknown } | null>(null);
+
+/**
+ * The record queued for deletion
+ * Type includes id field for API operations
+ */
+export const recordToDeleteAtom = atom<{ id: string | number; [key: string]: unknown } | null>(null);
+
+/**
+ * Whether a delete operation is in progress
+ */
+export const isDeletingAtom = atom<boolean>(false);
+
+// ============================================================================
 // ACTION ATOMS FOR MODAL MANAGEMENT
 // ============================================================================
 
@@ -1004,6 +1050,16 @@ export const resetModalStateAtom = atom(null, (get, set) => {
 
   // Global views
   set(showGlobalViewsManagerAtom, false);
+
+  // Record CRUD modals (Phase 7.1)
+  set(showEmailToContactsModalAtom, false);
+  set(showAddRecordModalAtom, false);
+  set(showEditRecordModalAtom, false);
+  set(showViewRecordModalAtom, false);
+  set(showDeleteConfirmModalAtom, false);
+  set(selectedRecordForModalAtom, null);
+  set(recordToDeleteAtom, null);
+  set(isDeletingAtom, false);
 });
 
 /**

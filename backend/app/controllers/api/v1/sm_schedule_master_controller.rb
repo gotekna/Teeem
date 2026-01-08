@@ -214,7 +214,7 @@ module Api
           # Header and active status
           :allow_header, :is_active,
           # Claim task settings (SSoT for job claims)
-          :is_claim_task, :is_variation, :claim_percentage, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
+          :is_claim_task, :is_variation, :claim_percentage, :claim_sequence_number, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           subtask_names: [],
@@ -326,6 +326,7 @@ module Api
           # Claim task settings (SSoT for job claims)
           is_claim_task: row.is_claim_task,
           claim_percentage: row.claim_percentage,
+          claim_sequence_number: row.claim_sequence_number,
           claim_invoice_pattern: row.claim_invoice_pattern,
           claim_invoice_template_id: row.claim_invoice_template_id,
           claim_trading_name_id: row.claim_trading_name_id,

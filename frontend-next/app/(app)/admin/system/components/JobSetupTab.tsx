@@ -282,7 +282,19 @@ export function JobSetupTab() {
   React.useEffect(() => {
     loadData();
     loadSuburbs();
+    loadScheduleTemplates();
   }, []);
+
+  const loadScheduleTemplates = async () => {
+    try {
+      const response = await api.get<{ sm_schedule_master_templates: ScheduleMasterTemplate[] }>(
+        "/api/v1/sm_schedule_master_templates"
+      );
+      setScheduleTemplates(response.sm_schedule_master_templates || []);
+    } catch (error) {
+      console.error("Failed to load schedule templates:", error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -547,14 +559,16 @@ export function JobSetupTab() {
   const handleOpenAddDialog = (type: "type" | "status" | "stage") => {
     setDialogType(type);
     setEditingItem(null);
-    setFormData({ name: "", color: COLORS[0] });
+    setFormData({ name: "", color: COLORS[0], sm_schedule_master_template_id: null });
     setShowDialog(true);
   };
 
   const handleOpenEditDialog = (item: JobType | JobStatus | JobStage, type: "type" | "status" | "stage") => {
     setDialogType(type);
     setEditingItem(item);
-    setFormData({ name: item.name, color: item.color || COLORS[0] });
+    // Include schedule template ID for job types
+    const templateId = type === "type" ? (item as JobType).sm_schedule_master_template_id || null : null;
+    setFormData({ name: item.name, color: item.color || COLORS[0], sm_schedule_master_template_id: templateId });
     setShowDialog(true);
   };
 
@@ -571,15 +585,25 @@ export function JobSetupTab() {
       stage: "/api/v1/job_stages",
     };
 
+    // Build payload - only include template_id for job types
+    const paramKey = dialogType === "type" ? "job_type" : dialogType === "status" ? "job_status" : "job_stage";
+    const payload: Record<string, unknown> = {
+      name: formData.name,
+      color: formData.color,
+    };
+    if (dialogType === "type") {
+      payload.sm_schedule_master_template_id = formData.sm_schedule_master_template_id;
+    }
+
     try {
       if (editingItem) {
         await api.patch(`${endpoints[dialogType]}/${editingItem.id}`, {
-          [dialogType === "type" ? "job_type" : dialogType === "status" ? "job_status" : "job_stage"]: formData,
+          [paramKey]: payload,
         });
         toast({ title: "Success", description: "Item updated successfully" });
       } else {
         await api.post(endpoints[dialogType], {
-          [dialogType === "type" ? "job_type" : dialogType === "status" ? "job_status" : "job_stage"]: formData,
+          [paramKey]: payload,
         });
         toast({ title: "Success", description: "Item created successfully" });
       }
@@ -1179,6 +1203,34 @@ export function JobSetupTab() {
                 />
               </div>
             </div>
+            {/* Schedule Master Template - only for job types */}
+            {dialogType === "type" && scheduleTemplates.length > 0 && (
+              <div className="space-y-2">
+                <Label>Schedule Master Template</Label>
+                <Select
+                  value={formData.sm_schedule_master_template_id?.toString() || "none"}
+                  onValueChange={(value) => setFormData({
+                    ...formData,
+                    sm_schedule_master_template_id: value === "none" ? null : parseInt(value, 10)
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Template</SelectItem>
+                    {scheduleTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id.toString()}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Default Schedule Master template for jobs of this type
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>

@@ -62,6 +62,7 @@ export interface EditRowData {
   is_claim_task?: boolean;
   is_variation?: boolean;
   claim_percentage?: number | null;
+  claim_sequence_number?: number | null;
   claim_invoice_pattern?: string | null;
   claim_invoice_template_id?: number | null;
   claim_trading_name_id?: number | null;
@@ -215,6 +216,7 @@ export function EditRowDialog({
         is_claim_task: row.is_claim_task || false,
         is_variation: row.is_variation || false,
         claim_percentage: row.claim_percentage,
+        claim_sequence_number: row.claim_sequence_number,
         claim_invoice_pattern: row.claim_invoice_pattern,
         claim_invoice_template_id: row.claim_invoice_template_id,
         claim_trading_name_id: row.claim_trading_name_id,
@@ -605,6 +607,7 @@ export function EditRowDialog({
                               is_claim_task: false,
                               is_variation: false,
                               claim_percentage: null,
+                              claim_sequence_number: null,
                               claim_invoice_pattern: null,
                               claim_invoice_template_id: null,
                               claim_trading_name_id: null,
@@ -679,6 +682,25 @@ export function EditRowDialog({
                           <p className="text-[10px] text-muted-foreground">Company name shown on claim invoice</p>
                         </div>
 
+                        {/* Claim Sequence Number - SSoT: Used for J{job}-{seq} matching */}
+                        <div className="space-y-1">
+                          <Label htmlFor="row-claim-sequence-number" className="text-xs">Claim Sequence Number</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              id="row-claim-sequence-number"
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={editRowForm.claim_sequence_number || ""}
+                              onChange={(e) => setEditRowForm({ ...editRowForm, claim_sequence_number: e.target.value ? parseInt(e.target.value) : null })}
+                              className="h-8 w-20"
+                              placeholder="1"
+                            />
+                            <span className="text-xs text-muted-foreground">→ J{"{job}"}-{editRowForm.claim_sequence_number || "?"}</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Matches invoices with reference J{"{job_number}"}-{"{sequence}"} (e.g., J201-1)</p>
+                        </div>
+
                         {/* Invoice Match Pattern */}
                         <div className="space-y-1">
                           <Label htmlFor="row-claim-invoice-pattern" className="text-xs">Invoice Match Pattern</Label>
@@ -690,7 +712,7 @@ export function EditRowDialog({
                             className="h-8"
                             placeholder="e.g., Deposit, Slab, Frame..."
                           />
-                          <p className="text-[10px] text-muted-foreground">Pattern to auto-match Xero invoices to this claim stage</p>
+                          <p className="text-[10px] text-muted-foreground">Fallback: Pattern to match Xero invoice descriptions</p>
                         </div>
 
                         {/* Invoice Template Selector */}

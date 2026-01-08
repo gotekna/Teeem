@@ -279,6 +279,9 @@ import { useGroupCounts } from "@/hooks/useGroupCounts";
 import { useTableKeyboardNavigation } from "@/hooks/useTableKeyboardNavigation";
 import { useTableSessionStorage } from "@/hooks/useTableSessionStorage";
 
+// Phase 8: Extracted hooks
+import { useFoundationColumns } from "./hooks/useFoundationColumns";
+
 // Extracted utilities (Phase 1 & 2 refactoring)
 import {
   extractSelectedIds,
@@ -380,6 +383,15 @@ import {
   showGlobalViewsManagerAtom,
   // Fullscreen mode
   tableFullscreenAtom,
+  // Record CRUD modals (Phase 7.1 - SSoT migration)
+  showEmailToContactsModalAtom,
+  showAddRecordModalAtom,
+  showEditRecordModalAtom,
+  showViewRecordModalAtom,
+  showDeleteConfirmModalAtom,
+  selectedRecordForModalAtom,
+  recordToDeleteAtom,
+  isDeletingAtom,
 } from '@/lib/table-atoms';
 
 // View state atoms (keep separate for now - already in use)
@@ -754,15 +766,16 @@ export default function TeeemTableView({
 
   // ============================================================================
   // AUTO-FETCH COLUMNS FROM FOUNDATION API (SSoT ENFORCEMENT)
-  // When effectiveFoundationId is set, columns MUST come from Foundation API
-  // This makes it IMPOSSIBLE to be out of sync with Foundation schema
-  // ============================================================================
-  // CLS FIX: Initialize from SSR data immediately (not via useEffect)
-  // Without this, first render uses null → useEffect sets columns → re-render = CLS
-  const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(initialColumns || null);
-  const [columnsLoading, setColumnsLoading] = useState(false);
-  // Store resolved Foundation info (numeric ID and slug) for consistent display
-  const [resolvedFoundation, setResolvedFoundation] = useState<{ id: number; slug: string } | null>(null);
+  // Phase 8: Extracted to useFoundationColumns hook
+  const {
+    columns: foundationColumns,
+    isLoading: columnsLoading,
+    foundationInfo: resolvedFoundation,
+  } = useFoundationColumns({
+    foundationId: effectiveFoundationId,
+    initialColumns,
+    propColumns: columns,
+  });
 
   // ============================================================================
   // AUTO-FETCH RECORDS WITH INFINITE SCROLL (GOLD STANDARD)
@@ -830,104 +843,6 @@ export default function TeeemTableView({
     }
     hasCacheRestoredRef.current = true;
   }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext]);
-
-  // Auto-fetch columns when effectiveFoundationId is set
-  // ULTRA: Uses module-level cache for instant loading on repeat visits
-  useEffect(() => {
-    // SSR: Skip client fetch if server provided columns
-    if (initialColumns && initialColumns.length > 0) {
-      setFoundationColumns(initialColumns);
-      setColumnsLoading(false);
-      return;
-    }
-
-    if (!effectiveFoundationId) {
-      setFoundationColumns(null);
-      setResolvedFoundation(null);
-      return;
-    }
-
-    // ULTRA: Check cache first for instant loading
-    const cached = getCachedColumns(effectiveFoundationId);
-    if (cached) {
-      setFoundationColumns(cached.columns);
-      setResolvedFoundation(cached.foundationInfo);
-      setColumnsLoading(false);
-      return;
-    }
-
-    const fetchColumns = async () => {
-      setColumnsLoading(true);
-      try {
-        // ULTRA: Use cached fetch (handles deduplication)
-        const result = await fetchColumnsForFoundation(effectiveFoundationId);
-
-        if (result) {
-          setFoundationColumns(result.columns);
-          setResolvedFoundation(result.foundationInfo);
-
-          // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
-          if (columns && columns.length > 0 && result.columns.length > 0) {
-            const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
-            const foundationKeys = result.columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
-
-            if (propKeys.length !== foundationKeys.length) {
-              const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
-              const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
-
-              const errorMessage =
-                `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
-                `but Foundation ${effectiveFoundationId} has ${foundationKeys.length} columns.\n` +
-                `In PROPS but not Foundation: ${inPropsNotFoundation.join(', ') || 'none'}\n` +
-                `In FOUNDATION but not Props: ${inFoundationNotProps.join(', ') || 'none'}\n` +
-                `FIX: Remove the columns prop - TeeemTableView auto-fetches from Foundation API (SSoT)`;
-
-              if (process.env.NODE_ENV === 'development') {
-                throw new Error(errorMessage);
-              } else {
-                console.error(errorMessage);
-              }
-            }
-          }
-        } else {
-          // Fetch failed - clean up stale caches
-          invalidateColumnsCache(effectiveFoundationId);
-
-          // Clean up localStorage views cache
-          try {
-            const viewsCacheKey = 'teeem_views_cache';
-            const viewsCache = localStorage.getItem(viewsCacheKey);
-            if (viewsCache) {
-              const parsed = JSON.parse(viewsCache);
-              if (parsed[effectiveFoundationId]) {
-                delete parsed[effectiveFoundationId];
-                localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
-              }
-            }
-          } catch {
-            // Ignore cache cleanup errors
-          }
-
-          // Clean up sessionStorage table state
-          try {
-            const sessionKey = `teeem-table-state-v1-${effectiveFoundationId}`;
-            sessionStorage.removeItem(sessionKey);
-          } catch {
-            // Ignore cache cleanup errors
-          }
-
-          setFoundationColumns(null);
-        }
-      } catch (error) {
-        console.error(`[TeeemTableView] Failed to fetch columns for Foundation ${effectiveFoundationId}:`, error);
-        setFoundationColumns(null);
-      } finally {
-        setColumnsLoading(false);
-      }
-    };
-
-    fetchColumns();
-  }, [effectiveFoundationId, columns, initialColumns]);
 
   // Ref to hold current search value for use in auto-fetch refresh effect
   // Initialized empty, updated by effect after search atom is declared
@@ -1977,17 +1892,17 @@ export default function TeeemTableView({
   const [exportScope, setExportScope] = useAtom(exportScopeAtom);
   const [exportFormat, setExportFormat] = useAtom(exportFormatAtom);
 
-  // Email to Contacts modal state (local state)
-  const [showEmailToContactsModal, setShowEmailToContactsModal] = useState(false);
+  // Email to Contacts modal state (SSoT: table-atoms.ts - Phase 7.1)
+  const [showEmailToContactsModal, setShowEmailToContactsModal] = useAtom(showEmailToContactsModalAtom);
 
-  // Record CRUD modal state (Phase 8) - auto-enabled when foundationIdNumeric is set
-  const [showAddRecordModal, setShowAddRecordModal] = useState(false);
-  const [showEditRecordModal, setShowEditRecordModal] = useState(false);
-  const [showViewRecordModal, setShowViewRecordModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [selectedRecordForModal, setSelectedRecordForModal] = useState<TableRowType | null>(null);
-  const [recordToDelete, setRecordToDelete] = useState<TableRowType | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Record CRUD modal state (SSoT: table-atoms.ts - Phase 7.1)
+  const [showAddRecordModal, setShowAddRecordModal] = useAtom(showAddRecordModalAtom);
+  const [showEditRecordModal, setShowEditRecordModal] = useAtom(showEditRecordModalAtom);
+  const [showViewRecordModal, setShowViewRecordModal] = useAtom(showViewRecordModalAtom);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useAtom(showDeleteConfirmModalAtom);
+  const [selectedRecordForModal, setSelectedRecordForModal] = useAtom(selectedRecordForModalAtom);
+  const [recordToDelete, setRecordToDelete] = useAtom(recordToDeleteAtom);
+  const [isDeleting, setIsDeleting] = useAtom(isDeletingAtom);
 
   // Execute delete after confirmation (defined here after state declarations)
   const executeDelete = useCallback(async () => {
