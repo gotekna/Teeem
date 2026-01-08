@@ -26,6 +26,13 @@
 export { TableToolbar } from './TableToolbar';
 export type { TableToolbarProps } from './TableToolbar';
 
+// Toolbar sub-components
+export { ToolbarBulkActions } from './ToolbarBulkActions';
+export type { ToolbarBulkActionsProps } from './ToolbarBulkActions';
+
+export { ToolbarMoreActions } from './ToolbarMoreActions';
+export type { ToolbarMoreActionsProps } from './ToolbarMoreActions';
+
 // Re-export existing extracted sections from core/
 export { TableHeaderSection } from '../core/table-sections/TableHeaderSection';
 export type { TableHeaderSectionProps } from '../core/table-sections/TableHeaderSection';

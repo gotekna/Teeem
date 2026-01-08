@@ -250,6 +250,8 @@ import { validateCell as validateCellWithRegistry } from "./core/column-renderer
 
 // Table sections (Phase 6 refactoring)
 import { TableHeaderSection, TableFooterSection } from "./core/table-sections";
+import { ToolbarBulkActions } from "./sections/ToolbarBulkActions";
+import { ToolbarMoreActions } from "./sections/ToolbarMoreActions";
 
 // Virtualization components (Phase 2 refactoring)
 import { VirtualizedGroupTable, VirtualizedFlatTable } from "./core/virtualization";
@@ -5748,78 +5750,25 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Bulk action buttons - show when rows selected (SSoT: always in first row) */}
-          {selectedRows.size > 0 && (
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="h-4 w-px bg-border mx-1" />
-              {/* Bulk Update - column-based update modal */}
-              {onRowUpdate && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkUpdateModal(true)}
-                >
-                  <Pencil className="h-4 w-4 mr-1" />
-                  Bulk Update
-                </Button>
-              )}
-              {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
-              {onRowUpdate && !viewOnly && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startMultiEditing(Array.from(selectedRows))}
-                >
-                  <Pencil className="h-4 w-4 mr-1" />
-                  Inline Edit
-                </Button>
-              )}
-              {/* Merge button - combine rows into one */}
-              {(onBulkMerge || (enableMerge !== false && effectiveFoundationId)) && !viewOnly && selectedRows.size >= 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleMergeClick(Array.from(selectedRows))}
-                >
-                  <GitMerge className="h-4 w-4 mr-1" />
-                  Merge
-                </Button>
-              )}
-              {/* Xero Transfer button - transfer Xero link between exactly 2 contacts */}
-              {onXeroTransfer && !viewOnly && selectedRows.size === 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onXeroTransfer(Array.from(selectedRows))}
-                >
-                  <ArrowLeftRight className="h-4 w-4 mr-1" />
-                  Xero
-                </Button>
-              )}
-              {/* Delete button - bulk delete selected rows (auto-enabled with foundationIdNumeric) */}
-              {/* SSoT: Only delete VISIBLE selected rows (filtered intersection) */}
-              {effectiveBulkDelete && !viewOnly && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    // Filter to only visible selected rows (intersection of selected + filtered)
-                    // Use String() for type-safe comparison (IDs may be string or number)
-                    const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
-                    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
-                    if (visibleSelectedIds.length === 0) {
-                      console.warn('[Delete] No visible selected rows to delete');
-                      return;
-                    }
-                    effectiveBulkDelete(visibleSelectedIds);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </Button>
-              )}
-            </div>
-          )}
+          {/* Bulk action buttons - extracted to ToolbarBulkActions component */}
+          <ToolbarBulkActions
+            selectedCount={selectedRows.size}
+            visibleSelectedIds={(() => {
+              const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
+              return Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
+            })()}
+            viewOnly={viewOnly}
+            showBulkUpdate={!!onRowUpdate}
+            showInlineEdit={!!onRowUpdate}
+            showMerge={!!(onBulkMerge || (enableMerge !== false && effectiveFoundationId))}
+            showXeroTransfer={!!onXeroTransfer}
+            showDelete={!!effectiveBulkDelete}
+            onBulkUpdate={() => setShowBulkUpdateModal(true)}
+            onInlineEdit={(ids) => startMultiEditing(ids)}
+            onMerge={(ids) => handleMergeClick(ids)}
+            onXeroTransfer={onXeroTransfer}
+            onDelete={effectiveBulkDelete}
+          />
 
           {/* Actions - right side with buttons */}
           <div className="toolbar-right flex items-center gap-2 shrink-0">
@@ -5874,143 +5823,29 @@ export default function TeeemTableView({
             <RefreshCw className="h-4 w-4" />
           </Button>
 
-          {/* More actions menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={() => setShowEditColumnsModal(true)}>
-                <Columns className="h-4 w-4 mr-2" />
-                Columns
-              </DropdownMenuItem>
-
-              {/* Schema Section - auto-enabled when foundationIdNumeric is set */}
-              {effectiveEnableSchemaEditor && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                    SCHEMA
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => setShowCreateColumnModal(true)}>
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Create New Column
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onEditColumns ? onEditColumns() : setShowEditColumnsModal(true)}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Edit Columns
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowDeleteColumnModal(true)}>
-                    <MinusCircle className="h-4 w-4 mr-2" />
-                    Delete Column
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={toggleColumnEditMode}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    {columnEditMode ? "Exit Edit Mode" : "Edit Individual"}
-                    {columnEditMode && (
-                      <Badge variant="secondary" className="ml-2 text-xs">ON</Badge>
-                    )}
-                  </DropdownMenuItem>
-                </>
-              )}
-
-              {/* Data Section - auto-enabled when foundationIdNumeric is set */}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                DATA
-              </DropdownMenuLabel>
-              {effectiveEnableImport && (
-                <DropdownMenuItem onClick={onImport}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Import
-                </DropdownMenuItem>
-              )}
-              {effectiveEnableExport && (
-                <DropdownMenuItem onClick={() => setShowExportModal(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Export
-                </DropdownMenuItem>
-              )}
-
-              {/* Email to Contacts Section - auto-enabled when table has email columns */}
-              {hasEmailColumns && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                    CONTACTS
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => setShowEmailToContactsModal(true)}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Extract Contacts from Emails
-                  </DropdownMenuItem>
-                  {/* SSoT: Use slug check only, not numeric ID (which differs per environment) */}
-                  {foundationId === "contacts" && (
-                    <DropdownMenuItem onClick={handleFindMissingAbns} disabled={isFindingAbns}>
-                      {isFindingAbns ? (
-                        <Spinner size={16} className="mr-2" />
-                      ) : (
-                        <Search className="h-4 w-4 mr-2" />
-                      )}
-                      Find Missing ABNs
-                    </DropdownMenuItem>
-                  )}
-                </>
-              )}
-
-              {/* Display Options Section */}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                DISPLAY
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => setShowColumnFilters(!showColumnFilters)}
-                className="flex items-center justify-between"
-              >
-                <span className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Column Filters
-                </span>
-                {showColumnFilters && <Check className="h-4 w-4" />}
-              </DropdownMenuItem>
-
-              {/* Table Info Section */}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                TABLE INFO
-              </DropdownMenuLabel>
-
-              {effectiveFoundationId && (
-                <>
-                  <div className="px-2 py-1.5 flex items-center justify-between">
-                    <span className="text-[11px]">
-                      Table ID: <span className="font-mono font-medium">
-                        {resolvedFoundation ? `${resolvedFoundation.slug} (${resolvedFoundation.id})` : effectiveFoundationId}
-                      </span>
-                    </span>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={handleCopyTableId}
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                  <DropdownMenuItem
-                    onClick={() => window.open(`/admin/system/components`, '_blank')}
-                    className="flex items-center gap-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Configure Table
-                    <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
-                  </DropdownMenuItem>
-                </>
-              )}
-
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* More actions menu - extracted to ToolbarMoreActions */}
+          <ToolbarMoreActions
+            enableSchemaEditor={effectiveEnableSchemaEditor}
+            enableImport={effectiveEnableImport}
+            enableExport={effectiveEnableExport}
+            hasEmailColumns={hasEmailColumns}
+            foundationId={foundationId}
+            resolvedFoundation={resolvedFoundation}
+            columnEditMode={columnEditMode}
+            showColumnFilters={showColumnFilters}
+            isFindingAbns={isFindingAbns}
+            onShowEditColumns={() => setShowEditColumnsModal(true)}
+            onShowCreateColumn={() => setShowCreateColumnModal(true)}
+            onEditColumns={onEditColumns ? () => onEditColumns() : undefined}
+            onShowDeleteColumn={() => setShowDeleteColumnModal(true)}
+            onToggleColumnEditMode={toggleColumnEditMode}
+            onImport={onImport}
+            onShowExport={() => setShowExportModal(true)}
+            onShowEmailToContacts={() => setShowEmailToContactsModal(true)}
+            onFindMissingAbns={handleFindMissingAbns}
+            onToggleColumnFilters={() => setShowColumnFilters(!showColumnFilters)}
+            onCopyTableId={handleCopyTableId}
+          />
         </div>
       </div>
 
