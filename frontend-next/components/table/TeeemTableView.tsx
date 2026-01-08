@@ -5904,13 +5904,8 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Bulk action buttons - extracted to ToolbarBulkActions component */}
+          {/* Bulk action buttons - reads selection from TableContext */}
           <ToolbarBulkActions
-            selectedCount={selectedRows.size}
-            visibleSelectedIds={(() => {
-              const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
-              return Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
-            })()}
             viewOnly={viewOnly}
             showBulkUpdate={!!onRowUpdate}
             showInlineEdit={!!onRowUpdate}
@@ -6028,14 +6023,9 @@ export default function TeeemTableView({
         onLoadView={(view) => loadViewState(view, false, true)}
       />
 
-      {/* Active filters indicator - extracted to ActiveFiltersIndicator */}
+      {/* Active filters indicator - reads from TableContext */}
       <ActiveFiltersIndicator
         showColumnFilters={showColumnFilters}
-        hasUserFilters={hasUserFilters}
-        filters={mergedFilters}
-        columns={COLUMNS}
-        onRemoveFilter={handleRemoveFilter}
-        onClearAllFilters={clearAllFilters}
         onEditFilters={() => setShowGlobalViewsManager(true)}
       />
 

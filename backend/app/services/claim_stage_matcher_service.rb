@@ -98,9 +98,16 @@ class ClaimStageMatcherService
 
   # Find an invoice that matches the stage based on pattern matching
   def find_matching_invoice(stage, invoices)
-    template = stage.claim_stage_template
+    # Priority 1: Try J{job_number}-{sequence} pattern if sequence is set
+    # SSoT: This is the preferred matching method
+    if stage.claim_sequence_number.present?
+      sequence_pattern = build_sequence_pattern(stage.claim_sequence_number)
+      match = invoices.find { |inv| description_matches?(inv, sequence_pattern) }
+      return match if match
+    end
 
-    # Try template pattern first
+    # Priority 2: Try template pattern
+    template = stage.claim_stage_template
     if template&.invoice_match_pattern.present?
       regex = template.match_pattern_regex
       if regex
@@ -111,11 +118,19 @@ class ClaimStageMatcherService
       end
     end
 
-    # Fall back to stage name matching
+    # Priority 3: Fall back to stage name matching
     stage_name_regex = build_name_regex(stage.name)
     invoices.find do |inv|
       description_matches?(inv, stage_name_regex)
     end
+  end
+
+  # Build pattern for J{job_number}-{sequence} format
+  # Matches: J201-1, j201-1, J201 - 1, etc.
+  def build_sequence_pattern(sequence_number)
+    job_number = @job.job_number || @job.id
+    # Match J{job_number}-{sequence} with optional spaces around dash
+    Regexp.new("J#{Regexp.escape(job_number.to_s)}\\s*-\\s*#{sequence_number}", Regexp::IGNORECASE)
   end
 
   # Check if invoice description matches regex

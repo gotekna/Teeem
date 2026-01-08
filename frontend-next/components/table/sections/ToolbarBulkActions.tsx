@@ -3,19 +3,24 @@
  *
  * Extracted from TeeemTableView to reduce main component size.
  * Shows bulk update, inline edit, merge, Xero transfer, and delete buttons.
+ *
+ * Migration Note (Phase 6.3):
+ * This component now reads selection state from TableContext when available.
+ * Feature flags and callbacks remain as props since they're TeeemTableView-specific.
  */
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pencil, Trash2, GitMerge, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTableMaybe } from '../context';
 
 export interface ToolbarBulkActionsProps {
-  /** Number of selected rows */
-  selectedCount: number;
-  /** Visible selected row IDs (filtered intersection) */
-  visibleSelectedIds: (string | number)[];
+  /** @deprecated Use TableContext instead. Number of selected rows */
+  selectedCount?: number;
+  /** @deprecated Use TableContext instead. Visible selected row IDs (filtered intersection) */
+  visibleSelectedIds?: (string | number)[];
   /** Whether view-only mode is enabled */
   viewOnly?: boolean;
   /** Show bulk update button */
@@ -41,8 +46,8 @@ export interface ToolbarBulkActionsProps {
 }
 
 export function ToolbarBulkActions({
-  selectedCount,
-  visibleSelectedIds,
+  selectedCount: propSelectedCount,
+  visibleSelectedIds: propVisibleSelectedIds,
   viewOnly = false,
   showBulkUpdate = false,
   showInlineEdit = false,
@@ -55,7 +60,26 @@ export function ToolbarBulkActions({
   onXeroTransfer,
   onDelete,
 }: ToolbarBulkActionsProps) {
-  if (selectedCount === 0) return null;
+  // Try to get values from context first
+  const table = useTableMaybe();
+
+  // Compute visible selected IDs from context if available
+  const contextVisibleSelectedIds = useMemo(() => {
+    if (!table) return [];
+    const visibleIdSet = new Set(table.processedData.visibleRowIds.map(id => String(id)));
+    // selectedIds is a Set, convert to array for filtering
+    return Array.from(table.selection.state.selectedIds).filter(id => visibleIdSet.has(String(id)));
+  }, [table]);
+
+  // Effective values: context first, props as fallback
+  const effectiveSelectedCount = table
+    ? table.selection.state.selectedIds.size
+    : (propSelectedCount ?? 0);
+  const effectiveVisibleSelectedIds = table
+    ? contextVisibleSelectedIds
+    : (propVisibleSelectedIds ?? []);
+
+  if (effectiveSelectedCount === 0) return null;
 
   const hasAnyAction = showBulkUpdate || showInlineEdit || showMerge || showXeroTransfer || showDelete;
   if (!hasAnyAction) return null;
@@ -81,7 +105,7 @@ export function ToolbarBulkActions({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onInlineEdit(visibleSelectedIds)}
+          onClick={() => onInlineEdit(effectiveVisibleSelectedIds)}
         >
           <Pencil className="h-4 w-4 mr-1" />
           Inline Edit
@@ -89,11 +113,11 @@ export function ToolbarBulkActions({
       )}
 
       {/* Merge button - combine rows into one */}
-      {showMerge && !viewOnly && selectedCount >= 2 && onMerge && (
+      {showMerge && !viewOnly && effectiveSelectedCount >= 2 && onMerge && (
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onMerge(visibleSelectedIds)}
+          onClick={() => onMerge(effectiveVisibleSelectedIds)}
         >
           <GitMerge className="h-4 w-4 mr-1" />
           Merge
@@ -101,11 +125,11 @@ export function ToolbarBulkActions({
       )}
 
       {/* Xero Transfer button - transfer Xero link between exactly 2 contacts */}
-      {showXeroTransfer && !viewOnly && selectedCount === 2 && onXeroTransfer && (
+      {showXeroTransfer && !viewOnly && effectiveSelectedCount === 2 && onXeroTransfer && (
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onXeroTransfer(visibleSelectedIds)}
+          onClick={() => onXeroTransfer(effectiveVisibleSelectedIds)}
         >
           <ArrowLeftRight className="h-4 w-4 mr-1" />
           Xero
@@ -118,11 +142,11 @@ export function ToolbarBulkActions({
           variant="destructive"
           size="sm"
           onClick={() => {
-            if (visibleSelectedIds.length === 0) {
+            if (effectiveVisibleSelectedIds.length === 0) {
               console.warn('[Delete] No visible selected rows to delete');
               return;
             }
-            onDelete(visibleSelectedIds);
+            onDelete(effectiveVisibleSelectedIds);
           }}
         >
           <Trash2 className="h-4 w-4 mr-1" />

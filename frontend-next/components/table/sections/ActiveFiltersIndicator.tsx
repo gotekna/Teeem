@@ -3,6 +3,10 @@
  *
  * Extracted from TeeemTableView to reduce main component size.
  * Shows user-clearable filters (not base/locked filters) with badges.
+ *
+ * Migration Note (Phase 6.2):
+ * This component now reads from TableContext when available.
+ * Props are kept for backward compatibility but marked as deprecated.
  */
 
 'use client';
@@ -12,16 +16,8 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FILTER_OPERATOR_LABELS } from '../utils/table-utils';
-
-export interface CascadeFilter {
-  id: string | number;
-  column: string;
-  operator: string;
-  value: string | number | boolean | null;
-  label?: string;
-  locked?: boolean;
-  source?: string;
-}
+import { useTableMaybe } from '../context';
+import type { CascadeFilter } from '../types';
 
 export interface ColumnDefinition {
   key: string;
@@ -29,38 +25,62 @@ export interface ColumnDefinition {
 }
 
 export interface ActiveFiltersIndicatorProps {
-  /** Whether column filters are shown */
-  showColumnFilters: boolean;
-  /** Whether there are user-clearable filters */
-  hasUserFilters: boolean;
-  /** All merged filters */
-  filters: CascadeFilter[];
-  /** Column definitions for looking up labels */
-  columns: ColumnDefinition[];
-  /** Callback when filter is removed */
+  /** Whether column filters are shown (UI toggle) */
+  showColumnFilters?: boolean;
+  /** @deprecated Use TableContext instead. Whether there are user-clearable filters */
+  hasUserFilters?: boolean;
+  /** @deprecated Use TableContext instead. All merged filters */
+  filters?: CascadeFilter[];
+  /** @deprecated Use TableContext instead. Column definitions for looking up labels */
+  columns?: ColumnDefinition[];
+  /** @deprecated Use TableContext instead. Callback when filter is removed */
   onRemoveFilter?: (filterId: string | number) => void;
-  /** Callback when "Clear all" is clicked */
+  /** @deprecated Use TableContext instead. Callback when "Clear all" is clicked */
   onClearAllFilters?: () => void;
   /** Callback when filter badge is clicked (opens filter editor) */
   onEditFilters?: () => void;
 }
 
 export function ActiveFiltersIndicator({
-  showColumnFilters,
-  hasUserFilters,
-  filters,
-  columns,
-  onRemoveFilter,
-  onClearAllFilters,
+  showColumnFilters: propShowColumnFilters,
+  hasUserFilters: propHasUserFilters,
+  filters: propFilters,
+  columns: propColumns,
+  onRemoveFilter: propOnRemoveFilter,
+  onClearAllFilters: propOnClearAllFilters,
   onEditFilters,
 }: ActiveFiltersIndicatorProps) {
+  // Try to get values from context first
+  const table = useTableMaybe();
+
+  // Resolve values: context first, props as fallback
+  const effectiveShowColumnFilters = propShowColumnFilters ?? table?.filtering.state.showFilters ?? false;
+  const effectiveHasUserFilters = table ? table.filtering.state.hasUserFilters : (propHasUserFilters ?? false);
+  const effectiveFilters = table ? table.filtering.state.filters : (propFilters ?? []);
+  const effectiveColumns = table ? table.columns : (propColumns ?? []);
+
+  // Actions: context first, props as fallback
+  const handleRemoveFilter = (id: string | number) => {
+    if (table) {
+      table.filtering.actions.removeFilter(id);
+    }
+    propOnRemoveFilter?.(id);
+  };
+
+  const handleClearAllFilters = () => {
+    if (table) {
+      table.filtering.actions.clearAllUserFilters();
+    }
+    propOnClearAllFilters?.();
+  };
+
   // Only show when column filters enabled and there are user filters
-  if (!showColumnFilters || !hasUserFilters) {
+  if (!effectiveShowColumnFilters || !effectiveHasUserFilters) {
     return null;
   }
 
   // Get user-clearable filters (not base/locked)
-  const userFilters = filters.filter((f) => !f.locked && f.source !== 'base');
+  const userFilters = effectiveFilters.filter((f) => !f.locked && f.source !== 'base');
 
   if (userFilters.length === 0) {
     return null;
@@ -70,7 +90,7 @@ export function ActiveFiltersIndicator({
     <div className="flex items-center gap-2 flex-wrap px-4">
       <span className="text-[11px] text-muted-foreground">Active filters:</span>
       {userFilters.map((filter) => {
-        const col = columns.find((c) => c.key === filter.column);
+        const col = effectiveColumns.find((c) => c.key === filter.column);
         return (
           <Badge
             key={filter.id}
@@ -94,18 +114,18 @@ export function ActiveFiltersIndicator({
               className="h-3 w-3 text-muted-foreground hover:text-foreground ml-1"
               onClick={(e) => {
                 e.stopPropagation();
-                onRemoveFilter?.(filter.id);
+                handleRemoveFilter(filter.id);
               }}
             />
           </Badge>
         );
       })}
       {/* Only show "Clear all" if there are user-clearable filters */}
-      {hasUserFilters && (
+      {effectiveHasUserFilters && (
         <Button
           variant="ghost"
           size="sm"
-          onClick={onClearAllFilters}
+          onClick={handleClearAllFilters}
           className="h-6 px-2 text-muted-foreground"
         >
           Clear all
