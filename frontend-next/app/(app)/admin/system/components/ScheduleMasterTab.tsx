@@ -1229,6 +1229,8 @@ export function ScheduleMasterTab() {
       claim_invoice_pattern: data.claim_invoice_pattern,
       claim_invoice_template_id: data.claim_invoice_template_id,
       claim_trading_name_id: data.claim_trading_name_id,
+      // Template membership - which templates this row belongs to
+      sm_template_ids: data.sm_template_ids,
     };
 
     await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {

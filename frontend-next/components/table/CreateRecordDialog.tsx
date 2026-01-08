@@ -68,6 +68,38 @@ interface CreateRecordDialogProps {
 // SSoT: Uses SYSTEM_VISIBLE_COLUMNS + UI-specific columns
 const EXCLUDED_COLUMNS = [...SYSTEM_VISIBLE_COLUMNS, "actions", "select"];
 
+// Entity type field visibility mapping for Contacts foundation
+// Maps field names to which entity_types they apply to
+// Fields not in this map are shown for all entity_types
+const CONTACTS_ENTITY_TYPE_FIELDS: Record<string, string[]> = {
+  // Person-only fields
+  first_name: ["person"],
+  last_name: ["person"],
+  middle_name: ["person"],
+  preferred_name: ["person"],
+  date_of_birth: ["person"],
+  gender: ["person"],
+  employment_status: ["person"],
+  role: ["person"],
+  employer_ids: ["person"],
+
+  // Company-only fields
+  abn: ["company", "trust"],
+  acn: ["company"],
+  abn_entity_name: ["company", "trust"],
+  abn_entity_type: ["company", "trust"],
+  abn_valid: ["company", "trust"],
+  abn_gst_registered: ["company", "trust"],
+  abn_verified_at: ["company", "trust"],
+  acn_valid: ["company"],
+  acn_verified_at: ["company"],
+  website: ["company", "trust"],
+  trading_name: ["company", "trust"],
+  legal_name: ["company", "trust"],
+  company_type: ["company"],
+  trust_type: ["trust"],
+};
+
 // Sortable field item for drag and drop
 interface SortableFieldItemProps {
   id: string;
@@ -170,6 +202,16 @@ export function CreateRecordDialog({
     return nameCheck || slugCheck;
   }, [tableName, foundationId]);
 
+  // Detect if this is a Contacts foundation (supports entity_type field filtering)
+  const isContacts = useMemo(() => {
+    const nameCheck = tableName.toLowerCase() === "contacts";
+    const slugCheck = typeof foundationId === "string" && foundationId === "contacts";
+    return nameCheck || slugCheck;
+  }, [tableName, foundationId]);
+
+  // Get current entity_type from form data (for Contacts field filtering)
+  const currentEntityType = isContacts ? (formData.entity_type as string) : undefined;
+
   // Lookup column state
   const [lookupOptions, setLookupOptions] = useState<Record<string, LookupOption[]>>({});
   const [lookupLoading, setLookupLoading] = useState<Record<string, boolean>>({});
@@ -183,8 +225,9 @@ export function CreateRecordDialog({
   );
 
   // Filter columns (exclude system/UI-only columns and system-generated types)
+  // Also filters by entity_type for Contacts foundation
   const filteredColumns = useMemo(() => {
-    return columns
+    let result = columns
       .filter((col) => !EXCLUDED_COLUMNS.includes(col.key))
       .filter((col) => !col.system)
       .filter((col) => col.editable !== false)
@@ -192,7 +235,23 @@ export function CreateRecordDialog({
       .filter((col) => col.label)
       // SSoT: Respect settings.show_in_create from Column model
       .filter((col) => col.settings?.show_in_create !== false);
-  }, [columns]);
+
+    // For Contacts, filter fields based on selected entity_type
+    if (isContacts && currentEntityType) {
+      result = result.filter((col) => {
+        const allowedTypes = CONTACTS_ENTITY_TYPE_FIELDS[col.key];
+        // If field has no entity_type restriction, show it
+        if (!allowedTypes) return true;
+        // Otherwise, only show if current entity_type is in the allowed list
+        return allowedTypes.includes(currentEntityType);
+      });
+    }
+
+    return result;
+  }, [columns, isContacts, currentEntityType]);
+
+  // Track previous entity type to detect changes
+  const prevEntityTypeRef = React.useRef<string | undefined>(undefined);
 
   // Initialize visible fields and order on first render or when columns change
   React.useEffect(() => {
@@ -224,6 +283,40 @@ export function CreateRecordDialog({
     }
   }, [filteredColumns, visibleFields.size]);
 
+  // Update visible fields when entity_type changes (Contacts only)
+  React.useEffect(() => {
+    if (!isContacts) return;
+
+    // Only update if entity_type actually changed
+    if (currentEntityType === prevEntityTypeRef.current) return;
+    prevEntityTypeRef.current = currentEntityType;
+
+    // When entity_type changes, reset visible fields to show appropriate fields
+    if (currentEntityType && filteredColumns.length > 0) {
+      const requiredFields = filteredColumns.filter((col) => col.required);
+      const firstEight = new Set(
+        filteredColumns.slice(0, 8).map((col) => col.key)
+      );
+      const newVisible = new Set([
+        ...Array.from(firstEight),
+        ...requiredFields.map((col) => col.key),
+      ]);
+      setVisibleFields(newVisible);
+
+      // Update field order
+      const requiredKeys = new Set(requiredFields.map((col) => col.key));
+      const orderedCols = [
+        ...requiredFields,
+        ...filteredColumns.filter((col) => !requiredKeys.has(col.key)),
+      ];
+      const newOrder: Record<string, number> = {};
+      orderedCols.forEach((col, index) => {
+        newOrder[col.key] = index + 1;
+      });
+      setFieldOrder(newOrder);
+    }
+  }, [isContacts, currentEntityType, filteredColumns]);
+
   // Reset form when dialog opens
   React.useEffect(() => {
     if (open) {
@@ -233,6 +326,8 @@ export function CreateRecordDialog({
       setValidationErrors(new Set());
       setFieldSearch("");
       setLinkedDocumentTypes([]);
+      prevEntityTypeRef.current = undefined; // Reset entity type tracking
+      setVisibleFields(new Set()); // Reset so it re-initializes based on current entity_type
 
       // Fetch available document types for Schedule Master
       if (isScheduleMaster) {

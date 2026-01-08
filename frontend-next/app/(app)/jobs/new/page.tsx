@@ -44,6 +44,7 @@ import {
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { formatContactLabel } from "@/lib/formatters/display-formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -597,13 +598,11 @@ export default function NewJobPage() {
 
   // Convert contacts to combobox items
   // Company-aware display: "Troy Smith - Harvey Norman" format (when showCompanyNames is true)
-  const getContactLabel = React.useCallback((c: Contact) => {
-    const name = c.display_name || c.company_name || `Contact ${c.id}`;
-    if (showCompanyNames && c.employer_name) {
-      return `${name} - ${c.employer_name}`;
-    }
-    return name;
-  }, [showCompanyNames]);
+  // SSoT: Uses formatContactLabel from display-formatters
+  const getContactLabel = React.useCallback(
+    (c: Contact) => formatContactLabel(c, showCompanyNames),
+    [showCompanyNames]
+  );
 
   const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => ({
     id: c.id.toString(),
