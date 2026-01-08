@@ -970,17 +970,34 @@ class EmailToJobService
       end
     end
 
-    # Internal sales: The user who synced/forwarded the email (Jake, Robert, etc.)
-    internal_sales_user = @user
-    internal_sales_contact = Contact.find_by_email(internal_sales_user.email)
+    # Internal sales: Prefer email sender if from Tekna, otherwise the user who extracted
+    internal_domains = %w[@tekna.com.au @teeem.au @teeem.com]
+    sender_is_internal = internal_domains.any? { |d| @email.from_email&.downcase&.include?(d) }
 
-    extracted_data["internal_sales"] = {
-      "user_name" => internal_sales_user.name,
-      "user_email" => internal_sales_user.email,
-      "contact_exists" => internal_sales_contact.present?,
-      "contact_id" => internal_sales_contact&.id,
-      "needs_contact_creation" => internal_sales_contact.nil?
-    }
+    if sender_is_internal
+      # Email was sent by a Tekna employee - they are the internal sales
+      internal_sales_contact = Contact.find_by_email(@email.from_email)
+      internal_sales_user = User.find_by(email: @email.from_email) || @user
+      extracted_data["internal_sales"] = {
+        "user_name" => internal_sales_user&.name || @email.from_name || "Unknown",
+        "user_email" => @email.from_email,
+        "contact_exists" => internal_sales_contact.present?,
+        "contact_id" => internal_sales_contact&.id,
+        "user_id" => internal_sales_user&.id,
+        "needs_contact_creation" => internal_sales_contact.nil?
+      }
+    else
+      # Email from external - use the user who ran the extraction
+      internal_sales_contact = Contact.find_by_email(@user.email)
+      extracted_data["internal_sales"] = {
+        "user_name" => @user.name,
+        "user_email" => @user.email,
+        "contact_exists" => internal_sales_contact.present?,
+        "contact_id" => internal_sales_contact&.id,
+        "user_id" => @user.id,
+        "needs_contact_creation" => internal_sales_contact.nil?
+      }
+    end
 
     # External sales: Search email participants for sales agents
     all_participants = [
@@ -990,9 +1007,10 @@ class EmailToJobService
     ].compact.uniq
 
     external_sales = []
+    internal_sales_email = extracted_data.dig("internal_sales", "user_email")
     all_participants.each do |participant_email|
       # Skip if this is the internal sales person
-      next if participant_email == internal_sales_user.email
+      next if participant_email == internal_sales_email
       # Skip if this is the customer
       next if participant_email == extracted_data.dig("customer", "email")
 
