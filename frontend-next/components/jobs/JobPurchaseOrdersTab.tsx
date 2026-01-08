@@ -19,11 +19,8 @@ import {
   X,
   Check,
   CornerDownRight,
-  User,
-  Users,
   ExternalLink,
 } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
@@ -74,6 +71,13 @@ interface User {
   name: string;
 }
 
+// Job's internal team member (from job_contacts)
+interface JobInternalTeamMember {
+  role: string;
+  user_id: number | null;
+  user?: { id: number; name: string };
+}
+
 interface JobPurchaseOrdersTabProps {
   jobId: string | number;
   jobTitle?: string;
@@ -89,6 +93,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [poTasks, setPoTasks] = useState<SmTask[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [internalTeam, setInternalTeam] = useState<JobInternalTeamMember[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [loadingPoTasks, setLoadingPoTasks] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,7 +105,6 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [customTaskName, setCustomTaskName] = useState("");
   const [assignedUserId, setAssignedUserId] = useState<string>("");
   const [assignedRole, setAssignedRole] = useState<string>("");
-  const [assignMode, setAssignMode] = useState<"user" | "role">("user");
 
   // Handle row click - navigate to PO detail page
   const handleRowClick = useCallback((row: TableRow) => {
@@ -174,6 +178,44 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
+  // Load job's internal team members (Supervisor, Site Coordinator, etc.)
+  const loadInternalTeam = async () => {
+    try {
+      const response = await api.get<{ job_contacts: JobInternalTeamMember[] }>(
+        `/api/v1/jobs/${jobId}/job_contacts`
+      );
+      // Filter for internal team roles only (those with user_id)
+      const internalRoleKeys = INTERNAL_TEAM_ROLES.map(r => r.key) as string[];
+      const team = (response?.job_contacts || []).filter(
+        jc => internalRoleKeys.includes(jc.role) && jc.user_id
+      );
+      setInternalTeam(team);
+    } catch (err) {
+      console.error("Failed to load internal team:", err);
+    }
+  };
+
+  // Get the user assigned to a role on this job
+  const getTeamMemberForRole = (roleKey: string): JobInternalTeamMember | undefined => {
+    return internalTeam.find(m => m.role === roleKey);
+  };
+
+  // Handle role button click - auto-fill user if assigned on job
+  const handleRoleClick = (roleKey: string) => {
+    if (assignedRole === roleKey) {
+      // Deselect
+      setAssignedRole("");
+      setAssignedUserId(currentUser ? String(currentUser.id) : "");
+    } else {
+      // Select role and auto-fill user if one is assigned to this role
+      setAssignedRole(roleKey);
+      const teamMember = getTeamMemberForRole(roleKey);
+      if (teamMember?.user_id) {
+        setAssignedUserId(String(teamMember.user_id));
+      }
+    }
+  };
+
   const handleOpenCreateModal = async () => {
     setError(null);
     setSelectedContact(null);
@@ -182,9 +224,8 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     // Default assignment to current user
     setAssignedUserId(currentUser ? String(currentUser.id) : "");
     setAssignedRole("");
-    setAssignMode("user");
     setShowCreateModal(true);
-    await Promise.all([loadContacts(), loadPoTasks(), loadUsers()]);
+    await Promise.all([loadContacts(), loadPoTasks(), loadUsers(), loadInternalTeam()]);
   };
 
   // Create PO and optionally navigate to detail page
@@ -281,6 +322,48 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
           )}
 
           <div className="space-y-4 py-4">
+            {/* Assign To - Role buttons at top with user from job's internal team */}
+            <div className="space-y-2">
+              <Label>Assign To</Label>
+              <div className="flex flex-wrap gap-2">
+                {INTERNAL_TEAM_ROLES.map((role) => {
+                  const teamMember = getTeamMemberForRole(role.key);
+                  const isSelected = assignedRole === role.key;
+                  return (
+                    <Button
+                      key={role.key}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleRoleClick(role.key)}
+                      className={cn(
+                        "text-xs flex-col h-auto py-1.5 px-3",
+                        isSelected && "ring-2 ring-offset-1"
+                      )}
+                    >
+                      <span>{role.label}</span>
+                      {teamMember?.user?.name && (
+                        <span className={cn(
+                          "text-[10px] font-normal",
+                          isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                        )}>
+                          {teamMember.user.name}
+                        </span>
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
+              {/* Show selected user below buttons */}
+              {assignedRole && (
+                <div className="text-sm text-muted-foreground mt-1">
+                  Assigned to: <span className="font-medium text-foreground">
+                    {users.find(u => String(u.id) === assignedUserId)?.name || "Select user"}
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Supplier (Contact) Select */}
             <div className="space-y-2">
               <Label>Supplier</Label>
@@ -404,69 +487,6 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 Use this if no PO task matches your needs
               </p>
             </div>
-
-            {/* Assign To - only show when Custom Task Name is used */}
-            {customTaskName.trim() && !selectedTask && (
-              <div className="space-y-2">
-                <Label>Assign To</Label>
-                <Tabs value={assignMode} onValueChange={(v) => {
-                  setAssignMode(v as "user" | "role");
-                  if (v === "user") {
-                    setAssignedRole("");
-                  } else {
-                    setAssignedUserId("");
-                  }
-                }} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 h-8">
-                    <TabsTrigger value="user" className="text-xs h-7">
-                      <User className="h-3 w-3 mr-1" />
-                      User
-                    </TabsTrigger>
-                    <TabsTrigger value="role" className="text-xs h-7">
-                      <Users className="h-3 w-3 mr-1" />
-                      Role
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-
-                {assignMode === "user" ? (
-                  <ComboboxDropdown
-                    items={users.map((u) => ({
-                      id: String(u.id),
-                      label: u.name,
-                    }))}
-                    selectedItem={assignedUserId ? {
-                      id: assignedUserId,
-                      label: users.find(u => String(u.id) === assignedUserId)?.name || "",
-                    } : undefined}
-                    onSelect={(item) => setAssignedUserId(item.id)}
-                    placeholder="Search users..."
-                    clearable
-                    onClear={() => setAssignedUserId("")}
-                  />
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {INTERNAL_TEAM_ROLES.map((role) => (
-                      <Button
-                        key={role.key}
-                        type="button"
-                        variant={assignedRole === role.key ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setAssignedRole(
-                          assignedRole === role.key ? "" : role.key
-                        )}
-                        className={cn(
-                          "text-xs",
-                          assignedRole === role.key && "ring-2 ring-offset-1"
-                        )}
-                      >
-                        {role.label}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-2">
