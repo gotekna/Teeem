@@ -795,11 +795,11 @@ class EmailToJobService
       # automatically set their primary_company if not already set
       # Check both sender_company (from email sender) and customer_company (from customer email)
       company_to_link = customer_company || sender_company
-      if customer_contact && company_to_link && customer_contact.primary_company_id.nil?
+      # Guard: Don't self-reference (can't be your own employer)
+      if customer_contact && company_to_link && customer_contact.primary_company_id.nil? && customer_contact.id != company_to_link.id
         # Contact exists but not linked to a company - link them now
         customer_contact.update!(primary_company_id: company_to_link.id)
         extracted_data["customer"]["auto_linked_to_company"] = true
-        extracted_data["customer"]["is_employee_of_sender_company"] = true
         extracted_data["customer"]["linked_company_name"] = company_to_link.display_name
         Rails.logger.info "[EmailToJobService] Auto-linked #{customer_contact.display_name} as employee of #{company_to_link.display_name}"
       end
