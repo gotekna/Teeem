@@ -22,12 +22,14 @@ import {
   AlertCircle,
   Pencil,
   Landmark,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { TemplateEditor } from "./TemplateEditor";
 import { BankStatementTemplatesTab } from "./BankStatementTemplatesTab";
+import { InvoiceTemplatesTab } from "./InvoiceTemplatesTab";
 
 // SSoT Templates from TeknaDocumentGenerator (the source of truth)
 interface SsotTemplate {
@@ -72,6 +74,7 @@ interface TemplateGroup {
 const DOC_INNER_TABS = [
   { id: "documents", label: "Document Templates", icon: FileText },
   { id: "bank-statements", label: "Bank Statements", icon: Landmark },
+  { id: "invoice-templates", label: "Invoice Templates", icon: Receipt },
 ];
 
 export function DocumentTemplatesTab() {
@@ -593,6 +596,11 @@ export function DocumentTemplatesTab() {
         {/* Bank Statement Templates Tab Content */}
         <TabsContent value="bank-statements">
           <BankStatementTemplatesTab />
+        </TabsContent>
+
+        {/* Invoice Templates Tab Content */}
+        <TabsContent value="invoice-templates">
+          <InvoiceTemplatesTab />
         </TabsContent>
       </Tabs>
     </div>

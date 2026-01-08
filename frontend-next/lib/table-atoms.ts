@@ -753,6 +753,16 @@ export const columnEditModeAtom = atom<boolean>(false);
  */
 export const searchAllColumnsAtom = atom<boolean>(false);
 
+/**
+ * Search mode (contains, exact, starts_with, fuzzy, regex)
+ */
+export const searchModeAtom = atom<'contains' | 'exact' | 'starts_with' | 'fuzzy' | 'regex'>('contains');
+
+/**
+ * Searchable columns map (which columns to include in search)
+ */
+export const searchableColumnsAtom = atom<Record<string, boolean>>({});
+
 // ============================================================================
 // EDITING ROW STATE (legacy multi-row editing)
 // ============================================================================
