@@ -19,11 +19,12 @@ module Api
         @purchase_orders = @purchase_orders.where(supplier_id: params[:supplier_id]) if params[:supplier_id].present?
 
         # Search using SSoT SearchService
+        # Note: Task name search via sm_task.name handled by Foundation API
         if params[:search].present?
           @purchase_orders = SearchService.apply(
             @purchase_orders,
             params[:search],
-            columns: %w[purchase_order_number description ted_task],
+            columns: %w[purchase_order_number description],
             mode: params[:search_mode] || 'contains',
             model: PurchaseOrder
           )
@@ -510,7 +511,6 @@ module Api
           :ordered_date,
           :due_date,
           :expected_delivery_date,
-          :ted_task,
           :estimation_check,
           :part_payment,
           :amount_invoiced,

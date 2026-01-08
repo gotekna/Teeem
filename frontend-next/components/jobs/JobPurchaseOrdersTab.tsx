@@ -71,6 +71,13 @@ interface User {
   name: string;
 }
 
+// Role from /api/v1/roles
+interface Role {
+  id: number;
+  value: string;  // e.g., "supervisor"
+  label: string;  // e.g., "Supervisor"
+}
+
 // Job's internal team member (from job_contacts)
 interface JobInternalTeamMember {
   role: string;
@@ -93,6 +100,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [poTasks, setPoTasks] = useState<SmTask[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [internalTeam, setInternalTeam] = useState<JobInternalTeamMember[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [loadingPoTasks, setLoadingPoTasks] = useState(false);
@@ -178,6 +186,17 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
+  // Load roles for assignment dropdown
+  const loadRoles = async () => {
+    if (roles.length > 0) return;
+    try {
+      const response = await api.get<Role[]>("/api/v1/roles");
+      setRoles(Array.isArray(response) ? response : []);
+    } catch (err) {
+      console.error("Failed to load roles:", err);
+    }
+  };
+
   // Load job's internal team members (Supervisor, Site Coordinator, etc.)
   const loadInternalTeam = async () => {
     try {
@@ -202,18 +221,28 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
   // Handle role button click - auto-fill user if assigned on job
   const handleRoleClick = (roleKey: string) => {
-    if (assignedRole === roleKey) {
+    // Find the Role ID for this key
+    const role = roles.find(r => r.value === roleKey);
+    const roleId = role ? String(role.id) : "";
+
+    if (assignedRole === roleId) {
       // Deselect
       setAssignedRole("");
       setAssignedUserId(currentUser ? String(currentUser.id) : "");
     } else {
       // Select role and auto-fill user if one is assigned to this role
-      setAssignedRole(roleKey);
+      setAssignedRole(roleId);
       const teamMember = getTeamMemberForRole(roleKey);
       if (teamMember?.user_id) {
         setAssignedUserId(String(teamMember.user_id));
       }
     }
+  };
+
+  // Check if a role button is selected (by Role ID)
+  const isRoleButtonSelected = (roleKey: string): boolean => {
+    const role = roles.find(r => r.value === roleKey);
+    return role ? assignedRole === String(role.id) : false;
   };
 
   const handleOpenCreateModal = async () => {
@@ -225,7 +254,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     setAssignedUserId(currentUser ? String(currentUser.id) : "");
     setAssignedRole("");
     setShowCreateModal(true);
-    await Promise.all([loadContacts(), loadPoTasks(), loadUsers(), loadInternalTeam()]);
+    await Promise.all([loadContacts(), loadPoTasks(), loadUsers(), loadRoles(), loadInternalTeam()]);
   };
 
   // Create PO and optionally navigate to detail page
@@ -255,10 +284,10 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
           // Custom task: backend creates SmTask with this name
           task_name: !selectedTask && customTaskName.trim() ? customTaskName.trim() : null,
           status: "draft",
-          // Assignment info for custom tasks
+          // Assignment info for custom tasks (role is Role.id integer)
           ...(customTaskName.trim() && !selectedTask && {
             assigned_user_id: assignedUserId ? Number(assignedUserId) : null,
-            assigned_role: assignedRole || null,
+            assigned_role: assignedRole ? Number(assignedRole) : null,
           }),
         },
       });
@@ -450,12 +479,13 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
             {/* Assign To - Only show when typing custom task name */}
             {customTaskName.trim() && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Label>Assign To</Label>
+                {/* Quick-select buttons for job's internal team */}
                 <div className="flex flex-wrap gap-2">
                   {INTERNAL_TEAM_ROLES.map((role) => {
                     const teamMember = getTeamMemberForRole(role.key);
-                    const isSelected = assignedRole === role.key;
+                    const isSelected = isRoleButtonSelected(role.key);
                     return (
                       <Button
                         key={role.key}
@@ -481,16 +511,23 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                     );
                   })}
                 </div>
-                {/* Custom role input - for roles not in the quick-select buttons */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Role:</span>
-                  <Input
-                    value={assignedRole}
-                    onChange={(e) => setAssignedRole(e.target.value)}
-                    placeholder="Enter role (or click button above)"
-                    className="flex-1 h-8 text-sm"
-                  />
-                </div>
+                {/* Role dropdown - select any role */}
+                <ComboboxDropdown
+                  items={roles.map((role) => ({
+                    id: String(role.id),
+                    label: role.label,
+                  }))}
+                  selectedItem={assignedRole ? {
+                    id: assignedRole,
+                    label: roles.find(r => String(r.id) === assignedRole)?.label || "Select role",
+                  } : undefined}
+                  onSelect={(item) => setAssignedRole(item.id)}
+                  placeholder="Select role..."
+                  searchPlaceholder="Search roles..."
+                  emptyResults="No role found."
+                  clearable={!!assignedRole}
+                  onClear={() => setAssignedRole("")}
+                />
                 {/* User dropdown - select any user */}
                 <ComboboxDropdown
                   items={users.map((user) => ({

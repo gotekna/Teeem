@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_07_233900) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_08_120348) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7471,7 +7471,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_07_233900) do
     t.datetime "updated_at", null: false
     t.decimal "amount_still_to_be_invoiced", precision: 15, scale: 2, default: "0.0"
     t.decimal "total_with_allowance", precision: 15, scale: 2, default: "0.0"
-    t.text "ted_task"
     t.boolean "estimation_check", default: false
     t.boolean "part_payment", default: false
     t.string "xero_supplier"

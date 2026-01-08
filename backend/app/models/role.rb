@@ -18,6 +18,6 @@ class Role < ApplicationRecord
 
   # Class methods
   def self.for_select
-    active.ordered.pluck(:name, :display_name).map { |name, display| { value: name, label: display } }
+    active.ordered.pluck(:id, :name, :display_name).map { |id, name, display| { id: id, value: name, label: display } }
   end
 end
