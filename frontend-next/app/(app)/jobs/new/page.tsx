@@ -273,8 +273,8 @@ export default function NewJobPage() {
         setJobStatuses(statusesData?.job_statuses || []);
         setUsers(Array.isArray(usersData) ? usersData : usersData?.users || []);
 
-        // Set default values if available
-        if (typesData?.job_types && typesData.job_types.length > 0) {
+        // Set default job type - BUT skip if loading from proposal (the mapping effect will set it)
+        if (typesData?.job_types && typesData.job_types.length > 0 && !proposalId) {
           setFormData(prev => ({ ...prev, job_type_id: typesData.job_types[0].id.toString() }));
         }
         if (statusesData?.job_statuses && statusesData.job_statuses.length > 0) {
@@ -470,13 +470,24 @@ export default function NewJobPage() {
 
   // Map AI-detected job_type to job_type_id after both proposal and jobTypes are loaded
   React.useEffect(() => {
-    if (!proposal?.extracted_data?.job_type || jobTypes.length === 0) return;
+    console.log("[Proposal JobType Mapping] Effect running:", {
+      hasProposal: !!proposal,
+      jobType: proposal?.extracted_data?.job_type,
+      jobTypesCount: jobTypes.length,
+      currentJobTypeId: formData.job_type_id,
+    });
 
-    const aiJobType = proposal.extracted_data.job_type.toLowerCase();
+    if (!proposal?.extracted_data?.job_type || jobTypes.length === 0) {
+      console.log("[Proposal JobType Mapping] Skipping - missing data");
+      return;
+    }
+
+    const aiJobType = proposal.extracted_data.job_type.toLowerCase().trim();
 
     // Mapping: AI job type keywords → JobType names
     const typeMapping: Record<string, string> = {
       'kitchen': 'Kitchen',
+      'kitchens': 'Kitchen',
       'cabinetry': 'Kitchen',
       'cabinet': 'Kitchen',
       'cabinets': 'Kitchen',
@@ -493,13 +504,20 @@ export default function NewJobPage() {
       'office': 'Office Fitout',
     };
 
+    console.log("[Proposal JobType Mapping] Available job types:", jobTypes.map(jt => jt.name));
+
     const targetTypeName = typeMapping[aiJobType];
     if (targetTypeName) {
-      const matchedType = jobTypes.find(jt => jt.name === targetTypeName);
+      // Case-insensitive match for job type name
+      const matchedType = jobTypes.find(jt => jt.name.toLowerCase() === targetTypeName.toLowerCase());
       if (matchedType) {
-        console.log(`[Proposal] Mapping job_type "${aiJobType}" → "${matchedType.name}" (ID: ${matchedType.id})`);
+        console.log(`[Proposal JobType Mapping] SUCCESS: "${aiJobType}" → "${matchedType.name}" (ID: ${matchedType.id})`);
         setFormData(prev => ({ ...prev, job_type_id: matchedType.id.toString() }));
+      } else {
+        console.warn(`[Proposal JobType Mapping] No match found for target type "${targetTypeName}" in:`, jobTypes.map(jt => jt.name));
       }
+    } else {
+      console.warn(`[Proposal JobType Mapping] No mapping defined for AI job type "${aiJobType}"`);
     }
   }, [proposal, jobTypes]);
 
