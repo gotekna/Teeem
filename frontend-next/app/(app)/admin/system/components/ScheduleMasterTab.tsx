@@ -333,7 +333,10 @@ export function ScheduleMasterTab() {
 
   // Effective viewSlug for TeeemTableView - can be overridden during template change
   // This allows immediate clearing of view while URL updates asynchronously
-  const effectiveViewSlug = overrideViewSlugClear ? undefined : viewSlug;
+  // ⚠️ DO NOT SIMPLIFY - null means "explicitly no view, ignore URL" (v2696)
+  // When overrideViewSlugClear is true, pass null (not undefined) to tell
+  // TeeemTableView to ignore the URL path and apply no view filters
+  const effectiveViewSlug = overrideViewSlugClear ? null : viewSlug;
 
   // Clear the override once URL has actually updated (viewSlug becomes undefined)
   React.useEffect(() => {

@@ -670,7 +670,10 @@ export default function TeeemTableView({
   } = useFoundationViewState(foundationKey, {
     initialView: initialView || undefined,
     views: preloadedViews || undefined,
-    viewSlug: viewSlug || undefined,
+    // ⚠️ DO NOT SIMPLIFY - null means "explicitly no view" (v2696)
+    // Pass null through to hook (tells it to ignore URL path)
+    // Only convert falsy empty string to undefined
+    viewSlug: viewSlug === null ? null : (viewSlug || undefined),
     foundationSlug: foundationSlug || foundationKey,
   });
 

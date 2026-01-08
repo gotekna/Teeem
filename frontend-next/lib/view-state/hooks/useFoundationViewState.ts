@@ -177,7 +177,17 @@ export function useFoundationViewState(
   const { viewSlug: pathSlug, setViewSlug } = useViewFromPath({ foundationSlug });
 
   // Effective view slug (props override path)
-  const activeSlug = propsViewSlug || pathSlug;
+  // ⚠️ DO NOT SIMPLIFY - null means "explicitly no view" (Jan 2025)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: When switching contexts (e.g., template change while view active),
+  //      we need to clear the view IMMEDIATELY before URL updates.
+  //      - undefined = "use pathSlug from URL" (normal behavior)
+  //      - null = "explicitly no view, ignore pathSlug" (for sync clearing)
+  //      - string = "use this specific view slug"
+  // ❌ WRONG: propsViewSlug || pathSlug (null treated as falsy → uses pathSlug)
+  // ✅ CORRECT: Check for null explicitly, only fallback when undefined
+  // ════════════════════════════════════════════════════════════════════
+  const activeSlug = propsViewSlug === null ? undefined : (propsViewSlug || pathSlug);
 
   // Track if initial view has been applied to atom
   const initializedRef = useRef(false);
