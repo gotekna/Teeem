@@ -605,6 +605,38 @@ export default function TeeemTableView({
   // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read)
   const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0);
 
+  // ============================================================================
+  // DEPRECATION WARNING: entries prop with Foundation-backed tables
+  // ============================================================================
+  // The `entries` prop is deprecated for Foundation-backed tables.
+  // Use `autoFetchRecords={true}` instead for:
+  // - SSR hydration (fast LCP)
+  // - Cursor-based pagination with infinite scroll
+  // - Built-in caching for back navigation
+  // - Server-side search
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      // Only warn if entries is used with a Foundation-backed table and autoFetchRecords is off
+      if (entries && entries.length > 0 && effectiveFoundationId && !autoFetchRecords) {
+        console.warn(
+          `[TeeemTableView DEPRECATION] The \`entries\` prop is deprecated for Foundation-backed tables.\n` +
+          `Foundation: ${effectiveFoundationId}\n` +
+          `Entries provided: ${entries.length} rows\n\n` +
+          `Migration:\n` +
+          `  BEFORE: <TeeemTableView foundationId="${effectiveFoundationId}" entries={data} />\n` +
+          `  AFTER:  <TeeemTableView foundationId="${effectiveFoundationId}" autoFetchRecords={true} />\n\n` +
+          `Benefits of autoFetchRecords:\n` +
+          `  - SSR hydration (faster LCP, no loading spinner)\n` +
+          `  - Cursor-based pagination (handles 100K+ rows)\n` +
+          `  - Built-in caching (instant back navigation)\n` +
+          `  - Server-side search\n\n` +
+          `For embedded tables with filters, use:\n` +
+          `  <TeeemTableView foundationId="..." autoFetchRecords={true} initialFilters={[...]} />`
+        );
+      }
+    }
+  }, []); // Only warn once on mount
+
   // URL-driven view navigation (new architecture)
   // Uses path-based URLs: /jobs/view/live instead of query params
   // Only active when foundationId is a string slug (not numeric)

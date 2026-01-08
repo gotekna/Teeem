@@ -21,22 +21,15 @@ class JobType < ApplicationRecord
     sm_schedule_master_template_id.present?
   end
 
-  # Get the published version of the schedule template (for applying to jobs)
-  def schedule_template_version
-    sm_schedule_master_template&.published_version
-  end
-
   # Summary for API responses
+  # Note: SmScheduleMasterTemplate doesn't have versions (unlike old schedule_templates)
   def schedule_template_summary
     return nil unless sm_schedule_master_template.present?
 
-    version = schedule_template_version
     {
       template_id: sm_schedule_master_template.id,
       template_name: sm_schedule_master_template.name,
-      version_id: version&.id,
-      version_number: version&.version_number,
-      row_count: version&.row_count || 0
+      row_count: sm_schedule_master_template.row_count
     }
   end
 end
