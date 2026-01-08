@@ -208,6 +208,23 @@ export const closeModalAtom = closeTableModalAtom;
  */
 export const hoveredRowAtom = atom<string | number | null>(null);
 
+// ============================================================================
+// SCHEDULE MASTER STATE (survives component remounts)
+// ============================================================================
+
+/**
+ * Schedule Master Data View - selected template ID
+ * ⚠️ DO NOT SIMPLIFY - This atom exists to survive component remounts (v2711)
+ * ════════════════════════════════════════════════════════════════════
+ * Why: When router.push() changes URL, the ScheduleMasterTab component remounts.
+ *      useState/useRef values reset to null on remount. Jotai atoms persist
+ *      outside the component lifecycle, so the user's template selection survives.
+ * Bug: Without this, selecting a template while a saved view is in the URL
+ *      would revert to auto-selected template after remount.
+ * ════════════════════════════════════════════════════════════════════
+ */
+export const smDataViewTemplateIdAtom = atom<number | null>(null);
+
 /**
  * Expanded row IDs (for nested/detail rows)
  */

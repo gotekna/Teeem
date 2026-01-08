@@ -86,6 +86,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch } from "lucide-react";
+import { useAtom, useStore } from "jotai";
+import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
 
 // Copyable code component for column names
 function CopyableCode({ children }: { children: string }) {
@@ -304,6 +306,8 @@ export function ScheduleMasterTab() {
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
+  // v2711: Jotai store for reading CURRENT atom value inside async functions
+  const jotaiStore = useStore();
 
   // SSoT: Parse path segments for state
   // Pattern: /admin/system/schedule-master/[subtab]/[view-or-table]
@@ -420,15 +424,13 @@ export function ScheduleMasterTab() {
   const [ganttFullscreen, setGanttFullscreen] = React.useState(true); // Default to fullscreen
 
   // Data View state
-  const [dataViewTemplateId, setDataViewTemplateIdState] = React.useState<number | null>(null);
-  // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
-  const dataViewTemplateIdRef = React.useRef<number | null>(null);
-  // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
-  const setDataViewTemplateId = React.useCallback((id: number | null) => {
-    console.log("[v2711 DEBUG] setDataViewTemplateId called with:", id, "| prev ref:", dataViewTemplateIdRef.current);
-    dataViewTemplateIdRef.current = id;
-    setDataViewTemplateIdState(id);
-  }, []);
+  // ⚠️ DO NOT SIMPLIFY - Jotai atom survives component remounts (v2711 ultra fix)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: router.push() causes component remount. useState/useRef reset on remount.
+  //      Jotai atoms persist outside component lifecycle.
+  // Bug: Without atom, selecting Kitchen while /setup view active → reverts to House
+  // ════════════════════════════════════════════════════════════════════
+  const [dataViewTemplateId, setDataViewTemplateId] = useAtom(smDataViewTemplateIdAtom);
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
@@ -938,44 +940,23 @@ export function ScheduleMasterTab() {
       // v2709: ALWAYS auto-select template, even when view is in URL
       // Templates and views are independent - views filter WITHIN the selected template
       // Without a template selected, initialFilters is empty and table shows 0 records
-      // v2711: Check sessionStorage for pending template ID (survives remount from router.push)
-      const pendingTemplateId = sessionStorage.getItem('sm_pending_template_id');
-      console.log("[v2711 DEBUG] loadTemplates completed. ref =", dataViewTemplateIdRef.current, "| sessionStorage =", pendingTemplateId);
-
-      if (pendingTemplateId) {
-        // User selected a template before remount - use it
-        // v2711: Delay clearing to survive multiple rapid remounts (React may mount twice)
-        const templateId = parseInt(pendingTemplateId);
-        console.log("[v2711 DEBUG] Using pending template from sessionStorage:", templateId);
-        if (loadedTemplates.some(t => t.id === templateId)) {
-          loadDataViewRows(templateId);
-          // Clear after delay to survive any additional remounts
-          setTimeout(() => {
-            sessionStorage.removeItem('sm_pending_template_id');
-            console.log("[v2711 DEBUG] Cleared sessionStorage after delay");
-          }, 2000);
-        } else {
-          console.log("[v2711 DEBUG] Pending template not found in list, falling back to auto-select");
-          sessionStorage.removeItem('sm_pending_template_id');
-          // Template not found (maybe deleted?), fall back to auto-select
-          const autoSelectTemplate = loadedTemplates[0];
-          if (autoSelectTemplate) {
-            loadDataViewRows(autoSelectTemplate.id);
-          }
-        }
-      } else if (!dataViewTemplateIdRef.current && loadedTemplates.length > 0) {
+      // v2711: Read CURRENT atom value (not stale closure) via store.get()
+      // ════════════════════════════════════════════════════════════════════
+      // Why: This async function may have started before user clicked a template.
+      //      The closure-captured `dataViewTemplateId` would be stale (null).
+      //      Using store.get() reads the CURRENT atom value after await returns.
+      // ════════════════════════════════════════════════════════════════════
+      const currentTemplateId = jotaiStore.get(smDataViewTemplateIdAtom);
+      if (!currentTemplateId && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
           t.name.toLowerCase().includes('schedule master')
         ) || loadedTemplates[0];
 
-        console.log("[v2711 DEBUG] Auto-selecting template:", autoSelectTemplate?.id, autoSelectTemplate?.name);
         if (autoSelectTemplate) {
           loadDataViewRows(autoSelectTemplate.id);
         }
-      } else {
-        console.log("[v2711 DEBUG] Skipping auto-select - ref already has value or no templates");
       }
 
       // Auto-select template for Gantt V2 (same priority as others)
@@ -2637,16 +2618,13 @@ export function ScheduleMasterTab() {
                           // Fix: Use overrideViewSlugClear to immediately tell TeeemTableView
                           //      to ignore the viewSlug. Then update URL (cosmetic).
                           //
-                          // v2711: router.push causes component REMOUNT, which resets all refs.
-                          //        Store template ID in sessionStorage to survive the remount.
-                          //        loadTemplates will check for this and skip auto-select.
+                          // v2711: Jotai atom (smDataViewTemplateIdAtom) survives remount.
+                          //        No sessionStorage needed - atom persists outside component.
                           // ═══════════════════════════════════════════════════════════════════════════
                           pendingTemplateIdRef.current = newTemplateId; // Guard for handleViewChange
                           setOverrideViewSlugClear(true); // Immediately clear view for TeeemTableView
                           setDataViewTemplateId(newTemplateId);
                           setDataViewRefreshKey(k => k + 1);
-                          // v2711: Persist template ID through remount
-                          sessionStorage.setItem('sm_pending_template_id', String(newTemplateId));
                           router.push('/admin/system/schedule-master/data-view', { scroll: false });
                           // Clear ref after a tick to allow state to propagate
                           setTimeout(() => {
