@@ -5999,28 +5999,20 @@ export default function TeeemTableView({
       </div>
 
       {/* Second row: Saved Views OR Selection Controls (extracted to ToolbarSecondRow) */}
+      {/* Context provides: savedViews, activeViewId, groupByColumn, collapsedGroupsCount, */}
+      {/* selectedRowIds, filteredRowsCount, allRowIds, selection actions, loadView */}
       <ToolbarSecondRow
         disableSavedViews={disableSavedViews}
-        savedViews={savedViews}
-        activeViewId={activeViewId}
-        groupByColumn={groupByColumn}
-        collapsedGroupsCount={collapsedGroups.size}
         editingRowCount={editingRowIds.size}
         validationErrorCount={Object.values(validationErrors).reduce(
           (count, rowErrors) => count + Object.keys(rowErrors).length,
           0
         )}
-        selectedRowIds={selectedRows}
-        filteredRowsCount={filteredAndSortedEntries.length}
-        allRowIds={filteredAndSortedEntries.map(r => r.id as string | number)}
         onCollapseAll={collapseAllGroups}
         onExpandAll={expandAllGroups}
         onCancelEditing={cancelEditing}
         onSaveEditing={saveEditing}
         onToggleSelectAll={toggleSelectAll}
-        onSelectAll={(ids) => selection.actions.selectAll(ids)}
-        onClearSelection={() => selection.actions.clear()}
-        onLoadView={(view) => loadViewState(view, false, true)}
       />
 
       {/* Active filters indicator - reads from TableContext */}

@@ -133,15 +133,22 @@ class ClaimStageMatcherService
     Regexp.new("J#{Regexp.escape(job_number.to_s)}\\s*-\\s*#{sequence_number}", Regexp::IGNORECASE)
   end
 
-  # Check if invoice description matches regex
+  # Check if invoice fields match regex
   def description_matches?(invoice, regex)
     fields_to_check = [
       invoice.reference,
-      invoice.description,
       invoice.invoice_number
-    ].compact
+    ]
 
-    fields_to_check.any? { |field| field.match?(regex) }
+    # Also check line item descriptions (stored in line_items JSONB)
+    if invoice.line_items.is_a?(Array)
+      invoice.line_items.each do |item|
+        fields_to_check << item["Description"] if item["Description"].present?
+        fields_to_check << item["description"] if item["description"].present?
+      end
+    end
+
+    fields_to_check.compact.any? { |field| field.to_s.match?(regex) }
   end
 
   # Build a regex from stage name for matching

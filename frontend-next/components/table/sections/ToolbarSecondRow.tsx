@@ -7,11 +7,16 @@
  * - Editing controls when rows are being edited
  * - Selection controls for grouped tables
  * - Saved view buttons
+ *
+ * Migration Note (Phase 6.4):
+ * This component now reads from TableContext when available for:
+ * - savedViews, activeView, grouping state, selection state
+ * Editing-related props and callbacks remain as props.
  */
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ChevronDown, X, Check, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { useTableMaybe } from '../context';
 
 export interface SavedView {
   id: number | string;
@@ -34,74 +40,126 @@ export interface SavedView {
 export interface ToolbarSecondRowProps {
   /** Whether saved views are disabled */
   disableSavedViews?: boolean;
-  /** List of saved views */
-  savedViews: SavedView[];
-  /** Currently active view ID */
+  /** @deprecated Use TableContext instead. List of saved views */
+  savedViews?: SavedView[];
+  /** @deprecated Use TableContext instead. Currently active view ID */
   activeViewId?: number | string | null;
-  /** Current group by column (if grouped) */
+  /** @deprecated Use TableContext instead. Current group by column (if grouped) */
   groupByColumn?: string | null;
-  /** Number of collapsed groups */
-  collapsedGroupsCount: number;
-  /** Number of rows being edited */
-  editingRowCount: number;
-  /** Number of validation errors */
-  validationErrorCount: number;
-  /** Selected row IDs */
-  selectedRowIds: Set<string | number>;
-  /** Total filtered rows count */
-  filteredRowsCount: number;
-  /** All row IDs (for select all) */
-  allRowIds: (string | number)[];
+  /** @deprecated Use TableContext instead. Number of collapsed groups */
+  collapsedGroupsCount?: number;
+  /** Number of rows being edited (not in context yet) */
+  editingRowCount?: number;
+  /** Number of validation errors (not in context yet) */
+  validationErrorCount?: number;
+  /** @deprecated Use TableContext instead. Selected row IDs */
+  selectedRowIds?: Set<string | number>;
+  /** @deprecated Use TableContext instead. Total filtered rows count */
+  filteredRowsCount?: number;
+  /** @deprecated Use TableContext instead. All row IDs (for select all) */
+  allRowIds?: (string | number)[];
 
   // Callbacks
+  /** Callback to collapse all groups */
   onCollapseAll?: () => void;
+  /** Callback to expand all groups */
   onExpandAll?: () => void;
+  /** Callback to cancel editing */
   onCancelEditing?: () => void;
+  /** Callback to save editing */
   onSaveEditing?: () => void;
+  /** Callback to toggle select all */
   onToggleSelectAll?: () => void;
+  /** @deprecated Use TableContext instead. Callback to select all */
   onSelectAll?: (ids: (string | number)[]) => void;
+  /** @deprecated Use TableContext instead. Callback to clear selection */
   onClearSelection?: () => void;
+  /** @deprecated Use TableContext instead. Callback to load a view */
   onLoadView?: (view: SavedView) => void;
 }
 
 export function ToolbarSecondRow({
   disableSavedViews = false,
-  savedViews,
-  activeViewId,
-  groupByColumn,
-  collapsedGroupsCount,
-  editingRowCount,
-  validationErrorCount,
-  selectedRowIds,
-  filteredRowsCount,
-  allRowIds,
+  savedViews: propSavedViews,
+  activeViewId: propActiveViewId,
+  groupByColumn: propGroupByColumn,
+  collapsedGroupsCount: propCollapsedGroupsCount,
+  editingRowCount = 0,
+  validationErrorCount = 0,
+  selectedRowIds: propSelectedRowIds,
+  filteredRowsCount: propFilteredRowsCount,
+  allRowIds: propAllRowIds,
   onCollapseAll,
   onExpandAll,
   onCancelEditing,
   onSaveEditing,
   onToggleSelectAll,
-  onSelectAll,
-  onClearSelection,
-  onLoadView,
+  onSelectAll: propOnSelectAll,
+  onClearSelection: propOnClearSelection,
+  onLoadView: propOnLoadView,
 }: ToolbarSecondRowProps) {
+  // Try to get values from context first
+  const table = useTableMaybe();
+
+  // Resolve values: context first, props as fallback
+  const effectiveSavedViews = table ? table.savedViews : (propSavedViews ?? []);
+  const effectiveActiveViewId = table ? table.activeView?.id : propActiveViewId;
+  const effectiveGroupByColumn = table ? table.grouping.state.groupByColumn : propGroupByColumn;
+  const effectiveCollapsedGroupsCount = table
+    ? table.grouping.state.collapsedGroups.size
+    : (propCollapsedGroupsCount ?? 0);
+
+  // Selection state from context
+  const effectiveSelectedRowIds = table
+    ? table.selection.state.selectedIds
+    : (propSelectedRowIds ?? new Set<string | number>());
+  const effectiveFilteredRowsCount = table
+    ? table.processedData.counts.filtered
+    : (propFilteredRowsCount ?? 0);
+  const effectiveAllRowIds = table
+    ? table.processedData.visibleRowIds
+    : (propAllRowIds ?? []);
+
+  // Actions: context first, props as fallback
+  const handleSelectAll = useMemo(() => {
+    if (table) {
+      return (ids: (string | number)[]) => table.selection.actions.selectAll(ids);
+    }
+    return propOnSelectAll;
+  }, [table, propOnSelectAll]);
+
+  const handleClearSelection = useMemo(() => {
+    if (table) {
+      return () => table.selection.actions.clear();
+    }
+    return propOnClearSelection;
+  }, [table, propOnClearSelection]);
+
+  const handleLoadView = useMemo(() => {
+    if (table) {
+      return (view: SavedView) => table.loadView(view as any);
+    }
+    return propOnLoadView;
+  }, [table, propOnLoadView]);
+
   // Don't render if no views and not grouped
-  if ((disableSavedViews || savedViews.length === 0) && !groupByColumn) {
+  if ((disableSavedViews || effectiveSavedViews.length === 0) && !effectiveGroupByColumn) {
     return null;
   }
 
-  const hasSelection = selectedRowIds.size > 0;
-  const isAllSelected = filteredRowsCount > 0 &&
-    allRowIds.every(id => selectedRowIds.has(id));
+  const hasSelection = effectiveSelectedRowIds.size > 0;
+  const isAllSelected = effectiveFilteredRowsCount > 0 &&
+    effectiveAllRowIds.every(id => effectiveSelectedRowIds.has(id));
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-1 px-4">
       {/* Expand/Collapse all button - always visible when grouped to prevent layout shift */}
-      {groupByColumn && (
+      {effectiveGroupByColumn && (
         <Button
           variant="ghost"
           size="sm"
           onClick={() => {
-            if (collapsedGroupsCount === 0) {
+            if (effectiveCollapsedGroupsCount === 0) {
               onCollapseAll?.();
             } else {
               onExpandAll?.();
@@ -112,7 +170,7 @@ export function ToolbarSecondRow({
           <ChevronDown
             className={cn(
               "h-4 w-4 transition-transform",
-              collapsedGroupsCount === 0 ? "rotate-0" : "-rotate-90"
+              effectiveCollapsedGroupsCount === 0 ? "rotate-0" : "-rotate-90"
             )}
           />
         </Button>
@@ -158,7 +216,7 @@ export function ToolbarSecondRow({
             Save All
           </Button>
         </>
-      ) : groupByColumn && hasSelection ? (
+      ) : effectiveGroupByColumn && hasSelection ? (
         <>
           {/* Selection dropdown for grouped tables */}
           <DropdownMenu>
@@ -172,22 +230,22 @@ export function ToolbarSecondRow({
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => onSelectAll?.(allRowIds)}>
-                Select All ({filteredRowsCount})
+              <DropdownMenuItem onClick={() => handleSelectAll?.(effectiveAllRowIds)}>
+                Select All ({effectiveFilteredRowsCount})
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onClearSelection}>
+              <DropdownMenuItem onClick={handleClearSelection}>
                 Clear Selection
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
           {/* Selection count and clear - bulk action buttons are in the first toolbar row (SSoT) */}
-          <span className="text-[11px] font-medium ml-auto">{selectedRowIds.size} selected</span>
+          <span className="text-[11px] font-medium ml-auto">{effectiveSelectedRowIds.size} selected</span>
           <Button
             variant="outline"
             size="sm"
-            onClick={onClearSelection}
+            onClick={handleClearSelection}
             className="h-7 px-2 text-xs"
           >
             Clear
@@ -197,12 +255,12 @@ export function ToolbarSecondRow({
         <>
           {/* Show all views as individual buttons */}
           {/* Uses native title attributes to avoid compose-refs issues during view switching */}
-          {savedViews.map((view) => (
+          {effectiveSavedViews.map((view) => (
             <Button
               key={view.id}
-              variant={activeViewId === view.id ? "default" : "outline"}
+              variant={effectiveActiveViewId === view.id ? "default" : "outline"}
               size="sm"
-              onClick={() => onLoadView?.(view)}
+              onClick={() => handleLoadView?.(view)}
               title={view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
               className={cn(
                 "shrink-0 max-w-[140px]",

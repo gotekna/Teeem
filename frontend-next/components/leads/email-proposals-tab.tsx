@@ -380,8 +380,9 @@ function ProposalCard({
             </div>
           </div>
 
-          {/* Actions */}
-          {!readonly && proposal.status === "pending" && (
+          {/* Actions - show Re-extract for error proposals even in readonly mode */}
+          {((!readonly && (proposal.status === "pending" || proposal.status === "error")) ||
+            (readonly && proposal.status === "error")) && (
             <div className="ml-4 flex gap-2">
               <Button
                 variant="outline"
@@ -392,24 +393,28 @@ function ProposalCard({
                 <RefreshCw className={`w-4 h-4 mr-1 ${processing === proposal.id ? "animate-spin" : ""}`} />
                 Re-extract
               </Button>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={() => onApprove(proposal.id)}
-                disabled={processing === proposal.id}
-              >
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Review & Create Job
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onReject(proposal.id)}
-                disabled={processing === proposal.id}
-              >
-                <XCircle className="w-4 h-4 mr-1" />
-                Reject
-              </Button>
+              {!readonly && proposal.status === "pending" && (
+                <>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => onApprove(proposal.id)}
+                    disabled={processing === proposal.id}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Review & Create Job
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onReject(proposal.id)}
+                    disabled={processing === proposal.id}
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    Reject
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>

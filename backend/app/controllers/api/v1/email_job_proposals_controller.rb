@@ -185,10 +185,10 @@ module Api
       # POST /api/v1/email_job_proposals/:id/re_extract
       # Re-extract data from email and PDFs with latest extraction logic
       def re_extract
-        unless @proposal.pending?
+        unless @proposal.pending? || @proposal.error?
           return render json: {
             success: false,
-            error: "Can only re-extract pending proposals (current status: #{@proposal.status})"
+            error: "Can only re-extract pending or error proposals (current status: #{@proposal.status})"
           }, status: :unprocessable_entity
         end
 
@@ -213,10 +213,12 @@ module Api
 
         processing_time = ((Time.current - start_time) * 1000).round
 
-        # Update proposal with new extracted data
+        # Update proposal with new extracted data (reset to pending if was error)
         @proposal.update!(
           extracted_data: extracted_data,
-          processing_time_ms: processing_time
+          processing_time_ms: processing_time,
+          status: "pending",
+          error_message: nil
         )
 
         Rails.logger.info "Re-extracted proposal #{@proposal.id}: confidence=#{extracted_data['confidence_score']}"
