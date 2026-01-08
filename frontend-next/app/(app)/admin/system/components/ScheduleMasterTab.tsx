@@ -331,18 +331,6 @@ export function ScheduleMasterTab() {
   // URL view param (Foundation view filter) - only for data-view tab
   const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;
 
-  // Effect: Apply pending template ID AFTER viewSlug clears
-  // This ensures the template change happens AFTER the URL updates,
-  // so TeeemTableView never sees both old viewSlug AND new template ID
-  React.useEffect(() => {
-    if (pendingTemplateIdRef.current !== null && !viewSlug) {
-      const newTemplateId = pendingTemplateIdRef.current;
-      pendingTemplateIdRef.current = null;
-      setDataViewTemplateId(newTemplateId);
-      setDataViewRefreshKey(k => k + 1);
-    }
-  }, [viewSlug]);
-
   // Clear view filter from URL
   const handleViewClear = React.useCallback(() => {
     router.push("/admin/system/schedule-master/data-view", { scroll: false });
@@ -411,13 +399,14 @@ export function ScheduleMasterTab() {
   // ════════════════════════════════════════════════════════════════════
   // Why: When selecting a template while a saved view is active, we need to:
   //      1. Clear the URL (remove view slug)
-  //      2. Wait for URL to actually change (viewSlug becomes undefined)
+  //      2. Wait for URL to update (setTimeout)
   //      3. THEN set the new template ID and refresh the table
   // ❌ WRONG: setDataViewTemplateId before URL changes - causes re-render
   //           with old viewSlug, resulting in 0 records (conflicting filters)
-  // ✅ CORRECT: Store pending template in ref, apply AFTER viewSlug clears
+  // ✅ CORRECT: router.push to clear URL, then setTimeout(100ms) to apply template
+  // Ref guards handleViewChange from navigating back to old view during the delay
   // ════════════════════════════════════════════════════════════════════
-  // v2693: Fixed - defer template ID change until after URL clears
+  // v2694: Fixed - use setTimeout (useEffect didn't reliably detect URL change)
   const pendingTemplateIdRef = React.useRef<number | null>(null);
 
   // Gantt V2 state - template ID for selection
@@ -2574,11 +2563,21 @@ export function ScheduleMasterTab() {
                         const newTemplateId = parseInt(value);
 
                         if (viewSlug) {
-                          // View is active - store template ID in ref and clear URL
-                          // useEffect will apply the template AFTER viewSlug clears
-                          // This prevents the re-render with old viewSlug + new templateId
-                          pendingTemplateIdRef.current = newTemplateId;
+                          // ⚠️ DO NOT SIMPLIFY - URL must clear BEFORE template applies (v2694)
+                          // ═══════════════════════════════════════════════════════════════
+                          // Why: TeeemTableView applies saved view filters when viewSlug is set.
+                          //      If we set templateId while viewSlug is active, BOTH filters apply
+                          //      → 0 records (template filter conflicts with view filter)
+                          // Fix: Clear URL, then use setTimeout to defer template change.
+                          //      This gives Next.js router time to update the URL.
+                          // ═══════════════════════════════════════════════════════════════
+                          pendingTemplateIdRef.current = newTemplateId; // Guard for handleViewChange
                           router.push('/admin/system/schedule-master/data-view', { scroll: false });
+                          setTimeout(() => {
+                            pendingTemplateIdRef.current = null;
+                            setDataViewTemplateId(newTemplateId);
+                            setDataViewRefreshKey(k => k + 1);
+                          }, 100);
                         } else {
                           // No view active, apply template immediately
                           setDataViewTemplateId(newTemplateId);
