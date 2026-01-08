@@ -897,6 +897,16 @@ export default function PurchaseOrderDetailPage() {
                     {purchaseOrder.job.title}
                   </button>
                 </div>
+                <span className="text-muted-foreground">-</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push(`/jobs/${purchaseOrder.job!.id}/plans`)}
+                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Plans
+                </Button>
               </>
             )}
           </div>
