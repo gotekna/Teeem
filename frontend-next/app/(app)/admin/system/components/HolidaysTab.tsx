@@ -110,18 +110,9 @@ export function HolidaysTab() {
       setHolidays(holidaysArray);
     } catch (error) {
       console.error("Failed to load holidays:", error);
-      // Mock data for development
-      setHolidays([
-        { id: 1, name: "New Year's Day", date: `${selectedYear}-01-01`, region: "National" },
-        { id: 2, name: "Australia Day", date: `${selectedYear}-01-26`, region: "National" },
-        { id: 3, name: "Good Friday", date: `${selectedYear}-04-07`, region: "National" },
-        { id: 4, name: "Easter Monday", date: `${selectedYear}-04-10`, region: "National" },
-        { id: 5, name: "Anzac Day", date: `${selectedYear}-04-25`, region: "National" },
-        { id: 6, name: "Queen's Birthday", date: `${selectedYear}-06-12`, region: "QLD" },
-        { id: 7, name: "Royal Queensland Show", date: `${selectedYear}-08-16`, region: "QLD" },
-        { id: 8, name: "Christmas Day", date: `${selectedYear}-12-25`, region: "National" },
-        { id: 9, name: "Boxing Day", date: `${selectedYear}-12-26`, region: "National" },
-      ]);
+      // SSoT: Database is the only source - no mock/fallback data
+      toast({ title: "Error", description: "Failed to load holidays from database", variant: "destructive" });
+      setHolidays([]);
     } finally {
       setLoading(false);
     }

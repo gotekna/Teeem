@@ -83,8 +83,14 @@ function formatDate(dateString: string | undefined): string {
   });
 }
 
+// SSoT: Holidays come from database via /api/v1/public_holidays/dates
 // Calculate build period and weekend/holiday days
-function calculateBuildPeriod(startDateStr: string, constructionDays: number, weatherDays: number) {
+function calculateBuildPeriod(
+  startDateStr: string,
+  constructionDays: number,
+  weatherDays: number,
+  holidayDates: Set<string> = new Set()
+) {
   if (!startDateStr || constructionDays <= 0) {
     return { totalWeeks: 0, weekendHolidayDays: 0 };
   }
@@ -95,47 +101,17 @@ function calculateBuildPeriod(startDateStr: string, constructionDays: number, we
   let weekendDays = 0;
   let holidayDays = 0;
 
-  // QLD public holidays (approximate - major ones)
-  const getHolidays = (year: number): Date[] => {
-    const holidays: Date[] = [
-      new Date(year, 0, 1),   // New Year's Day
-      new Date(year, 0, 26),  // Australia Day
-      new Date(year, 3, 25),  // ANZAC Day
-      new Date(year, 11, 25), // Christmas Day
-      new Date(year, 11, 26), // Boxing Day
-    ];
-    // Add Easter (approximate)
-    const easter = calculateEaster(year);
-    holidays.push(new Date(easter.getTime() - 2 * 24 * 60 * 60 * 1000)); // Good Friday
-    holidays.push(new Date(easter.getTime() + 1 * 24 * 60 * 60 * 1000)); // Easter Monday
-    // Queen's Birthday (2nd Monday of June)
-    const june1 = new Date(year, 5, 1);
-    const daysUntilMonday = (8 - june1.getDay()) % 7;
-    holidays.push(new Date(year, 5, 1 + daysUntilMonday + 7));
-    return holidays;
+  const isHoliday = (date: Date): boolean => {
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return holidayDates.has(dateKey);
   };
-
-  const isHoliday = (date: Date, holidays: Date[]): boolean => {
-    return holidays.some(h =>
-      h.getFullYear() === date.getFullYear() &&
-      h.getMonth() === date.getMonth() &&
-      h.getDate() === date.getDate()
-    );
-  };
-
-  // Get holidays for relevant years
-  const holidays = [
-    ...getHolidays(startDate.getFullYear()),
-    ...getHolidays(startDate.getFullYear() + 1),
-    ...getHolidays(startDate.getFullYear() + 2),
-  ];
 
   // Count forward until we have enough working days
   while (workingDaysCounted < constructionDays) {
     const dayOfWeek = currentDate.getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       weekendDays++;
-    } else if (isHoliday(currentDate, holidays)) {
+    } else if (isHoliday(currentDate)) {
       holidayDays++;
     } else {
       workingDaysCounted++;
@@ -152,25 +128,6 @@ function calculateBuildPeriod(startDateStr: string, constructionDays: number, we
   };
 }
 
-// Easter calculation (Computus algorithm)
-function calculateEaster(year: number): Date {
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
-  const day = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(year, month, day);
-}
-
 export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
@@ -182,6 +139,28 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [savingContract, setSavingContract] = useState(false);
   const [sendingForSigning, setSendingForSigning] = useState(false);
+
+  // SSoT: Holidays from database API
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+
+  // Load holidays from API on mount
+  useEffect(() => {
+    const loadHolidays = async () => {
+      try {
+        const currentYear = new Date().getFullYear();
+        const response = await api.get<{ dates: string[] }>(
+          `/api/v1/public_holidays/dates?year_start=${currentYear}&year_end=${currentYear + 3}&region=QLD`
+        );
+        if (response.dates && response.dates.length > 0) {
+          setHolidayDates(new Set(response.dates));
+        }
+      } catch (err) {
+        console.error('[JobContractTab] Failed to load holidays:', err);
+        // SSoT: No fallback - calculations will proceed without holidays if API fails
+      }
+    };
+    loadHolidays();
+  }, []);
 
   const [form, setForm] = useState({
     plan_number: job.plan_number || "",
@@ -245,7 +224,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     if (isEditing && form.start_date && form.construction_days) {
       const constructionDays = parseInt(form.construction_days) || 300;
       const weatherDays = parseInt(form.stage_weather) || 10;
-      const result = calculateBuildPeriod(form.start_date, constructionDays, weatherDays);
+      const result = calculateBuildPeriod(form.start_date, constructionDays, weatherDays, holidayDates);
 
       if (result.totalWeeks > 0) {
         setForm(prev => ({
@@ -255,7 +234,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         }));
       }
     }
-  }, [isEditing, form.start_date, form.construction_days, form.stage_weather]);
+  }, [isEditing, form.start_date, form.construction_days, form.stage_weather, holidayDates]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -856,7 +835,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                         const result = calculateBuildPeriod(
                           job.start_date,
                           job.construction_days,
-                          parseInt(job.stage_weather || "10")
+                          parseInt(job.stage_weather || "10"),
+                          holidayDates
                         );
                         return `${result.totalWeeks} weeks`;
                       }
@@ -917,7 +897,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                           const result = calculateBuildPeriod(
                             job.start_date,
                             job.construction_days,
-                            parseInt(job.stage_weather || "10")
+                            parseInt(job.stage_weather || "10"),
+                            holidayDates
                           );
                           return `${result.weekendHolidayDays} days`;
                         }

@@ -1363,11 +1363,12 @@ export function ScheduleMasterTab() {
             console.log('[Start Task] Fetched holidays from API:', holidayResponse.dates.filter(d => d.startsWith('2026-01')));
           }
         } catch (err) {
-          console.warn('[Gantt V2] Failed to fetch holidays, using fallback:', err);
+          console.warn('[Gantt V2] Failed to fetch holidays from API:', err);
+          // SSoT: No fallback - working day calculations proceed without holidays
         }
 
         console.log('[Start Task] Today:', today.toISOString().split('T')[0], 'isWorkingDay:', isWorkingDay(today, holidayDates));
-        console.log('[Start Task] Holiday dates in set:', holidayDates ? [...holidayDates].filter(d => d.startsWith('2025-12') || d.startsWith('2026-01')).sort() : 'using fallback');
+        console.log('[Start Task] Holiday dates loaded:', holidayDates ? holidayDates.size : 0);
 
         // Check if today is a working day
         const isTodayWorking = isWorkingDay(today, holidayDates);
