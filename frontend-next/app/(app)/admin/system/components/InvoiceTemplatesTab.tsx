@@ -346,10 +346,22 @@ export function InvoiceTemplatesTab() {
                   <Spinner size={32} className="text-muted-foreground" />
                 </div>
               ) : (
-                <div className="h-full overflow-auto bg-white dark:bg-gray-100">
+                <div
+                  className="h-full overflow-auto bg-white dark:bg-gray-100 cursor-pointer"
+                  onDoubleClick={() => {
+                    // Double-click opens full preview in new window
+                    const blob = new Blob([previewHtml], { type: "text/html" });
+                    const url = URL.createObjectURL(blob);
+                    const newWindow = window.open(url, "_blank");
+                    if (newWindow) {
+                      newWindow.onload = () => URL.revokeObjectURL(url);
+                    }
+                  }}
+                  title="Double-click to open full preview"
+                >
                   <iframe
                     srcDoc={previewHtml}
-                    className="w-full h-full border-0"
+                    className="w-full h-full border-0 pointer-events-none"
                     title={`Preview: ${selectedTemplate.name}`}
                     sandbox="allow-same-origin"
                   />

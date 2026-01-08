@@ -252,6 +252,8 @@ import { validateCell as validateCellWithRegistry } from "./core/column-renderer
 import { TableHeaderSection, TableFooterSection } from "./core/table-sections";
 import { ToolbarBulkActions } from "./sections/ToolbarBulkActions";
 import { ToolbarMoreActions } from "./sections/ToolbarMoreActions";
+import { ToolbarSecondRow } from "./sections/ToolbarSecondRow";
+import { ActiveFiltersIndicator } from "./sections/ActiveFiltersIndicator";
 
 // Virtualization components (Phase 2 refactoring)
 import { VirtualizedGroupTable, VirtualizedFlatTable } from "./core/virtualization";
@@ -5849,197 +5851,41 @@ export default function TeeemTableView({
         </div>
       </div>
 
-      {/* Second row: Saved Views OR Selection Controls (for grouped tables) */}
-      {((!disableSavedViews && savedViews.length > 0) || groupByColumn) && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 px-4">
-          {/* Expand/Collapse all button - always visible when grouped to prevent layout shift */}
-          {groupByColumn && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (collapsedGroups.size === 0) {
-                  collapseAllGroups();
-                } else {
-                  expandAllGroups();
-                }
-              }}
-              className="h-7 w-7 p-0 shrink-0"
-            >
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 transition-transform",
-                  collapsedGroups.size === 0 ? "rotate-0" : "-rotate-90"
-                )}
-              />
-            </Button>
-          )}
+      {/* Second row: Saved Views OR Selection Controls (extracted to ToolbarSecondRow) */}
+      <ToolbarSecondRow
+        disableSavedViews={disableSavedViews}
+        savedViews={savedViews}
+        activeViewId={activeViewId}
+        groupByColumn={groupByColumn}
+        collapsedGroupsCount={collapsedGroups.size}
+        editingRowCount={editingRowIds.size}
+        validationErrorCount={Object.values(validationErrors).reduce(
+          (count, rowErrors) => count + Object.keys(rowErrors).length,
+          0
+        )}
+        selectedRowIds={selectedRows}
+        filteredRowsCount={filteredAndSortedEntries.length}
+        allRowIds={filteredAndSortedEntries.map(r => r.id as string | number)}
+        onCollapseAll={collapseAllGroups}
+        onExpandAll={expandAllGroups}
+        onCancelEditing={cancelEditing}
+        onSaveEditing={saveEditing}
+        onToggleSelectAll={toggleSelectAll}
+        onSelectAll={(ids) => selection.actions.selectAll(ids)}
+        onClearSelection={() => selection.actions.clear()}
+        onLoadView={(view) => loadViewState(view, false, true)}
+      />
 
-          {/* When editing rows, show editing controls instead of saved views */}
-          {editingRowIds.size > 0 ? (
-            (() => {
-              const errorCount = Object.values(validationErrors).reduce(
-                (count, rowErrors) => count + Object.keys(rowErrors).length,
-                0
-              );
-              return (
-                <>
-                  <span className={cn(
-                    "text-[11px] font-medium",
-                    errorCount > 0 ? "text-red-700 dark:text-red-300" : "text-blue-700 dark:text-blue-300"
-                  )}>
-                    Editing {editingRowIds.size} row{editingRowIds.size !== 1 ? "s" : ""}
-                    {errorCount > 0 && (
-                      <span className="ml-2 text-red-600">
-                        ({errorCount} error{errorCount !== 1 ? "s" : ""})
-                      </span>
-                    )}
-                  </span>
-                  <div className="flex-1" />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={cancelEditing}
-                    className="h-7 px-2"
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={saveEditing}
-                    className={cn(
-                      "h-7 px-2",
-                      errorCount > 0
-                        ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
-                        : "bg-green-600 hover:bg-green-700"
-                    )}
-                    disabled={errorCount > 0}
-                  >
-                    <Check className="h-4 w-4 mr-1" />
-                    Save All
-                  </Button>
-                </>
-              );
-            })()
-          ) : groupByColumn && selectedRows.size > 0 ? (
-            <>
-              {/* Selection dropdown for grouped tables */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div className="flex items-center cursor-pointer">
-                    <Checkbox
-                      checked={
-                        filteredAndSortedEntries.length > 0 &&
-                        filteredAndSortedEntries.every(row => selectedRows.has(row.id))
-                      }
-                      onCheckedChange={toggleSelectAll}
-                    />
-                    <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => selection.actions.selectAll(filteredAndSortedEntries.map(r => r.id as string | number))}>
-                    Select All ({filteredAndSortedEntries.length})
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => selection.actions.clear()}>
-                    Clear Selection
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Selection count and clear - bulk action buttons are in the first toolbar row (SSoT) */}
-              <span className="text-[11px] font-medium ml-auto">{selectedRows.size} selected</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => selection.actions.clear()}
-                className="h-7 px-2 text-xs"
-              >
-                Clear
-              </Button>
-            </>
-          ) : (
-            <>
-              {/* Show all views as individual buttons */}
-              {/* Uses native title attributes to avoid compose-refs issues during view switching */}
-              {savedViews.map((view) => (
-                <Button
-                  key={view.id}
-                  variant={activeViewId === view.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => loadViewState(view, false, true)}
-                  title={view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
-                  className={cn(
-                    "shrink-0 max-w-[140px]",
-                    view.is_global && "border-blue-300 dark:border-blue-700"
-                  )}
-                >
-                  {view.is_global && (
-                    <Globe className="h-3 w-3 mr-1 flex-shrink-0" />
-                  )}
-                  <span className="truncate">{view.name}</span>
-                </Button>
-              ))}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ULTRA Solution: Active filters indicator - only show when Column Filters is enabled */}
-      {/* Base filters (e.g., job scope) are applied but hidden from UI since they're contextual */}
-      {showColumnFilters && hasUserFilters ? (
-        <div className="flex items-center gap-2 flex-wrap px-4">
-          <span className="text-[11px] text-muted-foreground">Active filters:</span>
-          {/* Only render user-clearable filters (not base/locked filters) */}
-          {mergedFilters
-            .filter((f) => !f.locked && f.source !== 'base')
-            .map((filter) => {
-              const col = COLUMNS.find((c) => c.key === filter.column);
-              return (
-                <Badge
-                  key={filter.id}
-                  variant="secondary"
-                  className="gap-1 cursor-pointer hover:bg-secondary/80"
-                  onClick={() => setShowGlobalViewsManager(true)}
-                  title="Click to edit filters"
-                >
-                  {/* Use friendly label if provided, otherwise show raw filter details */}
-                  {filter.label ? (
-                    filter.label
-                  ) : (
-                    <>
-                      {col?.label || filter.column}{" "}
-                      {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
-                      {!["is_empty", "is_not_empty"].includes(filter.operator) &&
-                        `"${filter.value}"`}
-                    </>
-                  )}
-                  <X
-                    className="h-3 w-3 text-muted-foreground hover:text-foreground ml-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveFilter(filter.id);
-                    }}
-                  />
-                </Badge>
-              );
-            })}
-          {/* Only show "Clear all" if there are user-clearable filters */}
-          {hasUserFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-              className="h-6 px-2 text-muted-foreground"
-            >
-              Clear all
-            </Button>
-          )}
-        </div>
-      ) : null}
+      {/* Active filters indicator - extracted to ActiveFiltersIndicator */}
+      <ActiveFiltersIndicator
+        showColumnFilters={showColumnFilters}
+        hasUserFilters={hasUserFilters}
+        filters={mergedFilters}
+        columns={COLUMNS}
+        onRemoveFilter={handleRemoveFilter}
+        onClearAllFilters={clearAllFilters}
+        onEditFilters={() => setShowGlobalViewsManager(true)}
+      />
 
       {/* Bulk actions - HIDDEN - now shown inline in toolbar */}
       {false && selectedRows.size > 0 && (

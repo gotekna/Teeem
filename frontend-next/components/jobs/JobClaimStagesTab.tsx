@@ -587,6 +587,9 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                   <TableHead className="px-4 py-3 font-medium">Stage</TableHead>
                   <TableHead className="px-4 py-3 font-medium text-right">Expected</TableHead>
                   <TableHead className="px-4 py-3 font-medium">Xero Invoice</TableHead>
+                  <TableHead className="px-4 py-3 font-medium text-center">Sent</TableHead>
+                  <TableHead className="px-4 py-3 font-medium text-center">Due</TableHead>
+                  <TableHead className="px-4 py-3 font-medium text-center">Paid</TableHead>
                   {hasRetainage && (
                     <TableHead className="px-4 py-3 font-medium text-right">Retainage</TableHead>
                   )}
@@ -721,6 +724,46 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                       )}
                     </TableCell>
 
+                    {/* Sent Date - when invoice was created */}
+                    <TableCell className="px-4 py-3 text-center">
+                      {stage.invoice?.date ? (
+                        <span className="text-sm">{formatDate(stage.invoice.date)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+
+                    {/* Due Date */}
+                    <TableCell className="px-4 py-3 text-center">
+                      {stage.invoice?.due_date ? (
+                        <span className={cn(
+                          "text-sm",
+                          stage.payment_status !== "paid" && new Date(stage.invoice.due_date) < new Date()
+                            ? "text-red-500 font-medium"
+                            : ""
+                        )}>
+                          {formatDate(stage.invoice.due_date)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+
+                    {/* Paid Date */}
+                    <TableCell className="px-4 py-3 text-center">
+                      {stage.invoice?.fully_paid_date ? (
+                        <span className="text-sm text-green-600 dark:text-green-400">
+                          {formatDate(stage.invoice.fully_paid_date)}
+                        </span>
+                      ) : stage.payment_date ? (
+                        <span className="text-sm text-green-600 dark:text-green-400">
+                          {formatDate(stage.payment_date)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+
                     {/* Retainage - only show column if any stage has retainage */}
                     {hasRetainage && (
                       <TableCell className="px-4 py-3 text-right">
@@ -814,25 +857,6 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                                 {formatCurrency(stage.amount_paid)}
                               </span>
                             </div>
-                          )}
-                          {/* Payment/Paid Date */}
-                          {(stage.invoice.fully_paid_date || stage.payment_date) && (
-                            <span className="text-xs text-muted-foreground">
-                              {stage.invoice.fully_paid_date
-                                ? `Paid ${formatDate(stage.invoice.fully_paid_date)}`
-                                : stage.payment_date && formatDate(stage.payment_date)}
-                            </span>
-                          )}
-                          {/* Due Date (if unpaid) */}
-                          {stage.payment_status !== "paid" && stage.invoice.due_date && (
-                            <span className={cn(
-                              "text-xs",
-                              new Date(stage.invoice.due_date) < new Date()
-                                ? "text-red-500 font-medium"
-                                : "text-muted-foreground"
-                            )}>
-                              Due {formatDate(stage.invoice.due_date)}
-                            </span>
                           )}
                           {stage.has_variance && (
                             <Badge
