@@ -21,6 +21,7 @@ import {
   CornerDownRight,
   User,
   Users,
+  ExternalLink,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
@@ -468,18 +469,31 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setShowCreateModal(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={saving}>
+            <Button variant="outline" onClick={() => handleCreate(false)} disabled={saving}>
               {saving ? (
                 <>
                   <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (
-                "Create Purchase Order"
+                "Create"
+              )}
+            </Button>
+            <Button onClick={() => handleCreate(true)} disabled={saving}>
+              {saving ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  Save & Open
+                  <ExternalLink className="h-4 w-4 ml-2" />
+                </>
               )}
             </Button>
           </DialogFooter>
