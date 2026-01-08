@@ -234,9 +234,9 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setError("Please select a supplier");
       return;
     }
-    // SSoT: Task is REQUIRED - PO must always link to an SmTask (like a marriage)
-    if (!selectedTask) {
-      setError("Please select a PO task - every PO must be linked to a task");
+    // Either select a task OR enter a custom task name
+    if (!selectedTask && !customTaskName.trim()) {
+      setError("Please select a PO task or enter a custom task name");
       return;
     }
 
@@ -323,48 +323,6 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
           )}
 
           <div className="space-y-4 py-4">
-            {/* Assign To - Role buttons at top with user from job's internal team */}
-            <div className="space-y-2">
-              <Label>Assign To</Label>
-              <div className="flex flex-wrap gap-2">
-                {INTERNAL_TEAM_ROLES.map((role) => {
-                  const teamMember = getTeamMemberForRole(role.key);
-                  const isSelected = assignedRole === role.key;
-                  return (
-                    <Button
-                      key={role.key}
-                      type="button"
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleRoleClick(role.key)}
-                      className={cn(
-                        "text-xs flex-col h-auto py-1.5 px-3",
-                        isSelected && "ring-2 ring-offset-1"
-                      )}
-                    >
-                      <span>{role.label}</span>
-                      {teamMember?.user?.name && (
-                        <span className={cn(
-                          "text-[10px] font-normal",
-                          isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
-                        )}>
-                          {teamMember.user.name}
-                        </span>
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
-              {/* Show selected user below buttons */}
-              {assignedRole && (
-                <div className="text-sm text-muted-foreground mt-1">
-                  Assigned to: <span className="font-medium text-foreground">
-                    {users.find(u => String(u.id) === assignedUserId)?.name || "Select user"}
-                  </span>
-                </div>
-              )}
-            </div>
-
             {/* Supplier (Contact) Select */}
             <div className="space-y-2">
               <Label>Supplier</Label>
@@ -438,10 +396,9 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               />
             </div>
 
-            {/* PO Task Select - REQUIRED - tasks from job's schedule */}
-            {/* SSoT: Every PO must link to a task (like a marriage) */}
+            {/* PO Task Select - tasks from job's schedule */}
             <div className="space-y-2">
-              <Label>PO Task <span className="text-destructive">*</span></Label>
+              <Label>PO Task</Label>
               <ComboboxDropdown
                 items={poTasks.map((task) => ({
                   id: String(task.id),
@@ -454,19 +411,84 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 onSelect={(item) => {
                   const task = poTasks.find((t) => String(t.id) === item.id);
                   setSelectedTask(task || null);
+                  // Clear custom task name when selecting a task
+                  if (task) setCustomTaskName("");
                 }}
-                placeholder={loadingPoTasks ? "Loading tasks..." : "Select PO task (required)..."}
+                placeholder={loadingPoTasks ? "Loading tasks..." : "Select PO task..."}
                 searchPlaceholder="Search tasks..."
-                emptyResults={poTasks.length === 0 ? "No PO tasks on this job - add tasks to schedule first" : "No task found."}
+                emptyResults={poTasks.length === 0 ? "No PO tasks on this job" : "No task found."}
                 disabled={loadingPoTasks}
                 isLoading={loadingPoTasks}
+                clearable={!!selectedTask}
+                onClear={() => setSelectedTask(null)}
               />
-              {poTasks.length === 0 && !loadingPoTasks && (
-                <p className="text-xs text-amber-600">
-                  No PO tasks found. Add tasks with &quot;PO Required&quot; to the job schedule first.
-                </p>
-              )}
             </div>
+
+            {/* OR divider */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex-1 border-t" />
+              <span>OR</span>
+              <div className="flex-1 border-t" />
+            </div>
+
+            {/* Custom Task Name - alternative to selecting from list */}
+            <div className="space-y-2">
+              <Label>Custom Task Name</Label>
+              <Input
+                value={customTaskName}
+                onChange={(e) => {
+                  setCustomTaskName(e.target.value);
+                  // Clear selected task when typing custom name
+                  if (e.target.value) setSelectedTask(null);
+                }}
+                placeholder="Enter custom task name..."
+                disabled={!!selectedTask}
+              />
+            </div>
+
+            {/* Assign To - Only show when typing custom task name */}
+            {customTaskName.trim() && (
+              <div className="space-y-2">
+                <Label>Assign To</Label>
+                <div className="flex flex-wrap gap-2">
+                  {INTERNAL_TEAM_ROLES.map((role) => {
+                    const teamMember = getTeamMemberForRole(role.key);
+                    const isSelected = assignedRole === role.key;
+                    return (
+                      <Button
+                        key={role.key}
+                        type="button"
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleRoleClick(role.key)}
+                        className={cn(
+                          "text-xs flex-col h-auto py-1.5 px-3",
+                          isSelected && "ring-2 ring-offset-1"
+                        )}
+                      >
+                        <span>{role.label}</span>
+                        {teamMember?.user?.name && (
+                          <span className={cn(
+                            "text-[10px] font-normal",
+                            isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                          )}>
+                            {teamMember.user.name}
+                          </span>
+                        )}
+                      </Button>
+                    );
+                  })}
+                </div>
+                {/* Show selected user below buttons */}
+                {assignedRole && (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Assigned to: <span className="font-medium text-foreground">
+                      {users.find(u => String(u.id) === assignedUserId)?.name || "Select user"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-2">
