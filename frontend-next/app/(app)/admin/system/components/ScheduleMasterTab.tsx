@@ -331,6 +331,17 @@ export function ScheduleMasterTab() {
   // URL view param (Foundation view filter) - only for data-view tab
   const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;
 
+  // Effective viewSlug for TeeemTableView - can be overridden during template change
+  // This allows immediate clearing of view while URL updates asynchronously
+  const effectiveViewSlug = overrideViewSlugClear ? undefined : viewSlug;
+
+  // Clear the override once URL has actually updated (viewSlug becomes undefined)
+  React.useEffect(() => {
+    if (overrideViewSlugClear && !viewSlug) {
+      setOverrideViewSlugClear(false);
+    }
+  }, [viewSlug, overrideViewSlugClear]);
+
   // Clear view filter from URL
   const handleViewClear = React.useCallback(() => {
     router.push("/admin/system/schedule-master/data-view", { scroll: false });
@@ -398,16 +409,17 @@ export function ScheduleMasterTab() {
   // ⚠️ DO NOT SIMPLIFY - Template change race condition fix (Jan 2025)
   // ════════════════════════════════════════════════════════════════════
   // Why: When selecting a template while a saved view is active, we need to:
-  //      1. Clear the URL (remove view slug)
-  //      2. Wait for URL to update (setTimeout)
-  //      3. THEN set the new template ID and refresh the table
-  // ❌ WRONG: setDataViewTemplateId before URL changes - causes re-render
-  //           with old viewSlug, resulting in 0 records (conflicting filters)
-  // ✅ CORRECT: router.push to clear URL, then setTimeout(100ms) to apply template
-  // Ref guards handleViewChange from navigating back to old view during the delay
+  //      1. Clear the view from TeeemTableView (via overrideViewSlugClear state)
+  //      2. Apply the new template ID
+  //      3. Update the URL (cosmetic - TeeemTableView already sees cleared view)
+  // ❌ WRONG: Rely on router.push to clear viewSlug - it's async, TeeemTableView
+  //           still sees old viewSlug → 0 records (conflicting filters)
+  // ✅ CORRECT: Use state to override viewSlug to undefined IMMEDIATELY
   // ════════════════════════════════════════════════════════════════════
-  // v2694: Fixed - use setTimeout (useEffect didn't reliably detect URL change)
+  // v2695: Fixed - use state override instead of relying on async URL update
   const pendingTemplateIdRef = React.useRef<number | null>(null);
+  // When true, forces viewSlug to undefined for TeeemTableView (overrides URL-derived value)
+  const [overrideViewSlugClear, setOverrideViewSlugClear] = React.useState(false);
 
   // Gantt V2 state - template ID for selection
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
@@ -2526,7 +2538,7 @@ export function ScheduleMasterTab() {
                   ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
                   : "PO Schedule Master"
               }
-              autoFetchRecords={!!dataViewTemplateId || !!viewSlug}
+              autoFetchRecords={!!dataViewTemplateId || !!effectiveViewSlug}
               initialFilters={dataViewTemplateId ? (() => {
                 // SSoT: Template filter is ALWAYS applied, even when a saved view is active
                 // Views add additional filters on TOP of the template filter
@@ -2549,8 +2561,8 @@ export function ScheduleMasterTab() {
               onRowUpdate={handleDataViewRowUpdate}
               onRowDoubleClick={handleDataViewRowDoubleClick}
               initialShowTotals={true}
-              viewSlug={viewSlug}
-              defaultViewSlug={viewSlug}
+              viewSlug={effectiveViewSlug}
+              defaultViewSlug={effectiveViewSlug}
               onViewChange={handleViewChange}
               leftActions={
                 <div className="flex items-center gap-2">
@@ -2563,21 +2575,25 @@ export function ScheduleMasterTab() {
                         const newTemplateId = parseInt(value);
 
                         if (viewSlug) {
-                          // ⚠️ DO NOT SIMPLIFY - URL must clear BEFORE template applies (v2694)
+                          // ⚠️ DO NOT SIMPLIFY - View must clear BEFORE template applies (v2695)
                           // ═══════════════════════════════════════════════════════════════
                           // Why: TeeemTableView applies saved view filters when viewSlug is set.
                           //      If we set templateId while viewSlug is active, BOTH filters apply
                           //      → 0 records (template filter conflicts with view filter)
-                          // Fix: Clear URL, then use setTimeout to defer template change.
-                          //      This gives Next.js router time to update the URL.
+                          // Fix: Use overrideViewSlugClear to immediately tell TeeemTableView
+                          //      to ignore the viewSlug. Then update URL (cosmetic).
+                          // Note: setTimeout didn't work because viewSlug comes from URL path
+                          //       which doesn't update synchronously with router.push.
                           // ═══════════════════════════════════════════════════════════════
                           pendingTemplateIdRef.current = newTemplateId; // Guard for handleViewChange
+                          setOverrideViewSlugClear(true); // Immediately clear view for TeeemTableView
+                          setDataViewTemplateId(newTemplateId);
+                          setDataViewRefreshKey(k => k + 1);
                           router.push('/admin/system/schedule-master/data-view', { scroll: false });
+                          // Clear ref after a tick to allow state to propagate
                           setTimeout(() => {
                             pendingTemplateIdRef.current = null;
-                            setDataViewTemplateId(newTemplateId);
-                            setDataViewRefreshKey(k => k + 1);
-                          }, 100);
+                          }, 0);
                         } else {
                           // No view active, apply template immediately
                           setDataViewTemplateId(newTemplateId);
