@@ -3,7 +3,8 @@ class Contact < ApplicationRecord
   include Searchable
 
   # Searchable columns for full-text search (GIN index)
-  searchable_columns :first_name, :last_name, :email, :company_name_or_trust, :display_name, :mobile_phone
+  # Note: email/mobile_phone columns removed - data now in contact_emails/contact_phones tables
+  searchable_columns :first_name, :last_name, :company_name_or_trust, :display_name, :abn
 
   # Exclude soft-deleted contacts by default
   # Note: deleted column was removed in migration 20251210093313
@@ -411,13 +412,11 @@ class Contact < ApplicationRecord
   # If invoice.contact_name matches contact.display_name exactly, link them
   after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
 
-  # SSoT: Sync mobile_phone to linked user when contact is updated
-  after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
-
-  # SSoT: Sync legacy email/phone columns to contact_emails/contact_phones tables
-  # This ensures SSoT tables stay in sync when legacy columns are updated (e.g., from Xero sync)
-  after_save :sync_legacy_email_to_ssot, if: -> { saved_change_to_email? }
-  after_save :sync_legacy_phones_to_ssot, if: -> { saved_change_to_mobile_phone? || saved_change_to_office_phone? || saved_change_to_fax_phone? }
+  # SSoT: Legacy phone/email columns removed - data now in contact_phones/contact_emails tables
+  # These callbacks are disabled as the columns no longer exist
+  # after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
+  # after_save :sync_legacy_email_to_ssot, if: -> { saved_change_to_email? }
+  # after_save :sync_legacy_phones_to_ssot, if: -> { saved_change_to_mobile_phone? || saved_change_to_office_phone? || saved_change_to_fax_phone? }
 
   # Scopes
   # SSoT: Scopes using contact_emails and contact_phones tables

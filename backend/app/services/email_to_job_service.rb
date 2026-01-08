@@ -942,7 +942,15 @@ class EmailToJobService
       end
 
       # CONTACT ENRICHMENT: Create company and link employee if needed
-      company_details = extracted_data["company_details"]
+      # Priority: customer.company > company_details.name (company_details may extract wrong sender)
+      company_details = extracted_data["company_details"] || {}
+      customer_company_name = customer_data["company"]  # AI extracts this from customer's email domain/signature
+
+      # Override company_details.name with customer.company if available
+      if customer_company_name.present? && company_details["name"] != customer_company_name
+        company_details = company_details.merge("name" => customer_company_name)
+      end
+
       if customer_contact && customer_email.present? && customer_contact.entity_type == "person"
         enrichment_result = enrich_contact_with_company(
           customer_contact,
