@@ -3115,7 +3115,7 @@ export default function TeeemTableView({
           // ════════════════════════════════════════════════════════════════════
           const explicitlyNoView = defaultViewSlug === null;
 
-          console.log('[loadSavedViews] View application check:', {
+          console.log('[loadSavedViews] v2705 - View application check:', {
             defaultViewSlug,
             explicitlyNoView,
             ssrAlreadyAppliedView,
