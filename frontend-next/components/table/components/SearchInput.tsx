@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useTableMaybe } from "../context";
 
 // Search mode types
 export type SearchMode = "contains" | "exact" | "starts_with" | "fuzzy" | "regex";
@@ -37,41 +38,63 @@ const SEARCH_MODES: SearchModeConfig[] = [
 ];
 
 interface SearchInputProps {
-  value: string;
-  onSearch: (value: string, mode?: SearchMode) => void;
-  onSearchAllChange: (checked: boolean) => void;
-  searchAllColumns: boolean;
-  serverSearchLoading: boolean;
-  hasServerSearch: boolean;
+  /** @deprecated Use TableContext instead. Search query value. */
+  value?: string;
+  /** @deprecated Use TableContext instead. Callback when search is triggered. */
+  onSearch?: (value: string, mode?: SearchMode) => void;
+  /** @deprecated Use TableContext instead. Callback to toggle searchAllColumns. */
+  onSearchAllChange?: (checked: boolean) => void;
+  /** @deprecated Use TableContext instead. Whether to search all columns. */
+  searchAllColumns?: boolean;
+  /** Whether server search is loading (async indicator) */
+  serverSearchLoading?: boolean;
+  /** Whether server search is available (feature flag) */
+  hasServerSearch?: boolean;
+  /** @deprecated Use TableContext instead. Current search mode. */
   searchMode?: SearchMode;
+  /** @deprecated Use TableContext instead. Callback to change search mode. */
   onSearchModeChange?: (mode: SearchMode) => void;
+  /** Whether to show the mode selector dropdown */
   showModeSelector?: boolean;
 }
 
 export const SearchInput = memo(function SearchInput({
-  value,
-  onSearch,
-  onSearchAllChange,
-  searchAllColumns,
-  serverSearchLoading,
-  hasServerSearch,
-  searchMode = "contains",
-  onSearchModeChange,
+  value: propValue,
+  onSearch: propOnSearch,
+  onSearchAllChange: propOnSearchAllChange,
+  searchAllColumns: propSearchAllColumns,
+  serverSearchLoading = false,
+  hasServerSearch = false,
+  searchMode: propSearchMode,
+  onSearchModeChange: propOnSearchModeChange,
   showModeSelector = true,
 }: SearchInputProps) {
+  // Try to get values from context first
+  const table = useTableMaybe();
+
+  // Resolve values: context first, props as fallback
+  const contextValue = table?.search.state.query ?? '';
+  const contextSearchAllColumns = table?.search.state.searchAllColumns ?? false;
+  const contextSearchMode = table?.search.state.mode ?? 'contains';
+
+  // Effective values (context wins if available)
+  const effectiveValue = table ? contextValue : (propValue ?? '');
+  const effectiveSearchAllColumns = table ? contextSearchAllColumns : (propSearchAllColumns ?? false);
+  const effectiveSearchMode = table ? contextSearchMode : (propSearchMode ?? 'contains');
+
   // Track local input value for controlled input
-  const [localValue, setLocalValue] = useState(value);
-  const [localMode, setLocalMode] = useState<SearchMode>(searchMode);
+  const [localValue, setLocalValue] = useState(effectiveValue);
+  const [localMode, setLocalMode] = useState<SearchMode>(effectiveSearchMode);
 
-  // Sync local value with prop value when it changes externally
+  // Sync local value with effective value when it changes externally
   useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
+    setLocalValue(effectiveValue);
+  }, [effectiveValue]);
 
-  // Sync local mode with prop mode when it changes externally
+  // Sync local mode with effective mode when it changes externally
   useEffect(() => {
-    setLocalMode(searchMode);
-  }, [searchMode]);
+    setLocalMode(effectiveSearchMode);
+  }, [effectiveSearchMode]);
 
   // Only update local state on change - search fires on Enter
   const handleChange = useCallback(
@@ -85,28 +108,45 @@ export const SearchInput = memo(function SearchInput({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') {
-        onSearch(localValue, localMode);
+        // Use context actions if available, otherwise fall back to props
+        if (table) {
+          table.search.actions.setQuery(localValue);
+          table.search.actions.setMode(localMode);
+        }
+        propOnSearch?.(localValue, localMode);
       }
     },
-    [localValue, localMode, onSearch]
+    [localValue, localMode, table, propOnSearch]
   );
 
   // Clear search immediately (resets results)
   const handleClear = useCallback(() => {
     setLocalValue("");
-    onSearch("", localMode);
-  }, [onSearch, localMode]);
+    // Use context actions if available, otherwise fall back to props
+    if (table) {
+      table.search.actions.clearQuery();
+    }
+    propOnSearch?.("", localMode);
+  }, [table, propOnSearch, localMode]);
 
   // Mode change triggers immediate search if there's a value
   const handleModeChange = useCallback((mode: SearchMode) => {
     setLocalMode(mode);
-    onSearchModeChange?.(mode);
 
-    // Re-trigger search with new mode if there's a value
-    if (localValue) {
-      onSearch(localValue, mode);
+    // Use context actions if available, otherwise fall back to props
+    if (table) {
+      table.search.actions.setMode(mode);
+      // Re-trigger search with new mode if there's a value
+      if (localValue) {
+        table.search.actions.setQuery(localValue);
+      }
     }
-  }, [localValue, onSearch, onSearchModeChange]);
+    propOnSearchModeChange?.(mode);
+    // Re-trigger search with new mode if there's a value (for props fallback)
+    if (localValue) {
+      propOnSearch?.(localValue, mode);
+    }
+  }, [localValue, table, propOnSearch, propOnSearchModeChange]);
 
   const currentMode = SEARCH_MODES.find(m => m.id === localMode) || SEARCH_MODES[0];
 
@@ -164,19 +204,23 @@ export const SearchInput = memo(function SearchInput({
             <DropdownMenuItem
               onClick={(e) => {
                 e.preventDefault();
-                onSearchAllChange(!searchAllColumns);
+                // Use context actions if available, otherwise fall back to props
+                if (table) {
+                  table.search.actions.toggleSearchAllColumns();
+                }
+                propOnSearchAllChange?.(!effectiveSearchAllColumns);
               }}
               className="flex items-center justify-between py-2 cursor-pointer"
             >
               <div className="flex-1">
                 <div className="font-medium text-sm">Search all columns</div>
                 <div className="text-xs text-muted-foreground">
-                  {searchAllColumns
+                  {effectiveSearchAllColumns
                     ? "Searching all columns including hidden"
                     : "Only searching key columns (name, ID, etc.)"}
                 </div>
               </div>
-              {searchAllColumns && <Check className="h-4 w-4 text-primary" />}
+              {effectiveSearchAllColumns && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />

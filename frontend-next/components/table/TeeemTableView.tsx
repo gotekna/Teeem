@@ -1355,10 +1355,18 @@ export default function TeeemTableView({
   const searchHook = useSearch();
   const search = searchHook.state.query;
   const searchAllColumns = searchHook.state.searchAllColumns;
+  const currentSearchMode = searchHook.state.mode;  // SSoT: use hook state instead of useState
   const [, setSearchAtom] = useAtom(searchQueryAtom);  // Keep for custom setSearch wrapper
   const [, setSearchAllColumns] = useAtom(searchAllColumnsAtom);  // Keep for direct setter
-  // Search mode for client-side filtering
-  const [currentSearchMode, setCurrentSearchMode] = useState<SearchMode>(propSearchMode || "contains");
+
+  // Sync propSearchMode to hook on mount (if provided)
+  useEffect(() => {
+    if (propSearchMode && propSearchMode !== searchHook.state.mode) {
+      searchHook.actions.setMode(propSearchMode);
+    }
+    // Only run on mount - propSearchMode is initial value only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Wrap setSearch to also call onSearchChange callback, update URL, and save to session storage
   const setSearch = useCallback((value: string | ((prev: string) => string)) => {
@@ -2235,7 +2243,7 @@ export default function TeeemTableView({
     (value: string, mode?: SearchMode) => {
       setSearch(value);
       if (mode) {
-        setCurrentSearchMode(mode);
+        searchHook.actions.setMode(mode);
       }
 
       // FRC FIX: When CLEARING search (empty value), ALWAYS refresh to get all records
@@ -2261,7 +2269,7 @@ export default function TeeemTableView({
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, searchHook.actions]
   );
 
   const handleSearchAllChange = useCallback(
@@ -5864,19 +5872,11 @@ export default function TeeemTableView({
                 onClick={() => setHealthPanelOpen(!healthPanelOpen)}
               />
             )}
+            {/* SearchInput reads from TableContext for search state/actions */}
             <SearchInput
-            value={search}
-            onSearch={handleSearchFromInput}
-            onSearchAllChange={handleSearchAllChange}
-            searchAllColumns={searchAllColumns}
-            serverSearchLoading={effectiveServerSearchLoading}
-            hasServerSearch={showSearchOptionsMenu}
-            searchMode={currentSearchMode}
-            onSearchModeChange={(mode) => {
-              setCurrentSearchMode(mode);
-              onSearchModeChange?.(mode);
-            }}
-          />
+              serverSearchLoading={effectiveServerSearchLoading}
+              hasServerSearch={showSearchOptionsMenu}
+            />
           </div>
 
           {/* View mode toggle - only show when grouped */}
