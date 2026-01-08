@@ -158,34 +158,10 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
   # 5. UserOutlookCredential - REMOVED (model deleted Dec 2024)
   # Data should have been migrated before model deletion.
 
-  # 6. OneDriveCredential → type: 'delegated', owner: Job
+  # 6. OneDriveCredential - REMOVED (model and table deleted Jan 2026)
+  # Data was 0 records in production - nothing to migrate.
   def migrate_per_job_onedrive_credentials
-    Rails.logger.info "[MigrateMicrosoftCredentials] Migrating OneDriveCredential (per-job)..."
-
-    OneDriveCredential.find_each do |old|
-      # Check if already migrated for this job
-      if MicrosoftCredential.exists?(owner_type: "Job", owner_id: old.job_id, credential_type: "delegated")
-        @stats[:per_job_onedrive][:skipped] += 1
-        next
-      end
-
-      attrs = {
-        credential_type: "delegated",
-        name: nil,
-        owner_type: "Job",
-        owner_id: old.job_id,
-        access_token: old.access_token,
-        refresh_token: old.refresh_token,
-        token_expires_at: old.token_expires_at,
-        root_folder_path: old.folder_path,
-        status: old.access_token.present? && old.refresh_token.present? ? "connected" : "disconnected",
-        is_active: true
-      }
-
-      create_or_log(attrs, :per_job_onedrive, "OneDriveCredential##{old.id} (job: #{old.job_id})")
-    end
-  rescue => e
-    Rails.logger.error "[MigrateMicrosoftCredentials] Error migrating per-job OneDrive credentials: #{e.message}"
+    Rails.logger.info "[MigrateMicrosoftCredentials] Skipping OneDriveCredential - legacy system removed Jan 2026"
   end
 
   def create_or_log(attrs, stat_key, source_desc)

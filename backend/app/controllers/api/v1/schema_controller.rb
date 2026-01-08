@@ -542,8 +542,8 @@ module Api
           "users" => "👥",
           "import_sessions" => "📥",
           "grok_plans" => "🤖",
-          "xero_credentials" => "🔐",
-          "one_drive_credentials" => "☁️"
+          "xero_credentials" => "🔐"
+          # REMOVED: one_drive_credentials - legacy table dropped Jan 2026
         }
 
         icons[table_name]

@@ -2168,15 +2168,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # SharePoint integration (per-job - legacy, URLs kept for backwards compatibility)
-      get "onedrive/authorize", to: "sharepoint_files#authorize"
-      get "onedrive/callback", to: "sharepoint_files#callback"
-      get "onedrive/status", to: "sharepoint_files#status"
-      delete "onedrive/disconnect", to: "sharepoint_files#disconnect"
-      post "onedrive/create_folders", to: "sharepoint_files#create_folders"
-      get "onedrive/folders", to: "sharepoint_files#list_items"
-      post "onedrive/upload", to: "sharepoint_files#upload"
-      get "onedrive/download", to: "sharepoint_files#download"
+      # REMOVED: Legacy per-job SharePoint routes (sharepoint_files_controller) - cleaned up Jan 2026
+      # Now using organization-wide SharePoint via MicrosoftCredential system
 
       # SharePoint integration (organization-wide, URLs kept for backwards compatibility)
       get "organization_onedrive/status", to: "organization_sharepoint#status"

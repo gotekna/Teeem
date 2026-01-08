@@ -374,20 +374,7 @@ class MicrosoftGraphClient
 
     root_folder = create_folder(root_folder_name, drive_id: drive_id)
 
-    # Update credential with folder information (for per-construction credentials)
-    # SSoT: SharePointCredential is the renamed OneDriveCredential
-    if @credential.is_a?(SharePointCredential)
-      @credential.update!(
-        drive_id: drive_id,
-        root_folder_id: root_folder["id"],
-        folder_path: root_folder_name,
-        metadata: @credential.metadata.merge({
-          root_folder_name: root_folder_name,
-          root_folder_web_url: root_folder["webUrl"],
-          created_at: Time.current
-        })
-      )
-    end
+    # REMOVED: Per-job SharePointCredential update - legacy system cleaned up Jan 2026
 
     # Create subfolders based on template
     create_subfolders_from_template(template, root_folder["id"], job_data)

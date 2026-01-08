@@ -2,13 +2,13 @@
 
 # MicrosoftCredential - Unified Single Source of Truth for all Microsoft/SharePoint credentials
 #
-# Replaces 6 separate credential models:
+# Replaces legacy credential models (all removed as of Jan 2026):
 # - OrganizationMicrosoftAppCredential (app credentials - client credentials flow)
 # - OrganizationSharePointCredential (org-level delegated)
 # - OrganizationOutlookCredential (org-level delegated)
 # - UserMicrosoftToken (user-level delegated)
-# - UserOutlookCredential (user-level delegated, legacy)
-# - OneDriveCredential (per-construction delegated)
+# - UserOutlookCredential (user-level delegated, removed Dec 2024)
+# - OneDriveCredential (per-job delegated, removed Jan 2026 - 0 records in prod)
 #
 # NAMING POLICY (SSoT):
 # - Internal (code): MicrosoftCredential, MicrosoftGraphClient
