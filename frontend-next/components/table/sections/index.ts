@@ -12,7 +12,7 @@
  * - Layer 4: TeeemTableView (backward-compatible orchestrator)
  *
  * @example
- * import { TableToolbar } from '@/components/table/sections';
+ * import { TableToolbar, TableHeaderSection, TableFooterSection } from '@/components/table/sections';
  *
  * <TableToolbar
  *   title="Jobs"
@@ -22,6 +22,17 @@
  * />
  */
 
-// Toolbar section
+// Toolbar section (new composable version)
 export { TableToolbar } from './TableToolbar';
 export type { TableToolbarProps } from './TableToolbar';
+
+// Re-export existing extracted sections from core/
+export { TableHeaderSection } from '../core/table-sections/TableHeaderSection';
+export type { TableHeaderSectionProps } from '../core/table-sections/TableHeaderSection';
+
+export { TableFooterSection } from '../core/table-sections/TableFooterSection';
+export type { TableFooterSectionProps } from '../core/table-sections/TableFooterSection';
+
+// Re-export virtualized table components
+export { VirtualizedGroupTable } from '../core/virtualization/VirtualizedGroupTable';
+export { VirtualizedFlatTable } from '../core/virtualization/VirtualizedFlatTable';

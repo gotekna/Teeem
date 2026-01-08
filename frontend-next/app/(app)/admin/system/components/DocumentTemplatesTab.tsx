@@ -87,14 +87,14 @@ export function DocumentTemplatesTab() {
   const handleTabChange = useCallback((tabId: string) => {
     const innerPath = innerTab !== "documents" ? `/inner/${innerTab}` : "";
     const url = tabId === "ssot"
-      ? `/admin/system/doc-templates${innerPath}`
-      : `/admin/system/doc-templates/${tabId}${innerPath}`;
+      ? `/admin/system/company/doc-templates${innerPath}`
+      : `/admin/system/company/doc-templates/${tabId}${innerPath}`;
     router.push(url, { scroll: false });
   }, [router, innerTab]);
 
   const handleInnerTabChange = (value: string) => {
     const subtabPath = subtabFromUrl ? `/${subtabFromUrl}` : "";
-    router.push(`/admin/system/doc-templates${subtabPath}/inner/${value}`, { scroll: false });
+    router.push(`/admin/system/company/doc-templates${subtabPath}/inner/${value}`, { scroll: false });
   };
 
   const [ssotTemplates, setSsotTemplates] = React.useState<SsotTemplate[]>([]);
