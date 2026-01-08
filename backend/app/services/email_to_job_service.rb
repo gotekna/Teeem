@@ -952,11 +952,13 @@ class EmailToJobService
       end
 
       if customer_contact && customer_email.present? && customer_contact.entity_type == "person"
+        # Only pass customer_company - DON'T fall back to sender_company
+        # We don't want to link external customers to internal Tekna companies
         enrichment_result = enrich_contact_with_company(
           customer_contact,
           customer_email,
           company_details,
-          customer_company || sender_company
+          customer_company  # NOT sender_company - that's internal
         )
         extracted_data["customer"]["enrichment"] = enrichment_result if enrichment_result
       end
