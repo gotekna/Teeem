@@ -3012,6 +3012,14 @@ export default function TeeemTableView({
     // Reset user selection flag when foundation changes (new context = fresh start)
     userSelectedViewRef.current = false;
 
+    // ⚠️ DO NOT REMOVE - Abort flag for async cleanup (v2701)
+    // ════════════════════════════════════════════════════════════════════
+    // Why: When component remounts (key change), old async effect can still
+    //      complete and apply view to global atoms, causing view conflicts.
+    //      The abort flag prevents applying view after unmount.
+    // ════════════════════════════════════════════════════════════════════
+    let aborted = false;
+
     const loadSavedViews = async () => {
       if (!effectiveFoundationId) return;
       if (disableSavedViews) {
@@ -3038,6 +3046,14 @@ export default function TeeemTableView({
         // Load views using atom (handles caching, mapping, sorting automatically)
         // Pass inheritViewsFrom to include global views from related foundations
         const result = await loadViews(effectiveFoundationId, inheritViewsFrom);
+
+        // ⚠️ ABORT CHECK - Prevents applying view after component unmounts (v2701)
+        // This is critical for template switching: old component's async effect
+        // must not apply view to global atoms after it unmounts
+        if (aborted) {
+          console.log('[loadSavedViews] Aborted - component unmounted during load');
+          return;
+        }
 
         if (!result.success) {
           console.error('[loadSavedViews] Failed to load views:', result.error);
@@ -3148,6 +3164,11 @@ export default function TeeemTableView({
 
     loadSavedViews();
 
+    // Cleanup: abort async operation if component unmounts before it completes
+    // This prevents the old component's effect from applying view to global atoms
+    return () => {
+      aborted = true;
+    };
   }, [effectiveFoundationId, preloadedViews, disableSavedViews, inheritViewsFrom]);
 
   // Expose loadViewState to parent via callback
