@@ -938,9 +938,26 @@ export function ScheduleMasterTab() {
       // v2709: ALWAYS auto-select template, even when view is in URL
       // Templates and views are independent - views filter WITHIN the selected template
       // Without a template selected, initialFilters is empty and table shows 0 records
-      // v2711: Use ref (not closure) to check CURRENT value after async await
-      console.log("[v2711 DEBUG] loadTemplates completed. dataViewTemplateIdRef.current =", dataViewTemplateIdRef.current);
-      if (!dataViewTemplateIdRef.current && loadedTemplates.length > 0) {
+      // v2711: Check sessionStorage for pending template ID (survives remount from router.push)
+      const pendingTemplateId = sessionStorage.getItem('sm_pending_template_id');
+      console.log("[v2711 DEBUG] loadTemplates completed. ref =", dataViewTemplateIdRef.current, "| sessionStorage =", pendingTemplateId);
+
+      if (pendingTemplateId) {
+        // User selected a template before remount - use it and clear storage
+        const templateId = parseInt(pendingTemplateId);
+        sessionStorage.removeItem('sm_pending_template_id');
+        console.log("[v2711 DEBUG] Using pending template from sessionStorage:", templateId);
+        if (loadedTemplates.some(t => t.id === templateId)) {
+          loadDataViewRows(templateId);
+        } else {
+          console.log("[v2711 DEBUG] Pending template not found in list, falling back to auto-select");
+          // Template not found (maybe deleted?), fall back to auto-select
+          const autoSelectTemplate = loadedTemplates[0];
+          if (autoSelectTemplate) {
+            loadDataViewRows(autoSelectTemplate.id);
+          }
+        }
+      } else if (!dataViewTemplateIdRef.current && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
@@ -2606,20 +2623,24 @@ export function ScheduleMasterTab() {
                         const newTemplateId = parseInt(value);
 
                         if (viewSlug) {
-                          // ⚠️ DO NOT SIMPLIFY - View must clear BEFORE template applies (v2695)
-                          // ═══════════════════════════════════════════════════════════════
+                          // ⚠️ DO NOT SIMPLIFY - View must clear BEFORE template applies (v2695, v2711)
+                          // ═══════════════════════════════════════════════════════════════════════════
                           // Why: TeeemTableView applies saved view filters when viewSlug is set.
                           //      If we set templateId while viewSlug is active, BOTH filters apply
                           //      → 0 records (template filter conflicts with view filter)
                           // Fix: Use overrideViewSlugClear to immediately tell TeeemTableView
                           //      to ignore the viewSlug. Then update URL (cosmetic).
-                          // Note: setTimeout didn't work because viewSlug comes from URL path
-                          //       which doesn't update synchronously with router.push.
-                          // ═══════════════════════════════════════════════════════════════
+                          //
+                          // v2711: router.push causes component REMOUNT, which resets all refs.
+                          //        Store template ID in sessionStorage to survive the remount.
+                          //        loadTemplates will check for this and skip auto-select.
+                          // ═══════════════════════════════════════════════════════════════════════════
                           pendingTemplateIdRef.current = newTemplateId; // Guard for handleViewChange
                           setOverrideViewSlugClear(true); // Immediately clear view for TeeemTableView
                           setDataViewTemplateId(newTemplateId);
                           setDataViewRefreshKey(k => k + 1);
+                          // v2711: Persist template ID through remount
+                          sessionStorage.setItem('sm_pending_template_id', String(newTemplateId));
                           router.push('/admin/system/schedule-master/data-view', { scroll: false });
                           // Clear ref after a tick to allow state to propagate
                           setTimeout(() => {
