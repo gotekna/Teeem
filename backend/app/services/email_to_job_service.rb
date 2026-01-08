@@ -749,54 +749,33 @@ class EmailToJobService
   def enrich_contact_with_company(person_contact, email, company_details, existing_company)
     result = { actions: [] }
 
-    Rails.logger.info "[ContactEnrichment] Starting for #{person_contact.display_name} (ID: #{person_contact.id})"
-    Rails.logger.info "[ContactEnrichment] Email: #{email}"
-    Rails.logger.info "[ContactEnrichment] company_details: #{company_details.inspect}"
-    Rails.logger.info "[ContactEnrichment] existing_company: #{existing_company&.display_name} (ID: #{existing_company&.id})"
-    Rails.logger.info "[ContactEnrichment] person entity_type: #{person_contact.entity_type}"
-    Rails.logger.info "[ContactEnrichment] person primary_company_id: #{person_contact.primary_company_id}"
-
     # Skip if already linked to a company
     if person_contact.primary_company_id.present?
       result[:skipped] = "Already linked to company"
-      Rails.logger.info "[ContactEnrichment] SKIP: Already linked to company #{person_contact.primary_company_id}"
       return result
     end
 
     # Skip if this IS a company (not a person)
     unless person_contact.entity_type == "person"
       result[:skipped] = "Contact is not a person"
-      Rails.logger.info "[ContactEnrichment] SKIP: entity_type=#{person_contact.entity_type} is not person"
       return result
     end
 
     domain = email.split("@").last&.downcase
-    if domain.blank?
-      Rails.logger.info "[ContactEnrichment] SKIP: domain is blank"
-      return result
-    end
+    return result if domain.blank?
 
     # Skip personal email domains
     personal_domains = %w[gmail.com yahoo.com hotmail.com outlook.com icloud.com live.com]
     if personal_domains.include?(domain)
       result[:skipped] = "Personal email domain"
-      Rails.logger.info "[ContactEnrichment] SKIP: personal email domain #{domain}"
       return result
     end
 
     # Try to find existing company by domain
     company = existing_company || find_company_by_email_domain(email)
-    Rails.logger.info "[ContactEnrichment] Found company by domain: #{company&.display_name} (ID: #{company&.id})"
 
     # If no company exists, create one from signature data
-    Rails.logger.info "[ContactEnrichment] Checking creation conditions:"
-    Rails.logger.info "[ContactEnrichment]   company.nil? = #{company.nil?}"
-    Rails.logger.info "[ContactEnrichment]   company_details.is_a?(Hash) = #{company_details.is_a?(Hash)}"
-    Rails.logger.info "[ContactEnrichment]   company_details['name'].present? = #{company_details.is_a?(Hash) && company_details['name'].present?}"
-    Rails.logger.info "[ContactEnrichment]   company_details['name'] = #{company_details.is_a?(Hash) ? company_details['name'].inspect : 'N/A'}"
-
     if company.nil? && company_details.is_a?(Hash) && company_details["name"].present?
-      Rails.logger.info "[ContactEnrichment] Creating company from signature..."
       company = create_company_from_signature(company_details, domain)
       if company
         result[:actions] << "Created company: #{company.display_name}"
