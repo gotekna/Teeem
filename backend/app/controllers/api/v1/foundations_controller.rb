@@ -876,7 +876,8 @@ module Api
                 is_multiple: col.is_multiple,
                 header_align: col.header_align,
                 data_align: col.data_align,
-                available_choices: col.available_choices
+                available_choices: col.available_choices,
+                settings: col.settings
               }
 
               # Add relationship information

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_08_120348) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_08_120349) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8478,6 +8478,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120348) do
     t.text "email_keywords"
     t.boolean "is_delegated_question", default: false, null: false
     t.bigint "job_claim_stage_id"
+    t.boolean "is_claim_task", default: false, null: false
+    t.decimal "claim_percentage"
+    t.string "claim_invoice_pattern"
+    t.integer "claim_invoice_template_id"
+    t.integer "claim_trading_name_id"
+    t.boolean "is_variation", default: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
@@ -9052,6 +9058,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120348) do
     t.index ["section_number"], name: "index_trinities_on_section_number"
     t.index ["severity"], name: "index_trinities_on_severity"
     t.index ["status"], name: "index_trinities_on_status"
+  end
+
+  create_table "units_of_measure", force: :cascade do |t|
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 50, null: false
+    t.string "description", limit: 100
+    t.integer "sort_order", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_units_of_measure_on_code", unique: true
+    t.index ["is_active"], name: "index_units_of_measure_on_is_active"
   end
 
   create_table "unreal_measurements", force: :cascade do |t|

@@ -3,10 +3,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlState } from "@/hooks/useUrlState";
-import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
-import { Plus } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
@@ -114,15 +112,9 @@ export default function PricebookPageClient({
     setRefreshKey(k => k + 1);
   }, []);
 
-  // Left actions - Back button + Add Item button
+  // Left actions - Back button only (Add button auto-provided by TeeemTableView)
   const leftActions = (
-    <div className="flex items-center gap-2">
-      <BackButton fallbackHref="/dashboard" />
-      <Button variant="default" size="sm" onClick={() => router.push('/pricebook/new')}>
-        <Plus className="h-4 w-4 mr-2" />
-        Add Item
-      </Button>
-    </div>
+    <BackButton fallbackHref="/dashboard" />
   );
 
   return (
@@ -137,6 +129,7 @@ export default function PricebookPageClient({
         onRowClick={handleRowClick}
         onRowDoubleClick={handleRowDoubleClick}
         onRowUpdate={handleRowUpdate}
+        addRowLabel="Add Item"
         leftActions={leftActions}
         // SSR Props - data pre-fetched on server for fast LCP
         initialColumns={initialColumns}
@@ -149,8 +142,12 @@ export default function PricebookPageClient({
         preloadedViews={initialViews as unknown as SavedView[]}
         // SSR Group Counts - prevents CLS from group count loading
         initialGroupCounts={initialGroupCounts}
-        // After refresh, autoFetchRecords takes over
+        // Auto-fetch limited to 200 records for fast page load
+        // Search still searches ALL records via server API
         autoFetchRecords
+        autoFetchLimit={200}
+        // Start with all groups collapsed (user sees categories first)
+        initialGroupsCollapsed
       />
 
       {/* Pricebook Detail Drawer */}

@@ -78,9 +78,11 @@ module Api
             foundation_searchable = @foundation.columns.where(searchable: true).pluck(:column_name)
 
             if foundation_searchable.any?
-              # Filter out array columns to prevent ILIKE errors
+              # Filter out array columns and tsvector columns to prevent ILIKE errors
               array_columns = model.columns.select(&:array).map(&:name)
-              foundation_searchable.reject { |col| array_columns.include?(col) }
+              tsvector_columns = model.columns.select { |c| c.type == :tsvector }.map(&:name)
+              excluded_columns = array_columns + tsvector_columns
+              foundation_searchable.reject { |col| excluded_columns.include?(col) }
             elsif @foundation.table_type == "system"
               # Fallback for system tables without column definitions: auto-detect text columns
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name).first(5)

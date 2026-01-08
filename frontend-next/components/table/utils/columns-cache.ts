@@ -117,6 +117,7 @@ function convertColumnsToTEEEMFormat(
     lookup_foundation_slug: col.lookup_foundation_slug ?? undefined,
     lookup_display_column: col.lookup_display_column ?? undefined,
     choices: col.choices,
+    settings: col.settings as TableColumn['settings'],
   }));
 }
 

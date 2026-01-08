@@ -524,6 +524,7 @@ export default function TeeemTableView({
   onLoadAll,
   hasMore: serverHasMore = false,
   autoFetchRecords = false,
+  autoFetchLimit, // Maximum records to auto-fetch before stopping (search still searches all)
   initialFilters,
   showDataHealth = false,
   onDataHealthIssueClick,
@@ -545,6 +546,8 @@ export default function TeeemTableView({
   initialGroupCounts,
   // Parent-triggered refresh signal (use instead of key={refreshKey} to avoid full remount)
   refreshTrigger,
+  // Start with all groups collapsed (showing only group headers)
+  initialGroupsCollapsed = false,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -810,14 +813,25 @@ export default function TeeemTableView({
     const cached = getCachedRecords(effectiveFoundationId);
     if (cached && cached.records.length > (initialRecords?.length || 0)) {
       // Cache has more records (user had scrolled/loaded more before)
-      // Restore from cache for better UX
-      console.log(`[RecordsCache] Restoring ${cached.records.length} records from cache (SSR had ${initialRecords?.length || 0})`);
-      setAutoFetchedRecords(cached.records as TableRowType[]);
-      setHasMore(cached.hasMore);
+      // Restore from cache for better UX, but respect autoFetchLimit if set
+      let recordsToRestore = cached.records as TableRowType[];
+      let hasMoreToRestore = cached.hasMore;
+
+      // If autoFetchLimit is set, only restore up to that limit
+      if (autoFetchLimit !== undefined && recordsToRestore.length > autoFetchLimit) {
+        console.log(`[RecordsCache] Limiting cache restore to ${autoFetchLimit} records (cache had ${recordsToRestore.length})`);
+        recordsToRestore = recordsToRestore.slice(0, autoFetchLimit);
+        hasMoreToRestore = true; // There are more records available
+      } else {
+        console.log(`[RecordsCache] Restoring ${recordsToRestore.length} records from cache (SSR had ${initialRecords?.length || 0})`);
+      }
+
+      setAutoFetchedRecords(recordsToRestore);
+      setHasMore(hasMoreToRestore);
       hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
     }
     hasCacheRestoredRef.current = true;
-  }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext]);
+  }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext, autoFetchLimit]);
 
   // Auto-fetch columns when effectiveFoundationId is set
   // ULTRA: Uses module-level cache for instant loading on repeat visits
@@ -948,8 +962,34 @@ export default function TeeemTableView({
     clearAllUserFilters,
   } = useFilterState();
 
+  // Track if filters have been initialized for this foundation
+  // This prevents using stale filter data from previous foundation on first render
+  const filtersInitializedRef = useRef<string | number | null>(null);
+  const isFiltersStale = filtersInitializedRef.current !== effectiveFoundationId;
+
   // Defensive: ensure cascadeFilters is always an array for .map/.length calls
-  const safeFilters = useMemo(() => Array.isArray(cascadeFilters) ? cascadeFilters : [], [cascadeFilters]);
+  // FIX: On first render for a new foundation, ALWAYS use initialView filters (even if empty)
+  // This prevents stale atom data from filtering incorrectly until atoms are synced
+  const safeFilters = useMemo(() => {
+    // If filters haven't been initialized for this foundation, use SSR filters
+    if (isFiltersStale) {
+      // initialView?.filters?.cascadeFilters takes precedence (SSR source of truth)
+      // If no initialView, return empty array (not stale atom data)
+      const ssrFilters = initialView?.filters?.cascadeFilters || [];
+      return ssrFilters as CascadeFilter[];
+    }
+    // After initialization, use atom data (which has been synced by useLayoutEffect)
+    return Array.isArray(cascadeFilters) ? cascadeFilters : [];
+  }, [cascadeFilters, isFiltersStale, initialView]);
+
+  // Mark filters as initialized after atoms have been synced
+  // This runs AFTER the main foundation change useLayoutEffect which clears/sets filters
+  useLayoutEffect(() => {
+    if (effectiveFoundationId && filtersInitializedRef.current !== effectiveFoundationId) {
+      // Small delay to ensure this runs after the filter-clearing useLayoutEffect
+      filtersInitializedRef.current = effectiveFoundationId;
+    }
+  }, [effectiveFoundationId, cascadeFilters]); // Include cascadeFilters to re-run after atoms are synced
 
   // Keep cascadeFiltersRef in sync for use in search handler (prevents stale closure)
   // CRITICAL: useLayoutEffect ensures ref is updated BEFORE any user interaction
@@ -1128,8 +1168,10 @@ export default function TeeemTableView({
     // 2. No more records to load
     // 3. Already loading
     // 4. No records yet (initial state)
+    // 5. Reached autoFetchLimit (if specified) - search still works via server API
     // NOTE: Background loading continues even during search - client-side filtering shows matches as they load
-    if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0) return;
+    const reachedLimit = autoFetchLimit !== undefined && autoFetchedRecords.length >= autoFetchLimit;
+    if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0 || reachedLimit) return;
 
     const timer = setTimeout(async () => {
       // Re-check conditions inside timeout (state may have changed)
@@ -1178,7 +1220,7 @@ export default function TeeemTableView({
 
     return () => clearTimeout(timer);
     // ULTRA FIX: safeFilters removed from deps - view filters are client-side only
-  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId, baseFilters]);
+  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, effectiveFoundationId, baseFilters, autoFetchLimit]);
 
   // Server-side search for auto-fetch mode
   // Supports all search modes: contains (default), exact, starts_with, fuzzy, regex
@@ -1733,14 +1775,14 @@ export default function TeeemTableView({
   // IMPORTANT: Pass safeFilters so group counts respect saved views and cascade filters
   // Use validGroupByColumnForApi to prevent API errors from computed columns
 
-  // Debug: Log why groups API might not be called
-  console.log('[TeeemTableView] Groups API params:', {
-    effectiveFoundationId,
-    groupByColumn,
-    validGroupByColumnForApi,
-    groupByColumnsLength: groupByColumns.length, // ULTRA: Hook provides SSR-aware values
-    enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
-  });
+  // Debug: Log why groups API might not be called (disabled to reduce console noise during auto-fetch)
+  // console.log('[TeeemTableView] Groups API params:', {
+  //   effectiveFoundationId,
+  //   groupByColumn,
+  //   validGroupByColumnForApi,
+  //   groupByColumnsLength: groupByColumns.length, // ULTRA: Hook provides SSR-aware values
+  //   enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
+  // });
 
   // SSR: Convert initialGroupCounts to hook's expected format
   const ssrGroupCountsData = useMemo(() => {
@@ -2238,7 +2280,10 @@ export default function TeeemTableView({
 
       // If all records loaded AND not clearing a search, search client-side only
       // But if clearing search, always refresh to restore full dataset
-      if (!isClearing && !hasMore && autoFetchedRecords.length > 0) {
+      // IMPORTANT: When autoFetchLimit is set, we intentionally don't have all records
+      // so always use server-side search (server searches the full database)
+      const hasLimitedRecords = autoFetchLimit !== undefined;
+      if (!isClearing && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords) {
         console.log('[TeeemTableView] All records loaded, searching client-side');
         return; // Skip API call - safe because we truly have all records
       }
@@ -2253,7 +2298,7 @@ export default function TeeemTableView({
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit]
   );
 
   const handleSearchAllChange = useCallback(
@@ -3591,12 +3636,15 @@ export default function TeeemTableView({
   // Filter and sort entries using extracted utility functions
   // IMPORTANT: Use effectiveEntries (not raw entries) to support auto-fetch mode
   const filteredAndSortedEntries = useMemo(() => {
-    // Debug: Log filtering state on each recalculation
-    console.log('[TeeemTableView] Filtering entries:', {
-      effectiveEntriesCount: effectiveEntries.length,
-      safeFiltersCount: safeFilters.length,
-      filterDetails: safeFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
-    });
+    // Debug: Log filtering state - only when filters are active or records are empty
+    // This reduces console noise during normal auto-fetch operation
+    if (safeFilters.length > 0 || effectiveEntries.length === 0) {
+      console.log('[TeeemTableView] Filtering entries:', {
+        effectiveEntriesCount: effectiveEntries.length,
+        safeFiltersCount: safeFilters.length,
+        filterDetails: safeFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
+      });
+    }
     let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
@@ -3634,11 +3682,14 @@ export default function TeeemTableView({
       // Use extracted utility function for filters
       const beforeCount = result.length;
       result = applyFilters(result, safeFilters, filterGroups, interGroupLogic);
-      console.log('[TeeemTableView] After applying filters:', {
-        beforeCount,
-        afterCount: result.length,
-        filtered: beforeCount - result.length,
-      });
+      // Only log if filtering actually removed records (reduces noise)
+      if (beforeCount !== result.length) {
+        console.log('[TeeemTableView] After applying filters:', {
+          beforeCount,
+          afterCount: result.length,
+          filtered: beforeCount - result.length,
+        });
+      }
     }
 
     // Apply sorting using extracted utility function
@@ -3843,8 +3894,24 @@ export default function TeeemTableView({
       const allKeys = getAllGroupKeys(groupedEntries);
       setCollapsedGroups(new Set(allKeys));
     }
-     
+
   }, [groupedEntries, collapsedGroups, getAllGroupKeys]);
+
+  // Initialize with all groups collapsed when initialGroupsCollapsed is true
+  const initialCollapseAppliedRef = useRef(false);
+  useEffect(() => {
+    if (initialGroupsCollapsed && !initialCollapseAppliedRef.current) {
+      initialCollapseAppliedRef.current = true;
+      if (groupedEntries) {
+        // If groupedEntries is already available, collapse all immediately
+        const allKeys = getAllGroupKeys(groupedEntries);
+        setCollapsedGroups(new Set(allKeys));
+      } else {
+        // Otherwise, set the pending marker for the other effect to handle
+        setCollapsedGroups(new Set(['__collapse_all_pending__']));
+      }
+    }
+  }, [initialGroupsCollapsed, groupedEntries, getAllGroupKeys, setCollapsedGroups]);
 
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {

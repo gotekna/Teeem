@@ -800,15 +800,15 @@ module Api
 
         # Eager load associations for show/history actions to avoid N+1 queries
         # This reduces the show action from ~300ms to ~50ms
-        eager_load_associations = if %w[show history].include?(action_name)
-          [:supplier, :default_supplier, { price_histories: :supplier }]
+        base_query = if %w[show history].include?(action_name)
+          PricebookItem.includes(:supplier, :default_supplier, { price_histories: :supplier })
         else
-          []
+          PricebookItem
         end
 
         if id_or_slug.to_s.match?(/\A\d+\z/)
           # Numeric ID - direct lookup
-          @item = PricebookItem.includes(*eager_load_associations).find(id_or_slug)
+          @item = base_query.find(id_or_slug)
         else
           # Slug - search by item_code
           # Remove the _God_Loves_You_ suffix if present
@@ -816,14 +816,12 @@ module Api
 
           # Try URL-decoded exact match first (for codes with periods, special chars)
           decoded_code = CGI.unescape(slug)
-          @item = PricebookItem.includes(*eager_load_associations)
-                              .where("LOWER(item_code) = ?", decoded_code.downcase).first
+          @item = base_query.where("LOWER(item_code) = ?", decoded_code.downcase).first
 
           # Fallback to fuzzy search if exact match fails (for old slugified URLs)
           unless @item
             search_term = slug.gsub("-", " ")
-            @item = PricebookItem.includes(*eager_load_associations)
-                                .where("LOWER(item_code) LIKE ?", "%#{search_term.downcase}%").first
+            @item = base_query.where("LOWER(item_code) LIKE ?", "%#{search_term.downcase}%").first
           end
 
           raise ActiveRecord::RecordNotFound, "Pricebook item not found with slug: #{id_or_slug}" unless @item
@@ -843,7 +841,8 @@ module Api
           :brand,
           :notes,
           :is_active,
-          :needs_pricing_review
+          :needs_pricing_review,
+          :gst_code
         )
       end
 
