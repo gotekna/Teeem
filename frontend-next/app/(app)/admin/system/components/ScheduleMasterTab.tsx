@@ -331,11 +331,14 @@ export function ScheduleMasterTab() {
   // URL view param (Foundation view filter) - only for data-view tab
   const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;
 
-  // Effect: Trigger refresh AFTER viewSlug clears following a template change
-  // This ensures the table remounts without the old view filters
+  // Effect: Apply pending template ID AFTER viewSlug clears
+  // This ensures the template change happens AFTER the URL updates,
+  // so TeeemTableView never sees both old viewSlug AND new template ID
   React.useEffect(() => {
-    if (pendingTemplateClearRef.current && !viewSlug) {
-      pendingTemplateClearRef.current = false;
+    if (pendingTemplateIdRef.current !== null && !viewSlug) {
+      const newTemplateId = pendingTemplateIdRef.current;
+      pendingTemplateIdRef.current = null;
+      setDataViewTemplateId(newTemplateId);
       setDataViewRefreshKey(k => k + 1);
     }
   }, [viewSlug]);
@@ -354,7 +357,7 @@ export function ScheduleMasterTab() {
   } | null) => {
     // Skip navigation if we're clearing the view for a template change
     // Otherwise this would navigate back to the old view URL, overriding our clear
-    if (pendingTemplateClearRef.current) return;
+    if (pendingTemplateIdRef.current !== null) return;
 
     if (view?.slug) {
       router.push(`/admin/system/schedule-master/data-view/${view.slug}`, { scroll: false });
@@ -408,12 +411,14 @@ export function ScheduleMasterTab() {
   // ════════════════════════════════════════════════════════════════════
   // Why: When selecting a template while a saved view is active, we need to:
   //      1. Clear the URL (remove view slug)
-  //      2. THEN refresh the table
-  // ❌ WRONG: setTimeout - pathname may not update in time, causing 0 records
-  // ✅ CORRECT: Use ref + useEffect to wait for viewSlug to actually clear
+  //      2. Wait for URL to actually change (viewSlug becomes undefined)
+  //      3. THEN set the new template ID and refresh the table
+  // ❌ WRONG: setDataViewTemplateId before URL changes - causes re-render
+  //           with old viewSlug, resulting in 0 records (conflicting filters)
+  // ✅ CORRECT: Store pending template in ref, apply AFTER viewSlug clears
   // ════════════════════════════════════════════════════════════════════
-  // v2692: Template dropdown race condition fix
-  const pendingTemplateClearRef = React.useRef(false);
+  // v2693: Fixed - defer template ID change until after URL clears
+  const pendingTemplateIdRef = React.useRef<number | null>(null);
 
   // Gantt V2 state - template ID for selection
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
@@ -2566,16 +2571,17 @@ export function ScheduleMasterTab() {
                     value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
                     onValueChange={(value) => {
                       if (value) {
-                        // SSoT: Update template ID
-                        setDataViewTemplateId(parseInt(value));
+                        const newTemplateId = parseInt(value);
 
                         if (viewSlug) {
-                          // View is active - mark pending and clear URL
-                          // useEffect will trigger refresh AFTER viewSlug actually clears
-                          pendingTemplateClearRef.current = true;
+                          // View is active - store template ID in ref and clear URL
+                          // useEffect will apply the template AFTER viewSlug clears
+                          // This prevents the re-render with old viewSlug + new templateId
+                          pendingTemplateIdRef.current = newTemplateId;
                           router.push('/admin/system/schedule-master/data-view', { scroll: false });
                         } else {
-                          // No view active, refresh immediately
+                          // No view active, apply template immediately
+                          setDataViewTemplateId(newTemplateId);
                           setDataViewRefreshKey(k => k + 1);
                         }
                       }
